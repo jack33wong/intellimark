@@ -13,6 +13,9 @@ function App() {
   const [currentChat, setCurrentChat] = useState(null);
   const [chats, setChats] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // API base URL for development vs production
+  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
   /**
    * Create a new chat session
@@ -20,7 +23,7 @@ function App() {
   const createNewChat = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/chat/new', {
+      const response = await fetch(`${API_BASE}/api/chat/new`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,7 +47,7 @@ function App() {
    */
   const loadChats = async () => {
     try {
-      const response = await fetch('/api/chat');
+      const response = await fetch(`${API_BASE}/api/chat`);
       if (response.ok) {
         const chatList = await response.json();
         setChats(chatList);
@@ -64,7 +67,7 @@ function App() {
    */
   const deleteChat = async (chatId) => {
     try {
-      const response = await fetch(`/api/chat/${chatId}`, {
+      const response = await fetch(`${API_BASE}/api/chat/${chatId}`, {
         method: 'DELETE',
       });
       

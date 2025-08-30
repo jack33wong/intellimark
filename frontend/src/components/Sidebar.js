@@ -28,13 +28,16 @@ function Sidebar({
 }) {
   const navigate = useNavigate();
   const [userProgress, setUserProgress] = useState(null);
+  
+  // API base URL for development vs production
+  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
   /**
    * Load user progress data
    */
   const loadUserProgress = async () => {
     try {
-      const response = await fetch('/api/user/progress');
+      const response = await fetch(`${API_BASE}/api/user/progress`);
       if (response.ok) {
         const progress = await response.json();
         setUserProgress(progress);

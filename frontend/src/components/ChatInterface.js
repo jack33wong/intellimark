@@ -16,6 +16,9 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  
+  // API base URL for development vs production
+  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
   /**
    * Scroll to bottom of messages
@@ -30,7 +33,7 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
   const loadMessages = async (chatId) => {
     try {
       setError(null);
-      const response = await fetch(`/api/chat/${chatId}/messages`);
+      const response = await fetch(`${API_BASE}/api/chat/${chatId}/messages`);
       if (response.ok) {
         const chatMessages = await response.json();
         setMessages(chatMessages);
@@ -54,7 +57,7 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/chat/${currentChat.id}/message`, {
+      const response = await fetch(`${API_BASE}/api/chat/${currentChat.id}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
