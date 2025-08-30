@@ -166,6 +166,22 @@
   margin-bottom: 0;
 }
 
+.upload-button-group {
+  display: flex;
+  align-items: flex-end;
+}
+
+.upload-btn {
+  width: 100%;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
 /* Responsive design for compact form */
 @media (max-width: 1200px) {
   .form-row.compact {

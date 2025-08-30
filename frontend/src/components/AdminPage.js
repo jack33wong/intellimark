@@ -6,13 +6,9 @@ import {
   Trash2, 
   Edit, 
   Download, 
-  Search,
-  Filter,
   Plus,
   EyeOff,
-  ArrowLeft,
-  Calendar,
-  BookOpen
+  ArrowLeft
 } from 'lucide-react';
 import './AdminPage.css';
 
@@ -23,9 +19,6 @@ import './AdminPage.css';
 function AdminPage() {
   const navigate = useNavigate();
   const [pastPapers, setPastPapers] = useState([]);
-  const [examBoards, setExamBoards] = useState([]);
-  const [years, setYears] = useState([]);
-  const [levels, setLevels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
@@ -40,13 +33,7 @@ function AdminPage() {
     pdfFile: null
   });
   
-  // Filter state
-  const [filters, setFilters] = useState({
-    examBoard: '',
-    year: '',
-    level: '',
-    searchTerm: ''
-  });
+
   
   // Edit state
   const [editingPaper, setEditingPaper] = useState(null);
@@ -56,38 +43,18 @@ function AdminPage() {
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
   /**
-   * Load all past papers and metadata
+   * Load all past papers
    */
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const [papersRes, boardsRes, yearsRes, levelsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/past-papers`),
-        fetch(`${API_BASE}/api/admin/exam-boards`),
-        fetch(`${API_BASE}/api/admin/years`),
-        fetch(`${API_BASE}/api/admin/levels`)
-      ]);
+      const papersRes = await fetch(`${API_BASE}/api/admin/past-papers`);
 
       if (papersRes.ok) {
         const papers = await papersRes.json();
         setPastPapers(papers);
-      }
-      
-      if (boardsRes.ok) {
-        const boards = await boardsRes.json();
-        setExamBoards(boards);
-      }
-      
-      if (yearsRes.ok) {
-        const yearsData = await yearsRes.json();
-        setYears(yearsData);
-      }
-      
-      if (levelsRes.ok) {
-        const levelsData = await levelsRes.json();
-        setLevels(levelsData);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -377,23 +344,8 @@ function AdminPage() {
     }
   };
 
-  /**
-   * Filter past papers based on current filters
-   */
-  const filteredPapers = pastPapers.filter(paper => {
-    if (filters.examBoard && paper.examBoard !== filters.examBoard) return false;
-    if (filters.year && paper.year !== filters.year) return false;
-    if (filters.level && paper.level !== filters.level) return false;
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      return (
-        paper.level.toLowerCase().includes(searchLower) ||
-        paper.examBoard.toLowerCase().includes(searchLower) ||
-        paper.type.toLowerCase().includes(searchLower)
-      );
-    }
-    return true;
-  });
+  // Show all papers since filters were removed
+  const filteredPapers = pastPapers;
 
   // Load data on component mount
   useEffect(() => {
@@ -458,10 +410,8 @@ function AdminPage() {
       {/* Upload Form */}
       {showUploadForm && (
         <div className="upload-form">
-          <h2>Upload New Past Paper</h2>
-          <p className="upload-hint">
-            💡 <strong>Auto-fill:</strong> Supports <code>ExamBoard-Year-Level-Type.pdf</code> or <code>ExamBoard-PaperCode-Type-MonthYear.pdf</code> formats
-          </p>
+          <h2>Upload Past Paper</h2>
+
           <form onSubmit={handleFileUpload}>
             <div className="form-row compact">
               <div className="form-group">
@@ -546,77 +496,22 @@ function AdminPage() {
                   required
                 />
               </div>
-              <div className="form-group">
-                <button type="submit" className="btn btn-primary" disabled={loading}>
+              <div className="form-group upload-button-group">
+                <button type="submit" className="btn btn-primary upload-btn" disabled={loading}>
                   <Upload size={16} />
                   {loading ? 'Uploading...' : 'Upload Paper'}
                 </button>
               </div>
             </div>
             
-            <div className="form-info">
-              <small>💡 <strong>Auto-fill:</strong> Information extracted from filename. Year range: 1900-2100. Max file size: 50MB.</small>
-            </div>
+
 
 
           </form>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="filters-section">
-        <h3>Filters</h3>
-        <div className="filters">
-          <div className="filter-group">
-            <Search size={16} />
-            <input
-              type="text"
-              placeholder="Search papers..."
-              value={filters.searchTerm}
-              onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-            />
-          </div>
-          
-          <div className="filter-group">
-            <Filter size={16} />
-            <select
-              value={filters.examBoard}
-              onChange={(e) => setFilters(prev => ({ ...prev, examBoard: e.target.value }))}
-            >
-              <option value="">All Exam Boards</option>
-              {examBoards.map(board => (
-                <option key={board} value={board}>{board}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <Calendar size={16} />
-            <select
-              value={filters.year}
-              onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}
-            >
-              <option value="">All Years</option>
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <BookOpen size={16} />
-            <select
-              value={filters.level}
-              onChange={(e) => setFilters(prev => ({ ...prev, level: e.target.value }))}
-            >
-              <option value="">All Levels</option>
-              {levels.map(level => (
-                <option key={level} value={level}>{level}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+
 
       {/* Past Papers List */}
       <div className="papers-section">
