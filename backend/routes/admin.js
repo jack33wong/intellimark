@@ -151,7 +151,7 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
       filePath: newFilePath,
       fileSize: req.file.size,
       uploadedAt: new Date().toISOString(),
-      downloadCount: 0
+
     };
 
     console.log('Created past paper object:', pastPaper);
@@ -354,40 +354,7 @@ router.get('/qualifications', (req, res) => {
   }
 });
 
-/**
- * Download a past paper PDF
- * @route GET /api/admin/past-papers/:id/download
- * @param {string} id - The past paper ID
- * @returns {File} PDF file stream
- */
-router.get('/past-papers/:id/download', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const paper = pastPapers.find(p => p.id === id);
-    
-    if (!paper) {
-      return res.status(404).json({ error: 'Past paper not found' });
-    }
 
-    // Increment download count
-    paper.downloadCount++;
-    
-    // Update download count in Firestore
-    try {
-      await db.collection('pastPapers').doc(id).update({
-        downloadCount: paper.downloadCount
-      });
-    } catch (firestoreError) {
-      console.error('Firestore download count update error:', firestoreError);
-    }
-    
-    // Send file
-    res.download(paper.filePath, paper.originalName);
-  } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ error: 'Failed to download past paper' });
-  }
-});
 
 /**
  * Sync data from Firestore to local storage

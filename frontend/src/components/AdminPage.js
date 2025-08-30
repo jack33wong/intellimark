@@ -5,7 +5,6 @@ import {
   FileText, 
   Trash2, 
   Edit, 
-  Download, 
   ArrowLeft
 } from 'lucide-react';
 import './AdminPage.css';
@@ -347,17 +346,7 @@ function AdminPage() {
     }
   };
 
-  /**
-   * Download a past paper
-   */
-  const handleDownload = async (id) => {
-    try {
-      window.open(`${API_BASE}/api/admin/past-papers/${id}/download`, '_blank');
-    } catch (error) {
-      console.error('Download error:', error);
-      setError('Failed to download past paper');
-    }
-  };
+
 
   // Show all papers since filters were removed
   const filteredPapers = pastPapers;
@@ -530,61 +519,65 @@ function AdminPage() {
             <p>No past papers found. Upload your first paper above!</p>
           </div>
         ) : (
-          <div className="papers-grid">
+          <div className="papers-table-container">
+            <table className="papers-table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Exam Board</th>
+                  <th>Year</th>
+                  <th>Level</th>
+                  <th>Paper</th>
+                  <th>Type</th>
+                  <th>Qualification</th>
+                  <th>File Size</th>
+                  <th>Uploaded</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPapers.map(paper => (
+                  <tr key={paper.id} className="paper-row">
+                    <td className="file-cell">
+                      <div className="file-info">
+                        <FileText size={20} />
+                        <span className="filename">{paper.originalName}</span>
+                      </div>
+                    </td>
+                    <td>{paper.examBoard}</td>
+                    <td>{paper.year}</td>
+                    <td>{paper.level}</td>
+                    <td>{paper.paper}</td>
+                    <td>{paper.type}</td>
+                    <td>{paper.qualification}</td>
+                    <td>{formatFileSize(paper.fileSize)}</td>
+                    <td>{formatDate(paper.uploadedAt)}</td>
+                    <td className="actions-cell">
+                      <button
+                        className="btn-icon"
+                        onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
+                        title="Edit"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        className="btn-icon"
+                        onClick={() => handleDelete(paper.id)}
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            
             {filteredPapers.map(paper => (
-              <div key={paper.id} className="paper-card">
-                <div className="paper-header">
-                  <div className="paper-icon">
-                    <FileText size={24} />
-                  </div>
-                  <div className="paper-actions">
-                    <button
-                      className="btn-icon"
-                      onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
-                      title="Edit"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      className="btn-icon"
-                      onClick={() => handleDelete(paper.id)}
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="paper-content">
-                  <h4>{paper.level} - {paper.paper}</h4>
-                  <p className="paper-meta">
-                    <span className="exam-board">{paper.examBoard}</span>
-                    <span className="year">{paper.year}</span>
-                    <span className="paper-type">{paper.type}</span>
-                    <span className="qualification">{paper.qualification}</span>
-                  </p>
-                  
-                  <div className="paper-details">
-                    <span className="file-size">{formatFileSize(paper.fileSize)}</span>
-                    <span className="upload-date">{formatDate(paper.uploadedAt)}</span>
-                    <span className="downloads">{paper.downloadCount} downloads</span>
-                  </div>
-                </div>
-
-                <div className="paper-footer">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleDownload(paper.id)}
-                  >
-                    <Download size={16} />
-                    Download
-                  </button>
-                </div>
-
-                {/* Edit Form */}
-                {editingPaper === paper.id && (
+              editingPaper === paper.id && (
+                <div key={`edit-${paper.id}`} className="edit-form-overlay">
                   <div className="edit-form">
-                    <h5>Edit Paper Details</h5>
+                    <h4>Edit Past Paper</h4>
                     <form onSubmit={(e) => {
                       e.preventDefault();
                       const formData = new FormData(e.target);
@@ -655,8 +648,8 @@ function AdminPage() {
                       </div>
                     </form>
                   </div>
-                )}
-              </div>
+                </div>
+              )
             ))}
           </div>
         )}

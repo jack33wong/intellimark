@@ -337,101 +337,68 @@
   line-height: 1.6;
 }
 
-/* Papers Grid */
-.papers-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
-}
-
-.paper-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  transition: all 0.2s ease;
-}
-
-.paper-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-}
-
-.paper-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px;
+/* Papers Table */
+.papers-table-container {
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-top: 24px;
 }
 
-.paper-icon {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
+.papers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.papers-table th {
+  background: #f8fafc;
+  padding: 16px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.papers-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.papers-table tr:hover {
+  background: #f9fafb;
+}
+
+.paper-row:last-child td {
+  border-bottom: none;
+}
+
+.file-cell {
+  min-width: 200px;
+}
+
+.file-info {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: white;
-}
-
-.paper-actions {
-  display: flex;
   gap: 8px;
 }
 
-.paper-content {
-  padding: 20px;
-}
-
-.paper-content h4 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 12px;
-}
-
-.paper-meta {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.paper-meta span {
-  padding: 4px 8px;
-  background: #e0e7ff;
-  color: #3730a3;
-  border-radius: 6px;
-  font-size: 12px;
+.filename {
   font-weight: 500;
+  color: #1f2937;
+  word-break: break-word;
 }
 
-.paper-meta .exam-board {
-  background: #dbeafe;
-  color: #1e40af;
+.actions-cell {
+  text-align: center;
+  min-width: 100px;
 }
 
-.paper-meta .year {
-  background: #dcfce7;
-  color: #166534;
+.actions-cell .btn-icon {
+  margin: 0 4px;
 }
-
-.paper-meta .paper-type {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.description {
-  color: #64748b;
-  font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 16px;
-}
-
-.paper-details {
   display: flex;
   gap: 16px;
   font-size: 12px;
