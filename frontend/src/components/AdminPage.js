@@ -6,8 +6,6 @@ import {
   Trash2, 
   Edit, 
   Download, 
-  Plus,
-  EyeOff,
   ArrowLeft
 } from 'lucide-react';
 import './AdminPage.css';
@@ -37,7 +35,6 @@ function AdminPage() {
   
   // Edit state
   const [editingPaper, setEditingPaper] = useState(null);
-  const [showUploadForm, setShowUploadForm] = useState(true);
   
   // API base URL for development vs production
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
@@ -105,7 +102,7 @@ function AdminPage() {
           qualification: 'GCSE',
           pdfFile: null
         });
-        setShowUploadForm(false);
+
         setError(null);
       } else {
         const errorData = await response.json();
@@ -391,13 +388,7 @@ function AdminPage() {
           </button>
           <h1>Admin Dashboard - Past Papers Management</h1>
         </div>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowUploadForm(!showUploadForm)}
-        >
-          {showUploadForm ? <EyeOff size={16} /> : <Plus size={16} />}
-          {showUploadForm ? 'Hide Upload Form' : 'Show Upload Form'}
-        </button>
+
       </div>
 
       {error && (
@@ -408,9 +399,8 @@ function AdminPage() {
       )}
 
       {/* Upload Form */}
-      {showUploadForm && (
-        <div className="upload-form">
-          <h2>Upload Past Paper</h2>
+      <div className="upload-form">
+        <h2>Upload Past Paper</h2>
 
           <form onSubmit={handleFileUpload}>
             <div className="form-row compact">
@@ -509,7 +499,6 @@ function AdminPage() {
 
           </form>
         </div>
-      )}
 
 
 
@@ -520,7 +509,7 @@ function AdminPage() {
         {filteredPapers.length === 0 ? (
           <div className="no-papers">
             <FileText size={48} />
-            <p>No past papers found. {showUploadForm ? 'Upload your first paper above!' : 'Click "Upload New Paper" to get started.'}</p>
+            <p>No past papers found. Upload your first paper above!</p>
           </div>
         ) : (
           <div className="papers-grid">
