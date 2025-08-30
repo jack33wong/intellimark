@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
+const { db, admin } = require('../config/firebase');
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -154,6 +155,21 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
     };
 
     console.log('Created past paper object:', pastPaper);
+    
+    // Save metadata to Firestore
+    try {
+      const docRef = await db.collection('pastPapers').doc(pastPaper.id).set({
+        ...pastPaper,
+        // Convert Date to Firestore Timestamp
+        uploadedAt: admin.firestore.Timestamp.fromDate(new Date(pastPaper.uploadedAt))
+      });
+      console.log('Metadata saved to Firestore with ID:', docRef.id);
+    } catch (firestoreError) {
+      console.error('Firestore save error:', firestoreError);
+      // Continue with local storage even if Firestore fails
+    }
+    
+    // Keep local storage for backward compatibility
     pastPapers.push(pastPaper);
     
     res.status(201).json({
@@ -190,6 +206,15 @@ router.delete('/past-papers/:id', async (req, res) => {
       console.warn('File not found for deletion:', fileError.message);
     }
 
+    // Remove from Firestore
+    try {
+      await db.collection('pastPapers').doc(id).delete();
+      console.log('Metadata removed from Firestore');
+    } catch (firestoreError) {
+      console.error('Firestore delete error:', firestoreError);
+      // Continue with local deletion even if Firestore fails
+    }
+    
     // Remove from metadata
     pastPapers.splice(paperIndex, 1);
     
@@ -206,7 +231,7 @@ router.delete('/past-papers/:id', async (req, res) => {
  * @param {string} id - The past paper ID
  * @returns {Object} Updated past paper
  */
-router.put('/past-papers/:id', (req, res) => {
+router.put('/past-papers/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { examBoard, year, level, paper, type, qualification } = req.body;
@@ -218,7 +243,7 @@ router.put('/past-papers/:id', (req, res) => {
     }
 
     // Update metadata
-    pastPapers[paperIndex] = {
+    const updatedPaper = {
       ...pastPapers[paperIndex],
       examBoard: examBoard || pastPapers[paperIndex].examBoard,
       year: year || pastPapers[paperIndex].year,
@@ -229,9 +254,29 @@ router.put('/past-papers/:id', (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
+    // Update in Firestore
+    try {
+      await db.collection('pastPapers').doc(id).update({
+        examBoard: updatedPaper.examBoard,
+        year: updatedPaper.year,
+        level: updatedPaper.level,
+        paper: updatedPaper.paper,
+        type: updatedPaper.type,
+        qualification: updatedPaper.qualification,
+        updatedAt: admin.firestore.Timestamp.fromDate(new Date(updatedPaper.updatedAt))
+      });
+      console.log('Metadata updated in Firestore');
+    } catch (firestoreError) {
+      console.error('Firestore update error:', firestoreError);
+      // Continue with local update even if Firestore fails
+    }
+
+    // Update local storage
+    pastPapers[paperIndex] = updatedPaper;
+
     res.json({
       message: 'Past paper updated successfully',
-      pastPaper: pastPapers[paperIndex]
+      pastPaper: updatedPaper
     });
   } catch (error) {
     console.error('Update error:', error);
@@ -315,7 +360,7 @@ router.get('/qualifications', (req, res) => {
  * @param {string} id - The past paper ID
  * @returns {File} PDF file stream
  */
-router.get('/past-papers/:id/download', (req, res) => {
+router.get('/past-papers/:id/download', async (req, res) => {
   try {
     const { id } = req.params;
     const paper = pastPapers.find(p => p.id === id);
@@ -327,11 +372,59 @@ router.get('/past-papers/:id/download', (req, res) => {
     // Increment download count
     paper.downloadCount++;
     
+    // Update download count in Firestore
+    try {
+      await db.collection('pastPapers').doc(id).update({
+        downloadCount: paper.downloadCount
+      });
+    } catch (firestoreError) {
+      console.error('Firestore download count update error:', firestoreError);
+    }
+    
     // Send file
     res.download(paper.filePath, paper.originalName);
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Failed to download past paper' });
+  }
+});
+
+/**
+ * Sync data from Firestore to local storage
+ * @route POST /api/admin/sync-firestore
+ * @returns {Object} Sync status
+ */
+router.post('/sync-firestore', async (req, res) => {
+  try {
+    console.log('Starting Firestore sync...');
+    
+    // Get all documents from Firestore
+    const snapshot = await db.collection('pastPapers').get();
+    const firestorePapers = [];
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      // Convert Firestore Timestamp back to ISO string
+      const paper = {
+        ...data,
+        uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : new Date().toISOString(),
+        updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : undefined
+      };
+      firestorePapers.push(paper);
+    });
+    
+    console.log(`Synced ${firestorePapers.length} papers from Firestore`);
+    
+    // Update local storage
+    pastPapers = firestorePapers;
+    
+    res.json({
+      message: 'Firestore sync completed successfully',
+      syncedCount: firestorePapers.length
+    });
+  } catch (error) {
+    console.error('Firestore sync error:', error);
+    res.status(500).json({ error: `Failed to sync from Firestore: ${error.message}` });
   }
 });
 
