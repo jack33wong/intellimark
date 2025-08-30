@@ -24,17 +24,18 @@ function AdminPage() {
   const [pastPapers, setPastPapers] = useState([]);
   const [examBoards, setExamBoards] = useState([]);
   const [years, setYears] = useState([]);
-  const [subjects, setSubjects] = useState([]);
+  const [levels, setLevels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // Upload form state
+  // Upload form state - simplified to 4 fields
   const [uploadForm, setUploadForm] = useState({
     examBoard: '',
     year: '',
-    subject: '',
-    paperType: 'Main',
-    description: '',
+    level: '',
+    paper: '',
+    type: 'Question Paper',
+    qualification: 'GCSE',
     pdfFile: null
   });
   
@@ -42,7 +43,7 @@ function AdminPage() {
   const [filters, setFilters] = useState({
     examBoard: '',
     year: '',
-    subject: '',
+    level: '',
     searchTerm: ''
   });
   
@@ -61,11 +62,11 @@ function AdminPage() {
       setLoading(true);
       setError(null);
       
-      const [papersRes, boardsRes, yearsRes, subjectsRes] = await Promise.all([
+      const [papersRes, boardsRes, yearsRes, levelsRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/past-papers`),
         fetch(`${API_BASE}/api/admin/exam-boards`),
         fetch(`${API_BASE}/api/admin/years`),
-        fetch(`${API_BASE}/api/admin/subjects`)
+        fetch(`${API_BASE}/api/admin/levels`)
       ]);
 
       if (papersRes.ok) {
@@ -83,9 +84,9 @@ function AdminPage() {
         setYears(yearsData);
       }
       
-      if (subjectsRes.ok) {
-        const subjectsData = await subjectsRes.json();
-        setSubjects(subjectsData);
+      if (levelsRes.ok) {
+        const levelsData = await levelsRes.json();
+        setLevels(levelsData);
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -101,7 +102,7 @@ function AdminPage() {
   const handleFileUpload = async (e) => {
     e.preventDefault();
     
-    if (!uploadForm.pdfFile || !uploadForm.examBoard || !uploadForm.year || !uploadForm.subject) {
+    if (!uploadForm.pdfFile || !uploadForm.examBoard || !uploadForm.year || !uploadForm.level || !uploadForm.paper) {
       setError('Please fill in all required fields and select a PDF file');
       return;
     }
@@ -114,9 +115,10 @@ function AdminPage() {
       formData.append('pdfFile', uploadForm.pdfFile);
       formData.append('examBoard', uploadForm.examBoard);
       formData.append('year', uploadForm.year);
-      formData.append('subject', uploadForm.subject);
-      formData.append('paperType', uploadForm.paperType);
-      formData.append('description', uploadForm.description);
+      formData.append('level', uploadForm.level);
+      formData.append('paper', uploadForm.paper);
+      formData.append('type', uploadForm.type);
+      formData.append('qualification', uploadForm.qualification);
 
       const response = await fetch(`${API_BASE}/api/admin/past-papers/upload`, {
         method: 'POST',
@@ -129,9 +131,10 @@ function AdminPage() {
         setUploadForm({
           examBoard: '',
           year: '',
-          subject: '',
-          paperType: 'Main',
-          description: '',
+          level: '',
+          paper: '',
+          type: 'Question Paper',
+          qualification: 'GCSE',
           pdfFile: null
         });
         setShowUploadForm(false);
@@ -141,20 +144,167 @@ function AdminPage() {
         setError(errorData.error || 'Upload failed');
       }
     } catch (error) {
-      console.error('Upload error:', error);
-      setError('Upload failed');
+        console.error('Upload error:', error);
+        setError('Upload failed');
     } finally {
       setLoading(false);
     }
   };
 
   /**
-   * Handle file selection
+   * Extract exam information from filename
+   * Supports multiple formats:
+   * 1. [ExamBoard]-[Year]-[Level]-[Type].pdf (e.g., AQA-2024-Higher-Main.pdf)
+   * 2. [ExamBoard]-[PaperCode]-[Type]-[MonthYear].pdf (e.g., AQA-83001H-QP-JUN24.PDF)
+   * 3. [ExamBoard]-[PaperCode]-[Type]-[Year].pdf (e.g., Edexcel-1H-QP-2024.pdf)
+   */
+  const extractExamInfo = (filename) => {
+    console.log('Extracting info from filename:', filename); // Debug log
+    
+    // Remove .pdf extension
+    const nameWithoutExt = filename.replace(/\.pdf$/i, '');
+    console.log('Name without extension:', nameWithoutExt); // Debug log
+    
+    // Split by common separators: dash, underscore, or space
+    const parts = nameWithoutExt.split(/[-_\s]+/);
+    console.log('Split parts:', parts); // Debug log
+    
+    // Try to detect the format and extract accordingly
+    if (parts.length >= 3) {
+      const examBoard = parts[0];
+      
+      // Check if second part is a year (4 digits)
+      const secondPart = parts[1];
+      const yearNum = parseInt(secondPart);
+      
+      if (yearNum >= 1900 && yearNum <= 2100) {
+        // Format 1: [ExamBoard]-[Year]-[Level]-[Type]
+        const level = parts[2];
+        const type = parts[3] || 'Question Paper';
+        
+        console.log('Format 1 detected:', { examBoard, year: yearNum, level, type }); // Debug log
+        return { examBoard, year: yearNum, level, paper: '1', type, qualification: 'GCSE' };
+      } else {
+        // Format 2: [ExamBoard]-[PaperCode]-[Type]-[MonthYear]
+        const paperCode = parts[1];
+        const type = parts[2];
+        const monthYear = parts[3];
+        
+        // Extract year from monthYear (e.g., JUN24 -> 2024, SEP23 -> 2023)
+        let year = null;
+        if (monthYear) {
+          // Look for 2-digit year at the end
+          const yearMatch = monthYear.match(/(\d{2})$/);
+          if (yearMatch) {
+            const shortYear = parseInt(yearMatch[1]);
+            // Assume 20xx for years 00-99
+            year = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
+          }
+        }
+        
+        // If no year found in monthYear, try to find year anywhere in filename
+        if (!year) {
+          const yearMatch = filename.match(/\b(19\d{2}|20\d{2}|21\d{2})\b/);
+          if (yearMatch) {
+            year = parseInt(yearMatch[1]);
+          }
+        }
+        
+        // Determine level from paper code (e.g., 83001H -> Higher, 83001F -> Foundation)
+        let level = '';
+        if (paperCode.includes('H')) {
+          level = 'Higher';
+        } else if (paperCode.includes('F')) {
+          level = 'Foundation';
+        } else if (paperCode.includes('AS')) {
+          level = 'AS';
+        } else if (paperCode.includes('A2')) {
+          level = 'A2';
+        }
+        
+        // Map type abbreviations
+        let mappedType = type;
+        if (type === 'QP') mappedType = 'Question Paper';
+        else if (type === 'MS') mappedType = 'Mark Scheme';
+        else if (type === 'SP') mappedType = 'Specimen';
+        
+        console.log('Format 2 detected:', { examBoard, year, level, paper: paperCode, type: mappedType, qualification: 'GCSE' }); // Debug log
+        
+        if (year) {
+          return { examBoard, year, level, paper: paperCode, type: mappedType, qualification: 'GCSE' };
+        }
+      }
+    }
+    
+    // Enhanced fallback: try to extract year from anywhere in filename
+    const yearMatch = filename.match(/\b(19\d{2}|20\d{2}|21\d{2})\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1]);
+      console.log('Year extracted from fallback:', year); // Debug log
+      
+      // Try to extract exam board from the beginning of filename
+      const beforeYear = filename.substring(0, filename.indexOf(yearMatch[1]));
+      const examBoard = beforeYear.replace(/[-_\s]+$/, '').trim();
+      
+      return { 
+        examBoard: examBoard || '', 
+        year, 
+        level: '', 
+        paper: '1',
+        type: 'Question Paper',
+        qualification: 'GCSE'
+      };
+    }
+    
+    console.log('No information could be extracted'); // Debug log
+    return null;
+  };
+
+  /**
+   * Handle file selection with automatic info extraction
    */
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file && file.type === 'application/pdf') {
+      console.log('File selected:', file.name); // Debug log
+      
       setUploadForm(prev => ({ ...prev, pdfFile: file }));
+      
+      // Try to extract exam information from filename
+      const extractedInfo = extractExamInfo(file.name);
+      console.log('Extracted info:', extractedInfo); // Debug log
+      
+      if (extractedInfo) {
+        console.log('Setting form with extracted info:', extractedInfo); // Debug log
+        
+        setUploadForm(prev => {
+          const newForm = {
+            ...prev,
+            examBoard: extractedInfo.examBoard || prev.examBoard,
+            year: extractedInfo.year || prev.year,
+            level: extractedInfo.level || prev.level,
+            paper: extractedInfo.paper || prev.paper,
+            type: extractedInfo.type || prev.type,
+            qualification: extractedInfo.qualification || prev.qualification
+          };
+          console.log('New form state:', newForm); // Debug log
+          return newForm;
+        });
+        
+        if (extractedInfo.examBoard && extractedInfo.year && extractedInfo.level) {
+          setError(null); // Clear any previous errors
+          // Show success message for auto-fill
+          setError(`✅ Auto-filled from filename: ${file.name}`);
+          // Clear success message after 3 seconds
+          setTimeout(() => setError(null), 3000);
+        } else if (extractedInfo && extractedInfo.year) {
+          // Partial auto-fill (only year found)
+          setError(`⚠️ Partial auto-fill: Year ${extractedInfo.year} detected. Please fill in other fields manually.`);
+          setTimeout(() => setError(null), 5000);
+        }
+      } else {
+        console.log('No info could be extracted from filename'); // Debug log
+      }
     } else {
       setError('Please select a valid PDF file');
     }
@@ -232,13 +382,13 @@ function AdminPage() {
   const filteredPapers = pastPapers.filter(paper => {
     if (filters.examBoard && paper.examBoard !== filters.examBoard) return false;
     if (filters.year && paper.year !== filters.year) return false;
-    if (filters.subject && paper.subject !== filters.subject) return false;
+    if (filters.level && paper.level !== filters.level) return false;
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
       return (
-        paper.subject.toLowerCase().includes(searchLower) ||
+        paper.level.toLowerCase().includes(searchLower) ||
         paper.examBoard.toLowerCase().includes(searchLower) ||
-        paper.description.toLowerCase().includes(searchLower)
+        paper.type.toLowerCase().includes(searchLower)
       );
     }
     return true;
@@ -308,6 +458,12 @@ function AdminPage() {
       {showUploadForm && (
         <div className="upload-form">
           <h2>Upload New Past Paper</h2>
+          <p className="upload-hint">
+            💡 <strong>Tip:</strong> Supports multiple filename formats:<br/>
+            • <code>ExamBoard-Year-Level-Type.pdf</code> (e.g., AQA-2024-Higher-QuestionPaper.pdf)<br/>
+            • <code>ExamBoard-PaperCode-Type-MonthYear.pdf</code> (e.g., AQA-83001H-QP-JUN24.PDF)<br/>
+            <small>📅 Year range: 1900-2100 | 🔍 Auto-fill works with dashes (-), underscores (_), or spaces</small>
+          </p>
           <form onSubmit={handleFileUpload}>
             <div className="form-row">
               <div className="form-group">
@@ -327,8 +483,8 @@ function AdminPage() {
                   value={uploadForm.year}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, year: e.target.value }))}
                   placeholder="e.g., 2024"
-                  min="2000"
-                  max="2030"
+                  min="1900"
+                  max="2100"
                   required
                 />
               </div>
@@ -336,37 +492,56 @@ function AdminPage() {
             
             <div className="form-row">
               <div className="form-group">
-                <label>Subject *</label>
+                <label>Level *</label>
                 <input
                   type="text"
-                  value={uploadForm.subject}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, subject: e.target.value }))}
-                  placeholder="e.g., Mathematics, Physics, Chemistry"
+                  value={uploadForm.level}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, level: e.target.value }))}
+                  placeholder="e.g., Higher, Foundation, AS, A2"
                   required
                 />
               </div>
               <div className="form-group">
-                <label>Paper Type</label>
-                <select
-                  value={uploadForm.paperType}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, paperType: e.target.value }))}
-                >
-                  <option value="Main">Main</option>
-                  <option value="Foundation">Foundation</option>
-                  <option value="Higher">Higher</option>
-                  <option value="Mark Scheme">Mark Scheme</option>
-                </select>
+                <label>Paper *</label>
+                <input
+                  type="text"
+                  value={uploadForm.paper}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, paper: e.target.value }))}
+                  placeholder="e.g., 83001H, 1, 2, 3"
+                  required
+                />
               </div>
             </div>
-
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
-                value={uploadForm.description}
-                onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Optional description of the paper"
-                rows="3"
-              />
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Type *</label>
+                <select
+                  value={uploadForm.type}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value }))}
+                  required
+                >
+                  <option value="Question Paper">Question Paper</option>
+                  <option value="Mark Scheme">Mark Scheme</option>
+                  <option value="Specimen">Specimen</option>
+                  <option value="Practice">Practice</option>
+                  <option value="Foundation">Foundation</option>
+                  <option value="Higher">Higher</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Qualification</label>
+                <select
+                  value={uploadForm.qualification}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, qualification: e.target.value }))}
+                >
+                  <option value="GCSE">GCSE</option>
+                  <option value="A-Level">A-Level</option>
+                  <option value="AS-Level">AS-Level</option>
+                  <option value="IB">IB</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
             </div>
 
             <div className="form-group">
@@ -377,7 +552,7 @@ function AdminPage() {
                 onChange={handleFileSelect}
                 required
               />
-              <small>Maximum file size: 50MB. Only PDF files allowed.</small>
+              <small>Maximum file size: 50MB. Only PDF files allowed. Information will be auto-extracted from filename.</small>
             </div>
 
             <div className="form-actions">
@@ -433,12 +608,12 @@ function AdminPage() {
           <div className="filter-group">
             <BookOpen size={16} />
             <select
-              value={filters.subject}
-              onChange={(e) => setFilters(prev => ({ ...prev, subject: e.target.value }))}
+              value={filters.level}
+              onChange={(e) => setFilters(prev => ({ ...prev, level: e.target.value }))}
             >
-              <option value="">All Subjects</option>
-              {subjects.map(subject => (
-                <option key={subject} value={subject}>{subject}</option>
+              <option value="">All Levels</option>
+              {levels.map(level => (
+                <option key={level} value={level}>{level}</option>
               ))}
             </select>
           </div>
@@ -481,16 +656,13 @@ function AdminPage() {
                 </div>
 
                 <div className="paper-content">
-                  <h4>{paper.subject}</h4>
+                  <h4>{paper.level} - {paper.paper}</h4>
                   <p className="paper-meta">
                     <span className="exam-board">{paper.examBoard}</span>
                     <span className="year">{paper.year}</span>
-                    <span className="paper-type">{paper.paperType}</span>
+                    <span className="paper-type">{paper.type}</span>
+                    <span className="qualification">{paper.qualification}</span>
                   </p>
-                  
-                  {paper.description && (
-                    <p className="description">{paper.description}</p>
-                  )}
                   
                   <div className="paper-details">
                     <span className="file-size">{formatFileSize(paper.fileSize)}</span>
@@ -519,9 +691,10 @@ function AdminPage() {
                       handleUpdate(paper.id, {
                         examBoard: formData.get('examBoard'),
                         year: formData.get('year'),
-                        subject: formData.get('subject'),
-                        paperType: formData.get('paperType'),
-                        description: formData.get('description')
+                        level: formData.get('level'),
+                        paper: formData.get('paper'),
+                        type: formData.get('type'),
+                        qualification: formData.get('qualification')
                       });
                     }}>
                       <div className="form-row">
@@ -541,24 +714,35 @@ function AdminPage() {
                       </div>
                       <div className="form-row">
                         <input
-                          name="subject"
-                          defaultValue={paper.subject}
-                          placeholder="Subject"
+                          name="level"
+                          defaultValue={paper.level}
+                          placeholder="Level"
                           required
                         />
-                        <select name="paperType" defaultValue={paper.paperType}>
-                          <option value="Main">Main</option>
+                        <input
+                          name="paper"
+                          defaultValue={paper.paper}
+                          placeholder="Paper Code"
+                          required
+                        />
+                      </div>
+                      <div className="form-row">
+                        <select name="type" defaultValue={paper.type}>
+                          <option value="Question Paper">Question Paper</option>
+                          <option value="Mark Scheme">Mark Scheme</option>
+                          <option value="Specimen">Specimen</option>
+                          <option value="Practice">Practice</option>
                           <option value="Foundation">Foundation</option>
                           <option value="Higher">Higher</option>
-                          <option value="Mark Scheme">Mark Scheme</option>
+                        </select>
+                        <select name="qualification" defaultValue={paper.qualification}>
+                          <option value="GCSE">GCSE</option>
+                          <option value="A-Level">A-Level</option>
+                          <option value="AS-Level">AS-Level</option>
+                          <option value="IB">IB</option>
+                          <option value="Other">Other</option>
                         </select>
                       </div>
-                      <textarea
-                        name="description"
-                        defaultValue={paper.description}
-                        placeholder="Description"
-                        rows="2"
-                      />
                       <div className="edit-actions">
                         <button type="submit" className="btn btn-primary">Save</button>
                         <button 
@@ -582,3 +766,4 @@ function AdminPage() {
 }
 
 export default AdminPage;
+

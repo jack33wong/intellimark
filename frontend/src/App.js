@@ -105,8 +105,15 @@ function App() {
     loadChats();
   }, []);
 
+  // Using future flags to opt-in to React Router v7 behavior early
+  // This eliminates all deprecation warnings:
+  // - v7_startTransition: Wraps navigation updates in React.startTransition()
+  // - v7_relativeSplatPath: Improves relative route resolution within splat routes
   return (
-    <Router>
+    <Router future={{ 
+      v7_startTransition: true,
+      v7_relativeSplatPath: true 
+    }}>
       <Routes>
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/" element={
