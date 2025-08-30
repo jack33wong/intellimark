@@ -1,0 +1,77 @@
+---
+alwaysApply: true
+---
+
+# Cursor AI Rules (MDC Format)
+
+These rules enforce clean architecture, testing best practices, security, and documentation standards.  
+Cursor should apply the most relevant section depending on the file type (src, tests, docs, etc.).
+
+## 🏗️ Style
+```rules
+- Use TypeScript with strict typing. Avoid `any` unless absolutely necessary.
+- Always follow Prettier formatting and ESLint rules.
+- Keep functions small, single-purpose, and aligned with SOLID principles.
+- No duplicated logic across modules.
+
+## Architecture
+- Follow Clean Architecture with clear layers: controllers → services → repositories.
+- Use dependency injection instead of hardcoded imports.
+- Keep business logic separate from I/O (e.g., request/response handling).
+- Never put database logic directly in controllers.
+- Always load configuration and secrets from environment variables (process.env).
+
+## Testing
+- Use Jest for all unit and integration tests.
+- Each major function/class like (question detection, parse exam text) has a matching test file. e.g. parseExamText.ts has a parseExamText.test.ts  
+- Tests MUST NOT duplicate or re-implement business logic.
+- Tests MUST ONLY call real implementations with inputs and compare against hardcoded expected outputs.
+- Do not include parsing, string manipulation, or transformation logic inside tests.
+- Use mocks/stubs for databases and external APIs.
+- Write both positive (success) and negative (failure/edge) test cases.
+- Maintain >80% test coverage on all new code.
+
+## Security
+- Never hardcode API keys, tokens, passwords, or credentials.
+- Always use environment variables for secrets and configuration.
+- Validate all user input (e.g., with Zod or Joi).
+- Apply authentication and authorization to all protected routes.
+
+## Documentation
+- Every public function and class must include JSDoc comments.
+- Update README.md or ARCHITECTURE.md whenever new modules are added.
+- For APIs, include example requests and responses in comments.
+
+## Git Workflow
+- Use feature branches; never commit directly to main.
+- Branch naming: feat/*, bugfix/*, chore/*, refactor/*.
+- Commit messages MUST follow Conventional Commits (feat:, fix:, docs:, refactor:, test:, chore:).
+
+##  Correct Test Example
+import { parseExamText } from "../src/parser";
+
+test("parses exam text correctly", () => {
+  const input = "Q1: Simplify √9";
+  const result = parseExamText(input);
+  expect(result).toEqual({
+    questionNumber: "1",
+    text: "Simplify √9"
+  });
+});
+
+##  Wrong Test Example
+// ❌ Do NOT duplicate parsing logic inside tests
+test("bad test example", () => {
+  const input = "Q1: Simplify √9";
+  const result = {
+    questionNumber: input.split(":")[0].replace("Q", ""),
+    text: input.split(":")[1].trim()
+  };
+  expect(result).toEqual({
+    questionNumber: "1",
+    text: "Simplify √9"
+  });
+});
+
+
+

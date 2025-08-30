@@ -1,0 +1,103 @@
+/* Additional App-specific styles */
+.app {
+  position: relative;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: #64748b;
+}
+
+.empty-state h3 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #1e293b;
+}
+
+.empty-state p {
+  font-size: 16px;
+  line-height: 1.6;
+  max-width: 400px;
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 24px;
+  opacity: 0.5;
+}
+
+/* Error state */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: #ef4444;
+}
+
+.error-state h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.error-state p {
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 400px;
+  margin-bottom: 16px;
+}
+
+.retry-button {
+  padding: 8px 16px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
