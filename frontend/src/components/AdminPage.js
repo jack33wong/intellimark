@@ -9,6 +9,7 @@ import {
   Search,
   Filter,
   Plus,
+  EyeOff,
   ArrowLeft,
   Calendar,
   BookOpen
@@ -49,7 +50,7 @@ function AdminPage() {
   
   // Edit state
   const [editingPaper, setEditingPaper] = useState(null);
-  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(true);
   
   // API base URL for development vs production
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
@@ -442,8 +443,8 @@ function AdminPage() {
           className="btn btn-primary"
           onClick={() => setShowUploadForm(!showUploadForm)}
         >
-          <Plus size={16} />
-          {showUploadForm ? 'Cancel Upload' : 'Upload New Paper'}
+          {showUploadForm ? <EyeOff size={16} /> : <Plus size={16} />}
+          {showUploadForm ? 'Hide Upload Form' : 'Show Upload Form'}
         </button>
       </div>
 
@@ -459,20 +460,17 @@ function AdminPage() {
         <div className="upload-form">
           <h2>Upload New Past Paper</h2>
           <p className="upload-hint">
-            💡 <strong>Tip:</strong> Supports multiple filename formats:<br/>
-            • <code>ExamBoard-Year-Level-Type.pdf</code> (e.g., AQA-2024-Higher-QuestionPaper.pdf)<br/>
-            • <code>ExamBoard-PaperCode-Type-MonthYear.pdf</code> (e.g., AQA-83001H-QP-JUN24.PDF)<br/>
-            <small>📅 Year range: 1900-2100 | 🔍 Auto-fill works with dashes (-), underscores (_), or spaces</small>
+            💡 <strong>Auto-fill:</strong> Supports <code>ExamBoard-Year-Level-Type.pdf</code> or <code>ExamBoard-PaperCode-Type-MonthYear.pdf</code> formats
           </p>
           <form onSubmit={handleFileUpload}>
-            <div className="form-row">
+            <div className="form-row compact">
               <div className="form-group">
                 <label>Exam Board *</label>
                 <input
                   type="text"
                   value={uploadForm.examBoard}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, examBoard: e.target.value }))}
-                  placeholder="e.g., AQA, Edexcel, OCR"
+                  placeholder="AQA, Edexcel, OCR"
                   required
                 />
               </div>
@@ -482,22 +480,19 @@ function AdminPage() {
                   type="number"
                   value={uploadForm.year}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, year: e.target.value }))}
-                  placeholder="e.g., 2024"
+                  placeholder="2024"
                   min="1900"
                   max="2100"
                   required
                 />
               </div>
-            </div>
-            
-            <div className="form-row">
               <div className="form-group">
                 <label>Level *</label>
                 <input
                   type="text"
                   value={uploadForm.level}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, level: e.target.value }))}
-                  placeholder="e.g., Higher, Foundation, AS, A2"
+                  placeholder="Higher, Foundation, AS, A2"
                   required
                 />
               </div>
@@ -507,13 +502,13 @@ function AdminPage() {
                   type="text"
                   value={uploadForm.paper}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, paper: e.target.value }))}
-                  placeholder="e.g., 83001H, 1, 2, 3"
+                  placeholder="83001H, 1, 2, 3"
                   required
                 />
               </div>
             </div>
             
-            <div className="form-row">
+            <div className="form-row compact">
               <div className="form-group">
                 <label>Type *</label>
                 <select
@@ -542,25 +537,28 @@ function AdminPage() {
                   <option value="Other">Other</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>PDF File *</label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  <Upload size={16} />
+                  {loading ? 'Uploading...' : 'Upload Paper'}
+                </button>
+              </div>
+            </div>
+            
+            <div className="form-info">
+              <small>💡 <strong>Auto-fill:</strong> Information extracted from filename. Year range: 1900-2100. Max file size: 50MB.</small>
             </div>
 
-            <div className="form-group">
-              <label>PDF File *</label>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                required
-              />
-              <small>Maximum file size: 50MB. Only PDF files allowed. Information will be auto-extracted from filename.</small>
-            </div>
 
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                <Upload size={16} />
-                {loading ? 'Uploading...' : 'Upload Paper'}
-              </button>
-            </div>
           </form>
         </div>
       )}
