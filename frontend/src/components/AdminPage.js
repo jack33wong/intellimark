@@ -187,16 +187,34 @@ function AdminPage() {
           level = 'A2';
         }
         
+        // Extract paper number from paper code (e.g., 83001H -> 1, 2H -> 2)
+        let paperNumber = '1'; // Default to 1
+        if (paperCode) {
+          // Try to extract number from paper code
+          const numberMatch = paperCode.match(/(\d+)/);
+          if (numberMatch) {
+            const num = parseInt(numberMatch[1]);
+            // If it's a large number like 83001, extract the last digit or use 1
+            if (num > 100) {
+              // For codes like 83001, extract the last digit
+              paperNumber = (num % 10).toString();
+              if (paperNumber === '0') paperNumber = '1'; // Avoid 0
+            } else {
+              paperNumber = num.toString();
+            }
+          }
+        }
+        
         // Map type abbreviations
         let mappedType = type;
         if (type === 'QP') mappedType = 'Question Paper';
         else if (type === 'MS') mappedType = 'Mark Scheme';
         else if (type === 'SP') mappedType = 'Specimen';
         
-        console.log('Format 2 detected:', { examBoard, year, level, paper: paperCode, type: mappedType, qualification: 'GCSE' }); // Debug log
+        console.log('Format 2 detected:', { examBoard, year, level, paper: paperNumber, type: mappedType, qualification: 'GCSE' }); // Debug log
         
         if (year) {
-          return { examBoard, year, level, paper: paperCode, type: mappedType, qualification: 'GCSE' };
+          return { examBoard, year, level, paper: paperNumber, type: mappedType, qualification: 'GCSE' };
         }
       }
     }
