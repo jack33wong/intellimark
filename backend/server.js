@@ -4,10 +4,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const chatRoutes = require('./routes/chat');
-const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
-// const markHomeworkRoutes = require('./routes/mark-homework');
+const markHomeworkRoutes = require('./routes/mark-homework');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -36,10 +34,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
-app.use('/api/chat', chatRoutes);
-app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
-// app.use('/api/mark-homework', markHomeworkRoutes);
+app.use('/api/mark-homework', markHomeworkRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
