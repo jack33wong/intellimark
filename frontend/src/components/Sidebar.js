@@ -16,15 +16,13 @@ import { formatDistanceToNow } from 'date-fns';
  * @param {Object} props.currentChat - Currently selected chat
  * @param {Function} props.onSelectChat - Function to select a chat
  * @param {Function} props.onDeleteChat - Function to delete a chat
- * @param {boolean} props.isLoading - Loading state
  * @returns {JSX.Element} The sidebar component
  */
 function Sidebar({ 
   chats = [], 
   currentChat = null, 
   onSelectChat = () => {}, 
-  onDeleteChat = () => {}, 
-  isLoading = false 
+  onDeleteChat = () => {}
 }) {
   const navigate = useNavigate();
   const [userProgress, setUserProgress] = useState(null);
