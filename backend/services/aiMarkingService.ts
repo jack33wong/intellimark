@@ -593,14 +593,15 @@ This is the complete text content detected in the image. Use this to understand 
           ],
         },
       ],
-      temperature: 0.7,
     };
 
-    // Use the correct parameter name based on the model
+    // Use the correct parameters based on the model
     if (openaiModel === 'gpt-5') {
       requestBody.max_completion_tokens = modelConfig.maxTokens || 2048;
+      // GPT-5 only supports default temperature (1), so don't set it
     } else {
       requestBody.max_tokens = modelConfig.maxTokens || 2048;
+      requestBody.temperature = 0.7; // GPT-4o supports custom temperature
     }
 
     console.log('🔍 Sending request to OpenAI API...');
@@ -608,7 +609,7 @@ This is the complete text content detected in the image. Use this to understand 
       model: openaiModel,
       maxTokens: openaiModel === 'gpt-5' ? 'max_completion_tokens' : 'max_tokens',
       tokenValue: modelConfig.maxTokens || 2048,
-      temperature: 0.7,
+      temperature: openaiModel === 'gpt-5' ? 'default (1)' : '0.7',
       messageCount: 2,
       imageDataLength: imageUrl.length
     });
