@@ -177,17 +177,21 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
 
     console.log('Created past paper object:', pastPaper);
     
-    // Save metadata to Firestore
-    try {
-      const docRef = await db.collection('pastPapers').doc(pastPaper.id).set({
-        ...pastPaper,
-        // Convert Date to Firestore Timestamp
-        uploadedAt: admin.firestore.Timestamp.fromDate(new Date(pastPaper.uploadedAt))
-      });
-      console.log('Metadata saved to Firestore with ID:', docRef.id);
-    } catch (firestoreError) {
-      console.error('Firestore save error:', firestoreError);
-      // Continue with local storage even if Firestore fails
+    // Save metadata to Firestore (if available)
+    if (db) {
+      try {
+        const docRef = await db.collection('pastPapers').doc(pastPaper.id).set({
+          ...pastPaper,
+          // Convert Date to Firestore Timestamp
+          uploadedAt: admin.firestore.Timestamp.fromDate(new Date(pastPaper.uploadedAt))
+        });
+        console.log('Metadata saved to Firestore with ID:', docRef.id);
+      } catch (firestoreError) {
+        console.error('Firestore save error:', firestoreError);
+        // Continue with local storage even if Firestore fails
+      }
+    } else {
+      console.log('Firebase not available, using local storage only');
     }
     
     // Keep local storage for backward compatibility
@@ -227,13 +231,17 @@ router.delete('/past-papers/:id', async (req, res) => {
       console.warn('File not found for deletion:', fileError.message);
     }
 
-    // Remove from Firestore
-    try {
-      await db.collection('pastPapers').doc(id).delete();
-      console.log('Metadata removed from Firestore');
-    } catch (firestoreError) {
-      console.error('Firestore delete error:', firestoreError);
-      // Continue with local deletion even if Firestore fails
+    // Remove from Firestore (if available)
+    if (db) {
+      try {
+        await db.collection('pastPapers').doc(id).delete();
+        console.log('Metadata removed from Firestore');
+      } catch (firestoreError) {
+        console.error('Firestore delete error:', firestoreError);
+        // Continue with local deletion even if Firestore fails
+      }
+    } else {
+      console.log('Firebase not available, using local storage only');
     }
     
     // Remove from metadata
@@ -275,21 +283,25 @@ router.put('/past-papers/:id', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    // Update in Firestore
-    try {
-      await db.collection('pastPapers').doc(id).update({
-        examBoard: updatedPaper.examBoard,
-        year: updatedPaper.year,
-        level: updatedPaper.level,
-        paper: updatedPaper.paper,
-        type: updatedPaper.type,
-        qualification: updatedPaper.qualification,
-        updatedAt: admin.firestore.Timestamp.fromDate(new Date(updatedPaper.updatedAt))
-      });
-      console.log('Metadata updated in Firestore');
-    } catch (firestoreError) {
-      console.error('Firestore update error:', firestoreError);
-      // Continue with local update even if Firestore fails
+    // Update in Firestore (if available)
+    if (db) {
+      try {
+        await db.collection('pastPapers').doc(id).update({
+          examBoard: updatedPaper.examBoard,
+          year: updatedPaper.year,
+          level: updatedPaper.level,
+          paper: updatedPaper.paper,
+          type: updatedPaper.type,
+          qualification: updatedPaper.qualification,
+          updatedAt: admin.firestore.Timestamp.fromDate(new Date(updatedPaper.updatedAt))
+        });
+        console.log('Metadata updated in Firestore');
+      } catch (firestoreError) {
+        console.error('Firestore update error:', firestoreError);
+        // Continue with local update even if Firestore fails
+      }
+    } else {
+      console.log('Firebase not available, using local storage only');
     }
 
     // Update local storage
@@ -407,18 +419,22 @@ router.post('/past-papers/:id/extract-questions', async (req, res) => {
       // Update local storage
       pastPapers[paperIndex] = updatedPaper;
       
-      // Update Firestore
-      try {
-        await db.collection('pastPapers').doc(id).update({
-          questions: updatedPaper.questions,
-          questionCount: updatedPaper.questionCount,
-          subQuestionCount: updatedPaper.subQuestionCount,
-          lastUpdated: admin.firestore.Timestamp.fromDate(new Date())
-        });
-        console.log('Questions updated in Firestore');
-      } catch (firestoreError) {
-        console.error('Firestore update error:', firestoreError);
-        // Continue with local storage even if Firestore fails
+      // Update Firestore (if available)
+      if (db) {
+        try {
+          await db.collection('pastPapers').doc(id).update({
+            questions: updatedPaper.questions,
+            questionCount: updatedPaper.questionCount,
+            subQuestionCount: updatedPaper.subQuestionCount,
+            lastUpdated: admin.firestore.Timestamp.fromDate(new Date())
+          });
+          console.log('Questions updated in Firestore');
+        } catch (firestoreError) {
+          console.error('Firestore update error:', firestoreError);
+          // Continue with local storage even if Firestore fails
+        }
+      } else {
+        console.log('Firebase not available, using local storage only');
       }
       
       res.json({
@@ -444,6 +460,10 @@ router.post('/past-papers/:id/extract-questions', async (req, res) => {
  */
 router.post('/sync-firestore', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(400).json({ error: 'Firebase not available for sync' });
+    }
+    
     console.log('Starting Firestore sync...');
     
     // Get all documents from Firestore

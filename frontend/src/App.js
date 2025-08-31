@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
+import LatexTestPage from './components/LatexTestPage';
 import './App.css';
 
 /**
@@ -13,35 +14,11 @@ import './App.css';
 function App() {
   const [currentChat, setCurrentChat] = useState(null);
   const [chats, setChats] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
   
   // API base URL for development vs production
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
-  /**
-   * Create a new chat session
-   */
-  const createNewChat = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${API_BASE}/api/chat/new`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const newChat = await response.json();
-        setChats(prevChats => [newChat, ...prevChats]);
-        setCurrentChat(newChat);
-      }
-    } catch (error) {
-      console.error('Failed to create new chat:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   /**
    * Load existing chats from the backend
@@ -117,16 +94,35 @@ function App() {
     }}>
       <Routes>
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/mark-homework" element={<MarkHomeworkPage />} />
+        <Route path="/mark-homework" element={
+          <div className="app">
+            <Sidebar
+              chats={chats}
+              currentChat={currentChat}
+              onSelectChat={setCurrentChat}
+              onDeleteChat={deleteChat}
+            />
+            <MarkHomeworkPage />
+          </div>
+        } />
+        <Route path="/latex-test" element={
+          <div className="app">
+            <Sidebar
+              chats={chats}
+              currentChat={currentChat}
+              onSelectChat={setCurrentChat}
+              onDeleteChat={deleteChat}
+            />
+            <LatexTestPage />
+          </div>
+        } />
         <Route path="/" element={
           <div className="app">
             <Sidebar
               chats={chats}
               currentChat={currentChat}
-              onNewChat={createNewChat}
               onSelectChat={setCurrentChat}
               onDeleteChat={deleteChat}
-              isLoading={isLoading}
             />
             <ChatInterface
               currentChat={currentChat}
@@ -142,3 +138,4 @@ function App() {
 
 
 export default App;
+

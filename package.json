@@ -11,10 +11,23 @@
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "test": "cd backend && npm test && cd ../frontend && npm test"
   },
-  "keywords": ["chat", "ai", "react", "nodejs"],
+  "keywords": [
+    "chat",
+    "ai",
+    "react",
+    "nodejs"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "katex": "^0.16.22",
+    "react-katex": "^3.1.0"
   }
 }
