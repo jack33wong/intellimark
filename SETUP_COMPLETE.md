@@ -117,7 +117,7 @@ intellimark-chat/
 
 - **Port conflicts**: The app now uses port 5001 for backend
 - **Dependencies**: Run `npm run install-all` if you get module errors
-- **Environment**: Check that `.env` file exists in backend folder
+- **Environment**: Check that `.env.local` file exists in backend folder
 - **Build issues**: Clear node_modules and reinstall if needed
 
 ## 📚 Documentation

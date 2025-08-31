@@ -19,9 +19,9 @@ npm run install-all
 
 echo "🔧 Setting up environment..."
 cd backend
-if [ ! -f .env ]; then
-    cp env.example .env
-    echo "✅ Created .env file from template"
+if [ ! -f .env.local ]; then
+  cp config.env.example .env.local
+  echo "✅ Created .env.local file from template"
 fi
 cd ..
 

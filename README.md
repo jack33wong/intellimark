@@ -36,7 +36,7 @@ intellimark-chat/
 │   │   └── user.js         # User and admin endpoints
 │   ├── server.js           # Main server file
 │   ├── package.json        # Backend dependencies
-│   └── env.example         # Environment variables template
+│   └── config.env.example  # Environment variables template
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/     # React components
@@ -73,8 +73,8 @@ intellimark-chat/
 3. **Set up environment variables**
    ```bash
    cd backend
-   cp env.example .env
-   # Edit .env with your configuration
+   cp config.env.example .env.local
+# Edit .env.local with your configuration
    ```
 
 4. **Start the development servers**

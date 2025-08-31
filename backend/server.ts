@@ -11,7 +11,7 @@ import markHomeworkRoutes from './routes/mark-homework';
 // @ts-ignore - Import CommonJS chat routes
 import chatRoutes from './routes/chat.js';
 
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 const DEFAULT_PORT = parseInt(process.env['PORT'] || '5001');
