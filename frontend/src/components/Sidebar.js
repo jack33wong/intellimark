@@ -14,16 +14,14 @@ import { formatDistanceToNow } from 'date-fns';
  * @param {Object} props - Component props
  * @param {Array} props.chats - Array of chat objects
  * @param {Object} props.currentChat - Currently selected chat
- * @param {Function} props.onNewChat - Function to create new chat
  * @param {Function} props.onSelectChat - Function to select a chat
  * @param {Function} props.onDeleteChat - Function to delete a chat
- * @param {boolean} props.isLoading - Loading state for new chat creation
+ * @param {boolean} props.isLoading - Loading state
  * @returns {JSX.Element} The sidebar component
  */
 function Sidebar({ 
   chats = [], 
   currentChat = null, 
-  onNewChat = () => {}, 
   onSelectChat = () => {}, 
   onDeleteChat = () => {}, 
   isLoading = false 
@@ -97,11 +95,10 @@ function Sidebar({
       <div className="sidebar-content">
         <button 
           className="new-chat-btn" 
-          onClick={onNewChat}
-          disabled={isLoading}
+          onClick={() => navigate('/mark-homework')}
         >
-          <MessageSquare size={16} />
-          {isLoading ? 'Creating...' : 'New Chat'}
+          <BookOpen size={16} />
+          Mark Homework
         </button>
 
         <div className="sidebar-section">
@@ -196,10 +193,6 @@ function Sidebar({
       </div>
 
       <div className="admin-section">
-        <div className="admin-link" onClick={() => navigate('/mark-homework')}>
-          <BookOpen size={16} />
-          Mark Homework
-        </div>
         <div className="admin-link" onClick={() => navigate('/latex-test')}>
           <Code size={16} />
           LaTeX Testing

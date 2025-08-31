@@ -20,29 +20,29 @@ function App() {
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
 
   /**
-   * Create a new chat session
+   * Create a new chat session (DISABLED)
    */
-  const createNewChat = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`${API_BASE}/api/chat/new`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const newChat = await response.json();
-        setChats(prevChats => [newChat, ...prevChats]);
-        setCurrentChat(newChat);
-      }
-    } catch (error) {
-      console.error('Failed to create new chat:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // const createNewChat = async () => {
+  //   try {
+  //     setIsLoading(true);
+  //     const response = await fetch(`${API_BASE}/api/chat/new`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
+  //     
+  //     if (response.ok) {
+  //       const newChat = await response.json();
+  //       setChats(prevChats => [newChat, ...prevChats]);
+  //       setCurrentChat(newChat);
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to create new chat:', error);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   /**
    * Load existing chats from the backend
@@ -123,7 +123,6 @@ function App() {
             <Sidebar
               chats={chats}
               currentChat={currentChat}
-              onNewChat={createNewChat}
               onSelectChat={setCurrentChat}
               onDeleteChat={deleteChat}
               isLoading={isLoading}
@@ -136,7 +135,6 @@ function App() {
             <Sidebar
               chats={chats}
               currentChat={currentChat}
-              onNewChat={createNewChat}
               onSelectChat={setCurrentChat}
               onDeleteChat={deleteChat}
               isLoading={isLoading}
@@ -149,7 +147,6 @@ function App() {
             <Sidebar
               chats={chats}
               currentChat={currentChat}
-              onNewChat={createNewChat}
               onSelectChat={setCurrentChat}
               onDeleteChat={deleteChat}
               isLoading={isLoading}
