@@ -8,6 +8,8 @@ import dotenv from 'dotenv';
 // @ts-ignore - Import CommonJS admin routes
 import adminRoutes from './routes/admin.js';
 import markHomeworkRoutes from './routes/mark-homework';
+// @ts-ignore - Import CommonJS chat routes
+import chatRoutes from './routes/chat.js';
 
 dotenv.config();
 
@@ -37,6 +39,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/mark-homework', markHomeworkRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

@@ -98,7 +98,7 @@ const MarkHomeworkPage = () => {
           setClassificationResult(data);
           setIsChatMode(true);
           
-          // Initialize chat with the image
+          // Initialize chat with the image and automatically send first message
           const initialMessage = {
             id: Date.now().toString(),
             role: 'user',
@@ -107,6 +107,11 @@ const MarkHomeworkPage = () => {
             imageData: previewUrl
           };
           setChatMessages([initialMessage]);
+          
+          // Automatically send the first message to get AI response
+          setTimeout(() => {
+            sendInitialChatMessage(previewUrl, selectedModel);
+          }, 500);
         } else {
           console.log('🔍 Image classified as homework, showing marking results');
           // Image classified as homework, show marking results
@@ -119,6 +124,71 @@ const MarkHomeworkPage = () => {
       setError('Network error. Please try again.');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Send initial chat message when switching to chat mode
+  const sendInitialChatMessage = async (imageData, model) => {
+    console.log('🔍 ===== SENDING INITIAL CHAT MESSAGE =====');
+    console.log('🔍 Image data length:', imageData.length);
+    console.log('🔍 Model:', model);
+    
+    setIsChatLoading(true);
+    
+    try {
+      const response = await fetch('/api/chat/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: 'I have an image that was classified as question-only. Can you help me with this?',
+          imageData: imageData,
+          model: model
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('🔍 Initial chat response received:', data.response.substring(0, 100) + '...');
+        
+        // Add AI response to chat
+        const aiResponse = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, aiResponse]);
+      } else {
+        console.error('🔍 Initial chat failed:', data.error);
+        
+        // Add error message to chat
+        const errorResponse = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error while processing your image. Please try again.',
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, errorResponse]);
+      }
+    } catch (error) {
+      console.error('🔍 Initial chat network error:', error);
+      
+      // Add error message to chat
+      const errorResponse = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Sorry, I encountered a network error. Please check your connection and try again.',
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -138,21 +208,62 @@ const MarkHomeworkPage = () => {
     setIsChatLoading(true);
     
     try {
-      // For now, simulate AI response - in real implementation, this would call the chat API
-      const aiResponse = {
+      console.log('🔍 ===== SENDING CHAT MESSAGE =====');
+      console.log('🔍 Message:', chatInput.trim());
+      console.log('🔍 Model:', selectedModel);
+      
+      const response = await fetch('/api/chat/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: chatInput.trim(),
+          imageData: previewUrl,
+          model: selectedModel
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('🔍 Chat response received:', data.response.substring(0, 100) + '...');
+        
+        // Add AI response to chat
+        const aiResponse = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, aiResponse]);
+      } else {
+        console.error('🔍 Chat failed:', data.error);
+        
+        // Add error message to chat
+        const errorResponse = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: 'Sorry, I encountered an error while processing your message. Please try again.',
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, errorResponse]);
+      }
+    } catch (error) {
+      console.error('🔍 Chat network error:', error);
+      
+      // Add error message to chat
+      const errorResponse = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I can see you have a question image. I'd be happy to help you with this! What specific assistance do you need?`,
+        content: 'Sorry, I encountered a network error. Please check your connection and try again.',
         timestamp: new Date()
       };
       
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, aiResponse]);
-        setIsChatLoading(false);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('Failed to send chat message:', error);
+      setChatMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsChatLoading(false);
     }
   };

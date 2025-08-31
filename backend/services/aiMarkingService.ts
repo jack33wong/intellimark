@@ -75,6 +75,58 @@ export class AIMarkingService {
   }
 
   /**
+   * Generate chat response for question-only images
+   */
+  static async generateChatResponse(
+    imageData: string, 
+    message: string, 
+    model: ModelType
+  ): Promise<string> {
+    console.log('🔍 ===== GENERATING CHAT RESPONSE =====');
+    console.log('🔍 Message:', message);
+    console.log('🔍 Model:', model);
+    
+    const compressedImage = await this.compressImage(imageData);
+    
+    const systemPrompt = `You are a helpful AI tutor specializing in mathematics and academic subjects. 
+    
+    Your task is to:
+    1. Analyze the uploaded image (which contains a question or problem)
+    2. Understand the user's message/question
+    3. Provide a helpful, educational response
+    
+    RESPONSE GUIDELINES:
+    - Be encouraging and supportive
+    - Explain concepts clearly and step-by-step when appropriate
+    - If it's a math problem, show your working out
+    - If the user asks for help understanding, provide explanations
+    - If the user wants to solve it themselves, give hints rather than full solutions
+    - Use the image context to provide relevant assistance
+    
+    IMPORTANT: Respond in a conversational, helpful manner. This is a tutoring session, not a formal exam.`;
+
+    const userPrompt = `I have uploaded an image with a question/problem. Here's what I'm asking:
+
+User Message: "${message}"
+
+Please help me with this question. I can see the image you're referring to.`;
+
+    try {
+      console.log('🔍 ===== CALLING AI FOR CHAT RESPONSE =====');
+      if (model === 'gemini-2.5-pro') {
+        console.log('🔍 Using Gemini API for chat');
+        return await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
+      } else {
+        console.log('🔍 Using OpenAI API for chat');
+        return await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, model);
+      }
+    } catch (error) {
+      console.error('🔍 Chat response generation failed:', error);
+      return 'I apologize, but I encountered an error while processing your request. Please try again or rephrase your question.';
+    }
+  }
+
+  /**
    * Generate marking instructions for homework images
    */
   static async generateMarkingInstructions(
@@ -393,6 +445,152 @@ This is the complete text content detected in the image. Use this to understand 
         reasoning: 'Failed to parse AI response',
         apiUsed: 'Google Gemini 2.0 Flash Exp' 
       };
+    }
+  }
+
+  /**
+   * Call Gemini API for chat response
+   */
+  private static async callGeminiForChat(
+    imageUrl: string, 
+    systemPrompt: string, 
+    userPrompt: string
+  ): Promise<string> {
+    console.log('🔍 ===== GEMINI CHAT METHOD CALLED =====');
+    
+    const geminiApiKey = process.env['GEMINI_API_KEY'];
+    
+    if (!geminiApiKey) {
+      console.error('🔍 Gemini API key not configured');
+      throw new Error('Gemini API key not configured');
+    }
+    console.log('🔍 Gemini API key found');
+
+    const modelConfig = getModelConfig('gemini-2.5-pro');
+    const geminiModel = modelConfig.model || 'gemini-2.0-flash-exp';
+    console.log('🔍 Gemini model:', geminiModel);
+
+    const requestBody = {
+      contents: [{
+        parts: [
+          { text: systemPrompt },
+          { text: userPrompt },
+          {
+            inline_data: {
+              mime_type: "image/jpeg",
+              data: imageUrl.split(',')[1] // Extract base64 data
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: modelConfig.maxTokens || 2048,
+        topP: 0.8,
+        topK: 40
+      }
+    };
+
+    console.log('🔍 Sending request to Gemini API...');
+    
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorData.error || 'Unknown error'}`);
+    }
+
+    const result = await response.json() as any;
+    console.log('🔍 Gemini API response received');
+    
+    if (result.candidates && result.candidates[0] && result.candidates[0].content) {
+      const responseText = result.candidates[0].content.parts[0].text;
+      console.log('🔍 Gemini chat response generated successfully');
+      return responseText;
+    } else {
+      throw new Error('Invalid response format from Gemini API');
+    }
+  }
+
+  /**
+   * Call OpenAI API for chat response
+   */
+  private static async callOpenAIForChat(
+    imageUrl: string, 
+    systemPrompt: string, 
+    userPrompt: string, 
+    model: ModelType
+  ): Promise<string> {
+    console.log('🔍 ===== OPENAI CHAT METHOD CALLED =====');
+    console.log('🔍 Model:', model);
+    
+    const openaiApiKey = process.env['OPENAI_API_KEY'];
+    
+    if (!openaiApiKey) {
+      console.error('🔍 OpenAI API key not configured');
+      throw new Error('OpenAI API key not configured');
+    }
+    console.log('🔍 OpenAI API key found');
+
+    const modelConfig = getModelConfig(model);
+    const openaiModel = modelConfig.model || 'gpt-4o';
+    console.log('🔍 OpenAI model:', openaiModel);
+
+    const requestBody: any = {
+      model: openaiModel,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageUrl,
+              },
+            },
+          ],
+        },
+      ],
+      max_tokens: modelConfig.maxTokens || 2048,
+      temperature: 0.7,
+    };
+
+    console.log('🔍 Sending request to OpenAI API...');
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const result = await response.json() as any;
+    console.log('🔍 OpenAI API response received');
+    
+    if (result.choices && result.choices[0] && result.choices[0].message) {
+      const responseText = result.choices[0].message.content;
+      console.log('🔍 OpenAI chat response generated successfully');
+      return responseText;
+    } else {
+      throw new Error('Invalid response format from OpenAI API');
     }
   }
 
