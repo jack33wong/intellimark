@@ -310,10 +310,45 @@ export class MathpixService {
    * @returns Image dimensions object
    */
   private static extractImageDimensions(rawResult: MathpixResult): ImageDimensions {
-    return {
-      width: rawResult.width || 0,
-      height: rawResult.height || 0
-    };
+    console.log('🔍 DEBUG: Raw result keys:', Object.keys(rawResult));
+    console.log('🔍 DEBUG: Raw result width:', rawResult.width);
+    console.log('🔍 DEBUG: Raw result height:', rawResult.height);
+    
+    // Try to get dimensions from the result
+    let width = rawResult.width || 0;
+    let height = rawResult.height || 0;
+    
+    // If dimensions are not available, try to estimate from bounding boxes
+    if ((!width || !height) && rawResult.word_data && Array.isArray(rawResult.word_data)) {
+      let maxX = 0;
+      let maxY = 0;
+      
+      rawResult.word_data.forEach((item: any) => {
+        if (item.cnt && Array.isArray(item.cnt)) {
+          item.cnt.forEach((point: number[]) => {
+            if (point[0] !== undefined && point[0] > maxX) maxX = point[0];
+            if (point[1] !== undefined && point[1] > maxY) maxY = point[1];
+          });
+        }
+      });
+      
+      if (maxX > 0 && maxY > 0) {
+        width = maxX + 50; // Add some padding
+        height = maxY + 50; // Add some padding
+        console.log('🔍 DEBUG: Estimated dimensions from bounding boxes:', { width, height });
+      }
+    }
+    
+    // Fallback to reasonable defaults if still no dimensions
+    if (!width || !height) {
+      width = 800;  // Default width
+      height = 600; // Default height
+      console.log('🔍 DEBUG: Using fallback dimensions:', { width, height });
+    }
+    
+    console.log('🔍 DEBUG: Final dimensions:', { width, height });
+    
+    return { width, height };
   }
 
   /**

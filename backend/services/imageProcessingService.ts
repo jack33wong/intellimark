@@ -78,12 +78,26 @@ export class ImageProcessingService {
       const processedResult = ocrResult;
       console.log('🔍 ===== USING PROCESSED OCR RESULT =====');
       console.log(processedResult);
-      // Step 6: Generate bounding boxes and text
+      
+      // Step 6: Get actual image dimensions from the original image data
+      const actualDimensions = await this.extractImageDimensions(processedImageData);
+      console.log('🔍 ===== ACTUAL IMAGE DIMENSIONS =====');
+      console.log('🔍 Actual dimensions:', actualDimensions);
+      console.log('🔍 OCR result dimensions:', processedResult.dimensions);
+      
+      // Use actual dimensions if OCR dimensions are invalid
+      const finalDimensions = (processedResult.dimensions.width > 0 && processedResult.dimensions.height > 0) 
+        ? processedResult.dimensions 
+        : actualDimensions;
+      
+      console.log('🔍 Final dimensions to use:', finalDimensions);
+      
+      // Step 7: Generate bounding boxes and text
       const result: ProcessedImageResult = {
         ocrText: processedResult.text,
         boundingBoxes: processedResult.boundingBoxes,
         confidence: processedResult.confidence,
-        imageDimensions: processedResult.dimensions,
+        imageDimensions: finalDimensions,
         isQuestion: this.detectQuestionMode(processedResult.text)
       };
 
@@ -198,6 +212,37 @@ export class ImageProcessingService {
   }
 
 
+
+  /**
+   * Extract actual image dimensions from the image data
+   * @param imageData - Base64 encoded image data
+   * @returns Image dimensions
+   */
+  private static async extractImageDimensions(imageData: string): Promise<{ width: number; height: number }> {
+    try {
+      // Extract base64 data
+      const base64Data = imageData.split(',')[1];
+      if (!base64Data) {
+        throw new Error('Invalid image data format');
+      }
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // Use Sharp to get image metadata
+      const sharp = require('sharp');
+      const metadata = await sharp(buffer).metadata();
+      
+      console.log('🔍 Sharp metadata:', metadata);
+      
+      return {
+        width: metadata.width || 800,
+        height: metadata.height || 600
+      };
+    } catch (error) {
+      console.warn('🔍 Failed to extract image dimensions:', error);
+      // Return reasonable defaults
+      return { width: 800, height: 600 };
+    }
+  }
 
   /**
    * Detect if the image contains a question (question-only mode)
