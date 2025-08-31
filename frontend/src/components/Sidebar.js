@@ -20,12 +20,12 @@ import { formatDistanceToNow } from 'date-fns';
  * @returns {JSX.Element} The sidebar component
  */
 function Sidebar({ 
-  chats, 
-  currentChat, 
-  onNewChat, 
-  onSelectChat, 
-  onDeleteChat, 
-  isLoading 
+  chats = [], 
+  currentChat = null, 
+  onNewChat = () => {}, 
+  onSelectChat = () => {}, 
+  onDeleteChat = () => {}, 
+  isLoading = false 
 }) {
   const navigate = useNavigate();
   const [userProgress, setUserProgress] = useState(null);
@@ -52,6 +52,7 @@ function Sidebar({
    * Handle chat deletion with confirmation
    */
   const handleDeleteChat = (chatId, event) => {
+    if (!chatId) return;
     event.stopPropagation();
     if (window.confirm('Are you sure you want to delete this chat?')) {
       onDeleteChat(chatId);
@@ -62,6 +63,7 @@ function Sidebar({
    * Format chat title for display
    */
   const formatChatTitle = (title) => {
+    if (!title || typeof title !== 'string') return 'Untitled Chat';
     if (title.length > 30) {
       return title.substring(0, 30) + '...';
     }
@@ -137,25 +139,25 @@ function Sidebar({
 
         <div className="sidebar-section">
           <h3>Chat History</h3>
-          {chats.length > 0 ? (
+          {chats && chats.length > 0 ? (
             <ul className="chat-history">
-              {chats.map((chat) => (
+              {chats?.map((chat) => (
                 <li
-                  key={chat.id}
-                  className={`chat-item ${currentChat?.id === chat.id ? 'active' : ''}`}
+                  key={chat?.id || Math.random()}
+                  className={`chat-item ${currentChat?.id === chat?.id ? 'active' : ''}`}
                   onClick={() => onSelectChat(chat)}
                 >
                   <MessageSquare className="chat-item-icon" size={16} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: currentChat?.id === chat.id ? '600' : '400' }}>
-                      {formatChatTitle(chat.title)}
+                    <div style={{ fontWeight: currentChat?.id === chat?.id ? '600' : '400' }}>
+                      {formatChatTitle(chat?.title)}
                     </div>
                     <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '2px' }}>
-                      {formatTimestamp(chat.updatedAt)}
+                      {formatTimestamp(chat?.updatedAt)}
                     </div>
                   </div>
                   <button
-                    onClick={(e) => handleDeleteChat(chat.id, e)}
+                    onClick={(e) => handleDeleteChat(chat?.id, e)}
                     style={{
                       background: 'none',
                       border: 'none',

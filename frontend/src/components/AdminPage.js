@@ -1,18 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Upload, 
   FileText, 
   Trash2, 
-  Edit, 
-  Download, 
-  Search,
-  Filter,
-  Plus,
-  ArrowLeft,
-  Calendar,
-  BookOpen
+  Edit
 } from 'lucide-react';
+import Sidebar from './Sidebar';
 import './AdminPage.css';
 
 /**
@@ -20,92 +13,80 @@ import './AdminPage.css';
  * @returns {JSX.Element} The admin page component
  */
 function AdminPage() {
-  const navigate = useNavigate();
+  // State management
   const [pastPapers, setPastPapers] = useState([]);
-  const [examBoards, setExamBoards] = useState([]);
-  const [years, setYears] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [editingPaper, setEditingPaper] = useState(null);
+  const [expandedPaper, setExpandedPaper] = useState(null);
   
   // Upload form state
   const [uploadForm, setUploadForm] = useState({
     examBoard: '',
     year: '',
-    subject: '',
-    paperType: 'Main',
-    description: '',
+    level: '',
+    paper: '',
+    type: 'Question Paper',
+    qualification: 'GCSE',
     pdfFile: null
   });
   
-  // Filter state
-  const [filters, setFilters] = useState({
-    examBoard: '',
-    year: '',
-    subject: '',
-    searchTerm: ''
-  });
-  
-  // Edit state
-  const [editingPaper, setEditingPaper] = useState(null);
-  const [showUploadForm, setShowUploadForm] = useState(false);
-  
-  // API base URL for development vs production
+  // Constants
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
-
-  /**
-   * Load all past papers and metadata
-   */
-  const loadData = async () => {
+  
+  // Form validation
+  const isFormValid = () => {
+    return uploadForm.examBoard && 
+           uploadForm.year && 
+           uploadForm.level && 
+           uploadForm.paper && 
+           uploadForm.pdfFile;
+  };
+  
+  // Reset form to initial state
+  const resetForm = useCallback(() => {
+    setUploadForm({
+      examBoard: '',
+      year: '',
+      level: '',
+      paper: '',
+      type: 'Question Paper',
+      qualification: 'GCSE',
+      pdfFile: null
+    });
+  }, []);
+  
+  // Load past papers data
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const [papersRes, boardsRes, yearsRes, subjectsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/past-papers`),
-        fetch(`${API_BASE}/api/admin/exam-boards`),
-        fetch(`${API_BASE}/api/admin/years`),
-        fetch(`${API_BASE}/api/admin/subjects`)
-      ]);
-
-      if (papersRes.ok) {
-        const papers = await papersRes.json();
-        setPastPapers(papers);
-      }
+      const response = await fetch(`${API_BASE}/api/admin/past-papers`);
       
-      if (boardsRes.ok) {
-        const boards = await boardsRes.json();
-        setExamBoards(boards);
-      }
-      
-      if (yearsRes.ok) {
-        const yearsData = await yearsRes.json();
-        setYears(yearsData);
-      }
-      
-      if (subjectsRes.ok) {
-        const subjectsData = await subjectsRes.json();
-        setSubjects(subjectsData);
+      if (response.ok) {
+        const papers = await response.json();
+        setPastPapers(Array.isArray(papers) ? papers : []);
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Failed to load data:', error);
-      setError('Failed to load data');
+      console.error('Failed to load past papers:', error);
+      setError(`Failed to load data: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  /**
-   * Handle file upload
-   */
-  const handleFileUpload = async (e) => {
+  }, [API_BASE]);
+  
+  // Handle file upload
+  const handleFileUpload = useCallback(async (e) => {
     e.preventDefault();
     
-    if (!uploadForm.pdfFile || !uploadForm.examBoard || !uploadForm.year || !uploadForm.subject) {
+    if (!isFormValid()) {
       setError('Please fill in all required fields and select a PDF file');
       return;
     }
-
+    
     try {
       setLoading(true);
       setError(null);
@@ -114,80 +95,233 @@ function AdminPage() {
       formData.append('pdfFile', uploadForm.pdfFile);
       formData.append('examBoard', uploadForm.examBoard);
       formData.append('year', uploadForm.year);
-      formData.append('subject', uploadForm.subject);
-      formData.append('paperType', uploadForm.paperType);
-      formData.append('description', uploadForm.description);
-
+      formData.append('level', uploadForm.level);
+      formData.append('paper', uploadForm.paper);
+      formData.append('type', uploadForm.type);
+      formData.append('qualification', uploadForm.qualification);
+      
       const response = await fetch(`${API_BASE}/api/admin/past-papers/upload`, {
         method: 'POST',
         body: formData,
       });
-
+      
       if (response.ok) {
         const result = await response.json();
         setPastPapers(prev => [result.pastPaper, ...prev]);
-        setUploadForm({
-          examBoard: '',
-          year: '',
-          subject: '',
-          paperType: 'Main',
-          description: '',
-          pdfFile: null
-        });
-        setShowUploadForm(false);
+        resetForm();
         setError(null);
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Upload failed');
+        throw new Error(errorData.error || 'Upload failed');
       }
     } catch (error) {
       console.error('Upload error:', error);
-      setError('Upload failed');
+      setError(`Upload failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  };
-
-  /**
-   * Handle file selection
-   */
-  const handleFileSelect = (e) => {
+  }, [uploadForm, API_BASE, resetForm]);
+  
+  // Handle form input changes
+  const handleInputChange = useCallback((field, value) => {
+    setUploadForm(prev => ({ ...prev, [field]: value }));
+  }, []);
+  
+  // Extract exam information from filename
+  const extractExamInfo = useCallback((filename) => {
+    console.log('Extracting info from filename:', filename);
+    
+    // Remove .pdf extension
+    const nameWithoutExt = filename.replace(/\.pdf$/i, '');
+    console.log('Name without extension:', nameWithoutExt);
+    
+    // Split by common separators: dash, underscore, or space
+    const parts = nameWithoutExt.split(/[-_\s]+/);
+    console.log('Split parts:', parts);
+    
+    // Try to detect the format and extract accordingly
+    if (parts.length >= 3) {
+      const examBoard = parts[0];
+      
+      // Check if second part is a year (4 digits)
+      const secondPart = parts[1];
+      const yearNum = parseInt(secondPart);
+      
+      if (yearNum >= 1900 && yearNum <= 2100) {
+        // Format 1: [ExamBoard]-[Year]-[Level]-[Type]
+        const level = parts[2];
+        const type = parts[3] || 'Question Paper';
+        
+        console.log('Format 1 detected:', { examBoard, year: yearNum, level, type });
+        return { examBoard, year: yearNum, level, paper: '1', type, qualification: 'GCSE' };
+      } else {
+        // Format 2: [ExamBoard]-[PaperCode]-[Type]-[MonthYear]
+        const paperCode = parts[1];
+        const type = parts[2];
+        const monthYear = parts[3];
+        
+        // Extract year from monthYear (e.g., JUN24 -> 2024, SEP23 -> 2023)
+        let year = null;
+        if (monthYear) {
+          // Look for 2-digit year at the end
+          const yearMatch = monthYear.match(/(\d{2})$/);
+          if (yearMatch) {
+            const shortYear = parseInt(yearMatch[1]);
+            // Assume 20xx for years 00-99
+            year = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
+          }
+        }
+        
+        // If no year found in monthYear, try to find year anywhere in filename
+        if (!year) {
+          const yearMatch = filename.match(/\b(19\d{2}|20\d{2}|21\d{2})\b/);
+          if (yearMatch) {
+            year = parseInt(yearMatch[1]);
+          }
+        }
+        
+        // Determine level from paper code (e.g., 83001H -> Higher, 83001F -> Foundation)
+        let level = '';
+        if (paperCode.includes('H')) {
+          level = 'Higher';
+        } else if (paperCode.includes('F')) {
+          level = 'Foundation';
+        } else if (paperCode.includes('AS')) {
+          level = 'AS';
+        } else if (paperCode.includes('A2')) {
+          level = 'A2';
+        }
+        
+        // Extract paper number from paper code (e.g., 83001H -> 1, 2H -> 2)
+        let paperNumber = '1'; // Default to 1
+        if (paperCode) {
+          // Try to extract number from paper code
+          const numberMatch = paperCode.match(/(\d+)/);
+          if (numberMatch) {
+            const num = parseInt(numberMatch[1]);
+            // If it's a large number like 83001, extract the last digit or use 1
+            if (num > 100) {
+              // For codes like 83001, extract the last digit
+              paperNumber = (num % 10).toString();
+              if (paperNumber === '0') paperNumber = '1'; // Avoid 0
+            } else {
+              paperNumber = num.toString();
+            }
+          }
+        }
+        
+        // Map type abbreviations
+        let mappedType = type;
+        if (type === 'QP') mappedType = 'Question Paper';
+        else if (type === 'MS') mappedType = 'Mark Scheme';
+        else if (type === 'SP') mappedType = 'Specimen';
+        
+        console.log('Format 2 detected:', { examBoard, year, level, paper: paperNumber, type: mappedType, qualification: 'GCSE' });
+        
+        if (year) {
+          return { examBoard, year, level, paper: paperNumber, type: mappedType, qualification: 'GCSE' };
+        }
+      }
+    }
+    
+    // Enhanced fallback: try to extract year from anywhere in filename
+    const yearMatch = filename.match(/\b(19\d{2}|20\d{2}|21\d{2})\b/);
+    if (yearMatch) {
+      const year = parseInt(yearMatch[1]);
+      console.log('Year extracted from fallback:', year);
+      
+      // Try to extract exam board from the beginning of filename
+      const beforeYear = filename.substring(0, filename.indexOf(yearMatch[1]));
+      const examBoard = beforeYear.replace(/[-_\s]+$/, '').trim();
+      
+      return { 
+        examBoard: examBoard || '', 
+        year, 
+        level: '', 
+        paper: '1',
+        type: 'Question Paper',
+        qualification: 'GCSE'
+      };
+    }
+    
+    console.log('No information could be extracted');
+    return null;
+  }, []);
+  
+  // Handle file selection
+  const handleFileSelect = useCallback((e) => {
     const file = e.target.files[0];
     if (file && file.type === 'application/pdf') {
+      console.log('File selected:', file.name);
+      
       setUploadForm(prev => ({ ...prev, pdfFile: file }));
+      
+      // Try to extract exam information from filename
+      const extractedInfo = extractExamInfo(file.name);
+      console.log('Extracted info:', extractedInfo);
+      
+      if (extractedInfo) {
+        console.log('Setting form with extracted info:', extractedInfo);
+        
+        setUploadForm(prev => {
+          const newForm = {
+            ...prev,
+            examBoard: extractedInfo.examBoard || prev.examBoard,
+            year: extractedInfo.year || prev.year,
+            level: extractedInfo.level || prev.level,
+            paper: extractedInfo.paper || prev.paper,
+            type: extractedInfo.type || prev.type,
+            qualification: extractedInfo.qualification || prev.qualification
+          };
+          console.log('New form state:', newForm);
+          return newForm;
+        });
+        
+        if (extractedInfo.examBoard && extractedInfo.year && extractedInfo.level) {
+          setError(null); // Clear any previous errors
+          // Show success message for auto-fill
+          setError(`✅ Auto-filled from filename: ${file.name}`);
+          // Clear success message after 3 seconds
+          setTimeout(() => setError(null), 3000);
+        } else if (extractedInfo && extractedInfo.year) {
+          // Partial auto-fill (only year found)
+          setError(`⚠️ Partial auto-fill: Year ${extractedInfo.year} detected. Please fill in other fields manually.`);
+          setTimeout(() => setError(null), 5000);
+        }
+      } else {
+        console.log('No info could be extracted from filename');
+      }
+      
+      setError(null);
     } else {
       setError('Please select a valid PDF file');
     }
-  };
-
-  /**
-   * Delete a past paper
-   */
-  const handleDelete = async (id) => {
+  }, [extractExamInfo]);
+  
+  // Delete past paper
+  const handleDelete = useCallback(async (id) => {
     if (!window.confirm('Are you sure you want to delete this past paper?')) {
       return;
     }
-
+    
     try {
       const response = await fetch(`${API_BASE}/api/admin/past-papers/${id}`, {
         method: 'DELETE',
       });
-
+      
       if (response.ok) {
         setPastPapers(prev => prev.filter(paper => paper.id !== id));
       } else {
-        setError('Failed to delete past paper');
+        throw new Error('Failed to delete past paper');
       }
     } catch (error) {
       console.error('Delete error:', error);
       setError('Failed to delete past paper');
     }
-  };
-
-  /**
-   * Update past paper metadata
-   */
-  const handleUpdate = async (id, updatedData) => {
+  }, [API_BASE]);
+  
+    // Update past paper
+  const handleUpdate = useCallback(async (id, updatedData) => {
     try {
       const response = await fetch(`${API_BASE}/api/admin/past-papers/${id}`, {
         method: 'PUT',
@@ -199,124 +333,122 @@ function AdminPage() {
 
       if (response.ok) {
         const result = await response.json();
-        setPastPapers(prev => 
-          prev.map(paper => 
+        setPastPapers(prev =>
+          prev.map(paper =>
             paper.id === id ? result.pastPaper : paper
           )
         );
         setEditingPaper(null);
       } else {
-        setError('Failed to update past paper');
+        throw new Error('Failed to update past paper');
       }
     } catch (error) {
       console.error('Update error:', error);
       setError('Failed to update past paper');
     }
-  };
+  }, [API_BASE]);
 
-  /**
-   * Download a past paper
-   */
-  const handleDownload = async (id) => {
+  // Extract questions from past paper
+  const handleExtractQuestions = useCallback(async (id) => {
     try {
-      window.open(`${API_BASE}/api/admin/past-papers/${id}/download`, '_blank');
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE}/api/admin/past-papers/${id}/extract-questions`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setPastPapers(prev =>
+          prev.map(paper =>
+            paper.id === id ? result.pastPaper : paper
+          )
+        );
+        setError(`✅ Questions extracted successfully: ${result.pastPaper.questionCount} questions, ${result.pastPaper.subQuestionCount} sub-questions`);
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to extract questions');
+      }
     } catch (error) {
-      console.error('Download error:', error);
-      setError('Failed to download past paper');
+      console.error('Question extraction error:', error);
+      setError(`Failed to extract questions: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [API_BASE]);
 
-  /**
-   * Filter past papers based on current filters
-   */
-  const filteredPapers = pastPapers.filter(paper => {
-    if (filters.examBoard && paper.examBoard !== filters.examBoard) return false;
-    if (filters.year && paper.year !== filters.year) return false;
-    if (filters.subject && paper.subject !== filters.subject) return false;
-    if (filters.searchTerm) {
-      const searchLower = filters.searchTerm.toLowerCase();
-      return (
-        paper.subject.toLowerCase().includes(searchLower) ||
-        paper.examBoard.toLowerCase().includes(searchLower) ||
-        paper.description.toLowerCase().includes(searchLower)
-      );
-    }
-    return true;
-  });
-
+  // Toggle paper expansion
+  const togglePaperExpansion = useCallback((paperId) => {
+    setExpandedPaper(expandedPaper === paperId ? null : paperId);
+  }, [expandedPaper]);
+  
   // Load data on component mount
   useEffect(() => {
     loadData();
-  }, []);
-
-  /**
-   * Format file size for display
-   */
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  /**
-   * Format date for display
-   */
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
+  }, [loadData]);
+  
+  // Render loading state
   if (loading && pastPapers.length === 0) {
     return (
-      <div className="admin-page">
-        <div className="loading">Loading admin panel...</div>
+      <div className="admin-layout">
+        <Sidebar />
+        <div className="admin-content">
+          <div className="loading">Loading admin panel...</div>
+        </div>
       </div>
     );
   }
-
-  return (
-    <div className="admin-page">
-      <div className="admin-header">
-        <div className="header-left">
-          <button 
-            className="btn btn-secondary"
-            onClick={() => navigate('/')}
-          >
-            <ArrowLeft size={16} />
-            Back to Chat
-          </button>
-          <h1>Admin Dashboard - Past Papers Management</h1>
+  
+  // Render error state
+  if (error && pastPapers.length === 0) {
+    return (
+      <div className="admin-layout">
+        <Sidebar />
+        <div className="admin-content">
+          <div className="error-message">
+            <h2>Error Loading Admin Panel</h2>
+            <p>{error}</p>
+            <button onClick={() => window.location.reload()}>Reload Page</button>
+          </div>
         </div>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowUploadForm(!showUploadForm)}
-        >
-          <Plus size={16} />
-          {showUploadForm ? 'Cancel Upload' : 'Upload New Paper'}
-        </button>
       </div>
-
-      {error && (
-        <div className="error-message">
-          {error}
-          <button onClick={() => setError(null)}>×</button>
+    );
+  }
+  
+  return (
+    <div className="admin-layout">
+      <Sidebar />
+      <div className="admin-content">
+        {/* Header */}
+        <div className="admin-header">
+          <div className="header-left">
+            <h1>Admin Dashboard - Past Papers Management</h1>
+          </div>
         </div>
-      )}
 
-      {/* Upload Form */}
-      {showUploadForm && (
+        {/* Error Display */}
+        {error && (
+          <div className="error-message">
+            {error}
+            <button onClick={() => setError(null)}>×</button>
+          </div>
+        )}
+
+        {/* Upload Form */}
         <div className="upload-form">
-          <h2>Upload New Past Paper</h2>
+          <h2>Upload Past Paper</h2>
           <form onSubmit={handleFileUpload}>
-            <div className="form-row">
+            {/* First row: Exam Board, Year, Level, Paper */}
+            <div className="form-row compact">
               <div className="form-group">
                 <label>Exam Board *</label>
                 <input
                   type="text"
                   value={uploadForm.examBoard}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, examBoard: e.target.value }))}
-                  placeholder="e.g., AQA, Edexcel, OCR"
+                  onChange={(e) => handleInputChange('examBoard', e.target.value)}
+                  placeholder="AQA, Edexcel, OCR"
                   required
                 />
               </div>
@@ -325,260 +457,396 @@ function AdminPage() {
                 <input
                   type="number"
                   value={uploadForm.year}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, year: e.target.value }))}
-                  placeholder="e.g., 2024"
-                  min="2000"
-                  max="2030"
+                  onChange={(e) => handleInputChange('year', e.target.value)}
+                  placeholder="2024"
+                  min="1900"
+                  max="2100"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Level *</label>
+                <input
+                  type="text"
+                  value={uploadForm.level}
+                  onChange={(e) => handleInputChange('level', e.target.value)}
+                  placeholder="Higher, Foundation, AS, A2"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Paper *</label>
+                <input
+                  type="text"
+                  value={uploadForm.paper}
+                  onChange={(e) => handleInputChange('paper', e.target.value)}
+                  placeholder="83001H, 1, 2, 3"
                   required
                 />
               </div>
             </div>
             
-            <div className="form-row">
+            {/* Second row: Type, Qualification, PDF File, Upload Button */}
+            <div className="form-row compact">
               <div className="form-group">
-                <label>Subject *</label>
-                <input
-                  type="text"
-                  value={uploadForm.subject}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, subject: e.target.value }))}
-                  placeholder="e.g., Mathematics, Physics, Chemistry"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Paper Type</label>
+                <label>Type *</label>
                 <select
-                  value={uploadForm.paperType}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, paperType: e.target.value }))}
+                  value={uploadForm.type}
+                  onChange={(e) => handleInputChange('type', e.target.value)}
+                  required
                 >
-                  <option value="Main">Main</option>
+                  <option value="Question Paper">Question Paper</option>
+                  <option value="Mark Scheme">Mark Scheme</option>
+                  <option value="Specimen">Specimen</option>
+                  <option value="Practice">Practice</option>
                   <option value="Foundation">Foundation</option>
                   <option value="Higher">Higher</option>
-                  <option value="Mark Scheme">Mark Scheme</option>
                 </select>
               </div>
-            </div>
+              <div className="form-group">
+                <label>Qualification</label>
+                <select
+                  value={uploadForm.qualification}
+                  onChange={(e) => handleInputChange('qualification', e.target.value)}
+                >
+                  <option value="GCSE">GCSE</option>
+                  <option value="A-Level">A-Level</option>
+                  <option value="AS-Level">AS-Level</option>
+                  <option value="IB">IB</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>PDF File *</label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  required
+                />
 
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
-                value={uploadForm.description}
-                onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Optional description of the paper"
-                rows="3"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>PDF File *</label>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                required
-              />
-              <small>Maximum file size: 50MB. Only PDF files allowed.</small>
-            </div>
-
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                <Upload size={16} />
-                {loading ? 'Uploading...' : 'Upload Paper'}
-              </button>
+              </div>
+              <div className="form-group upload-button-group">
+                <label>Upload</label>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary upload-btn" 
+                  disabled={loading || !isFormValid()}
+                >
+                  <Upload size={16} />
+                  {loading ? 'Uploading...' : 'Upload Paper'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
-      )}
 
-      {/* Filters */}
-      <div className="filters-section">
-        <h3>Filters</h3>
-        <div className="filters">
-          <div className="filter-group">
-            <Search size={16} />
-            <input
-              type="text"
-              placeholder="Search papers..."
-              value={filters.searchTerm}
-              onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-            />
-          </div>
+        {/* Past Papers List */}
+        <div className="papers-section">
+          <h3>Past Papers ({pastPapers.length})</h3>
           
-          <div className="filter-group">
-            <Filter size={16} />
-            <select
-              value={filters.examBoard}
-              onChange={(e) => setFilters(prev => ({ ...prev, examBoard: e.target.value }))}
-            >
-              <option value="">All Exam Boards</option>
-              {examBoards.map(board => (
-                <option key={board} value={board}>{board}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <Calendar size={16} />
-            <select
-              value={filters.year}
-              onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}
-            >
-              <option value="">All Years</option>
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
-            <BookOpen size={16} />
-            <select
-              value={filters.subject}
-              onChange={(e) => setFilters(prev => ({ ...prev, subject: e.target.value }))}
-            >
-              <option value="">All Subjects</option>
-              {subjects.map(subject => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-          </div>
+          {pastPapers.length === 0 ? (
+            <div className="no-papers">
+              <FileText size={48} />
+              <p>No past papers found. Upload your first paper above!</p>
+            </div>
+          ) : (
+            <div className="papers-table-container">
+              <table className="papers-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Exam Board</th>
+                    <th>Year</th>
+                    <th>Level</th>
+                    <th>Paper</th>
+                    <th>Type</th>
+                    <th>Qualification</th>
+                    <th>Questions</th>
+                    <th>File Size</th>
+                    <th>Uploaded</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pastPapers.map(paper => (
+                    <React.Fragment key={paper.id}>
+                      <tr className="paper-row">
+                        <td className="file-cell">
+                          <div 
+                            className="file-info clickable"
+                            onClick={() => togglePaperExpansion(paper.id)}
+                            title="Click to view exam content"
+                          >
+                            <FileText size={20} />
+                            <span className="filename">{paper.originalName}</span>
+                            <span className="expand-icon">
+                              {expandedPaper === paper.id ? '▼' : '▶'}
+                            </span>
+                          </div>
+                        </td>
+                        <td>{paper.examBoard}</td>
+                        <td>{paper.year}</td>
+                        <td>{paper.level}</td>
+                        <td>{paper.paper}</td>
+                        <td>{paper.type}</td>
+                        <td>{paper.qualification}</td>
+                        <td>
+                          {paper.questionCount ? (
+                            <span className="question-count">
+                              {paper.questionCount} Q{paper.subQuestionCount ? ` (${paper.subQuestionCount} sub)` : ''}
+                            </span>
+                          ) : (
+                            <span className="no-questions">No questions</span>
+                          )}
+                        </td>
+                        <td>{formatFileSize(paper.fileSize)}</td>
+                        <td>{formatDate(paper.uploadedAt)}</td>
+                        <td className="actions-cell">
+                          <button
+                            className="btn-icon"
+                            onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          {!paper.questionCount && (
+                            <button
+                              className="btn-icon"
+                              onClick={() => handleExtractQuestions(paper.id)}
+                              title="Extract Questions"
+                              disabled={loading}
+                            >
+                              <FileText size={16} />
+                            </button>
+                          )}
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleDelete(paper.id)}
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                      
+                      {/* Expanded Content Panel */}
+                      {expandedPaper === paper.id && (
+                        <tr className="expanded-content-row">
+                          <td colSpan="11">
+                            <div className="expanded-content">
+                                                          <div className="content-header">
+                              <h4>Exam Paper Content: {paper.originalName}</h4>
+                              <div className="content-info">
+                                <span className="info-text">Questions are displayed in numerical order</span>
+                                <button 
+                                  className="btn-icon close-btn"
+                                  onClick={() => togglePaperExpansion(paper.id)}
+                                  title="Close"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            </div>
+                              
+                              {paper.questions && paper.questions.length > 0 ? (
+                                <div className="questions-content">
+                                  <div className="questions-summary">
+                                    <span className="summary-item">
+                                      <strong>Total Questions:</strong> {paper.questionCount || paper.questions.length}
+                                    </span>
+                                    <span className="summary-item">
+                                      <strong>Sub-questions:</strong> {paper.subQuestionCount || paper.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0)}
+                                    </span>
+                                    <span className="summary-item">
+                                      <strong>Total Marks:</strong> {paper.questions.reduce((total, q) => total + (q.marks || 0), 0)}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="questions-list">
+                                    {paper.questions.map((question, qIndex) => (
+                                      <div key={qIndex} className="question-item">
+                                        <div className="question-header">
+                                          <span className="question-number">Question {question.questionNumber}</span>
+                                          {question.marks && (
+                                            <span className="question-marks">[{question.marks} marks]</span>
+                                          )}
+                                        </div>
+                                        <div className="question-text">{question.text}</div>
+                                        
+                                        {question.subQuestions && question.subQuestions.length > 0 && (
+                                          <div className="sub-questions">
+                                            {question.subQuestions.map((subQ, sIndex) => (
+                                              <div key={sIndex} className="sub-question-item">
+                                                <div className="sub-question-header">
+                                                  <span className="sub-question-number">({subQ.subQuestionNumber})</span>
+                                                  {subQ.marks && (
+                                                    <span className="sub-question-marks">[{subQ.marks} marks]</span>
+                                                  )}
+                                                </div>
+                                                <div className="sub-question-text">{subQ.text}</div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="no-questions">
+                                  <p>No questions have been extracted from this paper yet.</p>
+                                  <button 
+                                    className="btn btn-primary"
+                                    onClick={() => handleExtractQuestions(paper.id)}
+                                    disabled={loading}
+                                  >
+                                    {loading ? 'Extracting...' : 'Extract Questions'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+              
+              {/* Edit Form Overlay */}
+              {editingPaper && (
+                <EditPaperForm
+                  paper={pastPapers.find(p => p.id === editingPaper)}
+                  onUpdate={handleUpdate}
+                  onCancel={() => setEditingPaper(null)}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Past Papers List */}
-      <div className="papers-section">
-        <h3>Past Papers ({filteredPapers.length})</h3>
-        
-        {filteredPapers.length === 0 ? (
-          <div className="no-papers">
-            <FileText size={48} />
-            <p>No past papers found. {showUploadForm ? 'Upload your first paper above!' : 'Click "Upload New Paper" to get started.'}</p>
+// Utility functions
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const formatDate = (dateString) => {
+  try {
+    return new Date(dateString).toLocaleDateString();
+  } catch {
+    return 'Invalid Date';
+  }
+};
+
+// Edit Paper Form Component
+function EditPaperForm({ paper, onUpdate, onCancel }) {
+  const [formData, setFormData] = useState({
+    examBoard: paper?.examBoard || '',
+    year: paper?.year || '',
+    level: paper?.level || '',
+    paper: paper?.paper || '',
+    type: paper?.type || 'Question Paper',
+    qualification: paper?.qualification || 'GCSE'
+  });
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdate(paper.id, formData);
+  };
+  
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+  
+  if (!paper) return null;
+  
+  return (
+    <div className="edit-form-overlay">
+      <div className="edit-form">
+        <h4>Edit Past Paper</h4>
+        <form onSubmit={handleSubmit}>
+          <div className="form-row">
+            <input
+              name="examBoard"
+              value={formData.examBoard}
+              onChange={(e) => handleInputChange('examBoard', e.target.value)}
+              placeholder="Exam Board"
+              required
+            />
+            <input
+              name="year"
+              type="number"
+              value={formData.year}
+              onChange={(e) => handleInputChange('year', e.target.value)}
+              placeholder="Year"
+              required
+            />
           </div>
-        ) : (
-          <div className="papers-grid">
-            {filteredPapers.map(paper => (
-              <div key={paper.id} className="paper-card">
-                <div className="paper-header">
-                  <div className="paper-icon">
-                    <FileText size={24} />
-                  </div>
-                  <div className="paper-actions">
-                    <button
-                      className="btn-icon"
-                      onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
-                      title="Edit"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      className="btn-icon"
-                      onClick={() => handleDelete(paper.id)}
-                      title="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="paper-content">
-                  <h4>{paper.subject}</h4>
-                  <p className="paper-meta">
-                    <span className="exam-board">{paper.examBoard}</span>
-                    <span className="year">{paper.year}</span>
-                    <span className="paper-type">{paper.paperType}</span>
-                  </p>
-                  
-                  {paper.description && (
-                    <p className="description">{paper.description}</p>
-                  )}
-                  
-                  <div className="paper-details">
-                    <span className="file-size">{formatFileSize(paper.fileSize)}</span>
-                    <span className="upload-date">{formatDate(paper.uploadedAt)}</span>
-                    <span className="downloads">{paper.downloadCount} downloads</span>
-                  </div>
-                </div>
-
-                <div className="paper-footer">
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleDownload(paper.id)}
-                  >
-                    <Download size={16} />
-                    Download
-                  </button>
-                </div>
-
-                {/* Edit Form */}
-                {editingPaper === paper.id && (
-                  <div className="edit-form">
-                    <h5>Edit Paper Details</h5>
-                    <form onSubmit={(e) => {
-                      e.preventDefault();
-                      const formData = new FormData(e.target);
-                      handleUpdate(paper.id, {
-                        examBoard: formData.get('examBoard'),
-                        year: formData.get('year'),
-                        subject: formData.get('subject'),
-                        paperType: formData.get('paperType'),
-                        description: formData.get('description')
-                      });
-                    }}>
-                      <div className="form-row">
-                        <input
-                          name="examBoard"
-                          defaultValue={paper.examBoard}
-                          placeholder="Exam Board"
-                          required
-                        />
-                        <input
-                          name="year"
-                          type="number"
-                          defaultValue={paper.year}
-                          placeholder="Year"
-                          required
-                        />
-                      </div>
-                      <div className="form-row">
-                        <input
-                          name="subject"
-                          defaultValue={paper.subject}
-                          placeholder="Subject"
-                          required
-                        />
-                        <select name="paperType" defaultValue={paper.paperType}>
-                          <option value="Main">Main</option>
-                          <option value="Foundation">Foundation</option>
-                          <option value="Higher">Higher</option>
-                          <option value="Mark Scheme">Mark Scheme</option>
-                        </select>
-                      </div>
-                      <textarea
-                        name="description"
-                        defaultValue={paper.description}
-                        placeholder="Description"
-                        rows="2"
-                      />
-                      <div className="edit-actions">
-                        <button type="submit" className="btn btn-primary">Save</button>
-                        <button 
-                          type="button" 
-                          className="btn btn-secondary"
-                          onClick={() => setEditingPaper(null)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="form-row">
+            <input
+              name="level"
+              value={formData.level}
+              onChange={(e) => handleInputChange('level', e.target.value)}
+              placeholder="Level"
+              required
+            />
+            <input
+              name="paper"
+              value={formData.paper}
+              onChange={(e) => handleInputChange('paper', e.target.value)}
+              placeholder="Paper Code"
+              required
+            />
           </div>
-        )}
+          <div className="form-row">
+            <select 
+              name="type" 
+              value={formData.type}
+              onChange={(e) => handleInputChange('type', e.target.value)}
+            >
+              <option value="Question Paper">Question Paper</option>
+              <option value="Mark Scheme">Mark Scheme</option>
+              <option value="Specimen">Specimen</option>
+              <option value="Practice">Practice</option>
+              <option value="Foundation">Foundation</option>
+              <option value="Higher">Higher</option>
+            </select>
+            <select 
+              name="qualification" 
+              value={formData.qualification}
+              onChange={(e) => handleInputChange('qualification', e.target.value)}
+            >
+              <option value="GCSE">GCSE</option>
+              <option value="A-Level">A-Level</option>
+              <option value="AS-Level">AS-Level</option>
+              <option value="IB">IB</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div className="edit-actions">
+            <button type="submit" className="btn btn-primary">Save</button>
+            <button 
+              type="button" 
+              className="btn btn-secondary"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
 export default AdminPage;
+
