@@ -5,6 +5,7 @@
 
 import { 
   Annotation, 
+  ImageAnnotation, 
   ImageAnnotationResult, 
   ImageDimensions, 
   BoundingBox 
@@ -28,7 +29,7 @@ export class ImageAnnotationService {
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}" style="position: absolute; top: 0; left: 0; pointer-events: none;">`;
     
     annotations.forEach((annotation, index) => {
-      if (annotation.hasComment && annotation.comment) {
+      if (annotation.comment) {
         svg += this.createCommentAnnotation(annotation, imageDimensions, index);
       }
     });
@@ -48,6 +49,8 @@ export class ImageAnnotationService {
     _imageDimensions: ImageDimensions, 
     index: number
   ): string {
+    if (!annotation.comment) return '';
+    
     const commentText = this.breakTextIntoLines(annotation.comment, 50);
     let svg = '';
 
@@ -56,8 +59,8 @@ export class ImageAnnotationService {
     const textHeight = commentText.length * 28.8;
     
     svg += `<rect 
-      x="${annotation.position.x - 5}" 
-      y="${annotation.position.y - 20}" 
+      x="${annotation.bbox[0] - 5}" 
+      y="${annotation.bbox[1] - 20}" 
       width="${textWidth + 10}" 
       height="${textHeight + 10}" 
       fill="rgba(255, 255, 255, 0.9)" 
@@ -69,10 +72,10 @@ export class ImageAnnotationService {
 
     // Add comment text
     commentText.forEach((line, lineIndex) => {
-      const y = annotation.position.y + (lineIndex * 28.8);
+      const y = annotation.bbox[1] + (lineIndex * 28.8);
       svg += `<text 
         id="comment-${index}-${lineIndex}"
-        x="${annotation.position.x}" 
+        x="${annotation.bbox[0]}" 
         y="${y}" 
         fill="red" 
         font-family="Lucida Handwriting, cursive, sans-serif" 
@@ -181,18 +184,15 @@ export class ImageAnnotationService {
    * @returns Array of annotations positioned around bounding boxes
    */
   static createAnnotationsFromBoundingBoxes(
-    boundingBoxes: BoundingBox[], 
-    imageDimensions: ImageDimensions
+    boundingBoxes: BoundingBox[]
   ): Annotation[] {
     return boundingBoxes.map((box, index) => {
       const comment = `Text ${index + 1}: ${box.text}`;
-      const position = this.calculateCommentPosition(box, imageDimensions, comment.length);
 
       return {
-        position,
-        comment,
-        hasComment: true,
-        boundingBox: box
+        action: 'comment',
+        bbox: [box.x, box.y, box.width, box.height],
+        comment
       };
     });
   }
@@ -207,14 +207,16 @@ export class ImageAnnotationService {
     annotation: Annotation, 
     imageDimensions: ImageDimensions
   ): boolean {
+    if (!annotation.comment) return false;
+    
     const commentWidth = this.estimateTextWidth(annotation.comment, 24);
     const commentHeight = this.breakTextIntoLines(annotation.comment, 50).length * 28.8;
 
     return (
-      annotation.position.x >= 0 &&
-      annotation.position.y >= 0 &&
-      annotation.position.x + commentWidth <= imageDimensions.width &&
-      annotation.position.y + commentHeight <= imageDimensions.height
+      annotation.bbox[0] >= 0 &&
+      annotation.bbox[1] >= 0 &&
+      annotation.bbox[0] + commentWidth <= imageDimensions.width &&
+      annotation.bbox[1] + commentHeight <= imageDimensions.height
     );
   }
 
@@ -232,12 +234,26 @@ export class ImageAnnotationService {
   ): ImageAnnotationResult {
     const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
     
+    // Convert annotations to ImageAnnotation format
+    const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
+      position: { x: ann.bbox[0], y: ann.bbox[1] },
+      comment: ann.comment || '',
+      hasComment: !!ann.comment,
+      boundingBox: {
+        x: ann.bbox[0],
+        y: ann.bbox[1],
+        width: ann.bbox[2],
+        height: ann.bbox[3],
+        text: ann.comment || ''
+      }
+    }));
+    
     // For now, return the original image with SVG overlay
     // In a full implementation, this would composite the image with annotations
     return {
       originalImage,
       annotatedImage: originalImage, // Placeholder - would be composited image
-      annotations,
+      annotations: imageAnnotations,
       svgOverlay
     };
   }
@@ -253,9 +269,9 @@ export class ImageAnnotationService {
     averageCommentLength: number;
   } {
     const totalAnnotations = annotations.length;
-    const totalComments = annotations.filter(a => a.hasComment).length;
+    const totalComments = annotations.filter(a => a.comment).length;
     const totalCommentLength = annotations
-      .filter(a => a.hasComment)
+      .filter(a => a.comment)
       .reduce((sum, a) => sum + (a.comment?.length || 0), 0);
 
     return {

@@ -19,7 +19,12 @@ export class AIMarkingService {
     imageData: string, 
     model: ModelType
   ): Promise<ImageClassification> {
+    console.log('🔍 ===== CLASSIFY IMAGE METHOD CALLED =====');
+    console.log('🔍 Model:', model);
+    console.log('🔍 Image data length:', imageData.length);
+    
     const compressedImage = await this.compressImage(imageData);
+    console.log('🔍 Image compressed, length:', compressedImage.length);
     
     const systemPrompt = `You are an AI assistant that classifies math images. 
     
@@ -50,13 +55,16 @@ export class AIMarkingService {
     const userPrompt = `Please classify this uploaded image as either a math question only or a math question with student work/answers.`;
 
     try {
+      console.log('🔍 ===== CALLING AI CLASSIFICATION =====');
       if (model === 'gemini-2.5-pro') {
+        console.log('🔍 Using Gemini API');
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
+        console.log('🔍 Using OpenAI API');
         return await this.callOpenAIForClassification(compressedImage, systemPrompt, userPrompt, model);
       }
     } catch (error) {
-      console.error('Classification failed:', error);
+      console.error('🔍 Classification failed:', error);
       // Default to false (assume it's homework to be marked) if classification fails
       return { 
         isQuestionOnly: false, 
@@ -208,14 +216,20 @@ export class AIMarkingService {
     userPrompt: string, 
     model: ModelType
   ): Promise<ImageClassification> {
+    console.log('🔍 ===== OPENAI CLASSIFICATION METHOD CALLED =====');
+    console.log('🔍 Model:', model);
+    
     const openaiApiKey = process.env['OPENAI_API_KEY'];
     
     if (!openaiApiKey) {
+      console.error('🔍 OpenAI API key not configured');
       throw new Error('OpenAI API key not configured');
     }
+    console.log('🔍 OpenAI API key found');
 
     const modelConfig = getModelConfig(model);
     const openaiModel = modelConfig.model || 'gpt-4o';
+    console.log('🔍 OpenAI model:', openaiModel);
 
     const requestBody: any = {
       model: openaiModel,
@@ -245,7 +259,9 @@ export class AIMarkingService {
     } else {
       requestBody.max_tokens = 500;
     }
-
+    console.log('🔍 ===== CLASSIFICATION START =====');
+    console.log('🔍 Sending request to OpenAI...');
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -255,8 +271,11 @@ export class AIMarkingService {
       body: JSON.stringify(requestBody),
     });
 
+    console.log('🔍 OpenAI response status:', response.status);
+
     if (!response.ok) {
       const errorData = await response.json() as any;
+      console.error('🔍 OpenAI API error:', errorData);
       throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
     }
 
@@ -264,19 +283,22 @@ export class AIMarkingService {
     const content = data.choices?.[0]?.message?.content;
     
     if (!content) {
+      console.error('🔍 OpenAI API returned no content');
       throw new Error('OpenAI API returned no content');
     }
 
+    console.log('🔍 OpenAI response content length:', content.length);
+
     try {
       const result = JSON.parse(content);
-      console.log("OpenAI Classification Response:", result.isQuestionOnly);
+      console.log("🔍 OpenAI Classification Response:", result.isQuestionOnly);
       return { 
         isQuestionOnly: result.isQuestionOnly || false,
         reasoning: result.reasoning || 'No reasoning provided',
         apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni'
       };
     } catch (parseError) {
-      console.error('Failed to parse classification response:', parseError);
+      console.error('🔍 Failed to parse classification response:', parseError);
       return { 
         isQuestionOnly: false, 
         reasoning: 'Failed to parse AI response',

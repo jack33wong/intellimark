@@ -1,0 +1,56 @@
+✅ Simple Server running at http://localhost:5001
+Environment: development
+🚀 ===== MARK HOMEWORK ROUTE CALLED =====
+Request body: { imageData: 'present', model: 'chatgpt-5' }
+🔍 ===== EXTRACTING REQUEST DATA =====
+🔍 Extracted imageData length: 193210
+🔍 Extracted model: chatgpt-5
+🔍 ===== VALIDATING REQUEST =====
+🔍 Image data validation passed
+🔍 Model validation passed
+🔍 ===== CLASSIFYING IMAGE =====
+🔍 ===== CLASSIFY IMAGE METHOD CALLED =====
+🔍 Model: chatgpt-5
+🔍 Image data length: 193210
+🔍 Image Classification: {
+  isQuestionOnly: false,
+  reasoning: 'Mock classification - proceeding with homework marking',
+  apiUsed: 'Mock Service'
+}
+🔍 ===== PROCESSING IMAGE FOR MARKING =====
+🚀 ===== MARK HOMEWORK ROUTE CALLED =====
+Request body: { imageData: 'present', model: 'chatgpt-5' }
+🔍 ===== EXTRACTING REQUEST DATA =====
+🔍 Extracted imageData length: 193210
+🔍 Extracted model: chatgpt-5
+🔍 ===== VALIDATING REQUEST =====
+🔍 Image data validation passed
+🔍 Model validation passed
+🔍 ===== CLASSIFYING IMAGE =====
+🔍 ===== CLASSIFY IMAGE METHOD CALLED =====
+🔍 Model: chatgpt-5
+🔍 Image data length: 193210
+🔍 Image Classification: {
+  isQuestionOnly: false,
+  reasoning: 'Mock classification - proceeding with homework marking',
+  apiUsed: 'Mock Service'
+}
+🔍 ===== PROCESSING IMAGE FOR MARKING =====
+🚀 ===== MARK HOMEWORK ROUTE CALLED =====
+Request body: { imageData: 'present', model: 'chatgpt-5' }
+🔍 ===== EXTRACTING REQUEST DATA =====
+🔍 Extracted imageData length: 193210
+🔍 Extracted model: chatgpt-5
+🔍 ===== VALIDATING REQUEST =====
+🔍 Image data validation passed
+🔍 Model validation passed
+🔍 ===== CLASSIFYING IMAGE =====
+🔍 ===== CLASSIFY IMAGE METHOD CALLED =====
+🔍 Model: chatgpt-5
+🔍 Image data length: 193210
+🔍 Image Classification: {
+  isQuestionOnly: false,
+  reasoning: 'Mock classification - proceeding with homework marking',
+  apiUsed: 'Mock Service'
+}
+🔍 ===== PROCESSING IMAGE FOR MARKING =====

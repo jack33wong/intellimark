@@ -9,6 +9,11 @@ const MarkHomeworkPage = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
+  const [classificationResult, setClassificationResult] = useState(null);
+  const [isChatMode, setIsChatMode] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const models = [
@@ -63,8 +68,10 @@ const MarkHomeworkPage = () => {
     setIsProcessing(true);
     setError(null);
     setResult(null);
+    setClassificationResult(null);
 
     try {
+      console.log('🔍 ===== PROCESSING HOMEWORK =====');
       const formData = new FormData();
       formData.append('imageData', previewUrl);
       formData.append('model', selectedModel);
@@ -83,7 +90,28 @@ const MarkHomeworkPage = () => {
       const data = await response.json();
 
       if (data.success) {
-        setResult(data);
+        console.log('🔍 Frontend received response:', data);
+        // Handle classification result
+        if (data.isQuestionOnly) {
+          console.log('🔍 Image classified as question-only, switching to chat mode');
+          // Image classified as question-only, switch to chat mode
+          setClassificationResult(data);
+          setIsChatMode(true);
+          
+          // Initialize chat with the image
+          const initialMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: `I have an image that was classified as question-only. Can you help me with this?`,
+            timestamp: new Date(),
+            imageData: previewUrl
+          };
+          setChatMessages([initialMessage]);
+        } else {
+          console.log('🔍 Image classified as homework, showing marking results');
+          // Image classified as homework, show marking results
+          setResult(data);
+        }
       } else {
         setError(data.error || 'Failed to process homework');
       }
@@ -92,6 +120,55 @@ const MarkHomeworkPage = () => {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Chat functionality
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+    
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: chatInput.trim(),
+      timestamp: new Date()
+    };
+    
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    try {
+      // For now, simulate AI response - in real implementation, this would call the chat API
+      const aiResponse = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `I can see you have a question image. I'd be happy to help you with this! What specific assistance do you need?`,
+        timestamp: new Date()
+      };
+      
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, aiResponse]);
+        setIsChatLoading(false);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Failed to send chat message:', error);
+      setIsChatLoading(false);
+    }
+  };
+  
+  const handleChatKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  };
+  
+  const switchBackToHomework = () => {
+    setIsChatMode(false);
+    setChatMessages([]);
+    setChatInput('');
+    setClassificationResult(null);
   };
 
   const resetForm = () => {
@@ -104,6 +181,74 @@ const MarkHomeworkPage = () => {
     }
   };
 
+  // Render chat interface when in chat mode
+  if (isChatMode) {
+    return (
+      <div className="mark-homework-page chat-mode">
+        <div className="chat-header">
+          <h1>Chat Mode - Question Assistance</h1>
+          <p>Your image has been classified as question-only. Chat with AI to get help!</p>
+          <button className="switch-mode-btn" onClick={switchBackToHomework}>
+            ← Back to Homework Marking
+          </button>
+        </div>
+        
+        <div className="chat-content">
+          <div className="image-context">
+            <img src={previewUrl} alt="Question context" className="context-image" />
+            <div className="classification-info">
+              <strong>Classification:</strong> {classificationResult?.reasoning}
+            </div>
+          </div>
+          
+          <div className="chat-messages">
+            {chatMessages.map((message) => (
+              <div key={message.id} className={`chat-message ${message.role}`}>
+                <div className="message-avatar">
+                  {message.role === 'user' ? '👤' : '🤖'}
+                </div>
+                <div className="message-content">
+                  <div className="message-text">{message.content}</div>
+                  <div className="message-timestamp">
+                    {message.timestamp.toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {isChatLoading && (
+              <div className="chat-message assistant">
+                <div className="message-avatar">🤖</div>
+                <div className="message-content">
+                  <div className="message-text">Thinking...</div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="chat-input">
+            <textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyPress={handleChatKeyPress}
+              placeholder="Ask about the question in the image..."
+              disabled={isChatLoading}
+              rows={2}
+            />
+            <button 
+              onClick={sendChatMessage}
+              disabled={!chatInput.trim() || isChatLoading}
+              className="send-btn"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render homework interface when not in chat mode
   return (
     <div className="mark-homework-page">
       <div className="mark-homework-header">
@@ -232,6 +377,17 @@ const MarkHomeworkPage = () => {
             </div>
           </div>
         )}
+
+        {/* Chat redirect section removed - now automatically redirects */}
+        
+        {/* Debug info */}
+        <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0', fontSize: '12px' }}>
+          <strong>Debug Info:</strong><br/>
+          isChatMode: {String(isChatMode)}<br/>
+          classificationResult: {classificationResult ? 'Present' : 'None'}<br/>
+          result: {result ? 'Present' : 'None'}<br/>
+          error: {error || 'None'}
+        </div>
       </div>
     </div>
   );

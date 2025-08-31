@@ -5,7 +5,6 @@
 
 import express from 'express';
 import { 
-  MarkHomeworkRequest, 
   MarkHomeworkResponse
 } from '../types';
 import { ImageProcessingService } from '../services/imageProcessingService';
@@ -24,22 +23,30 @@ router.post('/mark-homework', async (req, res) => {
   console.log('Request body:', { imageData: req.body.imageData ? 'present' : 'missing', model: req.body.model });
   
   try {
-    const { imageData, model = 'chatgpt-4o' }: MarkHomeworkRequest = req.body;
+    console.log('🔍 ===== EXTRACTING REQUEST DATA =====');
+    const { imageData, model = 'chatgpt-4o' } = req.body;
+    console.log('🔍 Extracted imageData length:', imageData ? imageData.length : 'undefined');
+    console.log('🔍 Extracted model:', model);
 
     // Validate request
+    console.log('🔍 ===== VALIDATING REQUEST =====');
     if (!imageData) {
+      console.log('🔍 Validation failed: No image data');
       return res.status(400).json({
         success: false,
         error: 'Image data is required'
       });
     }
+    console.log('🔍 Image data validation passed');
 
     if (!validateModelConfig(model)) {
+      console.log('🔍 Validation failed: Invalid model config');
       return res.status(400).json({
         success: false,
         error: 'Valid AI model is required'
       });
     }
+    console.log('🔍 Model validation passed');
 
     // First, classify the image as question-only or question+answer
     console.log('🔍 ===== CLASSIFYING IMAGE =====');

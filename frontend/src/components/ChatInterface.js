@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Send, User, Bot, MessageSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -10,10 +11,12 @@ import { formatDistanceToNow } from 'date-fns';
  * @returns {JSX.Element} The chat interface component
  */
 function ChatInterface({ currentChat, onUpdateChatTitle }) {
+  const location = useLocation();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [imageData, setImageData] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   
@@ -57,12 +60,19 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
     setIsLoading(true);
 
     try {
+      const requestBody = { content: messageContent };
+      
+      // Include image data if available (for the first message)
+      if (imageData && messages.length === 0) {
+        requestBody.imageData = imageData;
+      }
+
       const response = await fetch(`${API_BASE}/api/chat/${currentChat.id}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: messageContent }),
+        body: JSON.stringify(requestBody),
       });
 
       if (response.ok) {
@@ -126,6 +136,31 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
     }
   }, [currentChat]);
 
+  // Handle incoming image data from mark-homework page
+  useEffect(() => {
+    if (location.state?.autoStart && location.state?.imageData) {
+      console.log('🔍 ChatInterface received image data:', location.state);
+      setImageData(location.state.imageData);
+      
+      // Automatically start conversation with the image
+      if (currentChat) {
+        const autoMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: `I have an image that was classified as question-only. Can you help me with this?`,
+          timestamp: new Date(),
+          imageData: location.state.imageData
+        };
+        
+        // Add the auto-message to the chat
+        setMessages([autoMessage]);
+        
+        // Clear the location state to prevent re-triggering
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, currentChat]);
+
   if (!currentChat) {
     return (
       <div className="main-content">
@@ -159,6 +194,11 @@ function ChatInterface({ currentChat, onUpdateChatTitle }) {
     <div className="main-content">
       <div className="chat-header">
         <h2>{currentChat.title}</h2>
+        {imageData && (
+          <div className="image-indicator">
+            📷 Image attached to conversation
+          </div>
+        )}
       </div>
 
       <div className="chat-messages">
