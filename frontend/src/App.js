@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import AdminPage from './components/AdminPage';
+import MarkHomeworkPage from './components/MarkHomeworkPage';
 import './App.css';
 
 /**
@@ -116,6 +117,7 @@ function App() {
     }}>
       <Routes>
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/mark-homework" element={<MarkHomeworkPage />} />
         <Route path="/" element={
           <div className="app">
             <Sidebar

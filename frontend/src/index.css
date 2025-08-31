@@ -141,6 +141,10 @@ code {
   opacity: 1;
 }
 
+.admin-link + .admin-link {
+  margin-top: 8px;
+}
+
 .main-content {
   flex: 1;
   display: flex;
