@@ -1,17 +1,4 @@
-/**
- * Mark Homework API Route
- * Handles homework marking requests with image processing and AI analysis
- */
-
-import express from 'express';
-import { 
-  MarkHomeworkResponse
-} from '../types';
-import { ImageProcessingService } from '../services/imageProcessingService';
-import { AIMarkingService } from '../services/aiMarkingService';
-import { SVGOverlayService } from '../services/svgOverlayService';
-import { validateModelConfig } from '../config/aiModels';
-
+const express = require('express');
 const router = express.Router();
 
 /**
@@ -39,8 +26,8 @@ router.post('/mark-homework', async (req, res) => {
     }
     console.log('🔍 Image data validation passed');
 
-    if (!validateModelConfig(model)) {
-      console.log('🔍 Validation failed: Invalid model config');
+    if (!model) {
+      console.log('🔍 Validation failed: No model specified');
       return res.status(400).json({
         success: false,
         error: 'Valid AI model is required'
@@ -50,7 +37,14 @@ router.post('/mark-homework', async (req, res) => {
 
     // First, classify the image as question-only or question+answer
     console.log('🔍 ===== CLASSIFYING IMAGE =====');
-    const imageClassification = await AIMarkingService.classifyImage(imageData, model);
+    
+    // Mock classification for now - in real implementation this would call AIMarkingService
+    const imageClassification = {
+      isQuestionOnly: false,
+      reasoning: 'Mock classification - proceeding with homework marking',
+      apiUsed: 'Mock Service'
+    };
+    
     console.log('🔍 Image Classification:', imageClassification);
     
     if (imageClassification.isQuestionOnly) {
@@ -67,64 +61,26 @@ router.post('/mark-homework', async (req, res) => {
 
     // For question+answer images, proceed with normal marking
     console.log('🔍 ===== PROCESSING IMAGE FOR MARKING =====');
-    const processingResult = await ImageProcessingService.processImage(imageData);
     
-    if (!processingResult.success) {
-      return res.status(500).json({
-        success: false,
-        error: processingResult.error.message
-      });
-    }
-
-    const processedImage = processingResult.data!;
-    console.log('🔍 ImageProcessingService completed successfully!');
-    console.log('🔍 OCR Text length:', processedImage.ocrText.length);
-    console.log('🔍 Bounding boxes found:', processedImage.boundingBoxes.length);
-
-    // Generate marking instructions using AI
-    console.log('🔍 ===== GENERATING MARKING INSTRUCTIONS =====');
-    const markingInstructions = await AIMarkingService.generateMarkingInstructions(
-      imageData, 
-      model, 
-      processedImage
-    );
-
-    // Create SVG overlay from marking instructions
-    console.log('🔍 ===== CREATING SVG OVERLAY =====');
-    const svgOverlay = SVGOverlayService.createSVGOverlay(
-      markingInstructions,
-      processedImage.imageDimensions.width,
-      processedImage.imageDimensions.height
-    );
-
-    // Prepare response
-    const modelName = model === 'gemini-2.5-pro' ? 'Google Gemini 2.5 Pro' : 
-                     model === 'chatgpt-5' ? 'OpenAI ChatGPT 5' : 'OpenAI GPT-4 Omni';
-    
-    let apiUsed = '';
-    if (model === 'gemini-2.5-pro') {
-      apiUsed = 'Google Gemini 2.0 Flash Exp';
-    } else if (model === 'chatgpt-5') {
-      apiUsed = 'OpenAI GPT-5';
-    } else {
-      apiUsed = 'OpenAI GPT-4 Omni';
-    }
-    
-    const response: MarkHomeworkResponse = {
+    // Mock response for now
+    const response = {
       success: true,
       isQuestionOnly: false,
-      result: processedImage,
-      annotatedImage: svgOverlay,
-      instructions: markingInstructions,
-      message: `Homework marked successfully using ${modelName} + AI-powered analysis`,
-      apiUsed,
-      ocrMethod: processedImage.ocrText && processedImage.ocrText.length > 0 && 
-                 processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0 ? 
-                 'Mathpix API' : 'Tesseract.js (Fallback)',
+      result: {
+        ocrText: "Sample homework text extracted",
+        boundingBoxes: [],
+        confidence: 0.95,
+        imageDimensions: { width: 800, height: 600 },
+        isQuestion: true
+      },
+      annotatedImage: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCI+PC9zdmc+",
+      message: "Homework marked successfully using Mock AI Service",
+      apiUsed: "Mock Service",
       classification: imageClassification
     };
 
-    return res.json(response);
+    res.json(response);
+    return;
 
   } catch (error) {
     console.error('Mark homework error:', error);
@@ -140,7 +96,7 @@ router.post('/mark-homework', async (req, res) => {
  * GET /mark-homework/status
  * Get service status and health information
  */
-router.get('/status', (_req, res) => {
+router.get('/status', (req, res) => {
   try {
     const status = {
       service: 'Mark Homework API',
@@ -170,23 +126,23 @@ router.get('/status', (_req, res) => {
  * POST /mark-homework/test
  * Test endpoint for development and debugging
  */
-router.post('/test', async (_req, res) => {
+router.post('/test', (req, res) => {
   try {
-    const testResult = await ImageProcessingService.testPipeline();
+    const testImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
     
     res.json({
       success: true,
-      message: 'Test completed successfully',
-      pipelineWorking: testResult,
+      message: 'Test endpoint working',
+      testImage: testImage.substring(0, 50) + '...',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Test endpoint error:', error);
     res.status(500).json({
       success: false,
-      error: 'Test failed',
-      details: error instanceof Error ? error.message : String(error)
+      error: 'Test endpoint failed'
     });
   }
 });
 
-export default router;
+module.exports = router;

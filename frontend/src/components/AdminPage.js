@@ -319,6 +319,41 @@ function AdminPage() {
       setError('Failed to delete past paper');
     }
   }, [API_BASE]);
+
+  // Clear all past papers
+  const handleClearAll = useCallback(async () => {
+    if (!window.confirm('⚠️ WARNING: This will permanently delete ALL past papers from both the database and local system. This action cannot be undone. Are you absolutely sure?')) {
+      return;
+    }
+    
+    if (!window.confirm('Are you REALLY sure? This will delete everything and cannot be recovered.')) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`${API_BASE}/api/admin/past-papers/clear-all`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setPastPapers([]);
+        setError(`✅ All past papers cleared successfully: ${result.clearedCount} papers removed`);
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to clear all past papers');
+      }
+    } catch (error) {
+      console.error('Clear all error:', error);
+      setError(`Failed to clear all past papers: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE]);
   
     // Update past paper
   const handleUpdate = useCallback(async (id, updatedData) => {
@@ -543,7 +578,24 @@ function AdminPage() {
 
         {/* Past Papers List */}
         <div className="papers-section">
-          <h3>Past Papers ({pastPapers.length})</h3>
+          <div className="papers-header">
+            <h3>Past Papers ({pastPapers.length})</h3>
+            {pastPapers.length > 0 ? (
+              <button
+                className="btn-clear-all"
+                onClick={handleClearAll}
+                disabled={loading}
+                title="Clear all past papers from database and local system"
+              >
+                <Trash2 size={16} />
+                Clear All
+              </button>
+            ) : (
+              <div className="no-papers-message">
+                No papers to clear
+              </div>
+            )}
+          </div>
           
           {pastPapers.length === 0 ? (
             <div className="no-papers">

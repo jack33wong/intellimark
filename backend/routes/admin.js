@@ -26,10 +26,26 @@ const storage = multer.diskStorage({
       });
   },
   filename: (req, file, cb) => {
-    // Generate unique filename with original extension
-    const uniqueName = `${uuidv4()}-${file.originalname}`;
-    console.log('Generated filename:', uniqueName);
-    cb(null, uniqueName);
+    // Use original filename directly, but check if it already exists
+    const originalName = file.originalname;
+    const filePath = path.join(__dirname, '../uploads', originalName);
+    
+    // Check if file already exists
+    fs.access(filePath)
+      .then(() => {
+        // File exists, add timestamp to make it unique
+        const timestamp = Date.now();
+        const nameWithoutExt = path.parse(originalName).name;
+        const ext = path.parse(originalName).ext;
+        const uniqueName = `${nameWithoutExt}-${timestamp}${ext}`;
+        console.log('File exists, using unique name:', uniqueName);
+        cb(null, uniqueName);
+      })
+      .catch(() => {
+        // File doesn't exist, use original name
+        console.log('Using original filename:', originalName);
+        cb(null, originalName);
+      });
   }
 });
 
@@ -204,6 +220,92 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: `Failed to upload past paper: ${error.message}` });
+  }
+});
+
+/**
+ * Clear all past papers from database and local system
+ * @route DELETE /api/admin/past-papers/clear-all
+ * @returns {Object} Clear status
+ */
+router.delete('/past-papers/clear-all', async (req, res) => {
+  try {
+    console.log('Starting clear all past papers...');
+    
+    // Clear from Firestore (if available)
+    if (db) {
+      try {
+        const snapshot = await db.collection('pastPapers').get();
+        const batch = db.batch();
+        
+        snapshot.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        console.log(`Cleared ${snapshot.size} papers from Firestore`);
+      } catch (firestoreError) {
+        console.error('Firestore clear error:', firestoreError);
+        // Continue with local storage even if Firestore fails
+      }
+    } else {
+      console.log('Firebase not available, clearing local storage only');
+    }
+    
+    // Clear local storage
+    const clearedCount = pastPapers.length;
+    pastPapers.length = 0;
+    
+    // Clear local files
+    try {
+      const uploadsDir = path.join(__dirname, '../uploads');
+      const examBoards = await fs.readdir(uploadsDir);
+      
+      for (const examBoard of examBoards) {
+        if (examBoard === '.DS_Store') continue;
+        
+        const examBoardPath = path.join(uploadsDir, examBoard);
+        const years = await fs.readdir(examBoardPath);
+        
+        for (const year of years) {
+          if (year === '.DS_Store') continue;
+          
+          const yearPath = path.join(examBoardPath, year);
+          const files = await fs.readdir(yearPath);
+          
+          for (const file of files) {
+            if (file === '.DS_Store') continue;
+            
+            const filePath = path.join(yearPath, file);
+            await fs.unlink(filePath);
+            console.log(`Deleted file: ${filePath}`);
+          }
+          
+          // Remove year directory
+          await fs.rmdir(yearPath);
+          console.log(`Removed year directory: ${yearPath}`);
+        }
+        
+        // Remove exam board directory
+        await fs.rmdir(examBoardPath);
+        console.log(`Removed exam board directory: ${examBoardPath}`);
+      }
+      
+      console.log('All local files cleared successfully');
+    } catch (fileError) {
+      console.error('File clear error:', fileError);
+      // Continue even if file deletion fails
+    }
+    
+    console.log(`Successfully cleared ${clearedCount} past papers`);
+    
+    res.json({
+      message: 'All past papers cleared successfully',
+      clearedCount: clearedCount
+    });
+  } catch (error) {
+    console.error('Clear all error:', error);
+    res.status(500).json({ error: `Failed to clear all past papers: ${error.message}` });
   }
 });
 
@@ -452,6 +554,8 @@ router.post('/past-papers/:id/extract-questions', async (req, res) => {
     res.status(500).json({ error: `Failed to extract questions: ${error.message}` });
   }
 });
+
+
 
 /**
  * Sync data from Firestore to local storage

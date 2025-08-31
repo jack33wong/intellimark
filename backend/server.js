@@ -4,8 +4,6 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const chatRoutes = require('./routes/chat');
-const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
 const markHomeworkRoutes = require('./routes/mark-homework');
 
@@ -36,8 +34,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routes
-app.use('/api/chat', chatRoutes);
-app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/mark-homework', markHomeworkRoutes);
 
@@ -61,7 +57,7 @@ app.use('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
