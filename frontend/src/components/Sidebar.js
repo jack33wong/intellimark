@@ -4,7 +4,8 @@ import {
   MessageSquare, 
   Settings, 
   Trash2,
-  BookOpen
+  BookOpen,
+  Code
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -198,6 +199,10 @@ function Sidebar({
         <div className="admin-link" onClick={() => navigate('/mark-homework')}>
           <BookOpen size={16} />
           Mark Homework
+        </div>
+        <div className="admin-link" onClick={() => navigate('/latex-test')}>
+          <Code size={16} />
+          LaTeX Testing
         </div>
         <div className="admin-link" onClick={() => navigate('/admin')}>
           <Settings size={16} />

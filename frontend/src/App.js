@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
+import LatexTestPage from './components/LatexTestPage';
 import './App.css';
 
 /**
@@ -117,7 +118,32 @@ function App() {
     }}>
       <Routes>
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/mark-homework" element={<MarkHomeworkPage />} />
+        <Route path="/mark-homework" element={
+          <div className="app">
+            <Sidebar
+              chats={chats}
+              currentChat={currentChat}
+              onNewChat={createNewChat}
+              onSelectChat={setCurrentChat}
+              onDeleteChat={deleteChat}
+              isLoading={isLoading}
+            />
+            <MarkHomeworkPage />
+          </div>
+        } />
+        <Route path="/latex-test" element={
+          <div className="app">
+            <Sidebar
+              chats={chats}
+              currentChat={currentChat}
+              onNewChat={createNewChat}
+              onSelectChat={setCurrentChat}
+              onDeleteChat={deleteChat}
+              isLoading={isLoading}
+            />
+            <LatexTestPage />
+          </div>
+        } />
         <Route path="/" element={
           <div className="app">
             <Sidebar

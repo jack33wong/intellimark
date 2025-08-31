@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import 'katex/dist/katex.min.css';
 import { InlineMath, BlockMath } from 'react-katex';
 
@@ -55,80 +55,45 @@ export const MathRenderer = ({
   displayMode = 'block',
   className = ''
 }) => {
-  const renderedMath = useMemo(() => {
-    try {
-      if (!expression || expression.trim() === '') {
-        return null;
-      }
-
-      // Process the expression to handle delimiters
-      const { processedExpression, displayMode: detectedMode } = processLatexExpression(expression);
-      
-      // Use detected mode if available, otherwise use the provided displayMode
-      const finalDisplayMode = detectedMode || displayMode;
-
-      if (finalDisplayMode === 'inline') {
-        return <InlineMath math={processedExpression} />;
-      } else {
-        return <BlockMath math={processedExpression} />;
-      }
-    } catch (error) {
-      console.error('LaTeX rendering error:', error);
+  try {
+    if (!expression || expression.trim() === '') {
       return (
-        <div className={`latex-error ${className}`} style={{ color: '#ef4444' }}>
-          <span>Invalid LaTeX: {expression}</span>
-          <br />
-          <small>Error: {error.message}</small>
+        <div className={`math-renderer ${className}`}>
+          <span style={{ color: '#9ca3af' }}>No expression to render</span>
         </div>
       );
     }
-  }, [expression, displayMode, className]);
 
-  return (
-    <div className={`math-renderer ${className}`}>
-      {renderedMath}
-    </div>
-  );
-};
+    // Process the expression to handle delimiters
+    const { processedExpression, displayMode: detectedMode } = processLatexExpression(expression);
+    
+    // Use detected mode if available, otherwise use the provided displayMode
+    const finalDisplayMode = detectedMode || displayMode;
 
-/**
- * Hook for rendering LaTeX expressions with automatic delimiter detection
- * @param {string} expression - The LaTeX expression to render
- * @param {string} fallbackDisplayMode - Fallback display mode if no delimiters detected
- * @returns {Object} Object containing the rendered component and display mode
- */
-export const useLatexRenderer = (expression, fallbackDisplayMode = 'block') => {
-  const { processedExpression, displayMode } = processLatexExpression(expression);
-  const finalDisplayMode = displayMode || fallbackDisplayMode;
+    let mathComponent;
+    if (finalDisplayMode === 'inline') {
+      mathComponent = <InlineMath math={processedExpression} />;
+    } else {
+      mathComponent = <BlockMath math={processedExpression} />;
+    }
 
-  const renderedComponent = useMemo(() => {
-    try {
-      if (!processedExpression) {
-        return null;
-      }
-
-      if (finalDisplayMode === 'inline') {
-        return <InlineMath math={processedExpression} />;
-      } else {
-        return <BlockMath math={processedExpression} />;
-      }
-    } catch (error) {
-      console.error('LaTeX rendering error:', error);
-      return (
+    return (
+      <div className={`math-renderer ${className}`}>
+        {mathComponent}
+      </div>
+    );
+  } catch (error) {
+    console.error('LaTeX rendering error:', error);
+    return (
+      <div className={`math-renderer ${className}`}>
         <div className="latex-error" style={{ color: '#ef4444' }}>
           <span>Invalid LaTeX: {expression}</span>
           <br />
           <small>Error: {error.message}</small>
         </div>
-      );
-    }
-  }, [processedExpression, finalDisplayMode, expression]);
-
-  return {
-    renderedComponent,
-    displayMode: finalDisplayMode,
-    processedExpression
-  };
+      </div>
+    );
+  }
 };
 
 /**

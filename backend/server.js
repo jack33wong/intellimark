@@ -7,7 +7,7 @@ require('dotenv').config();
 const chatRoutes = require('./routes/chat');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
-const markHomeworkRoutes = require('./dist/routes/mark-homework').default;
+const markHomeworkRoutes = require('./routes/mark-homework');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
