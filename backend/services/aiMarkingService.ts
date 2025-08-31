@@ -167,7 +167,9 @@ export class AIMarkingService {
 
 ========================================================
 `;
-
+    console.log('🔍 ===== PROCESSING HOMEWORK =====');
+    console.log('🔍 OCR Text:', processedImage?.ocrText);
+    console.log('🔍 Bounding Boxes:', processedImage);
     // Add full OCR text to give AI complete context
     if (processedImage && processedImage.ocrText && processedImage.ocrText.trim()) {
       userPrompt += `\n\nFULL OCR EXTRACTED TEXT from the image:

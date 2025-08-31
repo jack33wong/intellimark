@@ -6,8 +6,6 @@
 import sharp from 'sharp';
 import { 
   ProcessedImageResult, 
-  BoundingBox, 
-  ImageDimensions, 
   ProcessingOptions,
   ImageProcessingError,
   Result
@@ -69,10 +67,17 @@ export class ImageProcessingService {
 
       // Step 4: OCR processing with Mathpix
       const ocrResult = await MathpixService.processImage(processedImageData);
+      console.log('🔍 ===== RAW OCR RESULT FROM MATHPIX =====');
+      console.log('🔍 OCR Result type:', typeof ocrResult);
+      console.log('🔍 OCR Result keys:', Object.keys(ocrResult));
+      console.log('🔍 OCR Result text:', ocrResult.text);
+      console.log('🔍 OCR Result boundingBoxes:', ocrResult.boundingBoxes);
+      console.log('🔍 OCR Result dimensions:', ocrResult.dimensions);
       
-      // Step 5: Process OCR results
-      const processedResult = this.processMathpixResults(ocrResult);
-      
+      // Step 5: Use the already processed result directly (no need to process again)
+      const processedResult = ocrResult;
+      console.log('🔍 ===== USING PROCESSED OCR RESULT =====');
+      console.log(processedResult);
       // Step 6: Generate bounding boxes and text
       const result: ProcessedImageResult = {
         ocrText: processedResult.text,
@@ -192,88 +197,7 @@ export class ImageProcessingService {
     }
   }
 
-  /**
-   * Process Mathpix OCR results into structured format
-   * @param mathpixResult - Raw result from Mathpix service
-   * @returns Processed OCR result
-   */
-  private static processMathpixResults(mathpixResult: any): {
-    text: string;
-    boundingBoxes: BoundingBox[];
-    confidence: number;
-    dimensions: ImageDimensions;
-  } {
-    const text = mathpixResult.text || '';
-    const boundingBoxes = this.extractBoundingBoxes(mathpixResult);
-    const confidence = this.calculateOverallConfidence(mathpixResult);
-    const dimensions = this.extractImageDimensions(mathpixResult);
 
-    return {
-      text,
-      boundingBoxes,
-      confidence,
-      dimensions
-    };
-  }
-
-  /**
-   * Extract bounding boxes from Mathpix results
-   * @param mathpixResult - Raw result from Mathpix service
-   * @returns Array of bounding boxes
-   */
-  private static extractBoundingBoxes(mathpixResult: any): BoundingBox[] {
-    const boundingBoxes: BoundingBox[] = [];
-
-    if (!mathpixResult.data || !Array.isArray(mathpixResult.data)) {
-      return boundingBoxes;
-    }
-
-    mathpixResult.data.forEach((item: any) => {
-      if (item.bbox && Array.isArray(item.bbox) && item.bbox.length === 4) {
-        const [x, y, width, height] = item.bbox;
-        
-        boundingBoxes.push({
-          x: Math.max(0, x),
-          y: Math.max(0, y),
-          width: Math.max(1, width),
-          height: Math.max(1, height),
-          text: item.value || '',
-          confidence: item.confidence || 0
-        });
-      }
-    });
-
-    return boundingBoxes;
-  }
-
-  /**
-   * Calculate overall confidence score from OCR results
-   * @param mathpixResult - Raw result from Mathpix service
-   * @returns Average confidence score (0-1)
-   */
-  private static calculateOverallConfidence(mathpixResult: any): number {
-    if (!mathpixResult.data || !Array.isArray(mathpixResult.data) || mathpixResult.data.length === 0) {
-      return mathpixResult.confidence || 0;
-    }
-
-    const totalConfidence = mathpixResult.data.reduce((sum: number, item: any) => {
-      return sum + (item.confidence || 0);
-    }, 0);
-
-    return totalConfidence / mathpixResult.data.length;
-  }
-
-  /**
-   * Extract image dimensions from OCR results
-   * @param mathpixResult - Raw result from Mathpix service
-   * @returns Image dimensions
-   */
-  private static extractImageDimensions(mathpixResult: any): ImageDimensions {
-    return {
-      width: mathpixResult.width || 0,
-      height: mathpixResult.height || 0
-    };
-  }
 
   /**
    * Detect if the image contains a question (question-only mode)
