@@ -110,6 +110,12 @@ export class AIMarkingService {
           reply = await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, model);
           apiUsed = model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
         } catch (chatgptError) {
+          console.error('🔍 ChatGPT failed with error:', chatgptError);
+          console.error('🔍 Error details:', {
+            message: chatgptError instanceof Error ? chatgptError.message : 'Unknown error',
+            stack: chatgptError instanceof Error ? chatgptError.stack : 'No stack trace',
+            model: model
+          });
           console.log('🔍 ChatGPT failed, trying Gemini...');
           reply = await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
           apiUsed = 'Google Gemini 2.0 Flash Exp';
@@ -121,6 +127,11 @@ export class AIMarkingService {
           reply = await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
           apiUsed = 'Google Gemini 2.0 Flash Exp';
         } catch (geminiError) {
+          console.error('🔍 Gemini failed with error:', geminiError);
+          console.error('🔍 Error details:', {
+            message: geminiError instanceof Error ? geminiError.message : 'Unknown error',
+            stack: geminiError instanceof Error ? geminiError.stack : 'No stack trace'
+          });
           console.log('🔍 Gemini failed, trying ChatGPT...');
           reply = await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, 'chatgpt-4o');
           apiUsed = 'OpenAI GPT-4 Omni';
@@ -501,6 +512,12 @@ This is the complete text content detected in the image. Use this to understand 
     };
 
     console.log('🔍 Sending request to Gemini API...');
+    console.log('🔍 Gemini request details:', {
+      model: geminiModel,
+      maxOutputTokens: modelConfig.maxTokens || 2048,
+      temperature: 0.7,
+      imageDataLength: imageUrl.length
+    });
     
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
@@ -511,7 +528,12 @@ This is the complete text content detected in the image. Use this to understand 
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string };
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      console.error('🔍 Gemini API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData
+      });
       throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorData.error || 'Unknown error'}`);
     }
 
@@ -576,6 +598,13 @@ This is the complete text content detected in the image. Use this to understand 
     };
 
     console.log('🔍 Sending request to OpenAI API...');
+    console.log('🔍 OpenAI request details:', {
+      model: openaiModel,
+      maxTokens: modelConfig.maxTokens || 2048,
+      temperature: 0.7,
+      messageCount: 2,
+      imageDataLength: imageUrl.length
+    });
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -588,6 +617,11 @@ This is the complete text content detected in the image. Use this to understand 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+      console.error('🔍 OpenAI API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData: errorData
+      });
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
     }
 
