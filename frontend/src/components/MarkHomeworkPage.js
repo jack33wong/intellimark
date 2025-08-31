@@ -152,13 +152,15 @@ const MarkHomeworkPage = () => {
 
       if (data.success) {
         console.log('🔍 Initial chat response received:', data.response.substring(0, 100) + '...');
+        console.log('🔍 API Used:', data.apiUsed);
         
         // Add AI response to chat
         const aiResponse = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          apiUsed: data.apiUsed
         };
         
         setChatMessages(prev => [...prev, aiResponse]);
@@ -228,13 +230,15 @@ const MarkHomeworkPage = () => {
 
       if (data.success) {
         console.log('🔍 Chat response received:', data.response.substring(0, 100) + '...');
+        console.log('🔍 API Used:', data.apiUsed);
         
         // Add AI response to chat
         const aiResponse = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          apiUsed: data.apiUsed
         };
         
         setChatMessages(prev => [...prev, aiResponse]);
@@ -320,8 +324,15 @@ const MarkHomeworkPage = () => {
                 </div>
                 <div className="message-content">
                   <div className="message-text">{message.content}</div>
-                  <div className="message-timestamp">
-                    {message.timestamp.toLocaleTimeString()}
+                  <div className="message-meta">
+                    <div className="message-timestamp">
+                      {message.timestamp.toLocaleTimeString()}
+                    </div>
+                    {message.apiUsed && (
+                      <div className="message-api">
+                        Powered by: {message.apiUsed}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -37,15 +37,22 @@ router.post('/chat', async (req, res) => {
     console.log('🔍 Image data length:', imageData.length);
 
     // Generate AI response using the image and message
-    const aiResponse = await AIMarkingService.generateChatResponse(imageData, message, model);
+    const { response: aiResponse, apiUsed } = await AIMarkingService.generateChatResponse(
+      imageData, 
+      message, 
+      model,
+      message === 'I have an image that was classified as question-only. Can you help me with this?' // Detect initial question
+    );
     
     console.log('🔍 ===== AI RESPONSE GENERATED =====');
     console.log('🔍 Response length:', aiResponse.length);
     console.log('🔍 Response preview:', aiResponse.substring(0, 100) + '...');
+    console.log('🔍 API Used:', apiUsed);
 
     return res.json({
       success: true,
       response: aiResponse,
+      apiUsed: apiUsed,
       model: model,
       timestamp: new Date().toISOString()
     });

@@ -75,55 +75,64 @@ export class AIMarkingService {
   }
 
   /**
-   * Generate chat response for question-only images
+   * Generate chat response for question-only images with fallback logic
    */
   static async generateChatResponse(
     imageData: string, 
     message: string, 
-    model: ModelType
-  ): Promise<string> {
+    model: ModelType,
+    isInitialQuestion: boolean = false
+  ): Promise<{ response: string; apiUsed: string }> {
     console.log('🔍 ===== GENERATING CHAT RESPONSE =====');
     console.log('🔍 Message:', message);
     console.log('🔍 Model:', model);
+    console.log('🔍 Is Initial Question:', isInitialQuestion);
     
     const compressedImage = await this.compressImage(imageData);
     
-    const systemPrompt = `You are a helpful AI tutor specializing in mathematics and academic subjects. 
-    
-    Your task is to:
-    1. Analyze the uploaded image (which contains a question or problem)
-    2. Understand the user's message/question
-    3. Provide a helpful, educational response
-    
-    RESPONSE GUIDELINES:
-    - Be encouraging and supportive
-    - Explain concepts clearly and step-by-step when appropriate
-    - If it's a math problem, show your working out
-    - If the user asks for help understanding, provide explanations
-    - If the user wants to solve it themselves, give hints rather than full solutions
-    - Use the image context to provide relevant assistance
-    
-    IMPORTANT: Respond in a conversational, helpful manner. This is a tutoring session, not a formal exam.`;
+    // Enhanced prompts based on whether it's the initial question or follow-up
+    const systemPrompt = isInitialQuestion 
+      ? `You are a helpful GCSE Maths tutor. When a student uploads a math question image, provide a clear, step-by-step explanation of how to solve it. Be encouraging and explain each step thoroughly. Use LaTeX for mathematical expressions when appropriate.`
+      : `You are a helpful GCSE Maths tutor. Continue helping the student with their math question. Provide clear explanations, step-by-step solutions, and encouragement. Use LaTeX for mathematical expressions when appropriate.`;
 
-    const userPrompt = `I have uploaded an image with a question/problem. Here's what I'm asking:
+    const userPrompt = isInitialQuestion 
+      ? `I've uploaded a photo of a math question. Please analyze the image and provide a step-by-step explanation of how to solve this problem.`
+      : message || 'Please continue helping me with this math question.';
 
-User Message: "${message}"
-
-Please help me with this question. I can see the image you're referring to.`;
+    let reply: string | null = null;
+    let apiUsed = '';
 
     try {
-      console.log('🔍 ===== CALLING AI FOR CHAT RESPONSE =====');
-      if (model === 'gemini-2.5-pro') {
-        console.log('🔍 Using Gemini API for chat');
-        return await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
+      // Try the user's preferred model first
+      if (model === 'chatgpt-5' || model === 'chatgpt-4o') {
+        try {
+          console.log('🔍 Trying OpenAI first...');
+          reply = await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, model);
+          apiUsed = model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
+        } catch (chatgptError) {
+          console.log('🔍 ChatGPT failed, trying Gemini...');
+          reply = await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
+          apiUsed = 'Google Gemini 2.0 Flash Exp';
+        }
       } else {
-        console.log('🔍 Using OpenAI API for chat');
-        return await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, model);
+        // Default to Gemini
+        try {
+          console.log('🔍 Trying Gemini first...');
+          reply = await this.callGeminiForChat(compressedImage, systemPrompt, userPrompt);
+          apiUsed = 'Google Gemini 2.0 Flash Exp';
+        } catch (geminiError) {
+          console.log('🔍 Gemini failed, trying ChatGPT...');
+          reply = await this.callOpenAIForChat(compressedImage, systemPrompt, userPrompt, 'chatgpt-4o');
+          apiUsed = 'OpenAI GPT-4 Omni';
+        }
       }
     } catch (error) {
-      console.error('🔍 Chat response generation failed:', error);
-      return 'I apologize, but I encountered an error while processing your request. Please try again or rephrase your question.';
+      console.error('🔍 All AI services failed:', error);
+      reply = `I'm having trouble analyzing the image right now. Could you please describe the math question you're working on, and I'll be happy to help you solve it step by step!`;
+      apiUsed = 'Fallback Response';
     }
+
+    return { response: reply, apiUsed };
   }
 
   /**
