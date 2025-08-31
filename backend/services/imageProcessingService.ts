@@ -59,6 +59,7 @@ export class ImageProcessingService {
 
       // Step 3: Check Mathpix availability and process
       if (!MathpixService.isAvailable()) {
+        console.log('🔍 ===== MATHPIX OCR SERVICE IS NOT AVAILABLE =====');
         return {
           success: false,
           error: new ImageProcessingError(

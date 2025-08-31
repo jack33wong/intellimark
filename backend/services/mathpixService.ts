@@ -12,7 +12,7 @@ import {
 } from '../types';
 
 const API_URL = 'https://api.mathpix.com/v3/text';
-const APP_ID = 'tutor_app';
+const APP_ID = process.env['MATHPIX_APP_ID'] || 'tutor_app';
 
 /**
  * Mathpix OCR Service class
@@ -33,6 +33,10 @@ export class MathpixService {
    * @returns True if API key is configured
    */
   static isAvailable(): boolean {
+    // Lazy initialization - try to get API key if not already set
+    if (!this.apiKey) {
+      this.apiKey = process.env['MATHPIX_API_KEY'];
+    }
     return !!this.apiKey;
   }
 
@@ -50,7 +54,7 @@ export class MathpixService {
           'MISSING_API_KEY'
         );
       }
-
+      console.log('🔍 ===== MATHPIX OCR STARTING =====');
       const rawResult = await this.callMathpixAPI(imageData);
       return this.processMathpixResults(rawResult);
     } catch (error) {
@@ -430,6 +434,3 @@ export class MathpixService {
     }
   }
 }
-
-// Initialize service on module load
-MathpixService.initialize();
