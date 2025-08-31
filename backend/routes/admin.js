@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const { db, admin } = require('../config/firebase');
+const { extractQuestionsFromPDF, updatePastPaperWithQuestions } = require('../utils/questionExtractor');
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -151,8 +152,28 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
       filePath: newFilePath,
       fileSize: req.file.size,
       uploadedAt: new Date().toISOString(),
-
+      questions: [],
+      questionCount: 0,
+      subQuestionCount: 0
     };
+
+    // Extract questions from the uploaded PDF
+    try {
+      console.log('Extracting questions from PDF...');
+      const extractionResult = await extractQuestionsFromPDF(newFilePath);
+      
+      if (extractionResult.success) {
+        console.log(`Successfully extracted ${extractionResult.totalQuestions} questions`);
+        const updatedPaper = updatePastPaperWithQuestions(pastPaper, extractionResult.questions);
+        Object.assign(pastPaper, updatedPaper);
+      } else {
+        console.warn('Question extraction failed:', extractionResult.error);
+        // Continue without questions if extraction fails
+      }
+    } catch (extractionError) {
+      console.error('Error during question extraction:', extractionError);
+      // Continue without questions if extraction fails
+    }
 
     console.log('Created past paper object:', pastPaper);
     
@@ -355,6 +376,66 @@ router.get('/qualifications', (req, res) => {
 });
 
 
+
+/**
+ * Extract questions from an existing past paper
+ * @route POST /api/admin/past-papers/:id/extract-questions
+ * @param {string} id - The past paper ID
+ * @returns {Object} Updated past paper with extracted questions
+ */
+router.post('/past-papers/:id/extract-questions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const paperIndex = pastPapers.findIndex(paper => paper.id === id);
+    
+    if (paperIndex === -1) {
+      return res.status(404).json({ error: 'Past paper not found' });
+    }
+
+    const paper = pastPapers[paperIndex];
+    console.log(`Extracting questions from paper: ${paper.originalName}`);
+
+    // Extract questions from the PDF file
+    const extractionResult = await extractQuestionsFromPDF(paper.filePath);
+    
+    if (extractionResult.success) {
+      console.log(`Successfully extracted ${extractionResult.totalQuestions} questions`);
+      
+      // Update the past paper with extracted questions
+      const updatedPaper = updatePastPaperWithQuestions(paper, extractionResult.questions);
+      
+      // Update local storage
+      pastPapers[paperIndex] = updatedPaper;
+      
+      // Update Firestore
+      try {
+        await db.collection('pastPapers').doc(id).update({
+          questions: updatedPaper.questions,
+          questionCount: updatedPaper.questionCount,
+          subQuestionCount: updatedPaper.subQuestionCount,
+          lastUpdated: admin.firestore.Timestamp.fromDate(new Date())
+        });
+        console.log('Questions updated in Firestore');
+      } catch (firestoreError) {
+        console.error('Firestore update error:', firestoreError);
+        // Continue with local storage even if Firestore fails
+      }
+      
+      res.json({
+        message: 'Questions extracted successfully',
+        pastPaper: updatedPaper
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to extract questions',
+        details: extractionResult.error 
+      });
+    }
+  } catch (error) {
+    console.error('Question extraction error:', error);
+    res.status(500).json({ error: `Failed to extract questions: ${error.message}` });
+  }
+});
 
 /**
  * Sync data from Firestore to local storage

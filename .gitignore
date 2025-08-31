@@ -100,4 +100,8 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Uploaded files and PDFs
 backend/uploads/
+*.pdf
+# Ignore all PDF files anywhere in the project
