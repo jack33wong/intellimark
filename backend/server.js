@@ -7,6 +7,7 @@ require('dotenv').config();
 const chatRoutes = require('./routes/chat');
 const userRoutes = require('./routes/user');
 const adminRoutes = require('./routes/admin');
+const markHomeworkRoutes = require('./dist/routes/mark-homework').default;
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/chat', chatRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/mark-homework', markHomeworkRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

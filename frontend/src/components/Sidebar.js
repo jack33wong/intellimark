@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, 
   Settings, 
-  Trash2
+  Trash2,
+  BookOpen
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -192,6 +193,10 @@ function Sidebar({
       </div>
 
       <div className="admin-section">
+        <div className="admin-link" onClick={() => navigate('/mark-homework')}>
+          <BookOpen size={16} />
+          Mark Homework
+        </div>
         <div className="admin-link" onClick={() => navigate('/admin')}>
           <Settings size={16} />
           Admin
