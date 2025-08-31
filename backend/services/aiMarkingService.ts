@@ -87,12 +87,14 @@ export class AIMarkingService {
     const systemPrompt = `You are an AI assistant analyzing images. 
     You will receive an image and your task is to:
     
-    1. Analyze the image content
+    1. Analyze the image content using the provided OCR text and bounding box data
     2. Provide marking annotations if it's math homework, or general feedback if not
     
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
     - Output MUST strictly follow the format shown below
+    - Use the provided OCR text to understand exactly what the student has written
+    - Use bounding box positions to place annotations accurately without overlapping text
     
     ==================== EXAMPLE OUTPUT ====================
     
@@ -166,6 +168,16 @@ export class AIMarkingService {
 ========================================================
 `;
 
+    // Add full OCR text to give AI complete context
+    if (processedImage && processedImage.ocrText && processedImage.ocrText.trim()) {
+      userPrompt += `\n\nFULL OCR EXTRACTED TEXT from the image:
+"${processedImage.ocrText.trim().replace(/"/g, '\\"').replace(/\n/g, '\\n')}"
+
+This is the complete text content detected in the image. Use this to understand what the student has written and what needs to be marked.
+========================================================
+`;
+    }
+
     // Add bounding box information to the prompt
     if (processedImage && processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
       userPrompt += `\n\nHere is the OCR DETECTION RESULTS for the uploaded image (Only LaTex content are shown) - Use these bounding box positions as reference for annotations:`;
@@ -191,6 +203,7 @@ export class AIMarkingService {
       });
       
       userPrompt += `\nUse OCR positions as a guide to avoid overlaps and to find blank spaces for comments.`;
+    userPrompt += `\nUse the full OCR text to understand the student's work and provide accurate marking feedback.`;
       userPrompt += `\n\nIMAGE DIMENSIONS: ${processedImage.imageDimensions.width}x${processedImage.imageDimensions.height} pixels`;
       userPrompt += `\nIMPORTANT: All annotations must stay within these dimensions.`;
       userPrompt += `\n(x + width) <= ${processedImage.imageDimensions.width}`;
