@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Marking Service Test Interface</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        select, textarea, input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-color: #c3e6cb;
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .error {
+            border-color: #f5c6cb;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .info {
+            border-color: #bee5eb;
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background-color: #28a745;
+        }
+        
+        .status-offline {
+            background-color: #dc3545;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            max-height: 300px;
+            border: 2px dashed #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .feature-card h4 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        
+        .model-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        .model-option {
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .model-option:hover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        
+        .model-option.selected {
+            border-color: #007bff;
+            background-color: #e3f2fd;
+        }
+        
+        .model-option input[type="radio"] {
+            margin-right: 10px;
+        }
+        
+        .model-info h4 {
+            margin: 5px 0;
+            color: #333;
+        }
+        
+        .model-info p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤖 AI Marking Service Test Interface</h1>
+    
+    <div class="container">
+        <h2>Service Status</h2>
+        <div id="status">
+            <span class="status-indicator status-offline"></span>
+            <span id="statusText">Checking...</span>
+        </div>
+        <button onclick="checkStatus()">Refresh Status</button>
+    </div>
+
+    <div class="container">
+        <h2>🚀 Advanced AI Marking Features</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h4>🎯 Smart Image Classification</h4>
+                <p>Automatically detects if an image contains just a question or homework with student work</p>
+            </div>
+            <div class="feature-card">
+                <h4>✍️ AI-Powered Marking</h4>
+                <p>Generates intelligent marking annotations with ticks, crosses, circles, and comments</p>
+            </div>
+            <div class="feature-card">
+                <h4>🔍 OCR Integration</h4>
+                <p>Uses Mathpix OCR to extract text and positioning for precise annotations</p>
+            </div>
+            <div class="feature-card">
+                <h4>🎨 SVG Overlay Generation</h4>
+                <p>Creates beautiful SVG overlays that can be composited onto images</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>🧠 AI Model Selection</h2>
+        <div class="model-options">
+            <label class="model-option">
+                <input type="radio" name="model" value="chatgpt-4o" checked>
+                <div class="model-info">
+                    <h4>ChatGPT 4o</h4>
+                    <p>Balanced performance and accuracy</p>
+                </div>
+            </label>
+            <label class="model-option">
+                <input type="radio" name="model" value="chatgpt-5">
+                <div class="model-info">
+                    <h4>ChatGPT 5</h4>
+                    <p>Latest model with enhanced capabilities</p>
+                </div>
+            </label>
+            <label class="model-option">
+                <input type="radio" name="model" value="gemini-2.5-pro">
+                <div class="model-info">
+                    <h4>Gemini 2.5 Pro</h4>
+                    <p>Google's advanced AI model</p>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📸 Test AI Marking Service</h2>
+        <form id="markHomeworkForm">
+            <div class="form-group">
+                <label for="imageFile">Upload Image:</label>
+                <input type="file" id="imageFile" name="imageFile" accept="image/*" onchange="previewImage(event)">
+                <img id="imagePreview" class="image-preview" style="display: none;">
+            </div>
+            
+            <div class="form-group">
+                <label for="additionalInstructions">Additional Instructions (Optional):</label>
+                <textarea id="additionalInstructions" name="instructions" rows="3" placeholder="Any specific instructions for marking..."></textarea>
+            </div>
+            
+            <button type="submit">🚀 Process with AI</button>
+            <button type="button" onclick="loadTestImage()">📋 Load Test Image</button>
+            <button type="button" onclick="clearResults()">🗑️ Clear Results</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <h2>📊 Results</h2>
+        <div id="response" class="result info">Upload an image and click "Process with AI" to see results...</div>
+    </div>
+
+    <div class="container">
+        <h2>🔧 API Endpoints</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h4>POST /api/mark-homework/mark-homework</h4>
+                <p>Main endpoint for AI-powered homework marking</p>
+            </div>
+            <div class="feature-card">
+                <h4>GET /api/mark-homework/status</h4>
+                <p>Service status and feature information</p>
+            </div>
+            <div class="feature-card">
+                <h4>POST /api/mark-homework/test</h4>
+                <p>Test pipeline functionality</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update model selection UI
+        document.querySelectorAll('input[name="model"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.querySelectorAll('.model-option').forEach(option => {
+                    option.classList.remove('selected');
+                });
+                if (this.checked) {
+                    this.closest('.model-option').classList.add('selected');
+                }
+            });
+        });
+
+        // Initialize first model as selected
+        document.querySelector('input[name="model"]:checked').closest('.model-option').classList.add('selected');
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function loadTestImage() {
+            // Create a simple test image with base64 data
+            const testImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+            document.getElementById('imagePreview').src = testImage;
+            document.getElementById('imagePreview').style.display = 'block';
+            
+            // Update response area
+            document.getElementById('response').textContent = 'Test image loaded. This is a 1x1 pixel image for testing purposes.';
+            document.getElementById('response').className = 'result info';
+        }
+
+        function clearResults() {
+            document.getElementById('response').textContent = 'Results cleared. Upload an image and click "Process with AI" to see results...';
+            document.getElementById('response').className = 'result info';
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('imageFile').value = '';
+        }
+
+        async function checkStatus() {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            
+            try {
+                const response = await fetch('/api/mark-homework/status');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = '<span class="status-indicator status-online"></span><span>Online</span>';
+                    statusText.textContent = `Service: ${data.service} | Status: ${data.status}`;
+                } else {
+                    statusDiv.innerHTML = '<span class="status-indicator status-offline"></span><span>Error</span>';
+                    statusText.textContent = 'Service error';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<span class="status-indicator status-offline"></span><span>Offline</span>';
+                statusText.textContent = 'Service unavailable';
+            }
+        }
+
+        // Check status on page load
+        checkStatus();
+
+        // Handle form submission
+        document.getElementById('markHomeworkForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const responseDiv = document.getElementById('response');
+            const imageFile = document.getElementById('imageFile').files[0];
+            const model = document.querySelector('input[name="model"]:checked').value;
+            const instructions = document.getElementById('additionalInstructions').value;
+            
+            if (!imageFile) {
+                responseDiv.textContent = 'Please select an image file first.';
+                responseDiv.className = 'result error';
+                return;
+            }
+            
+            responseDiv.textContent = '🔄 Processing image with AI... Please wait...';
+            responseDiv.className = 'result info';
+            
+            try {
+                // Convert image to base64
+                const base64Image = await fileToBase64(imageFile);
+                
+                const formData = {
+                    imageData: base64Image,
+                    model: model,
+                    additionalInstructions: instructions || undefined
+                };
+                
+                console.log('🔍 Sending request with model:', model);
+                
+                const response = await fetch('/api/mark-homework/mark-homework', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let resultText = `✅ AI Processing Complete!\n\n`;
+                    
+                    if (data.isQuestionOnly) {
+                        resultText += `📝 Image Classification: QUESTION ONLY\n`;
+                        resultText += `🤖 AI Model: ${data.model}\n`;
+                        resultText += `🔗 API Used: ${data.apiUsed}\n`;
+                        resultText += `💭 Reasoning: ${data.reasoning}\n`;
+                        resultText += `💡 Suggestion: Use chat interface for question solving`;
+                    } else {
+                        resultText += `📝 Image Classification: HOMEWORK WITH ANSWERS\n`;
+                        resultText += `🤖 AI Model: ${data.model}\n`;
+                        resultText += `🔗 API Used: ${data.apiUsed}\n`;
+                        resultText += `📊 OCR Method: ${data.ocrMethod}\n`;
+                        resultText += `📏 Image Dimensions: ${data.result?.imageDimensions?.width}x${data.result?.imageDimensions?.height}\n`;
+                        resultText += `📝 OCR Text Length: ${data.result?.ocrText?.length || 0} characters\n`;
+                        resultText += `🎯 Bounding Boxes Found: ${data.result?.boundingBoxes?.length || 0}\n`;
+                        resultText += `✍️ Annotations Generated: ${data.instructions?.annotations?.length || 0}\n`;
+                        resultText += `🎨 SVG Overlay: ${data.annotatedImage ? 'Generated' : 'Not generated'}\n`;
+                        resultText += `💭 AI Message: ${data.message}`;
+                        
+                        if (data.instructions?.annotations) {
+                            resultText += `\n\n📋 Marking Instructions:\n`;
+                            data.instructions.annotations.forEach((annotation, index) => {
+                                resultText += `${index + 1}. ${annotation.action.toUpperCase()} at [${annotation.bbox.join(', ')}]`;
+                                if (annotation.text) resultText += ` - "${annotation.text}"`;
+                                if (annotation.comment) resultText += ` - "${annotation.comment}"`;
+                                resultText += '\n';
+                            });
+                        }
+                    }
+                    
+                    responseDiv.textContent = resultText;
+                    responseDiv.className = 'result success';
+                } else {
+                    responseDiv.textContent = `❌ Error: ${data.error}`;
+                    responseDiv.className = 'result error';
+                }
+            } catch (error) {
+                responseDiv.textContent = `❌ Network Error: ${error.message}`;
+                responseDiv.className = 'result error';
+                console.error('Processing error:', error);
+            }
+        });
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+    </script>
+</body>
+</html>
