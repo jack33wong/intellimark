@@ -593,14 +593,21 @@ This is the complete text content detected in the image. Use this to understand 
           ],
         },
       ],
-      max_tokens: modelConfig.maxTokens || 2048,
       temperature: 0.7,
     };
+
+    // Use the correct parameter name based on the model
+    if (openaiModel === 'gpt-5') {
+      requestBody.max_completion_tokens = modelConfig.maxTokens || 2048;
+    } else {
+      requestBody.max_tokens = modelConfig.maxTokens || 2048;
+    }
 
     console.log('🔍 Sending request to OpenAI API...');
     console.log('🔍 OpenAI request details:', {
       model: openaiModel,
-      maxTokens: modelConfig.maxTokens || 2048,
+      maxTokens: openaiModel === 'gpt-5' ? 'max_completion_tokens' : 'max_tokens',
+      tokenValue: modelConfig.maxTokens || 2048,
       temperature: 0.7,
       messageCount: 2,
       imageDataLength: imageUrl.length
