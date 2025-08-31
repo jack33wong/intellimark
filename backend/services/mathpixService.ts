@@ -80,21 +80,10 @@ export class MathpixService {
     console.log('🔍 Image format:', imageData.substring(0, 30) + '...');
 
     const requestBody = {
-      src: imageData,
-      formats: ['text', 'data'],
-      include_word_data: true,
-      data_options: {
-        include_asciimath: true,
-        include_latex: true,
-        include_line_data: true,
-        include_confidence: true
-      },
-      ocr_options: {
-        math_inline_delimiters: ['$', '$'],
-        math_display_delimiters: ['$$', '$$'],
-        rm_spaces: true
-      }
-    };
+        src: imageData, // Send the original data URL directly
+        formats: ["text", "data"],  // Request both text and data for bounding boxes
+        "include_word_data": true
+      };
 
     console.log('🔍 Sending request to Mathpix API...');
 

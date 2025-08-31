@@ -52,7 +52,7 @@ export interface ProcessedMathpixResult {
 }
 
 // Image annotation types
-export interface Annotation {
+export interface ImageAnnotation {
   position: {
     x: number;
     y: number;
@@ -65,7 +65,7 @@ export interface Annotation {
 export interface ImageAnnotationResult {
   originalImage: string;
   annotatedImage: string;
-  annotations: Annotation[];
+  annotations: ImageAnnotation[];
   svgOverlay: string;
 }
 
@@ -86,6 +86,24 @@ export interface AIModelResponse {
   model: ModelType;
   confidence?: number;
   processingTime?: number;
+}
+
+// Annotation and Marking Types
+export interface Annotation {
+  action: 'circle' | 'write' | 'tick' | 'cross' | 'underline' | 'comment';
+  bbox: [number, number, number, number]; // [x, y, width, height]
+  comment?: string; // Optional for marking actions
+  text?: string; // For comment actions
+}
+
+export interface MarkingInstructions {
+  annotations: Annotation[];
+}
+
+export interface ImageClassification {
+  isQuestionOnly: boolean;
+  reasoning: string;
+  apiUsed: string;
 }
 
 // Chat message types
@@ -113,9 +131,14 @@ export interface MarkHomeworkRequest {
 
 export interface MarkHomeworkResponse {
   success: boolean;
+  isQuestionOnly?: boolean;
   result?: ProcessedImageResult;
-  annotatedImage?: string;
-  error?: string;
+  annotatedImage?: string | null;
+  instructions?: MarkingInstructions;
+  message?: string;
+  apiUsed?: string;
+  ocrMethod?: string;
+  classification?: ImageClassification;
 }
 
 export interface ChatRequest {

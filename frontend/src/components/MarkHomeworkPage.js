@@ -1,44 +1,31 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileText, Loader2, XCircle, BookOpen } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import './MarkHomeworkPage.css';
 
-/**
- * Mark Homework Page Component
- * Handles image upload, processing, and displaying results
- */
-function MarkHomeworkPage() {
-  const [selectedImage, setSelectedImage] = useState(null);
+const MarkHomeworkPage = () => {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [results, setResults] = useState(null);
+  const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
-  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
 
-  // API base URL
-  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
-
-  // Available AI models
-  const aiModels = [
-    { id: 'chatgpt-4o', name: 'ChatGPT 4o', description: 'Balanced performance and accuracy' },
-    { id: 'chatgpt-5', name: 'ChatGPT 5', description: 'Latest model with enhanced capabilities' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced AI model' }
+  const models = [
+    { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
+    { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
   ];
 
-  /**
-   * Handle file selection
-   */
-  const handleFileSelect = (file) => {
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+      setError(null);
+      
       const reader = new FileReader();
       reader.onload = (e) => {
-        setSelectedImage({
-          file,
-          dataUrl: e.target.result,
-          name: file.name
-        });
-        setError(null);
-        setResults(null);
+        setPreviewUrl(e.target.result);
       };
       reader.readAsDataURL(file);
     } else {
@@ -46,50 +33,49 @@ function MarkHomeworkPage() {
     }
   };
 
-  /**
-   * Handle drag and drop events
-   */
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedFile(file);
+      setError(null);
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreviewUrl(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setError('Please drop a valid image file');
     }
   };
 
-  /**
-   * Handle drop event
-   */
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
-    }
+  const handleDragOver = (event) => {
+    event.preventDefault();
   };
 
-  /**
-   * Process the uploaded image
-   */
-  const processImage = async () => {
-    if (!selectedImage) return;
+  const processHomework = async () => {
+    if (!selectedFile) {
+      setError('Please select an image first');
+      return;
+    }
 
     setIsProcessing(true);
     setError(null);
-    setResults(null);
+    setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE}/api/mark-homework/mark-homework`, {
+      const formData = new FormData();
+      formData.append('imageData', previewUrl);
+      formData.append('model', selectedModel);
+
+      const response = await fetch('/api/mark-homework/mark-homework', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageData: selectedImage.dataUrl,
+          imageData: previewUrl,
           model: selectedModel
         }),
       });
@@ -97,205 +83,149 @@ function MarkHomeworkPage() {
       const data = await response.json();
 
       if (data.success) {
-        setResults(data);
+        setResult(data);
       } else {
-        setError(data.error || 'Failed to process image');
+        setError(data.error || 'Failed to process homework');
       }
     } catch (err) {
-      setError('Network error: ' + err.message);
+      setError('Network error. Please try again.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  /**
-   * Clear all data
-   */
-  const clearAll = () => {
-    setSelectedImage(null);
-    setResults(null);
+  const resetForm = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setResult(null);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  /**
-   * Download results as JSON
-   */
-  const downloadResults = () => {
-    if (!results) return;
-    
-    const dataStr = JSON.stringify(results, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'mark-homework-results.json';
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="mark-homework-page">
-      <div className="page-header">
-        <div className="header-content">
-          <BookOpen size={32} className="header-icon" />
-          <div>
-            <h1>Mark Homework</h1>
-            <p>AI-powered homework marking and analysis</p>
-          </div>
-        </div>
+      <div className="mark-homework-header">
+        <h1>Mark Homework</h1>
+        <p>Upload an image of homework to get AI-powered marking and feedback</p>
       </div>
 
-      <div className="page-content">
-        {/* Model Selection */}
-        <div className="model-selection">
-          <h3>Select AI Model</h3>
-          <div className="model-options">
-            {aiModels.map((model) => (
-              <label key={model.id} className="model-option">
-                <input
-                  type="radio"
-                  name="model"
-                  value={model.id}
-                  checked={selectedModel === model.id}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                />
-                <div className="model-info">
-                  <div className="model-name">{model.name}</div>
-                  <div className="model-description">{model.description}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* Image Upload Section */}
+      <div className="mark-homework-content">
         <div className="upload-section">
-          <h3>Upload Homework Image</h3>
-          
-          {!selectedImage ? (
-            <div
-              className={`upload-area ${dragActive ? 'drag-active' : ''}`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+          <div className="model-selector">
+            <label htmlFor="model-select">AI Model:</label>
+            <select
+              id="model-select"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="model-dropdown"
             >
-              <Upload size={48} className="upload-icon" />
-              <p>Drag and drop an image here, or click to browse</p>
-              <p className="upload-hint">Supports: JPG, PNG, GIF (Max: 10MB)</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={(e) => e.target.files[0] && handleFileSelect(e.target.files[0])}
-                style={{ display: 'none' }}
-              />
-            </div>
-          ) : (
-            <div className="image-preview">
-              <div className="preview-header">
-                <h4>Selected Image: {selectedImage.name}</h4>
-                <button onClick={clearAll} className="clear-btn">
-                  <XCircle size={16} />
-                  Clear
-                </button>
+              {models.map(model => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div
+            className={`upload-area ${previewUrl ? 'has-preview' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+            
+            {!previewUrl ? (
+              <div className="upload-placeholder">
+                <Upload className="upload-icon" />
+                <h3>Upload Homework Image</h3>
+                <p>Drag and drop an image here, or click to browse</p>
+                <span className="upload-hint">Supports JPG, PNG, GIF</span>
               </div>
-              <img 
-                src={selectedImage.dataUrl} 
-                alt="Homework preview" 
-                className="preview-image"
-              />
-              <div className="preview-actions">
-                <button 
-                  onClick={processImage}
-                  disabled={isProcessing}
-                  className="process-btn"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 size={16} className="spinner" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <FileText size={16} />
-                      Mark Homework
-                    </>
-                  )}
-                </button>
+            ) : (
+              <div className="preview-container">
+                <img src={previewUrl} alt="Homework preview" className="preview-image" />
+                <div className="preview-overlay">
+                  <button className="change-image-btn" onClick={(e) => {
+                    e.stopPropagation();
+                    resetForm();
+                  }}>
+                    Change Image
+                  </button>
+                </div>
               </div>
+            )}
+          </div>
+
+          {error && (
+            <div className="error-message">
+              <AlertCircle className="error-icon" />
+              <span>{error}</span>
             </div>
           )}
+
+          <div className="action-buttons">
+            <button
+              className="process-btn"
+              onClick={processHomework}
+              disabled={!selectedFile || isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <div className="loading-spinner"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FileText className="btn-icon" />
+                  Mark Homework
+                </>
+              )}
+            </button>
+            
+            {selectedFile && (
+              <button className="reset-btn" onClick={resetForm}>
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="error-message">
-            <XCircle size={20} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Results Display */}
-        {results && (
+        {result && (
           <div className="results-section">
             <div className="results-header">
-              <h3>Marking Results</h3>
-              <button onClick={downloadResults} className="download-btn">
-                Download Results
-              </button>
+              <CheckCircle className="success-icon" />
+              <h2>Marking Complete</h2>
             </div>
             
             <div className="results-content">
-              <div className="result-item">
-                <h4>OCR Text</h4>
-                <div className="ocr-text">
-                  {results.result?.ocrText || 'No text extracted'}
+              <div className="result-card">
+                <h3>Extracted Text</h3>
+                <div className="extracted-text">
+                  {result.result?.ocrText || 'No text extracted'}
                 </div>
               </div>
 
-              <div className="result-item">
-                <h4>Confidence Score</h4>
+              <div className="result-card">
+                <h3>Confidence Score</h3>
                 <div className="confidence-score">
-                  {results.result?.confidence ? 
-                    `${(results.result.confidence * 100).toFixed(1)}%` : 
-                    'N/A'
-                  }
+                  {((result.result?.confidence || 0) * 100).toFixed(1)}%
                 </div>
               </div>
 
-              <div className="result-item">
-                <h4>Image Dimensions</h4>
-                <div className="dimensions">
-                  {results.result?.imageDimensions ? 
-                    `${results.result.imageDimensions.width} × ${results.result.imageDimensions.height} pixels` : 
-                    'N/A'
-                  }
-                </div>
-              </div>
-
-              <div className="result-item">
-                <h4>Bounding Boxes</h4>
-                <div className="bounding-boxes">
-                  {results.result?.boundingBoxes?.length > 0 ? 
-                    `${results.result.boundingBoxes.length} text regions detected` : 
-                    'No text regions detected'
-                  }
-                </div>
-              </div>
-
-              {results.annotatedImage && (
-                <div className="result-item">
-                  <h4>Annotated Image</h4>
+              {result.annotatedImage && (
+                <div className="result-card">
+                  <h3>Annotated Image</h3>
                   <div className="annotated-image">
-                    <div 
-                      className="svg-overlay"
-                      dangerouslySetInnerHTML={{ __html: results.annotatedImage }}
-                    />
+                    <img src={result.annotatedImage} alt="Annotated homework" />
                   </div>
                 </div>
               )}
@@ -305,6 +235,6 @@ function MarkHomeworkPage() {
       </div>
     </div>
   );
-}
+};
 
 export default MarkHomeworkPage;

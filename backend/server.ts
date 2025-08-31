@@ -10,7 +10,7 @@ import chatRoutes from './routes/chat.js';
 import userRoutes from './routes/user.js';
 // @ts-ignore - Import JavaScript routes
 import adminRoutes from './routes/admin.js';
-import markHomeworkRoutes from './routes/mark-homework';
+import markHomeworkRoutes from './routes/mark-homework.js';
 
 dotenv.config();
 
