@@ -10,7 +10,7 @@ import {
  * Sidebar component displaying navigation
  * @returns {JSX.Element} The sidebar component
  */
-function Sidebar() {
+function Sidebar({ isOpen = true }) {
   const navigate = useNavigate();
 
 
@@ -18,7 +18,7 @@ function Sidebar() {
 
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <h1>Intellimark</h1>
         <p>AI-powered learning platform</p>
@@ -54,6 +54,10 @@ function Sidebar() {
         <div className="admin-link" onClick={() => navigate('/latex-test')}>
           <Code size={16} />
           LaTeX Testing
+        </div>
+        <div className="admin-link" onClick={() => navigate('/firebase-test')}>
+          <Code size={16} />
+          Firebase Test
         </div>
         <div className="admin-link" onClick={() => navigate('/admin')}>
           <Settings size={16} />

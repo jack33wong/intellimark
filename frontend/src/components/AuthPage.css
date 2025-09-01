@@ -1,0 +1,65 @@
+/* AuthPage Component Styling */
+
+.auth-page {
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Loading Container */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  gap: 16px;
+}
+
+.loading-spinner.large {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Access Denied */
+.access-denied {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+}
+
+.access-denied-content {
+  background: var(--bg-color, #1a1a1a);
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color, #333);
+}
+
+.access-denied-content h2 {
+  color: #ef4444;
+  font-size: 28px;
+  margin-bottom: 16px;
+  font-weight: 700;
+}
+
+.access-denied-content p {
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 16px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.access-denied-content p:last-child {
+  margin-bottom: 0;
+}
