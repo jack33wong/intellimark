@@ -3,55 +3,13 @@
  * Handles OCR processing of mathematical text and LaTeX detection
  */
 
-// Define types inline to avoid ESM import issues
-interface BoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  text: string;
-  confidence?: number;
-}
-
-interface ImageDimensions {
-  width: number;
-  height: number;
-}
-
-interface MathpixResult {
-  text: string;
-  data: Array<{
-    type: string;
-    value: string;
-    confidence: number;
-    bbox: [number, number, number, number];
-  }>;
-  word_data?: Array<{
-    text: string;
-    confidence: number;
-    cnt: number[][];
-  }>;
-  confidence: number;
-  width: number;
-  height: number;
-}
-
-interface ProcessedMathpixResult {
-  text: string;
-  boundingBoxes: BoundingBox[];
-  confidence: number;
-  dimensions: ImageDimensions;
-}
-
-class OCRServiceError extends Error {
-  public readonly code: string;
-  
-  constructor(message: string, code: string) {
-    super(message);
-    this.name = 'OCRServiceError';
-    this.code = code;
-  }
-}
+import { 
+  MathpixResult, 
+  ProcessedMathpixResult, 
+  BoundingBox, 
+  ImageDimensions,
+  OCRServiceError 
+} from '../types/index';
 
 const API_URL = 'https://api.mathpix.com/v3/text';
 const APP_ID = process.env['MATHPIX_APP_ID'] || 'tutor_app';
@@ -149,12 +107,6 @@ export class MathpixService {
     console.log('🔍 DEBUG: result.text exists:', !!result.text);
     console.log('🔍 DEBUG: result.text length:', result.text ? result.text.length : 'undefined');
     console.log('🔍 DEBUG: result.text preview:', result.text ? result.text.substring(0, 100) + '...' : 'undefined');
-    console.log('🔍 DEBUG: result.word_data exists:', !!result.word_data);
-    console.log('🔍 DEBUG: result.word_data is array:', Array.isArray(result.word_data));
-    console.log('🔍 DEBUG: result.word_data length:', result.word_data ? result.word_data.length : 'undefined');
-    if (result.word_data && Array.isArray(result.word_data) && result.word_data.length > 0) {
-      console.log('🔍 DEBUG: First word_data item:', JSON.stringify(result.word_data[0], null, 2));
-    }
 
     return result;
   }
@@ -166,13 +118,7 @@ export class MathpixService {
    */
   private static processMathpixResults(rawResult: MathpixResult): ProcessedMathpixResult {
     try {
-      // Extract text from word_data if main text field is empty
-      let text = rawResult.text || '';
-      if (!text && rawResult.word_data && Array.isArray(rawResult.word_data)) {
-        text = this.extractTextFromWordData(rawResult.word_data);
-        console.log('🔍 DEBUG: Constructed text from word_data, length:', text.length);
-      }
-      
+      const text = rawResult.text || '';
       console.log('🔍 DEBUG: extracted text length:', text.length);
       console.log('🔍 DEBUG: extracted text preview:', text.substring(0, 100) + '...');
 
@@ -193,7 +139,6 @@ export class MathpixService {
         dimensions
       };
     } catch (error) {
-      console.error('🔍 Error processing Mathpix results:', error);
       throw new OCRServiceError(
         `Failed to process Mathpix results: ${error instanceof Error ? error.message : 'Unknown error'}`,
         'RESULT_PROCESSING_FAILED'
@@ -289,72 +234,6 @@ export class MathpixService {
     }
 
     return boundingBoxes;
-  }
-
-  /**
-   * Extract text content from word_data array
-   * @param wordData - Array of word data from Mathpix API
-   * @returns Concatenated text string
-   */
-  private static extractTextFromWordData(wordData: any[]): string {
-    try {
-      const textParts: string[] = [];
-      
-      // Sort by Y coordinate to maintain reading order (top to bottom)
-      const sortedData = wordData
-        .filter(item => item.text && typeof item.text === 'string')
-        .sort((a, b) => {
-          const aY = a.cnt && Array.isArray(a.cnt) ? Math.min(...a.cnt.map((p: number[]) => p[1] || 0)) : 0;
-          const bY = b.cnt && Array.isArray(b.cnt) ? Math.min(...b.cnt.map((p: number[]) => p[1] || 0)) : 0;
-          return aY - bY;
-        });
-
-      // Group by approximate Y coordinate (within 20 pixels) to handle multiple lines
-      const lineGroups: { [key: number]: any[] } = {};
-      sortedData.forEach(item => {
-        if (item.cnt && Array.isArray(item.cnt)) {
-          const y = Math.min(...item.cnt.map((p: number[]) => p[1] || 0));
-          const lineKey = Math.round(y / 20) * 20; // Group by 20-pixel intervals
-          
-          if (!lineGroups[lineKey]) {
-            lineGroups[lineKey] = [];
-          }
-          lineGroups[lineKey].push(item);
-        }
-      });
-
-      // Process each line group
-      Object.keys(lineGroups)
-        .sort((a, b) => parseInt(a) - parseInt(b))
-        .forEach(lineKey => {
-          const lineItems = lineGroups[lineKey];
-          
-          // Sort items within the line by X coordinate (left to right)
-          lineItems.sort((a, b) => {
-            const aX = a.cnt && Array.isArray(a.cnt) ? Math.min(...a.cnt.map((p: number[]) => p[0] || 0)) : 0;
-            const bX = b.cnt && Array.isArray(b.cnt) ? Math.min(...b.cnt.map((p: number[]) => p[0] || 0)) : 0;
-            return aX - bX;
-          });
-
-          // Add line items to text parts
-          lineItems.forEach(item => {
-            if (item.text && typeof item.text === 'string') {
-              textParts.push(item.text);
-            }
-          });
-          
-          // Add line break between different Y-coordinate groups
-          textParts.push('\n');
-        });
-
-      const fullText = textParts.join(' ').trim();
-      console.log('🔍 DEBUG: Extracted text from word_data:', fullText.substring(0, 100) + '...');
-      
-      return fullText;
-    } catch (error) {
-      console.warn('🔍 Failed to extract text from word_data:', error);
-      return '';
-    }
   }
 
   /**

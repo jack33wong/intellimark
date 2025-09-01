@@ -4,9 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as dotenv from 'dotenv';
 
-// Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
-
 
 const app = express();
 const DEFAULT_PORT = parseInt(process.env['PORT'] || '5001');
@@ -47,8 +45,6 @@ app.use('/api/mark-homework', markHomeworkRoutes);
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
-
-
 
 // Error handling middleware
 app.use((err: any, _req: any, res: any, _next: any) => {
