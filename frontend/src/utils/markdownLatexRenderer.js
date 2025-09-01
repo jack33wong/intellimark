@@ -96,7 +96,7 @@ export const escapeLatex = (content) => {
   // Double escape backslashes in LaTeX expressions
   return content
     // Escape backslashes in \( ... \) inline math
-    .replace(/\\([^\\]*?)\\)/g, (match, inner) => {
+    .replace(/\\\(([^\\]*?)\\\)/g, (match, inner) => {
       return `\\(${inner.replace(/\\/g, '\\\\')}\\)`;
     })
     // Escape backslashes in \[ ... \] block math
