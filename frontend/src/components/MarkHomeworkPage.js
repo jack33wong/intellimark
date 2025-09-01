@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { MarkdownLatexRenderer, processMarkdownContent } from '../utils/markdownLatexRenderer';
 import './MarkHomeworkPage.css';
 
 const MarkHomeworkPage = () => {
@@ -14,6 +15,7 @@ const MarkHomeworkPage = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [showRawResponses, setShowRawResponses] = useState(false);
   const fileInputRef = useRef(null);
 
   const models = [
@@ -159,6 +161,7 @@ const MarkHomeworkPage = () => {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw response
           timestamp: new Date(),
           apiUsed: data.apiUsed
         };
@@ -237,6 +240,7 @@ const MarkHomeworkPage = () => {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw response
           timestamp: new Date(),
           apiUsed: data.apiUsed
         };
@@ -301,29 +305,47 @@ const MarkHomeworkPage = () => {
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-header">
-          <h1>Chat Mode - Question Assistance</h1>
-          <p>Your image has been classified as question-only. Chat with AI to get help!</p>
-          <button className="switch-mode-btn" onClick={switchBackToHomework}>
-            ← Back to Homework Marking
-          </button>
+          <div className="chat-header-left">
+            <div>
+              <h1>Chat Mode - Question Assistance</h1>
+              <p>Your image has been classified as question-only. Chat with AI to get help!</p>
+            </div>
+          </div>
+          
+          <div className="chat-header-right">
+            <img src={previewUrl} alt="Question context" className="context-image" />
+            <div className="classification-info">
+              {classificationResult?.reasoning}
+            </div>
+            <button 
+              className={`raw-toggle-btn ${showRawResponses ? 'active' : ''}`}
+              onClick={() => setShowRawResponses(!showRawResponses)}
+              title="Toggle raw response display"
+            >
+              {showRawResponses ? '📝' : '🔧'} Raw
+            </button>
+            <button className="switch-mode-btn" onClick={switchBackToHomework}>
+              ← Back
+            </button>
+          </div>
         </div>
         
         <div className="chat-content">
-          <div className="image-context">
-            <img src={previewUrl} alt="Question context" className="context-image" />
-            <div className="classification-info">
-              <strong>Classification:</strong> {classificationResult?.reasoning}
-            </div>
-          </div>
           
           <div className="chat-messages">
             {chatMessages.map((message) => (
               <div key={message.id} className={`chat-message ${message.role}`}>
-                <div className="message-avatar">
-                  {message.role === 'user' ? '👤' : '🤖'}
-                </div>
                 <div className="message-content">
-                  <div className="message-text">{message.content}</div>
+                  <div className="message-text">
+                    {showRawResponses && message.rawContent ? (
+                      <div className="raw-response">
+                        <div className="raw-header">Raw GPT Response:</div>
+                        <pre className="raw-content">{message.rawContent}</pre>
+                      </div>
+                                         ) : (
+                       <MarkdownLatexRenderer content={processMarkdownContent(message.content)} />
+                     )}
+                  </div>
                   <div className="message-meta">
                     <div className="message-timestamp">
                       {message.timestamp.toLocaleTimeString()}
@@ -340,7 +362,6 @@ const MarkHomeworkPage = () => {
             
             {isChatLoading && (
               <div className="chat-message assistant">
-                <div className="message-avatar">🤖</div>
                 <div className="message-content">
                   <div className="message-text">Thinking...</div>
                 </div>
