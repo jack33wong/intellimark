@@ -395,8 +395,8 @@ const MarkHomeworkPage = () => {
   return (
     <div className="mark-homework-page">
       <div className="mark-homework-header">
-        <h1>Mark Homework</h1>
-        <p>Upload an image of homework to get AI-powered marking and feedback</p>
+        <h1>🎯 Welcome to Intellimark</h1>
+        <p>Transform your homework with AI-powered marking and intelligent feedback</p>
       </div>
 
       <div className="mark-homework-content">
@@ -524,7 +524,7 @@ const MarkHomeworkPage = () => {
         {/* Chat redirect section removed - now automatically redirects */}
         
         {/* Debug info */}
-        <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0', fontSize: '12px' }}>
+        <div className="debug-info">
           <strong>Debug Info:</strong><br/>
           isChatMode: {String(isChatMode)}<br/>
           classificationResult: {classificationResult ? 'Present' : 'None'}<br/>
