@@ -35,11 +35,11 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
     console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
     console.log('🔍 Using model:', model);
     
-    // Import the simplified AI service to avoid circular dependencies
-    const { SimpleAIService } = await import('../services/simpleAIService.ts');
+    // Import the math homework AI service to avoid circular dependencies
+    const { MathHomeworkAIService } = await import('../services/mathHomeworkAIService.ts');
     
-    // Use simplified AI service for classification
-    const classification = await SimpleAIService.classifyImage(imageData, model);
+    // Use math homework AI service for classification
+    const classification = await MathHomeworkAIService.classifyImage(imageData, model);
     
     console.log('🔍 AI Classification result:', classification);
     return classification;
@@ -109,11 +109,11 @@ async function generateRealMarkingInstructions(
   console.log('🔍 Generating real AI marking instructions for model:', model);
   
   try {
-    // Import the simplified AI service to avoid circular dependencies
-    const { SimpleAIService } = await import('../services/simpleAIService.ts');
+    // Import the math homework AI service to avoid circular dependencies
+    const { MathHomeworkAIService } = await import('../services/mathHomeworkAIService.ts');
     
-    // Use simplified AI service for marking instructions
-    const markingInstructions = await SimpleAIService.generateMarkingInstructions(
+    // Use math homework AI service for marking instructions
+    const markingInstructions = await MathHomeworkAIService.generateMarkingInstructions(
       imageData, 
       model, 
       processedImage
