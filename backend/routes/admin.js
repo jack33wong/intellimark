@@ -196,12 +196,14 @@ router.post('/past-papers/upload', upload.single('pdfFile'), async (req, res) =>
     // Save metadata to Firestore (if available)
     if (db) {
       try {
-        const docRef = await db.collection('pastPapers').doc(pastPaper.id).set({
+        const firestoreData = {
           ...pastPaper,
-          // Convert Date to Firestore Timestamp
-          uploadedAt: admin.firestore.Timestamp.fromDate(new Date(pastPaper.uploadedAt))
-        });
-        console.log('Metadata saved to Firestore with ID:', docRef.id);
+          // Keep uploadedAt as ISO string for Firestore - it will auto-convert
+          uploadedAt: pastPaper.uploadedAt
+        };
+        
+        const docRef = await db.collection('pastPapers').doc(pastPaper.id).set(firestoreData);
+        console.log('Metadata saved to Firestore with ID:', pastPaper.id);
       } catch (firestoreError) {
         console.error('Firestore save error:', firestoreError);
         // Continue with local storage even if Firestore fails
@@ -576,11 +578,15 @@ router.post('/sync-firestore', async (req, res) => {
     
     snapshot.forEach(doc => {
       const data = doc.data();
-      // Convert Firestore Timestamp back to ISO string
+      // Handle both Timestamp objects and ISO strings
       const paper = {
         ...data,
-        uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : new Date().toISOString(),
-        updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : undefined
+        uploadedAt: data.uploadedAt ? 
+          (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) : 
+          new Date().toISOString(),
+        updatedAt: data.updatedAt ? 
+          (typeof data.updatedAt === 'string' ? data.updatedAt : data.updatedAt.toDate().toISOString()) : 
+          undefined
       };
       firestorePapers.push(paper);
     });
