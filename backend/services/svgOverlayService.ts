@@ -3,7 +3,7 @@
  * Generates SVG overlays for homework marking annotations
  */
 
-import { MarkingInstructions, Annotation } from '../types';
+import { MarkingInstructions, Annotation } from '../types/index.ts';
 
 export class SVGOverlayService {
   /**

@@ -157,23 +157,32 @@ export interface ChatResponse {
 
 // Error types
 export class ImageProcessingError extends Error {
-  constructor(message: string, public readonly code: string) {
+  public readonly code: string;
+  
+  constructor(message: string, code: string) {
     super(message);
     this.name = 'ImageProcessingError';
+    this.code = code;
   }
 }
 
 export class OCRServiceError extends Error {
-  constructor(message: string, public readonly code: string) {
+  public readonly code: string;
+  
+  constructor(message: string, code: string) {
     super(message);
     this.name = 'OCRServiceError';
+    this.code = code;
   }
 }
 
 export class AIServiceError extends Error {
-  constructor(message: string, public readonly code: string) {
+  public readonly code: string;
+  
+  constructor(message: string, code: string) {
     super(message);
     this.name = 'AIServiceError';
+    this.code = code;
   }
 }
 

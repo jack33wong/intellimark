@@ -9,8 +9,8 @@ import {
   ProcessingOptions,
   ImageProcessingError,
   Result
-} from '../types';
-import { MathpixService } from './mathpixService';
+} from '../types/index.ts';
+import { MathpixService } from './mathpixService.ts';
 
 // import { ImageAnnotationService } from './imageAnnotationService';
 

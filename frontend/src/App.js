@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
-import LatexTestPage from './components/LatexTestPage';
+
 import FirebaseTest from './components/FirebaseTest';
 import SimpleFirebaseTest from './components/SimpleFirebaseTest';
 import ProfilePage from './components/ProfilePage';
@@ -62,17 +62,7 @@ function App() {
               </ProtectedRoute>
             } />
             
-            <Route path="/latex-test" element={
-              <ProtectedRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
-                <div className="main-content">
-                  <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
-                    <LatexTestPage />
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
+
             
             <Route path="/firebase-test" element={
               <ProtectedRoute>

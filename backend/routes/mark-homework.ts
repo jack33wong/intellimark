@@ -6,11 +6,11 @@
 import express from 'express';
 import { 
   MarkHomeworkResponse
-} from '../types/index';
-import { ImageProcessingService } from '../services/imageProcessingService';
-import { AIMarkingService } from '../services/aiMarkingService';
-import { SVGOverlayService } from '../services/svgOverlayService';
-import { validateModelConfig } from '../config/aiModels';
+} from '../types/index.ts';
+import { ImageProcessingService } from '../services/imageProcessingService.ts';
+import { AIMarkingService } from '../services/aiMarkingService.ts';
+import { SVGOverlayService } from '../services/svgOverlayService.ts';
+import { validateModelConfig } from '../config/aiModels.ts';
 
 const router = express.Router();
 

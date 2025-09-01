@@ -7,7 +7,7 @@ import {
   ChatMessage, 
   ProcessedImageResult,
   ModelType 
-} from '../types';
+} from '../types/index.ts';
 
 /**
  * Firestore Service class

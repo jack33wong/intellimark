@@ -1,16 +1,16 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const dotenv = require('dotenv');
 
 // Import routes
 // @ts-ignore - Import CommonJS admin routes
-import adminRoutes from './routes/admin.js';
-// @ts-ignore - Import CommonJS mark-homework routes
-import markHomeworkRoutes from './routes/mark-homework.js';
+const adminRoutes = require('./routes/admin.js');
+// @ts-ignore - Import TypeScript mark-homework routes (temporarily disabled)
+// const markHomeworkRoutes = require('./routes/mark-homework.ts');
 // @ts-ignore - Import CommonJS auth routes
-import authRoutes from './routes/auth.js';
+const authRoutes = require('./routes/auth.js');
 
 dotenv.config({ path: '.env.local' });
 
@@ -42,8 +42,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/mark-homework', markHomeworkRoutes);
-console.log('✅ Mark-homework routes mounted at /api/mark-homework');
+// app.use('/api/mark-homework', markHomeworkRoutes); // Temporarily disabled
+// console.log('✅ Mark-homework routes mounted at /api/mark-homework');
 // Chat routes temporarily disabled while TS module resolution is fixed
 
 // Health check endpoint
@@ -89,4 +89,4 @@ function startServer(port: number) {
 // Start the server
 startServer(DEFAULT_PORT);
 
-export default app;
+module.exports = app;

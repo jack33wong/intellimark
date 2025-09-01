@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { AlertCircle, Chrome, Facebook } from 'lucide-react';
-import { signInWithPopup, getAuth } from 'firebase/auth';
+import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../config/firebase';
 import './Login.css';
 

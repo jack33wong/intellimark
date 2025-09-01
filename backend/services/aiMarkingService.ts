@@ -8,8 +8,8 @@ import {
   ImageClassification, 
   ModelType,
   ProcessedImageResult 
-} from '../types/index';
-import { getModelConfig } from '../config/aiModels';
+} from '../types/index.ts';
+import { getModelConfig } from '../config/aiModels.ts';
 
 export class AIMarkingService {
   /**

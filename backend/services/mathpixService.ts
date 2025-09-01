@@ -9,7 +9,7 @@ import {
   BoundingBox, 
   ImageDimensions,
   OCRServiceError 
-} from '../types';
+} from '../types/index.js';
 
 const API_URL = 'https://api.mathpix.com/v3/text';
 const APP_ID = process.env['MATHPIX_APP_ID'] || 'tutor_app';

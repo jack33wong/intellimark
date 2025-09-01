@@ -9,7 +9,7 @@ import {
   ImageAnnotationResult, 
   ImageDimensions, 
   BoundingBox 
-} from '../types';
+} from '../types/index.ts';
 
 /**
  * Image Annotation Service class
