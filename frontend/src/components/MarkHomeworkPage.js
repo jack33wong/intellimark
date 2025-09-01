@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
-import { MarkdownLatexRenderer, processMarkdownContent } from '../utils/markdownLatexRenderer';
+import MarkdownMathRenderer from './MarkdownMathRenderer';
 import './MarkHomeworkPage.css';
 
 const MarkHomeworkPage = () => {
@@ -343,7 +343,7 @@ const MarkHomeworkPage = () => {
                         <pre className="raw-content">{message.rawContent}</pre>
                       </div>
                                          ) : (
-                       <MarkdownLatexRenderer content={processMarkdownContent(message.content)} />
+                       <MarkdownMathRenderer content={message.content} />
                      )}
                   </div>
                   <div className="message-meta">

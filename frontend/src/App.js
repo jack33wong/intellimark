@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
-import LatexTestPage from './components/LatexTestPage';
+import MarkdownMathDemo from './components/MarkdownMathDemo';
 import './App.css';
 
 /**
@@ -29,12 +29,14 @@ function App() {
             <MarkHomeworkPage />
           </div>
         } />
-        <Route path="/latex-test" element={
+
+        <Route path="/markdown-demo" element={
           <div className="app">
             <Sidebar />
-            <LatexTestPage />
+            <MarkdownMathDemo />
           </div>
         } />
+
         <Route path="/" element={
           <div className="app">
             <Sidebar />
@@ -44,7 +46,7 @@ function App() {
               <ul>
                 <li><strong>Admin</strong> - Upload and manage past papers</li>
                 <li><strong>Mark Homework</strong> - AI-powered homework marking</li>
-                <li><strong>LaTeX Test</strong> - Test mathematical expressions</li>
+                <li><strong>Markdown Demo</strong> - Test Markdown + LaTeX rendering</li>
               </ul>
             </div>
           </div>
