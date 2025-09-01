@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { MarkdownLatexRenderer } from '../utils/markdownLatexRenderer';
 import './MarkHomeworkPage.css';
 
 const MarkHomeworkPage = () => {
@@ -14,6 +15,7 @@ const MarkHomeworkPage = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [showRawResponses, setShowRawResponses] = useState(false);
   const fileInputRef = useRef(null);
 
   const models = [
@@ -159,6 +161,7 @@ const MarkHomeworkPage = () => {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw response
           timestamp: new Date(),
           apiUsed: data.apiUsed
         };
@@ -237,6 +240,7 @@ const MarkHomeworkPage = () => {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw response
           timestamp: new Date(),
           apiUsed: data.apiUsed
         };
@@ -313,6 +317,13 @@ const MarkHomeworkPage = () => {
             <div className="classification-info">
               {classificationResult?.reasoning}
             </div>
+            <button 
+              className={`raw-toggle-btn ${showRawResponses ? 'active' : ''}`}
+              onClick={() => setShowRawResponses(!showRawResponses)}
+              title="Toggle raw response display"
+            >
+              {showRawResponses ? '📝' : '🔧'} Raw
+            </button>
             <button className="switch-mode-btn" onClick={switchBackToHomework}>
               ← Back
             </button>
@@ -325,7 +336,16 @@ const MarkHomeworkPage = () => {
             {chatMessages.map((message) => (
               <div key={message.id} className={`chat-message ${message.role}`}>
                 <div className="message-content">
-                  <div className="message-text">{message.content}</div>
+                  <div className="message-text">
+                    {showRawResponses && message.rawContent ? (
+                      <div className="raw-response">
+                        <div className="raw-header">Raw GPT Response:</div>
+                        <pre className="raw-content">{message.rawContent}</pre>
+                      </div>
+                    ) : (
+                      <MarkdownLatexRenderer content={message.content} />
+                    )}
+                  </div>
                   <div className="message-meta">
                     <div className="message-timestamp">
                       {message.timestamp.toLocaleTimeString()}

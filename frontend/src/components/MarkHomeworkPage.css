@@ -671,3 +671,145 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* Raw Response Toggle Button */
+.raw-toggle-btn {
+  background: var(--tertiary-bg);
+  color: var(--primary-text);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.raw-toggle-btn:hover {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+.raw-toggle-btn.active {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+
+/* Raw Response Display */
+.raw-response {
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.raw-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-text);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.raw-content {
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--secondary-text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+}
+
+/* Markdown LaTeX Renderer Styles */
+.markdown-latex-renderer {
+  line-height: 1.6;
+  color: var(--primary-text);
+}
+
+.markdown-latex-renderer h1,
+.markdown-latex-renderer h2,
+.markdown-latex-renderer h3,
+.markdown-latex-renderer h4,
+.markdown-latex-renderer h5,
+.markdown-latex-renderer h6 {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  color: var(--primary-text);
+}
+
+.markdown-latex-renderer h1 { font-size: 1.5em; }
+.markdown-latex-renderer h2 { font-size: 1.3em; }
+.markdown-latex-renderer h3 { font-size: 1.1em; }
+.markdown-latex-renderer h4 { font-size: 1em; }
+.markdown-latex-renderer h5 { font-size: 0.9em; }
+.markdown-latex-renderer h6 { font-size: 0.8em; }
+
+.markdown-latex-renderer p {
+  margin: 8px 0;
+}
+
+.markdown-latex-renderer ul,
+.markdown-latex-renderer ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.markdown-latex-renderer li {
+  margin: 4px 0;
+}
+
+.markdown-latex-renderer strong {
+  font-weight: 600;
+}
+
+.markdown-latex-renderer em {
+  font-style: italic;
+}
+
+.markdown-latex-renderer code {
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: var(--secondary-text);
+}
+
+.markdown-latex-renderer pre {
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: var(--secondary-text);
+}
+
+.markdown-latex-renderer .math-renderer {
+  margin: 8px 0;
+}
+
+.markdown-latex-renderer .katex {
+  font-size: 1em;
+}
+
+.markdown-latex-renderer .katex-display {
+  margin: 16px 0;
+  text-align: center;
+}
