@@ -126,6 +126,37 @@ function AdminPage() {
       setIsDeletingAll(false);
     }
   }, [API_BASE]);
+
+  // Delete individual JSON entry
+  const deleteJsonEntry = useCallback(async (entryId) => {
+    if (!window.confirm('Are you sure you want to delete this exam paper? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers/${entryId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Entry deleted:', result.message);
+        // Remove the deleted entry from the local state
+        setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
+        setError(`✅ Exam paper deleted successfully.`);
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const error = await response.json();
+        console.error('Failed to delete entry:', error);
+        setError(`Failed to delete entry: ${error.error}`);
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+      setError(`Error deleting entry: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  }, [API_BASE]);
   
   // Handle JSON upload
   const handleJsonUpload = useCallback(async (e) => {
@@ -687,9 +718,10 @@ function AdminPage() {
                       {jsonEntries.map((entry) => {
                         const examData = entry.data || {};
                         const examMeta = examData.exam || {};
-                        const questionCount = examData.questions ? examData.questions.length : 0;
-                        const subQuestionCount = examData.questions ? 
-                          examData.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0) : 0;
+                        // Use database fields for question counts
+                        const questionCount = examMeta.totalQuestions || (examData.questions ? examData.questions.length : 0);
+                        const subQuestionCount = examMeta.questionsWithSubQuestions || (examData.questions ? 
+                          examData.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0) : 0);
                         
                         return (
                         <React.Fragment key={entry.id}>
@@ -733,6 +765,13 @@ function AdminPage() {
                                 title="View"
                               >
                                 <FileText size={16} />
+                              </button>
+                              <button
+                                className="btn-icon btn-danger"
+                                onClick={() => deleteJsonEntry(entry.id)}
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
                               </button>
                             </td>
                           </tr>

@@ -775,6 +775,42 @@ router.get('/json/collections/:collectionName', (req, res) => {
 });
 
 /**
+ * Delete a specific entry from a JSON collection
+ * @route DELETE /api/admin/json/collections/:collectionName/:entryId
+ * @param {string} collectionName - Name of the collection
+ * @param {string} entryId - ID of the entry to delete
+ * @returns {Object} Success message
+ */
+router.delete('/json/collections/:collectionName/:entryId', (req, res) => {
+  try {
+    const { collectionName, entryId } = req.params;
+    
+    // Delete the specific document from Firestore
+    if (db) {
+      db.collection(collectionName).doc(entryId).delete()
+        .then(() => {
+          console.log(`Entry ${entryId} deleted from collection: ${collectionName}`);
+          res.json({
+            message: `Entry deleted successfully`,
+            collectionName,
+            entryId,
+            deleted: true
+          });
+        })
+        .catch((firestoreError) => {
+          console.error('Firestore delete error:', firestoreError);
+          res.status(500).json({ error: `Failed to delete entry from Firestore: ${firestoreError.message}` });
+        });
+    } else {
+      res.status(500).json({ error: 'Firestore not available' });
+    }
+  } catch (error) {
+    console.error('Delete entry error:', error);
+    res.status(500).json({ error: `Failed to delete entry: ${error.message}` });
+  }
+});
+
+/**
  * Delete all entries from a specific JSON collection
  * @route DELETE /api/admin/json/collections/:collectionName/clear-all
  * @param {string} collectionName - Name of the collection to clear
