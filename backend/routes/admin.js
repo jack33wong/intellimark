@@ -75,6 +75,8 @@ const upload = multer({
 // In production, this would be stored in a database
 let pastPapers = [];
 
+// JSON collections are now stored directly in Firestore
+
 /**
  * Get all past papers with metadata
  * @route GET /api/admin/past-papers
@@ -603,6 +605,214 @@ router.post('/sync-firestore', async (req, res) => {
   } catch (error) {
     console.error('Firestore sync error:', error);
     res.status(500).json({ error: `Failed to sync from Firestore: ${error.message}` });
+  }
+});
+
+/**
+ * Upload JSON data to fullExamPapers collection
+ * @route POST /api/admin/json/upload
+ * @param {Object} req.body.data - JSON data to upload
+ * @returns {Object} Upload result
+ */
+router.post('/json/upload', (req, res) => {
+  try {
+    const { data } = req.body;
+    const collectionName = 'fullExamPapers';
+    
+    if (!data) {
+      return res.status(400).json({ 
+        error: 'JSON data is required' 
+      });
+    }
+    
+    // Validate that data is an object or array
+    if (typeof data !== 'object' || data === null) {
+      return res.status(400).json({ 
+        error: 'Data must be a valid JSON object or array' 
+      });
+    }
+    
+    // Generate unique ID for the document
+    const jsonEntryId = uuidv4();
+    
+    // Calculate data size
+    const entrySize = JSON.stringify(data).length;
+    
+    // Store in Firestore if available
+    if (db) {
+      try {
+        db.collection('fullExamPapers').doc(jsonEntryId).set({
+          ...data,
+          uploadedAt: new Date(),
+          dataSize: entrySize
+        });
+        console.log('JSON data stored in Firestore fullExamPapers collection');
+      } catch (firestoreError) {
+        console.error('Firestore storage error:', firestoreError);
+        return res.status(500).json({ error: `Failed to store in Firestore: ${firestoreError.message}` });
+      }
+    } else {
+      return res.status(500).json({ error: 'Firestore not available' });
+    }
+    
+    console.log(`JSON uploaded to collection: ${collectionName}`);
+    
+    res.json({
+      message: 'JSON uploaded successfully',
+      collectionName,
+      entryId: jsonEntryId,
+      size: entrySize
+    });
+    
+  } catch (error) {
+    console.error('JSON upload error:', error);
+    res.status(500).json({ error: `Failed to upload JSON: ${error.message}` });
+  }
+});
+
+/**
+ * Get JSON collections
+ * @route GET /api/admin/json/collections
+ * @returns {Object} Collections and their metadata
+ */
+router.get('/json/collections', (req, res) => {
+  try {
+    // Fetch collections directly from Firestore
+    if (db) {
+      // For now, we'll return the fullExamPapers collection info
+      // In a more complex setup, you could list all collections
+      db.collection('fullExamPapers').get()
+        .then((snapshot) => {
+          const entries = [];
+          let totalSize = 0;
+          let lastUploaded = null;
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const size = data.dataSize || JSON.stringify(data).length;
+            const uploadedAt = data.uploadedAt ? data.uploadedAt.toDate().toISOString() : new Date().toISOString();
+            
+            entries.push({
+              id: doc.id,
+              data: data,
+              uploadedAt: uploadedAt,
+              size: size
+            });
+            
+            totalSize += size;
+            if (!lastUploaded || uploadedAt > lastUploaded) {
+              lastUploaded = uploadedAt;
+            }
+          });
+          
+          const collections = {
+            fullExamPapers: {
+              count: entries.length,
+              totalSize: totalSize,
+              lastUploaded: lastUploaded
+            }
+          };
+          
+          res.json({
+            collections,
+            totalCollections: Object.keys(collections).length
+          });
+        })
+        .catch((firestoreError) => {
+          console.error('Firestore fetch error:', firestoreError);
+          res.status(500).json({ error: `Failed to fetch collections from Firestore: ${firestoreError.message}` });
+        });
+    } else {
+      res.status(500).json({ error: 'Firestore not available' });
+    }
+  } catch (error) {
+    console.error('Get collections error:', error);
+    res.status(500).json({ error: `Failed to get collections: ${error.message}` });
+  }
+});
+
+/**
+ * Get JSON data from a specific collection
+ * @route GET /api/admin/json/collections/:collectionName
+ * @param {string} collectionName - Name of the collection
+ * @returns {Array} Array of JSON entries in the collection
+ */
+router.get('/json/collections/:collectionName', (req, res) => {
+  try {
+    const { collectionName } = req.params;
+    
+    // Fetch data directly from Firestore instead of in-memory storage
+    if (db) {
+      db.collection(collectionName).get()
+        .then((snapshot) => {
+          const entries = [];
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            entries.push({
+              id: doc.id,
+              data: data,
+              uploadedAt: data.uploadedAt ? data.uploadedAt.toDate().toISOString() : new Date().toISOString(),
+              size: data.dataSize || JSON.stringify(data).length
+            });
+          });
+          
+          res.json({
+            collectionName,
+            entries: entries
+          });
+        })
+        .catch((firestoreError) => {
+          console.error('Firestore fetch error:', firestoreError);
+          res.status(500).json({ error: `Failed to fetch data from Firestore: ${firestoreError.message}` });
+        });
+    } else {
+      res.status(500).json({ error: 'Firestore not available' });
+    }
+  } catch (error) {
+    console.error('Get collection error:', error);
+    res.status(500).json({ error: `Failed to get collection: ${error.message}` });
+  }
+});
+
+/**
+ * Delete all entries from a specific JSON collection
+ * @route DELETE /api/admin/json/collections/:collectionName/clear-all
+ * @param {string} collectionName - Name of the collection to clear
+ * @returns {Object} Success message
+ */
+router.delete('/json/collections/:collectionName/clear-all', (req, res) => {
+  try {
+    const { collectionName } = req.params;
+    
+    // Delete all documents from the specified collection in Firestore
+    if (db) {
+      db.collection(collectionName).get()
+        .then((snapshot) => {
+          const deletePromises = [];
+          snapshot.forEach((doc) => {
+            deletePromises.push(doc.ref.delete());
+          });
+          
+          return Promise.all(deletePromises);
+        })
+        .then(() => {
+          console.log(`All entries deleted from collection: ${collectionName}`);
+          res.json({
+            message: `All entries deleted from collection: ${collectionName}`,
+            collectionName,
+            deletedCount: 'all'
+          });
+        })
+        .catch((firestoreError) => {
+          console.error('Firestore delete error:', firestoreError);
+          res.status(500).json({ error: `Failed to delete from Firestore: ${firestoreError.message}` });
+        });
+    } else {
+      res.status(500).json({ error: 'Firestore not available' });
+    }
+  } catch (error) {
+    console.error('Delete collection error:', error);
+    res.status(500).json({ error: `Failed to delete collection: ${error.message}` });
   }
 });
 

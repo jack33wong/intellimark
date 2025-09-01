@@ -47,6 +47,11 @@ Cursor should apply the most relevant section depending on the file type (src, t
 - Branch naming: feat/*, bugfix/*, chore/*, refactor/*.
 - Commit messages MUST follow Conventional Commits (feat:, fix:, docs:, refactor:, test:, chore:).
 
+## programming practice
+- never remove working code during refactor e.g. "I removed the auto-fill functionality when I refactored the code"
+- nerver use in memory data for frontend display expect it is designed by user. e.g. The issue is that the frontend is displaying data from the in-memory jsonCollections array, but the actual data should come directly from Firestore.  
+
+
 ##  Correct Test Example
 import { parseExamText } from "../src/parser";
 

@@ -15,9 +15,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import the mark-homework route
 const markHomeworkRoutes = require('./routes/mark-homework.js');
+// Import the admin routes (PDF + JSON upload endpoints)
+const adminRoutes = require('./routes/admin.js');
 
 // Routes
 app.use('/api/mark-homework', markHomeworkRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

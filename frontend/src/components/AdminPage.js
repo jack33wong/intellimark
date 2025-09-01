@@ -3,22 +3,33 @@ import {
   Upload, 
   FileText, 
   Trash2, 
-  Edit
+  Edit,
+  Database,
+  FileText as FileTextIcon
 } from 'lucide-react';
 import Sidebar from './Sidebar';
 import './AdminPage.css';
 
 /**
- * AdminPage component for managing past paper PDFs
+ * AdminPage component for managing past paper PDFs and JSON data
  * @returns {JSX.Element} The admin page component
  */
 function AdminPage() {
   // State management
+  const [activeTab, setActiveTab] = useState('json'); // Default to JSON tab
   const [pastPapers, setPastPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingPaper, setEditingPaper] = useState(null);
   const [expandedPaper, setExpandedPaper] = useState(null);
+  const [jsonEntries, setJsonEntries] = useState([]);
+  const [expandedJsonId, setExpandedJsonId] = useState(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  
+  // JSON upload state
+  const [jsonForm, setJsonForm] = useState({
+    jsonData: ''
+  });
   
   // Upload form state
   const [uploadForm, setUploadForm] = useState({
@@ -35,15 +46,19 @@ function AdminPage() {
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
   
   // Form validation
-  const isFormValid = () => {
+  const isFormValid = useCallback(() => {
     return uploadForm.examBoard && 
            uploadForm.year && 
            uploadForm.level && 
            uploadForm.paper && 
            uploadForm.pdfFile;
-  };
+  }, [uploadForm]);
   
-  // Reset form to initial state
+  const isJsonFormValid = useCallback(() => {
+    return jsonForm.jsonData;
+  }, [jsonForm]);
+  
+  // Reset forms to initial state
   const resetForm = useCallback(() => {
     setUploadForm({
       examBoard: '',
@@ -55,6 +70,111 @@ function AdminPage() {
       pdfFile: null
     });
   }, []);
+  
+  const resetJsonForm = useCallback(() => {
+    setJsonForm({
+      jsonData: ''
+    });
+  }, []);
+
+  // Load JSON entries from fullExamPapers
+  const loadJsonEntries = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers`);
+      if (response.ok) {
+        const data = await response.json();
+        setJsonEntries(Array.isArray(data.entries) ? data.entries : []);
+      } else {
+        setError(`Failed to load JSON entries (HTTP ${response.status})`);
+        setTimeout(() => setError(null), 4000);
+      }
+    } catch (e) {
+      setError(`Failed to load JSON entries: ${e.message}`);
+      setTimeout(() => setError(null), 4000);
+    }
+  }, [API_BASE]);
+
+  // Delete all JSON entries
+  const deleteAllJsonEntries = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete ALL exam paper data? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers/clear-all`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('All entries deleted:', result.message);
+        setJsonEntries([]);
+        setError(`✅ All exam paper data has been deleted successfully.`);
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const error = await response.json();
+        console.error('Failed to delete all entries:', error);
+        setError(`Failed to delete all entries: ${error.error}`);
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (error) {
+      console.error('Error deleting all entries:', error);
+      setError(`Error deleting all entries: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  }, [API_BASE]);
+  
+  // Handle JSON upload
+  const handleJsonUpload = useCallback(async (e) => {
+    e.preventDefault();
+    
+    if (!isJsonFormValid()) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      // Validate JSON
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(jsonForm.jsonData);
+      } catch (parseError) {
+        throw new Error('Invalid JSON format: ' + parseError.message);
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`${API_BASE}/api/admin/json/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: parsedJson
+        }),
+      });
+      
+      if (response.ok) {
+        await response.json();
+        setError(`✅ JSON uploaded successfully to collection: fullExamPapers`);
+        resetJsonForm();
+        loadJsonEntries();
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('JSON upload error:', error);
+      setError(`JSON upload failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [jsonForm, API_BASE, resetJsonForm, isJsonFormValid]);
   
   // Load past papers data
   const loadData = useCallback(async () => {
@@ -120,12 +240,14 @@ function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [uploadForm, API_BASE, resetForm]);
+  }, [uploadForm, API_BASE, resetForm, isFormValid]);
   
   // Handle form input changes
   const handleInputChange = useCallback((field, value) => {
     setUploadForm(prev => ({ ...prev, [field]: value }));
   }, []);
+  
+
   
   // Extract exam information from filename
   const extractExamInfo = useCallback((filename) => {
@@ -413,6 +535,8 @@ function AdminPage() {
       setLoading(false);
     }
   }, [API_BASE]);
+  
+
 
   // Toggle paper expansion
   const togglePaperExpansion = useCallback((paperId) => {
@@ -423,6 +547,13 @@ function AdminPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load JSON list on mount and when switching back to JSON tab
+  useEffect(() => {
+    if (activeTab === 'json') {
+      loadJsonEntries();
+    }
+  }, [activeTab, loadJsonEntries]);
   
   // Render loading state
   if (loading && pastPapers.length === 0) {
@@ -459,7 +590,7 @@ function AdminPage() {
         {/* Header */}
         <div className="admin-header">
           <div className="header-left">
-            <h1>Admin Dashboard - Past Papers Management</h1>
+            <h1>Admin Dashboard</h1>
           </div>
         </div>
 
@@ -471,312 +602,531 @@ function AdminPage() {
           </div>
         )}
 
-        {/* Upload Form */}
-        <div className="upload-form">
-          <h2>Upload Past Paper</h2>
-          <form onSubmit={handleFileUpload}>
-            {/* First row: Exam Board, Year, Level, Paper */}
-            <div className="form-row compact">
-              <div className="form-group">
-                <label>Exam Board *</label>
-                <input
-                  type="text"
-                  value={uploadForm.examBoard}
-                  onChange={(e) => handleInputChange('examBoard', e.target.value)}
-                  placeholder="AQA, Edexcel, OCR"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Year *</label>
-                <input
-                  type="number"
-                  value={uploadForm.year}
-                  onChange={(e) => handleInputChange('year', e.target.value)}
-                  placeholder="2024"
-                  min="1900"
-                  max="2100"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Level *</label>
-                <input
-                  type="text"
-                  value={uploadForm.level}
-                  onChange={(e) => handleInputChange('level', e.target.value)}
-                  placeholder="Higher, Foundation, AS, A2"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Paper *</label>
-                <input
-                  type="text"
-                  value={uploadForm.paper}
-                  onChange={(e) => handleInputChange('paper', e.target.value)}
-                  placeholder="83001H, 1, 2, 3"
-                  required
-                />
-              </div>
-            </div>
-            
-            {/* Second row: Type, Qualification, PDF File, Upload Button */}
-            <div className="form-row compact">
-              <div className="form-group">
-                <label>Type *</label>
-                <select
-                  value={uploadForm.type}
-                  onChange={(e) => handleInputChange('type', e.target.value)}
-                  required
-                >
-                  <option value="Question Paper">Question Paper</option>
-                  <option value="Mark Scheme">Mark Scheme</option>
-                  <option value="Specimen">Specimen</option>
-                  <option value="Practice">Practice</option>
-                  <option value="Foundation">Foundation</option>
-                  <option value="Higher">Higher</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Qualification</label>
-                <select
-                  value={uploadForm.qualification}
-                  onChange={(e) => handleInputChange('qualification', e.target.value)}
-                >
-                  <option value="GCSE">GCSE</option>
-                  <option value="A-Level">A-Level</option>
-                  <option value="AS-Level">AS-Level</option>
-                  <option value="IB">IB</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>PDF File *</label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  required
-                />
-
-              </div>
-              <div className="form-group upload-button-group">
-                <label>Upload</label>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary upload-btn" 
-                  disabled={loading || !isFormValid()}
-                >
-                  <Upload size={16} />
-                  {loading ? 'Uploading...' : 'Upload Paper'}
-                </button>
-              </div>
-            </div>
-          </form>
+        {/* Tabs */}
+        <div className="tabs">
+          <button
+            className={`tab-button ${activeTab === 'json' ? 'active' : ''}`}
+            onClick={() => setActiveTab('json')}
+          >
+            <Database size={16} /> JSON Data
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'pdf' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pdf')}
+          >
+            <FileTextIcon size={16} /> PDF Papers
+          </button>
         </div>
 
-        {/* Past Papers List */}
-        <div className="papers-section">
-          <div className="papers-header">
-            <h3>Past Papers ({pastPapers.length})</h3>
-            {pastPapers.length > 0 ? (
-              <button
-                className="btn-clear-all"
-                onClick={handleClearAll}
-                disabled={loading}
-                title="Clear all past papers from database and local system"
-              >
-                <Trash2 size={16} />
-                Clear All
-              </button>
-            ) : (
-              <div className="no-papers-message">
-                No papers to clear
+        {/* Tab Content */}
+                 {activeTab === 'json' && (
+           <div className="tab-content">
+             <h2>Upload JSON Data to fullExamPapers Collection</h2>
+             <form onSubmit={handleJsonUpload}>
+               <div className="form-row">
+                 <label>JSON Data *</label>
+                 <textarea
+                   value={jsonForm.jsonData}
+                   onChange={(e) => setJsonForm(prev => ({ ...prev, jsonData: e.target.value }))}
+                   placeholder="Paste your JSON data here..."
+                   rows="15"
+                   required
+                 />
+               </div>
+               <div className="form-group upload-button-group">
+                 <button 
+                   type="submit" 
+                   className="btn btn-primary upload-btn" 
+                   disabled={loading || !isJsonFormValid()}
+                 >
+                   <Upload size={16} />
+                   {loading ? 'Uploading...' : 'Upload to fullExamPapers'}
+                 </button>
+               </div>
+             </form>
+            {/* Saved JSON Entries */}
+            <div className="papers-section" style={{ marginTop: '24px' }}>
+              <div className="papers-header">
+                <h3>Full Exam Papers JSON ({jsonEntries.length})</h3>
+                {jsonEntries.length > 0 && (
+                  <button
+                    onClick={deleteAllJsonEntries}
+                    disabled={isDeletingAll}
+                    className="btn btn-danger"
+                    style={{ marginLeft: '16px' }}
+                    title="Delete all exam paper data"
+                  >
+                    {isDeletingAll ? 'Deleting...' : '🗑️ Delete All'}
+                  </button>
+                )}
               </div>
-            )}
-          </div>
-          
-          {pastPapers.length === 0 ? (
-            <div className="no-papers">
-              <FileText size={48} />
-              <p>No past papers found. Upload your first paper above!</p>
-            </div>
-          ) : (
-            <div className="papers-table-container">
-              <table className="papers-table">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Exam Board</th>
-                    <th>Year</th>
-                    <th>Level</th>
-                    <th>Paper</th>
-                    <th>Type</th>
-                    <th>Qualification</th>
-                    <th>Questions</th>
-                    <th>File Size</th>
-                    <th>Uploaded</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pastPapers.map(paper => (
-                    <React.Fragment key={paper.id}>
-                      <tr className="paper-row">
-                        <td className="file-cell">
-                          <div 
-                            className="file-info clickable"
-                            onClick={() => togglePaperExpansion(paper.id)}
-                            title="Click to view exam content"
-                          >
-                            <FileText size={20} />
-                            <span className="filename">{paper.originalName}</span>
-                            <span className="expand-icon">
-                              {expandedPaper === paper.id ? '▼' : '▶'}
-                            </span>
-                          </div>
-                        </td>
-                        <td>{paper.examBoard}</td>
-                        <td>{paper.year}</td>
-                        <td>{paper.level}</td>
-                        <td>{paper.paper}</td>
-                        <td>{paper.type}</td>
-                        <td>{paper.qualification}</td>
-                        <td>
-                          {paper.questionCount ? (
-                            <span className="question-count">
-                              {paper.questionCount} Q{paper.subQuestionCount ? ` (${paper.subQuestionCount} sub)` : ''}
-                            </span>
-                          ) : (
-                            <span className="no-questions">No questions</span>
-                          )}
-                        </td>
-                        <td>{formatFileSize(paper.fileSize)}</td>
-                        <td>{formatDate(paper.uploadedAt)}</td>
-                        <td className="actions-cell">
-                          <button
-                            className="btn-icon"
-                            onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
-                            title="Edit"
-                          >
-                            <Edit size={16} />
-                          </button>
-                          {!paper.questionCount && (
-                            <button
-                              className="btn-icon"
-                              onClick={() => handleExtractQuestions(paper.id)}
-                              title="Extract Questions"
-                              disabled={loading}
-                            >
-                              <FileText size={16} />
-                            </button>
-                          )}
-                          <button
-                            className="btn-icon"
-                            onClick={() => handleDelete(paper.id)}
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+
+              {jsonEntries.length === 0 ? (
+                <div className="no-papers">
+                  <FileText size={48} />
+                  <p>No JSON entries found. Upload JSON above to get started.</p>
+                </div>
+              ) : (
+                <div className="papers-table-container">
+                  <table className="papers-table">
+                    <thead>
+                      <tr>
+                        <th>Exam Paper</th>
+                        <th>Exam Board</th>
+                        <th>Year</th>
+                        <th>Level</th>
+                        <th>Paper</th>
+                        <th>Questions</th>
+                        <th>Size</th>
+                        <th>Uploaded</th>
+                        <th>Actions</th>
                       </tr>
-                      
-                      {/* Expanded Content Panel */}
-                      {expandedPaper === paper.id && (
-                        <tr className="expanded-content-row">
-                          <td colSpan="11">
-                            <div className="expanded-content">
-                                                          <div className="content-header">
-                              <h4>Exam Paper Content: {paper.originalName}</h4>
-                              <div className="content-info">
-                                <span className="info-text">Questions are displayed in numerical order</span>
-                                <button 
-                                  className="btn-icon close-btn"
-                                  onClick={() => togglePaperExpansion(paper.id)}
-                                  title="Close"
-                                >
-                                  ×
-                                </button>
+                    </thead>
+                    <tbody>
+                      {jsonEntries.map((entry) => {
+                        const examData = entry.data || {};
+                        const questionCount = examData.questions ? examData.questions.length : 0;
+                        const subQuestionCount = examData.questions ? 
+                          examData.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0) : 0;
+                        
+                        return (
+                        <React.Fragment key={entry.id}>
+                          <tr className="paper-row">
+                            <td className="file-cell">
+                              <div
+                                className="file-info clickable"
+                                onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
+                                title="Click to view exam content"
+                              >
+                                <FileText size={20} />
+                                <span className="filename">{examData.originalName || examData.filename || entry.id}</span>
+                                <span className="expand-icon">{expandedJsonId === entry.id ? '▼' : '▶'}</span>
                               </div>
-                            </div>
-                              
-                              {paper.questions && paper.questions.length > 0 ? (
-                                <div className="questions-content">
-                                  <div className="questions-summary">
-                                    <span className="summary-item">
-                                      <strong>Total Questions:</strong> {paper.questionCount || paper.questions.length}
-                                    </span>
-                                    <span className="summary-item">
-                                      <strong>Sub-questions:</strong> {paper.subQuestionCount || paper.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0)}
-                                    </span>
-                                    <span className="summary-item">
-                                      <strong>Total Marks:</strong> {paper.questions.reduce((total, q) => total + (q.marks || 0), 0)}
-                                    </span>
+                            </td>
+                            <td>{examData.examBoard || 'N/A'}</td>
+                            <td>{examData.year || 'N/A'}</td>
+                            <td>{examData.level || 'N/A'}</td>
+                            <td>{examData.paper || 'N/A'}</td>
+                            <td>
+                              {questionCount ? (
+                                <span className="question-count">
+                                  {questionCount} Q{subQuestionCount ? ` (${subQuestionCount} sub)` : ''}
+                                </span>
+                              ) : (
+                                <span className="no-questions">No questions</span>
+                              )}
+                            </td>
+                            <td>{formatFileSize(entry.size || 0)}</td>
+                            <td>{formatDate(entry.uploadedAt)}</td>
+                            <td className="actions-cell">
+                              <button
+                                className="btn-icon"
+                                onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
+                                title="View"
+                              >
+                                <FileText size={16} />
+                              </button>
+                            </td>
+                          </tr>
+
+                          {expandedJsonId === entry.id && (
+                            <tr className="expanded-content-row">
+                              <td colSpan="9">
+                                <div className="expanded-content">
+                                  <div className="content-header">
+                                    <h4>Exam Paper Content: {examData.originalName || examData.filename || entry.id}</h4>
+                                    <div className="content-info">
+                                      <span className="info-text">Questions are displayed in numerical order</span>
+                                      <button
+                                        className="btn-icon close-btn"
+                                        onClick={() => setExpandedJsonId(null)}
+                                        title="Close"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
                                   </div>
                                   
-                                  <div className="questions-list">
-                                    {paper.questions.map((question, qIndex) => (
-                                      <div key={qIndex} className="question-item">
-                                        <div className="question-header">
-                                          <span className="question-number">Question {question.questionNumber}</span>
-                                          {question.marks && (
-                                            <span className="question-marks">[{question.marks} marks]</span>
-                                          )}
-                                        </div>
-                                        <div className="question-text">{question.text}</div>
-                                        
-                                        {question.subQuestions && question.subQuestions.length > 0 && (
-                                          <div className="sub-questions">
-                                            {question.subQuestions.map((subQ, sIndex) => (
-                                              <div key={sIndex} className="sub-question-item">
-                                                <div className="sub-question-header">
-                                                  <span className="sub-question-number">({subQ.subQuestionNumber})</span>
-                                                  {subQ.marks && (
-                                                    <span className="sub-question-marks">[{subQ.marks} marks]</span>
-                                                  )}
-                                                </div>
-                                                <div className="sub-question-text">{subQ.text}</div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
+                                  {examData.questions && examData.questions.length > 0 ? (
+                                    <div className="questions-content">
+                                      <div className="questions-summary">
+                                        <span className="summary-item">
+                                          <strong>Total Questions:</strong> {questionCount}
+                                        </span>
+                                        <span className="summary-item">
+                                          <strong>Sub-questions:</strong> {subQuestionCount}
+                                        </span>
+                                        <span className="summary-item">
+                                          <strong>Total Marks:</strong> {examData.questions.reduce((total, q) => total + (q.marks || 0), 0)}
+                                        </span>
                                       </div>
-                                    ))}
-                                  </div>
+                                      
+                                      <div className="questions-list">
+                                        {examData.questions.map((question, qIndex) => (
+                                          <div key={qIndex} className="question-item">
+                                            <div className="question-header">
+                                              <span className="question-number">Question {question.questionNumber}</span>
+                                              {question.marks && (
+                                                <span className="question-marks">[{question.marks} marks]</span>
+                                              )}
+                                            </div>
+                                            <div className="question-text">{question.text}</div>
+                                            
+                                            {question.subQuestions && question.subQuestions.length > 0 && (
+                                              <div className="sub-questions">
+                                                {question.subQuestions.map((subQ, sIndex) => (
+                                                  <div key={sIndex} className="sub-question-item">
+                                                    <div className="sub-question-header">
+                                                      <span className="sub-question-number">({subQ.subQuestionNumber})</span>
+                                                      {subQ.marks && (
+                                                        <span className="sub-question-marks">[{subQ.marks} marks]</span>
+                                                      )}
+                                                    </div>
+                                                    <div className="sub-question-text">{subQ.text}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="no-questions">
+                                      <p>No questions found in this exam paper data.</p>
+                                      <details style={{ marginTop: '16px' }}>
+                                        <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw JSON Data</summary>
+                                        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+{JSON.stringify(entry.data, null, 2)}
+                                        </pre>
+                                      </details>
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="no-questions">
-                                  <p>No questions have been extracted from this paper yet.</p>
-                                  <button 
-                                    className="btn btn-primary"
-                                    onClick={() => handleExtractQuestions(paper.id)}
-                                    disabled={loading}
-                                  >
-                                    {loading ? 'Extracting...' : 'Extract Questions'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-              
-              {/* Edit Form Overlay */}
-              {editingPaper && (
-                <EditPaperForm
-                  paper={pastPapers.find(p => p.id === editingPaper)}
-                  onUpdate={handleUpdate}
-                  onCancel={() => setEditingPaper(null)}
-                />
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          )}
-        </div>
+           </div>
+         )}
+
+        {activeTab === 'pdf' && (
+          <>
+            {/* Upload Form */}
+            <div className="upload-form">
+              <h2>Upload Past Paper</h2>
+              <form onSubmit={handleFileUpload}>
+                {/* First row: Exam Board, Year, Level, Paper */}
+                <div className="form-row compact">
+                  <div className="form-group">
+                    <label>Exam Board *</label>
+                    <input
+                      type="text"
+                      value={uploadForm.examBoard}
+                      onChange={(e) => handleInputChange('examBoard', e.target.value)}
+                      placeholder="AQA, Edexcel, OCR"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Year *</label>
+                    <input
+                      type="number"
+                      value={uploadForm.year}
+                      onChange={(e) => handleInputChange('year', e.target.value)}
+                      placeholder="2024"
+                      min="1900"
+                      max="2100"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Level *</label>
+                    <input
+                      type="text"
+                      value={uploadForm.level}
+                      onChange={(e) => handleInputChange('level', e.target.value)}
+                      placeholder="Higher, Foundation, AS, A2"
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Paper *</label>
+                    <input
+                      type="text"
+                      value={uploadForm.paper}
+                      onChange={(e) => handleInputChange('paper', e.target.value)}
+                      placeholder="83001H, 1, 2, 3"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                {/* Second row: Type, Qualification, PDF File, Upload Button */}
+                <div className="form-row compact">
+                  <div className="form-group">
+                    <label>Type *</label>
+                    <select
+                      value={uploadForm.type}
+                      onChange={(e) => handleInputChange('type', e.target.value)}
+                      required
+                    >
+                      <option value="Question Paper">Question Paper</option>
+                      <option value="Mark Scheme">Mark Scheme</option>
+                      <option value="Specimen">Specimen</option>
+                      <option value="Practice">Practice</option>
+                      <option value="Foundation">Foundation</option>
+                      <option value="Higher">Higher</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Qualification</label>
+                    <select
+                      value={uploadForm.qualification}
+                      onChange={(e) => handleInputChange('qualification', e.target.value)}
+                    >
+                      <option value="GCSE">GCSE</option>
+                      <option value="A-Level">A-Level</option>
+                      <option value="AS-Level">AS-Level</option>
+                      <option value="IB">IB</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>PDF File *</label>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileSelect}
+                      required
+                    />
+
+                  </div>
+                  <div className="form-group upload-button-group">
+                    <label>Upload</label>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary upload-btn" 
+                      disabled={loading || !isFormValid()}
+                    >
+                      <Upload size={16} />
+                      {loading ? 'Uploading...' : 'Upload Paper'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            {/* Past Papers List */}
+            <div className="papers-section">
+              <div className="papers-header">
+                <h3>Past Papers ({pastPapers.length})</h3>
+                {pastPapers.length > 0 ? (
+                  <button
+                    className="btn-clear-all"
+                    onClick={handleClearAll}
+                    disabled={loading}
+                    title="Clear all past papers from database and local system"
+                  >
+                    <Trash2 size={16} />
+                    Clear All
+                  </button>
+                ) : (
+                  <div className="no-papers-message">
+                    No papers to clear
+                  </div>
+                )}
+              </div>
+              
+              {pastPapers.length === 0 ? (
+                <div className="no-papers">
+                  <FileText size={48} />
+                  <p>No past papers found. Upload your first paper above!</p>
+                </div>
+              ) : (
+                <div className="papers-table-container">
+                  <table className="papers-table">
+                    <thead>
+                      <tr>
+                        <th>File</th>
+                        <th>Exam Board</th>
+                        <th>Year</th>
+                        <th>Level</th>
+                        <th>Paper</th>
+                        <th>Type</th>
+                        <th>Qualification</th>
+                        <th>Questions</th>
+                        <th>File Size</th>
+                        <th>Uploaded</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pastPapers.map(paper => (
+                        <React.Fragment key={paper.id}>
+                          <tr className="paper-row">
+                            <td className="file-cell">
+                              <div 
+                                className="file-info clickable"
+                                onClick={() => togglePaperExpansion(paper.id)}
+                                title="Click to view exam content"
+                              >
+                                <FileText size={20} />
+                                <span className="filename">{paper.originalName}</span>
+                                <span className="expand-icon">
+                                  {expandedPaper === paper.id ? '▼' : '▶'}
+                                </span>
+                              </div>
+                            </td>
+                            <td>{paper.examBoard}</td>
+                            <td>{paper.year}</td>
+                            <td>{paper.level}</td>
+                            <td>{paper.paper}</td>
+                            <td>{paper.type}</td>
+                            <td>{paper.qualification}</td>
+                            <td>
+                              {paper.questionCount ? (
+                                <span className="question-count">
+                                  {paper.questionCount} Q{paper.subQuestionCount ? ` (${paper.subQuestionCount} sub)` : ''}
+                                </span>
+                              ) : (
+                                <span className="no-questions">No questions</span>
+                              )}
+                            </td>
+                            <td>{formatFileSize(paper.fileSize)}</td>
+                            <td>{formatDate(paper.uploadedAt)}</td>
+                            <td className="actions-cell">
+                              <button
+                                className="btn-icon"
+                                onClick={() => setEditingPaper(editingPaper === paper.id ? null : paper.id)}
+                                title="Edit"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              {!paper.questionCount && (
+                                <button
+                                  className="btn-icon"
+                                  onClick={() => handleExtractQuestions(paper.id)}
+                                  title="Extract Questions"
+                                  disabled={loading}
+                                >
+                                  <FileText size={16} />
+                                </button>
+                              )}
+                              <button
+                                className="btn-icon"
+                                onClick={() => handleDelete(paper.id)}
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                          
+                          {/* Expanded Content Panel */}
+                          {expandedPaper === paper.id && (
+                            <tr className="expanded-content-row">
+                              <td colSpan="11">
+                                <div className="expanded-content">
+                                                          <div className="content-header">
+                                  <h4>Exam Paper Content: {paper.originalName}</h4>
+                                  <div className="content-info">
+                                    <span className="info-text">Questions are displayed in numerical order</span>
+                                    <button 
+                                      className="btn-icon close-btn"
+                                      onClick={() => togglePaperExpansion(paper.id)}
+                                      title="Close"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                </div>
+                                  
+                                  {paper.questions && paper.questions.length > 0 ? (
+                                    <div className="questions-content">
+                                      <div className="questions-summary">
+                                        <span className="summary-item">
+                                          <strong>Total Questions:</strong> {paper.questionCount || paper.questions.length}
+                                        </span>
+                                        <span className="summary-item">
+                                          <strong>Sub-questions:</strong> {paper.subQuestionCount || paper.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0)}
+                                        </span>
+                                        <span className="summary-item">
+                                          <strong>Total Marks:</strong> {paper.questions.reduce((total, q) => total + (q.marks || 0), 0)}
+                                        </span>
+                                      </div>
+                                      
+                                      <div className="questions-list">
+                                        {paper.questions.map((question, qIndex) => (
+                                          <div key={qIndex} className="question-item">
+                                            <div className="question-header">
+                                              <span className="question-number">Question {question.questionNumber}</span>
+                                              {question.marks && (
+                                                <span className="question-marks">[{question.marks} marks]</span>
+                                              )}
+                                            </div>
+                                            <div className="question-text">{question.text}</div>
+                                            
+                                            {question.subQuestions && question.subQuestions.length > 0 && (
+                                              <div className="sub-questions">
+                                                {question.subQuestions.map((subQ, sIndex) => (
+                                                  <div key={sIndex} className="sub-question-item">
+                                                    <div className="sub-question-header">
+                                                      <span className="sub-question-number">({subQ.subQuestionNumber})</span>
+                                                      {subQ.marks && (
+                                                        <span className="sub-question-marks">[{subQ.marks} marks]</span>
+                                                      )}
+                                                    </div>
+                                                    <div className="sub-question-text">{subQ.text}</div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="no-questions">
+                                      <p>No questions have been extracted from this paper yet.</p>
+                                      <button 
+                                        className="btn btn-primary"
+                                        onClick={() => handleExtractQuestions(paper.id)}
+                                        disabled={loading}
+                                      >
+                                        {loading ? 'Extracting...' : 'Extract Questions'}
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {/* Edit Form Overlay */}
+                  {editingPaper && (
+                    <EditPaperForm
+                      paper={pastPapers.find(p => p.id === editingPaper)}
+                      onUpdate={handleUpdate}
+                      onCancel={() => setEditingPaper(null)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

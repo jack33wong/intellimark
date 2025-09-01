@@ -71,6 +71,22 @@
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -90,6 +106,110 @@
 .btn-icon:hover {
   background: #f1f5f9;
   color: #475569;
+}
+
+/* Tab Styles */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  background: white;
+  padding: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: #64748b;
+}
+
+.tab-button:hover {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.tab-content {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.tab-content h2 {
+  margin-top: 0;
+  margin-bottom: 24px;
+  color: #1e293b;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* JSON Form Styles */
+.tab-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tab-content .form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tab-content label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 14px;
+}
+
+.tab-content input,
+.tab-content textarea {
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.tab-content input:focus,
+.tab-content textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.tab-content textarea {
+  resize: vertical;
+  min-height: 200px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tab-content .upload-button-group {
+  align-self: flex-start;
+}
+
+.tab-content .upload-btn {
+  margin-top: 8px;
 }
 
 /* Error Message */
