@@ -524,7 +524,7 @@ const MarkHomeworkPage = () => {
         {/* Chat redirect section removed - now automatically redirects */}
         
         {/* Debug info */}
-        <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0', fontSize: '12px' }}>
+        <div className="debug-info">
           <strong>Debug Info:</strong><br/>
           isChatMode: {String(isChatMode)}<br/>
           classificationResult: {classificationResult ? 'Present' : 'None'}<br/>
