@@ -51,9 +51,9 @@ function Sidebar({ isOpen = true }) {
       <div className="separator" />
 
       <div className="admin-section">
-        <div className="admin-link" onClick={() => navigate('/latex-test')}>
+        <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
           <Code size={16} />
-          LaTeX Testing
+          Markdown Demo
         </div>
         <div className="admin-link" onClick={() => navigate('/firebase-test')}>
           <Code size={16} />

@@ -43,6 +43,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/mark-homework', markHomeworkRoutes);
+console.log('✅ Mark-homework routes mounted at /api/mark-homework');
 // Chat routes temporarily disabled while TS module resolution is fixed
 
 // Health check endpoint

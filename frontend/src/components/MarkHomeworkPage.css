@@ -733,41 +733,4 @@
   margin: 0;
 }
 
-/* Markdown LaTeX Renderer Styles */
-.markdown-latex-renderer {
-  line-height: 1.6;
-  color: var(--primary-text);
-}
 
-/* Ensure KaTeX styles are properly applied */
-.markdown-latex-renderer .katex {
-  font-size: 1em;
-}
-
-.markdown-latex-renderer .katex-display {
-  margin: 16px 0;
-  text-align: center;
-}
-
-/* Custom styling for math elements */
-.markdown-latex-renderer .math.math-display {
-  margin: 16px 0;
-  text-align: center;
-}
-
-.markdown-latex-renderer .math.math-inline {
-  font-size: 1em;
-}
-
-/* Ensure proper spacing for rendered content */
-.markdown-latex-renderer > * {
-  margin: 8px 0;
-}
-
-.markdown-latex-renderer > *:first-child {
-  margin-top: 0;
-}
-
-.markdown-latex-renderer > *:last-child {
-  margin-bottom: 0;
-}

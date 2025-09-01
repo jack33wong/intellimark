@@ -11,6 +11,7 @@ import FirebaseTest from './components/FirebaseTest';
 import SimpleFirebaseTest from './components/SimpleFirebaseTest';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
+import MarkdownMathDemo from './components/MarkdownMathDemo';
 import './App.css';
 
 /**
@@ -102,6 +103,19 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <ProfilePage />
+                </div>
+              </ProtectedRoute>
+            } />
+            
+            {/* Add the new MarkdownMathDemo route */}
+            <Route path="/markdown-demo" element={
+              <ProtectedRoute>
+                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
+                <div className="main-content">
+                  <div className="app">
+                    <Sidebar isOpen={isSidebarOpen} />
+                    <MarkdownMathDemo />
+                  </div>
                 </div>
               </ProtectedRoute>
             } />
