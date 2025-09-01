@@ -301,27 +301,29 @@ const MarkHomeworkPage = () => {
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-header">
-          <h1>Chat Mode - Question Assistance</h1>
-          <p>Your image has been classified as question-only. Chat with AI to get help!</p>
-          <button className="switch-mode-btn" onClick={switchBackToHomework}>
-            ← Back to Homework Marking
-          </button>
+          <div className="chat-header-left">
+            <div>
+              <h1>Chat Mode - Question Assistance</h1>
+              <p>Your image has been classified as question-only. Chat with AI to get help!</p>
+            </div>
+          </div>
+          
+          <div className="chat-header-right">
+            <img src={previewUrl} alt="Question context" className="context-image" />
+            <div className="classification-info">
+              {classificationResult?.reasoning}
+            </div>
+            <button className="switch-mode-btn" onClick={switchBackToHomework}>
+              ← Back
+            </button>
+          </div>
         </div>
         
         <div className="chat-content">
-          <div className="image-context">
-            <img src={previewUrl} alt="Question context" className="context-image" />
-            <div className="classification-info">
-              <strong>Classification:</strong> {classificationResult?.reasoning}
-            </div>
-          </div>
           
           <div className="chat-messages">
             {chatMessages.map((message) => (
               <div key={message.id} className={`chat-message ${message.role}`}>
-                <div className="message-avatar">
-                  {message.role === 'user' ? '👤' : '🤖'}
-                </div>
                 <div className="message-content">
                   <div className="message-text">{message.content}</div>
                   <div className="message-meta">
@@ -340,7 +342,6 @@ const MarkHomeworkPage = () => {
             
             {isChatLoading && (
               <div className="chat-message assistant">
-                <div className="message-avatar">🤖</div>
                 <div className="message-content">
                   <div className="message-text">Thinking...</div>
                 </div>
