@@ -6,13 +6,15 @@
 import express from 'express';
 import { 
   MarkHomeworkResponse
-} from '../types/index.ts';
-import { ImageProcessingService } from '../services/imageProcessingService.ts';
-import { AIMarkingService } from '../services/aiMarkingService.ts';
-import { SVGOverlayService } from '../services/svgOverlayService.ts';
-import { validateModelConfig } from '../config/aiModels.ts';
+} from '../types/index';
+import { ImageProcessingService } from '../services/imageProcessingService';
+import { AIMarkingService } from '../services/aiMarkingService';
+import { SVGOverlayService } from '../services/svgOverlayService';
+import { validateModelConfig } from '../config/aiModels';
 
 const router = express.Router();
+
+console.log('🚀 MARK-HOMEWORK ROUTE MODULE LOADED SUCCESSFULLY');
 
 /**
  * POST /mark-homework

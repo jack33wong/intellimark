@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 // @ts-ignore - Import CommonJS admin routes
 import adminRoutes from './routes/admin.js';
 // @ts-ignore - Import CommonJS mark-homework routes
-import markHomeworkRoutes from './routes/mark-homework.js';
+import markHomeworkRoutes from './routes/mark-homework';
 
 dotenv.config({ path: '.env.local' });
 
@@ -38,6 +38,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/mark-homework', markHomeworkRoutes);
+console.log('✅ Mark-homework routes mounted at /api/mark-homework');
 // Chat routes temporarily disabled while TS module resolution is fixed
 
 // Health check endpoint

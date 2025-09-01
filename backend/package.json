@@ -7,6 +7,7 @@
     "start": "node dist/server.js",
     "dev": "NODE_OPTIONS='--no-deprecation' nodemon --exec ts-node server.ts",
     "build": "tsc",
+    "postbuild": "cp routes/*.js dist/routes/ && cp -r utils dist/",
     "build:watch": "tsc --watch",
     "test": "jest",
     "type-check": "tsc --noEmit"

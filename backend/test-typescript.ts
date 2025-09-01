@@ -2,13 +2,13 @@
  * Test file to verify TypeScript compilation works
  */
 
-import { ImageProcessingService } from './services/imageProcessingService.ts';
-import { MathpixService } from './services/mathpixService.ts';
+import { ImageProcessingService } from './services/imageProcessingService';
+import { MathpixService } from './services/mathpixService';
 // import { ImageAnnotationService } from './services/imageAnnotationService';
 // import { FirestoreService } from './services/firestoreService';
-import { AI_MODELS, getModelConfig } from './config/aiModels.ts';
-import { FirebaseConfigService } from './config/firebase.ts';
-import { LaTeXConfigService } from './config/latex.ts';
+import { AI_MODELS, getModelConfig } from './config/aiModels';
+import { FirebaseConfigService } from './config/firebase';
+import { LaTeXConfigService } from './config/latex';
 
 console.log('Testing TypeScript compilation...');
 
