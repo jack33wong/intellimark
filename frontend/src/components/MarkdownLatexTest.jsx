@@ -2,9 +2,11 @@ import React from 'react';
 import { MarkdownLatexRenderer, processMarkdownContent } from '../utils/markdownLatexRenderer';
 
 const MarkdownLatexTest = () => {
-  const testContent = `To solve this problem, we will use the work-energy principle. This principle states that the work done on an object is equal to the change in its kinetic energy.
+  const testContent = `# Physics Problem Solution
 
-### Given:
+To solve this problem, we will use the work-energy principle. This principle states that the work done on an object is equal to the change in its kinetic energy.
+
+## Given:
 - Mass of the particle, \\( m = 2 \\, \\text{kg} \\)
 - Force, \\( F = 49 \\, \\text{N} \\)
 - Angle of incline, \\( \\theta = 30^\\circ \\)
@@ -12,7 +14,7 @@ const MarkdownLatexTest = () => {
 - Distance between points \\( A \\) and \\( B \\), \\( s = 4 \\, \\text{m} \\)
 - Initial speed at \\( A \\), \\( u = 10 \\, \\text{m/s} \\)
 
-### Steps:
+## Steps:
 
 1. **Calculate the Gravitational Force Component:**
    \\[
@@ -47,15 +49,21 @@ const MarkdownLatexTest = () => {
 
 Therefore, the speed of the particle as it passes through point \\( B \\) is approximately \\( 14.92 \\, \\text{m/s} \\).
 
-### Code Example:
-\`\`\`
+## Code Example:
+\`\`\`javascript
 // Calculate final velocity
 const u = 10; // initial velocity
 const a = 15.355; // acceleration
 const s = 4; // distance
 const v = Math.sqrt(u*u + 2*a*s);
 console.log(\`Final velocity: \${v} m/s\`);
-\`\`\``;
+\`\`\`
+
+## Summary
+The **work-energy principle** and **kinematic equations** were used to solve this problem. The final velocity was calculated using the equation \\( v^2 = u^2 + 2as \\) where:
+- \\( u \\) is the initial velocity
+- \\( a \\) is the acceleration
+- \\( s \\) is the distance traveled`;
 
   return (
     <div style={{ 
@@ -67,7 +75,7 @@ console.log(\`Final velocity: \${v} m/s\`);
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
       <h1>Markdown + LaTeX Rendering Test</h1>
-      <p>This component tests the combined Markdown and LaTeX rendering functionality.</p>
+      <p>This component tests the combined Markdown and LaTeX rendering functionality with preserved backslashes.</p>
       
       <div style={{ 
         marginTop: '20px',
@@ -87,7 +95,7 @@ console.log(\`Final velocity: \${v} m/s\`);
         borderRadius: '8px',
         backgroundColor: 'var(--secondary-bg)'
       }}>
-        <h2>Raw Content:</h2>
+        <h2>Raw Content (with preserved backslashes):</h2>
         <pre style={{
           background: 'var(--tertiary-bg)',
           padding: '12px',
@@ -108,18 +116,14 @@ console.log(\`Final velocity: \${v} m/s\`);
         borderRadius: '8px',
         backgroundColor: 'var(--secondary-bg)'
       }}>
-        <h2>Processed Content:</h2>
-        <pre style={{
-          background: 'var(--tertiary-bg)',
-          padding: '12px',
-          borderRadius: '6px',
-          overflow: 'auto',
-          fontSize: '12px',
-          whiteSpace: 'pre-wrap',
-          maxHeight: '400px'
-        }}>
-          {processMarkdownContent(testContent)}
-        </pre>
+        <h2>Processing Details:</h2>
+        <ul>
+          <li><strong>LaTeX Delimiters:</strong> <code>\( ... \)</code> for inline math, <code>\[ ... \]</code> for block math</li>
+          <li><strong>Backslash Preservation:</strong> Using <code>String.raw</code> to prevent unwanted escaping</li>
+          <li><strong>Markdown Parsing:</strong> <code>react-markdown</code> with <code>remark-math</code> plugin</li>
+          <li><strong>Math Rendering:</strong> <code>rehype-katex</code> for KaTeX integration</li>
+          <li><strong>Processing Order:</strong> Markdown parsing → Math detection → KaTeX rendering</li>
+        </ul>
       </div>
     </div>
   );

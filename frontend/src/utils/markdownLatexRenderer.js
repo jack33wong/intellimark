@@ -67,14 +67,7 @@ export const MarkdownLatexRenderer = ({ content, className = '' }) => {
                 {children}
               </code>
             );
-          },
-          // Custom styling for LaTeX elements
-          '.math.math-display': ({ children }) => (
-            <div style={{ margin: '16px 0', textAlign: 'center' }}>{children}</div>
-          ),
-          '.math.math-inline': ({ children }) => (
-            <span style={{ fontSize: '1em' }}>{children}</span>
-          )
+          }
         }}
       >
         {content}
@@ -84,29 +77,8 @@ export const MarkdownLatexRenderer = ({ content, className = '' }) => {
 };
 
 /**
- * Utility function to escape LaTeX backslashes for proper rendering
- * @param {string} content - The content with LaTeX
- * @returns {string} Content with properly escaped LaTeX
- */
-export const escapeLatex = (content) => {
-  if (!content || typeof content !== 'string') {
-    return content;
-  }
-  
-  // Double escape backslashes in LaTeX expressions
-  return content
-    // Escape backslashes in \( ... \) inline math
-    .replace(/\\\(([^\\]*?)\\\)/g, (match, inner) => {
-      return `\\(${inner.replace(/\\/g, '\\\\')}\\)`;
-    })
-    // Escape backslashes in \[ ... \] block math
-    .replace(/\\\[([^\\]*?)\\\]/g, (match, inner) => {
-      return `\\[${inner.replace(/\\/g, '\\\\')}\\]`;
-    });
-};
-
-/**
  * Utility function to process content before rendering
+ * This function ensures LaTeX delimiters are preserved correctly
  * @param {string} content - Raw content
  * @returns {string} Processed content ready for rendering
  */
@@ -115,14 +87,9 @@ export const processMarkdownContent = (content) => {
     return content;
   }
   
-  // Escape LaTeX backslashes
-  let processed = escapeLatex(content);
-  
-  // Ensure proper line breaks for lists
-  processed = processed.replace(/^[-*]\s+/gm, '- ');
-  processed = processed.replace(/^\d+\.\s+/gm, (match) => match);
-  
-  return processed;
+  // Use String.raw to preserve backslashes exactly as they are
+  // This prevents any unwanted escaping of LaTeX delimiters
+  return String.raw`${content}`;
 };
 
 export default MarkdownLatexRenderer;
