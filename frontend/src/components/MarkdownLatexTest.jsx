@@ -1,5 +1,5 @@
 import React from 'react';
-import { MarkdownLatexRenderer } from '../utils/markdownLatexRenderer';
+import { MarkdownLatexRenderer, processMarkdownContent } from '../utils/markdownLatexRenderer';
 
 const MarkdownLatexTest = () => {
   const testContent = `To solve this problem, we will use the work-energy principle. This principle states that the work done on an object is equal to the change in its kinetic energy.
@@ -76,8 +76,8 @@ console.log(\`Final velocity: \${v} m/s\`);
         borderRadius: '8px',
         backgroundColor: 'var(--secondary-bg)'
       }}>
-        <h2>Test Content:</h2>
-        <MarkdownLatexRenderer content={testContent} />
+        <h2>Rendered Content:</h2>
+        <MarkdownLatexRenderer content={processMarkdownContent(testContent)} />
       </div>
       
       <div style={{ 
@@ -94,9 +94,31 @@ console.log(\`Final velocity: \${v} m/s\`);
           borderRadius: '6px',
           overflow: 'auto',
           fontSize: '12px',
-          whiteSpace: 'pre-wrap'
+          whiteSpace: 'pre-wrap',
+          maxHeight: '400px'
         }}>
           {testContent}
+        </pre>
+      </div>
+      
+      <div style={{ 
+        marginTop: '20px',
+        padding: '20px',
+        border: '1px solid var(--border-color)',
+        borderRadius: '8px',
+        backgroundColor: 'var(--secondary-bg)'
+      }}>
+        <h2>Processed Content:</h2>
+        <pre style={{
+          background: 'var(--tertiary-bg)',
+          padding: '12px',
+          borderRadius: '6px',
+          overflow: 'auto',
+          fontSize: '12px',
+          whiteSpace: 'pre-wrap',
+          maxHeight: '400px'
+        }}>
+          {processMarkdownContent(testContent)}
         </pre>
       </div>
     </div>
