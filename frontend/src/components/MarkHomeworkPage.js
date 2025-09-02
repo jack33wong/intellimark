@@ -106,14 +106,14 @@ const MarkHomeworkPage = () => {
       // Simulate AI response
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const aiMessage = {
+      const aiResponse = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: 'I understand your question. Let me provide a detailed explanation...',
+        content: 'I understand your question. Let me help you with this step by step...',
         timestamp: new Date().toLocaleTimeString()
       };
-
-      setChatMessages(prev => [...prev, aiMessage]);
+      
+      setChatMessages(prev => [...prev, aiResponse]);
     } catch (err) {
       setError('Failed to send message. Please try again.');
     } finally {
@@ -121,89 +121,53 @@ const MarkHomeworkPage = () => {
     }
   }, [chatInput]);
 
-  const handleKeyPress = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  }, [handleSendMessage]);
-
   if (isChatMode) {
     return (
       <div className="mark-homework-page">
-        <div className="mark-homework-container">
-          <div className="chat-mode">
-            <div className="chat-header">
-              <div className="chat-header-left">
-                <h1>Homework Assistant</h1>
-                <p>Ask me anything about your homework</p>
-              </div>
-              <div className="chat-header-right">
-                <div>
-                  <div className="classification-info">
-                    Question detected
-                  </div>
-                  <img 
-                    src={previewUrl} 
-                    alt="Homework context" 
-                    className="context-image"
-                  />
+        <div className="chat-container">
+          <div className="chat-header">
+            <button 
+              className="back-btn"
+              onClick={() => setIsChatMode(false)}
+            >
+              ← Back to Upload
+            </button>
+            <h2>AI Homework Assistant</h2>
+          </div>
+          
+          <div className="chat-messages">
+            {chatMessages.map((message) => (
+              <div 
+                key={message.id} 
+                className={`chat-message ${message.role}`}
+              >
+                <div className="message-content">
+                  {message.content}
                 </div>
-                <button 
-                  className="raw-toggle-btn"
-                  onClick={() => setShowRawResponse(!showRawResponse)}
-                >
-                  {showRawResponse ? 'Hide Raw' : 'Show Raw'}
-                </button>
-                <button 
-                  className="switch-mode-btn"
-                  onClick={() => setIsChatMode(false)}
-                >
-                  Switch Mode
-                </button>
+                <div className="message-timestamp">
+                  {message.timestamp}
+                </div>
               </div>
-            </div>
-
-            <div className="chat-content">
-              <div className="chat-messages">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className="chat-message">
-                    <div className="message-content">
-                      <p className="message-text">{message.content}</p>
-                    </div>
-                    <div className="message-meta">
-                      <span>{message.role === 'user' ? 'You' : 'AI Assistant'}</span>
-                      <span>{message.timestamp}</span>
-                    </div>
-                  </div>
-                ))}
-                
-                {isProcessing && (
-                  <div className="chat-message">
-                    <div className="message-content">
-                      <p className="message-text">Thinking...</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="chat-input">
-                <textarea
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask me about your homework..."
-                  disabled={isProcessing}
-                />
-                <button 
-                  className="send-btn"
-                  onClick={handleSendMessage}
-                  disabled={isProcessing || !chatInput.trim()}
-                >
-                  Send
-                </button>
-              </div>
-            </div>
+            ))}
+          </div>
+          
+          <div className="chat-input-container">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask me anything about your homework..."
+              className="chat-input"
+              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              disabled={isProcessing}
+            />
+            <button 
+              className="send-btn"
+              onClick={handleSendMessage}
+              disabled={isProcessing || !chatInput.trim()}
+            >
+              Send
+            </button>
           </div>
         </div>
       </div>
@@ -219,7 +183,7 @@ const MarkHomeworkPage = () => {
         </div>
 
         <div className="mark-homework-content">
-          {/* Left Column - Upload Section */}
+          {/* Upload Section */}
           <div className="upload-section">
             <div className="model-selector">
               <label htmlFor="model-select">Select AI Model</label>
@@ -235,26 +199,59 @@ const MarkHomeworkPage = () => {
               </select>
             </div>
 
-            <div
-              className="upload-area"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById('file-input').click()}
-            >
-              <input
-                id="file-input"
-                type="file"
-                accept="image/*"
-                onChange={handleFileInput}
-                style={{ display: 'none' }}
-              />
-              
-              <Upload className="upload-icon" />
-              <div className="upload-text">Drop your homework here</div>
-              <div className="upload-subtext">or click to browse files</div>
-              <div className="upload-hint">Supports JPG, PNG, GIF</div>
-            </div>
+            {previewUrl ? (
+              <div className="image-preview-container">
+                <img 
+                  src={previewUrl} 
+                  alt="Homework preview" 
+                  className="preview-image"
+                />
+                <div className="preview-overlay">
+                  <div className="preview-info">
+                    <div className="file-info">
+                      <span className="file-name">{selectedFile?.name}</span>
+                      <span className="file-size">
+                        {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                    </div>
+                    <button 
+                      className="change-image-btn"
+                      onClick={() => document.getElementById('file-input').click()}
+                    >
+                      Change Image
+                    </button>
+                  </div>
+                </div>
+                <input
+                  id="file-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileInput}
+                  style={{ display: 'none' }}
+                />
+              </div>
+            ) : (
+              <div
+                className="upload-area"
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById('file-input').click()}
+              >
+                <input
+                  id="file-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileInput}
+                  style={{ display: 'none' }}
+                />
+                
+                <Upload className="upload-icon" />
+                <div className="upload-text">Drop your homework here</div>
+                <div className="upload-subtext">or click to browse files</div>
+                <div className="upload-hint">Supports JPG, PNG, GIF</div>
+              </div>
+            )}
 
             {error && (
               <div className="error-message">
@@ -283,8 +280,6 @@ const MarkHomeworkPage = () => {
               </button>
             </div>
           </div>
-
-
         </div>
       </div>
     </div>
