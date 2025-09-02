@@ -704,6 +704,7 @@ function AdminPage() {
                       <tr>
                         <th>Exam Paper</th>
                         <th>Board</th>
+                        <th>Year</th>
                         <th>Session</th>
                         <th>Tier</th>
                         <th>Paper</th>
@@ -716,13 +717,22 @@ function AdminPage() {
                     </thead>
                     <tbody>
                       {jsonEntries.map((entry) => {
-                        // Handle both data structures: entry.exam vs entry.data.exam
+                        // Handle multiple data structures: entry.exam, entry.data.exam, entry.metadata
                         const examData = entry.data || entry;
-                        const examMeta = examData.exam || {};
+                        const examMeta = examData.exam || examData.metadata || {};
+                        
+                        // Map new field names to old field names for compatibility
+                        const board = examMeta.board || examMeta.exam_board || examMeta.boar || 'N/A';
+                        const year = examMeta.year || 'N/A';
+                        const session = examMeta.session || examMeta.time_allowed || 'N/A';
+                        const tier = examMeta.tier || examMeta.level || 'N/A';
+                        const paper = examMeta.paper || examMeta.paper_title || 'N/A';
+                        const code = examMeta.code || examMeta.exam_code || 'N/A';
+                        
                         // Use database fields for question counts
-                        const questionCount = examMeta.totalQuestions || (examData.questions ? examData.questions.length : 0);
-                        const subQuestionCount = examMeta.questionsWithSubQuestions || (examData.questions ? 
-                          examData.questions.reduce((total, q) => total + (q.subQuestions ? q.subQuestions.length : 0), 0) : 0);
+                        const questionCount = examMeta.totalQuestions || examMeta.total_questions || (examData.questions ? examData.questions.length : 0);
+                        const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions || (examData.questions ? 
+                          examData.questions.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0) : 0);
                         
                         return (
                         <React.Fragment key={entry.id}>
@@ -735,19 +745,20 @@ function AdminPage() {
                               >
                                 <FileText size={20} />
                                 <span className="filename">
-                                  {examMeta.board || examMeta.boar ? 
-                                    `${examMeta.board || examMeta.boar || ''} ${examMeta.session || ''} ${examMeta.tier || examMeta.level || ''} ${examMeta.paper || ''} ${examMeta.code || ''}`.replace(/\s+/g, ' ').trim() :
+                                  {board !== 'N/A' ? 
+                                    `${board} ${year} ${session} ${tier} ${paper} ${code}`.replace(/\s+/g, ' ').trim() :
                                     examData.originalName || examData.filename || entry.id
                                   }
                                 </span>
                                 <span className="expand-icon">{expandedJsonId === entry.id ? '▼' : '▶'}</span>
                               </div>
                             </td>
-                            <td>{examMeta.board || examMeta.boar || 'N/A'}</td>
-                            <td>{examMeta.session || 'N/A'}</td>
-                            <td>{examMeta.tier || examMeta.level || 'N/A'}</td>
-                            <td>{examMeta.paper || 'N/A'}</td>
-                            <td>{examMeta.code || 'N/A'}</td>
+                            <td>{board}</td>
+                            <td>{year}</td>
+                            <td>{session}</td>
+                            <td>{tier}</td>
+                            <td>{paper}</td>
+                            <td>{code}</td>
                             <td>
                               {questionCount ? (
                                 <span className="question-count">
@@ -779,12 +790,12 @@ function AdminPage() {
 
                           {expandedJsonId === entry.id && (
                             <tr className="expanded-content-row">
-                              <td colSpan="10">
+                              <td colSpan="11">
                                 <div className="expanded-content">
                                   <div className="content-header">
                                     <h4>Exam Paper Content: {
-                                      examMeta.board || examMeta.boar ? 
-                                        `${examMeta.board || examMeta.boar || ''} ${examMeta.session || ''} ${examMeta.tier || examMeta.level || ''} ${examMeta.paper || ''} ${examMeta.code || ''}`.replace(/\s+/g, ' ').trim() :
+                                      board !== 'N/A' ? 
+                                        `${board} ${year} ${session} ${tier} ${paper} ${code}`.replace(/\s+/g, ' ').trim() :
                                         examData.originalName || examData.filename || entry.id
                                     }</h4>
                                     <div className="content-info">
@@ -803,6 +814,9 @@ function AdminPage() {
                                     <div className="questions-content">
                                       <div className="questions-summary">
                                         <span className="summary-item">
+                                          <strong>Year:</strong> {year}
+                                        </span>
+                                        <span className="summary-item">
                                           <strong>Total Questions:</strong> {questionCount}
                                         </span>
                                         <span className="summary-item">
@@ -811,7 +825,7 @@ function AdminPage() {
                                         <span className="summary-item">
                                           <strong>Total Marks:</strong> {examData.questions.reduce((total, q) => {
                                             const questionMarks = q.marks || 0;
-                                            const subQuestionMarks = q.subQuestions ? q.subQuestions.reduce((subTotal, subQ) => subTotal + (subQ.marks || 0), 0) : 0;
+                                            const subQuestionMarks = (q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).reduce((subTotal, subQ) => subTotal + (subQ.marks || 0), 0) : 0;
                                             return total + questionMarks + subQuestionMarks;
                                           }, 0)}
                                         </span>
@@ -821,24 +835,24 @@ function AdminPage() {
                                         {examData.questions.map((question, qIndex) => (
                                           <div key={qIndex} className="question-item">
                                             <div className="question-header">
-                                              <span className="question-number">Question {question.number || question.questionNumber || (qIndex + 1)}</span>
+                                              <span className="question-number">Question {question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
                                               {question.marks && (
                                                 <span className="question-marks">[{question.marks} marks]</span>
                                               )}
                                             </div>
-                                            <div className="question-text">{question.text}</div>
+                                            <div className="question-text">{question.text || question.question_text}</div>
                                             
-                                            {question.subQuestions && question.subQuestions.length > 0 && (
+                                            {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
                                               <div className="sub-questions">
-                                                {question.subQuestions.map((subQ, sIndex) => (
+                                                {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
                                                   <div key={sIndex} className="sub-question-item">
                                                     <div className="sub-question-header">
-                                                      <span className="sub-question-number">({subQ.part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)})</span>
+                                                      <span className="sub-question-number">({subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)})</span>
                                                       {subQ.marks && (
                                                         <span className="sub-question-marks">[{subQ.marks} marks]</span>
                                                       )}
                                                     </div>
-                                                    <div className="sub-question-text">{subQ.text}</div>
+                                                    <div className="sub-question-text">{subQ.text || subQ.question_text}</div>
                                                   </div>
                                                 ))}
                                               </div>

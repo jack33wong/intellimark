@@ -568,4 +568,50 @@ router.delete('/json/collections/:collectionName/clear-all', async (req: Request
   }
 });
 
+/**
+ * POST /api/admin/json/upload
+ * Upload JSON data to the fullExamPapers collection (convenience endpoint)
+ */
+router.post('/json/upload', async (req: Request, res: Response) => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ error: 'JSON data is required' });
+    }
+
+    const newEntry = {
+      id: uuidv4(),
+      ...data,
+      uploadedAt: new Date().toISOString()
+    };
+    
+    // Save to Firestore if available
+    const db = getFirestore();
+    if (db) {
+      try {
+        await db.collection('fullExamPapers').doc(newEntry.id).set(newEntry);
+        console.log(`Entry saved to Firestore collection: fullExamPapers`);
+      } catch (firestoreError) {
+        console.error('Firestore save error:', firestoreError);
+        // Continue with mock data even if Firestore fails
+      }
+    }
+    
+    // Always save to mock data for fallback
+    if (!mockData['fullExamPapers']) {
+      mockData['fullExamPapers'] = [];
+    }
+    mockData['fullExamPapers'].push(newEntry);
+    
+    res.status(201).json({
+      message: 'JSON uploaded successfully to fullExamPapers collection',
+      entry: newEntry
+    });
+  } catch (error) {
+    console.error('JSON upload error:', error);
+    res.status(500).json({ error: `Failed to upload JSON: ${error.message}` });
+  }
+});
+
 export default router;
