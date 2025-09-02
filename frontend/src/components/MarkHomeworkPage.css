@@ -473,6 +473,69 @@
   border: 1px solid var(--border-color);
 }
 
+/* Results Section */
+.results-section {
+  margin-top: 40px;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.results-section h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-text);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.result-card {
+  background: var(--secondary-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+}
+
+.result-card:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(127, 0, 255, 0.15);
+}
+
+.result-card h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--primary-text);
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.result-card p {
+  margin-bottom: 8px;
+  color: var(--secondary-text);
+  line-height: 1.5;
+}
+
+.result-card strong {
+  color: var(--primary-text);
+  font-weight: 600;
+}
+
+/* Debug Info */
+.debug-info {
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--secondary-text);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  line-height: 1.4;
+}
+
 /* Error Message */
 .error-message {
   background: rgba(239, 68, 68, 0.1);

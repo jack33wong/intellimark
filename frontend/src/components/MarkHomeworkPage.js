@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { Upload, MessageSquare } from 'lucide-react';
 import './MarkHomeworkPage.css';
+import API_CONFIG from '../config/api';
 
 const MarkHomeworkPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -16,12 +17,27 @@ const MarkHomeworkPage = () => {
   const [showRawResponses, setShowRawResponses] = useState(false);
   const fileInputRef = useRef(null);
   const [imageDimensions, setImageDimensions] = useState(null);
+  const [apiResponse, setApiResponse] = useState(null);
+  const [classificationResult, setClassificationResult] = useState(null);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
     { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
   ];
+
+  // Function to convert file to base64
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        // Keep the full data URL format for OpenAI API
+        resolve(reader.result);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
 
   // Function to scale SVG coordinates to match displayed image
   const scaleSVGForDisplay = (svgString, originalWidth, originalHeight, displayWidth, displayHeight) => {
@@ -107,28 +123,82 @@ const MarkHomeworkPage = () => {
 
     setIsProcessing(true);
     setError(null);
+    setApiResponse(null);
+    setClassificationResult(null);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('🚀 Starting homework marking process...');
       
-      // For demo purposes, add a sample chat message
+      // Convert image to base64
+      console.log('📸 Converting image to base64...');
+      const imageData = await fileToBase64(selectedFile);
+      console.log('📸 Image converted, length:', imageData.length);
+
+      // Prepare request payload
+      const payload = {
+        imageData: imageData,
+        model: selectedModel
+      };
+
+      const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
+      console.log('🌐 Making API call to:', apiUrl);
+      console.log('🌐 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
+      console.log('🌐 API_CONFIG.ENDPOINTS.MARK_HOMEWORK:', API_CONFIG.ENDPOINTS.MARK_HOMEWORK);
+      console.log('🌐 Payload model:', payload.model);
+      console.log('🌐 Payload imageData length:', payload.imageData.length);
+
+      // Make API call
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText);
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ API Response received:', result);
+
+      // Store the API response
+      setApiResponse(result);
+      
+      // Extract classification result if available
+      if (result.classificationResult) {
+        setClassificationResult(result.classificationResult);
+      }
+
+      // Add initial chat message based on the result
+      const initialMessage = result.classificationResult 
+        ? `I've analyzed your homework image. This appears to be a ${result.classificationResult.subject} problem. How can I help you with it?`
+        : 'I\'ve analyzed your homework image. How can I help you with it?';
+
       setChatMessages([
         {
           id: 1,
           role: 'assistant',
-          content: 'I\'ve analyzed your homework image. This appears to be a mathematics problem. How can I help you with it?',
+          content: initialMessage,
           timestamp: new Date().toLocaleTimeString()
         }
       ]);
       
       setIsChatMode(true);
+      
     } catch (err) {
-      setError('Failed to process the image. Please try again.');
+      console.error('❌ Upload error:', err);
+      setError(`Failed to process the image: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile]);
+  }, [selectedFile, selectedModel]);
 
   const handleSendMessage = useCallback(async () => {
     if (!chatInput.trim()) return;
@@ -322,6 +392,106 @@ const MarkHomeworkPage = () => {
               </button>
             </div>
           </div>
+
+          {/* Results Section */}
+          {apiResponse && (
+            <div className="results-section">
+              <h3>Analysis Results</h3>
+              
+              {classificationResult && (
+                <div className="result-card">
+                  <h4>Classification</h4>
+                  <p><strong>Subject:</strong> {classificationResult.subject}</p>
+                  <p><strong>Grade Level:</strong> {classificationResult.gradeLevel}</p>
+                  <p><strong>Topic:</strong> {classificationResult.topic}</p>
+                </div>
+              )}
+
+              {apiResponse.instructions && apiResponse.instructions.annotations && apiResponse.instructions.annotations.length > 0 && (
+                <div className="result-card">
+                  <h4>AI Annotations ({apiResponse.instructions.annotations.length})</h4>
+                  <div className="annotations-list">
+                    {apiResponse.instructions.annotations.map((annotation, index) => (
+                      <div key={index} className="annotation-item">
+                        <div className="annotation-action">
+                          <span className={`action-badge action-${annotation.action}`}>
+                            {annotation.action}
+                          </span>
+                        </div>
+                        {annotation.comment && (
+                          <div className="annotation-comment">
+                            {annotation.comment}
+                          </div>
+                        )}
+                        {annotation.text && (
+                          <div className="annotation-text">
+                            {annotation.text}
+                          </div>
+                        )}
+                        <div className="annotation-position">
+                          Position: [{annotation.bbox.join(', ')}]
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {apiResponse.annotatedImage && (
+                <div className="result-card">
+                  <h4>Annotated Image</h4>
+                  <div className="annotated-image">
+                    <div className="image-with-overlay">
+                      <img 
+                        src={previewUrl} 
+                        alt="Original homework" 
+                        className="base-image"
+                        onLoad={(e) => {
+                          const img = e.target;
+                          console.log('🔍 Image loaded - Natural dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+                          console.log('🔍 Image loaded - Display dimensions:', img.offsetWidth, 'x', img.offsetHeight);
+                          setImageDimensions({
+                            natural: { width: img.naturalWidth, height: img.naturalHeight },
+                            display: { width: img.offsetWidth, height: img.offsetHeight }
+                          });
+                        }}
+                      />
+                      <div 
+                        className="svg-overlay" 
+                        dangerouslySetInnerHTML={{ 
+                          __html: imageDimensions ? 
+                            scaleSVGForDisplay(
+                              apiResponse.annotatedImage,
+                              apiResponse.result?.imageDimensions?.width || 1466,
+                              apiResponse.result?.imageDimensions?.height || 1364,
+                              imageDimensions.display.width,
+                              imageDimensions.display.height
+                            ) : apiResponse.annotatedImage
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Debug info */}
+              <div className="debug-info">
+                <strong>Debug Info:</strong><br/>
+                API Response: {apiResponse ? 'Present' : 'None'}<br/>
+                Classification: {classificationResult ? 'Present' : 'None'}<br/>
+                Error: {error || 'None'}<br/>
+                {apiResponse && (
+                  <>
+                    <br/><strong>Response Details:</strong><br/>
+                    hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
+                    annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
+                    hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
+                    annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -321,12 +321,11 @@ export class AIMarkingService {
         })
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API request failed: ${response.status} ${errorText}`);
-      }
-
       const result = await response.json() as any;
+      
+      if (!response.ok) {
+        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
+      }
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
@@ -451,12 +450,12 @@ export class AIMarkingService {
         })
       });
 
+      const result = await response.json() as any;
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI marking instructions API call failed: ${response.status} ${errorText}`);
+        throw new Error(`OpenAI marking instructions API call failed: ${response.status} ${JSON.stringify(result)}`);
       }
 
-      const result = await response.json() as any;
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
@@ -703,12 +702,11 @@ export class AIMarkingService {
         })
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API request failed: ${response.status} ${errorText}`);
-      }
-
       const result = await response.json() as any;
+      
+      if (!response.ok) {
+        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
+      }
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
@@ -808,12 +806,11 @@ export class AIMarkingService {
         })
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API request failed: ${response.status} ${errorText}`);
-      }
-
       const result = await response.json() as any;
+      
+      if (!response.ok) {
+        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
+      }
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
