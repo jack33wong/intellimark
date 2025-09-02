@@ -710,7 +710,6 @@ function AdminPage() {
                         <th>Paper</th>
                         <th>Code</th>
                         <th>Questions</th>
-                        <th>Size</th>
                         <th>Uploaded</th>
                         <th>Actions</th>
                       </tr>
@@ -746,7 +745,7 @@ function AdminPage() {
                                 <FileText size={20} />
                                 <span className="filename">
                                   {board !== 'N/A' ? 
-                                    `${board} ${year} ${session} ${tier} ${paper} ${code}`.replace(/\s+/g, ' ').trim() :
+                                    `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
                                     examData.originalName || examData.filename || entry.id
                                   }
                                 </span>
@@ -768,7 +767,6 @@ function AdminPage() {
                                 <span className="no-questions">No questions</span>
                               )}
                             </td>
-                            <td>{formatFileSize(entry.size || 0)}</td>
                             <td>{formatDate(entry.uploadedAt)}</td>
                             <td className="actions-cell">
                               <button
@@ -790,12 +788,12 @@ function AdminPage() {
 
                           {expandedJsonId === entry.id && (
                             <tr className="expanded-content-row">
-                              <td colSpan="11">
+                              <td colSpan="10">
                                 <div className="expanded-content">
                                   <div className="content-header">
                                     <h4>Exam Paper Content: {
                                       board !== 'N/A' ? 
-                                        `${board} ${year} ${session} ${tier} ${paper} ${code}`.replace(/\s+/g, ' ').trim() :
+                                        `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
                                         examData.originalName || examData.filename || entry.id
                                     }</h4>
                                     <div className="content-info">
