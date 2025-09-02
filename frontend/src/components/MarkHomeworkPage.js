@@ -22,6 +22,7 @@ const MarkHomeworkPage = () => {
   const [imageDimensions, setImageDimensions] = useState(null);
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
+  const [showExpandedThinking, setShowExpandedThinking] = useState(false);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -79,6 +80,23 @@ const MarkHomeworkPage = () => {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   }, [chatMessages]);
+
+  // Handle expanded thinking bubble after 10 seconds
+  useEffect(() => {
+    let timer;
+    if (isProcessing) {
+      setShowExpandedThinking(false);
+      timer = setTimeout(() => {
+        setShowExpandedThinking(true);
+      }, 10000); // 10 seconds
+    } else {
+      setShowExpandedThinking(false);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isProcessing]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -502,14 +520,24 @@ const MarkHomeworkPage = () => {
               {/* AI Thinking Loading Animation */}
               {isProcessing && (
                 <div className="chat-message assistant">
-                  <div className="message-bubble ai-thinking">
+                  <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
                     <div className="thinking-indicator">
                       <div className="thinking-dots">
                         <div className="thinking-dot"></div>
                         <div className="thinking-dot"></div>
                         <div className="thinking-dot"></div>
                       </div>
-                      <div className="thinking-text">AI is analyzing your question...</div>
+                      <div className="thinking-text">
+                        {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
+                      </div>
+                      {showExpandedThinking && (
+                        <div className="progress-indicator">
+                          <div className="progress-bar">
+                            <div className="progress-fill"></div>
+                          </div>
+                          <div className="progress-text">Processing...</div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
