@@ -35,11 +35,11 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
     console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
     console.log('🔍 Using model:', model);
     
-    // Import the math homework AI service to avoid circular dependencies
-    const { MathHomeworkAIService } = await import('../services/mathHomeworkAIService.ts');
+    // Import the AI marking service to avoid circular dependencies
+    const { AIMarkingService } = await import('../services/aiMarkingService.ts');
     
-    // Use math homework AI service for classification
-    const classification = await MathHomeworkAIService.classifyImage(imageData, model);
+    // Use AI marking service for classification
+    const classification = await AIMarkingService.classifyImage(imageData, model);
     
     console.log('🔍 AI Classification result:', classification);
     return classification;
@@ -109,15 +109,25 @@ async function generateRealMarkingInstructions(
   console.log('🔍 Generating real AI marking instructions for model:', model);
   
   try {
-    // Import the math homework AI service to avoid circular dependencies
-    const { MathHomeworkAIService } = await import('../services/mathHomeworkAIService.ts');
+    // Import the AI marking service to avoid circular dependencies
+    const { AIMarkingService } = await import('../services/aiMarkingService.ts');
     
-    // Use math homework AI service for marking instructions
-    const markingInstructions = await MathHomeworkAIService.generateMarkingInstructions(
+    // Use AI marking service for marking instructions
+    const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
       imageData, 
       model, 
       processedImage
     );
+    
+    // Convert SimpleMarkingInstructions to MarkingInstructions
+    const markingInstructions: MarkingInstructions = {
+      annotations: simpleMarkingInstructions.annotations.map(annotation => ({
+        action: annotation.action,
+        bbox: annotation.bbox,
+        comment: annotation.comment,
+        text: annotation.text
+      }))
+    };
     
     console.log('🔍 Real AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
