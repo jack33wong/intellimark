@@ -317,7 +317,7 @@ export class AIMarkingService {
               ]
             }
           ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 2000 } : { max_tokens: 500 }),
         })
       });
 
@@ -446,7 +446,7 @@ export class AIMarkingService {
               ]
             }
           ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 8000 } : { max_tokens: 8000 }),
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 12000 } : { max_tokens: 8000 }),
         })
       });
 
@@ -697,7 +697,7 @@ export class AIMarkingService {
               ]
             }
           ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 1000 } : { max_tokens: 1000 }),
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 4000 } : { max_tokens: 1000 }),
           //temperature: 0.7
         })
       });
