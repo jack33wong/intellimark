@@ -7,8 +7,8 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
-  backdrop-filter: blur(10px);
+  z-index: 9998;
+  /* backdrop-filter: blur(10px); */
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -21,8 +21,8 @@
   max-width: 1800px;
   margin: 0 auto;
   gap: 0;
-  /* Ensure header content doesn't overflow */
-  overflow: hidden;
+  /* Allow dropdowns to overflow */
+  overflow: visible;
 }
 
 /* Left side - Logo and Menu Toggle */
@@ -307,7 +307,7 @@
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   min-width: 240px;
-  z-index: 1001;
+  z-index: 10000 !important;
   overflow: hidden;
   animation: dropdownSlideIn 0.2s ease-out;
   transition: all 0.3s ease;
@@ -482,7 +482,7 @@
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   min-width: 200px;
-  z-index: 1001;
+  z-index: 10000 !important;
   overflow: hidden;
   animation: dropdownSlideIn 0.2s ease-out;
 }
@@ -755,7 +755,7 @@
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   min-width: 320px;
-  z-index: 1001;
+  z-index: 10000 !important;
   overflow: hidden;
   animation: dropdownSlideIn 0.2s ease-out;
   transition: all 0.3s ease;
@@ -924,6 +924,71 @@
   background: rgba(248, 113, 113, 0.1);
   border-color: var(--error-color);
   color: var(--error-color);
+}
+
+/* Mobile Navigation */
+.mobile-nav {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 10000 !important;
+  overflow: hidden;
+  animation: dropdownSlideIn 0.2s ease-out;
+  margin-top: 8px;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  color: var(--primary-text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-nav-item:last-child {
+  border-bottom: none;
+}
+
+.mobile-nav-item:hover {
+  background: var(--tertiary-bg);
+  color: var(--accent-color);
+}
+
+.mobile-nav-item.upgrade-nav {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success-color, #22c55e);
+}
+
+.mobile-nav-item.upgrade-nav:hover {
+  background: var(--success-color, #22c55e);
+  color: white;
+}
+
+.mobile-nav-item.admin-nav {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color, #f59e0b);
+}
+
+.mobile-nav-item.admin-nav:hover {
+  background: var(--warning-color, #f59e0b);
+  color: white;
 }
 
 /* Mobile Responsive for Subscription Dropdown */
