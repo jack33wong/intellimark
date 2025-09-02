@@ -124,11 +124,11 @@ async function generateRealMarkingInstructions(
       annotations: simpleMarkingInstructions.annotations.map(annotation => ({
         action: annotation.action,
         bbox: annotation.bbox,
-        comment: annotation.comment,
-        text: annotation.text
+        ...(annotation.comment && { comment: annotation.comment }),
+        ...(annotation.text && { text: annotation.text })
       }))
     };
-    
+    console.log('🔍 Real AI Marking Instructions:', markingInstructions.annotations);
     console.log('🔍 Real AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
     
@@ -170,7 +170,7 @@ async function generateRealMarkingInstructions(
         } else {
           // Default intelligent actions
           const actions = ['tick', 'circle', 'underline', 'comment'] as const;
-          action = actions[index % actions.length];
+          action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
           
           switch (action) {
             case 'tick':
@@ -189,8 +189,8 @@ async function generateRealMarkingInstructions(
         }
         
         annotations.push({
-          action,
-          bbox: [bbox.x, bbox.y, bbox.width, bbox.height],
+          action: action as 'tick' | 'circle' | 'underline' | 'comment',
+          bbox: [bbox.x, bbox.y, bbox.width, bbox.height] as [number, number, number, number],
           comment: comment
         });
       });
@@ -199,8 +199,8 @@ async function generateRealMarkingInstructions(
     // Add overall feedback comment
     if (annotations.length > 0) {
       annotations.push({
-        action: 'comment',
-        bbox: [50, 500, 400, 80],
+        action: 'comment' as const,
+        bbox: [50, 500, 400, 80] as [number, number, number, number],
         text: 'Excellent work! Your solution demonstrates strong mathematical understanding and clear step-by-step reasoning. Well done!'
       });
     }
@@ -214,7 +214,12 @@ async function generateRealMarkingInstructions(
  * Professional SVG overlay generation
  */
 function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width: number, height: number): string {
+  console.log('🔍 SVG Generation - Instructions:', instructions);
+  console.log('🔍 SVG Generation - Annotations count:', instructions.annotations?.length || 0);
+  console.log('🔍 SVG Generation - Dimensions:', width, 'x', height);
+  
   if (!instructions.annotations || instructions.annotations.length === 0) {
+    console.log('🔍 SVG Generation - No annotations, returning empty string');
     return '';
   }
   
@@ -222,6 +227,7 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
   
   instructions.annotations.forEach((annotation, index) => {
     const [x, y, w, h] = annotation.bbox;
+    console.log(`🔍 SVG Generation - Processing annotation ${index}:`, annotation.action, 'at', [x, y, w, h]);
     
     switch (annotation.action) {
       case 'tick':
@@ -251,6 +257,8 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
   });
   
   svg += '</svg>';
+  console.log('🔍 SVG Generation - Final SVG length:', svg.length);
+  console.log('🔍 SVG Generation - Final SVG preview:', svg.substring(0, 300) + '...');
   return svg;
 }
 
@@ -383,12 +391,15 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
 
     // Step 4: Professional SVG overlay generation
     console.log('🔍 ===== STEP 4: PROFESSIONAL SVG OVERLAY =====');
+    console.log('🔍 Marking instructions annotations:', markingInstructions.annotations.length);
+    console.log('🔍 Image dimensions:', processedImage.imageDimensions);
     const svgOverlay = generateProfessionalSVGOverlay(
       markingInstructions,
       processedImage.imageDimensions.width,
       processedImage.imageDimensions.height
     );
     console.log('🔍 Professional SVG overlay created, length:', svgOverlay.length);
+    console.log('🔍 SVG overlay preview:', svgOverlay.substring(0, 200) + '...');
 
     // Step 5: Save results to persistent storage
     console.log('🔍 ===== STEP 5: SAVING RESULTS =====');
@@ -441,7 +452,7 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Internal server error in mark question system',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Contact support'
+      details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support'
     });
   }
 });
@@ -453,6 +464,13 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
 router.get('/results/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Result ID is required'
+      });
+    }
+    
     console.log('🔍 Retrieving marking results from Firestore for ID:', id);
     
     // Import and use the real Firestore service
@@ -489,7 +507,14 @@ router.get('/results/:id', async (req: Request, res: Response) => {
 router.get('/user/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const limit = parseInt(req.query.limit as string) || 50;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      });
+    }
+    
+    const limit = parseInt(req.query['limit'] as string) || 50;
     
     console.log('🔍 Retrieving marking history for user:', userId, 'limit:', limit);
     
