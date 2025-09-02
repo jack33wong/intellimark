@@ -568,14 +568,28 @@ export class FirestoreService {
   }
 
   // Generic document operations for subscriptions
-  static async createDocument(collection: string, docId: string, data: any): Promise<void> {
+  static async createDocument(collection: string, docId: string | null, data: any): Promise<any> {
     try {
-      await db.collection(collection).doc(docId).set({
-        ...data,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-      console.log(`✅ Document created in ${collection}/${docId}`);
+      let docRef;
+      if (docId) {
+        // Create document with specific ID
+        docRef = await db.collection(collection).doc(docId).set({
+          ...data,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        console.log(`✅ Document created in ${collection}/${docId}`);
+        return { id: docId };
+      } else {
+        // Create document with auto-generated ID
+        docRef = await db.collection(collection).add({
+          ...data,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        console.log(`✅ Document created in ${collection}/${docRef.id}`);
+        return docRef;
+      }
     } catch (error) {
       console.error(`❌ Error creating document in ${collection}:`, error);
       throw error;

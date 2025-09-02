@@ -126,16 +126,48 @@ router.get('/subscription/:id', async (req, res) => {
 });
 
 // Cancel subscription
-router.delete('/subscription/:id', async (req, res) => {
+router.delete('/cancel-subscription/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const subscription = await paymentService.cancelSubscription(id);
-    res.json(subscription);
+    console.log('Canceling subscription:', id);
+    
+    // Check if this is a test subscription (starts with 'sub_test_')
+    const isTestSubscription = id.startsWith('sub_test_');
+    
+    let subscription;
+    if (isTestSubscription) {
+      // For test subscriptions, just update Firestore status
+      console.log('Test subscription detected, updating Firestore only');
+      subscription = { id, status: 'canceled' };
+    } else {
+      // Cancel subscription in Stripe for real subscriptions
+      subscription = await paymentService.cancelSubscription(id);
+      console.log('Stripe subscription canceled:', subscription.id);
+    }
+    
+    // Update subscription status in Firestore
+    const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(id);
+    if (existingSubscription) {
+      await SubscriptionService.cancelSubscription(id);
+      console.log('Firestore subscription status updated to canceled for subscription:', id);
+    } else {
+      console.log('No existing subscription found in Firestore for ID:', id);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Subscription canceled successfully',
+      subscription: {
+        id: subscription.id,
+        status: subscription.status
+      }
+    });
   } catch (error) {
     console.error('Error canceling subscription:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 });
+
 
 // Stripe webhook endpoint
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -243,7 +275,7 @@ async function handleSubscriptionUpdated(subscription: any) {
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
     if (existingSubscription) {
       await SubscriptionService.updateSubscriptionStatus(
-        existingSubscription.userId,
+        subscription.id,
         subscription.status as any
       );
     }
@@ -260,7 +292,7 @@ async function handleSubscriptionDeleted(subscription: any) {
     // Update subscription status to canceled
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
     if (existingSubscription) {
-      await SubscriptionService.cancelSubscription(existingSubscription.userId);
+      await SubscriptionService.cancelSubscription(subscription.id);
     }
   } catch (error) {
     console.error('Error handling subscription deletion:', error);
