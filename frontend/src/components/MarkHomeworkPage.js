@@ -452,29 +452,21 @@ const MarkHomeworkPage = () => {
                 ← Back to Upload
               </button>
               <h1>AI Homework Assistant</h1>
-              <p>Ask me anything about your homework</p>
-            </div>
-            <div className="chat-header-right">
-              {currentSessionId && (
-                <div className="session-info">
-                  <p><strong>Session:</strong> {currentSessionId.substring(0, 8)}...</p>
-                  <p><strong>Messages:</strong> {chatMessages.length}</p>
-                </div>
-              )}
               {classificationResult?.isQuestionOnly && (
                 <div className="classification-info">
                   <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* Show the image context */}
-          {previewUrl && (
-            <div className="chat-image-context">
-              <img src={previewUrl} alt="Question context" className="context-image" />
+            <div className="chat-header-right">
+              {/* Show the image context */}
+              {previewUrl && (
+                <div className="chat-image-context">
+                  <img src={previewUrl} alt="Question context" className="context-image" />
+                </div>
+              )}
             </div>
-          )}
+          </div>
           
           <div className="chat-content">
             <div className="chat-messages">
