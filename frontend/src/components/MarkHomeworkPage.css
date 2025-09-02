@@ -311,9 +311,12 @@
 }
 
 .upload-homework-btn:disabled {
-  opacity: 0.6;
+  background: var(--muted-text) !important;
+  color: var(--secondary-text);
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
+  border: 1px solid var(--border-color);
 }
 
 .upload-homework-btn .upload-spinner {
@@ -1130,9 +1133,12 @@
 }
 
 .send-btn:disabled {
-  opacity: 0.6;
+  background: var(--muted-text) !important;
+  color: var(--secondary-text);
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
+  border: 1px solid var(--border-color);
 }
 
 /* Send Button Spinner */
