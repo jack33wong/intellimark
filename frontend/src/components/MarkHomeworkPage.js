@@ -533,10 +533,7 @@ const MarkHomeworkPage = () => {
                 disabled={isProcessing || !chatInput.trim()}
               >
                 {isProcessing ? (
-                  <>
-                    <div className="send-spinner"></div>
-                    Sending...
-                  </>
+                  <div className="send-spinner"></div>
                 ) : (
                   'Send'
                 )}
