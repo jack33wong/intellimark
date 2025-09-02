@@ -609,8 +609,8 @@
 }
 
 .context-image {
-  width: 120px;
-  height: 90px;
+  width: 180px;
+  height: 168px;
   object-fit: cover;
   border-radius: 12px;
   border: 2px solid var(--border-color);
@@ -691,6 +691,7 @@
   overflow-y: auto;
   min-height: 0;
   height: 100%;
+  scroll-behavior: smooth;
 }
 
 .chat-message {
@@ -1100,7 +1101,7 @@
   
   .context-image {
     width: 100px;
-    height: 75px;
+    height: 140px;
   }
   
   .classification-info {

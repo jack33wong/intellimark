@@ -18,6 +18,7 @@ const MarkHomeworkPage = () => {
   const [showRawResponses, setShowRawResponses] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const fileInputRef = useRef(null);
+  const chatMessagesRef = useRef(null);
   const [imageDimensions, setImageDimensions] = useState(null);
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
@@ -71,6 +72,13 @@ const MarkHomeworkPage = () => {
   useEffect(() => {
     localStorage.setItem('isChatMode', isChatMode.toString());
   }, [isChatMode]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatMessagesRef.current && chatMessages.length > 0) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -469,7 +477,7 @@ const MarkHomeworkPage = () => {
           </div>
           
           <div className="chat-content">
-            <div className="chat-messages">
+            <div className="chat-messages" ref={chatMessagesRef}>
                              {chatMessages.map((message) => (
                  <div 
                    key={message.id} 
