@@ -103,7 +103,14 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         {/* Right side - Profile */}
         <div className="header-right">
           {user ? (
-            <div className="profile-section" ref={profileRef}>
+            <>
+              <button
+                className="nav-item upgrade-nav"
+                onClick={() => navigate('/upgrade')}
+              >
+                Upgrade
+              </button>
+              <div className="profile-section" ref={profileRef}>
               <button 
                 className="profile-button"
                 onClick={handleProfileClick}
@@ -167,14 +174,23 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            </>
           ) : (
-            <button 
-              className="login-button"
-              onClick={() => navigate('/login')}
-            >
-              Sign In
-            </button>
+            <>
+              <button
+                className="nav-item upgrade-nav"
+                onClick={() => navigate('/upgrade')}
+              >
+                Upgrade
+              </button>
+              <button 
+                className="login-button"
+                onClick={() => navigate('/login')}
+              >
+                Sign In
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -182,6 +198,15 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (
         <div className="mobile-nav">
+          <button 
+            className="mobile-nav-item upgrade-nav"
+            onClick={() => {
+              navigate('/upgrade');
+              closeMobileMenu();
+            }}
+          >
+            Upgrade
+          </button>
           {user?.isAdmin && (
             <button 
               className="mobile-nav-item admin-nav"

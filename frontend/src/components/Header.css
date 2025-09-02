@@ -99,14 +99,16 @@
   color: var(--primary-text);
   padding: 10px 16px;
   border-radius: 8px;
-  cursor: pointer;
+  font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(10px);
-  height: 44px;
-  line-height: 1;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
   display: flex;
   align-items: center;
+  gap: 8px;
+  box-shadow: none;
+  outline: none;
 }
 
 .nav-item:hover {
@@ -120,17 +122,35 @@
   background: var(--accent-color);
   color: white;
   border-color: var(--accent-color);
+  box-shadow: var(--shadow-md);
 }
 
 .nav-item.admin-nav {
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid var(--warning-color);
-  color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color, #f59e0b);
+  border-color: var(--warning-color, #f59e0b);
+  box-shadow: none;
 }
 
 .nav-item.admin-nav:hover {
-  background: var(--warning-color);
+  background: var(--warning-color, #f59e0b);
   color: white;
+  border-color: var(--warning-color, #f59e0b);
+  box-shadow: var(--shadow-md);
+}
+
+.nav-item.upgrade-nav {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success-color, #22c55e);
+  border-color: var(--success-color, #22c55e);
+  box-shadow: none;
+}
+
+.nav-item.upgrade-nav:hover {
+  background: var(--success-color, #22c55e);
+  color: white;
+  border-color: var(--success-color, #22c55e);
+  box-shadow: var(--shadow-md);
 }
 
 /* Right side - User Profile and Actions */

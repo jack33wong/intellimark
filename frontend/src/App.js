@@ -12,6 +12,7 @@ import SimpleFirebaseTest from './components/SimpleFirebaseTest';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
+import SubscriptionPage from './components/SubscriptionPage';
 import './App.css';
 
 /**
@@ -37,8 +38,9 @@ function App() {
       }}>
         <div className="app-container">
           <Routes>
-            {/* Public route - no header/sidebar */}
+            {/* Public routes - no header/sidebar */}
             <Route path="/login" element={<Login />} />
+            <Route path="/upgrade" element={<SubscriptionPage />} />
             
             {/* Protected routes - with header and sidebar */}
             <Route path="/admin" element={

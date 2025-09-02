@@ -38,6 +38,7 @@ import authRoutes from './routes/auth.ts';
 import markHomeworkRoutes from './routes/mark-homework.ts';
 import adminRoutes from './routes/admin.ts';
 import chatRoutes from './routes/chat.ts';
+import paymentRoutes from './routes/payment.ts';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -50,6 +51,9 @@ app.use('/api/admin', adminRoutes);
 
 // Enable chat system
 app.use('/api/chat', chatRoutes);
+
+// Enable payment system
+app.use('/api/payment', paymentRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
