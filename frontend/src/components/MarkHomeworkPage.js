@@ -463,9 +463,11 @@ const MarkHomeworkPage = () => {
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
               >
-                <option value="chatgpt-4o">GPT-4o (Most Capable)</option>
-                <option value="chatgpt-4">GPT-4 (Balanced)</option>
-                <option value="chatgpt-3.5">GPT-3.5 (Fast)</option>
+                {models.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} - {model.description}
+                  </option>
+                ))}
               </select>
             </div>
 
