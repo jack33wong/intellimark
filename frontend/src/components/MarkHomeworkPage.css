@@ -3,8 +3,8 @@
   min-height: 100vh;
   background: var(--primary-bg);
   color: var(--primary-text);
-  overflow: hidden;
-  width: 100vw;
+  overflow: auto;
+  width: 100%;
 }
 
 .mark-homework-container {
@@ -15,7 +15,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 /* Header Section */
@@ -70,7 +70,7 @@
   border-radius: 24px;
   padding: 32px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.3s ease;
   text-align: center;
   width: 100%;
