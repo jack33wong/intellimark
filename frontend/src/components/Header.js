@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -13,18 +13,50 @@ import './Header.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isProfileClosing, setIsProfileClosing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const profileRef = useRef(null);
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        handleProfileClose();
+      }
+    };
+
+    if (isProfileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
 
   const handleLogout = () => {
     logout();
     navigate('/');
-    setIsProfileMenuOpen(false);
+    handleProfileClose();
   };
 
   const handleProfileClick = () => {
-    setIsProfileMenuOpen(!isProfileMenuOpen);
+    if (isProfileMenuOpen) {
+      handleProfileClose();
+    } else {
+      setIsProfileMenuOpen(true);
+      setIsProfileClosing(false);
+    }
+  };
+
+  const handleProfileClose = () => {
+    setIsProfileClosing(true);
+    setTimeout(() => {
+      setIsProfileMenuOpen(false);
+      setIsProfileClosing(false);
+    }, 300); // Match the CSS transition duration
   };
 
   const handleMobileMenuToggle = () => {
@@ -51,7 +83,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           
-          <div className="logo">
+          <div className="logo" onClick={() => navigate('/')}>
             <div className="logo-icon">🎯</div>
             <h1 className="logo-text">Intellimark</h1>
           </div>
@@ -72,7 +104,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         {/* Right side - Profile */}
         <div className="header-right">
           {user ? (
-            <div className="profile-section">
+            <div className="profile-section" ref={profileRef}>
               <button 
                 className="profile-button"
                 onClick={handleProfileClick}
@@ -93,7 +125,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
-                <div className="profile-dropdown">
+                <div className={`profile-dropdown ${isProfileClosing ? 'closing' : ''}`}>
                   <div className="profile-info">
                     <div className="profile-avatar large">
                       {user.photoURL ? (
@@ -120,7 +152,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       className="profile-action"
                       onClick={() => {
                         navigate('/profile');
-                        setIsProfileMenuOpen(false);
+                        handleProfileClose();
                       }}
                     >
                       <Settings size={16} />

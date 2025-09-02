@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Mail, Shield, Save, Edit3 } from 'lucide-react';
+import { User, Mail, Shield, Save, Edit3, Home } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
   const { user, updateProfile } = useAuth();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     displayName: user?.displayName || '',
@@ -12,6 +14,10 @@ const ProfilePage = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  const handleHomeClick = () => {
+    navigate('/');
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -54,6 +60,14 @@ const ProfilePage = () => {
 
   return (
     <div className="profile-page">
+      {/* Header with IntelliMark Logo */}
+      <div className="profile-header-nav">
+        <div className="profile-logo" onClick={handleHomeClick}>
+          <Home size={24} />
+          <span>IntelliMark</span>
+        </div>
+      </div>
+      
       <div className="profile-container">
         <div className="profile-header">
           <h1>Profile Settings</h1>
