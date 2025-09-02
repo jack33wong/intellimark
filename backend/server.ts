@@ -36,12 +36,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Import routes
 import authRoutes from './routes/auth.ts';
 import markHomeworkRoutes from './routes/mark-homework.ts';
+import adminRoutes from './routes/admin.ts';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
 
 // Enable mark question system
 app.use('/api/mark-homework', markHomeworkRoutes);
+
+// Enable admin routes
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

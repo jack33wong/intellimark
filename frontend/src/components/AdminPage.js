@@ -716,7 +716,8 @@ function AdminPage() {
                     </thead>
                     <tbody>
                       {jsonEntries.map((entry) => {
-                        const examData = entry.data || {};
+                        // Handle both data structures: entry.exam vs entry.data.exam
+                        const examData = entry.data || entry;
                         const examMeta = examData.exam || {};
                         // Use database fields for question counts
                         const questionCount = examMeta.totalQuestions || (examData.questions ? examData.questions.length : 0);
@@ -852,7 +853,7 @@ function AdminPage() {
                                       <details style={{ marginTop: '16px' }}>
                                         <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw JSON Data</summary>
                                         <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
-{JSON.stringify(entry.data, null, 2)}
+{JSON.stringify(examData, null, 2)}
                                         </pre>
                                       </details>
                                     </div>

@@ -19,6 +19,26 @@ const Login = () => {
   
   const { user, socialLogin, getProviders, error: authError } = useAuth();
 
+  // Debug Firebase imports
+  useEffect(() => {
+    console.log('🔍 Login Component Debug:', {
+      auth: !!auth,
+      googleProvider: !!googleProvider,
+      facebookProvider: !!facebookProvider,
+      authType: typeof auth,
+      googleProviderType: typeof googleProvider
+    });
+    
+    // Check if Firebase is properly configured
+    if (!auth || !googleProvider || !facebookProvider) {
+      console.error('❌ Firebase not properly configured:', { auth, googleProvider, facebookProvider });
+      setFirebaseError('Firebase configuration issue detected. Some features may not work properly.');
+    } else {
+      console.log('✅ Firebase properly configured');
+      setFirebaseError(null);
+    }
+  }, []);
+
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
@@ -31,11 +51,16 @@ const Login = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
+        console.log('🔄 Fetching providers...');
         const providersData = await getProviders();
+        console.log('✅ Providers fetched:', providersData);
         setProviders(providersData);
       } catch (error) {
-        console.error('Error fetching providers:', error);
-        setFirebaseError('Unable to load authentication providers. Please check your connection.');
+        console.error('❌ Error fetching providers:', error);
+        // Only set Firebase error if it's not already set
+        if (!firebaseError) {
+          setFirebaseError('Unable to load authentication providers. Please check your connection.');
+        }
         // Set fallback providers
         setProviders({
           supported: ["google", "facebook"],
@@ -45,13 +70,21 @@ const Login = () => {
       }
     };
     fetchProviders();
-  }, [getProviders]);
+  }, [getProviders, firebaseError]);
 
   const handleSocialLogin = async (provider) => {
+    // Check if Firebase is available before attempting login
+    if (!auth || !googleProvider || !facebookProvider) {
+      setFirebaseError('Firebase not available. Please refresh the page and try again.');
+      return;
+    }
+    
     setIsLoading(true);
     setFirebaseError(null);
     
     try {
+      console.log(`🔄 Starting ${provider} login...`);
+      
       if (provider === 'google') {
         const result = await signInWithPopup(auth, googleProvider);
         // Handle successful login

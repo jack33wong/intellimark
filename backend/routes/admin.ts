@@ -3,17 +3,21 @@
  * Handles administrative functions like PDF uploads, JSON management, and system operations
  */
 
-import express, { Request, Response } from 'express';
+import * as express from 'express';
+import type { Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import * as fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-// import { db, admin } from '../config/firebase.js';
-const db = null;
-const admin = null;
-// import { extractQuestionsFromPDF, updatePastPaperWithQuestions } from '../utils/questionExtractor.js';
+import { requireAdmin } from '../middleware/auth.ts';
+
+// Import Firebase instances from centralized config
+import { getFirestore, getFirebaseAdmin } from '../config/firebase.ts';
 
 const router = express.Router();
+
+// Apply admin authentication to all admin routes
+router.use(requireAdmin);
 
 // Types
 interface PastPaper {
@@ -50,6 +54,16 @@ interface JSONExamPaper {
   uploadedAt: string;
 }
 
+// In-memory storage for past papers (fallback when Firestore is unavailable)
+let pastPapers: PastPaper[] = [];
+
+// In-memory storage for JSON collections
+const mockData: { [key: string]: any[] } = {
+  fullExamPapers: [],
+  questionBanks: [],
+  otherCollections: []
+};
+
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -80,9 +94,6 @@ const upload = multer({
   }
 });
 
-// In-memory storage for past papers (fallback when Firestore is unavailable)
-let pastPapers: PastPaper[] = [];
-
 /**
  * GET /api/admin/past-papers
  * Get all past papers
@@ -92,6 +103,7 @@ router.get('/past-papers', async (req: Request, res: Response) => {
     let papers = [];
     
     // Try to get from Firestore first
+    const db = getFirestore();
     if (db) {
       try {
         const snapshot = await db.collection('pastPapers').get();
@@ -166,28 +178,10 @@ router.post('/past-papers/upload', upload.single('pdf'), async (req: Request, re
       subQuestionCount: 0
     };
 
-    // Extract questions from the uploaded PDF (DISABLED)
-    // try {
-    //   console.log('Extracting questions from PDF...');
-    //   const extractionResult = await extractQuestionsFromPDF(newFilePath);
-      
-    //   if (extractionResult.success) {
-    //     console.log(`Successfully extracted ${extractionResult.totalQuestions} questions`);
-    //     const updatedPaper = updatePastPaperWithQuestions(pastPaper, extractionResult.questions);
-    //     Object.assign(pastPaper, updatedPaper);
-    //   } else {
-    //     console.warn('Question extraction failed:', extractionResult.error);
-    //     // Continue without questions if extraction fails
-    //   }
-    // } catch (extractionError) {
-    //   console.error('Error during question extraction:', extractionError);
-    //     // Continue without questions if extraction fails
-    //   }
-    // }
-
     console.log('Created past paper object:', pastPaper);
     
     // Save metadata to Firestore (if available)
+    const db = getFirestore();
     if (db) {
       try {
         const firestoreData = {
@@ -228,6 +222,7 @@ router.delete('/past-papers/clear-all', async (req: Request, res: Response) => {
     console.log('Starting clear all past papers...');
     
     // Clear from Firestore (if available)
+    const db = getFirestore();
     if (db) {
       try {
         const snapshot = await db.collection('pastPapers').get();
@@ -323,48 +318,7 @@ router.post('/past-papers/:id/extract-questions', async (req: Request, res: Resp
     const paper = pastPapers[paperIndex];
     console.log(`Extracting questions from paper: ${paper.originalName}`);
 
-    // Extract questions from the PDF file (DISABLED)
-    // const extractionResult = await extractQuestionsFromPDF(paper.filePath);
-    
-    // if (extractionResult.success) {
-    //   console.log(`Successfully extracted ${extractionResult.totalQuestions} questions`);
-      
-    //   // Update the past paper with extracted questions
-    //   const updatedPaper = updatePastPaperWithQuestions(paper, extractionResult.questions);
-      
-    //   // Update local storage
-    //   pastPapers[paperIndex] = updatedPaper;
-      
-    //   // Update Firestore (if available)
-    //   if (db) {
-    //     try {
-    //       await db.collection('pastPapers').doc(id).update({
-    //     questions: updatedPaper.questions,
-    //     questionCount: updatedPaper.questionCount,
-    //     subQuestionCount: updatedPaper.subQuestionCount,
-    //     lastUpdated: admin.firestore.Timestamp.fromDate(new Date())
-    //   });
-    //   console.log('Questions updated in Firestore');
-    // } catch (firestoreError) {
-    //   console.error('Firestore update error:', firestoreError);
-    //   // Continue with local storage even if Firestore fails
-    // }
-    // } else {
-    //   console.log('Firebase not available, using local storage only');
-    // }
-    
-    // res.json({
-    //   message: 'Questions extracted successfully',
-    //   pastPaper: updatedPaper
-    // });
-    // } else {
-    //   res.status(500).json({ 
-    //     error: 'Failed to extract questions',
-    //     details: extractionResult.error 
-    //   });
-    // }
-    
-    // Return a simple response for now
+    // Return a simple response for now since extraction is disabled
     res.json({
       message: 'Question extraction temporarily disabled',
       pastPaper: paper
@@ -433,32 +387,100 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
       return res.status(400).json({ error: 'Collection name is required' });
     }
     
-    // Get data from Firestore
+    // Get data from Firestore if available, otherwise use mock data
+    const db = getFirestore();
     if (db) {
-      const snapshot = await db.collection(collectionName).get();
-      const entries = [];
-      
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        entries.push({
-          id: doc.id,
-          ...data,
-          uploadedAt: data.uploadedAt ? 
-            (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) : 
-            new Date().toISOString()
+      try {
+        const snapshot = await db.collection(collectionName).get();
+        const entries = [];
+        
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          entries.push({
+            id: doc.id,
+            ...data,
+            uploadedAt: data.uploadedAt ? 
+              (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) : 
+              new Date().toISOString()
+          });
         });
-      });
-      
+        
+        res.json({
+          collectionName,
+          entries: entries
+        });
+      } catch (firestoreError) {
+        console.error('Firestore fetch error:', firestoreError);
+        // Fallback to mock data
+        const mockEntries = mockData[collectionName] || [];
+        res.json({
+          collectionName,
+          entries: mockEntries
+        });
+      }
+    } else {
+      // Use mock data when Firebase is not available
+      const mockEntries = mockData[collectionName] || [];
       res.json({
         collectionName,
-        entries: entries
+        entries: mockEntries
       });
-    } else {
-      res.status(500).json({ error: 'Firestore not available' });
     }
   } catch (error) {
     console.error('Get collection error:', error);
     res.status(500).json({ error: `Failed to get collection: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/admin/json/collections/:collectionName
+ * Add a new entry to a JSON collection
+ */
+router.post('/json/collections/:collectionName', async (req: Request, res: Response) => {
+  try {
+    const { collectionName } = req.params;
+    const entryData = req.body;
+    
+    if (!collectionName) {
+      return res.status(400).json({ error: 'Collection name is required' });
+    }
+    
+    if (!entryData) {
+      return res.status(400).json({ error: 'Entry data is required' });
+    }
+    
+    const newEntry = {
+      id: uuidv4(),
+      ...entryData,
+      uploadedAt: new Date().toISOString()
+    };
+    
+    // Save to Firestore if available
+    const db = getFirestore();
+    if (db) {
+      try {
+        await db.collection(collectionName).doc(newEntry.id).set(newEntry);
+        console.log(`Entry saved to Firestore collection: ${collectionName}`);
+      } catch (firestoreError) {
+        console.error('Firestore save error:', firestoreError);
+        // Continue with mock data even if Firestore fails
+      }
+    }
+    
+    // Always save to mock data for fallback
+    if (!mockData[collectionName]) {
+      mockData[collectionName] = [];
+    }
+    mockData[collectionName].push(newEntry);
+    
+    res.status(201).json({
+      message: 'Entry added successfully',
+      collectionName,
+      entry: newEntry
+    });
+  } catch (error) {
+    console.error('Add entry error:', error);
+    res.status(500).json({ error: `Failed to add entry: ${error.message}` });
   }
 });
 
@@ -470,19 +492,33 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
   try {
     const { collectionName, entryId } = req.params;
     
-    // Delete the specific document from Firestore
+    // Delete from Firestore if available
+    const db = getFirestore();
     if (db) {
-      await db.collection(collectionName).doc(entryId).delete();
-      console.log(`Entry ${entryId} deleted from collection: ${collectionName}`);
-      res.json({
-        message: `Entry deleted successfully`,
-        collectionName,
-        entryId,
-        deleted: true
-      });
-    } else {
-      res.status(500).json({ error: 'Firestore not available' });
+      try {
+        await db.collection(collectionName).doc(entryId).delete();
+        console.log(`Entry ${entryId} deleted from Firestore collection: ${collectionName}`);
+      } catch (firestoreError) {
+        console.error('Firestore delete error:', firestoreError);
+        // Continue with mock data even if Firestore fails
+      }
     }
+    
+    // Delete from mock data
+    if (mockData[collectionName]) {
+      const index = mockData[collectionName].findIndex(entry => entry.id === entryId);
+      if (index !== -1) {
+        mockData[collectionName].splice(index, 1);
+        console.log(`Entry ${entryId} deleted from mock data collection: ${collectionName}`);
+      }
+    }
+    
+    res.json({
+      message: `Entry deleted successfully`,
+      collectionName,
+      entryId,
+      deleted: true
+    });
   } catch (error) {
     console.error('Delete entry error:', error);
     res.status(500).json({ error: `Failed to delete entry: ${error.message}` });
@@ -498,23 +534,34 @@ router.delete('/json/collections/:collectionName/clear-all', async (req: Request
     const { collectionName } = req.params;
     
     // Delete all documents from the specified collection in Firestore
+    const db = getFirestore();
     if (db) {
-      const snapshot = await db.collection(collectionName).get();
-      const deletePromises = [];
-      snapshot.forEach((doc) => {
-        deletePromises.push(doc.ref.delete());
-      });
-      
-      await Promise.all(deletePromises);
-      console.log(`All entries deleted from collection: ${collectionName}`);
-      res.json({
-        message: `All entries deleted from collection: ${collectionName}`,
-        collectionName,
-        deletedCount: 'all'
-      });
-    } else {
-      res.status(500).json({ error: 'Firestore not available' });
+      try {
+        const snapshot = await db.collection(collectionName).get();
+        const deletePromises = [];
+        snapshot.forEach((doc) => {
+          deletePromises.push(doc.ref.delete());
+        });
+        
+        await Promise.all(deletePromises);
+        console.log(`All entries deleted from Firestore collection: ${collectionName}`);
+      } catch (firestoreError) {
+        console.error('Firestore delete error:', firestoreError);
+        // Continue with mock data even if Firestore fails
+      }
     }
+    
+    // Clear mock data
+    const deletedCount = mockData[collectionName] ? mockData[collectionName].length : 0;
+    if (mockData[collectionName]) {
+      mockData[collectionName].length = 0;
+    }
+    
+    res.json({
+      message: `All entries deleted from collection: ${collectionName}`,
+      collectionName,
+      deletedCount
+    });
   } catch (error) {
     console.error('Delete collection error:', error);
     res.status(500).json({ error: `Failed to delete collection: ${error.message}` });
