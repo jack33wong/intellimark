@@ -84,7 +84,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           </button>
           
           <div className="logo" onClick={() => navigate('/')}>
-            <div className="logo-icon">🎯</div>
             <h1 className="logo-text">Intellimark</h1>
           </div>
         </div>
