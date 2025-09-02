@@ -697,12 +697,14 @@ export class AIMarkingService {
               ]
             }
           ],
-          max_tokens: 1000,
-          temperature: 0.7
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 1000 } : { max_tokens: 1000 }),
+          //temperature: 0.7
         })
       });
 
       const result = await response.json() as any;
+      
+      console.log('🔍 OpenAI Chat API Response for', model, ':', JSON.stringify(result, null, 2));
       
       if (!response.ok) {
         throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
@@ -710,6 +712,7 @@ export class AIMarkingService {
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
+        console.error('❌ No content in OpenAI chat response. Full response:', JSON.stringify(result, null, 2));
         throw new Error('No content in OpenAI response');
       }
 
@@ -801,8 +804,8 @@ export class AIMarkingService {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          max_tokens: 1000,
-          temperature: 0.7
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 1000 } : { max_tokens: 1000 }),
+          //temperature: 0.7
         })
       });
 
