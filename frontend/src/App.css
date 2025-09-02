@@ -27,9 +27,9 @@
   flex-shrink: 0;
   transition: transform 0.3s ease;
   border-right: 1px solid var(--border-color);
-  height: 100vh;
+  height: calc(100vh - 70px); /* Account for fixed header height */
   position: fixed;
-  top: 0;
+  top: 70px; /* Position below fixed header */
   left: 0;
   z-index: 100;
 }
@@ -42,6 +42,8 @@
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
+    top: 60px; /* Account for mobile header height */
+    height: calc(100vh - 60px);
   }
   
   .sidebar.mobile-open {
@@ -50,6 +52,7 @@
   
   .main-content {
     margin-left: 0;
+    padding-top: 60px; /* Account for mobile header height */
   }
 }
 

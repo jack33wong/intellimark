@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, MessageSquare } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
+import MarkdownMathRenderer from './MarkdownMathRenderer';
 
 const MarkHomeworkPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -429,38 +430,43 @@ const MarkHomeworkPage = () => {
 
   if (isChatMode) {
     return (
-      <div className="mark-homework-page">
+      <div className="mark-homework-page chat-mode">
         <div className="chat-container">
           <div className="chat-header">
-            <button 
-              className="back-btn"
-              onClick={() => {
-                setIsChatMode(false);
-                setChatMessages([]);
-                setChatInput('');
-                setClassificationResult(null);
-                setApiResponse(null);
-                setCurrentSessionId(null);
-                // Clear localStorage
-                localStorage.removeItem('chatSessionId');
-                localStorage.removeItem('chatMessages');
-                localStorage.removeItem('isChatMode');
-              }}
-            >
-              ← Back to Upload
-            </button>
-            <h2>AI Homework Assistant</h2>
-            {currentSessionId && (
-              <div className="session-info">
-                <p><strong>Session:</strong> {currentSessionId.substring(0, 8)}...</p>
-                <p><strong>Messages:</strong> {chatMessages.length}</p>
-              </div>
-            )}
-            {classificationResult?.isQuestionOnly && (
-              <div className="classification-info">
-                <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
-              </div>
-            )}
+            <div className="chat-header-left">
+              <button 
+                className="back-btn"
+                onClick={() => {
+                  setIsChatMode(false);
+                  setChatMessages([]);
+                  setChatInput('');
+                  setClassificationResult(null);
+                  setApiResponse(null);
+                  setCurrentSessionId(null);
+                  // Clear localStorage
+                  localStorage.removeItem('chatSessionId');
+                  localStorage.removeItem('chatMessages');
+                  localStorage.removeItem('isChatMode');
+                }}
+              >
+                ← Back to Upload
+              </button>
+              <h1>AI Homework Assistant</h1>
+              <p>Ask me anything about your homework</p>
+            </div>
+            <div className="chat-header-right">
+              {currentSessionId && (
+                <div className="session-info">
+                  <p><strong>Session:</strong> {currentSessionId.substring(0, 8)}...</p>
+                  <p><strong>Messages:</strong> {chatMessages.length}</p>
+                </div>
+              )}
+              {classificationResult?.isQuestionOnly && (
+                <div className="classification-info">
+                  <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Show the image context */}
@@ -470,39 +476,49 @@ const MarkHomeworkPage = () => {
             </div>
           )}
           
-          <div className="chat-messages">
-            {chatMessages.map((message) => (
-              <div 
-                key={message.id} 
-                className={`chat-message ${message.role}`}
-              >
-                <div className="message-content">
-                  {message.content}
-                </div>
-                <div className="message-timestamp">
-                  {message.timestamp}
-                </div>
-              </div>
-            ))}
+          <div className="chat-content">
+            <div className="chat-messages">
+                             {chatMessages.map((message) => (
+                 <div 
+                   key={message.id} 
+                   className={`chat-message ${message.role}`}
+                 >
+                   <div className="message-bubble">
+                     {message.role === 'assistant' ? (
+                       <MarkdownMathRenderer 
+                         content={message.content}
+                         className="chat-message-renderer"
+                       />
+                     ) : (
+                       <div className="message-text">{message.content}</div>
+                     )}
+                     <div className="message-timestamp">
+                       {message.timestamp}
+                     </div>
+                   </div>
+                 </div>
+               ))}
+            </div>
           </div>
           
-          <div className="chat-input-container">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Ask me anything about your homework..."
-              className="chat-input"
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              disabled={isProcessing}
-            />
-            <button 
-              className="send-btn"
-              onClick={handleSendMessage}
-              disabled={isProcessing || !chatInput.trim()}
-            >
-              Send
-            </button>
+          {/* Bottom Input Bar */}
+          <div className="chat-input-bar">
+            <div className="chat-input">
+              <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask me anything about your homework..."
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                disabled={isProcessing}
+              />
+              <button 
+                className="send-btn"
+                onClick={handleSendMessage}
+                disabled={isProcessing || !chatInput.trim()}
+              >
+                Send
+              </button>
+            </div>
           </div>
         </div>
       </div>
