@@ -316,13 +316,19 @@
   transform: none;
 }
 
-.upload-homework-btn .spinner {
+.upload-homework-btn .upload-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-top: 2px solid white;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: uploadSpin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes uploadSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @keyframes spin {
@@ -752,6 +758,64 @@
   color: var(--secondary-text);
 }
 
+/* AI Thinking Animation */
+.ai-thinking {
+  background: var(--tertiary-bg) !important;
+  border: 1px solid var(--border-color);
+}
+
+.thinking-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.thinking-dots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.thinking-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  animation: thinkingPulse 1.4s ease-in-out infinite both;
+}
+
+.thinking-dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.thinking-dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+.thinking-dot:nth-child(3) {
+  animation-delay: 0s;
+}
+
+.thinking-text {
+  font-size: 14px;
+  color: var(--muted-text);
+  font-style: italic;
+  font-weight: 500;
+}
+
+@keyframes thinkingPulse {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
 /* Chat Message Renderer Styling */
 .chat-message-renderer {
   width: 100%;
@@ -978,6 +1042,16 @@
   box-shadow: 0 0 0 3px rgba(127, 0, 255, 0.1);
 }
 
+.chat-input.processing textarea {
+  border-color: var(--accent-color);
+  background: var(--quaternary-bg);
+}
+
+.chat-input.processing textarea::placeholder {
+  color: var(--accent-color);
+  font-style: italic;
+}
+
 .send-btn {
   padding: 19px 38px;
   background: linear-gradient(135deg, var(--accent-color), #9f7aea);
@@ -1005,6 +1079,22 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Send Button Spinner */
+.send-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: sendSpin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes sendSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Loading States */

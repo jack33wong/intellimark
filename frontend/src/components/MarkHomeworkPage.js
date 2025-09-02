@@ -478,36 +478,52 @@ const MarkHomeworkPage = () => {
           
           <div className="chat-content">
             <div className="chat-messages" ref={chatMessagesRef}>
-                             {chatMessages.map((message) => (
-                 <div 
-                   key={message.id} 
-                   className={`chat-message ${message.role}`}
-                 >
-                   <div className="message-bubble">
-                     {message.role === 'assistant' ? (
-                       <MarkdownMathRenderer 
-                         content={message.content}
-                         className="chat-message-renderer"
-                       />
-                     ) : (
-                       <div className="message-text">{message.content}</div>
-                     )}
-                     <div className="message-timestamp">
-                       {message.timestamp}
-                     </div>
-                   </div>
-                 </div>
-               ))}
+              {chatMessages.map((message) => (
+                <div 
+                  key={message.id} 
+                  className={`chat-message ${message.role}`}
+                >
+                  <div className="message-bubble">
+                    {message.role === 'assistant' ? (
+                      <MarkdownMathRenderer 
+                        content={message.content}
+                        className="chat-message-renderer"
+                      />
+                    ) : (
+                      <div className="message-text">{message.content}</div>
+                    )}
+                    <div className="message-timestamp">
+                      {message.timestamp}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* AI Thinking Loading Animation */}
+              {isProcessing && (
+                <div className="chat-message assistant">
+                  <div className="message-bubble ai-thinking">
+                    <div className="thinking-indicator">
+                      <div className="thinking-dots">
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                      </div>
+                      <div className="thinking-text">AI is analyzing your question...</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
           {/* Bottom Input Bar */}
           <div className="chat-input-bar">
-            <div className="chat-input">
+            <div className={`chat-input ${isProcessing ? 'processing' : ''}`}>
               <textarea
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask me anything about your homework..."
+                placeholder={isProcessing ? "AI is thinking..." : "Ask me anything about your homework..."}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                 disabled={isProcessing}
               />
@@ -516,7 +532,14 @@ const MarkHomeworkPage = () => {
                 onClick={handleSendMessage}
                 disabled={isProcessing || !chatInput.trim()}
               >
-                Send
+                {isProcessing ? (
+                  <>
+                    <div className="send-spinner"></div>
+                    Sending...
+                  </>
+                ) : (
+                  'Send'
+                )}
               </button>
             </div>
           </div>
@@ -621,8 +644,8 @@ const MarkHomeworkPage = () => {
               >
                 {isProcessing ? (
                   <>
-                    <div className="spinner"></div>
-                    Processing...
+                    <div className="upload-spinner"></div>
+                    Analyzing...
                   </>
                 ) : (
                   <>
