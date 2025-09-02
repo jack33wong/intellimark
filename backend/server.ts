@@ -37,6 +37,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 import authRoutes from './routes/auth.ts';
 import markHomeworkRoutes from './routes/mark-homework.ts';
 import adminRoutes from './routes/admin.ts';
+import chatRoutes from './routes/chat.ts';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -46,6 +47,9 @@ app.use('/api/mark-homework', markHomeworkRoutes);
 
 // Enable admin routes
 app.use('/api/admin', adminRoutes);
+
+// Enable chat system
+app.use('/api/chat', chatRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -59,7 +63,7 @@ app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err.stack);
   res.status(500).json({ 
     error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    message: process.env['NODE_ENV'] === 'development' ? err.message : 'Internal server error'
   });
 });
 

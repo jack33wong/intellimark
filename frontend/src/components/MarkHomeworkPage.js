@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Upload, MessageSquare } from 'lucide-react';
 import './MarkHomeworkPage.css';
 
@@ -12,6 +12,48 @@ const MarkHomeworkPage = () => {
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [showRawResponses, setShowRawResponses] = useState(false);
+  const fileInputRef = useRef(null);
+  const [imageDimensions, setImageDimensions] = useState(null);
+
+  const models = [
+    { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
+    { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
+  ];
+
+  // Function to scale SVG coordinates to match displayed image
+  const scaleSVGForDisplay = (svgString, originalWidth, originalHeight, displayWidth, displayHeight) => {
+    if (!svgString || !originalWidth || !originalHeight || !displayWidth || !displayHeight) {
+      return svgString;
+    }
+
+    const scaleX = displayWidth / originalWidth;
+    const scaleY = displayHeight / originalHeight;
+
+    console.log('🔍 Scaling SVG:', {
+      original: `${originalWidth}x${originalHeight}`,
+      display: `${displayWidth}x${displayHeight}`,
+      scale: `${scaleX.toFixed(3)}x${scaleY.toFixed(3)}`
+    });
+
+    // Scale all numeric values in the SVG
+    let scaledSVG = svgString
+      .replace(/width="(\d+)"/, `width="${displayWidth}"`)
+      .replace(/height="(\d+)"/, `height="${displayHeight}"`)
+      .replace(/x="(\d+(?:\.\d+)?)"/g, (match, x) => `x="${(parseFloat(x) * scaleX).toFixed(1)}"`)
+      .replace(/y="(\d+(?:\.\d+)?)"/g, (match, y) => `y="${(parseFloat(y) * scaleY).toFixed(1)}"`)
+      .replace(/cx="(\d+(?:\.\d+)?)"/g, (match, cx) => `cx="${(parseFloat(cx) * scaleX).toFixed(1)}"`)
+      .replace(/cy="(\d+(?:\.\d+)?)"/g, (match, cy) => `cy="${(parseFloat(cy) * scaleY).toFixed(1)}"`)
+      .replace(/r="(\d+(?:\.\d+)?)"/g, (match, r) => `r="${(parseFloat(r) * Math.min(scaleX, scaleY)).toFixed(1)}"`)
+      .replace(/x1="(\d+(?:\.\d+)?)"/g, (match, x1) => `x1="${(parseFloat(x1) * scaleX).toFixed(1)}"`)
+      .replace(/y1="(\d+(?:\.\d+)?)"/g, (match, y1) => `y1="${(parseFloat(y1) * scaleY).toFixed(1)}"`)
+      .replace(/x2="(\d+(?:\.\d+)?)"/g, (match, x2) => `x2="${(parseFloat(x2) * scaleX).toFixed(1)}"`)
+      .replace(/y2="(\d+(?:\.\d+)?)"/g, (match, y2) => `y2="${(parseFloat(y2) * scaleY).toFixed(1)}"`);
+
+    return scaledSVG;
+  };
 
   const handleFileSelect = useCallback((file) => {
     if (file && file.type.startsWith('image/')) {
