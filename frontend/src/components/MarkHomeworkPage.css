@@ -679,6 +679,9 @@
   flex: 1;
   height: 100%;
   overflow: hidden;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .chat-messages {
@@ -710,6 +713,7 @@
 
 .chat-message.assistant {
   justify-content: flex-start;
+  width: 100%;
 }
 
 .chat-message .message-bubble {
@@ -718,6 +722,11 @@
   border-radius: 18px;
   position: relative;
   word-wrap: break-word;
+}
+
+.chat-message.assistant .message-bubble {
+  max-width: 100%;
+  width: 100%;
 }
 
 .chat-message.user .message-bubble {
