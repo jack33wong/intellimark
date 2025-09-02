@@ -582,105 +582,107 @@ const MarkHomeworkPage = () => {
         </div>
 
         <div className="mark-homework-content">
-          {/* Upload Section */}
-          <div className="upload-section">
-            <div className="model-selector">
-              <label htmlFor="model-select">Select AI Model</label>
-              <select
-                id="model-select"
-                className="model-dropdown"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-              >
-                {models.map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} - {model.description}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Upload Section - Show at top if no response, at bottom if response exists */}
+          {!apiResponse && (
+            <div className="upload-section">
+              <div className="model-selector">
+                <label htmlFor="model-select">Select AI Model</label>
+                <select
+                  id="model-select"
+                  className="model-dropdown"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} - {model.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {previewUrl ? (
-              <div className="image-preview-container">
-                <img 
-                  src={previewUrl} 
-                  alt="Homework preview" 
-                  className="preview-image"
-                />
-                <div className="preview-overlay">
-                  <div className="preview-info">
-                    <div className="file-info">
-                      <span className="file-name">{selectedFile?.name}</span>
-                      <span className="file-size">
-                        {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
-                      </span>
+              {previewUrl ? (
+                <div className="image-preview-container">
+                  <img 
+                    src={previewUrl} 
+                    alt="Homework preview" 
+                    className="preview-image"
+                  />
+                  <div className="preview-overlay">
+                    <div className="preview-info">
+                      <div className="file-info">
+                        <span className="file-name">{selectedFile?.name}</span>
+                        <span className="file-size">
+                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      <button 
+                        className="change-image-btn"
+                        onClick={() => document.getElementById('file-input').click()}
+                      >
+                        Change Image
+                      </button>
                     </div>
-                    <button 
-                      className="change-image-btn"
-                      onClick={() => document.getElementById('file-input').click()}
-                    >
-                      Change Image
-                    </button>
                   </div>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
                 </div>
-                <input
-                  id="file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileInput}
-                  style={{ display: 'none' }}
-                />
-              </div>
-            ) : (
-              <div
-                className="upload-area"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => document.getElementById('file-input').click()}
-              >
-                <input
-                  id="file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileInput}
-                  style={{ display: 'none' }}
-                />
-                
-                <Upload className="upload-icon" />
-                <div className="upload-text">Drop your homework here</div>
-                <div className="upload-subtext">or click to browse files</div>
-                <div className="upload-hint">Supports JPG, PNG, GIF</div>
-              </div>
-            )}
+              ) : (
+                <div
+                  className="upload-area"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => document.getElementById('file-input').click()}
+                >
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
+                  
+                  <Upload className="upload-icon" />
+                  <div className="upload-text">Drop your homework here</div>
+                  <div className="upload-subtext">or click to browse files</div>
+                  <div className="upload-hint">Supports JPG, PNG, GIF</div>
+                </div>
+              )}
 
-            {error && (
-              <div className="error-message">
-                <span>⚠️</span>
-                {error}
-              </div>
-            )}
+              {error && (
+                <div className="error-message">
+                  <span>⚠️</span>
+                  {error}
+                </div>
+              )}
 
-            <div className="upload-actions">
-              <button
-                className="upload-homework-btn"
-                onClick={handleUpload}
-                disabled={!selectedFile || isProcessing}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="upload-spinner"></div>
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Upload />
-                    Upload & Analyze
-                  </>
-                )}
-              </button>
+              <div className="upload-actions">
+                <button
+                  className="upload-homework-btn"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="upload-spinner"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload />
+                      Upload & Analyze
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Results Section */}
           {apiResponse && (
@@ -778,6 +780,87 @@ const MarkHomeworkPage = () => {
                     annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Upload Section - Show at bottom when response exists */}
+          {apiResponse && (
+            <div className="upload-section bottom-upload">
+              <div className="model-selector">
+                <label htmlFor="model-select">Select AI Model</label>
+                <select
+                  id="model-select"
+                  className="model-dropdown"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} - {model.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {previewUrl && (
+                <div className="image-preview-container">
+                  <img 
+                    src={previewUrl} 
+                    alt="Homework preview" 
+                    className="preview-image"
+                  />
+                  <div className="preview-overlay">
+                    <div className="preview-info">
+                      <div className="file-info">
+                        <span className="file-name">{selectedFile?.name}</span>
+                        <span className="file-size">
+                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      <button 
+                        className="change-image-btn"
+                        onClick={() => document.getElementById('file-input').click()}
+                      >
+                        Change Image
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              )}
+
+              {error && (
+                <div className="error-message">
+                  <span>⚠️</span>
+                  {error}
+                </div>
+              )}
+
+              <div className="upload-actions">
+                <button
+                  className="upload-homework-btn"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="upload-spinner"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload />
+                      Upload & Analyze
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}

@@ -82,6 +82,13 @@
   height: fit-content;
 }
 
+/* Bottom Upload Section */
+.upload-section.bottom-upload {
+  margin-top: 40px;
+  border-top: 2px solid var(--accent-color);
+  background: linear-gradient(135deg, var(--secondary-bg), var(--tertiary-bg));
+}
+
 /* Removed purple shimmer bar */
 
 .upload-section:hover {
