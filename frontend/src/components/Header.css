@@ -3,8 +3,10 @@
   background: var(--secondary-bg);
   color: var(--primary-text);
   box-shadow: var(--shadow-lg);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1000;
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-color);
@@ -19,6 +21,8 @@
   max-width: 1800px;
   margin: 0 auto;
   gap: 0;
+  /* Ensure header content doesn't overflow */
+  overflow: hidden;
 }
 
 /* Left side - Logo and Menu Toggle */

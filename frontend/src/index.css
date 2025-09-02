@@ -71,6 +71,13 @@ code {
   background: var(--tertiary-bg);
 }
 
+/* Mobile responsive adjustment for sidebar header */
+@media (max-width: 768px) {
+  .sidebar-header {
+    padding-top: 70px; /* Account for mobile header height */
+  }
+}
+
 .sidebar-header h1 {
   font-size: 20px;
   font-weight: 600;
