@@ -3,13 +3,14 @@
  * Implements in-memory session caching with periodic persistence and smart context recovery
  */
 
-import { ChatSession, ChatItem, CreateChatSessionData } from '../types';
+import { ChatSession, ChatMessage, CreateChatSessionData } from '../types';
 import { FirestoreService } from './firestoreService';
+import { AIMarkingService } from './aiMarkingService';
 
 interface SessionCache {
   session: ChatSession;
   lastAccessed: Date;
-  pendingMessages: ChatItem[];
+  pendingMessages: ChatMessage[];
   isDirty: boolean;
 }
 
@@ -51,6 +52,69 @@ export class ChatSessionManager {
       ChatSessionManager.instance = new ChatSessionManager();
     }
     return ChatSessionManager.instance;
+  }
+
+  /**
+   * Generate context summary for a session if needed
+   */
+  async generateContextSummaryIfNeeded(sessionId: string): Promise<string | null> {
+    try {
+      const sessionCache = this.activeSessions.get(sessionId);
+      if (!sessionCache) {
+        return null;
+      }
+
+      const session = sessionCache.session;
+      const messageCount = session.messages.length;
+
+      // Only generate summary if we have enough messages and no recent summary
+      if (messageCount < 4) {
+        return null;
+      }
+
+      const lastSummaryUpdate = session.lastSummaryUpdate;
+      const now = new Date();
+      const timeSinceLastSummary = lastSummaryUpdate 
+        ? now.getTime() - lastSummaryUpdate.getTime() 
+        : Infinity;
+
+      // Generate summary if:
+      // 1. No summary exists, OR
+      // 2. More than 10 minutes since last summary, OR
+      // 3. More than 4 messages and no summary exists, OR
+      // 4. Every 6 messages after the first summary
+      const shouldGenerateSummary = !session.contextSummary || 
+        timeSinceLastSummary > 10 * 60 * 1000 || 
+        (messageCount >= 4 && !session.contextSummary) ||
+        (session.contextSummary && messageCount % 6 === 0);
+
+      if (!shouldGenerateSummary) {
+        return session.contextSummary || null;
+      }
+
+      console.log('🔍 Generating context summary for session:', sessionId);
+      
+      // Get all messages except the last one (current user message)
+      const messagesForSummary = session.messages.slice(0, -1);
+      const summary = await AIMarkingService.generateContextSummary(messagesForSummary);
+
+      if (summary) {
+        // Update session with new summary
+        session.contextSummary = summary;
+        session.lastSummaryUpdate = new Date();
+        
+        // Mark session as dirty for persistence
+        sessionCache.isDirty = true;
+        
+        console.log('✅ Context summary updated for session:', sessionId);
+        return summary;
+      }
+
+      return session.contextSummary || null;
+    } catch (error) {
+      console.error('❌ Failed to generate context summary:', error);
+      return null;
+    }
   }
 
   /**
@@ -131,7 +195,7 @@ export class ChatSessionManager {
   /**
    * Add message to session (in-memory first, then persist)
    */
-  async addMessage(sessionId: string, message: Omit<ChatItem, 'timestamp'>): Promise<boolean> {
+  async addMessage(sessionId: string, message: Omit<ChatMessage, 'timestamp'>): Promise<boolean> {
     try {
       const cached = this.activeSessions.get(sessionId);
       if (!cached) {
@@ -143,7 +207,7 @@ export class ChatSessionManager {
       }
 
       const cachedSession = this.activeSessions.get(sessionId)!;
-      const newMessage: ChatItem = {
+      const newMessage: ChatMessage = {
         ...message,
         timestamp: new Date()
       };
@@ -169,7 +233,7 @@ export class ChatSessionManager {
   /**
    * Get chat history with smart context recovery
    */
-  async getChatHistory(sessionId: string, limit: number = 50): Promise<ChatItem[]> {
+  async getChatHistory(sessionId: string, limit: number = 50): Promise<ChatMessage[]> {
     try {
       const cached = this.activeSessions.get(sessionId);
       if (cached) {
@@ -262,7 +326,7 @@ export class ChatSessionManager {
   /**
    * Get recent messages for context recovery
    */
-  private async getRecentMessages(sessionId: string, limit: number): Promise<ChatItem[]> {
+  private async getRecentMessages(sessionId: string, limit: number): Promise<ChatMessage[]> {
     try {
       const session = await FirestoreService.getChatSession(sessionId);
       if (!session) return [];
@@ -277,7 +341,7 @@ export class ChatSessionManager {
   /**
    * Extract key topics from messages
    */
-  private extractKeyTopics(messages: ChatItem[]): string[] {
+  private extractKeyTopics(messages: ChatMessage[]): string[] {
     const topics = new Set<string>();
     
     messages.forEach(message => {
@@ -304,7 +368,7 @@ export class ChatSessionManager {
   /**
    * Generate context summary for conversation
    */
-  private generateContextSummary(messages: ChatItem[]): string {
+  private generateContextSummary(messages: ChatMessage[]): string {
     if (messages.length === 0) return 'New conversation started';
     
     const userMessages = messages.filter(m => m.role === 'user');
