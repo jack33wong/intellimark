@@ -165,32 +165,57 @@ const MarkHomeworkPage = () => {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
-      const result = await response.json();
-      console.log('✅ API Response received:', result);
+             const result = await response.json();
+       console.log('✅ API Response received:', result);
 
-      // Store the API response
-      setApiResponse(result);
-      
-      // Extract classification result if available
-      if (result.classificationResult) {
-        setClassificationResult(result.classificationResult);
-      }
+       // Check if this is a question-only image
+       if (result.isQuestionOnly) {
+         console.log('🔍 Image classified as question-only, switching to chat mode');
+         
+         // Store the classification result
+         setClassificationResult({
+           isQuestionOnly: true,
+           reasoning: result.reasoning,
+           apiUsed: result.apiUsed
+         });
+         
+         // Switch to chat mode immediately
+         setIsChatMode(true);
+         
+         // Add initial user message with the image
+         const initialUserMessage = {
+           id: Date.now(),
+           role: 'user',
+           content: 'I have a question that I need help with. Can you assist me?',
+           timestamp: new Date().toLocaleTimeString(),
+           imageData: imageData
+         };
+         
+         // Add initial AI response
+         const initialAiMessage = {
+           id: Date.now() + 1,
+           role: 'assistant',
+           content: 'I can see your question! I\'m here to help you understand and solve it. What would you like to know about this problem?',
+           timestamp: new Date().toLocaleTimeString()
+         };
+         
+         setChatMessages([initialUserMessage, initialAiMessage]);
+         
+         // Automatically send the first chat message to get AI response
+         setTimeout(() => {
+           sendInitialChatMessage(imageData, selectedModel);
+         }, 500);
+         
+         return; // Exit early for question-only mode
+       }
 
-      // Add initial chat message based on the result
-      const initialMessage = result.classificationResult 
-        ? `I've analyzed your homework image. This appears to be a ${result.classificationResult.subject} problem. How can I help you with it?`
-        : 'I\'ve analyzed your homework image. How can I help you with it?';
-
-      setChatMessages([
-        {
-          id: 1,
-          role: 'assistant',
-          content: initialMessage,
-          timestamp: new Date().toLocaleTimeString()
-        }
-      ]);
-      
-      setIsChatMode(true);
+       // For regular homework images, store the API response
+       setApiResponse(result);
+       
+       // Extract classification result if available
+       if (result.classificationResult) {
+         setClassificationResult(result.classificationResult);
+       }
       
     } catch (err) {
       console.error('❌ Upload error:', err);
@@ -198,9 +223,76 @@ const MarkHomeworkPage = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, selectedModel]);
+     }, [selectedFile, selectedModel]);
 
-  const handleSendMessage = useCallback(async () => {
+   // Send initial chat message when switching to chat mode
+   const sendInitialChatMessage = useCallback(async (imageData, model) => {
+     console.log('🔍 ===== SENDING INITIAL CHAT MESSAGE =====');
+     console.log('🔍 Image data length:', imageData.length);
+     console.log('🔍 Model:', model);
+     
+     setIsProcessing(true);
+     
+     try {
+       const response = await fetch('/api/chat/', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           message: 'I have a question that I need help with. Can you assist me?',
+           imageData: imageData,
+           model: model
+         }),
+       });
+
+       const data = await response.json();
+
+       if (data.success) {
+         console.log('🔍 Initial chat response received:', data.response.substring(0, 100) + '...');
+         console.log('🔍 API Used:', data.apiUsed);
+         
+         // Add AI response to chat
+         const aiResponse = {
+           id: Date.now() + 2,
+           role: 'assistant',
+           content: data.response,
+           timestamp: new Date().toLocaleTimeString(),
+           apiUsed: data.apiUsed
+         };
+         
+         setChatMessages(prev => [...prev, aiResponse]);
+       } else {
+         console.error('🔍 Initial chat failed:', data.error);
+         
+         // Add error message to chat
+         const errorResponse = {
+           id: Date.now() + 2,
+           role: 'assistant',
+           content: 'Sorry, I encountered an error while processing your image. Please try again.',
+           timestamp: new Date().toLocaleTimeString()
+         };
+         
+         setChatMessages(prev => [...prev, errorResponse]);
+       }
+     } catch (error) {
+       console.error('🔍 Initial chat network error:', error);
+       
+       // Add error message to chat
+       const errorResponse = {
+         id: Date.now() + 2,
+         role: 'assistant',
+         content: 'Sorry, I encountered a network error. Please check your connection and try again.',
+         timestamp: new Date().toLocaleTimeString()
+       };
+       
+       setChatMessages(prev => [...prev, errorResponse]);
+     } finally {
+       setIsProcessing(false);
+     }
+   }, []);
+
+   const handleSendMessage = useCallback(async () => {
     if (!chatInput.trim()) return;
 
     const userMessage = {
@@ -215,23 +307,71 @@ const MarkHomeworkPage = () => {
     setIsProcessing(true);
 
     try {
-      // Simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🔍 ===== SENDING CHAT MESSAGE =====');
+      console.log('🔍 Message:', chatInput.trim());
+      console.log('🔍 Model:', selectedModel);
       
-      const aiResponse = {
+      // Get the image data from the first user message (which contains the image)
+      const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
+      const imageData = firstUserMessage?.imageData || selectedFile;
+      
+      const response = await fetch('/api/chat/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: chatInput.trim(),
+          imageData: imageData,
+          model: selectedModel
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('🔍 Chat response received:', data.response.substring(0, 100) + '...');
+        console.log('🔍 API Used:', data.apiUsed);
+        
+        // Add AI response to chat
+        const aiResponse = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: data.response,
+          timestamp: new Date().toLocaleTimeString(),
+          apiUsed: data.apiUsed
+        };
+        
+        setChatMessages(prev => [...prev, aiResponse]);
+      } else {
+        console.error('🔍 Chat failed:', data.error);
+        
+        // Add error message to chat
+        const errorResponse = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: 'Sorry, I encountered an error while processing your message. Please try again.',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        
+        setChatMessages(prev => [...prev, errorResponse]);
+      }
+    } catch (error) {
+      console.error('🔍 Chat network error:', error);
+      
+      // Add error message to chat
+      const errorResponse = {
         id: Date.now() + 1,
         role: 'assistant',
-        content: 'I understand your question. Let me help you with this step by step...',
+        content: 'Sorry, I encountered a network error. Please check your connection and try again.',
         timestamp: new Date().toLocaleTimeString()
       };
       
-      setChatMessages(prev => [...prev, aiResponse]);
-    } catch (err) {
-      setError('Failed to send message. Please try again.');
+      setChatMessages(prev => [...prev, errorResponse]);
     } finally {
       setIsProcessing(false);
     }
-  }, [chatInput]);
+  }, [chatInput, selectedModel, chatMessages, selectedFile]);
 
   if (isChatMode) {
     return (
@@ -240,12 +380,30 @@ const MarkHomeworkPage = () => {
           <div className="chat-header">
             <button 
               className="back-btn"
-              onClick={() => setIsChatMode(false)}
+              onClick={() => {
+                setIsChatMode(false);
+                setChatMessages([]);
+                setChatInput('');
+                setClassificationResult(null);
+                setApiResponse(null);
+              }}
             >
               ← Back to Upload
             </button>
             <h2>AI Homework Assistant</h2>
+            {classificationResult?.isQuestionOnly && (
+              <div className="classification-info">
+                <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+              </div>
+            )}
           </div>
+          
+          {/* Show the image context */}
+          {previewUrl && (
+            <div className="chat-image-context">
+              <img src={previewUrl} alt="Question context" className="context-image" />
+            </div>
+          )}
           
           <div className="chat-messages">
             {chatMessages.map((message) => (

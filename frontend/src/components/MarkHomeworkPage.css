@@ -559,6 +559,41 @@
   margin-top: 40px;
 }
 
+.chat-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.chat-image-context {
+  margin: 20px 0;
+  text-align: center;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f9f9f9;
+}
+
+.context-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.classification-info {
+  margin-top: 10px;
+  padding: 10px;
+  background: #e3f2fd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.classification-info p {
+  margin: 0;
+  color: #1976d2;
+}
+
 .chat-header {
   display: flex;
   justify-content: space-between;
