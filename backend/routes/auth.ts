@@ -6,27 +6,9 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { authenticateUser } from '../middleware/auth.ts';
-import admin from 'firebase-admin';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.ts';
 
 const router = express.Router();
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps || admin.apps.length === 0) {
-  try {
-    const serviceAccountPath = join(__dirname, 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountPath)
-    });
-    console.log('✅ Firebase Admin initialized successfully');
-  } catch (error) {
-    console.error('❌ Firebase Admin initialization failed:', error);
-  }
-}
 
 // Types
 interface User {
@@ -35,6 +17,7 @@ interface User {
   emailVerified: boolean;
   name?: string;
   picture?: string;
+  role?: string;
 }
 
 interface SocialLoginRequest {
@@ -104,8 +87,37 @@ router.post('/social-login', async (req: Request, res: Response) => {
       });
     }
     
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      console.warn('⚠️ Firebase not available, using mock authentication for development');
+      
+      // Mock user for development
+      const mockUser: User = {
+        uid: 'mock-user-id',
+        email: 'mock@example.com',
+        emailVerified: true,
+        name: 'Mock User',
+        picture: undefined,
+        role: 'admin'
+      };
+      
+      console.log(`✅ Mock login successful: ${mockUser.email} via ${provider} (role: ${mockUser.role})`);
+      
+      res.json({
+        success: true,
+        user: mockUser,
+        message: 'Mock login successful (development mode)'
+      });
+      return;
+    }
+    
     // Verify Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    const decodedToken = await firebaseAuth.verifyIdToken(idToken);
     
     if (!decodedToken) {
       return res.status(401).json({
@@ -115,17 +127,18 @@ router.post('/social-login', async (req: Request, res: Response) => {
     }
     
     // Get user from Firebase
-    const userRecord = await admin.auth().getUser(decodedToken.uid);
+    const userRecord = await firebaseAuth.getUser(decodedToken.uid);
     
     const user: User = {
       uid: userRecord.uid,
       email: userRecord.email || '',
       emailVerified: userRecord.emailVerified || false,
       name: userRecord.displayName || undefined,
-      picture: userRecord.photoURL || undefined
+      picture: userRecord.photoURL || undefined,
+      role: getUserRole(userRecord.email || '')
     };
     
-    console.log(`✅ Real Firebase login successful: ${user.email} via ${provider}`);
+    console.log(`✅ Real Firebase login successful: ${user.email} via ${provider} (role: ${user.role})`);
     
     res.json({
       success: true,
@@ -134,7 +147,7 @@ router.post('/social-login', async (req: Request, res: Response) => {
     });
     
   } catch (error: any) {
-    console.error('❌ Real Firebase login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({
       error: 'Login Failed',
       message: 'An error occurred during authentication'
@@ -155,9 +168,15 @@ router.get('/profile', authenticateUser, (req: Request, res: Response) => {
       });
     }
     
+    // Ensure the user object has a role property
+    const userWithRole: User = {
+      ...req.user,
+      role: req.user.role || getUserRole(req.user.email)
+    };
+    
     res.json({
       success: true,
-      user: req.user
+      user: userWithRole
     });
     
   } catch (error: any) {
@@ -184,24 +203,50 @@ router.put('/profile', authenticateUser, async (req: Request, res: Response) => 
       });
     }
     
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      console.warn('⚠️ Firebase not available, using mock profile update for development');
+      
+      const updatedUser: User = {
+        ...req.user,
+        name: displayName || req.user.name,
+        role: getUserRole(req.user.email)
+      };
+      
+      console.log(`✅ Mock profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
+      
+      res.json({
+        success: true,
+        user: updatedUser,
+        message: 'Profile updated successfully (development mode)'
+      });
+      return;
+    }
+    
     // Update Firebase user profile
-    await admin.auth().updateUser(req.user.uid, {
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    await firebaseAuth.updateUser(req.user.uid, {
       displayName: displayName || req.user.name,
       photoURL: photoURL || req.user.picture
     });
     
     // Get updated user record
-    const updatedUserRecord = await admin.auth().getUser(req.user.uid);
+    const updatedUserRecord = await firebaseAuth.getUser(req.user.uid);
     
     const updatedUser: User = {
       uid: updatedUserRecord.uid,
       email: updatedUserRecord.email || '',
       emailVerified: updatedUserRecord.emailVerified || false,
       name: updatedUserRecord.displayName || undefined,
-      picture: updatedUserRecord.photoURL || undefined
+      picture: updatedUserRecord.photoURL || undefined,
+      role: getUserRole(updatedUserRecord.email || '')
     };
     
-    console.log(`✅ Real Firebase profile updated for: ${updatedUser.email}`);
+    console.log(`✅ Real Firebase profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
     
     res.json({
       success: true,
@@ -210,7 +255,7 @@ router.put('/profile', authenticateUser, async (req: Request, res: Response) => 
     });
     
   } catch (error: any) {
-    console.error('❌ Real Firebase profile update error:', error);
+    console.error('❌ Profile update error:', error);
     res.status(500).json({
       error: 'Profile Update Failed',
       message: 'An error occurred while updating profile'

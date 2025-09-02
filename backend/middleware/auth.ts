@@ -4,25 +4,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import admin from 'firebase-admin';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps || admin.apps.length === 0) {
-  try {
-    const serviceAccountPath = join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccountPath)
-    });
-    console.log('✅ Firebase Admin initialized successfully in middleware');
-  } catch (error) {
-    console.error('❌ Firebase Admin initialization failed in middleware:', error);
-  }
-}
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.ts';
 
 // Types
 interface AuthenticatedUser {
@@ -31,6 +13,7 @@ interface AuthenticatedUser {
   emailVerified: boolean;
   name?: string;
   picture?: string;
+  role?: string;
 }
 
 interface CustomClaims {
@@ -73,8 +56,32 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       });
     }
 
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      console.warn('⚠️ Firebase not available, using mock authentication for development');
+      
+      // Mock authentication for development
+      req.user = {
+        uid: 'mock-user-id',
+        email: 'mock@example.com',
+        emailVerified: true,
+        name: 'Mock User',
+        picture: undefined,
+        role: 'admin' // Default to admin in mock mode
+      };
+      
+      console.log(`✅ Mock user authenticated: ${req.user.email} (${req.user.uid}) - Role: ${req.user.role}`);
+      next();
+      return;
+    }
+
     // Verify Firebase ID token
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    const decodedToken = await firebaseAuth.verifyIdToken(token);
     
     if (!decodedToken) {
       return res.status(401).json({ 
@@ -84,21 +91,22 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
     }
 
     // Get user from Firebase
-    const userRecord = await admin.auth().getUser(decodedToken.uid);
+    const userRecord = await firebaseAuth.getUser(decodedToken.uid);
     
     req.user = {
       uid: userRecord.uid,
       email: userRecord.email || '',
       emailVerified: userRecord.emailVerified || false,
       name: userRecord.displayName || undefined,
-      picture: userRecord.photoURL || undefined
+      picture: userRecord.photoURL || undefined,
+      role: getUserRole(userRecord.email || '')
     };
 
-    console.log(`✅ User authenticated: ${req.user.email} (${req.user.uid})`);
+    console.log(`✅ User authenticated: ${req.user.email} (${req.user.uid}) - Role: ${req.user.role}`);
     next();
     
   } catch (error: any) {
-    console.error('❌ Real Firebase authentication error:', error);
+    console.error('❌ Authentication error:', error);
     return res.status(401).json({ 
       error: 'Authentication Failed', 
       message: 'Invalid authentication token' 
@@ -120,19 +128,40 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
       const token = authHeader.split('Bearer ')[1];
       
       if (token) {
-        // Verify Firebase ID token
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        
-        if (decodedToken) {
-          // Get user from Firebase
-          const userRecord = await admin.auth().getUser(decodedToken.uid);
-          
+        // Check if Firebase is available
+        if (isFirebaseAvailable()) {
+          const firebaseAuth = getFirebaseAuth();
+          if (firebaseAuth) {
+            try {
+              // Verify Firebase ID token
+              const decodedToken = await firebaseAuth.verifyIdToken(token);
+              
+              if (decodedToken) {
+                // Get user from Firebase
+                const userRecord = await firebaseAuth.getUser(decodedToken.uid);
+                
+                req.user = {
+                  uid: userRecord.uid,
+                  email: userRecord.email || '',
+                  emailVerified: userRecord.emailVerified || false,
+                  name: userRecord.displayName || undefined,
+                  picture: userRecord.photoURL || undefined,
+                  role: getUserRole(userRecord.email || '')
+                };
+              }
+            } catch (error) {
+              console.warn('Optional auth token verification failed:', error);
+            }
+          }
+        } else {
+          // Mock user for development
           req.user = {
-            uid: userRecord.uid,
-            email: userRecord.email || '',
-            emailVerified: userRecord.emailVerified || false,
-            name: userRecord.displayName || undefined,
-            picture: userRecord.photoURL || undefined
+            uid: 'mock-user-id',
+            email: 'mock@example.com',
+            emailVerified: true,
+            name: 'Mock User',
+            picture: undefined,
+            role: 'admin'
           };
         }
       }

@@ -118,7 +118,7 @@ export class ImageProcessingService {
    * @param imageData - Base64 encoded image data
    * @returns Validation result
    */
-  private static validateInputImage(imageData: string): Result<string, ImageProcessingError> {
+  private static validateInputImage(imageData: string): Result<ProcessedImageResult, ImageProcessingError> {
     if (!imageData || typeof imageData !== 'string') {
       return {
         success: false,
