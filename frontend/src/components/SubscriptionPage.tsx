@@ -82,7 +82,7 @@ const SubscriptionPage: React.FC = () => {
         body: JSON.stringify({
           planId,
           billingCycle,
-          successUrl: `${window.location.origin}/upgrade?success=true`,
+          successUrl: `${window.location.origin}/?subscription=success`,
           cancelUrl: `${window.location.origin}/upgrade?canceled=true`,
         }),
       });

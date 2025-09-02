@@ -566,4 +566,59 @@ export class FirestoreService {
       throw new Error(`Firestore session deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  // Generic document operations for subscriptions
+  static async createDocument(collection: string, docId: string, data: any): Promise<void> {
+    try {
+      await db.collection(collection).doc(docId).set({
+        ...data,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      console.log(`✅ Document created in ${collection}/${docId}`);
+    } catch (error) {
+      console.error(`❌ Error creating document in ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  static async getDocument(collection: string, docId: string): Promise<any | null> {
+    try {
+      const doc = await db.collection(collection).doc(docId).get();
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error(`❌ Error getting document from ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  static async updateDocument(collection: string, docId: string, data: any): Promise<void> {
+    try {
+      await db.collection(collection).doc(docId).update({
+        ...data,
+        updatedAt: Date.now(),
+      });
+      console.log(`✅ Document updated in ${collection}/${docId}`);
+    } catch (error) {
+      console.error(`❌ Error updating document in ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  static async queryCollection(collection: string, field: string, operator: any, value: any): Promise<any[]> {
+    try {
+      const snapshot = await db.collection(collection).where(field, operator, value).get();
+      const results: any[] = [];
+      snapshot.forEach(doc => {
+        results.push({ id: doc.id, ...doc.data() });
+      });
+      return results;
+    } catch (error) {
+      console.error(`❌ Error querying collection ${collection}:`, error);
+      throw error;
+    }
+  }
 }

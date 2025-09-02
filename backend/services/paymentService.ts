@@ -80,6 +80,13 @@ export class PaymentService {
         planId,
         billingCycle,
       },
+      customer_creation: 'always', // Always create a new customer
+      subscription_data: {
+        metadata: {
+          planId,
+          billingCycle,
+        },
+      },
     });
 
     return session;

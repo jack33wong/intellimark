@@ -92,3 +92,20 @@ export interface StripeCardElementOptions {
   };
   hidePostalCode?: boolean;
 }
+
+// User subscription interface
+export interface UserSubscription {
+  userId: string;
+  email: string;
+  planId: Plan;
+  billingCycle: BillingCycle;
+  amount: number;
+  currency: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: 'active' | 'canceled' | 'past_due' | 'unpaid';
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
+  createdAt: number;
+  updatedAt: number;
+}

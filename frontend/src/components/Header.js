@@ -7,17 +7,40 @@ import {
   Settings, 
   ChevronDown,
   Menu,
-  X
+  X,
+  Crown
 } from 'lucide-react';
+import SubscriptionService from '../services/subscriptionService';
 import './Header.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileClosing, setIsProfileClosing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userSubscription, setUserSubscription] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const profileRef = useRef(null);
+
+  // Fetch user subscription data
+  useEffect(() => {
+    const fetchUserSubscription = async () => {
+      if (!user?.uid) return;
+      
+      setSubscriptionLoading(true);
+      try {
+        const response = await SubscriptionService.getUserSubscription(user.uid);
+        setUserSubscription(response.subscription);
+      } catch (error) {
+        console.error('Error fetching user subscription:', error);
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+
+    fetchUserSubscription();
+  }, [user?.uid]);
 
   // Close profile dropdown when clicking outside
   useEffect(() => {
@@ -70,6 +93,22 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     setIsMobileMenuOpen(false);
   };
 
+  const getUpgradeButtonText = () => {
+    if (subscriptionLoading) return 'Loading...';
+    if (userSubscription && userSubscription.status === 'active') {
+      const planName = SubscriptionService.getPlanDisplayName(userSubscription.planId);
+      return `${planName} Plan`;
+    }
+    return 'Upgrade';
+  };
+
+  const getUpgradeButtonIcon = () => {
+    if (userSubscription && userSubscription.status === 'active') {
+      return <Crown size={16} />;
+    }
+    return null;
+  };
+
   return (
     <header className="header">
       <div className="header-content">
@@ -108,7 +147,8 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                 className="nav-item upgrade-nav"
                 onClick={() => navigate('/upgrade')}
               >
-                Upgrade
+                {getUpgradeButtonIcon()}
+                {getUpgradeButtonText()}
               </button>
               <div className="profile-section" ref={profileRef}>
               <button 
@@ -205,7 +245,8 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               closeMobileMenu();
             }}
           >
-            Upgrade
+            {getUpgradeButtonIcon()}
+            {getUpgradeButtonText()}
           </button>
           {user?.isAdmin && (
             <button 

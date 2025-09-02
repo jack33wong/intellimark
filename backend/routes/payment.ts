@@ -1,6 +1,7 @@
 import express from 'express';
 import { STRIPE_CONFIG } from '../config/stripe.js';
 import paymentService from '../services/paymentService.js';
+import SubscriptionService from '../services/subscriptionService.js';
 
 const router = express.Router();
 
@@ -89,7 +90,30 @@ router.post('/create-subscription', async (req, res) => {
   }
 });
 
-// Get subscription details
+// Get user subscription details
+router.get('/user-subscription/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const subscription = await SubscriptionService.getUserSubscription(userId);
+    
+    if (!subscription) {
+      return res.json({ 
+        hasSubscription: false,
+        subscription: null 
+      });
+    }
+    
+    res.json({ 
+      hasSubscription: true,
+      subscription 
+    });
+  } catch (error) {
+    console.error('Error getting user subscription:', error);
+    res.status(500).json({ error: 'Failed to get user subscription' });
+  }
+});
+
+// Get subscription details by Stripe ID
 router.get('/subscription/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -132,15 +156,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     switch (event.type) {
       case 'checkout.session.completed':
         console.log('Checkout session completed:', event.data.object);
+        await handleCheckoutSessionCompleted(event.data.object);
         break;
       case 'customer.subscription.created':
         console.log('Subscription created:', event.data.object);
+        await handleSubscriptionCreated(event.data.object);
         break;
       case 'customer.subscription.updated':
         console.log('Subscription updated:', event.data.object);
+        await handleSubscriptionUpdated(event.data.object);
         break;
       case 'customer.subscription.deleted':
         console.log('Subscription deleted:', event.data.object);
+        await handleSubscriptionDeleted(event.data.object);
         break;
       default:
         console.log(`Unhandled event type: ${event.type}`);
@@ -152,5 +180,91 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     res.status(400).json({ error: 'Webhook error' });
   }
 });
+
+// Handle successful checkout session
+async function handleCheckoutSessionCompleted(session: any) {
+  try {
+    console.log('Processing checkout session completion:', session.id);
+    
+    // Extract subscription data from session metadata
+    const { planId, billingCycle } = session.metadata || {};
+    const customerId = session.customer;
+    const subscriptionId = session.subscription;
+    
+    if (!planId || !billingCycle || !customerId || !subscriptionId) {
+      console.error('Missing required data in checkout session:', { planId, billingCycle, customerId, subscriptionId });
+      return;
+    }
+
+    // Get subscription details from Stripe
+    const stripe = (await import('../config/stripe.js')).default;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    
+    // Get customer details
+    const customer = await stripe.customers.retrieve(customerId);
+    
+    // Save subscription to Firestore
+    await SubscriptionService.createOrUpdateSubscription({
+      userId: (customer as any).metadata?.userId || customerId, // Use userId from metadata or fallback to customerId
+      email: (customer as any).email || session.customer_email,
+      planId,
+      billingCycle,
+      amount: subscription.items.data[0]?.price?.unit_amount || 0,
+      currency: subscription.currency,
+      stripeSubscriptionId: subscriptionId,
+      stripeCustomerId: customerId,
+      status: subscription.status,
+      currentPeriodStart: (subscription as any).current_period_start,
+      currentPeriodEnd: (subscription as any).current_period_end,
+    });
+    
+    console.log(`Successfully saved subscription for user ${(customer as any).metadata?.userId || customerId}`);
+  } catch (error) {
+    console.error('Error handling checkout session completion:', error);
+  }
+}
+
+// Handle subscription created
+async function handleSubscriptionCreated(subscription: any) {
+  try {
+    console.log('Processing subscription creation:', subscription.id);
+    // Additional logic for subscription creation if needed
+  } catch (error) {
+    console.error('Error handling subscription creation:', error);
+  }
+}
+
+// Handle subscription updated
+async function handleSubscriptionUpdated(subscription: any) {
+  try {
+    console.log('Processing subscription update:', subscription.id);
+    
+    // Update subscription status in Firestore
+    const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
+    if (existingSubscription) {
+      await SubscriptionService.updateSubscriptionStatus(
+        existingSubscription.userId,
+        subscription.status as any
+      );
+    }
+  } catch (error) {
+    console.error('Error handling subscription update:', error);
+  }
+}
+
+// Handle subscription deleted
+async function handleSubscriptionDeleted(subscription: any) {
+  try {
+    console.log('Processing subscription deletion:', subscription.id);
+    
+    // Update subscription status to canceled
+    const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
+    if (existingSubscription) {
+      await SubscriptionService.cancelSubscription(existingSubscription.userId);
+    }
+  } catch (error) {
+    console.error('Error handling subscription deletion:', error);
+  }
+}
 
 export default router;

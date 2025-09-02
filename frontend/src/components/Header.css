@@ -144,6 +144,9 @@
   color: var(--success-color, #22c55e);
   border-color: var(--success-color, #22c55e);
   box-shadow: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .nav-item.upgrade-nav:hover {
@@ -151,6 +154,10 @@
   color: white;
   border-color: var(--success-color, #22c55e);
   box-shadow: var(--shadow-md);
+}
+
+.nav-item.upgrade-nav svg {
+  flex-shrink: 0;
 }
 
 /* Right side - User Profile and Actions */
