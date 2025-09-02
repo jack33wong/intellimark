@@ -3,7 +3,7 @@
   min-height: 100vh;
   background: var(--primary-bg);
   color: var(--primary-text);
-  overflow: auto;
+  overflow: visible;
   width: 100%;
 }
 
@@ -663,7 +663,6 @@
 
 .chat-messages {
   flex: 1;
-  overflow-y: auto;
   padding: 20px;
   background: var(--tertiary-bg);
   border-radius: 16px;
@@ -724,7 +723,6 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   white-space: pre-wrap;
   max-height: 200px;
-  overflow-y: auto;
 }
 
 .chat-input {
