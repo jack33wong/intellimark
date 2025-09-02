@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Upload, MessageSquare } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
@@ -15,6 +15,7 @@ const MarkHomeworkPage = () => {
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [showRawResponses, setShowRawResponses] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
   const fileInputRef = useRef(null);
   const [imageDimensions, setImageDimensions] = useState(null);
   const [apiResponse, setApiResponse] = useState(null);
@@ -25,6 +26,50 @@ const MarkHomeworkPage = () => {
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
     { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
   ];
+
+  // Load session from localStorage on component mount
+  useEffect(() => {
+    const savedSessionId = localStorage.getItem('chatSessionId');
+    const savedChatMessages = localStorage.getItem('chatMessages');
+    const savedChatMode = localStorage.getItem('isChatMode');
+    
+    if (savedSessionId) {
+      setCurrentSessionId(savedSessionId);
+      console.log('📝 Restored session ID from localStorage:', savedSessionId);
+    }
+    
+    if (savedChatMessages) {
+      try {
+        const messages = JSON.parse(savedChatMessages);
+        setChatMessages(messages);
+        console.log('📝 Restored chat messages from localStorage:', messages.length, 'messages');
+      } catch (error) {
+        console.error('❌ Failed to parse saved chat messages:', error);
+      }
+    }
+    
+    if (savedChatMode === 'true') {
+      setIsChatMode(true);
+      console.log('📝 Restored chat mode from localStorage');
+    }
+  }, []);
+
+  // Save session data to localStorage whenever it changes
+  useEffect(() => {
+    if (currentSessionId) {
+      localStorage.setItem('chatSessionId', currentSessionId);
+    }
+  }, [currentSessionId]);
+
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+    }
+  }, [chatMessages]);
+
+  useEffect(() => {
+    localStorage.setItem('isChatMode', isChatMode.toString());
+  }, [isChatMode]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -191,15 +236,7 @@ const MarkHomeworkPage = () => {
            imageData: imageData
          };
          
-         // Add initial AI response
-         const initialAiMessage = {
-           id: Date.now() + 1,
-           role: 'assistant',
-           content: 'I can see your question! I\'m here to help you understand and solve it. What would you like to know about this problem?',
-           timestamp: new Date().toLocaleTimeString()
-         };
-         
-         setChatMessages([initialUserMessage, initialAiMessage]);
+         setChatMessages([initialUserMessage]);
          
          // Automatically send the first chat message to get AI response
          setTimeout(() => {
@@ -230,6 +267,7 @@ const MarkHomeworkPage = () => {
      console.log('🔍 ===== SENDING INITIAL CHAT MESSAGE =====');
      console.log('🔍 Image data length:', imageData.length);
      console.log('🔍 Model:', model);
+     console.log('🔍 Current session ID:', currentSessionId);
      
      setIsProcessing(true);
      
@@ -242,7 +280,8 @@ const MarkHomeworkPage = () => {
          body: JSON.stringify({
            message: 'I have a question that I need help with. Can you assist me?',
            imageData: imageData,
-           model: model
+           model: model,
+           sessionId: currentSessionId
          }),
        });
 
@@ -251,6 +290,12 @@ const MarkHomeworkPage = () => {
        if (data.success) {
          console.log('🔍 Initial chat response received:', data.response.substring(0, 100) + '...');
          console.log('🔍 API Used:', data.apiUsed);
+         console.log('🔍 Session ID from response:', data.sessionId);
+         
+         // Update session ID if we got a new one
+         if (data.sessionId && data.sessionId !== currentSessionId) {
+           setCurrentSessionId(data.sessionId);
+         }
          
          // Add AI response to chat
          const aiResponse = {
@@ -290,7 +335,7 @@ const MarkHomeworkPage = () => {
      } finally {
        setIsProcessing(false);
      }
-   }, []);
+   }, [currentSessionId]);
 
    const handleSendMessage = useCallback(async () => {
     if (!chatInput.trim()) return;
@@ -310,12 +355,13 @@ const MarkHomeworkPage = () => {
       console.log('🔍 ===== SENDING CHAT MESSAGE =====');
       console.log('🔍 Message:', chatInput.trim());
       console.log('🔍 Model:', selectedModel);
+      console.log('🔍 Current session ID:', currentSessionId);
       
       // Get the image data from the first user message (which contains the image)
       const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
       const imageData = firstUserMessage?.imageData || selectedFile;
       
-      const response = await fetch('/api/chat/chat', {
+      const response = await fetch('/api/chat/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,7 +369,8 @@ const MarkHomeworkPage = () => {
         body: JSON.stringify({
           message: chatInput.trim(),
           imageData: imageData,
-          model: selectedModel
+          model: selectedModel,
+          sessionId: currentSessionId
         }),
       });
 
@@ -332,6 +379,13 @@ const MarkHomeworkPage = () => {
       if (data.success) {
         console.log('🔍 Chat response received:', data.response.substring(0, 100) + '...');
         console.log('🔍 API Used:', data.apiUsed);
+        console.log('🔍 Session ID from response:', data.sessionId);
+        console.log('🔍 Context info:', data.context);
+        
+        // Update session ID if we got a new one
+        if (data.sessionId && data.sessionId !== currentSessionId) {
+          setCurrentSessionId(data.sessionId);
+        }
         
         // Add AI response to chat
         const aiResponse = {
@@ -371,7 +425,7 @@ const MarkHomeworkPage = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [chatInput, selectedModel, chatMessages, selectedFile]);
+  }, [chatInput, selectedModel, chatMessages, selectedFile, currentSessionId]);
 
   if (isChatMode) {
     return (
@@ -386,11 +440,22 @@ const MarkHomeworkPage = () => {
                 setChatInput('');
                 setClassificationResult(null);
                 setApiResponse(null);
+                setCurrentSessionId(null);
+                // Clear localStorage
+                localStorage.removeItem('chatSessionId');
+                localStorage.removeItem('chatMessages');
+                localStorage.removeItem('isChatMode');
               }}
             >
               ← Back to Upload
             </button>
             <h2>AI Homework Assistant</h2>
+            {currentSessionId && (
+              <div className="session-info">
+                <p><strong>Session:</strong> {currentSessionId.substring(0, 8)}...</p>
+                <p><strong>Messages:</strong> {chatMessages.length}</p>
+              </div>
+            )}
             {classificationResult?.isQuestionOnly && (
               <div className="classification-info">
                 <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
@@ -463,9 +528,11 @@ const MarkHomeworkPage = () => {
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
               >
-                <option value="chatgpt-4o">GPT-4o (Most Capable)</option>
-                <option value="chatgpt-4">GPT-4 (Balanced)</option>
-                <option value="chatgpt-3.5">GPT-3.5 (Fast)</option>
+                {models.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} - {model.description}
+                  </option>
+                ))}
               </select>
             </div>
 

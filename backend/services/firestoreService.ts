@@ -96,6 +96,23 @@ export interface UserDocument {
   updatedAt: admin.firestore.Timestamp;
 }
 
+/**
+ * Sanitize data for Firestore by removing unsupported types
+ */
+function sanitizeFirestoreData(obj: any): any {
+  return JSON.parse(JSON.stringify(obj, (key, value) => {
+    // Remove functions, undefined, symbols, and other unsupported types
+    if (typeof value === 'function' || 
+        typeof value === 'undefined' || 
+        typeof value === 'symbol' ||
+        value instanceof Buffer ||
+        typeof value === 'bigint') {
+      return null;
+    }
+    return value;
+  }));
+}
+
 export class FirestoreService {
   /**
    * Save marking results to Firestore
@@ -169,8 +186,8 @@ export class FirestoreService {
       console.log('✅ Marking results retrieved from Firestore');
       
       return {
-        id: docRef.id,
-        ...data
+        ...data,
+        id: docRef.id
       };
 
     } catch (error) {
@@ -196,8 +213,8 @@ export class FirestoreService {
       querySnapshot.forEach(doc => {
         const data = doc.data() as MarkingResultDocument;
         results.push({
-          id: doc.id,
-          ...data
+          ...data,
+          id: doc.id
         });
       });
 
@@ -288,8 +305,8 @@ export class FirestoreService {
       console.log('✅ User retrieved from Firestore');
       
       return {
-        uid: docRef.id,
-        ...data
+        ...data,
+        uid: docRef.id
       };
 
     } catch (error) {
@@ -336,6 +353,217 @@ export class FirestoreService {
     } catch (error) {
       console.error('❌ Failed to retrieve system statistics from Firestore:', error);
       throw new Error(`Firestore stats retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Chat Session Methods
+  /**
+   * Create a new chat session
+   */
+  static async createChatSession(sessionData: {
+    title: string;
+    messages: any[];
+    userId?: string;
+  }): Promise<string> {
+    try {
+      console.log('🔍 Creating chat session in Firestore...');
+      
+      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Debug: Log the raw payload before processing
+      console.log('🔍 Raw sessionData:', JSON.stringify(sessionData, null, 2));
+      
+      // Sanitize and serialize messages to plain objects for Firestore
+      const serializedMessages = sessionData.messages.map(msg => {
+        const sanitized = {
+          id: String(msg.id || ''),
+          role: String(msg.role || ''),
+          content: String(msg.content || ''),
+          timestamp: new Date().toISOString() // Use ISO string instead of Firestore Timestamp
+        };
+        
+        // Only add optional fields if they exist and are valid
+        if (msg.imageData && typeof msg.imageData === 'string') {
+          sanitized.imageData = msg.imageData;
+        }
+        if (msg.model && typeof msg.model === 'string') {
+          sanitized.model = msg.model;
+        }
+        
+        return sanitized;
+      });
+
+      // Create a minimal document structure to avoid protobuf issues
+      const docData = {
+        id: sessionId,
+        title: String(sessionData.title || 'Untitled'),
+        messages: serializedMessages,
+        userId: String(sessionData.userId || 'anonymous'),
+        timestamp: new Date().toISOString(), // Use ISO string instead of Firestore Timestamp
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        contextSummary: sessionData.contextSummary || null,
+        lastSummaryUpdate: sessionData.lastSummaryUpdate ? new Date(sessionData.lastSummaryUpdate).toISOString() : null
+      };
+
+      // Debug: Log the final payload before Firestore write
+      console.log('🔍 Final docData payload:', JSON.stringify(docData, null, 2));
+      
+      // Sanitize the entire payload to remove any problematic fields
+      const sanitizedDocData = sanitizeFirestoreData(docData);
+      console.log('🔍 Sanitized payload:', JSON.stringify(sanitizedDocData, null, 2));
+
+      // Try using Firebase Admin's Firestore methods instead of direct Google Cloud client
+      try {
+        await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).set(sanitizedDocData);
+      } catch (firestoreError) {
+        console.error('❌ Direct Firestore write failed, trying alternative approach:', firestoreError);
+        
+        // Alternative: Use Firebase Admin's batch write
+        const batch = db.batch();
+        const docRef = db.collection(COLLECTIONS.SESSIONS).doc(sessionId);
+        batch.set(docRef, sanitizedDocData);
+        await batch.commit();
+      }
+
+      console.log('✅ Chat session created in Firestore:', sessionId);
+      return sessionId;
+
+    } catch (error) {
+      console.error('❌ Failed to create chat session in Firestore:', error);
+      throw new Error(`Firestore session creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get a specific chat session
+   */
+  static async getChatSession(sessionId: string): Promise<any | null> {
+    try {
+      console.log('🔍 Getting chat session from Firestore:', sessionId);
+      
+      const doc = await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).get();
+      
+      if (!doc.exists) {
+        console.log('📝 Chat session not found in Firestore');
+        return null;
+      }
+
+      const data = doc.data();
+      console.log('✅ Chat session retrieved from Firestore');
+      
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: data?.['timestamp']?.toDate ? data['timestamp'].toDate() : new Date(data?.['timestamp']),
+        createdAt: data?.['createdAt']?.toDate ? data['createdAt'].toDate() : new Date(data?.['createdAt']),
+        updatedAt: data?.['updatedAt']?.toDate ? data['updatedAt'].toDate() : new Date(data?.['updatedAt']),
+        contextSummary: data?.['contextSummary'] || null,
+        lastSummaryUpdate: data?.['lastSummaryUpdate'] ? new Date(data['lastSummaryUpdate']) : null
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to get chat session from Firestore:', error);
+      throw new Error(`Firestore session retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get all chat sessions for a user
+   */
+  static async getChatSessions(userId: string): Promise<any[]> {
+    try {
+      console.log('🔍 Getting chat sessions for user from Firestore:', userId);
+      
+      const snapshot = await db.collection(COLLECTIONS.SESSIONS)
+        .where('userId', '==', userId)
+        .orderBy('updatedAt', 'desc')
+        .get();
+
+      const sessions = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data?.['timestamp']?.toDate(),
+          createdAt: data?.['createdAt']?.toDate(),
+          updatedAt: data?.['updatedAt']?.toDate()
+        };
+      });
+
+      console.log('✅ Chat sessions retrieved from Firestore:', sessions.length);
+      return sessions;
+
+    } catch (error) {
+      console.error('❌ Failed to get chat sessions from Firestore:', error);
+      throw new Error(`Firestore sessions retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Add message to chat session
+   */
+  static async addMessageToSession(sessionId: string, message: any): Promise<void> {
+    try {
+      console.log('🔍 Adding message to chat session in Firestore:', sessionId);
+      
+      // Serialize message to plain object for Firestore
+      const messageData = {
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: admin.firestore.Timestamp.now(),
+        ...(message.imageData && { imageData: message.imageData }),
+        ...(message.model && { model: message.model })
+      };
+
+      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
+        messages: admin.firestore.FieldValue.arrayUnion(messageData),
+        updatedAt: admin.firestore.Timestamp.now()
+      });
+
+      console.log('✅ Message added to chat session in Firestore');
+
+    } catch (error) {
+      console.error('❌ Failed to add message to chat session in Firestore:', error);
+      throw new Error(`Firestore message addition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Update chat session
+   */
+  static async updateChatSession(sessionId: string, updates: any): Promise<void> {
+    try {
+      console.log('🔍 Updating chat session in Firestore:', sessionId);
+      
+      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
+        ...updates,
+        updatedAt: admin.firestore.Timestamp.now()
+      });
+
+      console.log('✅ Chat session updated in Firestore');
+
+    } catch (error) {
+      console.error('❌ Failed to update chat session in Firestore:', error);
+      throw new Error(`Firestore session update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Delete chat session
+   */
+  static async deleteChatSession(sessionId: string): Promise<void> {
+    try {
+      console.log('🔍 Deleting chat session from Firestore:', sessionId);
+      
+      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).delete();
+
+      console.log('✅ Chat session deleted from Firestore');
+
+    } catch (error) {
+      console.error('❌ Failed to delete chat session from Firestore:', error);
+      throw new Error(`Firestore session deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

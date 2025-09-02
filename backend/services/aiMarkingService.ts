@@ -317,7 +317,7 @@ export class AIMarkingService {
               ]
             }
           ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 500 } : { max_tokens: 500 }),
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 2000 } : { max_tokens: 500 }),
         })
       });
 
@@ -446,7 +446,7 @@ export class AIMarkingService {
               ]
             }
           ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 8000 } : { max_tokens: 8000 }),
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 12000 } : { max_tokens: 8000 }),
         })
       });
 
@@ -551,12 +551,84 @@ export class AIMarkingService {
   }
 
   /**
+   * Generate context summary from chat history
+   */
+  static async generateContextSummary(chatHistory: any[]): Promise<string> {
+    if (chatHistory.length === 0) {
+      return '';
+    }
+
+    console.log('🔍 Generating context summary for', chatHistory.length, 'messages');
+
+    const conversationText = chatHistory.map(item => 
+      `${item.role}: ${item.content}`
+    ).join('\n');
+
+    const summaryPrompt = `Please provide a concise summary of the following conversation. Focus on:
+1. The main topic/subject being discussed
+2. Key questions asked by the user
+3. Important information or solutions provided
+4. Current state of the conversation
+
+Keep the summary under 200 words and maintain context for future responses.
+
+Conversation:
+${conversationText}
+
+Summary:`;
+
+    try {
+      const apiKey = process.env['OPENAI_API_KEY'];
+      if (!apiKey) {
+        throw new Error('OPENAI_API_KEY not configured');
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.'
+            },
+            {
+              role: 'user',
+              content: summaryPrompt
+            }
+          ],
+          max_tokens: 300,
+          temperature: 0.3
+        })
+      });
+
+      const result = await response.json() as any;
+      
+      if (!response.ok) {
+        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
+      }
+
+      const summary = result.choices?.[0]?.message?.content?.trim() || '';
+      console.log('✅ Context summary generated:', summary.substring(0, 100) + '...');
+      return summary;
+    } catch (error) {
+      console.error('❌ Context summary generation failed:', error);
+      return '';
+    }
+  }
+
+  /**
    * Generate contextual response for text-based conversations
    */
   static async generateContextualResponse(
     message: string,
     chatHistory: any[],
-    model: SimpleModelType
+    model: SimpleModelType,
+    contextSummary?: string
   ): Promise<string> {
     console.log('🔍 ===== GENERATING CONTEXTUAL RESPONSE =====');
     console.log('🔍 Model:', model);
@@ -576,9 +648,15 @@ export class AIMarkingService {
     - Use clear mathematical notation
     - Keep responses concise but helpful`;
 
-    const contextPrompt = chatHistory.length > 0 
-      ? `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`
-      : '';
+    // Use context summary if available, otherwise fall back to recent messages
+    let contextPrompt = '';
+    if (contextSummary) {
+      contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
+      console.log('🔍 Using context summary for response');
+    } else if (chatHistory.length > 0) {
+      contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
+      console.log('🔍 Using recent messages for context');
+    }
 
     const userPrompt = `Student message: "${message}"${contextPrompt}
     
@@ -697,12 +775,14 @@ export class AIMarkingService {
               ]
             }
           ],
-          max_tokens: 1000,
-          temperature: 0.7
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 4000 } : { max_tokens: 1000 }),
+          //temperature: 0.7
         })
       });
 
       const result = await response.json() as any;
+      
+      console.log('🔍 OpenAI Chat API Response for', model, ':', JSON.stringify(result, null, 2));
       
       if (!response.ok) {
         throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
@@ -710,6 +790,7 @@ export class AIMarkingService {
       const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
+        console.error('❌ No content in OpenAI chat response. Full response:', JSON.stringify(result, null, 2));
         throw new Error('No content in OpenAI response');
       }
 
@@ -801,8 +882,8 @@ export class AIMarkingService {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          max_tokens: 1000,
-          temperature: 0.7
+          ...(model === 'chatgpt-5' ? { max_completion_tokens: 1000 } : { max_tokens: 1000 }),
+          //temperature: 0.7
         })
       });
 

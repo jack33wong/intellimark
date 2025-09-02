@@ -116,6 +116,22 @@ export interface ChatMessage {
   imageData?: string;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  timestamp: Date;
+  userId?: string;
+  contextSummary?: string;
+  lastSummaryUpdate?: Date;
+}
+
+export interface CreateChatSessionData {
+  title: string;
+  messages: ChatMessage[];
+  userId?: string;
+}
+
 export interface ChatHistory {
   messages: ChatMessage[];
   sessionId: string;

@@ -4,12 +4,9 @@
  */
 
 import express from 'express';
-import { 
-  ChatItem
-} from '../types/index';
 import { FirestoreService } from '../services/firestoreService';
 import { AIMarkingService } from '../services/aiMarkingService';
-// import ChatSessionManager from '../services/chatSessionManager'; // Temporarily disabled
+import ChatSessionManager from '../services/chatSessionManager';
 
 const router = express.Router();
 
@@ -24,9 +21,6 @@ router.post('/', async (req, res) => {
   
   try {
     const { message, imageData, model = 'chatgpt-4o', sessionId, userId } = req.body;
-    
-    // Using fallback mode to get chat working
-    console.log('📝 Using fallback mode for chat functionality');
     
     console.log('🔍 Request data:', { 
       hasMessage: !!message, 
@@ -45,21 +39,53 @@ router.post('/', async (req, res) => {
     }
 
     let currentSessionId = sessionId;
+    const sessionManager = ChatSessionManager.getInstance();
 
-    // Create or use existing session (fallback mode)
+    // Create or use existing session
     if (!currentSessionId) {
-      currentSessionId = `temp-${Date.now()}`;
-      console.log('📝 Created temporary session for fallback mode:', currentSessionId);
+      console.log('📝 Creating new chat session');
+      currentSessionId = await sessionManager.createSession({
+        title: imageData ? 'Image-based Chat' : 'Text Chat',
+        messages: [],
+        userId: userId || 'anonymous'
+      });
+      console.log('📝 Created new session:', currentSessionId);
+    } else {
+      // Verify session exists
+      const existingSession = await sessionManager.getSession(currentSessionId);
+      if (!existingSession) {
+        console.log('📝 Session not found, creating new one');
+        currentSessionId = await sessionManager.createSession({
+          title: imageData ? 'Image-based Chat' : 'Text Chat',
+          messages: [],
+          userId: userId || 'anonymous'
+        });
+      }
     }
 
-    const isTemporarySession = currentSessionId.startsWith('temp-');
+    // Get chat history for context
+    const chatHistory = await sessionManager.getChatHistory(currentSessionId, 20);
+    console.log('📝 Retrieved chat history:', chatHistory.length, 'messages');
 
-    // Fallback mode - always use temporary sessions
-    console.log('📝 Using temporary session, skipping save');
+    // Add user message to session
+    await sessionManager.addMessage(currentSessionId, {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: message || 'I have a question that I need help with. Can you assist me?',
+      imageData: imageData
+    });
 
-    // Get chat history for context (fallback mode)
-    let chatHistory: ChatItem[] = [];
-    console.log('📝 Using temporary session, no chat history available');
+    // Generate context summary if needed (for conversations with multiple messages)
+    let contextSummary: string | null = null;
+    if (chatHistory.length > 0) {
+      console.log('🔍 Checking if context summary is needed...');
+      contextSummary = await sessionManager.generateContextSummaryIfNeeded(currentSessionId);
+      if (contextSummary) {
+        console.log('📝 Using context summary for response');
+      } else {
+        console.log('📝 No summary needed, using recent messages');
+      }
+    }
 
     // Generate AI response using context
     let aiResponse: string;
@@ -80,8 +106,8 @@ router.post('/', async (req, res) => {
         console.log('✅ AI chat response generated successfully');
       } else {
         // Text-based conversation with context
-        console.log('🔍 Processing text-only message');
-        aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model);
+        console.log('🔍 Processing text-only message with context');
+        aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model, contextSummary || undefined);
         console.log('✅ AI contextual response generated successfully');
       }
     } catch (error) {
@@ -89,20 +115,27 @@ router.post('/', async (req, res) => {
       aiResponse = 'I apologize, but I encountered an error processing your request. Please try again.';
     }
 
-    // Fallback mode - always use temporary sessions
-    console.log('📝 Using temporary session, skipping AI response save');
+    // Add AI response to session
+    await sessionManager.addMessage(currentSessionId, {
+      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'assistant',
+      content: aiResponse
+    });
+    console.log('📝 Added AI response to session');
 
     // Return success response
     return res.json({
       success: true,
       sessionId: currentSessionId,
-      response: aiResponse, // Changed from 'message' to 'response' to match frontend expectation
-      apiUsed: apiUsed, // Include the API used information
+      response: aiResponse,
+      apiUsed: apiUsed,
       context: {
         sessionId: currentSessionId,
         messageCount: chatHistory.length + 2, // +2 for user and AI messages
         hasImage: !!imageData,
-        isTemporarySession: isTemporarySession
+        hasContext: chatHistory.length > 0,
+        usingSummary: !!contextSummary,
+        summaryLength: contextSummary ? contextSummary.length : 0
       }
     });
 
@@ -228,13 +261,15 @@ router.get('/status', (_req, res) => {
   try {
     const status = {
       service: 'Chat Context API',
-      status: 'operational (fallback mode)',
+      status: 'operational (full context mode)',
       timestamp: new Date().toISOString(),
       features: [
-        'Basic chat functionality',
+        'Full conversation context management',
         'Image and text message support',
         'Multi-model AI integration',
-        'Temporary session management'
+        'Persistent session management',
+        'Smart context recovery',
+        'In-memory caching with periodic persistence'
       ],
       supportedModels: ['chatgpt-4o', 'chatgpt-5', 'gemini-2.5-pro'],
       cache: {
@@ -261,11 +296,21 @@ router.get('/status', (_req, res) => {
 router.post('/restore/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    console.log('🔄 Restoring session context (fallback mode):', sessionId);
+    console.log('🔄 Restoring session context:', sessionId);
+
+    const sessionManager = ChatSessionManager.getInstance();
+    const session = await sessionManager.restoreSession(sessionId);
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found'
+      });
+    }
 
     return res.json({
-      success: false,
-      error: 'Session restoration not available in fallback mode'
+      success: true,
+      session: session
     });
   } catch (error) {
     console.error('Failed to restore session:', error);
@@ -282,12 +327,13 @@ router.post('/restore/:sessionId', async (req, res) => {
  */
 router.get('/cache/stats', (_req, res) => {
   try {
+    const sessionManager = ChatSessionManager.getInstance();
+    const stats = sessionManager.getCacheStats();
+    
     res.json({
       success: true,
       stats: {
-        activeSessions: 0,
-        totalPendingMessages: 0,
-        memoryUsage: 0,
+        ...stats,
         timestamp: new Date().toISOString()
       }
     });
@@ -305,9 +351,12 @@ router.get('/cache/stats', (_req, res) => {
  */
 router.post('/cache/clear', (_req, res) => {
   try {
+    const sessionManager = ChatSessionManager.getInstance();
+    sessionManager.cleanup();
+    
     res.json({
       success: true,
-      message: 'Cache clear not available in fallback mode'
+      message: 'Cache cleared successfully'
     });
   } catch (error) {
     res.status(500).json({
