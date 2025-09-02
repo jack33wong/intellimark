@@ -242,6 +242,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           
           <div className="logo" onClick={() => navigate('/')}>
             <h1 className="logo-text">Intellimark</h1>
+            <p className="logo-subtitle">powered by AI</p>
           </div>
         </div>
 

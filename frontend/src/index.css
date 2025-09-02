@@ -64,35 +64,11 @@ code {
   gap: 32px;
 }
 
-.sidebar-header {
-  padding: 32px;
-  padding-top: 90px; /* Account for fixed header */
-  border-bottom: 1px solid var(--border-color);
-  background: var(--tertiary-bg);
-}
-
-/* Mobile responsive adjustment for sidebar header */
-@media (max-width: 768px) {
-  .sidebar-header {
-    padding-top: 70px; /* Account for mobile header height */
-  }
-}
-
-.sidebar-header h1 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--primary-text);
-}
-
-.sidebar-header p {
-  font-size: 14px;
-  color: var(--muted-text);
-}
+/* Removed sidebar header styles */
 
 .sidebar-content {
   flex: 1;
-  padding: 24px;
+  padding: 32px 24px 24px 24px; /* Added top padding to account for removed header */
   overflow-y: auto;
   gap: 24px;
 }

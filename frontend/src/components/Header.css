@@ -57,19 +57,17 @@
 
 .logo {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   cursor: pointer;
   transition: all 0.2s ease;
-  height: 44px;
-  line-height: 1;
   padding: 6px;
   border-radius: 8px;
   user-select: none;
 }
 
 .logo:hover {
-  transform: scale(1.05);
   background: var(--tertiary-bg);
 }
 
@@ -85,6 +83,15 @@
   margin: 0;
   color: var(--primary-text);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.logo-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--muted-text);
+  text-transform: lowercase;
+  letter-spacing: 0.5px;
 }
 
 /* Center - Navigation */
@@ -265,6 +272,10 @@
   
   .logo-text {
     font-size: 20px;
+  }
+  
+  .logo-subtitle {
+    font-size: 10px;
   }
   
   .logo-icon {
@@ -752,9 +763,9 @@
   margin-top: 8px;
   background: var(--secondary-bg);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: var(--shadow-lg);
-  min-width: 320px;
+  min-width: 240px;
   z-index: 10000 !important;
   overflow: hidden;
   animation: dropdownSlideIn 0.2s ease-out;
@@ -994,7 +1005,7 @@
 /* Mobile Responsive for Subscription Dropdown */
 @media (max-width: 768px) {
   .subscription-dropdown {
-    min-width: 280px;
+    min-width: 240px;
     right: -20px;
   }
   
