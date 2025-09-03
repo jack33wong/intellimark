@@ -1033,35 +1033,12 @@ const MarkHomeworkPage = () => {
                  <div className="result-card">
                    <h4>Annotated Image</h4>
                    <div className="annotated-image">
-                     <div className="image-with-overlay">
-                       <img 
-                         src={previewUrl} 
-                         alt="Original homework" 
-                         className="base-image"
-                         onLoad={(e) => {
-                           const img = e.target;
-                           console.log('🔍 Image loaded - Natural dimensions:', img.naturalWidth, 'x', img.naturalHeight);
-                           console.log('🔍 Image loaded - Display dimensions:', img.offsetWidth, 'x', img.offsetHeight);
-                           setImageDimensions({
-                             natural: { width: img.naturalWidth, height: img.naturalHeight },
-                             display: { width: img.offsetWidth, height: img.offsetHeight }
-                           });
-                         }}
-                       />
-                       <div 
-                         className="svg-overlay" 
-                         dangerouslySetInnerHTML={{ 
-                           __html: imageDimensions ? 
-                             scaleSVGForDisplay(
-                               apiResponse.annotatedImage,
-                               apiResponse.result?.imageDimensions?.width || 1466,
-                               apiResponse.result?.imageDimensions?.height || 1364,
-                               imageDimensions.display.width,
-                               imageDimensions.display.height
-                             ) : apiResponse.annotatedImage
-                         }}
-                       />
-                     </div>
+                     <img 
+                       src={apiResponse.annotatedImage} 
+                       alt="Annotated homework with burned overlays" 
+                       className="base-image"
+                       style={{ maxWidth: '100%', height: 'auto' }}
+                     />
                    </div>
                  </div>
                )}

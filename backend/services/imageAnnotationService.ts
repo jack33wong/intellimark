@@ -9,7 +9,8 @@ import {
   ImageAnnotationResult, 
   ImageDimensions, 
   BoundingBox 
-} from '../types/index.ts';
+} from '../types/index';
+import { SVGOverlayService } from './svgOverlayService';
 
 /**
  * Image Annotation Service class
@@ -227,35 +228,71 @@ export class ImageAnnotationService {
    * @param imageDimensions - Dimensions of the original image
    * @returns Complete annotation result
    */
-  static generateAnnotationResult(
+  static async generateAnnotationResult(
     originalImage: string,
     annotations: Annotation[],
     imageDimensions: ImageDimensions
-  ): ImageAnnotationResult {
-    const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
-    
-    // Convert annotations to ImageAnnotation format
-    const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
-      position: { x: ann.bbox[0], y: ann.bbox[1] },
-      comment: ann.comment || '',
-      hasComment: !!ann.comment,
-      boundingBox: {
-        x: ann.bbox[0],
-        y: ann.bbox[1],
-        width: ann.bbox[2],
-        height: ann.bbox[3],
-        text: ann.comment || ''
-      }
-    }));
-    
-    // For now, return the original image with SVG overlay
-    // In a full implementation, this would composite the image with annotations
-    return {
-      originalImage,
-      annotatedImage: originalImage, // Placeholder - would be composited image
-      annotations: imageAnnotations,
-      svgOverlay
-    };
+  ): Promise<ImageAnnotationResult> {
+    try {
+      console.log('🔥 Generating annotation result with burned overlays...');
+      
+      // Create SVG overlay for reference
+      const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
+      
+      // Burn SVG overlay into the image
+      const burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
+        originalImage,
+        annotations,
+        imageDimensions
+      );
+      
+      // Convert annotations to ImageAnnotation format
+      const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
+        position: { x: ann.bbox[0], y: ann.bbox[1] },
+        comment: ann.comment || '',
+        hasComment: !!ann.comment,
+        boundingBox: {
+          x: ann.bbox[0],
+          y: ann.bbox[1],
+          width: ann.bbox[2],
+          height: ann.bbox[3],
+          text: ann.comment || ''
+        }
+      }));
+
+      console.log('✅ Successfully generated annotation result with burned image');
+      
+      return {
+        originalImage,
+        annotatedImage: burnedImage, // Return burned image instead of original
+        annotations: imageAnnotations,
+        svgOverlay
+      };
+    } catch (error) {
+      console.error('❌ Failed to generate annotation result:', error);
+      
+      // Fallback to original implementation if burning fails
+      const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
+      const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
+        position: { x: ann.bbox[0], y: ann.bbox[1] },
+        comment: ann.comment || '',
+        hasComment: !!ann.comment,
+        boundingBox: {
+          x: ann.bbox[0],
+          y: ann.bbox[1],
+          width: ann.bbox[2],
+          height: ann.bbox[3],
+          text: ann.comment || ''
+        }
+      }));
+
+      return {
+        originalImage,
+        annotatedImage: originalImage, // Fallback to original image
+        annotations: imageAnnotations,
+        svgOverlay
+      };
+    }
   }
 
   /**
