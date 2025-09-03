@@ -844,6 +844,7 @@
   border-bottom-left-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s ease;
+  font-size: 1.2em;
 }
 
 .chat-message.assistant .message-bubble:hover {
@@ -1055,6 +1056,7 @@
   border-radius: 6px;
   overflow-x: auto;
   margin: 8px 0;
+  font-size: 1.3em;
 }
 
 .chat-message-renderer .markdown-blockquote {
@@ -1063,13 +1065,14 @@
   margin: 8px 0;
   font-style: italic;
   opacity: 0.9;
+  font-size: 1.3em;
 }
 
 .chat-message-renderer .markdown-table {
   border-collapse: collapse;
   width: 100%;
   margin: 8px 0;
-  font-size: 0.9em;
+  font-size: 1.3em;
 }
 
 .chat-message-renderer .markdown-th,
@@ -1106,6 +1109,7 @@
   border: none;
   border-top: 1px solid rgba(0, 0, 0, 0.2);
   margin: 12px 0;
+  font-size: 1.3em;
 }
 
 /* LaTeX styling within chat messages */

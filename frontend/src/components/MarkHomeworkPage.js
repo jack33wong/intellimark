@@ -122,8 +122,11 @@ const MarkHomeworkPage = () => {
     };
   }, [isProcessing]);
 
-  // Handle chat header visibility based on scroll
+  // Handle chat header visibility based on scroll with sustained scroll up detection
   useEffect(() => {
+    let scrollUpTimer = null;
+    let isCurrentlyScrollingUp = false;
+
     const handleScroll = () => {
       if (chatMessagesRef.current) {
         const scrollTop = chatMessagesRef.current.scrollTop;
@@ -131,7 +134,32 @@ const MarkHomeworkPage = () => {
         const isAtTop = scrollTop <= 10; // Show header when within 10px of top
         
         console.log('📜 Scroll detected:', { scrollTop, lastScrollTop, isScrollingUp, isAtTop });
-        setShowChatHeader(isAtTop || isScrollingUp);
+        
+        // Clear any existing timer
+        if (scrollUpTimer) {
+          clearTimeout(scrollUpTimer);
+          scrollUpTimer = null;
+        }
+        
+        // If at top, show header immediately
+        if (isAtTop) {
+          setShowChatHeader(true);
+          isCurrentlyScrollingUp = false;
+        }
+        // If scrolling up, start a timer
+        else if (isScrollingUp && !isCurrentlyScrollingUp) {
+          isCurrentlyScrollingUp = true;
+          scrollUpTimer = setTimeout(() => {
+            setShowChatHeader(true);
+            isCurrentlyScrollingUp = false;
+          }, 500); // 0.5 second delay
+        }
+        // If scrolling down, hide header immediately
+        else if (!isScrollingUp && scrollTop > 70) {
+          setShowChatHeader(false);
+          isCurrentlyScrollingUp = false;
+        }
+        
         setLastScrollTop(scrollTop);
       }
     };
@@ -142,13 +170,23 @@ const MarkHomeworkPage = () => {
       if (chatMessagesElement) {
         console.log('📜 Adding scroll listener to chat messages');
         chatMessagesElement.addEventListener('scroll', handleScroll);
-        return () => chatMessagesElement.removeEventListener('scroll', handleScroll);
+        return () => {
+          chatMessagesElement.removeEventListener('scroll', handleScroll);
+          if (scrollUpTimer) {
+            clearTimeout(scrollUpTimer);
+          }
+        };
       } else {
         console.log('📜 Chat messages ref not available yet');
       }
     }, 100);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (scrollUpTimer) {
+        clearTimeout(scrollUpTimer);
+      }
+    };
   }, [lastScrollTop, isChatMode]);
 
   // Function to convert file to base64
@@ -382,8 +420,10 @@ const MarkHomeworkPage = () => {
            id: Date.now() + 2,
            role: 'assistant',
            content: data.response,
+           rawContent: data.response, // Store raw content for toggle
            timestamp: new Date().toLocaleTimeString(),
-           apiUsed: data.apiUsed
+           apiUsed: data.apiUsed,
+           showRaw: false // Track raw toggle state
          };
          
          setChatMessages(prev => [...prev, aiResponse]);
@@ -472,8 +512,10 @@ const MarkHomeworkPage = () => {
           id: Date.now() + 1,
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw content for toggle
           timestamp: new Date().toLocaleTimeString(),
-          apiUsed: data.apiUsed
+          apiUsed: data.apiUsed,
+          showRaw: false // Track raw toggle state
         };
         
         setChatMessages(prev => [...prev, aiResponse]);
@@ -557,10 +599,35 @@ const MarkHomeworkPage = () => {
                  >
                    <div className="message-bubble">
                      {message.role === 'assistant' ? (
-                       <MarkdownMathRenderer 
-                         content={message.content}
-                         className="chat-message-renderer"
-                       />
+                       <div>
+                         <MarkdownMathRenderer 
+                           content={message.content}
+                           className="chat-message-renderer"
+                         />
+                         <button 
+                           className="raw-toggle-btn"
+                           onClick={() => {
+                             const rawContent = message.rawContent || message.content;
+                             if (message.showRaw) {
+                               message.showRaw = false;
+                             } else {
+                               message.showRaw = true;
+                             }
+                             setChatMessages([...chatMessages]);
+                           }}
+                           style={{marginTop: '8px', fontSize: '12px'}}
+                         >
+                           {message.showRaw ? 'Hide Raw' : 'Show Raw'}
+                         </button>
+                         {message.showRaw && (
+                           <div className="raw-response">
+                             <div className="raw-header">Raw Response</div>
+                             <div className="raw-content">
+                               {message.rawContent || message.content}
+                             </div>
+                           </div>
+                         )}
+                       </div>
                      ) : (
                        <div className="message-text">{message.content}</div>
                      )}
