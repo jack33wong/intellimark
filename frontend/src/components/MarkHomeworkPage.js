@@ -24,6 +24,8 @@ const MarkHomeworkPage = () => {
   const [classificationResult, setClassificationResult] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [showChatHeader, setShowChatHeader] = useState(true);
+  const [lastScrollTop, setLastScrollTop] = useState(0);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -119,6 +121,73 @@ const MarkHomeworkPage = () => {
       if (progressInterval) clearInterval(progressInterval);
     };
   }, [isProcessing]);
+
+  // Handle chat header visibility based on scroll with sustained scroll up detection
+  useEffect(() => {
+    let scrollUpTimer = null;
+    let isCurrentlyScrollingUp = false;
+
+    const handleScroll = () => {
+      if (chatMessagesRef.current) {
+        const scrollTop = chatMessagesRef.current.scrollTop;
+        const isScrollingUp = scrollTop < lastScrollTop;
+        const isAtTop = scrollTop <= 10; // Show header when within 10px of top
+        
+        console.log('📜 Scroll detected:', { scrollTop, lastScrollTop, isScrollingUp, isAtTop });
+        
+        // Clear any existing timer
+        if (scrollUpTimer) {
+          clearTimeout(scrollUpTimer);
+          scrollUpTimer = null;
+        }
+        
+        // If at top, show header immediately
+        if (isAtTop) {
+          setShowChatHeader(true);
+          isCurrentlyScrollingUp = false;
+        }
+        // If scrolling up, start a timer
+        else if (isScrollingUp && !isCurrentlyScrollingUp) {
+          isCurrentlyScrollingUp = true;
+          scrollUpTimer = setTimeout(() => {
+            setShowChatHeader(true);
+            isCurrentlyScrollingUp = false;
+          }, 500); // 0.5 second delay
+        }
+        // If scrolling down, hide header immediately
+        else if (!isScrollingUp && scrollTop > 70) {
+          setShowChatHeader(false);
+          isCurrentlyScrollingUp = false;
+        }
+        
+        setLastScrollTop(scrollTop);
+      }
+    };
+
+    // Wait for the next tick to ensure the ref is available
+    const timer = setTimeout(() => {
+      const chatMessagesElement = chatMessagesRef.current;
+      if (chatMessagesElement) {
+        console.log('📜 Adding scroll listener to chat messages');
+        chatMessagesElement.addEventListener('scroll', handleScroll);
+        return () => {
+          chatMessagesElement.removeEventListener('scroll', handleScroll);
+          if (scrollUpTimer) {
+            clearTimeout(scrollUpTimer);
+          }
+        };
+      } else {
+        console.log('📜 Chat messages ref not available yet');
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (scrollUpTimer) {
+        clearTimeout(scrollUpTimer);
+      }
+    };
+  }, [lastScrollTop, isChatMode]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -351,8 +420,10 @@ const MarkHomeworkPage = () => {
            id: Date.now() + 2,
            role: 'assistant',
            content: data.response,
+           rawContent: data.response, // Store raw content for toggle
            timestamp: new Date().toLocaleTimeString(),
-           apiUsed: data.apiUsed
+           apiUsed: data.apiUsed,
+           showRaw: false // Track raw toggle state
          };
          
          setChatMessages(prev => [...prev, aiResponse]);
@@ -441,8 +512,10 @@ const MarkHomeworkPage = () => {
           id: Date.now() + 1,
           role: 'assistant',
           content: data.response,
+          rawContent: data.response, // Store raw content for toggle
           timestamp: new Date().toLocaleTimeString(),
-          apiUsed: data.apiUsed
+          apiUsed: data.apiUsed,
+          showRaw: false // Track raw toggle state
         };
         
         setChatMessages(prev => [...prev, aiResponse]);
@@ -480,7 +553,7 @@ const MarkHomeworkPage = () => {
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-container">
-          <div className="chat-header">
+                     <div className={`chat-header ${!showChatHeader ? 'hidden' : ''}`}>
             <div className="chat-header-left">
               <button 
                 className="back-btn"
@@ -498,73 +571,101 @@ const MarkHomeworkPage = () => {
                 }}
               >
                 ← Back to Upload
-              </button>
-              <h1>AI Homework Assistant</h1>
-              {classificationResult?.isQuestionOnly && (
-                <div className="classification-info">
-                  <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
-                </div>
-              )}
+                </button>
+                <h1>AI Homework Assistant</h1>
+                {classificationResult?.isQuestionOnly && (
+                  <div className="classification-info">
+                    <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+                  </div>
+                )}
+              </div>
+              <div className="chat-header-right">
+                {/* Show the image context */}
+                {previewUrl && (
+                  <div className="chat-image-context">
+                    <img src={previewUrl} alt="Question context" className="context-image" />
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="chat-header-right">
-              {/* Show the image context */}
-              {previewUrl && (
-                <div className="chat-image-context">
-                  <img src={previewUrl} alt="Question context" className="context-image" />
-                </div>
-              )}
-            </div>
-          </div>
           
-          <div className="chat-content">
-            <div className="chat-messages" ref={chatMessagesRef}>
-              {chatMessages.map((message) => (
-                <div 
-                  key={message.id} 
-                  className={`chat-message ${message.role}`}
-                >
-                  <div className="message-bubble">
-                    {message.role === 'assistant' ? (
-                      <MarkdownMathRenderer 
-                        content={message.content}
-                        className="chat-message-renderer"
-                      />
-                    ) : (
-                      <div className="message-text">{message.content}</div>
-                    )}
-                    <div className="message-timestamp">
-                      {message.timestamp}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {/* AI Thinking Loading Animation */}
-              {isProcessing && (
-                <div className="chat-message assistant">
-                  <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
-                    <div className="thinking-indicator">
-                      <div className="thinking-dots">
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                      </div>
-                      <div className="thinking-text">
-                        {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
-                      </div>
-                      {showExpandedThinking && (
-                        <div className="progress-indicator">
-                          <div className="progress-bar">
-                            <div className="progress-fill"></div>
-                          </div>
-                          <div className="progress-text">Processing...</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className={`chat-content ${!showChatHeader ? 'header-hidden' : ''}`}>
+                                                   <div className="chat-messages" ref={chatMessagesRef}>
+               
+               {chatMessages.map((message) => (
+                 <div 
+                   key={message.id} 
+                   className={`chat-message ${message.role}`}
+                 >
+                   <div className="message-bubble">
+                     {message.role === 'assistant' ? (
+                       <div>
+                         <MarkdownMathRenderer 
+                           content={message.content}
+                           className="chat-message-renderer"
+                         />
+                         <button 
+                           className="raw-toggle-btn"
+                           onClick={() => {
+                             const rawContent = message.rawContent || message.content;
+                             if (message.showRaw) {
+                               message.showRaw = false;
+                             } else {
+                               message.showRaw = true;
+                             }
+                             setChatMessages([...chatMessages]);
+                           }}
+                           style={{marginTop: '8px', fontSize: '12px'}}
+                         >
+                           {message.showRaw ? 'Hide Raw' : 'Show Raw'}
+                         </button>
+                         {message.showRaw && (
+                           <div className="raw-response">
+                             <div className="raw-header">Raw Response</div>
+                             <div className="raw-content">
+                               {message.rawContent || message.content}
+                             </div>
+                           </div>
+                         )}
+                       </div>
+                     ) : (
+                       <div className="message-text">{message.content}</div>
+                     )}
+                     <div className="message-timestamp">
+                       {message.timestamp}
+                     </div>
+                   </div>
+                 </div>
+               ))}
+               
+               {/* AI Thinking Loading Animation */}
+               {isProcessing && (
+                 <div className="chat-message assistant">
+                   <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
+                     <div className="thinking-indicator">
+                       <div className="thinking-dots">
+                         <div className="thinking-dot"></div>
+                         <div className="thinking-dot"></div>
+                         <div className="thinking-dot"></div>
+                       </div>
+                       <div className="thinking-text">
+                         {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
+                       </div>
+                       {showExpandedThinking && (
+                         <div className="progress-indicator">
+                           <div className="progress-bar">
+                             <div className="progress-fill"></div>
+                           </div>
+                           <div className="progress-text">Processing...</div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 </div>
+               )}
+               
+
+             </div>
           </div>
           
           {/* Bottom Input Bar */}
