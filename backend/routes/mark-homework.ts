@@ -6,6 +6,7 @@
 import * as express from 'express';
 import type { Request, Response } from 'express';
 import { MathpixService } from '../services/mathpixService.ts';
+import { questionDetectionService } from '../services/questionDetectionService.ts';
 
 // Import only the basic types we need
 import type { 
@@ -14,7 +15,8 @@ import type {
   ProcessedImageResult,
   MarkingInstructions,
   ProcessedMathpixResult,
-  ModelType
+  ModelType,
+  QuestionDetectionResult
 } from '../types/index';
 
 // Simple model validation function to avoid import issues
@@ -53,7 +55,8 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
     return {
       isQuestionOnly: !hasStudentWork,
       reasoning: `AI classification failed: ${error instanceof Error ? error.message : 'Unknown error'}. Using fallback logic.`,
-      apiUsed: 'Fallback Classification'
+      apiUsed: 'Fallback Classification',
+      extractedQuestionText: 'Unable to extract question text - AI service unavailable'
     };
   }
 }
@@ -365,6 +368,36 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
     const imageClassification = await classifyImageWithAI(imageData, model);
     console.log('🔍 Image Classification:', imageClassification);
     
+    // Log extracted question text for backend debugging
+    if (imageClassification.extractedQuestionText) {
+      console.log('📝 Extracted Question Text:', imageClassification.extractedQuestionText);
+    }
+
+    // Step 1.5: Question Detection Service
+    console.log('🔍 ===== STEP 1.5: QUESTION DETECTION =====');
+    let questionDetection: QuestionDetectionResult | undefined;
+    
+    if (imageClassification.extractedQuestionText) {
+      try {
+        questionDetection = await questionDetectionService.detectQuestion(
+          imageClassification.extractedQuestionText
+        );
+        console.log('🔍 Question Detection Result:', questionDetection);
+      } catch (error) {
+        console.error('❌ Question detection failed:', error);
+        questionDetection = {
+          found: false,
+          message: 'Question detection service failed'
+        };
+      }
+    } else {
+      console.log('⚠️ No extracted question text available for detection');
+      questionDetection = {
+        found: false,
+        message: 'No question text extracted'
+      };
+    }
+    
     if (imageClassification.isQuestionOnly) {
       // For question-only images, return early with classification result
       return res.json({ 
@@ -374,6 +407,7 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
         apiUsed: imageClassification.apiUsed,
         model: model,
         reasoning: imageClassification.reasoning,
+        questionDetection: questionDetection,
         timestamp: new Date().toISOString()
       });
     }
@@ -430,7 +464,8 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
       message: 'Question marked successfully with complete AI analysis',
       apiUsed: 'Complete AI Marking System',
       ocrMethod: 'Enhanced OCR Processing',
-      classification: imageClassification
+      classification: imageClassification,
+      questionDetection: questionDetection
     };
 
     // Add metadata

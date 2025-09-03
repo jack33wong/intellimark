@@ -8,6 +8,7 @@ interface SimpleImageClassification {
   isQuestionOnly: boolean;
   reasoning: string;
   apiUsed: string;
+  extractedQuestionText?: string;
 }
 
 type SimpleModelType = 'gemini-2.5-pro' | 'chatgpt-5' | 'chatgpt-4o';
@@ -56,12 +57,13 @@ export class AIMarkingService {
     const compressedImage = await this.compressImage(imageData);
     console.log('🔍 Image compressed, length:', compressedImage.length);
     
-    const systemPrompt = `You are an AI assistant that classifies math images. 
+    const systemPrompt = `You are an AI assistant that classifies math images and extracts question text. 
     
-    Your task is to determine if an uploaded image contains:
-    
-    A) A math question ONLY (no student work, no answers, just the question/problem)
-    B) A math question WITH student work/answers (homework to be marked)
+    Your task is to:
+    1. Determine if an uploaded image contains:
+       A) A math question ONLY (no student work, no answers, just the question/problem)
+       B) A math question WITH student work/answers (homework to be marked)
+    2. Extract the main question text from the image
     
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
@@ -69,12 +71,20 @@ export class AIMarkingService {
     
     {
       "isQuestionOnly": true/false,
-      "reasoning": "brief explanation of your classification"
+      "reasoning": "brief explanation of your classification",
+      "extractedQuestionText": "the main question text extracted from the image"
     }
     
     CLASSIFICATION CRITERIA:
     - "isQuestionOnly: true" if the image shows ONLY a math question/problem with NO student work or answers
     - "isQuestionOnly: false" if the image shows a math question WITH student work, calculations, or answers written down
+    
+    QUESTION TEXT EXTRACTION:
+    - Extract the main question/problem statement
+    - Include any given information, variables, or constraints
+    - Preserve mathematical notation and formatting
+    - If multiple questions, extract the primary one
+    - If no clear question, return "Unable to extract question text"
     
     Examples:
     - Textbook question, exam paper question, worksheet question = "isQuestionOnly: true"
@@ -82,7 +92,7 @@ export class AIMarkingService {
     
     Return ONLY the JSON object.`;
 
-    const userPrompt = `Please classify this uploaded image as either a math question only or a math question with student work/answers.`;
+    const userPrompt = `Please classify this uploaded image and extract the question text. Analyze the image to determine if it contains only a math question or if it includes student work/answers, and extract the main question text from the image.`;
 
     try {
       console.log('🔍 ===== CALLING AI CLASSIFICATION =====');

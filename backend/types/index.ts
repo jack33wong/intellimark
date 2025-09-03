@@ -104,6 +104,22 @@ export interface ImageClassification {
   isQuestionOnly: boolean;
   reasoning: string;
   apiUsed: string;
+  extractedQuestionText?: string;
+}
+
+export interface ExamPaperMatch {
+  board: string;
+  qualification: string;
+  paperCode: string;
+  year: string;
+  questionNumber?: string;
+  confidence?: number;
+}
+
+export interface QuestionDetectionResult {
+  found: boolean;
+  match?: ExamPaperMatch;
+  message?: string;
 }
 
 // Chat message types
@@ -155,6 +171,7 @@ export interface MarkHomeworkResponse {
   apiUsed?: string;
   ocrMethod?: string;
   classification?: ImageClassification;
+  questionDetection?: QuestionDetectionResult;
 }
 
 export interface ChatRequest {

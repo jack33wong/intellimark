@@ -729,6 +729,29 @@ const MarkHomeworkPage = () => {
             <div className="results-section">
               <h3>Analysis Results</h3>
               
+              {/* Exam Paper Detection Header */}
+              {apiResponse.questionDetection && apiResponse.questionDetection.found && (
+                <div className="exam-paper-header">
+                  <div className="exam-paper-info">
+                    <h4>📄 Detected Exam Paper</h4>
+                    <div className="exam-paper-details">
+                      <span className="exam-board">{apiResponse.questionDetection.match.board}</span>
+                      <span className="exam-qualification">{apiResponse.questionDetection.match.qualification}</span>
+                      <span className="exam-paper-code">{apiResponse.questionDetection.match.paperCode}</span>
+                      <span className="exam-year">{apiResponse.questionDetection.match.year}</span>
+                      {apiResponse.questionDetection.match.questionNumber && (
+                        <span className="question-number">Question {apiResponse.questionDetection.match.questionNumber}</span>
+                      )}
+                    </div>
+                    {apiResponse.questionDetection.match.confidence && (
+                      <div className="confidence-score">
+                        Confidence: {Math.round(apiResponse.questionDetection.match.confidence * 100)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
                              {classificationResult && (
                  <div className="result-card">
                    <h4>Classification</h4>
