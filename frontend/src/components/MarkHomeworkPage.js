@@ -23,6 +23,7 @@ const MarkHomeworkPage = () => {
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -95,6 +96,27 @@ const MarkHomeworkPage = () => {
     
     return () => {
       if (timer) clearTimeout(timer);
+    };
+  }, [isProcessing]);
+
+  // Handle fake loading progress when processing
+  useEffect(() => {
+    let progressInterval;
+    if (isProcessing) {
+      setLoadingProgress(0);
+      progressInterval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 95) return 95; // Stop at 95% until processing is complete
+          return prev + Math.random() * 15; // Random increment between 0-15
+        });
+      }, 200); // Update every 200ms
+    } else {
+      setLoadingProgress(100); // Complete the progress bar
+      setTimeout(() => setLoadingProgress(0), 500); // Reset after animation
+    }
+    
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
     };
   }, [isProcessing]);
 
@@ -680,6 +702,24 @@ const MarkHomeworkPage = () => {
                     </>
                   )}
                 </button>
+                
+                {/* Fake Loading Progress Bar */}
+                {isProcessing && (
+                  <div className="loading-progress-container">
+                    <div className="loading-progress-bar">
+                      <div 
+                        className="loading-progress-fill"
+                        style={{ width: `${loadingProgress}%` }}
+                      ></div>
+                    </div>
+                    <div className="loading-progress-text">
+                      {loadingProgress < 30 && "Initializing analysis..."}
+                      {loadingProgress >= 30 && loadingProgress < 60 && "Processing image content..."}
+                      {loadingProgress >= 60 && loadingProgress < 90 && "Generating AI annotations..."}
+                      {loadingProgress >= 90 && "Finalizing results..."}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -689,98 +729,98 @@ const MarkHomeworkPage = () => {
             <div className="results-section">
               <h3>Analysis Results</h3>
               
-              {classificationResult && (
-                <div className="result-card">
-                  <h4>Classification</h4>
-                  <p><strong>Subject:</strong> {classificationResult.subject}</p>
-                  <p><strong>Grade Level:</strong> {classificationResult.gradeLevel}</p>
-                  <p><strong>Topic:</strong> {classificationResult.topic}</p>
-                </div>
-              )}
+                             {classificationResult && (
+                 <div className="result-card">
+                   <h4>Classification</h4>
+                   <p><strong>Subject:</strong> {classificationResult.subject}</p>
+                   <p><strong>Grade Level:</strong> {classificationResult.gradeLevel}</p>
+                   <p><strong>Topic:</strong> {classificationResult.topic}</p>
+                 </div>
+               )}
 
-              {apiResponse.instructions && apiResponse.instructions.annotations && apiResponse.instructions.annotations.length > 0 && (
-                <div className="result-card">
-                  <h4>AI Annotations ({apiResponse.instructions.annotations.length})</h4>
-                  <div className="annotations-list">
-                    {apiResponse.instructions.annotations.map((annotation, index) => (
-                      <div key={index} className="annotation-item">
-                        <div className="annotation-action">
-                          <span className={`action-badge action-${annotation.action}`}>
-                            {annotation.action}
-                          </span>
-                        </div>
-                        {annotation.comment && (
-                          <div className="annotation-comment">
-                            {annotation.comment}
-                          </div>
-                        )}
-                        {annotation.text && (
-                          <div className="annotation-text">
-                            {annotation.text}
-                          </div>
-                        )}
-                        <div className="annotation-position">
-                          Position: [{annotation.bbox.join(', ')}]
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+               {apiResponse.annotatedImage && (
+                 <div className="result-card">
+                   <h4>Annotated Image</h4>
+                   <div className="annotated-image">
+                     <div className="image-with-overlay">
+                       <img 
+                         src={previewUrl} 
+                         alt="Original homework" 
+                         className="base-image"
+                         onLoad={(e) => {
+                           const img = e.target;
+                           console.log('🔍 Image loaded - Natural dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+                           console.log('🔍 Image loaded - Display dimensions:', img.offsetWidth, 'x', img.offsetHeight);
+                           setImageDimensions({
+                             natural: { width: img.naturalWidth, height: img.naturalHeight },
+                             display: { width: img.offsetWidth, height: img.offsetHeight }
+                           });
+                         }}
+                       />
+                       <div 
+                         className="svg-overlay" 
+                         dangerouslySetInnerHTML={{ 
+                           __html: imageDimensions ? 
+                             scaleSVGForDisplay(
+                               apiResponse.annotatedImage,
+                               apiResponse.result?.imageDimensions?.width || 1466,
+                               apiResponse.result?.imageDimensions?.height || 1364,
+                               imageDimensions.display.width,
+                               imageDimensions.display.height
+                             ) : apiResponse.annotatedImage
+                         }}
+                       />
+                     </div>
+                   </div>
+                 </div>
+               )}
 
-              {apiResponse.annotatedImage && (
-                <div className="result-card">
-                  <h4>Annotated Image</h4>
-                  <div className="annotated-image">
-                    <div className="image-with-overlay">
-                      <img 
-                        src={previewUrl} 
-                        alt="Original homework" 
-                        className="base-image"
-                        onLoad={(e) => {
-                          const img = e.target;
-                          console.log('🔍 Image loaded - Natural dimensions:', img.naturalWidth, 'x', img.naturalHeight);
-                          console.log('🔍 Image loaded - Display dimensions:', img.offsetWidth, 'x', img.offsetHeight);
-                          setImageDimensions({
-                            natural: { width: img.naturalWidth, height: img.naturalHeight },
-                            display: { width: img.offsetWidth, height: img.offsetHeight }
-                          });
-                        }}
-                      />
-                      <div 
-                        className="svg-overlay" 
-                        dangerouslySetInnerHTML={{ 
-                          __html: imageDimensions ? 
-                            scaleSVGForDisplay(
-                              apiResponse.annotatedImage,
-                              apiResponse.result?.imageDimensions?.width || 1466,
-                              apiResponse.result?.imageDimensions?.height || 1364,
-                              imageDimensions.display.width,
-                              imageDimensions.display.height
-                            ) : apiResponse.annotatedImage
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
+               {/* Debug info */}
+               <div className="debug-info">
+                 <strong>Debug Info:</strong><br/>
+                 API Response: {apiResponse ? 'Present' : 'None'}<br/>
+                 Classification: {classificationResult ? 'Present' : 'None'}<br/>
+                 Error: {error || 'None'}<br/>
+                 {apiResponse && (
+                   <>
+                     <br/><strong>Response Details:</strong><br/>
+                     hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
+                     annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
+                     hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
+                     annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
+                   </>
+                 )}
+               </div>
 
-              {/* Debug info */}
-              <div className="debug-info">
-                <strong>Debug Info:</strong><br/>
-                API Response: {apiResponse ? 'Present' : 'None'}<br/>
-                Classification: {classificationResult ? 'Present' : 'None'}<br/>
-                Error: {error || 'None'}<br/>
-                {apiResponse && (
-                  <>
-                    <br/><strong>Response Details:</strong><br/>
-                    hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
-                    annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
-                    hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
-                    annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
-                  </>
-                )}
-              </div>
+               {apiResponse.instructions && apiResponse.instructions.annotations && apiResponse.instructions.annotations.length > 0 && (
+                 <div className="result-card">
+                   <h4>AI Annotations ({apiResponse.instructions.annotations.length})</h4>
+                   <div className="annotations-list">
+                     {apiResponse.instructions.annotations.map((annotation, index) => (
+                       <div key={index} className="annotation-item">
+                         <div className="annotation-action">
+                           <span className={`action-badge action-${annotation.action}`}>
+                             {annotation.action}
+                           </span>
+                         </div>
+                         {annotation.comment && (
+                           <div className="annotation-comment">
+                             {annotation.comment}
+                           </div>
+                         )}
+                         {annotation.text && (
+                           <div className="annotation-text">
+                             {annotation.text}
+                           </div>
+                         )}
+                         <div className="annotation-position">
+                           Position: [{annotation.bbox.join(', ')}]
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
             </div>
           )}
 

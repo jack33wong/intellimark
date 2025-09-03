@@ -132,7 +132,7 @@ export class AIMarkingService {
     {
       "annotations": [
         {"action": "tick", "bbox": [50, 80, 200, 150]},
-        {"action": "comment", "bbox": [50, 180, 200, 50], "text": "Correct solution"},
+        {"action": "comment", "bbox": [50, 180, 200, 50], "text": "Verify this solution step by step"},
       ]
     }
     
@@ -156,13 +156,14 @@ export class AIMarkingService {
     - Use "comment" to provide feedback or explanations
     - Position bbox coordinates to avoid overlapping with existing text
     - Keep comments concise and helpful
+    - Provide helpful, constructive feedback without unnecessary prefixes
     
     Return ONLY the JSON object.`;
 
     let userPrompt = `Here is an uploaded image. Please:
 
 1. Analyze the image content
-2. If it's math homework, provide marking annotations
+2. If it's math homework, provide marking annotations with helpful feedback
 3. If it's not math homework, provide appropriate feedback
 
 ========================================================
