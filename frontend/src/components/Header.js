@@ -33,7 +33,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   useEffect(() => {
     const fetchUserSubscription = async () => {
       if (!user?.uid) return;
-      
       setSubscriptionLoading(true);
       try {
         const response = await SubscriptionService.getUserSubscription(user.uid);
@@ -48,30 +47,77 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     fetchUserSubscription();
   }, [user?.uid]);
 
-  // Check for subscription success parameter and refresh data
+  // Check for subscription success parameter and create subscription record
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const subscriptionSuccess = urlParams.get('subscription');
+    const sessionId = urlParams.get('session_id');
     
-    if (subscriptionSuccess === 'success' && user?.uid) {
-      console.log('Subscription success detected, refreshing subscription data...');
+    console.log('🔍 Checking URL parameters:', { 
+      subscriptionSuccess, 
+      sessionId, 
+      userId: user?.uid
+    });
+    
+    if (subscriptionSuccess === 'success' && user?.uid && sessionId) {
+      console.log('✅ Subscription success detected, creating subscription record...');
       
-      // Refresh subscription data
-      const refreshSubscription = async () => {
+      // Create subscription record after successful payment
+      const createSubscriptionRecord = async () => {
         try {
-          const response = await SubscriptionService.getUserSubscription(user.uid);
-          setUserSubscription(response.subscription);
-          console.log('Subscription data refreshed:', response.subscription);
+          console.log('📞 Calling create-subscription-after-payment with:', { sessionId, userId: user.uid });
+          
+          const response = await fetch('/api/payment/create-subscription-after-payment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sessionId: sessionId,
+              userId: user.uid,
+            }),
+          });
+          
+          console.log('📡 Response status:', response.status);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Response error:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const result = await response.json();
+          console.log('✅ Subscription record created:', result);
+          
+          // Refresh subscription data to get the latest
+          const subscriptionResponse = await SubscriptionService.getUserSubscription(user.uid);
+          setUserSubscription(subscriptionResponse.subscription);
+          console.log('🔄 Subscription data refreshed:', subscriptionResponse.subscription);
+          
         } catch (error) {
-          console.error('Error refreshing subscription data:', error);
+          console.error('❌ Error creating subscription record:', error);
+          // Still try to refresh existing data as fallback
+          try {
+            const response = await SubscriptionService.getUserSubscription(user.uid);
+            setUserSubscription(response.subscription);
+            console.log('🔄 Fallback refresh successful:', response.subscription);
+          } catch (refreshError) {
+            console.error('❌ Error refreshing subscription data:', refreshError);
+          }
         }
       };
       
-      refreshSubscription();
+      createSubscriptionRecord();
       
-      // Clean up URL parameter
+      // Clean up URL parameters
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
+      console.log('🧹 URL cleaned up');
+    } else if (subscriptionSuccess === 'success') {
+      console.log('⚠️ Subscription success detected but missing sessionId or userId:', { 
+        sessionId, 
+        userId: user?.uid 
+      });
     }
   }, [user?.uid]);
 

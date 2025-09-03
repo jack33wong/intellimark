@@ -17,6 +17,28 @@
   color: var(--primary-text);
 }
 
+.welcome-message {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.welcome-message h1 {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: var(--accent-color);
+}
+
+.welcome-message p {
+  font-size: 1.2rem;
+  color: var(--secondary-text);
+  margin-bottom: 2rem;
+}
+
 .sidebar {
   width: 280px;
   background: var(--secondary-bg);

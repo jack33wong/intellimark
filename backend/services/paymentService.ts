@@ -23,6 +23,7 @@ export interface CreateCheckoutSessionRequest {
   billingCycle: string;
   successUrl: string;
   cancelUrl: string;
+  userId: string;
 }
 
 export interface SubscriptionData {
@@ -34,7 +35,7 @@ export interface SubscriptionData {
 
 export class PaymentService {
   async createCheckoutSession(data: CreateCheckoutSessionRequest) {
-    const { planId, billingCycle, successUrl, cancelUrl } = data;
+    const { planId, billingCycle, successUrl, cancelUrl, userId } = data;
     
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
     if (!planConfig) {
@@ -74,16 +75,18 @@ export class PaymentService {
         },
       ],
       mode: 'subscription',
-      success_url: successUrl,
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancelUrl,
       metadata: {
         planId,
         billingCycle,
+        userId,
       },
       subscription_data: {
         metadata: {
           planId,
           billingCycle,
+          userId,
         },
       },
     });

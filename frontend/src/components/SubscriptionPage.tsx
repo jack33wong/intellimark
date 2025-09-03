@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Zap, Users, Building2 } from 'lucide-react';
 import { Plan, BillingCycle } from '../types/payment';
+import { useAuth } from '../contexts/AuthContext';
 import './SubscriptionPage.css';
 
 const SubscriptionPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const plans = [
     {
@@ -69,6 +71,12 @@ const SubscriptionPage: React.FC = () => {
       return;
     }
 
+    if (!user) {
+      alert('Please sign in to subscribe to a plan.');
+      navigate('/login');
+      return;
+    }
+
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
 
@@ -82,7 +90,8 @@ const SubscriptionPage: React.FC = () => {
         body: JSON.stringify({
           planId,
           billingCycle,
-          successUrl: `${window.location.origin}/?subscription=success`,
+          userId: user.uid, // Include the user ID
+          successUrl: `${window.location.origin}/mark-homework?subscription=success`,
           cancelUrl: `${window.location.origin}/upgrade?canceled=true`,
         }),
       });
