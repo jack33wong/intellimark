@@ -37,6 +37,7 @@ interface JSONExamPaper {
 const mockData: { [key: string]: any[] } = {
   fullExamPapers: [],
   questionBanks: [],
+  markingSchemes: [],
   otherCollections: []
 };
 
@@ -71,13 +72,15 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
         
         snapshot.forEach(doc => {
           const data = doc.data();
-          entries.push({
+          const entry = {
             id: doc.id,
             ...data,
             uploadedAt: data.uploadedAt ? 
               (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) : 
               new Date().toISOString()
-          });
+          };
+
+          entries.push(entry);
         });
         
         res.json({
@@ -104,6 +107,98 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
   } catch (error) {
     console.error('Get collection error:', error);
     res.status(500).json({ error: `Failed to get collection: ${error.message}` });
+  }
+});
+
+/**
+ * POST /api/admin/json/collections/markingSchemes
+ * Upload marking scheme data (specific endpoint for marking schemes)
+ */
+router.post('/json/collections/markingSchemes', async (req: Request, res: Response) => {
+  try {
+    const { markingSchemeData } = req.body;
+    
+    if (!markingSchemeData) {
+      return res.status(400).json({ error: 'Marking scheme data is required' });
+    }
+
+    // Parse the marking scheme data if it's a JSON string
+    let parsedData;
+    try {
+      parsedData = typeof markingSchemeData === 'string' ? JSON.parse(markingSchemeData) : markingSchemeData;
+    } catch (parseError) {
+      return res.status(400).json({ error: 'Invalid JSON format in marking scheme data' });
+    }
+
+    // Extract exam details for easier querying
+    const examDetails = parsedData.examDetails || {};
+    const questions = parsedData.questions || {};
+    
+    // Calculate total questions and marks
+    const questionNumbers = Object.keys(questions).sort((a, b) => {
+      // Sort numerically if both are numbers, otherwise alphabetically
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
+    const totalQuestions = questionNumbers.length;
+    const totalMarks = questionNumbers.reduce((total, qNum) => {
+      const question = questions[qNum];
+      if (question.marks && Array.isArray(question.marks)) {
+        // Count actual mark points, not just array length
+        return total + question.marks.length;
+      }
+      return total;
+    }, 0);
+
+
+
+    const newEntry = {
+      id: uuidv4(),
+      markingSchemeData: parsedData,
+      examDetails: {
+        board: examDetails.board || 'Unknown',
+        qualification: examDetails.qualification || 'Unknown',
+        paperCode: examDetails.paperCode || 'Unknown',
+        tier: examDetails.tier || 'Unknown',
+        paper: examDetails.paper || 'Unknown',
+        date: examDetails.date || 'Unknown'
+      },
+      totalQuestions,
+      totalMarks,
+      uploadedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    
+    // Save to Firestore if available
+    const db = getFirestore();
+    if (db) {
+      try {
+        await db.collection('markingSchemes').doc(newEntry.id).set(newEntry);
+        console.log(`Marking scheme saved to Firestore collection: markingSchemes`);
+      } catch (firestoreError) {
+        console.error('Firestore save error:', firestoreError);
+        // Continue with mock data even if Firestore fails
+      }
+    }
+    
+    // Always save to mock data for fallback
+    if (!mockData['markingSchemes']) {
+      mockData['markingSchemes'] = [];
+    }
+    mockData['markingSchemes'].push(newEntry);
+    
+    res.status(201).json({
+      message: 'Marking scheme uploaded successfully',
+      collectionName: 'markingSchemes',
+      entry: newEntry
+    });
+  } catch (error) {
+    console.error('Marking scheme upload error:', error);
+    res.status(500).json({ error: `Failed to upload marking scheme: ${error.message}` });
   }
 });
 
