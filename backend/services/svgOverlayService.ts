@@ -130,13 +130,6 @@ export class SVGOverlayService {
     
     let svg = '';
     
-    // Add annotation number indicator (scaled)
-    const numberRadius = 18 * Math.min(scaleX, scaleY);
-    const fontSize = 16 * Math.min(scaleX, scaleY);
-    svg += `<circle cx="${scaledX + 20}" cy="${scaledY + 20}" r="${numberRadius}" fill="#ff4444" opacity="0.9"/>`;
-    svg += `<text x="${scaledX + 20}" y="${scaledY + 26}" text-anchor="middle" fill="white" 
-            font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${index + 1}</text>`;
-    
     // Create annotation based on type
     switch (action) {
       case 'tick':
@@ -161,19 +154,16 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create tick annotation
+   * Create tick annotation using ✔ symbol, red color and 1.3x bigger
    */
   private static createTickAnnotation(x: number, y: number, width: number, height: number): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const size = Math.min(width, height) * 4.0; // 5x larger (0.8 * 5 = 4.0)
-    const strokeWidth = Math.max(30, Math.min(width, height) * 1.0); // 5x thicker stroke
+    const fontSize = Math.max(12, Math.min(width, height) * 1.04); // 1.3x bigger (0.8 * 1.3 = 1.04)
     
     return `
-      <g stroke="#00ff00" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
-        <path d="M ${centerX - size/3} ${centerY} L ${centerX - size/6} ${centerY + size/4} L ${centerX + size/3} ${centerY - size/4}" 
-              stroke-linecap="round" stroke-linejoin="round"/>
-      </g>`;
+      <text x="${centerX}" y="${centerY + fontSize/3}" text-anchor="middle" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">✔</text>`;
   }
 
   /**
@@ -217,7 +207,7 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create comment annotation
+   * Create comment annotation without background or red rectangle
    */
   private static createCommentAnnotation(x: number, y: number, width: number, height: number, comment: string, scaleX: number, scaleY: number): string {
     if (!comment) return '';
@@ -226,27 +216,12 @@ export class SVGOverlayService {
     const commentX = x;
     const commentY = Math.max(25 * scaleY, y - 10 * scaleY);
     
-    // Comment background (scaled)
-    const textWidth = comment.length * 12 * scaleX; // Approximate text width
-    const textHeight = 20 * scaleY;
-    const bgWidth = Math.max(textWidth + 20 * scaleX, 120 * scaleX);
-    const bgHeight = textHeight + 12 * scaleY;
-    const borderRadius = 6 * Math.min(scaleX, scaleY);
-    
-    let svg = '';
-    svg += `<rect x="${commentX}" y="${commentY - bgHeight}" width="${bgWidth}" 
-            height="${bgHeight}" fill="#ff4444" opacity="0.9" rx="${borderRadius}"/>`;
-    
-    // Comment text (scaled)
-    const textFontSize = 16 * Math.min(scaleX, scaleY);
-    svg += `<text x="${commentX + 10 * scaleX}" y="${commentY - 4 * scaleY}" fill="white" 
-            font-family="Arial, sans-serif" font-size="${textFontSize}" font-weight="500">${comment}</text>`;
-    
-    // Bounding box rectangle (scaled)
-    const strokeWidth = 4 * Math.min(scaleX, scaleY);
-    svg += `<rect x="${x}" y="${y}" width="${width}" height="${height}" 
-            fill="none" stroke="#ff4444" stroke-width="${strokeWidth}" opacity="0.6"/>`;
-    
-    return svg;
+    // Comment text only (scaled) - no background or rectangle
+    // Using Lucida Handwriting for authentic handwritten look, bold and 2.1x larger
+    const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
+    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
+            font-family="'Lucida Handwriting', cursive, serif, Arial, sans-serif" 
+            font-size="${textFontSize}" font-weight="bold" 
+            opacity="0.9">${comment}</text>`;
   }
 }
