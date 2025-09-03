@@ -728,6 +728,23 @@ const MarkHomeworkPage = () => {
                 </div>
               )}
 
+              {/* Debug info */}
+              <div className="debug-info">
+                <strong>Debug Info:</strong><br/>
+                API Response: {apiResponse ? 'Present' : 'None'}<br/>
+                Classification: {classificationResult ? 'Present' : 'None'}<br/>
+                Error: {error || 'None'}<br/>
+                {apiResponse && (
+                  <>
+                    <br/><strong>Response Details:</strong><br/>
+                    hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
+                    annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
+                    hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
+                    annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
+                  </>
+                )}
+              </div>
+
               {apiResponse.annotatedImage && (
                 <div className="result-card">
                   <h4>Annotated Image</h4>
@@ -764,23 +781,6 @@ const MarkHomeworkPage = () => {
                   </div>
                 </div>
               )}
-
-              {/* Debug info */}
-              <div className="debug-info">
-                <strong>Debug Info:</strong><br/>
-                API Response: {apiResponse ? 'Present' : 'None'}<br/>
-                Classification: {classificationResult ? 'Present' : 'None'}<br/>
-                Error: {error || 'None'}<br/>
-                {apiResponse && (
-                  <>
-                    <br/><strong>Response Details:</strong><br/>
-                    hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
-                    annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
-                    hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
-                    annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
-                  </>
-                )}
-              </div>
             </div>
           )}
 
