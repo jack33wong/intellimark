@@ -8,6 +8,7 @@ import type { Request, Response } from 'express';
 import { MathpixService } from '../services/mathpixService.ts';
 import { questionDetectionService } from '../services/questionDetectionService.ts';
 import { ImageAnnotationService } from '../services/imageAnnotationService.ts';
+import { optionalAuth } from '../middleware/auth.ts';
 
 // Import only the basic types we need
 import type { 
@@ -331,7 +332,7 @@ async function saveMarkingResults(
  * POST /mark-homework
  * Complete mark question endpoint with all functionality
  */
-router.post('/mark-homework', async (req: Request, res: Response) => {
+router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) => {
   console.log('🚀 ===== COMPLETE MARK QUESTION ROUTE CALLED =====');
   console.log('Request body:', { 
     imageData: req.body.imageData ? 'present' : 'missing', 
@@ -511,7 +512,7 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
  * GET /mark-homework/results/:id
  * Retrieve saved marking results from Firestore
  */
-router.get('/results/:id', async (req: Request, res: Response) => {
+router.get('/results/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -554,7 +555,7 @@ router.get('/results/:id', async (req: Request, res: Response) => {
  * GET /mark-homework/user/:userId
  * Get marking history for a specific user
  */
-router.get('/user/:userId', async (req: Request, res: Response) => {
+router.get('/user/:userId', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     if (!userId) {

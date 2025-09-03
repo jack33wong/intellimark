@@ -1,38 +1,81 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Upload, MessageSquare } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 
-const MarkHomeworkPage = () => {
+const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved }) => {
+  // === CORE STATE ===
+  const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
+  // const [isShowingHistoricalData, setIsShowingHistoricalData] = useState(false); // Removed - not used
+  
+  // === UPLOAD MODE STATE ===
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
-  const [isChatMode, setIsChatMode] = useState(false);
-  const [showRawResponse, setShowRawResponse] = useState(false);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [showRawResponses, setShowRawResponses] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-  const fileInputRef = useRef(null);
-  const chatMessagesRef = useRef(null);
-  const [imageDimensions, setImageDimensions] = useState(null);
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
-  const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  
+  // === CHAT MODE STATE ===
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showChatHeader, setShowChatHeader] = useState(true);
   const [lastScrollTop, setLastScrollTop] = useState(0);
+  const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
+  
+  // === REFS ===
+  // const fileInputRef = useRef(null); // Removed - not used
+  const chatMessagesRef = useRef(null);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
     { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
   ];
+
+  // === MODE MANAGEMENT ===
+  
+  // Handle selected marking result from sidebar
+  useEffect(() => {
+    if (selectedMarkingResult) {
+      // Stay in upload mode but show historical data as "Analysis Results"
+      setPageMode('upload');
+      
+      // Set image preview if available
+      if (selectedMarkingResult.imageData) {
+        setPreviewUrl(`data:image/jpeg;base64,${selectedMarkingResult.imageData}`);
+      }
+      
+      // Set classification result if available
+      if (selectedMarkingResult.classification) {
+        setClassificationResult(selectedMarkingResult.classification);
+      }
+      
+      // Create API response format from historical data (same as upload mode results)
+      const historicalApiResponse = {
+        annotatedImage: selectedMarkingResult.annotatedImage,
+        instructions: selectedMarkingResult.markingInstructions,
+        classificationResult: selectedMarkingResult.classification,
+        questionDetection: selectedMarkingResult.questionDetection,
+        isHistorical: true,
+        historicalData: selectedMarkingResult
+      };
+      
+      setApiResponse(historicalApiResponse);
+      
+      // Clear the selected result after processing with a small delay
+      if (onClearSelectedResult) {
+        setTimeout(() => {
+          onClearSelectedResult();
+        }, 100);
+      }
+    }
+  }, [selectedMarkingResult, onClearSelectedResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load session from localStorage on component mount
   useEffect(() => {
@@ -42,24 +85,21 @@ const MarkHomeworkPage = () => {
     
     if (savedSessionId) {
       setCurrentSessionId(savedSessionId);
-      console.log('📝 Restored session ID from localStorage:', savedSessionId);
     }
     
     if (savedChatMessages) {
       try {
         const messages = JSON.parse(savedChatMessages);
         setChatMessages(messages);
-        console.log('📝 Restored chat messages from localStorage:', messages.length, 'messages');
       } catch (error) {
         console.error('❌ Failed to parse saved chat messages:', error);
       }
     }
     
-    if (savedChatMode === 'true') {
-      setIsChatMode(true);
-      console.log('📝 Restored chat mode from localStorage');
+    if (savedChatMode === 'true' && pageMode === 'upload') {
+      setPageMode('chat');
     }
-  }, []);
+  }, [pageMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save session data to localStorage whenever it changes
   useEffect(() => {
@@ -75,8 +115,8 @@ const MarkHomeworkPage = () => {
   }, [chatMessages]);
 
   useEffect(() => {
-    localStorage.setItem('isChatMode', isChatMode.toString());
-  }, [isChatMode]);
+    localStorage.setItem('isChatMode', (pageMode === 'chat').toString());
+  }, [pageMode]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -127,14 +167,13 @@ const MarkHomeworkPage = () => {
   useEffect(() => {
     let scrollUpTimer = null;
     let isCurrentlyScrollingUp = false;
+    let cleanupFunction = null;
 
     const handleScroll = () => {
       if (chatMessagesRef.current) {
         const scrollTop = chatMessagesRef.current.scrollTop;
         const isScrollingUp = scrollTop < lastScrollTop;
         const isAtTop = scrollTop <= 10; // Show header when within 10px of top
-        
-
         
         // Clear any existing timer
         if (scrollUpTimer) {
@@ -169,16 +208,15 @@ const MarkHomeworkPage = () => {
     const timer = setTimeout(() => {
       const chatMessagesElement = chatMessagesRef.current;
       if (chatMessagesElement) {
-
         chatMessagesElement.addEventListener('scroll', handleScroll);
-        return () => {
+        
+        // Store cleanup function
+        cleanupFunction = () => {
           chatMessagesElement.removeEventListener('scroll', handleScroll);
           if (scrollUpTimer) {
             clearTimeout(scrollUpTimer);
           }
         };
-      } else {
-
       }
     }, 100);
 
@@ -187,8 +225,11 @@ const MarkHomeworkPage = () => {
       if (scrollUpTimer) {
         clearTimeout(scrollUpTimer);
       }
+      if (cleanupFunction) {
+        cleanupFunction();
+      }
     };
-  }, [lastScrollTop, isChatMode]);
+  }, [lastScrollTop, pageMode]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -203,37 +244,7 @@ const MarkHomeworkPage = () => {
     });
   };
 
-  // Function to scale SVG coordinates to match displayed image
-  const scaleSVGForDisplay = (svgString, originalWidth, originalHeight, displayWidth, displayHeight) => {
-    if (!svgString || !originalWidth || !originalHeight || !displayWidth || !displayHeight) {
-      return svgString;
-    }
-
-    const scaleX = displayWidth / originalWidth;
-    const scaleY = displayHeight / originalHeight;
-
-    console.log('🔍 Scaling SVG:', {
-      original: `${originalWidth}x${originalHeight}`,
-      display: `${displayWidth}x${displayHeight}`,
-      scale: `${scaleX.toFixed(3)}x${scaleY.toFixed(3)}`
-    });
-
-    // Scale all numeric values in the SVG
-    let scaledSVG = svgString
-      .replace(/width="(\d+)"/, `width="${displayWidth}"`)
-      .replace(/height="(\d+)"/, `height="${displayHeight}"`)
-      .replace(/x="(\d+(?:\.\d+)?)"/g, (match, x) => `x="${(parseFloat(x) * scaleX).toFixed(1)}"`)
-      .replace(/y="(\d+(?:\.\d+)?)"/g, (match, y) => `y="${(parseFloat(y) * scaleY).toFixed(1)}"`)
-      .replace(/cx="(\d+(?:\.\d+)?)"/g, (match, cx) => `cx="${(parseFloat(cx) * scaleX).toFixed(1)}"`)
-      .replace(/cy="(\d+(?:\.\d+)?)"/g, (match, cy) => `cy="${(parseFloat(cy) * scaleY).toFixed(1)}"`)
-      .replace(/r="(\d+(?:\.\d+)?)"/g, (match, r) => `r="${(parseFloat(r) * Math.min(scaleX, scaleY)).toFixed(1)}"`)
-      .replace(/x1="(\d+(?:\.\d+)?)"/g, (match, x1) => `x1="${(parseFloat(x1) * scaleX).toFixed(1)}"`)
-      .replace(/y1="(\d+(?:\.\d+)?)"/g, (match, y1) => `y1="${(parseFloat(y1) * scaleY).toFixed(1)}"`)
-      .replace(/x2="(\d+(?:\.\d+)?)"/g, (match, x2) => `x2="${(parseFloat(x2) * scaleX).toFixed(1)}"`)
-      .replace(/y2="(\d+(?:\.\d+)?)"/g, (match, y2) => `y2="${(parseFloat(y2) * scaleY).toFixed(1)}"`);
-
-    return scaledSVG;
-  };
+  // Function to scale SVG coordinates to match displayed image - REMOVED (unused)
 
   const handleFileSelect = useCallback((file) => {
     if (file && file.type.startsWith('image/')) {
@@ -279,6 +290,74 @@ const MarkHomeworkPage = () => {
     }
   }, [handleFileSelect]);
 
+  // Send initial chat message when switching to chat mode
+  const sendInitialChatMessage = useCallback(async (imageData, model) => {
+    setIsProcessing(true);
+    
+    try {
+      const response = await fetch('/api/chat/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: 'I have a question that I need help with. Can you assist me?',
+          imageData: imageData,
+          model: model,
+          sessionId: currentSessionId
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update session ID if we got a new one
+        if (data.sessionId && data.sessionId !== currentSessionId) {
+          setCurrentSessionId(data.sessionId);
+        }
+        
+        // Add AI response to chat
+        const aiResponse = {
+          id: Date.now() + 2,
+          role: 'assistant',
+          content: data.response,
+          rawContent: data.response, // Store raw content for toggle
+          timestamp: new Date().toLocaleTimeString(),
+          apiUsed: data.apiUsed,
+          showRaw: false // Track raw toggle state
+        };
+        
+        setChatMessages(prev => [...prev, aiResponse]);
+      } else {
+        console.error('🔍 Initial chat failed:', data.error);
+        
+        // Add error message to chat
+        const errorResponse = {
+          id: Date.now() + 2,
+          role: 'assistant',
+          content: 'Sorry, I encountered an error while processing your image. Please try again.',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        
+        setChatMessages(prev => [...prev, errorResponse]);
+      }
+    } catch (error) {
+      console.error('🔍 Initial chat network error:', error);
+      
+      // Add error message to chat
+      const errorResponse = {
+        id: Date.now() + 2,
+        role: 'assistant',
+        content: 'Sorry, I encountered a network error. Please check your connection and try again.',
+        timestamp: new Date().toLocaleTimeString()
+      };
+      
+      setChatMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       setError('Please select a file first');
@@ -291,12 +370,8 @@ const MarkHomeworkPage = () => {
     setClassificationResult(null);
 
     try {
-      console.log('🚀 Starting homework marking process...');
-      
       // Convert image to base64
-      console.log('📸 Converting image to base64...');
       const imageData = await fileToBase64(selectedFile);
-      console.log('📸 Image converted, length:', imageData.length);
 
       // Prepare request payload
       const payload = {
@@ -305,23 +380,28 @@ const MarkHomeworkPage = () => {
       };
 
       const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
-      console.log('🌐 Making API call to:', apiUrl);
-      console.log('🌐 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
-      console.log('🌐 API_CONFIG.ENDPOINTS.MARK_HOMEWORK:', API_CONFIG.ENDPOINTS.MARK_HOMEWORK);
-      console.log('🌐 Payload model:', payload.model);
-      console.log('🌐 Payload imageData length:', payload.imageData.length);
+
+      // Get authentication token
+      const authToken = localStorage.getItem('authToken');
+      
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if token is available
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
 
       // Make API call
       const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(payload)
       });
 
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -329,20 +409,12 @@ const MarkHomeworkPage = () => {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
-             const result = await response.json();
-       console.log('✅ API Response received:', result);
+                   const result = await response.json();
 
        // Check if this is a question-only image
        if (result.isQuestionOnly) {
-         console.log('🔍 Image classified as question-only, switching to chat mode');
          
          // Store the classification result
-         console.log('🔍 Setting classification result for question-only image:', {
-           isQuestionOnly: true,
-           reasoning: result.reasoning,
-           apiUsed: result.apiUsed,
-           questionDetection: result.questionDetection
-         });
          
          setClassificationResult({
            isQuestionOnly: true,
@@ -352,7 +424,12 @@ const MarkHomeworkPage = () => {
          });
          
          // Switch to chat mode immediately
-         setIsChatMode(true);
+         setPageMode('chat');
+         
+         // Refresh mark history in sidebar
+         if (onMarkingResultSaved) {
+           onMarkingResultSaved();
+         }
          
          // Add initial user message with the image
          const initialUserMessage = {
@@ -380,6 +457,12 @@ const MarkHomeworkPage = () => {
        if (result.classificationResult) {
          setClassificationResult(result.classificationResult);
        }
+       
+       // Refresh mark history in sidebar
+       if (onMarkingResultSaved) {
+
+         onMarkingResultSaved();
+       }
       
     } catch (err) {
       console.error('❌ Upload error:', err);
@@ -387,84 +470,9 @@ const MarkHomeworkPage = () => {
     } finally {
       setIsProcessing(false);
     }
-     }, [selectedFile, selectedModel]);
+     }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
-   // Send initial chat message when switching to chat mode
-   const sendInitialChatMessage = useCallback(async (imageData, model) => {
-     console.log('🔍 ===== SENDING INITIAL CHAT MESSAGE =====');
-     console.log('🔍 Image data length:', imageData.length);
-     console.log('🔍 Model:', model);
-     console.log('🔍 Current session ID:', currentSessionId);
-     
-     setIsProcessing(true);
-     
-     try {
-       const response = await fetch('/api/chat/', {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-         body: JSON.stringify({
-           message: 'I have a question that I need help with. Can you assist me?',
-           imageData: imageData,
-           model: model,
-           sessionId: currentSessionId
-         }),
-       });
 
-       const data = await response.json();
-
-       if (data.success) {
-         console.log('🔍 Initial chat response received:', data.response.substring(0, 100) + '...');
-         console.log('🔍 API Used:', data.apiUsed);
-         console.log('🔍 Session ID from response:', data.sessionId);
-         
-         // Update session ID if we got a new one
-         if (data.sessionId && data.sessionId !== currentSessionId) {
-           setCurrentSessionId(data.sessionId);
-         }
-         
-         // Add AI response to chat
-         const aiResponse = {
-           id: Date.now() + 2,
-           role: 'assistant',
-           content: data.response,
-           rawContent: data.response, // Store raw content for toggle
-           timestamp: new Date().toLocaleTimeString(),
-           apiUsed: data.apiUsed,
-           showRaw: false // Track raw toggle state
-         };
-         
-         setChatMessages(prev => [...prev, aiResponse]);
-       } else {
-         console.error('🔍 Initial chat failed:', data.error);
-         
-         // Add error message to chat
-         const errorResponse = {
-           id: Date.now() + 2,
-           role: 'assistant',
-           content: 'Sorry, I encountered an error while processing your image. Please try again.',
-           timestamp: new Date().toLocaleTimeString()
-         };
-         
-         setChatMessages(prev => [...prev, errorResponse]);
-       }
-     } catch (error) {
-       console.error('🔍 Initial chat network error:', error);
-       
-       // Add error message to chat
-       const errorResponse = {
-         id: Date.now() + 2,
-         role: 'assistant',
-         content: 'Sorry, I encountered a network error. Please check your connection and try again.',
-         timestamp: new Date().toLocaleTimeString()
-       };
-       
-       setChatMessages(prev => [...prev, errorResponse]);
-     } finally {
-       setIsProcessing(false);
-     }
-   }, [currentSessionId]);
 
    const handleSendMessage = useCallback(async () => {
     if (!chatInput.trim()) return;
@@ -481,10 +489,6 @@ const MarkHomeworkPage = () => {
     setIsProcessing(true);
 
     try {
-      console.log('🔍 ===== SENDING CHAT MESSAGE =====');
-      console.log('🔍 Message:', chatInput.trim());
-      console.log('🔍 Model:', selectedModel);
-      console.log('🔍 Current session ID:', currentSessionId);
       
       // Get the image data from the first user message (which contains the image)
       const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
@@ -505,11 +509,7 @@ const MarkHomeworkPage = () => {
 
       const data = await response.json();
 
-      if (data.success) {
-        console.log('🔍 Chat response received:', data.response.substring(0, 100) + '...');
-        console.log('🔍 API Used:', data.apiUsed);
-        console.log('🔍 Session ID from response:', data.sessionId);
-        console.log('🔍 Context info:', data.context);
+             if (data.success) {
         
         // Update session ID if we got a new one
         if (data.sessionId && data.sessionId !== currentSessionId) {
@@ -558,7 +558,7 @@ const MarkHomeworkPage = () => {
     }
   }, [chatInput, selectedModel, chatMessages, selectedFile, currentSessionId]);
 
-  if (isChatMode) {
+  if (pageMode === 'chat') {
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-container">
@@ -567,12 +567,14 @@ const MarkHomeworkPage = () => {
               <button 
                 className="back-btn"
                 onClick={() => {
-                  setIsChatMode(false);
+                  setPageMode('upload');
                   setChatMessages([]);
                   setChatInput('');
                   setClassificationResult(null);
                   setApiResponse(null);
                   setCurrentSessionId(null);
+                  // setIsShowingHistoricalData(false); // Removed - not used
+                  setPreviewUrl(null);
                   // Clear localStorage
                   localStorage.removeItem('chatSessionId');
                   localStorage.removeItem('chatMessages');
@@ -762,10 +764,51 @@ const MarkHomeworkPage = () => {
                            content={message.content}
                            className="chat-message-renderer"
                          />
+                         
+                         {/* Historical marking data display */}
+                         {message.isHistorical && message.historicalData && (
+                           <div className="historical-marking-data">
+                             <div className="historical-header">
+                               <h4>Marking Instructions</h4>
+                               <div className="historical-meta">
+                                 <span>Model: {message.historicalData.model}</span>
+                                 <span>Date: {new Date(message.historicalData.createdAt?.toDate?.() || message.historicalData.createdAt).toLocaleDateString()}</span>
+                               </div>
+                             </div>
+                             
+                             {message.historicalData.markingInstructions?.annotations?.length > 0 && (
+                               <div className="marking-annotations">
+                                 <h5>Annotations:</h5>
+                                 <ul>
+                                   {message.historicalData.markingInstructions.annotations.map((annotation, index) => (
+                                     <li key={index}>
+                                       <strong>{annotation.action}:</strong> {annotation.comment || annotation.text || 'No comment'}
+                                       {annotation.bbox && (
+                                         <span className="bbox-info">
+                                           (Position: {annotation.bbox.join(', ')})
+                                         </span>
+                                       )}
+                                     </li>
+                                   ))}
+                                 </ul>
+                               </div>
+                             )}
+                             
+                             {message.historicalData.ocrResult?.ocrText && (
+                               <div className="historical-ocr">
+                                 <h5>Extracted Text:</h5>
+                                 <div className="ocr-text">
+                                   {message.historicalData.ocrResult.ocrText}
+                                 </div>
+                               </div>
+                             )}
+                           </div>
+                         )}
+                         
                          <button 
                            className="raw-toggle-btn"
                            onClick={() => {
-                             const rawContent = message.rawContent || message.content;
+                             // const rawContent = message.rawContent || message.content; // Removed - not used
                              if (message.showRaw) {
                                message.showRaw = false;
                              } else {
@@ -983,10 +1026,26 @@ const MarkHomeworkPage = () => {
             </div>
           )}
 
-          {/* Results Section */}
-          {apiResponse && (
-            <div className="results-section">
-              <h3>Analysis Results</h3>
+                      {/* Results Section */}
+            {apiResponse && (
+              <div className="results-section">
+                <div className="results-header">
+                  <h3>Analysis Results</h3>
+                  {apiResponse.isHistorical && (
+                    <button 
+                      className="back-to-upload-btn"
+                      onClick={() => {
+                        setApiResponse(null);
+                        setClassificationResult(null);
+                        setPreviewUrl(null);
+                        // setIsShowingHistoricalData(false); // Removed - not used
+                        setPageMode('upload');
+                      }}
+                    >
+                      ← Back to Upload
+                    </button>
+                  )}
+                </div>
               
               {/* Exam Paper Detection Header */}
               {apiResponse.questionDetection && apiResponse.questionDetection.found && (
@@ -1083,8 +1142,8 @@ const MarkHomeworkPage = () => {
             </div>
           )}
 
-          {/* Upload Section - Show at bottom when response exists */}
-          {apiResponse && (
+          {/* Upload Section - Show at bottom when response exists, but not when showing historical data */}
+          {!apiResponse && (
             <div className="upload-section bottom-upload">
               <div className="model-selector">
                 <label htmlFor="model-select">Select AI Model</label>

@@ -28,7 +28,7 @@ const db = admin.firestore();
 
 // Collection names
 const COLLECTIONS = {
-  MARKING_RESULTS: 'marking_results',
+  MARKING_RESULTS: 'markingResults',
   USERS: 'users',
   SESSIONS: 'sessions'
 } as const;

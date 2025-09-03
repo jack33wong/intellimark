@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Header from './components/Header';
@@ -16,14 +16,43 @@ import SubscriptionPage from './components/SubscriptionPage';
 import './App.css';
 
 /**
- * Main App component that manages the overall application state
+ * App content component that can use React Router hooks
  * @returns {JSX.Element} The main application layout
  */
-function App() {
+function AppContent() {
+  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [selectedMarkingResult, setSelectedMarkingResult] = useState(null);
+  const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
 
   const handleMenuToggle = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleMarkingHistoryClick = (result) => {
+    setSelectedMarkingResult(result);
+    
+    // Navigate to mark-homework route using React Router
+    navigate('/mark-homework');
+  };
+
+  const handleMarkHomeworkClick = () => {
+    setSelectedMarkingResult(null);
+    setMarkHomeworkResetKey(prev => prev + 1);
+  };
+  
+
+
+  const handleMarkingResultSaved = () => {
+    // This will be called when a new marking result is saved
+    // We'll pass this to the Sidebar to refresh the history
+  };
+
+  // Function to trigger mark history refresh
+  const refreshMarkHistory = () => {
+    if (handleMarkingResultSaved.refresh) {
+      handleMarkingResultSaved.refresh();
+    }
   };
 
   // Using future flags to opt-in to React Router v7 behavior early
@@ -32,11 +61,7 @@ function App() {
   // - v7_relativeSplatPath: Improves relative route resolution within splat routes
   return (
     <AuthProvider>
-      <Router future={{ 
-        v7_startTransition: true,
-        v7_relativeSplatPath: true 
-      }}>
-        <div className="app-container">
+      <div className="app-container">
           <Routes>
             {/* Public routes - no header/sidebar */}
             <Route path="/login" element={<Login />} />
@@ -57,8 +82,20 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
-                    <MarkHomeworkPage />
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                      onMarkingResultSaved={handleMarkingResultSaved}
+                    />
+
+
+                    <MarkHomeworkPage 
+                      key={markHomeworkResetKey}
+                      selectedMarkingResult={selectedMarkingResult}
+                      onClearSelectedResult={() => setSelectedMarkingResult(null)}
+                      onMarkingResultSaved={refreshMarkHistory}
+                    />
                   </div>
                 </div>
               </ProtectedRoute>
@@ -71,7 +108,11 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                    />
                     <FirebaseTest />
                   </div>
                 </div>
@@ -83,7 +124,11 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                    />
                     <SimpleFirebaseTest />
                   </div>
                 </div>
@@ -105,7 +150,11 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                    />
                     <MarkdownMathDemo />
                   </div>
                 </div>
@@ -118,7 +167,11 @@ function App() {
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
-                    <Sidebar isOpen={isSidebarOpen} />
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                    />
                     <div className="welcome-message">
                       <h1>Welcome to IntelliMark</h1>
                       <p>Your AI-powered homework marking assistant</p>
@@ -132,8 +185,22 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
-      </Router>
     </AuthProvider>
+  );
+}
+
+/**
+ * Main App component
+ * @returns {JSX.Element} The main application with routing
+ */
+function App() {
+  return (
+    <Router future={{ 
+      v7_startTransition: true,
+      v7_relativeSplatPath: true 
+    }}>
+      <AppContent />
+    </Router>
   );
 }
 

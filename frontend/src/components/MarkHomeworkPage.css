@@ -89,6 +89,105 @@
   background: linear-gradient(135deg, var(--secondary-bg), var(--tertiary-bg));
 }
 
+/* Historical Marking Data Styles */
+.historical-marking-data {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.historical-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.historical-header h4 {
+  margin: 0 0 8px 0;
+  color: var(--primary-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.historical-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted-text);
+}
+
+.historical-meta span {
+  background: var(--secondary-bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.marking-annotations {
+  margin-bottom: 16px;
+}
+
+.marking-annotations h5 {
+  margin: 0 0 8px 0;
+  color: var(--primary-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.marking-annotations ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.marking-annotations li {
+  margin-bottom: 8px;
+  color: var(--secondary-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.marking-annotations strong {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.bbox-info {
+  font-size: 11px;
+  color: var(--muted-text);
+  font-style: italic;
+  margin-left: 8px;
+}
+
+.historical-ocr {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.historical-ocr h5 {
+  margin: 0 0 8px 0;
+  color: var(--primary-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ocr-text {
+  background: var(--secondary-bg);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--secondary-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Removed purple shimmer bar */
 
 .upload-section:hover {
@@ -577,12 +676,40 @@
   max-width: 1200px;
 }
 
-.results-section h3 {
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.results-header h3 {
+  margin: 0;
   font-size: 24px;
   font-weight: 700;
   color: var(--primary-text);
-  margin-bottom: 24px;
-  text-align: center;
+}
+
+.back-to-upload-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.back-to-upload-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 .result-card {
@@ -1489,7 +1616,6 @@
 }
 
 .question-number {
-  background: rgba(255, 255, 255, 0.3) !important;
   font-weight: 600;
 }
 
