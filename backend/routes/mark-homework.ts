@@ -7,6 +7,7 @@ import * as express from 'express';
 import type { Request, Response } from 'express';
 import { MathpixService } from '../services/mathpixService.ts';
 import { questionDetectionService } from '../services/questionDetectionService.ts';
+import { ImageAnnotationService } from '../services/imageAnnotationService.ts';
 
 // Import only the basic types we need
 import type { 
