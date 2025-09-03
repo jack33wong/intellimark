@@ -5,7 +5,8 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { MathpixService } from '../services/mathpixService.ts';
+import { MathpixService } from '../services/mathpixService';
+import { ImageAnnotationService } from '../services/imageAnnotationService';
 
 // Import only the basic types we need
 import type { 
@@ -36,7 +37,7 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
     console.log('🔍 Using model:', model);
     
     // Import the AI marking service to avoid circular dependencies
-    const { AIMarkingService } = await import('../services/aiMarkingService.ts');
+    const { AIMarkingService } = await import('../services/aiMarkingService');
     
     // Use AI marking service for classification
     const classification = await AIMarkingService.classifyImage(imageData, model);
@@ -110,7 +111,7 @@ async function generateRealMarkingInstructions(
   
   try {
     // Import the AI marking service to avoid circular dependencies
-    const { AIMarkingService } = await import('../services/aiMarkingService.ts');
+    const { AIMarkingService } = await import('../services/aiMarkingService');
     
     // Use AI marking service for marking instructions
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
@@ -282,7 +283,7 @@ async function saveMarkingResults(
     console.log('🔍 Model:', model);
     
     // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService.ts');
+    const { FirestoreService } = await import('../services/firestoreService');
     console.log('🔍 FirestoreService imported successfully');
     
     // Save to Firestore
@@ -390,17 +391,27 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
     const markingInstructions = await generateRealMarkingInstructions(imageData, model, processedImage);
     console.log('🔍 AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
 
-    // Step 4: Professional SVG overlay generation
-    console.log('🔍 ===== STEP 4: PROFESSIONAL SVG OVERLAY =====');
+    // Step 4: Burn SVG overlay into image
+    console.log('🔍 ===== STEP 4: BURNING SVG OVERLAY INTO IMAGE =====');
     console.log('🔍 Marking instructions annotations:', markingInstructions.annotations.length);
     console.log('🔍 Image dimensions:', processedImage.imageDimensions);
-    const svgOverlay = generateProfessionalSVGOverlay(
-      markingInstructions,
-      processedImage.imageDimensions.width,
-      processedImage.imageDimensions.height
+    
+    // Convert marking instructions to annotation format
+    const annotations = markingInstructions.annotations.map(ann => ({
+      bbox: ann.bbox,
+      comment: ann.text || '',
+      action: ann.action
+    }));
+    
+    // Generate burned image with annotations
+    const annotationResult = await ImageAnnotationService.generateAnnotationResult(
+      imageData,
+      annotations,
+      processedImage.imageDimensions
     );
-    console.log('🔍 Professional SVG overlay created, length:', svgOverlay.length);
-    console.log('🔍 SVG overlay preview:', svgOverlay.substring(0, 200) + '...');
+    
+    console.log('🔍 Burned image created, length:', annotationResult.annotatedImage.length);
+    console.log('🔍 SVG overlay length:', annotationResult.svgOverlay.length);
 
     // Step 5: Save results to persistent storage
     console.log('🔍 ===== STEP 5: SAVING RESULTS =====');
@@ -425,10 +436,10 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
       success: true,
       isQuestionOnly: false,
       result: processedImage,
-      annotatedImage: svgOverlay,
+      annotatedImage: annotationResult.annotatedImage, // Use burned image instead of SVG overlay
       instructions: markingInstructions,
-      message: 'Question marked successfully with complete AI analysis',
-      apiUsed: 'Complete AI Marking System',
+      message: 'Question marked successfully with burned annotations',
+      apiUsed: 'Complete AI Marking System with Burned Overlays',
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification
     };
@@ -475,7 +486,7 @@ router.get('/results/:id', async (req: Request, res: Response) => {
     console.log('🔍 Retrieving marking results from Firestore for ID:', id);
     
     // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService.ts');
+    const { FirestoreService } = await import('../services/firestoreService');
     
     // Retrieve from Firestore
     const savedResult = await FirestoreService.getMarkingResults(id);
@@ -520,7 +531,7 @@ router.get('/user/:userId', async (req: Request, res: Response) => {
     console.log('🔍 Retrieving marking history for user:', userId, 'limit:', limit);
     
     // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService.ts');
+    const { FirestoreService } = await import('../services/firestoreService');
     
     // Retrieve user's marking history from Firestore
     const userResults = await FirestoreService.getUserMarkingResults(userId, limit);
@@ -551,7 +562,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
     console.log('🔍 Retrieving system statistics from Firestore...');
     
     // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService.ts');
+    const { FirestoreService } = await import('../services/firestoreService');
     
     // Get system statistics from Firestore
     const stats = await FirestoreService.getSystemStats();

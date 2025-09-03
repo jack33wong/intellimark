@@ -1,304 +1,252 @@
 /**
- * SVG Overlay Service
- * Generates SVG overlays for homework marking annotations
+ * SVG Overlay Service for burning SVG annotations into images
+ * Converts SVG overlays to permanent image annotations
  */
 
-import { MarkingInstructions, Annotation } from '../types/index.ts';
+import sharp from 'sharp';
+import { Annotation, ImageDimensions } from '../types/index';
 
+/**
+ * SVG Overlay Service class
+ */
 export class SVGOverlayService {
+
+
+
+
   /**
-   * Create SVG overlay from marking instructions
+   * Alternative method using server-side image processing with Sharp
+   * This version works in Node.js environment without DOM
    */
-  static createSVGOverlay(
-    instructions: MarkingInstructions, 
-    imageWidth: number = 400, 
-    imageHeight: number = 300
-  ): string | null {
-    if (!instructions.annotations || instructions.annotations.length === 0) {
-      return null;
-    }
-
-    console.log('🔍 Creating SVG overlay with annotations:', instructions.annotations.length);
-    instructions.annotations.forEach((annotation, index) => {
-      console.log(`🔍 Annotation ${index + 1}:`, {
-        action: annotation.action,
-        comment: annotation.comment,
-        text: annotation.text,
-        bbox: annotation.bbox,
-        hasComment: !!(annotation.comment || annotation.text),
-        commentLength: (annotation.comment ? annotation.comment.length : 0) + (annotation.text ? annotation.text.length : 0)
-      });
-    });
-
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}" style="position: absolute; top: 0; left: 0;">`;
-    
-    instructions.annotations.forEach((annotation, index) => {
-      // Bounding box format: [x, y, width, height]
-      const [x, y, width, height] = annotation.bbox;
-      const centerX = x + (width / 2);
-      const centerY = y + (height / 2);
+  static async burnSVGOverlayServerSide(
+    originalImageData: string,
+    annotations: Annotation[],
+    imageDimensions: ImageDimensions
+  ): Promise<string> {
+    try {
+      console.log('🔥 Burning SVG overlay server-side with Sharp...');
+      console.log('🔍 Image dimensions:', imageDimensions);
+      console.log('🔍 Annotations count:', annotations.length);
+      console.log('🔍 First annotation bbox:', annotations[0]?.bbox);
       
-      // Handle comment actions separately
-      if (annotation.action === 'comment') {
-        if (annotation.text && annotation.text.trim()) {
-          this.addCommentText(svg, annotation.text, x, y, width, height, index);
-        }
-        return; // Skip visual annotation for comment actions
+      if (!annotations || annotations.length === 0) {
+        console.log('🔍 No annotations to burn, returning original image');
+        return originalImageData;
       }
+
+      // Remove data URL prefix if present
+      const base64Data = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      // Get image metadata to ensure we have correct dimensions
+      const imageMetadata = await sharp(imageBuffer).metadata();
+      const originalWidth = imageMetadata.width || imageDimensions.width;
+      const originalHeight = imageMetadata.height || imageDimensions.height;
       
-      // Handle legacy comment field for backward compatibility (write actions)
-      if (annotation.comment && annotation.comment.trim()) {
-        this.addCommentText(svg, annotation.comment, x, y, width, height, index);
-      }
+      console.log('🔍 Original image dimensions:', originalWidth, 'x', originalHeight);
+      console.log('🔍 Provided image dimensions:', imageDimensions.width, 'x', imageDimensions.height);
+
+      // Use the original image dimensions for burning to maintain quality
+      // The frontend will handle the final display scaling
+      const burnWidth = originalWidth;
+      const burnHeight = originalHeight;
       
-      // Add the visual annotation based on type
-      this.addVisualAnnotation(svg, annotation, centerX, centerY, x, y, width, height);
-    });
-    
-    svg += '</svg>';
-    
-    console.log('🔍 SVG overlay created successfully, length:', svg.length);
-    console.log('🔍 SVG preview (first 500 chars):', svg.substring(0, 500));
-    
-    // Validate SVG structure
-    if (!this.validateSVG(svg)) {
-      console.error('🔍 SVG validation failed, trying simple fallback...');
-      return this.createSimpleSVGOverlay(instructions, imageWidth, imageHeight);
+      console.log('🔍 Burning at original dimensions:', burnWidth, 'x', burnHeight);
+
+      // Create SVG overlay with display dimensions
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, imageDimensions);
+      
+      // Create SVG buffer
+      const svgBuffer = Buffer.from(svgOverlay);
+
+      // Composite the SVG overlay onto the original image
+      const burnedImageBuffer = await sharp(imageBuffer)
+        .composite([
+          {
+            input: svgBuffer,
+            top: 0,
+            left: 0
+          }
+        ])
+        .png()
+        .toBuffer();
+
+      // Convert back to base64 data URL
+      const burnedImageData = `data:image/png;base64,${burnedImageBuffer.toString('base64')}`;
+      
+      console.log('✅ Successfully burned SVG overlay server-side');
+      console.log('🔍 Original size:', imageBuffer.length, 'bytes');
+      console.log('🔍 Burned size:', burnedImageBuffer.length, 'bytes');
+      
+      return burnedImageData;
+      
+    } catch (error) {
+      console.error('❌ Failed to burn SVG overlay server-side:', error);
+      throw new Error(`Failed to burn SVG overlay: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
-    return svg;
   }
 
   /**
-   * Add comment text to SVG
+   * Create SVG overlay for burning into image
    */
-  private static addCommentText(
-    svg: string, 
-    comment: string, 
-    x: number, 
-    y: number, 
-    width: number, 
-    height: number, 
-    index: number
-  ): void {
-    // Clean and escape the comment text for SVG
-    let cleanComment = comment
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions): string {
+    if (!annotations || annotations.length === 0) {
+      return '';
+    }
+
+    console.log('🔍 Creating SVG overlay with dimensions:', actualWidth, 'x', actualHeight);
+    console.log('🔍 Original dimensions:', originalDimensions.width, 'x', originalDimensions.height);
     
-    // Handle LaTeX expressions by converting them to plain text
-    cleanComment = cleanComment
-      .replace(/\\\(/g, '(') // Convert \( to (
-      .replace(/\\\)/g, ')') // Convert \) to )
-      .replace(/\\\\/g, '\\') // Convert \\ to \
-      .replace(/\\mathrm\{([^}]*)\}/g, '$1') // Convert \mathrm{text} to text
-      .replace(/\\approx/g, '≈') // Convert \approx to ≈
-      .replace(/\\mathrm/g, '') // Remove \mathrm
-      .replace(/\\text\{([^}]*)\}/g, '$1'); // Convert \text{text} to text
+    // Calculate scaling factors from provided dimensions to actual burn dimensions
+    const scaleX = actualWidth / originalDimensions.width;
+    const scaleY = actualHeight / originalDimensions.height;
     
-    // Split text by line breaks and handle each line separately
-    const lines = cleanComment.split('\n');
+    console.log('🔍 Scaling factors:', { scaleX, scaleY });
     
-    // Calculate font size based on bounding box size
-    const baseFontSize = Math.max(24, Math.min(width, height) / 8);
-    const scaledFontSize = Math.min(baseFontSize, 80); // Cap at 80px to avoid oversized text
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
     
-    // Calculate dynamic line height based on font size
-    const lineHeight = scaledFontSize * 1.2; // 1.2x font size for line height
-    
-    // Position comment text to the right of the annotation area
-    const commentX = x; // 10px to the right of the bounding box
-    const startY = y - ((lines.length - 1) * lineHeight / 2); // Center the multi-line text
-    
-    console.log(`🔍 Adding comment text for annotation ${index + 1}:`, {
-      original: comment,
-      cleaned: cleanComment,
-      lines: lines.length,
-      position: { x: commentX, y: startY }
+    annotations.forEach((annotation, index) => {
+      svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY);
     });
-    
-    // Add each line as a separate text element
-    lines.forEach((line, lineIndex) => {
-      if (line.trim()) { // Only add non-empty lines
-        const lineY = startY + (lineIndex * lineHeight);
-                 svg += `<text x="${commentX}" y="${lineY}" fill="red" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="${scaledFontSize * 2}" font-weight="900" text-anchor="start" dominant-baseline="middle">${line}</text>`;
-      }
-    });
+
+    return svg + '</svg>';
   }
 
   /**
-   * Add visual annotation to SVG
+   * Create annotation SVG element based on type
    */
-  private static addVisualAnnotation(
-    svg: string, 
-    annotation: Annotation, 
-    centerX: number, 
-    centerY: number, 
-    x: number, 
-    y: number, 
-    width: number, 
-    height: number
-  ): void {
-    switch (annotation.action) {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number): string {
+    const [x, y, width, height] = annotation.bbox;
+    const action = annotation.action || 'comment';
+    const comment = annotation.comment || '';
+    
+    // Scale the bounding box coordinates
+    const scaledX = x * scaleX;
+    const scaledY = y * scaleY;
+    const scaledWidth = width * scaleX;
+    const scaledHeight = height * scaleY;
+    
+    console.log(`🔍 Annotation ${index + 1}: Original(${x}, ${y}, ${width}, ${height}) -> Scaled(${scaledX}, ${scaledY}, ${scaledWidth}, ${scaledHeight})`);
+    
+    let svg = '';
+    
+    // Add annotation number indicator (scaled)
+    const numberRadius = 18 * Math.min(scaleX, scaleY);
+    const fontSize = 16 * Math.min(scaleX, scaleY);
+    svg += `<circle cx="${scaledX + 20}" cy="${scaledY + 20}" r="${numberRadius}" fill="#ff4444" opacity="0.9"/>`;
+    svg += `<text x="${scaledX + 20}" y="${scaledY + 26}" text-anchor="middle" fill="white" 
+            font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${index + 1}</text>`;
+    
+    // Create annotation based on type
+    switch (action) {
       case 'tick':
-        // Calculate font size based on bounding box size for tick
-        const tickFontSize = Math.max(40, Math.min(width, height) / 2);
-        const scaledTickSize = Math.min(tickFontSize, 200); // Cap at 200px
-        svg += `<text x="${centerX}" y="${centerY + 5}" fill="red" font-family="Arial, sans-serif" font-size="${scaledTickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
+        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
-        
       case 'cross':
-        // Calculate font size based on bounding box size for cross
-        const crossFontSize = Math.max(40, Math.min(width, height) / 2);
-        const scaledCrossSize = Math.min(crossFontSize, 250); // Cap at 250px
-        svg += `<text x="${centerX}" y="${centerY + 5}" fill="red" font-family="Arial, sans-serif" font-size="${scaledCrossSize}" font-weight="bold" text-anchor="middle">✘</text>`;
+        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
-        
       case 'circle':
-        // Draw a red circle around the area with better positioning
-        const radius = Math.max(width, height) / 2 + 5;
-        const strokeWidth = Math.max(2, Math.min(width, height) / 20); // Scale stroke width
-        svg += `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="red" stroke-width="${strokeWidth}" opacity="0.8"/>`;
-        console.log(`🔍 Added circle annotation:`, {
-          center: { x: centerX, y: centerY },
-          radius: radius,
-          bbox: { width, height },
-          strokeWidth: strokeWidth
-        });
+        svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
-        
       case 'underline':
-        // Draw a red underline with scaled stroke width
-        const underlineStrokeWidth = Math.max(2, Math.min(width, height) / 20); // Scale stroke width
-        svg += `<line x1="${x}" y1="${y + height + 5}" x2="${x + width}" y2="${y + height + 5}" stroke="red" stroke-width="${underlineStrokeWidth}" opacity="0.8"/>`;
+        svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
-        
-      case 'write':
+      case 'comment':
       default:
-        // For write actions, just show the comment text (already added above)
+        svg += this.createCommentAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, comment, scaleX, scaleY);
         break;
     }
-  }
-
-  /**
-   * Create simple SVG overlay as fallback
-   */
-  static createSimpleSVGOverlay(
-    instructions: MarkingInstructions, 
-    imageWidth: number = 400, 
-    imageHeight: number = 300
-  ): string | null {
-    if (!instructions.annotations || instructions.annotations.length === 0) {
-      return null;
-    }
-
-    console.log('🔍 Creating simple SVG overlay as fallback...');
-    
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}">`;
-    
-    instructions.annotations.forEach((annotation) => {
-      const [x, y, width, height] = annotation.bbox;
-      const centerX = x + (width / 2);
-      const centerY = y + (height / 2);
-      
-      // Handle comments first
-      if (annotation.action === 'comment' && annotation.text && annotation.text.trim()) {
-        this.addSimpleCommentText(svg, annotation.text, x, y, width, height);
-        return;
-      }
-      
-      // Handle legacy comment field for write actions
-      if (annotation.comment && annotation.comment.trim()) {
-        this.addSimpleCommentText(svg, annotation.comment, x, y, width, height);
-      }
-      
-      // Add visual marks
-      switch (annotation.action) {
-        case 'tick':
-          svg += `<text x="${centerX}" y="${centerY}" fill="red" font-family="Arial" font-size="40" text-anchor="middle">✔</text>`;
-          break;
-        case 'cross':
-          svg += `<text x="${centerX}" y="${centerY}" fill="red" font-family="Arial" font-size="40" text-anchor="middle">✗</text>`;
-          break;
-        case 'circle':
-          const radius = Math.max(width, height) / 2 + 5;
-          svg += `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="red" stroke-width="3"/>`;
-          break;
-        case 'underline':
-          svg += `<line x1="${x}" y1="${y + height + 5}" x2="${x + width}" y2="${y + height + 5}" stroke="red" stroke-width="3"/>`;
-          break;
-      }
-    });
-    
-    svg += '</svg>';
-    console.log('🔍 Simple SVG overlay created, length:', svg.length);
     
     return svg;
   }
 
   /**
-   * Add simple comment text to SVG
+   * Create tick annotation
    */
-  private static addSimpleCommentText(
-    svg: string, 
-    comment: string, 
-    x: number, 
-    y: number, 
-    width: number, 
-    height: number
-  ): void {
-    const cleanComment = comment
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/\\\(/g, '(')
-      .replace(/\\\)/g, ')')
-      .replace(/\\\\/g, '\\')
-      .replace(/\\mathrm\{([^}]*)\}/g, '$1')
-      .replace(/\\approx/g, '≈')
-      .replace(/\\mathrm/g, '')
-      .replace(/\\text\{([^}]*)\}/g, '$1');
+  private static createTickAnnotation(x: number, y: number, width: number, height: number): string {
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const size = Math.min(width, height) * 4.0; // 5x larger (0.8 * 5 = 4.0)
+    const strokeWidth = Math.max(30, Math.min(width, height) * 1.0); // 5x thicker stroke
     
-    const lines = cleanComment.split('\n');
-    const commentX = x + width + 10;
-    const startY = y + (height / 2) - ((lines.length - 1) * 30 / 2);
-    
-    lines.forEach((line, lineIndex) => {
-      if (line.trim()) {
-        const lineY = startY + (lineIndex * 30);
-                 svg += `<text x="${commentX}" y="${lineY}" fill="red" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="48" font-weight="900" text-anchor="start" dominant-baseline="middle">${line}</text>`;
-      }
-    });
+    return `
+      <g stroke="#00ff00" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
+        <path d="M ${centerX - size/3} ${centerY} L ${centerX - size/6} ${centerY + size/4} L ${centerX + size/3} ${centerY - size/4}" 
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </g>`;
   }
 
   /**
-   * Validate SVG structure
+   * Create cross annotation
    */
-  private static validateSVG(svg: string): boolean {
-    // Check for basic SVG structure
-    if (!svg.includes('<svg') || !svg.includes('</svg>') || !svg.includes('xmlns=')) {
-      console.error('🔍 Invalid SVG structure');
-      return false;
-    }
+  private static createCrossAnnotation(x: number, y: number, width: number, height: number): string {
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const size = Math.min(width, height) * 0.8;
+    const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
     
-    // Check for common XML issues - more sophisticated ampersand detection
-    const ampersandRegex = /&(?!amp;|lt;|gt;|quot;|#39;|#x[0-9a-fA-F]+;)/g;
-    if (ampersandRegex.test(svg)) {
-      console.error('🔍 Unescaped ampersands detected in SVG');
-      return false;
-    }
+    return `
+      <g stroke="#ff0000" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
+        <line x1="${centerX - size/2}" y1="${centerY - size/2}" x2="${centerX + size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
+        <line x1="${centerX + size/2}" y1="${centerY - size/2}" x2="${centerX - size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
+      </g>`;
+  }
+
+  /**
+   * Create circle annotation
+   */
+  private static createCircleAnnotation(x: number, y: number, width: number, height: number): string {
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const radius = Math.min(width, height) * 0.4;
+    const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
     
-    // Additional validation
-    if (svg.length < 100) {
-      console.error('🔍 SVG too short, likely invalid');
-      return false;
-    }
+    return `<circle cx="${centerX}" cy="${centerY}" r="${radius}" 
+            fill="none" stroke="#ffaa00" stroke-width="${strokeWidth}" opacity="0.8"/>`;
+  }
+
+  /**
+   * Create underline annotation
+   */
+  private static createUnderlineAnnotation(x: number, y: number, width: number, height: number): string {
+    const underlineY = y + height - Math.max(3, height * 0.1);
+    const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
     
-    return true;
+    return `<line x1="${x}" y1="${underlineY}" x2="${x + width}" y2="${underlineY}" 
+            stroke="#0066ff" stroke-width="${strokeWidth}" opacity="0.8" stroke-linecap="round"/>`;
+  }
+
+  /**
+   * Create comment annotation
+   */
+  private static createCommentAnnotation(x: number, y: number, width: number, height: number, comment: string, scaleX: number, scaleY: number): string {
+    if (!comment) return '';
+    
+    // Calculate comment position (above the bounding box)
+    const commentX = x;
+    const commentY = Math.max(25 * scaleY, y - 10 * scaleY);
+    
+    // Comment background (scaled)
+    const textWidth = comment.length * 12 * scaleX; // Approximate text width
+    const textHeight = 20 * scaleY;
+    const bgWidth = Math.max(textWidth + 20 * scaleX, 120 * scaleX);
+    const bgHeight = textHeight + 12 * scaleY;
+    const borderRadius = 6 * Math.min(scaleX, scaleY);
+    
+    let svg = '';
+    svg += `<rect x="${commentX}" y="${commentY - bgHeight}" width="${bgWidth}" 
+            height="${bgHeight}" fill="#ff4444" opacity="0.9" rx="${borderRadius}"/>`;
+    
+    // Comment text (scaled)
+    const textFontSize = 16 * Math.min(scaleX, scaleY);
+    svg += `<text x="${commentX + 10 * scaleX}" y="${commentY - 4 * scaleY}" fill="white" 
+            font-family="Arial, sans-serif" font-size="${textFontSize}" font-weight="500">${comment}</text>`;
+    
+    // Bounding box rectangle (scaled)
+    const strokeWidth = 4 * Math.min(scaleX, scaleY);
+    svg += `<rect x="${x}" y="${y}" width="${width}" height="${height}" 
+            fill="none" stroke="#ff4444" stroke-width="${strokeWidth}" opacity="0.6"/>`;
+    
+    return svg;
   }
 }
