@@ -231,24 +231,24 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
     
     switch (annotation.action) {
       case 'tick':
-        // Professional green checkmark using tick symbol
+        // Professional red checkmark using tick symbol
         const centerX = x + w/2;
         const centerY = y + h/2;
         const tickSize = Math.max(24, Math.min(w, h) / 2);
-        svg += `<text x="${centerX}" y="${centerY + 5}" fill="green" font-family="Arial, sans-serif" font-size="${tickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
+        svg += `<text x="${centerX}" y="${centerY + 5}" fill="red" font-family="Arial, sans-serif" font-size="${tickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
         break;
       case 'circle':
-        // Professional blue circle
-        svg += `<circle cx="${x+w/2}" cy="${y+h/2}" r="${Math.min(w,h)/2+2}" fill="none" stroke="blue" stroke-width="2" opacity="0.8"/>`;
+        // Professional red circle
+        svg += `<circle cx="${x+w/2}" cy="${y+h/2}" r="${Math.min(w,h)/2+2}" fill="none" stroke="red" stroke-width="2" opacity="0.8"/>`;
         break;
       case 'underline':
-        // Professional orange underline
-        svg += `<line x1="${x}" y1="${y+h+2}" x2="${x+w}" y2="${y+h+2}" stroke="orange" stroke-width="3" opacity="0.8"/>`;
+        // Professional red underline
+        svg += `<line x1="${x}" y1="${y+h+2}" x2="${x+w}" y2="${y+h+2}" stroke="red" stroke-width="3" opacity="0.8"/>`;
         break;
              case 'comment':
          // Professional comment box without background
                    if (annotation.text) {
-            svg += `<text x="${x}" y="${y+15}" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="24" fill="green" font-weight="900">${annotation.text}</text>`;
+            svg += `<text x="${x}" y="${y+15}" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="24" fill="red" font-weight="900">${annotation.text}</text>`;
           }
          break;
       default:
