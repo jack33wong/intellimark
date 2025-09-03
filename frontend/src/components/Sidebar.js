@@ -19,11 +19,6 @@ function Sidebar({ isOpen = true }) {
 
   return (
     <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
-      <div className="sidebar-header">
-        <h1>Intellimark</h1>
-        <p>AI-powered learning platform</p>
-      </div>
-
       <div className="sidebar-content">
         <button 
           className="new-chat-btn" 

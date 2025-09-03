@@ -18,9 +18,11 @@ const MarkHomeworkPage = () => {
   const [showRawResponses, setShowRawResponses] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const fileInputRef = useRef(null);
+  const chatMessagesRef = useRef(null);
   const [imageDimensions, setImageDimensions] = useState(null);
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
+  const [showExpandedThinking, setShowExpandedThinking] = useState(false);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -71,6 +73,30 @@ const MarkHomeworkPage = () => {
   useEffect(() => {
     localStorage.setItem('isChatMode', isChatMode.toString());
   }, [isChatMode]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatMessagesRef.current && chatMessages.length > 0) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
+
+  // Handle expanded thinking bubble after 10 seconds
+  useEffect(() => {
+    let timer;
+    if (isProcessing) {
+      setShowExpandedThinking(false);
+      timer = setTimeout(() => {
+        setShowExpandedThinking(true);
+      }, 10000); // 10 seconds
+    } else {
+      setShowExpandedThinking(false);
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isProcessing]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -452,62 +478,80 @@ const MarkHomeworkPage = () => {
                 ← Back to Upload
               </button>
               <h1>AI Homework Assistant</h1>
-              <p>Ask me anything about your homework</p>
-            </div>
-            <div className="chat-header-right">
-              {currentSessionId && (
-                <div className="session-info">
-                  <p><strong>Session:</strong> {currentSessionId.substring(0, 8)}...</p>
-                  <p><strong>Messages:</strong> {chatMessages.length}</p>
-                </div>
-              )}
               {classificationResult?.isQuestionOnly && (
                 <div className="classification-info">
                   <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
                 </div>
               )}
             </div>
+            <div className="chat-header-right">
+              {/* Show the image context */}
+              {previewUrl && (
+                <div className="chat-image-context">
+                  <img src={previewUrl} alt="Question context" className="context-image" />
+                </div>
+              )}
+            </div>
           </div>
           
-          {/* Show the image context */}
-          {previewUrl && (
-            <div className="chat-image-context">
-              <img src={previewUrl} alt="Question context" className="context-image" />
-            </div>
-          )}
-          
           <div className="chat-content">
-            <div className="chat-messages">
-                             {chatMessages.map((message) => (
-                 <div 
-                   key={message.id} 
-                   className={`chat-message ${message.role}`}
-                 >
-                   <div className="message-bubble">
-                     {message.role === 'assistant' ? (
-                       <MarkdownMathRenderer 
-                         content={message.content}
-                         className="chat-message-renderer"
-                       />
-                     ) : (
-                       <div className="message-text">{message.content}</div>
-                     )}
-                     <div className="message-timestamp">
-                       {message.timestamp}
-                     </div>
-                   </div>
-                 </div>
-               ))}
+            <div className="chat-messages" ref={chatMessagesRef}>
+              {chatMessages.map((message) => (
+                <div 
+                  key={message.id} 
+                  className={`chat-message ${message.role}`}
+                >
+                  <div className="message-bubble">
+                    {message.role === 'assistant' ? (
+                      <MarkdownMathRenderer 
+                        content={message.content}
+                        className="chat-message-renderer"
+                      />
+                    ) : (
+                      <div className="message-text">{message.content}</div>
+                    )}
+                    <div className="message-timestamp">
+                      {message.timestamp}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {/* AI Thinking Loading Animation */}
+              {isProcessing && (
+                <div className="chat-message assistant">
+                  <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
+                    <div className="thinking-indicator">
+                      <div className="thinking-dots">
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                      </div>
+                      <div className="thinking-text">
+                        {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
+                      </div>
+                      {showExpandedThinking && (
+                        <div className="progress-indicator">
+                          <div className="progress-bar">
+                            <div className="progress-fill"></div>
+                          </div>
+                          <div className="progress-text">Processing...</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
           {/* Bottom Input Bar */}
           <div className="chat-input-bar">
-            <div className="chat-input">
+            <div className={`chat-input ${isProcessing ? 'processing' : ''}`}>
               <textarea
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask me anything about your homework..."
+                placeholder={isProcessing ? "AI is thinking..." : "Ask me anything about your homework..."}
                 onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                 disabled={isProcessing}
               />
@@ -516,7 +560,11 @@ const MarkHomeworkPage = () => {
                 onClick={handleSendMessage}
                 disabled={isProcessing || !chatInput.trim()}
               >
-                Send
+                {isProcessing ? (
+                  <div className="send-spinner"></div>
+                ) : (
+                  'Send'
+                )}
               </button>
             </div>
           </div>
@@ -534,105 +582,107 @@ const MarkHomeworkPage = () => {
         </div>
 
         <div className="mark-homework-content">
-          {/* Upload Section */}
-          <div className="upload-section">
-            <div className="model-selector">
-              <label htmlFor="model-select">Select AI Model</label>
-              <select
-                id="model-select"
-                className="model-dropdown"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-              >
-                {models.map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} - {model.description}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Upload Section - Show at top if no response, at bottom if response exists */}
+          {!apiResponse && (
+            <div className="upload-section">
+              <div className="model-selector">
+                <label htmlFor="model-select">Select AI Model</label>
+                <select
+                  id="model-select"
+                  className="model-dropdown"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} - {model.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {previewUrl ? (
-              <div className="image-preview-container">
-                <img 
-                  src={previewUrl} 
-                  alt="Homework preview" 
-                  className="preview-image"
-                />
-                <div className="preview-overlay">
-                  <div className="preview-info">
-                    <div className="file-info">
-                      <span className="file-name">{selectedFile?.name}</span>
-                      <span className="file-size">
-                        {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
-                      </span>
+              {previewUrl ? (
+                <div className="image-preview-container">
+                  <img 
+                    src={previewUrl} 
+                    alt="Homework preview" 
+                    className="preview-image"
+                  />
+                  <div className="preview-overlay">
+                    <div className="preview-info">
+                      <div className="file-info">
+                        <span className="file-name">{selectedFile?.name}</span>
+                        <span className="file-size">
+                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      <button 
+                        className="change-image-btn"
+                        onClick={() => document.getElementById('file-input').click()}
+                      >
+                        Change Image
+                      </button>
                     </div>
-                    <button 
-                      className="change-image-btn"
-                      onClick={() => document.getElementById('file-input').click()}
-                    >
-                      Change Image
-                    </button>
                   </div>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
                 </div>
-                <input
-                  id="file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileInput}
-                  style={{ display: 'none' }}
-                />
-              </div>
-            ) : (
-              <div
-                className="upload-area"
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => document.getElementById('file-input').click()}
-              >
-                <input
-                  id="file-input"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileInput}
-                  style={{ display: 'none' }}
-                />
-                
-                <Upload className="upload-icon" />
-                <div className="upload-text">Drop your homework here</div>
-                <div className="upload-subtext">or click to browse files</div>
-                <div className="upload-hint">Supports JPG, PNG, GIF</div>
-              </div>
-            )}
+              ) : (
+                <div
+                  className="upload-area"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => document.getElementById('file-input').click()}
+                >
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
+                  
+                  <Upload className="upload-icon" />
+                  <div className="upload-text">Drop your homework here</div>
+                  <div className="upload-subtext">or click to browse files</div>
+                  <div className="upload-hint">Supports JPG, PNG, GIF</div>
+                </div>
+              )}
 
-            {error && (
-              <div className="error-message">
-                <span>⚠️</span>
-                {error}
-              </div>
-            )}
+              {error && (
+                <div className="error-message">
+                  <span>⚠️</span>
+                  {error}
+                </div>
+              )}
 
-            <div className="upload-actions">
-              <button
-                className="upload-homework-btn"
-                onClick={handleUpload}
-                disabled={!selectedFile || isProcessing}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="spinner"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Upload />
-                    Upload & Analyze
-                  </>
-                )}
-              </button>
+              <div className="upload-actions">
+                <button
+                  className="upload-homework-btn"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="upload-spinner"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload />
+                      Upload & Analyze
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Results Section */}
           {apiResponse && (
@@ -730,6 +780,87 @@ const MarkHomeworkPage = () => {
                     annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Upload Section - Show at bottom when response exists */}
+          {apiResponse && (
+            <div className="upload-section bottom-upload">
+              <div className="model-selector">
+                <label htmlFor="model-select">Select AI Model</label>
+                <select
+                  id="model-select"
+                  className="model-dropdown"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                >
+                  {models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} - {model.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {previewUrl && (
+                <div className="image-preview-container">
+                  <img 
+                    src={previewUrl} 
+                    alt="Homework preview" 
+                    className="preview-image"
+                  />
+                  <div className="preview-overlay">
+                    <div className="preview-info">
+                      <div className="file-info">
+                        <span className="file-name">{selectedFile?.name}</span>
+                        <span className="file-size">
+                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                      <button 
+                        className="change-image-btn"
+                        onClick={() => document.getElementById('file-input').click()}
+                      >
+                        Change Image
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    id="file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              )}
+
+              {error && (
+                <div className="error-message">
+                  <span>⚠️</span>
+                  {error}
+                </div>
+              )}
+
+              <div className="upload-actions">
+                <button
+                  className="upload-homework-btn"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <div className="upload-spinner"></div>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Upload />
+                      Upload & Analyze
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}
