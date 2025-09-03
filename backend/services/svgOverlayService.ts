@@ -124,7 +124,7 @@ export class SVGOverlayService {
     lines.forEach((line, lineIndex) => {
       if (line.trim()) { // Only add non-empty lines
         const lineY = startY + (lineIndex * lineHeight);
-        svg += `<text x="${commentX}" y="${lineY}" fill="red" font-family="Lucida Handwriting, cursive, sans-serif" font-size="${scaledFontSize}" font-weight="bold" text-anchor="start" dominant-baseline="middle">${line}</text>`;
+                 svg += `<text x="${commentX}" y="${lineY}" fill="green" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="${scaledFontSize * 2}" font-weight="900" text-anchor="start" dominant-baseline="middle">${line}</text>`;
       }
     });
   }
@@ -147,7 +147,7 @@ export class SVGOverlayService {
         // Calculate font size based on bounding box size for tick
         const tickFontSize = Math.max(40, Math.min(width, height) / 2);
         const scaledTickSize = Math.min(tickFontSize, 200); // Cap at 200px
-        svg += `<text x="${centerX}" y="${centerY + 5}" fill="red" font-family="Arial, sans-serif" font-size="${scaledTickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
+        svg += `<text x="${centerX}" y="${centerY + 5}" fill="green" font-family="Arial, sans-serif" font-size="${scaledTickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
         break;
         
       case 'cross':
@@ -218,7 +218,7 @@ export class SVGOverlayService {
       // Add visual marks
       switch (annotation.action) {
         case 'tick':
-          svg += `<text x="${centerX}" y="${centerY}" fill="red" font-family="Arial" font-size="40" text-anchor="middle">✓</text>`;
+          svg += `<text x="${centerX}" y="${centerY}" fill="green" font-family="Arial" font-size="40" text-anchor="middle">✔</text>`;
           break;
         case 'cross':
           svg += `<text x="${centerX}" y="${centerY}" fill="red" font-family="Arial" font-size="40" text-anchor="middle">✗</text>`;
@@ -271,7 +271,7 @@ export class SVGOverlayService {
     lines.forEach((line, lineIndex) => {
       if (line.trim()) {
         const lineY = startY + (lineIndex * 30);
-        svg += `<text x="${commentX}" y="${lineY}" fill="red" font-family="Lucida Handwriting, cursive, sans-serif" font-size="24" font-weight="bold" text-anchor="start" dominant-baseline="middle">${line}</text>`;
+                 svg += `<text x="${commentX}" y="${lineY}" fill="green" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="48" font-weight="900" text-anchor="start" dominant-baseline="middle">${line}</text>`;
       }
     });
   }

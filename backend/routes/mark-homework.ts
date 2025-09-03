@@ -146,47 +146,47 @@ async function generateRealMarkingInstructions(
         let action: 'tick' | 'circle' | 'underline' | 'comment' = 'tick';
         let comment = '';
         
-        if (text.includes('step') || text.includes('solution')) {
-          action = 'tick';
-          comment = 'Excellent step-by-step approach';
-        } else if (text.includes('=') || text.includes('±') || text.includes('√') || text.includes('÷')) {
-          action = 'tick';
-          comment = 'Correct mathematical notation and operations';
-        } else if (text.includes('x²') || text.includes('quadratic') || text.includes('equation')) {
-          action = 'underline';
-          comment = 'Perfect problem identification';
-        } else if (text.includes('a =') || text.includes('b =') || text.includes('c =') || text.includes('coefficients')) {
-          action = 'circle';
-          comment = 'Good parameter identification';
-        } else if (text.includes('formula') || text.includes('discriminant') || text.includes('δ')) {
-          action = 'tick';
-          comment = 'Correct formula application';
-        } else if (text.includes('answer') || text.includes('x =')) {
-          action = 'tick';
-          comment = 'Correct final answer';
-        } else if (text.includes('find') || text.includes('value')) {
-          action = 'underline';
-          comment = 'Clear problem statement';
-        } else {
-          // Default intelligent actions
-          const actions = ['tick', 'circle', 'underline', 'comment'] as const;
-          action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
-          
-          switch (action) {
-            case 'tick':
-              comment = 'Correct mathematical work';
-              break;
-            case 'circle':
-              comment = 'Good approach, verify calculation';
-              break;
-            case 'underline':
-              comment = 'Excellent method';
-              break;
-            case 'comment':
-              comment = 'Well done!';
-              break;
-          }
-        }
+                 if (text.includes('step') || text.includes('solution')) {
+           action = 'tick';
+                       comment = 'Verify each step carefully';
+         } else if (text.includes('=') || text.includes('±') || text.includes('√') || text.includes('÷')) {
+           action = 'tick';
+                       comment = 'Check mathematical operations';
+         } else if (text.includes('x²') || text.includes('quadratic') || text.includes('equation')) {
+           action = 'underline';
+                       comment = 'Ensure problem is correctly identified';
+         } else if (text.includes('a =') || text.includes('b =') || text.includes('c =') || text.includes('coefficients')) {
+           action = 'circle';
+                       comment = 'Verify parameter values';
+         } else if (text.includes('formula') || text.includes('discriminant') || text.includes('δ')) {
+           action = 'tick';
+                       comment = 'Confirm formula application';
+         } else if (text.includes('answer') || text.includes('x =')) {
+           action = 'tick';
+                       comment = 'Double-check final answer';
+         } else if (text.includes('find') || text.includes('value')) {
+           action = 'underline';
+                       comment = 'Ensure problem statement is clear';
+         } else {
+           // Default intelligent actions
+           const actions = ['tick', 'circle', 'underline', 'comment'] as const;
+           action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
+           
+           switch (action) {
+                           case 'tick':
+                comment = 'Verify mathematical work';
+                break;
+              case 'circle':
+                comment = 'Check calculation approach';
+                break;
+              case 'underline':
+                comment = 'Review method carefully';
+                break;
+              case 'comment':
+                comment = 'Ensure accuracy';
+                break;
+           }
+         }
         
         annotations.push({
           action: action as 'tick' | 'circle' | 'underline' | 'comment',
@@ -196,14 +196,14 @@ async function generateRealMarkingInstructions(
       });
     }
     
-    // Add overall feedback comment
-    if (annotations.length > 0) {
-      annotations.push({
-        action: 'comment' as const,
-        bbox: [50, 500, 400, 80] as [number, number, number, number],
-        text: 'Excellent work! Your solution demonstrates strong mathematical understanding and clear step-by-step reasoning. Well done!'
-      });
-    }
+         // Add overall feedback comment
+     if (annotations.length > 0) {
+       annotations.push({
+         action: 'comment' as const,
+         bbox: [50, 500, 400, 80] as [number, number, number, number],
+                   text: 'Please verify your final calculations and ensure all steps are clearly shown.'
+       });
+     }
     
     console.log('🔍 Fallback marking instructions generated:', annotations.length, 'annotations');
     return { annotations };
@@ -231,9 +231,11 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
     
     switch (annotation.action) {
       case 'tick':
-        // Professional green checkmark
-        svg += `<rect x="${x-2}" y="${y-2}" width="${w+4}" height="${h+4}" fill="none" stroke="green" stroke-width="2" opacity="0.8"/>`;
-        svg += `<path d="M${x+5} ${y+h/2} L${x+w/3} ${y+h*0.8} L${x+w*0.8} ${y+h*0.2}" stroke="green" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+        // Professional green checkmark using tick symbol
+        const centerX = x + w/2;
+        const centerY = y + h/2;
+        const tickSize = Math.max(24, Math.min(w, h) / 2);
+        svg += `<text x="${centerX}" y="${centerY + 5}" fill="green" font-family="Arial, sans-serif" font-size="${tickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
         break;
       case 'circle':
         // Professional blue circle
@@ -243,13 +245,12 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
         // Professional orange underline
         svg += `<line x1="${x}" y1="${y+h+2}" x2="${x+w}" y2="${y+h+2}" stroke="orange" stroke-width="3" opacity="0.8"/>`;
         break;
-      case 'comment':
-        // Professional comment box
-        if (annotation.text) {
-          svg += `<rect x="${x-5}" y="${y-5}" width="${w+10}" height="${h+10}" fill="yellow" opacity="0.9" rx="5"/>`;
-          svg += `<text x="${x}" y="${y+15}" font-family="Arial, sans-serif" font-size="12" fill="black" font-weight="bold">${annotation.text}</text>`;
-        }
-        break;
+             case 'comment':
+         // Professional comment box without background
+                   if (annotation.text) {
+            svg += `<text x="${x}" y="${y+15}" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="24" fill="green" font-weight="900">${annotation.text}</text>`;
+          }
+         break;
       default:
         // Professional default rectangle
         svg += `<rect x="${x-2}" y="${y-2}" width="${w+4}" height="${h+4}" fill="none" stroke="purple" stroke-width="2" opacity="0.8"/>`;
