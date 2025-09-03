@@ -109,7 +109,8 @@ export class AIMarkingService {
       return { 
         isQuestionOnly: false, 
         reasoning: 'Classification failed, defaulting to homework marking',
-        apiUsed: 'Fallback' 
+        apiUsed: 'Fallback',
+        extractedQuestionText: 'Unable to extract question text - AI service failed'
       };
     }
   }
@@ -281,7 +282,8 @@ export class AIMarkingService {
       return {
         isQuestionOnly: parsed.isQuestionOnly,
         reasoning: parsed.reasoning,
-        apiUsed: 'Google Gemini 2.0 Flash Exp'
+        apiUsed: 'Google Gemini 2.0 Flash Exp',
+        extractedQuestionText: parsed.extractedQuestionText
       };
 
     } catch (error) {
@@ -348,7 +350,8 @@ export class AIMarkingService {
       return {
         isQuestionOnly: parsed.isQuestionOnly,
         reasoning: parsed.reasoning,
-        apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni'
+        apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni',
+        extractedQuestionText: parsed.extractedQuestionText
       };
 
     } catch (error) {

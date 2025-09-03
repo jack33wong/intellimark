@@ -370,7 +370,13 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
     
     // Log extracted question text for backend debugging
     if (imageClassification.extractedQuestionText) {
-      console.log('📝 Extracted Question Text:', imageClassification.extractedQuestionText);
+      console.log('📝 ===== EXTRACTED QUESTION TEXT =====');
+      console.log('📝 Question Text:', imageClassification.extractedQuestionText);
+      console.log('📝 ====================================');
+    } else {
+      console.log('⚠️ ===== NO QUESTION TEXT EXTRACTED =====');
+      console.log('⚠️ Image Classification Result:', imageClassification);
+      console.log('⚠️ ======================================');
     }
 
     // Step 1.5: Question Detection Service

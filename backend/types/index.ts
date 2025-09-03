@@ -107,6 +107,22 @@ export interface ImageClassification {
   extractedQuestionText?: string;
 }
 
+export interface MarkingSchemeMatch {
+  id: string;
+  examDetails: {
+    board: string;
+    qualification: string;
+    paperCode: string;
+    tier: string;
+    paper: string;
+    date: string;
+  };
+  questionMarks?: any;
+  totalQuestions: number;
+  totalMarks: number;
+  confidence?: number;
+}
+
 export interface ExamPaperMatch {
   board: string;
   qualification: string;
@@ -114,6 +130,7 @@ export interface ExamPaperMatch {
   year: string;
   questionNumber?: string;
   confidence?: number;
+  markingScheme?: MarkingSchemeMatch;
 }
 
 export interface QuestionDetectionResult {
