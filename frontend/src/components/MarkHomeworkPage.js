@@ -24,6 +24,8 @@ const MarkHomeworkPage = () => {
   const [classificationResult, setClassificationResult] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [showChatHeader, setShowChatHeader] = useState(true);
+  const [lastScrollTop, setLastScrollTop] = useState(0);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -119,6 +121,35 @@ const MarkHomeworkPage = () => {
       if (progressInterval) clearInterval(progressInterval);
     };
   }, [isProcessing]);
+
+  // Handle chat header visibility based on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (chatMessagesRef.current) {
+        const scrollTop = chatMessagesRef.current.scrollTop;
+        const isScrollingUp = scrollTop < lastScrollTop;
+        const isAtTop = scrollTop <= 10; // Show header when within 10px of top
+        
+        console.log('📜 Scroll detected:', { scrollTop, lastScrollTop, isScrollingUp, isAtTop });
+        setShowChatHeader(isAtTop || isScrollingUp);
+        setLastScrollTop(scrollTop);
+      }
+    };
+
+    // Wait for the next tick to ensure the ref is available
+    const timer = setTimeout(() => {
+      const chatMessagesElement = chatMessagesRef.current;
+      if (chatMessagesElement) {
+        console.log('📜 Adding scroll listener to chat messages');
+        chatMessagesElement.addEventListener('scroll', handleScroll);
+        return () => chatMessagesElement.removeEventListener('scroll', handleScroll);
+      } else {
+        console.log('📜 Chat messages ref not available yet');
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [lastScrollTop, isChatMode]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -480,7 +511,7 @@ const MarkHomeworkPage = () => {
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-container">
-          <div className="chat-header">
+                     <div className={`chat-header ${!showChatHeader ? 'hidden' : ''}`}>
             <div className="chat-header-left">
               <button 
                 className="back-btn"
@@ -498,73 +529,76 @@ const MarkHomeworkPage = () => {
                 }}
               >
                 ← Back to Upload
-              </button>
-              <h1>AI Homework Assistant</h1>
-              {classificationResult?.isQuestionOnly && (
-                <div className="classification-info">
-                  <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
-                </div>
-              )}
+                </button>
+                <h1>AI Homework Assistant</h1>
+                {classificationResult?.isQuestionOnly && (
+                  <div className="classification-info">
+                    <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+                  </div>
+                )}
+              </div>
+              <div className="chat-header-right">
+                {/* Show the image context */}
+                {previewUrl && (
+                  <div className="chat-image-context">
+                    <img src={previewUrl} alt="Question context" className="context-image" />
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="chat-header-right">
-              {/* Show the image context */}
-              {previewUrl && (
-                <div className="chat-image-context">
-                  <img src={previewUrl} alt="Question context" className="context-image" />
-                </div>
-              )}
-            </div>
-          </div>
           
-          <div className="chat-content">
-            <div className="chat-messages" ref={chatMessagesRef}>
-              {chatMessages.map((message) => (
-                <div 
-                  key={message.id} 
-                  className={`chat-message ${message.role}`}
-                >
-                  <div className="message-bubble">
-                    {message.role === 'assistant' ? (
-                      <MarkdownMathRenderer 
-                        content={message.content}
-                        className="chat-message-renderer"
-                      />
-                    ) : (
-                      <div className="message-text">{message.content}</div>
-                    )}
-                    <div className="message-timestamp">
-                      {message.timestamp}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {/* AI Thinking Loading Animation */}
-              {isProcessing && (
-                <div className="chat-message assistant">
-                  <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
-                    <div className="thinking-indicator">
-                      <div className="thinking-dots">
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                      </div>
-                      <div className="thinking-text">
-                        {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
-                      </div>
-                      {showExpandedThinking && (
-                        <div className="progress-indicator">
-                          <div className="progress-bar">
-                            <div className="progress-fill"></div>
-                          </div>
-                          <div className="progress-text">Processing...</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className={`chat-content ${!showChatHeader ? 'header-hidden' : ''}`}>
+                                                   <div className="chat-messages" ref={chatMessagesRef}>
+               
+               {chatMessages.map((message) => (
+                 <div 
+                   key={message.id} 
+                   className={`chat-message ${message.role}`}
+                 >
+                   <div className="message-bubble">
+                     {message.role === 'assistant' ? (
+                       <MarkdownMathRenderer 
+                         content={message.content}
+                         className="chat-message-renderer"
+                       />
+                     ) : (
+                       <div className="message-text">{message.content}</div>
+                     )}
+                     <div className="message-timestamp">
+                       {message.timestamp}
+                     </div>
+                   </div>
+                 </div>
+               ))}
+               
+               {/* AI Thinking Loading Animation */}
+               {isProcessing && (
+                 <div className="chat-message assistant">
+                   <div className={`message-bubble ai-thinking ${showExpandedThinking ? 'expanded' : ''}`}>
+                     <div className="thinking-indicator">
+                       <div className="thinking-dots">
+                         <div className="thinking-dot"></div>
+                         <div className="thinking-dot"></div>
+                         <div className="thinking-dot"></div>
+                       </div>
+                       <div className="thinking-text">
+                         {showExpandedThinking ? 'AI is working on a detailed response...' : 'AI is analyzing your question...'}
+                       </div>
+                       {showExpandedThinking && (
+                         <div className="progress-indicator">
+                           <div className="progress-bar">
+                             <div className="progress-fill"></div>
+                           </div>
+                           <div className="progress-text">Processing...</div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 </div>
+               )}
+               
+
+             </div>
           </div>
           
           {/* Bottom Input Bar */}
