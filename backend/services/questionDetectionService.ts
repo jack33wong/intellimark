@@ -59,11 +59,6 @@ export class QuestionDetectionService {
     extractedQuestionText: string
   ): Promise<QuestionDetectionResult> {
     try {
-      console.log('🔍 ===== QUESTION DETECTION SERVICE =====');
-      console.log('🔍 Input text length:', extractedQuestionText?.length || 0);
-      console.log('🔍 Input text preview:', extractedQuestionText?.substring(0, 200) + (extractedQuestionText?.length > 200 ? '...' : ''));
-      console.log('🔍 Full input text:', extractedQuestionText);
-
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
         return {
           found: false,
@@ -73,18 +68,7 @@ export class QuestionDetectionService {
 
       // Get all exam papers from database
       const examPapers = await this.getAllExamPapers();
-      console.log(`🔍 Found ${examPapers.length} exam papers in database`);
       
-      if (examPapers.length > 0) {
-        console.log('🔍 Sample exam paper structure:', {
-          id: examPapers[0].id,
-          hasMetadata: !!examPapers[0].metadata,
-          hasQuestions: !!examPapers[0].questions,
-          questionsType: Array.isArray(examPapers[0].questions) ? 'array' : 'object',
-          questionsCount: Array.isArray(examPapers[0].questions) ? examPapers[0].questions.length : Object.keys(examPapers[0].questions || {}).length
-        });
-      }
-
       if (examPapers.length === 0) {
         return {
           found: false,
@@ -96,26 +80,19 @@ export class QuestionDetectionService {
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
 
-      console.log('🔍 Starting question matching process...');
       for (const examPaper of examPapers) {
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper);
         if (match && match.confidence && match.confidence > bestScore) {
-          console.log(`🔍 New best match found: ${match.board} ${match.qualification} - ${match.paperCode} (${match.year}) Question ${match.questionNumber} - Confidence: ${match.confidence}`);
           bestMatch = match;
           bestScore = match.confidence;
         }
       }
 
       if (bestMatch && bestScore > 0.1) { // Lower confidence threshold for testing
-        console.log('✅ Found exam paper match:', bestMatch);
-        
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
-          console.log('✅ Found corresponding marking scheme:', markingScheme.id);
-        } else {
-          console.log('⚠️ No corresponding marking scheme found');
         }
         
         return {
@@ -244,10 +221,7 @@ export class QuestionDetectionService {
    */
   private async findCorrespondingMarkingScheme(examPaperMatch: ExamPaperMatch): Promise<MarkingSchemeMatch | null> {
     try {
-      console.log('🔍 Searching for marking scheme for:', examPaperMatch);
-      
       if (!this.db) {
-        console.log('⚠️ Firestore not available for marking scheme search');
         return null;
       }
 
@@ -262,18 +236,14 @@ export class QuestionDetectionService {
         });
       });
 
-      console.log(`🔍 Found ${markingSchemes.length} marking schemes in database`);
-
       // Try to match marking scheme with exam paper
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
-          console.log('✅ Found matching marking scheme:', markingScheme.id);
           return match;
         }
       }
 
-      console.log('❌ No matching marking scheme found');
       return null;
     } catch (error) {
       console.error('❌ Error finding marking scheme:', error);
@@ -296,14 +266,6 @@ export class QuestionDetectionService {
       
       // Calculate overall match score
       const overallScore = (boardMatch + qualificationMatch + paperCodeMatch + yearMatch) / 4;
-      
-      console.log(`🔍 Marking scheme match scores for ${markingScheme.id}:`, {
-        board: boardMatch,
-        qualification: qualificationMatch,
-        paperCode: paperCodeMatch,
-        year: yearMatch,
-        overall: overallScore
-      });
       
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
         // Get question marks for the specific question if available

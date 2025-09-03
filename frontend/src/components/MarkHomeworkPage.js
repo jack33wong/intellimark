@@ -344,8 +344,6 @@ const MarkHomeworkPage = () => {
            questionDetection: result.questionDetection
          });
          
-         console.log('🔍 Full questionDetection result:', JSON.stringify(result.questionDetection, null, 2));
-         
          setClassificationResult({
            isQuestionOnly: true,
            reasoning: result.reasoning,
@@ -613,8 +611,7 @@ const MarkHomeworkPage = () => {
                             <button 
                               className="marking-scheme-btn"
                               onClick={() => {
-                                console.log('🔍 Marking scheme button clicked!');
-                                console.log('🔍 Marking scheme data:', JSON.stringify(classificationResult.questionDetection.match.markingScheme, null, 2));
+
                                 setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
                               }}
                               title="Toggle Marking Scheme Details"
@@ -676,9 +673,6 @@ const MarkHomeworkPage = () => {
                                           return numA - numB;
                                         })
                                         .map(([questionKey, marksData]) => {
-                                          // Debug logging
-                                          console.log('🔍 Processing question:', questionKey, 'Data:', marksData, 'Type:', typeof marksData);
-                                          
                                           // Handle both simple number format and complex object format
                                           const marks = typeof marksData === 'number' ? marksData : marksData?.mark || marksData;
                                           const answer = marksData?.answer;
@@ -692,8 +686,6 @@ const MarkHomeworkPage = () => {
                                             }
                                             return String(value);
                                           };
-                                          
-                                          console.log('🔍 Extracted - marks:', marks, 'answer:', answer, 'comments:', comments);
                                           
                                           return (
                                             <div key={questionKey} style={{
@@ -728,7 +720,6 @@ const MarkHomeworkPage = () => {
                                           );
                                         });
                                     } catch (error) {
-                                      console.error('🔍 Error rendering question marks:', error);
                                       return (
                                         <div style={{color: 'red', padding: '8px'}}>
                                           Error rendering question marks: {String(error.message)}

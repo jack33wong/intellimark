@@ -380,29 +380,26 @@ router.post('/mark-homework', async (req: Request, res: Response) => {
     }
 
     // Step 1.5: Question Detection Service
-    console.log('🔍 ===== STEP 1.5: QUESTION DETECTION =====');
-    let questionDetection: QuestionDetectionResult | undefined;
-    
-    if (imageClassification.extractedQuestionText) {
-      try {
-        questionDetection = await questionDetectionService.detectQuestion(
-          imageClassification.extractedQuestionText
-        );
-        console.log('🔍 Question Detection Result:', questionDetection);
-      } catch (error) {
-        console.error('❌ Question detection failed:', error);
-        questionDetection = {
-          found: false,
-          message: 'Question detection service failed'
-        };
-      }
-    } else {
-      console.log('⚠️ No extracted question text available for detection');
-      questionDetection = {
-        found: false,
-        message: 'No question text extracted'
-      };
-    }
+             let questionDetection: QuestionDetectionResult | undefined;
+
+         if (imageClassification.extractedQuestionText) {
+           try {
+             questionDetection = await questionDetectionService.detectQuestion(
+               imageClassification.extractedQuestionText
+             );
+           } catch (error) {
+             console.error('❌ Question detection failed:', error);
+             questionDetection = {
+               found: false,
+               message: 'Question detection service failed'
+             };
+           }
+         } else {
+           questionDetection = {
+             found: false,
+             message: 'No question text extracted'
+           };
+         }
     
     if (imageClassification.isQuestionOnly) {
       // For question-only images, return early with classification result
