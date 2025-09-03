@@ -62,10 +62,10 @@ export class SubscriptionService {
         subscriptionData.createdAt = existingSubscription.createdAt;
         await FirestoreService.updateDocument(
           this.COLLECTION_NAME,
-          data.userId,
+          existingSubscription.id, // Use the actual document ID from the existing subscription
           subscriptionData
         );
-        console.log(`Updated existing subscription for user ${data.userId}`);
+        console.log(`Updated existing subscription for user ${data.userId} with document ID: ${existingSubscription.id}`);
       } else {
         // This is a new subscription - cancel any existing active subscriptions first
         await this.cancelAllActiveSubscriptions(data.userId);
@@ -206,6 +206,7 @@ export class SubscriptionService {
    */
   static async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<UserSubscription | null> {
     try {
+      console.log('🔍 Looking for subscription with Stripe ID:', stripeSubscriptionId);
       const subscriptions = await FirestoreService.queryCollection(
         this.COLLECTION_NAME,
         'stripeSubscriptionId',
@@ -213,9 +214,12 @@ export class SubscriptionService {
         stripeSubscriptionId
       );
       
+      console.log('📊 Found subscriptions:', subscriptions.length);
+      console.log('📋 Subscription data:', subscriptions);
+      
       return subscriptions.length > 0 ? subscriptions[0] as UserSubscription : null;
     } catch (error) {
-      console.error('Error getting subscription by Stripe ID:', error);
+      console.error('❌ Error getting subscription by Stripe ID:', error);
       return null;
     }
   }

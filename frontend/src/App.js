@@ -112,8 +112,21 @@ function App() {
               </ProtectedRoute>
             } />
             
-            {/* Root route now redirects to mark-homework */}
-            <Route path="/" element={<Navigate to="/mark-homework" replace />} />
+            {/* Main page route - handles subscription success */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
+                <div className="main-content">
+                  <div className="app">
+                    <Sidebar isOpen={isSidebarOpen} />
+                    <div className="welcome-message">
+                      <h1>Welcome to IntelliMark</h1>
+                      <p>Your AI-powered homework marking assistant</p>
+                    </div>
+                  </div>
+                </div>
+              </ProtectedRoute>
+            } />
 
             {/* Fallback route - redirect to login if no other route matches */}
             <Route path="*" element={<Navigate to="/login" replace />} />
