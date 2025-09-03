@@ -23,6 +23,7 @@ const MarkHomeworkPage = () => {
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const models = [
     { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -95,6 +96,27 @@ const MarkHomeworkPage = () => {
     
     return () => {
       if (timer) clearTimeout(timer);
+    };
+  }, [isProcessing]);
+
+  // Handle fake loading progress when processing
+  useEffect(() => {
+    let progressInterval;
+    if (isProcessing) {
+      setLoadingProgress(0);
+      progressInterval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 95) return 95; // Stop at 95% until processing is complete
+          return prev + Math.random() * 15; // Random increment between 0-15
+        });
+      }, 200); // Update every 200ms
+    } else {
+      setLoadingProgress(100); // Complete the progress bar
+      setTimeout(() => setLoadingProgress(0), 500); // Reset after animation
+    }
+    
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
     };
   }, [isProcessing]);
 
@@ -680,6 +702,24 @@ const MarkHomeworkPage = () => {
                     </>
                   )}
                 </button>
+                
+                {/* Fake Loading Progress Bar */}
+                {isProcessing && (
+                  <div className="loading-progress-container">
+                    <div className="loading-progress-bar">
+                      <div 
+                        className="loading-progress-fill"
+                        style={{ width: `${loadingProgress}%` }}
+                      ></div>
+                    </div>
+                    <div className="loading-progress-text">
+                      {loadingProgress < 30 && "Initializing analysis..."}
+                      {loadingProgress >= 30 && loadingProgress < 60 && "Processing image content..."}
+                      {loadingProgress >= 60 && loadingProgress < 90 && "Generating AI annotations..."}
+                      {loadingProgress >= 90 && "Finalizing results..."}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
