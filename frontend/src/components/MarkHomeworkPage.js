@@ -437,7 +437,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
            role: 'user',
            content: 'chat-image-context',
            timestamp: new Date().toLocaleTimeString(),
-           imageData: imageData
+           imageData: imageData,
+           isImageContext: true
          };
          
          setChatMessages([initialUserMessage]);
