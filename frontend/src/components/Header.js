@@ -13,7 +13,7 @@ import {
   CreditCard,
   CheckCircle
 } from 'lucide-react';
-import SubscriptionService from '../services/subscriptionService';
+import SubscriptionService from '../services/subscriptionService.ts';
 import './Header.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {

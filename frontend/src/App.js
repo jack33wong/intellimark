@@ -12,7 +12,7 @@ import SimpleFirebaseTest from './components/SimpleFirebaseTest';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
-import SubscriptionPage from './components/SubscriptionPage';
+import SubscriptionPage from './components/SubscriptionPage.tsx';
 import './App.css';
 
 /**
