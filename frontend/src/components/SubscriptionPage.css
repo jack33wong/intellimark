@@ -300,6 +300,11 @@
   flex-shrink: 0;
 }
 
+.plan-card.enterprise .plan-features li {
+  font-weight: 700;
+  font-size: 16px;
+}
+
 /* FAQ Section */
 .faq-section {
   margin-bottom: 80px;

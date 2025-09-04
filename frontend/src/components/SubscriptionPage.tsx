@@ -20,9 +20,11 @@ const SubscriptionPage: React.FC = () => {
       icon: <Zap size={24} />,
       features: [
         '5 homework submissions per month',
-        'Basic AI feedback',
         'Standard response time',
-        'Email support'
+        'Email support',
+        'Advanced AI feedback with detailed explanations',
+        'Math step-by-step solutions',
+        'Full access to progress tracking'
       ],
       popular: false
     },
@@ -33,12 +35,14 @@ const SubscriptionPage: React.FC = () => {
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
-        'Unlimited homework submissions',
+        'Extended limits on homework submission',
+        'Extended limits on number of homework PDFs submission',
+        'Full access to all mock homework papers',
         'Advanced AI feedback with detailed explanations',
         'Priority response time',
         'Math step-by-step solutions',
         'Priority email support',
-        'Export homework reports'
+        'Full access to progress tracking'
       ],
       popular: true
     },
@@ -49,13 +53,8 @@ const SubscriptionPage: React.FC = () => {
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
-        'Everything in Pro',
-        'Multi-teacher dashboard',
-        'Bulk student management',
-        'Custom integrations',
-        'Dedicated support',
-        'Custom branding',
-        'Advanced analytics'
+        '20x of everything in Pro',
+        'Priority access to new features'
       ],
       popular: false
     }
@@ -149,7 +148,7 @@ const SubscriptionPage: React.FC = () => {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''}`}
+              className={`plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''}`}
               onClick={() => handlePlanSelect(plan.id)}
             >
               {plan.popular && <div className="popular-badge">Most Popular</div>}
