@@ -42,6 +42,39 @@ interface SimpleMarkingInstructions {
   annotations: SimpleAnnotation[];
 }
 
+// Minimal local types to pass question detection + mark scheme context without importing
+interface SimpleMarkingScheme {
+  id: string;
+  examDetails: {
+    board: string;
+    qualification: string;
+    paperCode: string;
+    tier: string;
+    paper: string;
+    date: string;
+  };
+  questionMarks?: any;
+  totalQuestions: number;
+  totalMarks: number;
+  confidence?: number;
+}
+
+interface SimpleExamPaperMatch {
+  board: string;
+  qualification: string;
+  paperCode: string;
+  year: string;
+  questionNumber?: string;
+  confidence?: number;
+  markingScheme?: SimpleMarkingScheme;
+}
+
+interface SimpleQuestionDetectionResult {
+  found: boolean;
+  match?: SimpleExamPaperMatch;
+  message?: string;
+}
+
 export class AIMarkingService {
   /**
    * Classify image as question-only or question+answer
@@ -121,7 +154,8 @@ export class AIMarkingService {
   static async generateMarkingInstructions(
     imageData: string, 
     model: SimpleModelType, 
-    processedImage?: SimpleProcessedImageResult
+    processedImage?: SimpleProcessedImageResult,
+    questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
     const compressedImage = await this.compressImage(imageData);
 
@@ -129,7 +163,7 @@ export class AIMarkingService {
     You will receive an image and your task is to:
     
     1. Analyze the image content using the provided OCR text and bounding box data
-    2. Provide marking annotations if it's math homework, or general feedback if not
+    2. Provide helpful comment and marking annotations if it's math homework, or general feedback if not
     
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
@@ -166,9 +200,19 @@ export class AIMarkingService {
     - Use "underline" to emphasize key concepts
     - Use "comment" to provide feedback or explanations
     - Position bbox coordinates to avoid overlapping with existing text
-    - Keep comments concise and helpful
     - Provide helpful, constructive feedback without unnecessary prefixes
-    
+    - Keep comments placed next to the part it is commenting on.
+ 
+    MARKING RULES:
+    -Marking annotations must strictly follow the marking scheme and place at the bottom of image.
+    Glossary for maark scheme:
+    - M Method marks are awarded for a correct method which could lead to a correct answer.
+    - A Accuracy marks are awarded when following on from a correct method. It is not necessary to always see the method. This can be implied.
+    - B Marks awarded independent of method.
+    - Mark schemes should be applied positively. Candidates must be rewarded for what they have shown they can do rather than penalised for omissions.
+    - To be awarded marks, the student must have fulfill completely the marking criteria.
+    - There will be additional guidance given, read them and apply them to the marking annotations.
+
     Return ONLY the JSON object.`;
 
     let userPrompt = `Here is an uploaded image. Please:
@@ -179,6 +223,20 @@ export class AIMarkingService {
 
 ========================================================
 `;
+
+    // Append detected question + marking scheme context if available
+    if (questionDetection && questionDetection.found && questionDetection.match) {
+      const match = questionDetection.match;
+      const schemeJson = match.markingScheme ? JSON.stringify(match.markingScheme, null, 2)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n") : '';
+
+      if (match.markingScheme) {
+        userPrompt += `\nMARK SCHEME (JSON):\n"""${schemeJson}"""\n`;
+        userPrompt += `Apply the marking strictly according to this scheme. Award marks only when criteria are fully satisfied, and summarize marks at the bottom of the image.`;
+      }
+    }
 
     // Add bounding box information to the prompt
     if (processedImage && processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
@@ -209,6 +267,7 @@ export class AIMarkingService {
       userPrompt += `\nIMPORTANT: All annotations must stay within these dimensions.`;
       userPrompt += `\n(x + width) <= ${processedImage.imageDimensions.width}`;
       userPrompt += `\n(y + height) <= ${processedImage.imageDimensions.height}`;
+      userPrompt += `\nComments specificly must start within left haft of image: (x) <= ${processedImage.imageDimensions.width}/2`;
       userPrompt += `\nIf diagrams, graphs, or math symbols are not detected by OCR, estimate their positions and annotate accordingly.`;
     }
     console.log('🔍 ===== CALLING AI MARKING INSTRUCTIONS =====');

@@ -108,7 +108,8 @@ async function processImageWithRealOCR(imageData: string): Promise<ProcessedImag
 async function generateRealMarkingInstructions(
   imageData: string, 
   model: ModelType, 
-  processedImage: ProcessedImageResult
+  processedImage: ProcessedImageResult,
+  questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
   
   console.log('🔍 Generating real AI marking instructions for model:', model);
@@ -121,7 +122,8 @@ async function generateRealMarkingInstructions(
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
       imageData, 
       model, 
-      processedImage
+      processedImage,
+      questionDetection
     );
     
     // Convert SimpleMarkingInstructions to MarkingInstructions
@@ -426,7 +428,7 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
 
     // Step 3: AI-powered marking instructions
     console.log('🔍 ===== STEP 3: AI MARKING INSTRUCTIONS =====');
-    const markingInstructions = await generateRealMarkingInstructions(imageData, model, processedImage);
+    const markingInstructions = await generateRealMarkingInstructions(imageData, model, processedImage, questionDetection);
     console.log('🔍 AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
 
     // Step 4: Burn SVG overlay into image
