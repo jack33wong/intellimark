@@ -3,7 +3,7 @@
  * Centralized configuration for all supported AI models
  */
 
-import { ModelType, AIModelConfig } from '../types/index.ts';
+import { ModelType, AIModelConfig } from '../types/index';
 
 /**
  * Configuration for all supported AI models

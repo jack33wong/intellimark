@@ -34,11 +34,11 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import routes
-import authRoutes from './routes/auth.ts';
-import markHomeworkRoutes from './routes/mark-homework.ts';
-import adminRoutes from './routes/admin.ts';
-import chatRoutes from './routes/chat.ts';
-import paymentRoutes from './routes/payment.ts';
+import authRoutes from './routes/auth';
+import markHomeworkRoutes from './routes/mark-homework';
+import adminRoutes from './routes/admin';
+import chatRoutes from './routes/chat';
+import paymentRoutes from './routes/payment';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);

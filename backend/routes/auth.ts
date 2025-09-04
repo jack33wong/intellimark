@@ -5,8 +5,8 @@
 
 import express from 'express';
 import type { Request, Response } from 'express';
-import { authenticateUser } from '../middleware/auth.ts';
-import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.ts';
+import { authenticateUser } from '../middleware/auth';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
 
 const router = express.Router();
 

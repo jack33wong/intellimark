@@ -5,10 +5,10 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { MathpixService } from '../services/mathpixService.ts';
-import { questionDetectionService } from '../services/questionDetectionService.ts';
-import { ImageAnnotationService } from '../services/imageAnnotationService.ts';
-import { optionalAuth } from '../middleware/auth.ts';
+import { MathpixService } from '../services/mathpixService';
+import { questionDetectionService } from '../services/questionDetectionService';
+import { ImageAnnotationService } from '../services/imageAnnotationService';
+import { optionalAuth } from '../middleware/auth';
 
 // Import only the basic types we need
 import type { 

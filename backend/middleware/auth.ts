@@ -4,7 +4,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.ts';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
 
 // Types
 interface AuthenticatedUser {
