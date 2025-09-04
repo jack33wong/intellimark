@@ -1,4 +1,4 @@
-import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.js';
 export const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;

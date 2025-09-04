@@ -1,5 +1,5 @@
-import { FirestoreService } from './firestoreService';
-import { AIMarkingService } from './aiMarkingService';
+import { FirestoreService } from './firestoreService.js';
+import { AIMarkingService } from './aiMarkingService.js';
 export class ChatSessionManager {
     constructor() {
         this.activeSessions = new Map();

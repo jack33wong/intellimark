@@ -1,8 +1,8 @@
 import * as express from 'express';
-import { MathpixService } from '../services/mathpixService';
-import { questionDetectionService } from '../services/questionDetectionService';
-import { ImageAnnotationService } from '../services/imageAnnotationService';
-import { optionalAuth } from '../middleware/auth';
+import { MathpixService } from '../services/mathpixService.js';
+import { questionDetectionService } from '../services/questionDetectionService.js';
+import { ImageAnnotationService } from '../services/imageAnnotationService.js';
+import { optionalAuth } from '../middleware/auth.js';
 function validateModelConfig(modelType) {
     const validModels = ['gemini-2.5-pro', 'chatgpt-5', 'chatgpt-4o'];
     return validModels.includes(modelType);

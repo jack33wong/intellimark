@@ -1,6 +1,6 @@
 import express from 'express';
-import { authenticateUser } from '../middleware/auth';
-import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
+import { authenticateUser } from '../middleware/auth.js';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.js';
 const router = express.Router();
 router.get('/providers', (_req, res) => {
     res.json({

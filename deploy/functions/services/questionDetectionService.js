@@ -1,4 +1,4 @@
-import { getFirestore } from '../config/firebase';
+import { getFirestore } from '../config/firebase.js';
 export class QuestionDetectionService {
     constructor() {
         this.db = getFirestore();

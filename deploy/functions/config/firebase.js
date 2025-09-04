@@ -3,7 +3,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { ADMIN_EMAILS } from './admin';
+import { ADMIN_EMAILS } from './admin.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 let firebaseAdmin = null;

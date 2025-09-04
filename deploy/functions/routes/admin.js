@@ -1,7 +1,7 @@
 import * as express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { requireAdmin } from '../middleware/auth';
-import { getFirestore } from '../config/firebase';
+import { requireAdmin } from '../middleware/auth.js';
+import { getFirestore } from '../config/firebase.js';
 const router = express.Router();
 router.use(requireAdmin);
 const mockData = {

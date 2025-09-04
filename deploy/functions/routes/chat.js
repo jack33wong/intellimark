@@ -1,7 +1,7 @@
 import express from 'express';
-import { FirestoreService } from '../services/firestoreService';
-import { AIMarkingService } from '../services/aiMarkingService';
-import ChatSessionManager from '../services/chatSessionManager';
+import { FirestoreService } from '../services/firestoreService.js';
+import { AIMarkingService } from '../services/aiMarkingService.js';
+import ChatSessionManager from '../services/chatSessionManager.js';
 const router = express.Router();
 console.log('🚀 CHAT ROUTE MODULE LOADED SUCCESSFULLY');
 router.post('/', async (req, res) => {

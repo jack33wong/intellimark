@@ -56,14 +56,17 @@ dirsToCopy.forEach(({ src, dest }) => {
   }
 });
 
-// Copy environment files if they exist
-const envFiles = ['.env.local', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json'];
+// Copy environment files if they exist (excluding service account keys)
+const envFiles = ['.env.local'];
 envFiles.forEach(file => {
   if (fs.existsSync(file)) {
     fs.copyFileSync(file, `./dist/${file}`);
     console.log(`✅ Copied ${file}`);
   }
 });
+
+// Note: Firebase service account keys should NOT be copied to deployment
+// Firebase Functions use the default service account automatically
 
 function copyDir(src, dest) {
   if (!fs.existsSync(dest)) {

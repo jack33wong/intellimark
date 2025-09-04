@@ -1,4 +1,4 @@
-import { SVGOverlayService } from './svgOverlayService';
+import { SVGOverlayService } from './svgOverlayService.js';
 export class ImageAnnotationService {
     static createSVGOverlay(annotations, imageDimensions) {
         if (!annotations || annotations.length === 0) {
