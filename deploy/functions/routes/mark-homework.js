@@ -189,7 +189,7 @@ async function saveMarkingResults(imageData, model, result, instructions, classi
         console.log('🔍 User ID:', userId);
         console.log('🔍 User Email:', userEmail);
         console.log('🔍 Model:', model);
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         console.log('🔍 FirestoreService imported successfully');
         console.log('🔍 Calling FirestoreService.saveMarkingResults...');
         const resultId = await FirestoreService.saveMarkingResults(userId, userEmail, imageData, model, false, classification, result, instructions, undefined, {
@@ -353,7 +353,7 @@ router.get('/results/:id', optionalAuth, async (req, res) => {
             });
         }
         console.log('🔍 Retrieving marking results from Firestore for ID:', id);
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         const savedResult = await FirestoreService.getMarkingResults(id);
         if (!savedResult) {
             return res.status(404).json({
@@ -385,7 +385,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
         }
         const limit = parseInt(req.query['limit']) || 50;
         console.log('🔍 Retrieving marking history for user:', userId, 'limit:', limit);
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         const userResults = await FirestoreService.getUserMarkingResults(userId, limit);
         return res.json({
             success: true,
@@ -406,7 +406,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
 router.get('/stats', async (_req, res) => {
     try {
         console.log('🔍 Retrieving system statistics from Firestore...');
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         const stats = await FirestoreService.getSystemStats();
         return res.json({
             success: true,

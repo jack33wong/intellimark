@@ -1,9 +1,14 @@
 import Stripe from 'stripe';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-08-27.basil',
-});
+
+// Initialize Stripe only if we have a secret key
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2025-08-27.basil',
+    });
+}
 export const STRIPE_CONFIG = {
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     secretKey: process.env.STRIPE_SECRET_KEY || '',

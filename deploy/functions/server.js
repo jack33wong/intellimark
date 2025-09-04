@@ -60,5 +60,8 @@ function startServer(port) {
         }
     });
 }
-startServer(DEFAULT_PORT);
+// Only start the server if not running as a Firebase Function
+if (!process.env.FUNCTIONS_EMULATOR && !process.env.FIREBASE_CONFIG) {
+    startServer(DEFAULT_PORT);
+}
 export default app;
