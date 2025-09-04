@@ -255,7 +255,7 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
              case 'comment':
          // Professional comment box without background
                    if (annotation.text) {
-            svg += `<text x="${x}" y="${y+15}" font-family="Bradley Hand ITC, cursive, Arial, sans-serif" font-size="24" fill="red" font-weight="900">${annotation.text}</text>`;
+            svg += `<text x="${x}" y="${y+15}" font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" font-size="24" fill="red" font-weight="900">${annotation.text}</text>`;
           }
          break;
       default:

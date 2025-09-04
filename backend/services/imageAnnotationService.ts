@@ -79,7 +79,7 @@ export class ImageAnnotationService {
         x="${annotation.bbox[0]}" 
         y="${y}" 
         fill="red" 
-        font-family="Lucida Handwriting, cursive, sans-serif" 
+        font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" 
         font-size="24" 
         font-weight="bold" 
         text-anchor="start" 

@@ -18,6 +18,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [apiResponse, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [lastUploadedImageData, setLastUploadedImageData] = useState(null);
   
   // === CHAT MODE STATE ===
   const [chatMessages, setChatMessages] = useState([]);
@@ -291,7 +292,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   }, [handleFileSelect]);
 
   // Send initial chat message when switching to chat mode
-  const sendInitialChatMessage = useCallback(async (imageData, model) => {
+  const sendInitialChatMessage = useCallback(async (imageData, model, mode) => {
     setIsProcessing(true);
     
     try {
@@ -304,7 +305,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           message: 'chat-image-context',
           imageData: imageData,
           model: model,
-          sessionId: currentSessionId
+          sessionId: currentSessionId,
+          ...(mode ? { mode } : {})
         }),
       });
 
@@ -372,6 +374,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     try {
       // Convert image to base64
       const imageData = await fileToBase64(selectedFile);
+      setLastUploadedImageData(imageData);
 
       // Prepare request payload
       const payload = {
@@ -493,7 +496,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       
       // Get the image data from the first user message (which contains the image)
       const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
-      const imageData = firstUserMessage?.imageData || selectedFile;
+      const imageData = firstUserMessage?.imageData || lastUploadedImageData;
       
       const response = await fetch('/api/chat/', {
         method: 'POST',
@@ -504,7 +507,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           message: chatInput.trim(),
           imageData: imageData,
           model: selectedModel,
-          sessionId: currentSessionId
+          sessionId: currentSessionId,
+          mode: classificationResult?.isQuestionOnly ? 'question' : 'qa'
         }),
       });
 
@@ -557,7 +561,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     } finally {
       setIsProcessing(false);
     }
-  }, [chatInput, selectedModel, chatMessages, selectedFile, currentSessionId]);
+  }, [chatInput, selectedModel, chatMessages, lastUploadedImageData, currentSessionId, classificationResult]);
 
   if (pageMode === 'chat') {
     return (
@@ -1141,6 +1145,38 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                    </div>
                  </div>
                )}
+
+                             {/* Follow-up Q&A CTA */}
+              <div style={{ marginTop: '12px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button
+                  className="upload-homework-btn"
+                  onClick={() => {
+                    // Switch to chat view with the annotated image as context
+                    setPageMode('chat');
+
+                    // Use the annotated image from API response as context
+                    const annotatedImageData = apiResponse?.annotatedImage;
+                    if (annotatedImageData) {
+                      const initialUserMessage = {
+                        id: Date.now(),
+                        role: 'user',
+                        content: 'chat-image-context',
+                        timestamp: new Date().toLocaleTimeString(),
+                        imageData: annotatedImageData,
+                        isImageContext: true
+                      };
+                      setChatMessages([initialUserMessage]);
+
+                      setTimeout(() => {
+                        // In Q&A mode we want answer-aware guidance
+                        sendInitialChatMessage(annotatedImageData, selectedModel, 'qa');
+                      }, 300);
+                    }
+                  }}
+                >
+                  Ask a follow-up in chat
+                </button>
+              </div>
             </div>
           )}
 

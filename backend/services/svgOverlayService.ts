@@ -217,10 +217,10 @@ export class SVGOverlayService {
     const commentY = Math.max(25 * scaleY, y - 10 * scaleY);
     
     // Comment text only (scaled) - no background or rectangle
-    // Using Lucida Handwriting for authentic handwritten look, bold and 2.1x larger
+    // Using Comic Neue for handwritten look, bold and 2.1x larger
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
     return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
-            font-family="'Lucida Handwriting', cursive, serif, Arial, sans-serif" 
+            font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;
   }

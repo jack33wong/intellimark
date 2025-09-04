@@ -20,14 +20,15 @@ router.post('/', async (req, res) => {
   console.log('🚀 ===== CHAT ROUTE CALLED =====');
   
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, userId } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode } = req.body;
     
     console.log('🔍 Request data:', { 
       hasMessage: !!message, 
       hasImage: !!imageData, 
       model, 
       sessionId, 
-      userId 
+      userId,
+      mode
     });
 
     // Validate request
@@ -92,22 +93,25 @@ router.post('/', async (req, res) => {
     let apiUsed = model === 'gemini-2.5-pro' ? 'Google Gemini 2.5 Pro' : 
                   model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
     try {
-      if (imageData) {
-        console.log('🔍 Processing image with AI for chat response');
-        // For question-only images (which is what we expect in chat mode), generate a proper AI response using the image
+      if (imageData && chatHistory.length === 0) {
+        // First message with image - use image-specific response
+        console.log('🔍 Processing initial image with AI for chat response');
         const chatResponse = await AIMarkingService.generateChatResponse(
           imageData, 
           message || 'I have a question that I need help with. Can you assist me?', 
           model, 
-          true // isQuestionOnly = true for chat mode
+          mode === 'qa' ? false : true // allow QA mode to indicate question+answer image
         );
         aiResponse = chatResponse.response;
         apiUsed = chatResponse.apiUsed; // Store the API used for the response
         console.log('✅ AI chat response generated successfully');
       } else {
-        // Text-based conversation with context
-        console.log('🔍 Processing text-only message with context');
-        aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model, contextSummary || undefined);
+        // Follow-up messages or text-only - use contextual response with image context
+        console.log('🔍 Processing follow-up message with context');
+        const contextualMessage = imageData 
+          ? `${message}\n\n[Image context available for reference]`
+          : message;
+        aiResponse = await AIMarkingService.generateContextualResponse(contextualMessage, chatHistory, model, contextSummary || undefined);
         console.log('✅ AI contextual response generated successfully');
       }
     } catch (error) {

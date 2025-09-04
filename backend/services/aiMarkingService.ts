@@ -586,25 +586,40 @@ export class AIMarkingService {
     
     const compressedImage = await this.compressImage(imageData);
     
-    const systemPrompt = `You are an AI tutor helping students with math problems. 
-    
-    You will receive an image of a math question and a message from the student.
-    Your task is to provide helpful, educational responses that guide the student toward understanding.
-    
-    RESPONSE GUIDELINES:
-    - Be encouraging and supportive
-    - Break down complex problems into steps
-    - Ask guiding questions to help the student think
-    - Provide hints rather than direct answers when appropriate
-    - Use clear mathematical notation
-    - Explain concepts in simple terms
-    - Encourage the student to show their work
-    
-    Return a helpful, educational response that guides the student.`;
+    const systemPrompt = isQuestionOnly
+      ? `You are an AI tutor helping students with math problems.
+      
+      You will receive an image of a math question and a message from the student.
+      Your task is to provide helpful, educational responses that guide the student toward understanding.
+      
+      RESPONSE GUIDELINES:
+      - Be encouraging and supportive
+      - Break down complex problems into steps
+      - Ask guiding questions to help the student think
+      - Provide hints rather than direct answers when appropriate
+      - Use clear mathematical notation
+      - Explain concepts in simple terms
+      - Encourage the student to show their work
+      
+      Return a helpful, educational response that guides the student.`
+      : `You are an expert math tutor reviewing a student's question AND their attempted answer in an image.
+      
+      Your task is to:
+      - Understand the original question in the image
+      - Read the student’s working and answer if present
+      - Give targeted, constructive feedback that helps them improve
+      - Point out mistakes and explain why they’re mistakes
+      - Ask specific follow-up questions that deepen understanding
+      - When appropriate, outline the next step rather than giving the final answer
+      - Use precise mathematical notation and keep a supportive tone`;
 
-    const userPrompt = `Student message: "${message}"
-    
-    Please help the student with this math question. Provide guidance, hints, and encouragement.`;
+    const userPrompt = isQuestionOnly
+      ? `Student message: "${message}"
+      
+      Please help the student with this math question. Provide guidance, hints, and encouragement.`
+      : `Student message: "${message}"
+      
+      If the image contains student work, base your feedback on their steps. Provide brief, actionable feedback and one or two targeted follow-up questions.`;
 
     try {
       if (model === 'gemini-2.5-pro') {
