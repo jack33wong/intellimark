@@ -301,7 +301,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: 'I have a question that I need help with. Can you assist me?',
+          message: 'chat-image-context',
           imageData: imageData,
           model: model,
           sessionId: currentSessionId
@@ -435,7 +435,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
          const initialUserMessage = {
            id: Date.now(),
            role: 'user',
-           content: 'I have a question that I need help with. Can you assist me?',
+           content: 'chat-image-context',
            timestamp: new Date().toLocaleTimeString(),
            imageData: imageData
          };
@@ -562,196 +562,185 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     return (
       <div className="mark-homework-page chat-mode">
         <div className="chat-container">
-                     <div className={`chat-header ${!showChatHeader ? 'hidden' : ''}`}>
-            <div className="chat-header-left">
-              <button 
-                className="back-btn"
-                onClick={() => {
-                  setPageMode('upload');
-                  setChatMessages([]);
-                  setChatInput('');
-                  setClassificationResult(null);
-                  setApiResponse(null);
-                  setCurrentSessionId(null);
-                  // setIsShowingHistoricalData(false); // Removed - not used
-                  setPreviewUrl(null);
-                  // Clear localStorage
-                  localStorage.removeItem('chatSessionId');
-                  localStorage.removeItem('chatMessages');
-                  localStorage.removeItem('isChatMode');
-                }}
-              >
-                ← Back to Upload
-                </button>
-                <h1>AI Homework Assistant</h1>
-                {classificationResult?.isQuestionOnly && (
-                  <div className="classification-info">
-                    <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
-                    
-                    {/* Exam Paper Detection Header for Chat Mode */}
-                    {classificationResult.questionDetection && classificationResult.questionDetection.found && (
-                      <div className="exam-paper-header-chat">
-                        <div className="exam-paper-info-chat" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'}}>
-                          <div style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
-                            <h5 style={{margin: '0', fontSize: '16px'}}>📄 Detected Exam Paper</h5>
-                            <div className="exam-paper-details-chat" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                              <span className="exam-board">{classificationResult.questionDetection.match.board}</span>
-                              <span className="exam-qualification">{classificationResult.questionDetection.match.qualification}</span>
-                              <span className="exam-paper-code">{classificationResult.questionDetection.match.paperCode}</span>
-                              <span className="exam-year">{classificationResult.questionDetection.match.year}</span>
-                              {classificationResult.questionDetection.match.questionNumber && (
-                                <span className="question-number">Question {classificationResult.questionDetection.match.questionNumber}</span>
-                              )}
-                              {classificationResult.questionDetection.match.confidence && (
-                                <span className="confidence-score" style={{fontSize: '12px', color: 'var(--secondary-text)'}}>
-                                  ({Math.round(classificationResult.questionDetection.match.confidence * 100)}% match)
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {classificationResult.questionDetection.match.markingScheme && (
-                            <button 
-                              className="marking-scheme-btn"
-                              onClick={() => {
-
-                                setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
-                              }}
-                              title="Toggle Marking Scheme Details"
-                              style={{marginLeft: 'auto', flexShrink: 0}}
-                            >
-                              📋 {showMarkingSchemeDetails ? 'Hide' : 'View'} Marking Scheme
-                            </button>
-                          )}
-                        </div>
-                        
-                        {/* Expandable Marking Scheme Details */}
-                        {classificationResult.questionDetection.match.markingScheme && showMarkingSchemeDetails && (
-                                                  <div className="marking-scheme-details" style={{
-                          marginTop: '12px',
-                          padding: '16px',
-                          background: 'var(--tertiary-bg)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '18px',
-                          fontSize: '14px',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                          transition: 'all 0.2s ease'
-                        }}>
-                            <h6 style={{margin: '0 0 12px 0', color: 'var(--primary-text)', fontSize: '16px', fontWeight: '600'}}>
-                              📋 Marking Scheme Details
-                            </h6>
-                            
-                            {/* Exam Details */}
-                            <div style={{marginBottom: '12px'}}>
-                              <strong style={{color: 'var(--primary-text)'}}>Exam Information:</strong>
-                              <div style={{marginTop: '4px', paddingLeft: '12px'}}>
-                                <div style={{color: 'var(--secondary-text)'}}>Board: {classificationResult.questionDetection.match.markingScheme.examDetails?.board || 'N/A'}</div>
-                                <div style={{color: 'var(--secondary-text)'}}>Qualification: {classificationResult.questionDetection.match.markingScheme.examDetails?.qualification || 'N/A'}</div>
-                                <div style={{color: 'var(--secondary-text)'}}>Paper Code: {classificationResult.questionDetection.match.markingScheme.examDetails?.paperCode || 'N/A'}</div>
-                                <div style={{color: 'var(--secondary-text)'}}>Year: {classificationResult.questionDetection.match.markingScheme.examDetails?.year || 'N/A'}</div>
-                              </div>
-                            </div>
-                            
-                            {/* Summary Stats */}
-                            <div style={{marginBottom: '12px'}}>
-                              <strong style={{color: 'var(--primary-text)'}}>Summary:</strong>
-                              <div style={{marginTop: '4px', paddingLeft: '12px'}}>
-                                <div style={{color: 'var(--secondary-text)'}}>Total Questions: {classificationResult.questionDetection.match.markingScheme.totalQuestions || 'N/A'}</div>
-                                <div style={{color: 'var(--secondary-text)'}}>Total Marks: {classificationResult.questionDetection.match.markingScheme.totalMarks || 'N/A'}</div>
-                                <div style={{color: 'var(--secondary-text)'}}>Match Confidence: {Math.round((classificationResult.questionDetection.match.markingScheme.confidence || 0) * 100)}%</div>
-                              </div>
-                            </div>
-                            
-                            {/* Question Marks */}
-                            {classificationResult.questionDetection.match.markingScheme.questionMarks && (
-                              <div>
-                                <strong style={{color: 'var(--primary-text)'}}>Question Marks:</strong>
-                                <div style={{marginTop: '4px', paddingLeft: '12px', maxHeight: '200px', overflowY: 'auto'}}>
-                                  {(() => {
-                                    try {
-                                      return Object.entries(classificationResult.questionDetection.match.markingScheme.questionMarks)
-                                        .sort(([a], [b]) => {
-                                          const numA = parseInt(a.replace(/\D/g, '')) || 0;
-                                          const numB = parseInt(b.replace(/\D/g, '')) || 0;
-                                          return numA - numB;
-                                        })
-                                        .map(([questionKey, marksData]) => {
-                                          // Handle both simple number format and complex object format
-                                          const marks = typeof marksData === 'number' ? marksData : marksData?.mark || marksData;
-                                          const answer = marksData?.answer;
-                                          const comments = marksData?.comments;
-                                          const guidance = marksData?.guidance;
-                                          
-                                          // Helper function to safely render nested objects
-                                          const renderValue = (value) => {
-                                            if (typeof value === 'object' && value !== null) {
-                                              return JSON.stringify(value, null, 2);
-                                            }
-                                            return String(value);
-                                          };
-                                          
-                                          return (
-                                            <div key={questionKey} style={{
-                                              marginBottom: '8px', 
-                                              padding: '12px', 
-                                              background: '#2a2a2a', 
-                                              borderRadius: '12px', 
-                                              border: '1px solid #404040',
-                                              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                                              transition: 'all 0.2s ease',
-                                              color: 'white'
-                                            }}>
-                                              <div style={{fontWeight: 'bold', marginBottom: '6px', color: 'white'}}>
-                                                {questionKey}: {renderValue(marks)} mark{marks !== 1 ? 's' : ''}
-                                              </div>
-                                              {answer && (
-                                                <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
-                                                  <strong>Answer:</strong> {renderValue(answer)}
-                                                </div>
-                                              )}
-                                              {comments && (
-                                                <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
-                                                  <strong>Comments:</strong> {renderValue(comments)}
-                                                </div>
-                                              )}
-                                              {guidance && (
-                                                <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)'}}>
-                                                  <strong>Guidance:</strong> {renderValue(guidance)}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        });
-                                    } catch (error) {
-                                      return (
-                                        <div style={{color: 'red', padding: '8px'}}>
-                                          Error rendering question marks: {String(error.message)}
-                                        </div>
-                                      );
-                                    }
-                                  })()}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="chat-header-right">
-                {/* Show the image context */}
-                {previewUrl && (
-                  <div className="chat-image-context">
-                    <img src={previewUrl} alt="Question context" className="context-image" />
-                  </div>
-                )}
-              </div>
-            </div>
+        <div className={`chat-header ${!showChatHeader ? 'hidden' : ''}`}>
+             <div className="chat-header-left">
+               <h1>AI Homework Assistant</h1>
+               <button 
+                 className="back-btn"
+                 onClick={() => {
+                   setPageMode('upload');
+                   setChatMessages([]);
+                   setChatInput('');
+                   setClassificationResult(null);
+                   setApiResponse(null);
+                   setCurrentSessionId(null);
+                   // Clear localStorage
+                   localStorage.removeItem('chatSessionId');
+                   localStorage.removeItem('chatMessages');
+                   localStorage.setItem('isChatMode', 'false');
+                 }}
+               >
+                 ← Back to Upload
+                 </button>
+               </div>
+             </div>
           
           <div className={`chat-content ${!showChatHeader ? 'header-hidden' : ''}`}>
                                                    <div className="chat-messages" ref={chatMessagesRef}>
-               
+                {/* Classification Info at the top */}
+                {classificationResult?.isQuestionOnly && (
+                 <div className="classification-info-chat">
+                   <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+
+                   {/* Exam Paper Detection for Chat Mode */}
+                   {classificationResult.questionDetection && classificationResult.questionDetection.found && (
+                     <div className="exam-paper-header-chat">
+                       <div className="exam-paper-info-chat" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'}}>
+                         <div style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
+                           <h5 style={{margin: '0', fontSize: '16px'}}>📄 Detected Exam Paper</h5>
+                           <div className="exam-paper-details-chat" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                             <span className="exam-board">{classificationResult.questionDetection.match.board}</span>
+                             <span className="exam-qualification">{classificationResult.questionDetection.match.qualification}</span>
+                             <span className="exam-paper-code">{classificationResult.questionDetection.match.paperCode}</span>
+                             <span className="exam-year">{classificationResult.questionDetection.match.year}</span>
+                             {classificationResult.questionDetection.match.questionNumber && (
+                               <span className="question-number">Question {classificationResult.questionDetection.match.questionNumber}</span>
+                             )}
+                             {classificationResult.questionDetection.match.confidence && (
+                               <span className="confidence-score" style={{fontSize: '12px', color: 'var(--secondary-text)'}}>
+                                 ({Math.round(classificationResult.questionDetection.match.confidence * 100)}% match)
+                               </span>
+                             )}
+                           </div>
+                         </div>
+                         {classificationResult.questionDetection.match.markingScheme && (
+                           <button 
+                             className="marking-scheme-btn"
+                             onClick={() => {
+                               setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
+                             }}
+                             title="Toggle Marking Scheme Details"
+                             style={{marginLeft: 'auto', flexShrink: 0}}
+                           >
+                             📋 {showMarkingSchemeDetails ? 'Hide' : 'View'} Marking Scheme
+                           </button>
+                         )}
+                       </div>
+
+                       {/* Expandable Marking Scheme Details */}
+                       {classificationResult.questionDetection.match.markingScheme && showMarkingSchemeDetails && (
+                         <div className="marking-scheme-details" style={{
+                           marginTop: '12px',
+                           padding: '16px',
+                           background: 'var(--tertiary-bg)',
+                           border: '1px solid var(--border-color)',
+                           borderRadius: '18px',
+                           fontSize: '14px',
+                           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                           transition: 'all 0.2s ease'
+                         }}>
+                           <h6 style={{margin: '0 0 12px 0', color: 'var(--primary-text)', fontSize: '16px', fontWeight: '600'}}>
+                             📋 Marking Scheme Details
+                           </h6>
+
+                           {/* Exam Details */}
+                           <div style={{marginBottom: '12px'}}>
+                             <strong style={{color: 'var(--primary-text)'}}>Exam Information:</strong>
+                             <div style={{marginTop: '4px', paddingLeft: '12px'}}>
+                               <div style={{color: 'var(--secondary-text)'}}>Board: {classificationResult.questionDetection.match.markingScheme.examDetails?.board || 'N/A'}</div>
+                               <div style={{color: 'var(--secondary-text)'}}>Qualification: {classificationResult.questionDetection.match.markingScheme.examDetails?.qualification || 'N/A'}</div>
+                               <div style={{color: 'var(--secondary-text)'}}>Paper Code: {classificationResult.questionDetection.match.markingScheme.examDetails?.paperCode || 'N/A'}</div>
+                               <div style={{color: 'var(--secondary-text)'}}>Year: {classificationResult.questionDetection.match.markingScheme.examDetails?.year || 'N/A'}</div>
+                             </div>
+                           </div>
+
+                           {/* Summary Stats */}
+                           <div style={{marginBottom: '12px'}}>
+                             <strong style={{color: 'var(--primary-text)'}}>Summary:</strong>
+                             <div style={{marginTop: '4px', paddingLeft: '12px'}}>
+                               <div style={{color: 'var(--secondary-text)'}}>Total Questions: {classificationResult.questionDetection.match.markingScheme.totalQuestions || 'N/A'}</div>
+                               <div style={{color: 'var(--secondary-text)'}}>Total Marks: {classificationResult.questionDetection.match.markingScheme.totalMarks || 'N/A'}</div>
+                               <div style={{color: 'var(--secondary-text)'}}>Match Confidence: {Math.round((classificationResult.questionDetection.match.markingScheme.confidence || 0) * 100)}%</div>
+                             </div>
+                           </div>
+
+                           {/* Question Marks */}
+                           {classificationResult.questionDetection.match.markingScheme.questionMarks && (
+                             <div>
+                               <strong style={{color: 'var(--primary-text)'}}>Question Marks:</strong>
+                               <div style={{marginTop: '4px', paddingLeft: '12px', maxHeight: '200px', overflowY: 'auto'}}>
+                                 {(() => {
+                                   try {
+                                     return Object.entries(classificationResult.questionDetection.match.markingScheme.questionMarks)
+                                       .sort(([a], [b]) => {
+                                         const numA = parseInt(a.replace(/\D/g, '')) || 0;
+                                         const numB = parseInt(b.replace(/\D/g, '')) || 0;
+                                         return numA - numB;
+                                       })
+                                       .map(([questionKey, marksData]) => {
+                                         // Handle both simple number format and complex object format
+                                         const marks = typeof marksData === 'number' ? marksData : marksData?.mark || marksData;
+                                         const answer = marksData?.answer;
+                                         const comments = marksData?.comments;
+                                         const guidance = marksData?.guidance;
+
+                                         // Helper function to safely render nested objects
+                                         const renderValue = (value) => {
+                                           if (typeof value === 'object' && value !== null) {
+                                             return JSON.stringify(value, null, 2);
+                                           }
+                                           return String(value);
+                                         };
+
+                                         return (
+                                           <div key={questionKey} style={{
+                                             marginBottom: '8px', 
+                                             padding: '12px', 
+                                             background: '#2a2a2a', 
+                                             borderRadius: '12px', 
+                                             border: '1px solid #404040',
+                                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                             transition: 'all 0.2s ease',
+                                             color: 'white'
+                                           }}>
+                                             <div style={{fontWeight: 'bold', marginBottom: '6px', color: 'white'}}>
+                                               {questionKey}: {renderValue(marks)} mark{marks !== 1 ? 's' : ''}
+                                             </div>
+                                             {answer && (
+                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
+                                                 <strong>Answer:</strong> {renderValue(answer)}
+                                               </div>
+                                             )}
+                                             {comments && (
+                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
+                                                 <strong>Comments:</strong> {renderValue(comments)}
+                                               </div>
+                                             )}
+                                             {guidance && (
+                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)'}}>
+                                                 <strong>Guidance:</strong> {renderValue(guidance)}
+                                               </div>
+                                             )}
+                                           </div>
+                                         );
+                                       });
+                                   } catch (error) {
+                                     return (
+                                       <div style={{color: 'red', padding: '8px'}}>
+                                         Error rendering question marks: {String(error.message)}
+                                       </div>
+                                     );
+                                   }
+                                 })()}
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       )}
+                     </div>
+                   )}
+                 </div>
+               )}
                {chatMessages.map((message) => (
                  <div 
                    key={message.id} 
@@ -830,7 +819,19 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                          )}
                        </div>
                      ) : (
-                       <div className="message-text">{message.content}</div>
+                      <div>
+                         {message.isImageContext ? (
+                           <div className="homework-annotated-image">
+                             <img 
+                               src={message.imageData}
+                               alt="Uploaded homework"
+                               className="annotated-image"
+                             />
+                           </div>
+                         ) : (
+                           <div className="message-text">{message.content}</div>
+                         )}
+                       </div>
                      )}
                      <div className="message-timestamp">
                        {message.timestamp}

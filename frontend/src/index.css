@@ -625,7 +625,7 @@ code {
   .sidebar {
     position: fixed;
     left: -100%;
-    z-index: 1000;
+    z-index: 1200; /* Higher than chat-input-bar and consistent with main sidebar */
     height: 100vh;
   }
   

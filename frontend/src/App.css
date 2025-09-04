@@ -53,7 +53,7 @@
   position: fixed;
   top: 70px; /* Position below fixed header */
   left: 0;
-  z-index: 100;
+  z-index: 200; /* Higher than chat-input-bar to ensure sidebar appears above it */
 }
 
 .sidebar.collapsed {

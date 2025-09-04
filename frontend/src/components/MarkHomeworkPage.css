@@ -807,8 +807,8 @@
   align-items: flex-start;
   margin-bottom: 0;
   padding: 24px 32px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--secondary-bg);
+  border-bottom: none;
+  background: transparent;
   flex-shrink: 0;
   width: 100%;
   transform: translateY(0);
@@ -881,29 +881,34 @@
 
 /* Back Button - House Style */
 .back-btn {
-  padding: 16px 32px;
-  background: linear-gradient(135deg, var(--accent-color), #9f7aea);
-  color: white;
+  padding: 0;
+  background: none;
+  color: var(--accent-color);
   border: none;
-  border-radius: 16px;
+  border-radius: 0px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 8px 24px rgba(127, 0, 255, 0.3);
-  text-decoration: none;
+  transition: all 0.2s ease;
+  display: block;
+  text-align: left;
+  align-items: flex-start;
+  gap: 0;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
 }
 
 .back-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(127, 0, 255, 0.4);
+  color: #9f7aea;
+  text-decoration-color: #9f7aea;
+  transform: none;
+  box-shadow: none;
 }
 
 .back-btn:active {
-  transform: translateY(0);
+  transform: none;
 }
 
 .chat-content {
@@ -1338,7 +1343,7 @@
   background: var(--secondary-bg);
   border-top: 1px solid var(--border-color);
   padding: 32px 32px;
-  z-index: 100;
+  z-index: 100; /* Lower than sidebar (z-index: 200) to ensure sidebar appears above */
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
 }
@@ -1349,7 +1354,7 @@
   align-items: flex-end;
   max-width: 1200px;
   margin: 0 auto;
-  padding-left: 280px; /* Account for sidebar width */
+  margin-left: 300px; /* Offset from sidebar with extra space to prevent overlap */
   position: relative;
 }
 
@@ -1527,7 +1532,7 @@
   .chat-input {
     flex-direction: column;
     align-items: stretch;
-    padding-left: 0; /* Remove sidebar padding on mobile */
+    margin-left: 0; /* Remove sidebar offset on mobile */
   }
   
   .send-btn {
@@ -1893,4 +1898,180 @@
   }
 }
 
+/* Classification Info in Chat Mode - Styled for chat messages */
+.classification-info-chat {
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--tertiary-bg);
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  width: 100%;
+}
 
+.classification-info-chat p {
+  margin: 0 0 16px 0;
+  color: var(--primary-text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.classification-info-chat .exam-paper-header-chat {
+  margin-top: 16px;
+}
+
+.classification-info-chat .exam-paper-info-chat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.classification-info-chat .exam-paper-details-chat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.classification-info-chat .exam-board,
+.classification-info-chat .exam-qualification,
+.classification-info-chat .exam-paper-code,
+.classification-info-chat .exam-year,
+.classification-info-chat .question-number {
+  padding: 4px 8px;
+  background: var(--quaternary-bg);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-text);
+  border: 1px solid var(--border-color);
+}
+
+.classification-info-chat .confidence-score {
+  font-size: 12px;
+  color: var(--secondary-text);
+  font-style: italic;
+}
+
+.classification-info-chat .marking-scheme-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--accent-color), #9f7aea);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.classification-info-chat .marking-scheme-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
+}
+
+.classification-info-chat .marking-scheme-details {
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--quaternary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+/* Homework Annotated Image in Chat Mode - Styled as User Message */
+.homework-annotated-image {
+  margin: 24px 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  display: flex;
+  justify-content: flex-end;
+  width: 100%; /* Allow full width */
+}
+
+.homework-annotated-image .annotated-image {
+  width: 100%;
+  max-width: none;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  clip-path: polygon(
+    0 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    0 calc(100% - 8px)
+  );
+  transition: all 0.3s ease;
+}
+
+.homework-annotated-image .annotated-image:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.homework-annotated-image h4 {
+  display: none; /* Hide the title since it's now a user message */
+}
+
+.homework-annotated-image .annotated-image {
+  text-align: center;
+  width: 100%; /* Full width to fill the bubble */
+  max-width: none; /* Remove max-width restriction */
+}
+
+.homework-annotated-image .base-image {
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 2px 8px rgba(127, 0, 255, 0.2);
+  border: none;
+  background: linear-gradient(135deg, var(--accent-color), #9f7aea);
+  padding: 0;
+  transition: all 0.2s ease;
+  /* Beveled edge effect */
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% calc(100% - 6px),
+    calc(100% - 6px) 100%,
+    0% 100%
+  );
+}
+
+.homework-annotated-image .base-image:hover {
+  box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+/* First Chat Message Styling */
+.chat-message:first-child {
+  margin-top: 0;
+}
+
+.chat-message:first-child .message-bubble {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
