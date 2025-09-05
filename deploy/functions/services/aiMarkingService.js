@@ -1,4 +1,7 @@
-export class AIMarkingService {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AIMarkingService = void 0;
+class AIMarkingService {
     static async classifyImage(imageData, model) {
         console.log('🔍 ===== CLASSIFY IMAGE METHOD CALLED =====');
         console.log('🔍 Model:', model);
@@ -734,3 +737,4 @@ Summary:`;
         return imageData;
     }
 }
+exports.AIMarkingService = AIMarkingService;

@@ -98,7 +98,9 @@ function startServer(port: number) {
   });
 }
 
-// Start the server
-startServer(DEFAULT_PORT);
+// Start the server only if not being imported as a module
+if (require.main === module) {
+  startServer(DEFAULT_PORT);
+}
 
 export default app;

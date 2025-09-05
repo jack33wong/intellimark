@@ -1,9 +1,15 @@
-import stripe from '../config/stripe.js';
-import { STRIPE_CONFIG } from '../config/stripe.js';
-export class PaymentService {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PaymentService = void 0;
+const stripe_js_1 = __importDefault(require("../config/stripe.js"));
+const stripe_js_2 = require("../config/stripe.js");
+class PaymentService {
     async createCheckoutSession(data) {
         const { planId, billingCycle, successUrl, cancelUrl, userId } = data;
-        const planConfig = STRIPE_CONFIG.plans[planId];
+        const planConfig = stripe_js_2.STRIPE_CONFIG.plans[planId];
         if (!planConfig) {
             throw new Error(`Plan ${planId} not found`);
         }
@@ -13,9 +19,9 @@ export class PaymentService {
         }
         if (!priceConfig.priceId || !priceConfig.priceId.startsWith('price_')) {
             console.log(`Creating dynamic price for ${planId} ${billingCycle} - $${priceConfig.amount / 100}`);
-            const price = await stripe.prices.create({
+            const price = await stripe_js_1.default.prices.create({
                 unit_amount: priceConfig.amount,
-                currency: STRIPE_CONFIG.currency,
+                currency: stripe_js_2.STRIPE_CONFIG.currency,
                 recurring: {
                     interval: billingCycle === 'monthly' ? 'month' : 'year',
                 },
@@ -25,7 +31,7 @@ export class PaymentService {
             });
             priceConfig.priceId = price.id;
         }
-        const session = await stripe.checkout.sessions.create({
+        const session = await stripe_js_1.default.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: [
                 {
@@ -53,7 +59,7 @@ export class PaymentService {
     }
     async createPaymentIntent(data) {
         const { planId, billingCycle, customerEmail, customerId } = data;
-        const planConfig = STRIPE_CONFIG.plans[planId];
+        const planConfig = stripe_js_2.STRIPE_CONFIG.plans[planId];
         if (!planConfig) {
             throw new Error(`Plan ${planId} not found`);
         }
@@ -64,23 +70,23 @@ export class PaymentService {
         let customer;
         if (customerId) {
             try {
-                customer = await stripe.customers.retrieve(customerId);
+                customer = await stripe_js_1.default.customers.retrieve(customerId);
             }
             catch (error) {
-                customer = await stripe.customers.create({
+                customer = await stripe_js_1.default.customers.create({
                     email: customerEmail,
                     metadata: { userId: customerId },
                 });
             }
         }
         else {
-            customer = await stripe.customers.create({
+            customer = await stripe_js_1.default.customers.create({
                 email: customerEmail,
             });
         }
-        const paymentIntent = await stripe.paymentIntents.create({
+        const paymentIntent = await stripe_js_1.default.paymentIntents.create({
             amount: priceConfig.amount,
-            currency: STRIPE_CONFIG.currency,
+            currency: stripe_js_2.STRIPE_CONFIG.currency,
             customer: customer.id,
             metadata: {
                 planId,
@@ -100,7 +106,7 @@ export class PaymentService {
     }
     async createSubscription(data) {
         const { planId, billingCycle, customerEmail, customerId } = data;
-        const planConfig = STRIPE_CONFIG.plans[planId];
+        const planConfig = stripe_js_2.STRIPE_CONFIG.plans[planId];
         if (!planConfig) {
             throw new Error(`Plan ${planId} not found`);
         }
@@ -111,21 +117,21 @@ export class PaymentService {
         let customer;
         if (customerId) {
             try {
-                customer = await stripe.customers.retrieve(customerId);
+                customer = await stripe_js_1.default.customers.retrieve(customerId);
             }
             catch (error) {
-                customer = await stripe.customers.create({
+                customer = await stripe_js_1.default.customers.create({
                     email: customerEmail,
                     metadata: { userId: customerId },
                 });
             }
         }
         else {
-            customer = await stripe.customers.create({
+            customer = await stripe_js_1.default.customers.create({
                 email: customerEmail,
             });
         }
-        const subscription = await stripe.subscriptions.create({
+        const subscription = await stripe_js_1.default.subscriptions.create({
             customer: customer.id,
             items: [
                 {
@@ -145,18 +151,19 @@ export class PaymentService {
             planId,
             billingCycle,
             amount: priceConfig.amount,
-            currency: STRIPE_CONFIG.currency,
+            currency: stripe_js_2.STRIPE_CONFIG.currency,
             currentPeriodStart: subscription.current_period_start,
             currentPeriodEnd: subscription.current_period_end,
         };
     }
     async getSubscription(subscriptionId) {
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription = await stripe_js_1.default.subscriptions.retrieve(subscriptionId);
         return subscription;
     }
     async cancelSubscription(subscriptionId) {
-        const subscription = await stripe.subscriptions.cancel(subscriptionId);
+        const subscription = await stripe_js_1.default.subscriptions.cancel(subscriptionId);
         return subscription;
     }
 }
-export default new PaymentService();
+exports.PaymentService = PaymentService;
+exports.default = new PaymentService();

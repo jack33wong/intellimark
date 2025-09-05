@@ -1,12 +1,50 @@
-import express from 'express';
-import { STRIPE_CONFIG } from '../config/stripe.js';
-import paymentService from '../services/paymentService.js';
-import SubscriptionService from '../services/subscriptionService.js';
-const router = express.Router();
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const stripe_js_1 = require("../config/stripe.js");
+const paymentService_js_1 = __importDefault(require("../services/paymentService.js"));
+const subscriptionService_js_1 = __importDefault(require("../services/subscriptionService.js"));
+const router = express_1.default.Router();
 router.get('/config', (req, res) => {
     res.json({
-        publishableKey: STRIPE_CONFIG.publishableKey,
-        currency: STRIPE_CONFIG.currency,
+        publishableKey: stripe_js_1.STRIPE_CONFIG.publishableKey,
+        currency: stripe_js_1.STRIPE_CONFIG.currency,
     });
 });
 router.post('/create-checkout-session', async (req, res) => {
@@ -18,7 +56,7 @@ router.post('/create-checkout-session', async (req, res) => {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         console.log('Calling paymentService.createCheckoutSession...');
-        const checkoutSession = await paymentService.createCheckoutSession({
+        const checkoutSession = await paymentService_js_1.default.createCheckoutSession({
             planId,
             billingCycle,
             successUrl,
@@ -43,7 +81,7 @@ router.post('/create-payment-intent', async (req, res) => {
         if (!planId || !billingCycle || !customerEmail) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
-        const paymentIntent = await paymentService.createPaymentIntent({
+        const paymentIntent = await paymentService_js_1.default.createPaymentIntent({
             planId,
             billingCycle,
             customerEmail,
@@ -62,7 +100,7 @@ router.post('/create-subscription', async (req, res) => {
         if (!planId || !billingCycle || !customerEmail) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
-        const subscription = await paymentService.createSubscription({
+        const subscription = await paymentService_js_1.default.createSubscription({
             planId,
             billingCycle,
             customerEmail,
@@ -78,7 +116,7 @@ router.post('/create-subscription', async (req, res) => {
 router.get('/user-subscription/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const subscription = await SubscriptionService.getUserSubscription(userId);
+        const subscription = await subscriptionService_js_1.default.getUserSubscription(userId);
         if (!subscription) {
             return res.json({
                 hasSubscription: false,
@@ -98,7 +136,7 @@ router.get('/user-subscription/:userId', async (req, res) => {
 router.get('/subscription/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const subscription = await paymentService.getSubscription(id);
+        const subscription = await paymentService_js_1.default.getSubscription(id);
         res.json(subscription);
     }
     catch (error) {
@@ -120,21 +158,21 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
         }
         else {
             console.log('💳 Real subscription detected, canceling in Stripe...');
-            subscription = await paymentService.cancelSubscription(id);
+            subscription = await paymentService_js_1.default.cancelSubscription(id);
             console.log('Stripe subscription canceled:', subscription.id);
         }
         console.log('🔍 Looking up subscription in Firestore for ID:', id);
         try {
-            const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(id);
+            const existingSubscription = await subscriptionService_js_1.default.getSubscriptionByStripeId(id);
             console.log('📊 Existing subscription found:', existingSubscription);
             if (existingSubscription) {
                 console.log('✅ Subscription found, canceling...');
-                await SubscriptionService.cancelSubscription(id);
+                await subscriptionService_js_1.default.cancelSubscription(id);
                 console.log('Firestore subscription status updated to canceled for subscription:', id);
             }
             else {
                 console.log('❌ No existing subscription found in Firestore for ID:', id);
-                const { FirestoreService } = await import('../services/firestoreService.js');
+                const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService.js')));
                 const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
                 console.log('🔍 Direct query result:', directQuery);
                 if (directQuery.length > 0) {
@@ -150,7 +188,7 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
         catch (error) {
             console.error('❌ Error in subscription lookup:', error);
             try {
-                const { FirestoreService } = await import('../services/firestoreService.js');
+                const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService.js')));
                 const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
                 console.log('🔍 Fallback direct query result:', directQuery);
                 if (directQuery.length > 0) {
@@ -195,7 +233,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
             return res.status(400).json({ error: 'Missing sessionId or userId' });
         }
         console.log('🔍 Retrieving session from Stripe:', sessionId);
-        const stripe = (await import('../config/stripe.js')).default;
+        const stripe = (await Promise.resolve().then(() => __importStar(require('../config/stripe.js')))).default;
         let session;
         try {
             session = await stripe.checkout.sessions.retrieve(sessionId, {
@@ -257,7 +295,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
             updatedAt: now,
         };
         console.log('📝 Creating subscription with data:', subscriptionData);
-        const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
+        const result = await subscriptionService_js_1.default.createOrUpdateSubscription(subscriptionData);
         console.log('✅ Subscription created successfully:', result);
         res.json({
             success: true,
@@ -276,7 +314,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
 router.get('/debug/all-subscriptions', async (req, res) => {
     try {
         console.log('🔍 Debug: Listing all subscriptions');
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService.js')));
         const allSubscriptions = await FirestoreService.queryCollection('userSubscriptions', 'userId', '!=', null);
         res.json({
             message: 'All subscriptions',
@@ -296,7 +334,7 @@ router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
     try {
         const { stripeId } = req.params;
         console.log('🔍 Testing subscription lookup for:', stripeId);
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService.js')));
         const subscriptions = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', stripeId);
         console.log('📊 Query result:', subscriptions);
         res.json({
@@ -335,7 +373,7 @@ router.post('/debug/create-subscription-for-user', async (req, res) => {
             currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
         };
         console.log('Creating debug subscription:', testData);
-        const result = await SubscriptionService.createOrUpdateSubscription(testData);
+        const result = await subscriptionService_js_1.default.createOrUpdateSubscription(testData);
         res.json({
             success: true,
             message: 'Debug subscription created successfully',
@@ -357,7 +395,7 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
         if (!userId) {
             return res.status(400).json({ error: 'Missing userId' });
         }
-        const stripe = (await import('../config/stripe.js')).default;
+        const stripe = (await Promise.resolve().then(() => __importStar(require('../config/stripe.js')))).default;
         const testCustomer = await stripe.customers.create({
             email: 'test@example.com',
             metadata: { userId }
@@ -407,7 +445,7 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
             currentPeriodStart: testSubscription.current_period_start,
             currentPeriodEnd: testSubscription.current_period_end,
         };
-        const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
+        const result = await subscriptionService_js_1.default.createOrUpdateSubscription(subscriptionData);
         res.json({
             success: true,
             message: 'Subscription success flow simulated',
@@ -441,7 +479,7 @@ router.post('/test-create-subscription', async (req, res) => {
             currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
         };
         console.log('Test subscription data:', testData);
-        const result = await SubscriptionService.createOrUpdateSubscription(testData);
+        const result = await subscriptionService_js_1.default.createOrUpdateSubscription(testData);
         res.json({
             success: true,
             message: 'Test subscription created successfully',
@@ -456,7 +494,7 @@ router.post('/test-create-subscription', async (req, res) => {
         });
     }
 });
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+router.post('/webhook', express_1.default.raw({ type: 'application/json' }), async (req, res) => {
     try {
         console.log('🔔 Webhook received!');
         console.log('Headers:', req.headers);
@@ -508,7 +546,7 @@ async function handleCheckoutSessionCompleted(session) {
             console.error('❌ Missing required data in checkout session:', { planId, billingCycle, customerId, subscriptionId });
             return;
         }
-        const stripe = (await import('../config/stripe.js')).default;
+        const stripe = (await Promise.resolve().then(() => __importStar(require('../config/stripe.js')))).default;
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const customer = await stripe.customers.retrieve(customerId);
         const finalUserId = customer.metadata?.userId || session.metadata?.userId || customerId;
@@ -527,7 +565,7 @@ async function handleCheckoutSessionCompleted(session) {
             currentPeriodEnd: subscription.current_period_end,
         };
         console.log('Subscription data to save:', JSON.stringify(subscriptionData, null, 2));
-        await SubscriptionService.createOrUpdateSubscription(subscriptionData);
+        await subscriptionService_js_1.default.createOrUpdateSubscription(subscriptionData);
         console.log(`✅ Successfully saved subscription for user ${finalUserId}`);
     }
     catch (error) {
@@ -545,9 +583,9 @@ async function handleSubscriptionCreated(subscription) {
 async function handleSubscriptionUpdated(subscription) {
     try {
         console.log('Processing subscription update:', subscription.id);
-        const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
+        const existingSubscription = await subscriptionService_js_1.default.getSubscriptionByStripeId(subscription.id);
         if (existingSubscription) {
-            await SubscriptionService.updateSubscriptionStatus(subscription.id, subscription.status);
+            await subscriptionService_js_1.default.updateSubscriptionStatus(subscription.id, subscription.status);
         }
     }
     catch (error) {
@@ -557,13 +595,13 @@ async function handleSubscriptionUpdated(subscription) {
 async function handleSubscriptionDeleted(subscription) {
     try {
         console.log('Processing subscription deletion:', subscription.id);
-        const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
+        const existingSubscription = await subscriptionService_js_1.default.getSubscriptionByStripeId(subscription.id);
         if (existingSubscription) {
-            await SubscriptionService.cancelSubscription(subscription.id);
+            await subscriptionService_js_1.default.cancelSubscription(subscription.id);
         }
     }
     catch (error) {
         console.error('Error handling subscription deletion:', error);
     }
 }
-export default router;
+exports.default = router;

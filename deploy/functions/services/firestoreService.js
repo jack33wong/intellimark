@@ -1,13 +1,27 @@
-import admin from 'firebase-admin';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-if (!admin.apps || admin.apps.length === 0) {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.FirestoreService = void 0;
+const firebase_admin_1 = __importDefault(require("firebase-admin"));
+const url_1 = require("url");
+const path_1 = require("path");
+let __filename;
+let __dirname;
+try {
+    __filename = require.resolve('./firestoreService');
+    __dirname = (0, path_1.dirname)(__filename);
+}
+catch {
+    __filename = (0, url_1.fileURLToPath)(import.meta.url);
+    __dirname = (0, path_1.dirname)(__filename);
+}
+if (!firebase_admin_1.default.apps || firebase_admin_1.default.apps.length === 0) {
     try {
-        const serviceAccountPath = join(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccountPath)
+        const serviceAccountPath = (0, path_1.join)(__dirname, '..', 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+        firebase_admin_1.default.initializeApp({
+            credential: firebase_admin_1.default.credential.cert(serviceAccountPath)
         });
         console.log('✅ Firebase Admin initialized successfully in Firestore service');
     }
@@ -15,7 +29,7 @@ if (!admin.apps || admin.apps.length === 0) {
         console.error('❌ Firebase Admin initialization failed in Firestore service:', error);
     }
 }
-const db = admin.firestore();
+const db = firebase_admin_1.default.firestore();
 const COLLECTIONS = {
     MARKING_RESULTS: 'markingResults',
     USERS: 'users',
@@ -33,7 +47,7 @@ function sanitizeFirestoreData(obj) {
         return value;
     }));
 }
-export class FirestoreService {
+class FirestoreService {
     static async saveMarkingResults(userId, userEmail, imageData, model, isQuestionOnly, classification, ocrResult, markingInstructions, annotatedImage, metadata) {
         try {
             console.log('🔍 Saving marking results to Firestore...');
@@ -59,8 +73,8 @@ export class FirestoreService {
             };
             const docRef = await db.collection(COLLECTIONS.MARKING_RESULTS).add({
                 ...docData,
-                createdAt: admin.firestore.Timestamp.now(),
-                updatedAt: admin.firestore.Timestamp.now()
+                createdAt: firebase_admin_1.default.firestore.Timestamp.now(),
+                updatedAt: firebase_admin_1.default.firestore.Timestamp.now()
             });
             console.log('✅ Marking results saved to Firestore with ID:', docRef.id);
             return docRef.id;
@@ -118,7 +132,7 @@ export class FirestoreService {
             console.log('🔍 Updating marking results in Firestore:', resultId);
             await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).update({
                 ...updates,
-                updatedAt: admin.firestore.Timestamp.now()
+                updatedAt: firebase_admin_1.default.firestore.Timestamp.now()
             });
             console.log('✅ Marking results updated in Firestore');
         }
@@ -143,7 +157,7 @@ export class FirestoreService {
             console.log('🔍 Saving/updating user in Firestore:', userData.uid);
             await db.collection(COLLECTIONS.USERS).doc(userData.uid).set({
                 ...userData,
-                updatedAt: admin.firestore.Timestamp.now()
+                updatedAt: firebase_admin_1.default.firestore.Timestamp.now()
             }, { merge: true });
             console.log('✅ User saved/updated in Firestore');
         }
@@ -179,7 +193,7 @@ export class FirestoreService {
                 db.collection(COLLECTIONS.MARKING_RESULTS).count().get(),
                 db.collection(COLLECTIONS.USERS).count().get()
             ]);
-            const oneDayAgo = admin.firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+            const oneDayAgo = firebase_admin_1.default.firestore.Timestamp.fromDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
             const recentSnapshot = await db.collection(COLLECTIONS.MARKING_RESULTS)
                 .where('createdAt', '>=', oneDayAgo)
                 .count()
@@ -306,13 +320,13 @@ export class FirestoreService {
                 id: message.id,
                 role: message.role,
                 content: message.content,
-                timestamp: admin.firestore.Timestamp.now(),
+                timestamp: firebase_admin_1.default.firestore.Timestamp.now(),
                 ...(message.imageData && { imageData: message.imageData }),
                 ...(message.model && { model: message.model })
             };
             await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
-                messages: admin.firestore.FieldValue.arrayUnion(messageData),
-                updatedAt: admin.firestore.Timestamp.now()
+                messages: firebase_admin_1.default.firestore.FieldValue.arrayUnion(messageData),
+                updatedAt: firebase_admin_1.default.firestore.Timestamp.now()
             });
             console.log('✅ Message added to chat session in Firestore');
         }
@@ -326,7 +340,7 @@ export class FirestoreService {
             console.log('🔍 Updating chat session in Firestore:', sessionId);
             await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
                 ...updates,
-                updatedAt: admin.firestore.Timestamp.now()
+                updatedAt: firebase_admin_1.default.firestore.Timestamp.now()
             });
             console.log('✅ Chat session updated in Firestore');
         }
@@ -414,3 +428,4 @@ export class FirestoreService {
         }
     }
 }
+exports.FirestoreService = FirestoreService;

@@ -1,9 +1,7 @@
-import { onRequest } from 'firebase-functions/v2/https';
-import app from './server.js';
+const functions = require('firebase-functions');
 
-export const api = onRequest({
-  region: 'us-central1',
-  memory: '1GiB',
-  timeoutSeconds: 60,
-  maxInstances: 10
-}, app);
+// Import the real backend server through wrapper
+const app = require('./server-wrapper.js');
+
+// Export the Express app as a Firebase Function
+exports.api = functions.https.onRequest(app);

@@ -53,6 +53,13 @@ Cursor should apply the most relevant section depending on the file type (src, t
 - NEVER implement mock versions of production code. Always implement the real functionality directly.
 - If testing is needed, use proper mocks/stubs for external dependencies, not fake implementations of core business logic.  
 
+## deployment
+- **CRITICAL: NEVER change program logic during deployment**
+- **CRITICAL: Production and local must have IDENTICAL program logic**
+- **CRITICAL: Only fix deployment issues (config, paths, dependencies) - NEVER change business logic**
+- **CRITICAL: If production needs different logic, it's a bug that needs to be fixed in the source code, not a deployment change**
+- **CRITICAL: Deployment should only involve: copying files, installing dependencies, configuring environment variables**
+- **CRITICAL: Any logic changes must be made in the source code and then deployed, never changed during deployment** 
 
 ##  Correct Test Example
 import { parseExamText } from "../src/parser";

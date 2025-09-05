@@ -10,8 +10,19 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { ADMIN_EMAILS } from './admin';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// CommonJS compatible path resolution
+let __filename: string;
+let __dirname: string;
+
+try {
+  // Try CommonJS first
+  __filename = require.resolve('./firebase');
+  __dirname = dirname(__filename);
+} catch {
+  // Fallback to ES modules
+  __filename = fileURLToPath(import.meta.url);
+  __dirname = dirname(__filename);
+}
 
 // Firebase Admin instances
 let firebaseAdmin: admin.app.App | null = null;

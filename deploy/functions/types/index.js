@@ -1,21 +1,27 @@
-export class ImageProcessingError extends Error {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AIServiceError = exports.OCRServiceError = exports.ImageProcessingError = void 0;
+class ImageProcessingError extends Error {
     constructor(message, code) {
         super(message);
         this.name = 'ImageProcessingError';
         this.code = code;
     }
 }
-export class OCRServiceError extends Error {
+exports.ImageProcessingError = ImageProcessingError;
+class OCRServiceError extends Error {
     constructor(message, code) {
         super(message);
         this.name = 'OCRServiceError';
         this.code = code;
     }
 }
-export class AIServiceError extends Error {
+exports.OCRServiceError = OCRServiceError;
+class AIServiceError extends Error {
     constructor(message, code) {
         super(message);
         this.name = 'AIServiceError';
         this.code = code;
     }
 }
+exports.AIServiceError = AIServiceError;

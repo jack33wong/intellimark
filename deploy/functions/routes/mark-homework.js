@@ -1,8 +1,43 @@
-import * as express from 'express';
-import { MathpixService } from '../services/mathpixService.js';
-import { questionDetectionService } from '../services/questionDetectionService.js';
-import { ImageAnnotationService } from '../services/imageAnnotationService.js';
-import { optionalAuth } from '../middleware/auth.js';
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+const express = __importStar(require("express"));
+const mathpixService_1 = require("../services/mathpixService");
+const questionDetectionService_1 = require("../services/questionDetectionService");
+const imageAnnotationService_1 = require("../services/imageAnnotationService");
+const auth_1 = require("../middleware/auth");
 function validateModelConfig(modelType) {
     const validModels = ['gemini-2.5-pro', 'chatgpt-5', 'chatgpt-4o'];
     return validModels.includes(modelType);
@@ -13,7 +48,7 @@ async function classifyImageWithAI(imageData, model) {
     try {
         console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
         console.log('🔍 Using model:', model);
-        const { AIMarkingService } = await import('../services/aiMarkingService');
+        const { AIMarkingService } = await Promise.resolve().then(() => __importStar(require('../services/aiMarkingService')));
         const classification = await AIMarkingService.classifyImage(imageData, model);
         console.log('🔍 AI Classification result:', classification);
         return classification;
@@ -33,10 +68,10 @@ async function classifyImageWithAI(imageData, model) {
 async function processImageWithRealOCR(imageData) {
     try {
         console.log('🔍 ===== REAL OCR PROCESSING WITH MATHPIX =====');
-        if (!MathpixService.isAvailable()) {
+        if (!mathpixService_1.MathpixService.isAvailable()) {
             throw new Error('Mathpix service not available. Please configure MATHPIX_API_KEY environment variable.');
         }
-        const mathpixResult = await MathpixService.processImage(imageData);
+        const mathpixResult = await mathpixService_1.MathpixService.processImage(imageData);
         console.log('✅ Mathpix OCR completed successfully');
         console.log(`🔍 Extracted text length: ${mathpixResult.text.length} characters`);
         console.log(`🔍 Bounding boxes found: ${mathpixResult.boundingBoxes.length}`);
@@ -58,7 +93,7 @@ async function processImageWithRealOCR(imageData) {
 async function generateRealMarkingInstructions(imageData, model, processedImage, questionDetection) {
     console.log('🔍 Generating real AI marking instructions for model:', model);
     try {
-        const { AIMarkingService } = await import('../services/aiMarkingService');
+        const { AIMarkingService } = await Promise.resolve().then(() => __importStar(require('../services/aiMarkingService')));
         const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(imageData, model, processedImage, questionDetection);
         const markingInstructions = {
             annotations: simpleMarkingInstructions.annotations.map(annotation => ({
@@ -189,7 +224,7 @@ async function saveMarkingResults(imageData, model, result, instructions, classi
         console.log('🔍 User ID:', userId);
         console.log('🔍 User Email:', userEmail);
         console.log('🔍 Model:', model);
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService')));
         console.log('🔍 FirestoreService imported successfully');
         console.log('🔍 Calling FirestoreService.saveMarkingResults...');
         const resultId = await FirestoreService.saveMarkingResults(userId, userEmail, imageData, model, false, classification, result, instructions, undefined, {
@@ -213,7 +248,7 @@ async function saveMarkingResults(imageData, model, result, instructions, classi
         return resultId;
     }
 }
-router.post('/mark-homework', optionalAuth, async (req, res) => {
+router.post('/mark-homework', auth_1.optionalAuth, async (req, res) => {
     console.log('🚀 ===== COMPLETE MARK QUESTION ROUTE CALLED =====');
     console.log('Request body:', {
         imageData: req.body.imageData ? 'present' : 'missing',
@@ -257,7 +292,7 @@ router.post('/mark-homework', optionalAuth, async (req, res) => {
         let questionDetection;
         if (imageClassification.extractedQuestionText) {
             try {
-                questionDetection = await questionDetectionService.detectQuestion(imageClassification.extractedQuestionText);
+                questionDetection = await questionDetectionService_1.questionDetectionService.detectQuestion(imageClassification.extractedQuestionText);
             }
             catch (error) {
                 console.error('❌ Question detection failed:', error);
@@ -301,7 +336,7 @@ router.post('/mark-homework', optionalAuth, async (req, res) => {
             comment: ann.text || '',
             action: ann.action
         }));
-        const annotationResult = await ImageAnnotationService.generateAnnotationResult(imageData, annotations, processedImage.imageDimensions);
+        const annotationResult = await imageAnnotationService_1.ImageAnnotationService.generateAnnotationResult(imageData, annotations, processedImage.imageDimensions);
         console.log('🔍 Burned image created, length:', annotationResult.annotatedImage.length);
         console.log('🔍 SVG overlay length:', annotationResult.svgOverlay.length);
         console.log('🔍 ===== STEP 5: SAVING RESULTS =====');
@@ -343,7 +378,7 @@ router.post('/mark-homework', optionalAuth, async (req, res) => {
         });
     }
 });
-router.get('/results/:id', optionalAuth, async (req, res) => {
+router.get('/results/:id', auth_1.optionalAuth, async (req, res) => {
     try {
         const { id } = req.params;
         if (!id) {
@@ -353,7 +388,7 @@ router.get('/results/:id', optionalAuth, async (req, res) => {
             });
         }
         console.log('🔍 Retrieving marking results from Firestore for ID:', id);
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService')));
         const savedResult = await FirestoreService.getMarkingResults(id);
         if (!savedResult) {
             return res.status(404).json({
@@ -374,7 +409,7 @@ router.get('/results/:id', optionalAuth, async (req, res) => {
         });
     }
 });
-router.get('/user/:userId', optionalAuth, async (req, res) => {
+router.get('/user/:userId', auth_1.optionalAuth, async (req, res) => {
     try {
         const { userId } = req.params;
         if (!userId) {
@@ -385,7 +420,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
         }
         const limit = parseInt(req.query['limit']) || 50;
         console.log('🔍 Retrieving marking history for user:', userId, 'limit:', limit);
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService')));
         const userResults = await FirestoreService.getUserMarkingResults(userId, limit);
         return res.json({
             success: true,
@@ -406,7 +441,7 @@ router.get('/user/:userId', optionalAuth, async (req, res) => {
 router.get('/stats', async (_req, res) => {
     try {
         console.log('🔍 Retrieving system statistics from Firestore...');
-        const { FirestoreService } = await import('../services/firestoreService.js');
+        const { FirestoreService } = await Promise.resolve().then(() => __importStar(require('../services/firestoreService')));
         const stats = await FirestoreService.getSystemStats();
         return res.json({
             success: true,
@@ -438,4 +473,4 @@ router.get('/health', (_req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-export default router;
+exports.default = router;

@@ -7,8 +7,19 @@ import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// CommonJS compatible path resolution
+let __filename: string;
+let __dirname: string;
+
+try {
+  // Try CommonJS first
+  __filename = require.resolve('./firestoreService');
+  __dirname = dirname(__filename);
+} catch {
+  // Fallback to ES modules
+  __filename = fileURLToPath(import.meta.url);
+  __dirname = dirname(__filename);
+}
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps || admin.apps.length === 0) {

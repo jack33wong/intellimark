@@ -1,6 +1,9 @@
-import { FirestoreService } from './firestoreService.js';
-import { AIMarkingService } from './aiMarkingService.js';
-export class ChatSessionManager {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ChatSessionManager = void 0;
+const firestoreService_1 = require("./firestoreService");
+const aiMarkingService_1 = require("./aiMarkingService");
+class ChatSessionManager {
     constructor() {
         this.activeSessions = new Map();
         this.persistenceInterval = null;
@@ -49,7 +52,7 @@ export class ChatSessionManager {
             }
             console.log('🔍 Generating context summary for session:', sessionId);
             const messagesForSummary = session.messages.slice(0, -1);
-            const summary = await AIMarkingService.generateContextSummary(messagesForSummary);
+            const summary = await aiMarkingService_1.AIMarkingService.generateContextSummary(messagesForSummary);
             if (summary) {
                 session.contextSummary = summary;
                 session.lastSummaryUpdate = new Date();
@@ -71,8 +74,8 @@ export class ChatSessionManager {
                 cached.lastAccessed = new Date();
                 return cached.session;
             }
-            if (typeof FirestoreService.getChatSession === 'function') {
-                const session = await FirestoreService.getChatSession(sessionId);
+            if (typeof firestoreService_1.FirestoreService.getChatSession === 'function') {
+                const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
                 if (session) {
                     this.cacheSession(session);
                     return session;
@@ -90,7 +93,7 @@ export class ChatSessionManager {
     }
     async createSession(sessionData) {
         try {
-            if (typeof FirestoreService.createChatSession !== 'function') {
+            if (typeof firestoreService_1.FirestoreService.createChatSession !== 'function') {
                 console.warn('FirestoreService.createChatSession not available, using fallback');
                 const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 const newSession = {
@@ -103,7 +106,7 @@ export class ChatSessionManager {
                 this.cacheSession(newSession);
                 return sessionId;
             }
-            const sessionId = await FirestoreService.createChatSession(sessionData);
+            const sessionId = await firestoreService_1.FirestoreService.createChatSession(sessionData);
             const newSession = {
                 id: sessionId,
                 title: sessionData.title,
@@ -153,8 +156,8 @@ export class ChatSessionManager {
             if (cached) {
                 return cached.session.messages.slice(-limit);
             }
-            if (typeof FirestoreService.getChatSession === 'function') {
-                const session = await FirestoreService.getChatSession(sessionId);
+            if (typeof firestoreService_1.FirestoreService.getChatSession === 'function') {
+                const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
                 if (session) {
                     this.cacheSession(session);
                     return session.messages.slice(-limit);
@@ -197,7 +200,7 @@ export class ChatSessionManager {
     }
     async getSessionSummary(sessionId) {
         try {
-            const session = await FirestoreService.getChatSession(sessionId);
+            const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
             if (!session)
                 return null;
             const recentMessages = session.messages.slice(-10);
@@ -219,7 +222,7 @@ export class ChatSessionManager {
     }
     async getRecentMessages(sessionId, limit) {
         try {
-            const session = await FirestoreService.getChatSession(sessionId);
+            const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
             if (!session)
                 return [];
             return session.messages.slice(-limit);
@@ -297,7 +300,7 @@ export class ChatSessionManager {
             if (!cached || !cached.isDirty)
                 return;
             for (const message of cached.pendingMessages) {
-                await FirestoreService.addMessageToSession(sessionId, message);
+                await firestoreService_1.FirestoreService.addMessageToSession(sessionId, message);
             }
             cached.pendingMessages = [];
             cached.isDirty = false;
@@ -370,4 +373,5 @@ export class ChatSessionManager {
         });
     }
 }
-export default ChatSessionManager;
+exports.ChatSessionManager = ChatSessionManager;
+exports.default = ChatSessionManager;
