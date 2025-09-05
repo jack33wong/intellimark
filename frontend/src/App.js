@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AdminPage from './components/AdminPage';
@@ -78,7 +79,7 @@ function AppContent() {
             } />
             
             <Route path="/mark-homework" element={
-              <ProtectedRoute>
+              <OptionalAuthRoute>
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
@@ -98,7 +99,7 @@ function AppContent() {
                     />
                   </div>
                 </div>
-              </ProtectedRoute>
+              </OptionalAuthRoute>
             } />
             
 
@@ -163,7 +164,7 @@ function AppContent() {
             
             {/* Main page route - handles subscription success */}
             <Route path="/" element={
-              <ProtectedRoute>
+              <OptionalAuthRoute>
                 <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
@@ -178,11 +179,11 @@ function AppContent() {
                     </div>
                   </div>
                 </div>
-              </ProtectedRoute>
+              </OptionalAuthRoute>
             } />
 
-            {/* Fallback route - redirect to login if no other route matches */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Fallback route - redirect to main page if no other route matches */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
     </AuthProvider>

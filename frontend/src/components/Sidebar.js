@@ -110,7 +110,20 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
         <div className="sidebar-section">
           <h3>Mark History</h3>
-          {isLoadingHistory ? (
+          {!user ? (
+            <div className="mark-history-login-prompt">
+              <div className="placeholder-item">
+                <BookOpen size={16} />
+                <span>Login to view history</span>
+                <button 
+                  className="login-prompt-btn"
+                  onClick={() => navigate('/login')}
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          ) : isLoadingHistory ? (
             <div className="mark-history-loading">
               <div className="placeholder-item">
                 <Clock size={16} />
@@ -156,20 +169,22 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
       <div className="separator" />
 
-      <div className="admin-section">
-        <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
-          <Code size={16} />
-          Markdown Demo
+      {user && (
+        <div className="admin-section">
+          <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
+            <Code size={16} />
+            Markdown Demo
+          </div>
+          <div className="admin-link" onClick={() => navigate('/firebase-test')}>
+            <Code size={16} />
+            Firebase Test
+          </div>
+          <div className="admin-link" onClick={() => navigate('/admin')}>
+            <Settings size={16} />
+            Admin
+          </div>
         </div>
-        <div className="admin-link" onClick={() => navigate('/firebase-test')}>
-          <Code size={16} />
-          Firebase Test
-        </div>
-        <div className="admin-link" onClick={() => navigate('/admin')}>
-          <Settings size={16} />
-          Admin
-        </div>
-      </div>
+      )}
     </div>
   );
 }

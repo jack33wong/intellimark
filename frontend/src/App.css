@@ -488,3 +488,40 @@
     gap: 12px;
   }
 }
+
+/* Sidebar login prompt styles */
+.mark-history-login-prompt {
+  padding: 1rem;
+}
+
+.mark-history-login-prompt .placeholder-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+  color: var(--secondary-text);
+}
+
+.login-prompt-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  margin-top: 0.5rem;
+}
+
+.login-prompt-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.login-prompt-btn:active {
+  transform: translateY(0);
+}

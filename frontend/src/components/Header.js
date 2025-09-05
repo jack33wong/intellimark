@@ -490,6 +490,17 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             {getUpgradeButtonIcon()}
             {getUpgradeButtonText()}
           </button>
+          {!user && (
+            <button 
+              className="mobile-nav-item login-nav"
+              onClick={() => {
+                navigate('/login');
+                closeMobileMenu();
+              }}
+            >
+              Sign In
+            </button>
+          )}
           {user?.isAdmin && (
             <button 
               className="mobile-nav-item admin-nav"

@@ -7,6 +7,7 @@ import express from 'express';
 import { FirestoreService } from '../services/firestoreService';
 import { AIMarkingService } from '../services/aiMarkingService';
 import ChatSessionManager from '../services/chatSessionManager';
+import { optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -16,18 +17,22 @@ console.log('🚀 CHAT ROUTE MODULE LOADED SUCCESSFULLY');
  * POST /chat
  * Create a new chat session or send a message to existing session
  */
-router.post('/', async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   console.log('🚀 ===== CHAT ROUTE CALLED =====');
   
   try {
     const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode } = req.body;
+    
+    // Use authenticated user ID if available, otherwise use provided userId or anonymous
+    const currentUserId = req.user?.uid || userId || 'anonymous';
     
     console.log('🔍 Request data:', { 
       hasMessage: !!message, 
       hasImage: !!imageData, 
       model, 
       sessionId, 
-      userId,
+      userId: currentUserId,
+      isAuthenticated: !!req.user,
       mode
     });
 
@@ -48,7 +53,7 @@ router.post('/', async (req, res) => {
       currentSessionId = await sessionManager.createSession({
         title: imageData ? 'Image-based Chat' : 'Text Chat',
         messages: [],
-        userId: userId || 'anonymous'
+        userId: currentUserId
       });
       console.log('📝 Created new session:', currentSessionId);
     } else {
@@ -59,7 +64,7 @@ router.post('/', async (req, res) => {
         currentSessionId = await sessionManager.createSession({
           title: imageData ? 'Image-based Chat' : 'Text Chat',
           messages: [],
-          userId: userId || 'anonymous'
+          userId: currentUserId
         });
       }
     }
@@ -155,12 +160,30 @@ router.post('/', async (req, res) => {
 
 /**
  * GET /chat/sessions/:userId
- * Get all chat sessions for a user
+ * Get all chat sessions for a user (requires authentication)
  */
-router.get('/sessions/:userId', async (req, res) => {
+router.get('/sessions/:userId', optionalAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     console.log('🔍 Getting chat sessions for user:', userId);
+
+    // Check if user is authenticated and requesting their own sessions
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please log in to access your chat history'
+      });
+    }
+
+    // Ensure user can only access their own sessions
+    if (req.user.uid !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'You can only access your own chat sessions'
+      });
+    }
 
     const sessions = await FirestoreService.getChatSessions(userId);
     
@@ -179,12 +202,21 @@ router.get('/sessions/:userId', async (req, res) => {
 
 /**
  * GET /chat/session/:sessionId
- * Get a specific chat session
+ * Get a specific chat session (requires authentication)
  */
-router.get('/session/:sessionId', async (req, res) => {
+router.get('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     console.log('🔍 Getting chat session:', sessionId);
+
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please log in to access chat sessions'
+      });
+    }
 
     const session = await FirestoreService.getChatSession(sessionId);
     
@@ -192,6 +224,15 @@ router.get('/session/:sessionId', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Chat session not found'
+      });
+    }
+
+    // Ensure user can only access their own sessions
+    if (session.userId !== req.user.uid) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'You can only access your own chat sessions'
       });
     }
 
@@ -210,13 +251,39 @@ router.get('/session/:sessionId', async (req, res) => {
 
 /**
  * PUT /chat/session/:sessionId
- * Update a chat session (e.g., title)
+ * Update a chat session (e.g., title) (requires authentication)
  */
-router.put('/session/:sessionId', async (req, res) => {
+router.put('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const updates = req.body;
     console.log('🔍 Updating chat session:', sessionId, updates);
+
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please log in to update chat sessions'
+      });
+    }
+
+    // Verify session ownership before updating
+    const session = await FirestoreService.getChatSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Chat session not found'
+      });
+    }
+
+    if (session.userId !== req.user.uid) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'You can only update your own chat sessions'
+      });
+    }
 
     await FirestoreService.updateChatSession(sessionId, updates);
     
@@ -235,12 +302,38 @@ router.put('/session/:sessionId', async (req, res) => {
 
 /**
  * DELETE /chat/session/:sessionId
- * Delete a chat session
+ * Delete a chat session (requires authentication)
  */
-router.delete('/session/:sessionId', async (req, res) => {
+router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     console.log('🔍 Deleting chat session:', sessionId);
+
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please log in to delete chat sessions'
+      });
+    }
+
+    // Verify session ownership before deleting
+    const session = await FirestoreService.getChatSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Chat session not found'
+      });
+    }
+
+    if (session.userId !== req.user.uid) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'You can only delete your own chat sessions'
+      });
+    }
 
     await FirestoreService.deleteChatSession(sessionId);
     
@@ -295,12 +388,21 @@ router.get('/status', (_req, res) => {
 
 /**
  * POST /chat/restore/:sessionId
- * Restore session context from database
+ * Restore session context from database (requires authentication)
  */
-router.post('/restore/:sessionId', async (req, res) => {
+router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     console.log('🔄 Restoring session context:', sessionId);
+
+    // Check if user is authenticated
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        message: 'Please log in to restore chat sessions'
+      });
+    }
 
     const sessionManager = ChatSessionManager.getInstance();
     const session = await sessionManager.restoreSession(sessionId);
@@ -309,6 +411,15 @@ router.post('/restore/:sessionId', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Session not found'
+      });
+    }
+
+    // Ensure user can only restore their own sessions
+    if (session.userId !== req.user.uid) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied',
+        message: 'You can only restore your own chat sessions'
       });
     }
 
