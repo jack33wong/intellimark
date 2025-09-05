@@ -276,10 +276,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
             <Code size={16} />
             Markdown Demo
           </div>
-          <div className="admin-link" onClick={() => navigate('/firebase-test')}>
-            <Code size={16} />
-            Firebase Test
-          </div>
           <div className="admin-link" onClick={() => navigate('/admin')}>
             <Settings size={16} />
             Admin

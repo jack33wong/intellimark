@@ -81,10 +81,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           id: msg.id,
           role: msg.role,
           content: msg.content,
+          rawContent: msg.rawContent || msg.content, // Store raw content for toggle
           timestamp: (() => {
             try {
+              // Handle already formatted Date objects from backend
+              if (msg.timestamp instanceof Date) {
+                return msg.timestamp.toLocaleString();
+              }
               // Handle Firestore timestamp with _seconds
-              if (msg.timestamp && typeof msg.timestamp === 'object' && msg.timestamp._seconds) {
+              else if (msg.timestamp && typeof msg.timestamp === 'object' && msg.timestamp._seconds) {
                 return new Date(msg.timestamp._seconds * 1000).toLocaleString();
               }
               // Handle Firestore timestamp with toDate method
@@ -110,7 +115,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           imageData: msg.imageData,
           markingData: msg.markingData,
           model: msg.model,
-          detectedQuestion: msg.detectedQuestion // Add detectedQuestion field
+          detectedQuestion: msg.detectedQuestion,
+          apiUsed: msg.apiUsed, // Add API used field
+          showRaw: msg.showRaw || false, // Add raw toggle state
+          isImageContext: msg.isImageContext || false, // Add image context flag
+          historicalData: msg.historicalData // Add historical data for marking messages
         }));
         
         setChatMessages(formattedMessages);

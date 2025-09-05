@@ -452,9 +452,18 @@ export class FirestoreService {
       const data = doc.data();
       console.log('✅ Chat session retrieved from Firestore');
       
+      // Process messages to convert Firestore timestamps
+      const processedMessages = (data.messages || []).map((msg: any) => ({
+        ...msg,
+        timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
+                  (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
+                   (msg.timestamp ? new Date(msg.timestamp) : new Date()))
+      }));
+      
       return {
         id: doc.id,
         ...data,
+        messages: processedMessages,
         timestamp: data?.['timestamp']?.toDate ? data['timestamp'].toDate() : new Date(data?.['timestamp']),
         createdAt: data?.['createdAt']?.toDate ? data['createdAt'].toDate() : new Date(data?.['createdAt']),
         updatedAt: data?.['updatedAt']?.toDate ? data['updatedAt'].toDate() : new Date(data?.['updatedAt']),
@@ -485,9 +494,19 @@ export class FirestoreService {
 
       const sessions = snapshot.docs.map(doc => {
         const data = doc.data();
+        
+        // Process messages to convert Firestore timestamps
+        const processedMessages = (data.messages || []).map((msg: any) => ({
+          ...msg,
+          timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
+                    (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
+                     (msg.timestamp ? new Date(msg.timestamp) : new Date()))
+        }));
+        
         return {
           id: doc.id,
           ...data,
+          messages: processedMessages,
           timestamp: data?.['timestamp']?.toDate ? data?.['timestamp']?.toDate() : data?.['timestamp'],
           createdAt: data?.['createdAt']?.toDate ? data?.['createdAt']?.toDate() : data?.['createdAt'],
           updatedAt: data?.['updatedAt']?.toDate ? data?.['updatedAt']?.toDate() : data?.['updatedAt']

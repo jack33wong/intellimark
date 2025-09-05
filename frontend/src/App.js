@@ -8,8 +8,6 @@ import Sidebar from './components/Sidebar';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
 
-import FirebaseTest from './components/FirebaseTest';
-import SimpleFirebaseTest from './components/SimpleFirebaseTest';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
@@ -107,37 +105,6 @@ function AppContent() {
             
 
             
-            <Route path="/firebase-test" element={
-              <ProtectedRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
-                <div className="main-content">
-                  <div className="app">
-                    <Sidebar 
-                      isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
-                      onMarkHomeworkClick={handleMarkHomeworkClick}
-                    />
-                    <FirebaseTest />
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/simple-firebase-test" element={
-              <ProtectedRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
-                <div className="main-content">
-                  <div className="app">
-                    <Sidebar 
-                      isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
-                      onMarkHomeworkClick={handleMarkHomeworkClick}
-                    />
-                    <SimpleFirebaseTest />
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
             
             <Route path="/profile" element={
               <ProtectedRoute>
