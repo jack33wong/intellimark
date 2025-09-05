@@ -1,10 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.questionDetectionService = exports.QuestionDetectionService = void 0;
-const firebase_1 = require("../config/firebase");
-class QuestionDetectionService {
+import { getFirestore } from '../config/firebase';
+export class QuestionDetectionService {
     constructor() {
-        this.db = (0, firebase_1.getFirestore)();
+        this.db = getFirestore();
     }
     static getInstance() {
         if (!QuestionDetectionService.instance) {
@@ -228,5 +225,4 @@ class QuestionDetectionService {
         return Math.max(wordSimilarity, partialScore);
     }
 }
-exports.QuestionDetectionService = QuestionDetectionService;
-exports.questionDetectionService = QuestionDetectionService.getInstance();
+export const questionDetectionService = QuestionDetectionService.getInstance();

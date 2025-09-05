@@ -6,7 +6,7 @@ const API_CONFIG = {
   // API endpoints
   ENDPOINTS: {
     CHAT: '/api/chat/',
-    MARK_HOMEWORK: '/api/mark-homework/mark-homework',
+    MARK_HOMEWORK: '/api/mark-homework',
     ADMIN: '/api/admin'
   },
   

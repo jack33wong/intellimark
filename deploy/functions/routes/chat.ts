@@ -167,17 +167,8 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
     const { userId } = req.params;
     console.log('🔍 Getting chat sessions for user:', userId);
 
-    // Check if user is authenticated and requesting their own sessions
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        message: 'Please log in to access your chat history'
-      });
-    }
-
-    // Ensure user can only access their own sessions
-    if (req.user.uid !== userId) {
+    // If user is authenticated, ensure they can only access their own sessions
+    if (req.user && req.user.uid !== userId) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -335,7 +326,7 @@ router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
       });
     }
 
-    await FirestoreService.deleteChatSession(sessionId);
+    await FirestoreService.deleteChatSession(sessionId, session.userId);
     
     return res.json({
       success: true,

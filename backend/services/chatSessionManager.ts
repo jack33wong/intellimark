@@ -197,13 +197,24 @@ export class ChatSessionManager {
    */
   async addMessage(sessionId: string, message: Omit<ChatMessage, 'timestamp'>): Promise<boolean> {
     try {
+      console.log(`🔍 ChatSessionManager: Adding message to session ${sessionId}`);
       const cached = this.activeSessions.get(sessionId);
       if (!cached) {
+        console.log(`🔍 ChatSessionManager: Session ${sessionId} not in cache, loading from database`);
         // Session not in cache, load it first
         const session = await this.getSession(sessionId);
         if (!session) {
           throw new Error('Session not found');
         }
+        
+        // Double-check that the session is now in cache
+        const reloadedCached = this.activeSessions.get(sessionId);
+        if (!reloadedCached) {
+          throw new Error('Failed to load session into cache');
+        }
+        console.log(`🔍 ChatSessionManager: Session ${sessionId} loaded into cache successfully`);
+      } else {
+        console.log(`🔍 ChatSessionManager: Session ${sessionId} found in cache`);
       }
 
       const cachedSession = this.activeSessions.get(sessionId)!;
@@ -219,8 +230,19 @@ export class ChatSessionManager {
       cachedSession.lastAccessed = new Date();
 
       // Check if we should persist this batch
-      if (cachedSession.pendingMessages.length >= this.BATCH_SIZE) {
+      // Force immediate persistence for question-only sessions or when batch size is reached
+      const isQuestionOnlySession = cachedSession.session.title?.includes('Question -') || 
+                                   cachedSession.session.title?.includes('Marking -');
+      
+      console.log(`🔍 ChatSessionManager: Session title: ${cachedSession.session.title}`);
+      console.log(`🔍 ChatSessionManager: Is question-only session: ${isQuestionOnlySession}`);
+      console.log(`🔍 ChatSessionManager: Pending messages: ${cachedSession.pendingMessages.length}, Batch size: ${this.BATCH_SIZE}`);
+      
+      if (cachedSession.pendingMessages.length >= this.BATCH_SIZE || isQuestionOnlySession) {
+        console.log(`🔍 ChatSessionManager: Persisting session ${sessionId} immediately`);
         await this.persistSession(sessionId);
+      } else {
+        console.log(`🔍 ChatSessionManager: Deferring persistence for session ${sessionId}`);
       }
 
       return true;
@@ -439,6 +461,7 @@ export class ChatSessionManager {
       if (!cached || !cached.isDirty) return;
 
       // Persist pending messages
+      const messageCount = cached.pendingMessages.length;
       for (const message of cached.pendingMessages) {
         await FirestoreService.addMessageToSession(sessionId, message);
       }
@@ -447,7 +470,7 @@ export class ChatSessionManager {
       cached.pendingMessages = [];
       cached.isDirty = false;
       
-      console.log(`💾 Persisted ${cached.pendingMessages.length} messages for session ${sessionId}`);
+      console.log(`💾 Persisted ${messageCount} messages for session ${sessionId}`);
     } catch (error) {
       console.error('Failed to persist session:', error);
     }

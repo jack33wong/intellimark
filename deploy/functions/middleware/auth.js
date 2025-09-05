@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireAdmin = exports.optionalAuth = exports.authenticateUser = void 0;
-const firebase_1 = require("../config/firebase");
-const authenticateUser = async (req, res, next) => {
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
+export const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,7 +15,7 @@ const authenticateUser = async (req, res, next) => {
                 message: 'No token provided'
             });
         }
-        if (!(0, firebase_1.isFirebaseAvailable)()) {
+        if (!isFirebaseAvailable()) {
             console.warn('⚠️ Firebase not available, using mock authentication for development');
             req.user = {
                 uid: 'mock-user-id',
@@ -32,7 +29,7 @@ const authenticateUser = async (req, res, next) => {
             next();
             return;
         }
-        const firebaseAuth = (0, firebase_1.getFirebaseAuth)();
+        const firebaseAuth = getFirebaseAuth();
         if (!firebaseAuth) {
             throw new Error('Firebase Auth not available');
         }
@@ -50,7 +47,7 @@ const authenticateUser = async (req, res, next) => {
             emailVerified: userRecord.emailVerified || false,
             name: userRecord.displayName || undefined,
             picture: userRecord.photoURL || undefined,
-            role: (0, firebase_1.getUserRole)(userRecord.email || '')
+            role: getUserRole(userRecord.email || '')
         };
         console.log(`✅ User authenticated: ${req.user.email} (${req.user.uid}) - Role: ${req.user.role}`);
         next();
@@ -63,15 +60,14 @@ const authenticateUser = async (req, res, next) => {
         });
     }
 };
-exports.authenticateUser = authenticateUser;
-const optionalAuth = async (req, res, next) => {
+export const optionalAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split('Bearer ')[1];
             if (token) {
-                if ((0, firebase_1.isFirebaseAvailable)()) {
-                    const firebaseAuth = (0, firebase_1.getFirebaseAuth)();
+                if (isFirebaseAvailable()) {
+                    const firebaseAuth = getFirebaseAuth();
                     if (firebaseAuth) {
                         try {
                             const decodedToken = await firebaseAuth.verifyIdToken(token);
@@ -83,7 +79,7 @@ const optionalAuth = async (req, res, next) => {
                                     emailVerified: userRecord.emailVerified || false,
                                     name: userRecord.displayName || undefined,
                                     picture: userRecord.photoURL || undefined,
-                                    role: (0, firebase_1.getUserRole)(userRecord.email || '')
+                                    role: getUserRole(userRecord.email || '')
                                 };
                             }
                         }
@@ -111,8 +107,7 @@ const optionalAuth = async (req, res, next) => {
         next();
     }
 };
-exports.optionalAuth = optionalAuth;
-const requireAdmin = async (req, res, next) => {
+export const requireAdmin = async (req, res, next) => {
     try {
         console.log(`✅ Admin access granted (development mode)`);
         next();
@@ -125,4 +120,3 @@ const requireAdmin = async (req, res, next) => {
         });
     }
 };
-exports.requireAdmin = requireAdmin;

@@ -63,7 +63,8 @@ const initializeFirebase = (): boolean => {
         console.log('✅ Service account file found, initializing Firebase...');
         
         firebaseAdmin = admin.initializeApp({
-          credential: admin.credential.cert(serviceAccountPath)
+          credential: admin.credential.cert(serviceAccountPath),
+          storageBucket: 'intellimark-6649e.appspot.com'
         });
         console.log('✅ Firebase Admin initialized successfully with service account');
         isInitialized = true;

@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ImageAnnotationService = void 0;
-const svgOverlayService_1 = require("./svgOverlayService");
-class ImageAnnotationService {
+import { SVGOverlayService } from './svgOverlayService.js';
+export class ImageAnnotationService {
     static createSVGOverlay(annotations, imageDimensions) {
         if (!annotations || annotations.length === 0) {
             return '';
@@ -122,7 +119,7 @@ class ImageAnnotationService {
         try {
             console.log('🔥 Generating annotation result with burned overlays...');
             const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
-            const burnedImage = await svgOverlayService_1.SVGOverlayService.burnSVGOverlayServerSide(originalImage, annotations, imageDimensions);
+            const burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(originalImage, annotations, imageDimensions);
             const imageAnnotations = annotations.map(ann => ({
                 position: { x: ann.bbox[0], y: ann.bbox[1] },
                 comment: ann.comment || '',
@@ -179,4 +176,3 @@ class ImageAnnotationService {
         };
     }
 }
-exports.ImageAnnotationService = ImageAnnotationService;

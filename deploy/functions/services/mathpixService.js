@@ -1,6 +1,3 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.MathpixService = void 0;
 class OCRServiceError extends Error {
     constructor(message, code) {
         super(message);
@@ -10,7 +7,7 @@ class OCRServiceError extends Error {
 }
 const API_URL = 'https://api.mathpix.com/v3/text';
 const APP_ID = process.env['MATHPIX_APP_ID'] || 'tutor_app';
-class MathpixService {
+export class MathpixService {
     static initialize(apiKey) {
         this.apiKey = apiKey || process.env['MATHPIX_API_KEY'];
     }
@@ -371,4 +368,3 @@ class MathpixService {
         }
     }
 }
-exports.MathpixService = MathpixService;

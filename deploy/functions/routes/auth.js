@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const auth_1 = require("../middleware/auth");
-const firebase_1 = require("../config/firebase");
-const router = express_1.default.Router();
+import express from 'express';
+import { authenticateUser } from '../middleware/auth';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase';
+const router = express.Router();
 router.get('/providers', (_req, res) => {
     res.json({
         providers: [
@@ -38,7 +33,7 @@ router.post('/social-login', async (req, res) => {
                 message: 'Only Google and Facebook are supported'
             });
         }
-        if (!(0, firebase_1.isFirebaseAvailable)()) {
+        if (!isFirebaseAvailable()) {
             console.warn('⚠️ Firebase not available, using mock authentication for development');
             const mockUser = {
                 uid: 'mock-user-id',
@@ -56,7 +51,7 @@ router.post('/social-login', async (req, res) => {
             });
             return;
         }
-        const firebaseAuth = (0, firebase_1.getFirebaseAuth)();
+        const firebaseAuth = getFirebaseAuth();
         if (!firebaseAuth) {
             throw new Error('Firebase Auth not available');
         }
@@ -74,7 +69,7 @@ router.post('/social-login', async (req, res) => {
             emailVerified: userRecord.emailVerified || false,
             name: userRecord.displayName || undefined,
             picture: userRecord.photoURL || undefined,
-            role: (0, firebase_1.getUserRole)(userRecord.email || '')
+            role: getUserRole(userRecord.email || '')
         };
         console.log(`✅ Real Firebase login successful: ${user.email} via ${provider} (role: ${user.role})`);
         res.json({
@@ -91,7 +86,7 @@ router.post('/social-login', async (req, res) => {
         });
     }
 });
-router.get('/profile', auth_1.authenticateUser, (req, res) => {
+router.get('/profile', authenticateUser, (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({
@@ -101,7 +96,7 @@ router.get('/profile', auth_1.authenticateUser, (req, res) => {
         }
         const userWithRole = {
             ...req.user,
-            role: req.user.role || (0, firebase_1.getUserRole)(req.user.email)
+            role: req.user.role || getUserRole(req.user.email)
         };
         res.json({
             success: true,
@@ -116,7 +111,7 @@ router.get('/profile', auth_1.authenticateUser, (req, res) => {
         });
     }
 });
-router.put('/profile', auth_1.authenticateUser, async (req, res) => {
+router.put('/profile', authenticateUser, async (req, res) => {
     try {
         const { displayName, photoURL } = req.body;
         if (!req.user) {
@@ -125,12 +120,12 @@ router.put('/profile', auth_1.authenticateUser, async (req, res) => {
                 message: 'User not authenticated'
             });
         }
-        if (!(0, firebase_1.isFirebaseAvailable)()) {
+        if (!isFirebaseAvailable()) {
             console.warn('⚠️ Firebase not available, using mock profile update for development');
             const updatedUser = {
                 ...req.user,
                 name: displayName || req.user.name,
-                role: (0, firebase_1.getUserRole)(req.user.email)
+                role: getUserRole(req.user.email)
             };
             console.log(`✅ Mock profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
             res.json({
@@ -140,7 +135,7 @@ router.put('/profile', auth_1.authenticateUser, async (req, res) => {
             });
             return;
         }
-        const firebaseAuth = (0, firebase_1.getFirebaseAuth)();
+        const firebaseAuth = getFirebaseAuth();
         if (!firebaseAuth) {
             throw new Error('Firebase Auth not available');
         }
@@ -155,7 +150,7 @@ router.put('/profile', auth_1.authenticateUser, async (req, res) => {
             emailVerified: updatedUserRecord.emailVerified || false,
             name: updatedUserRecord.displayName || undefined,
             picture: updatedUserRecord.photoURL || undefined,
-            role: (0, firebase_1.getUserRole)(updatedUserRecord.email || '')
+            role: getUserRole(updatedUserRecord.email || '')
         };
         console.log(`✅ Real Firebase profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
         res.json({
@@ -187,4 +182,4 @@ router.post('/logout', (req, res) => {
         });
     }
 });
-exports.default = router;
+export default router;

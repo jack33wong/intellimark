@@ -1,11 +1,5 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SVGOverlayService = void 0;
-const sharp_1 = __importDefault(require("sharp"));
-class SVGOverlayService {
+import sharp from 'sharp';
+export class SVGOverlayService {
     static async burnSVGOverlayServerSide(originalImageData, annotations, imageDimensions) {
         try {
             console.log('🔥 Burning SVG overlay server-side with Sharp...');
@@ -18,7 +12,7 @@ class SVGOverlayService {
             }
             const base64Data = originalImageData.replace(/^data:image\/[a-z]+;base64,/, '');
             const imageBuffer = Buffer.from(base64Data, 'base64');
-            const imageMetadata = await (0, sharp_1.default)(imageBuffer).metadata();
+            const imageMetadata = await sharp(imageBuffer).metadata();
             const originalWidth = imageMetadata.width || imageDimensions.width;
             const originalHeight = imageMetadata.height || imageDimensions.height;
             console.log('🔍 Original image dimensions:', originalWidth, 'x', originalHeight);
@@ -28,7 +22,7 @@ class SVGOverlayService {
             console.log('🔍 Burning at original dimensions:', burnWidth, 'x', burnHeight);
             const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, imageDimensions);
             const svgBuffer = Buffer.from(svgOverlay);
-            const burnedImageBuffer = await (0, sharp_1.default)(imageBuffer)
+            const burnedImageBuffer = await sharp(imageBuffer)
                 .composite([
                 {
                     input: svgBuffer,
@@ -139,4 +133,3 @@ class SVGOverlayService {
             opacity="0.9">${comment}</text>`;
     }
 }
-exports.SVGOverlayService = SVGOverlayService;

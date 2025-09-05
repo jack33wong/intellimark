@@ -9,6 +9,10 @@ import { MathpixService } from '../services/mathpixService';
 import { questionDetectionService } from '../services/questionDetectionService';
 import { ImageAnnotationService } from '../services/imageAnnotationService';
 import { optionalAuth } from '../middleware/auth';
+import admin from 'firebase-admin';
+
+// Get Firestore instance
+const db = admin.firestore();
 
 // Import only the basic types we need
 import type { 
@@ -270,63 +274,55 @@ function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width
   return svg;
 }
 
+
 /**
- * Save marking results to Firestore database
+ * Helper function to create a new marking session for each upload
  */
-async function saveMarkingResults(
-  imageData: string,
-  model: string,
-  result: ProcessedImageResult,
-  instructions: MarkingInstructions,
-  classification: ImageClassification,
-  userId: string = 'anonymous',
-  userEmail: string = 'anonymous@example.com'
+async function createNewMarkingSession(
+  userId: string, 
+  questionDetection?: any, 
+  imageClassification?: any
 ): Promise<string> {
   try {
-    console.log('🔍 Attempting to save to Firestore...');
-    console.log('🔍 User ID:', userId);
-    console.log('🔍 User Email:', userEmail);
-    console.log('🔍 Model:', model);
+    console.log('🔍 Creating new marking session for user:', userId);
     
-    // Import and use the real Firestore service
+    // Import Firestore service
     const { FirestoreService } = await import('../services/firestoreService');
-    console.log('🔍 FirestoreService imported successfully');
     
-    // Save to Firestore
-    console.log('🔍 Calling FirestoreService.saveMarkingResults...');
-    const resultId = await FirestoreService.saveMarkingResults(
-      userId,
-      userEmail,
-      imageData,
-      model,
-      false, // isQuestionOnly - this function is only called for homework images
-      classification,
-      result, // ocrResult
-      instructions, // markingInstructions
-      undefined, // annotatedImage - will be added later
-      {
-        processingTime: new Date().toISOString(),
-        modelUsed: model,
-        totalAnnotations: instructions.annotations.length,
-        imageSize: imageData.length,
-        confidence: result.confidence,
-        apiUsed: 'Complete AI Marking System',
-        ocrMethod: 'Enhanced OCR Processing'
-      }
-    );
+    // Generate session title based on available data
+    let sessionTitle = 'Chat Session';
     
-    console.log('🔍 Results saved to Firestore with ID:', resultId);
-    return resultId;
+    if (questionDetection?.found && questionDetection?.match) {
+      const examDetails = questionDetection.match.markingScheme?.examDetails || {};
+      const questionNumber = questionDetection.match.questionNumber;
+      const isQuestionOnly = imageClassification?.isQuestionOnly || false;
+      
+      const type = isQuestionOnly ? 'Question' : 'Marking';
+      const board = examDetails.board || questionDetection.match.board || 'Unknown';
+      const paperCode = examDetails.paperCode || questionDetection.match.paperCode || 'Unknown';
+      const questionNum = questionNumber || 'Unknown';
+      
+      sessionTitle = `${type} - ${board} ${paperCode} Q${questionNum}`;
+    } else {
+      // Fallback to timestamp-based title
+      const timestamp = new Date().toISOString();
+      sessionTitle = `Marking Session - ${timestamp}`;
+    }
     
+    console.log('🔍 Session title:', sessionTitle);
+    
+    const sessionId = await FirestoreService.createChatSession({
+      title: sessionTitle,
+      messages: [],
+      userId
+    });
+    
+    console.log('🔍 Created new marking session:', sessionId);
+    console.log('🔍 Session title in database:', sessionTitle);
+    return sessionId;
   } catch (error) {
-    console.error('❌ Failed to save marking results to Firestore:', error);
-    console.error('❌ Error details:', error instanceof Error ? error.stack : 'Unknown error');
-    // Fallback to local storage if Firestore fails
-    console.log('🔍 Falling back to local storage...');
-    
-    const resultId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('🔍 Results saved locally with ID:', resultId);
-    return resultId;
+    console.error('❌ Failed to create marking session:', error);
+    throw error;
   }
 }
 
@@ -334,7 +330,7 @@ async function saveMarkingResults(
  * POST /mark-homework
  * Complete mark question endpoint with all functionality
  */
-router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) => {
+router.post('/', optionalAuth, async (req: Request, res: Response) => {
   console.log('🚀 ===== COMPLETE MARK QUESTION ROUTE CALLED =====');
   console.log('Request body:', { 
     imageData: req.body.imageData ? 'present' : 'missing', 
@@ -406,7 +402,33 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
          }
     
     if (imageClassification.isQuestionOnly) {
-      // For question-only images, return early with classification result
+      // For question-only images, still create a session and save the data
+      console.log('🔍 ===== QUESTION-ONLY IMAGE DETECTED =====');
+      
+      // Get user information from request (if authenticated)
+      const userId = (req as any)?.user?.uid || 'anonymous';
+      const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+      
+      // Create new session for question-only images too
+      console.log('🔍 ===== CREATING NEW SESSION FOR QUESTION-ONLY =====');
+      console.log('🔍 User ID:', userId);
+      console.log('🔍 Timestamp:', new Date().toISOString());
+      const sessionId = await createNewMarkingSession(userId, questionDetection, imageClassification);
+      console.log('🔍 Created session ID:', sessionId);
+      console.log('🔍 ================================================');
+      
+      // Save question-only data as session messages
+      const { FirestoreService } = await import('../services/firestoreService');
+      await FirestoreService.saveQuestionOnlyAsMessages(
+        userId,
+        sessionId,
+        imageData,
+        model,
+        imageClassification,
+        questionDetection
+      );
+      
+      // Return with session ID for question-only images
       return res.json({ 
         success: true,
         isQuestionOnly: true,
@@ -415,6 +437,7 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
         model: model,
         reasoning: imageClassification.reasoning,
         questionDetection: questionDetection,
+        sessionId: sessionId,
         timestamp: new Date().toISOString()
       });
     }
@@ -460,14 +483,35 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
     const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     
-    const resultId = await saveMarkingResults(
+    // Create new session for each marking request
+    console.log('🔍 ===== CREATING NEW SESSION =====');
+    console.log('🔍 User ID:', userId);
+    console.log('🔍 Timestamp:', new Date().toISOString());
+    const sessionId = await createNewMarkingSession(userId, questionDetection, imageClassification);
+    console.log('🔍 Created session ID:', sessionId);
+    console.log('🔍 =================================');
+    
+    // Save marking results as session messages
+    const { FirestoreService } = await import('../services/firestoreService');
+    await FirestoreService.saveMarkingResultsAsMessages(
+      userId,
+      sessionId,
       imageData,
       model,
       processedImage,
       markingInstructions,
       imageClassification,
-      userId,
-      userEmail
+      annotationResult.annotatedImage,
+      {
+        processingTime: new Date().toISOString(),
+        modelUsed: model,
+        totalAnnotations: markingInstructions.annotations.length,
+        imageSize: imageData.length,
+        confidence: processedImage.confidence,
+        apiUsed: 'Complete AI Marking System',
+        ocrMethod: 'Enhanced OCR Processing'
+      },
+      questionDetection
     );
 
     // Step 6: Return complete marking result
@@ -488,8 +532,9 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
     // Add metadata
     const enhancedResponse = {
       ...response,
+      sessionId: sessionId,
       metadata: {
-        resultId: resultId,
+        sessionId: sessionId,
         processingTime: new Date().toISOString(),
         modelUsed: model,
         totalAnnotations: markingInstructions.annotations.length,
@@ -510,89 +555,6 @@ router.post('/mark-homework', optionalAuth, async (req: Request, res: Response) 
   }
 });
 
-/**
- * GET /mark-homework/results/:id
- * Retrieve saved marking results from Firestore
- */
-router.get('/results/:id', optionalAuth, async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        error: 'Result ID is required'
-      });
-    }
-    
-    console.log('🔍 Retrieving marking results from Firestore for ID:', id);
-    
-    // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService');
-    
-    // Retrieve from Firestore
-    const savedResult = await FirestoreService.getMarkingResults(id);
-    
-    if (!savedResult) {
-      return res.status(404).json({
-        success: false,
-        error: 'Marking results not found'
-      });
-    }
-    
-    return res.json({
-      success: true,
-      result: savedResult
-    });
-    
-  } catch (error) {
-    console.error('Error retrieving results from Firestore:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve marking results from database'
-    });
-  }
-});
-
-/**
- * GET /mark-homework/user/:userId
- * Get marking history for a specific user
- */
-router.get('/user/:userId', optionalAuth, async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'User ID is required'
-      });
-    }
-    
-    const limit = parseInt(req.query['limit'] as string) || 50;
-    
-    console.log('🔍 Retrieving marking history for user:', userId, 'limit:', limit);
-    
-    // Import and use the real Firestore service
-    const { FirestoreService } = await import('../services/firestoreService');
-    
-    // Retrieve user's marking history from Firestore
-    const userResults = await FirestoreService.getUserMarkingResults(userId, limit);
-    
-    return res.json({
-      success: true,
-      userId: userId,
-      results: userResults,
-      total: userResults.length,
-      limit: limit
-    });
-    
-  } catch (error) {
-    console.error('Error retrieving user marking history:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve user marking history'
-    });
-  }
-});
 
 /**
  * GET /mark-homework/stats

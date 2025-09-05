@@ -1,15 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.AI_MODELS = void 0;
-exports.getModelConfig = getModelConfig;
-exports.getAvailableModels = getAvailableModels;
-exports.getModelDisplayName = getModelDisplayName;
-exports.isModelSupported = isModelSupported;
-exports.getDefaultModel = getDefaultModel;
-exports.validateModelConfig = validateModelConfig;
-exports.getModelPromptTemplate = getModelPromptTemplate;
-exports.getModelParameters = getModelParameters;
-exports.AI_MODELS = {
+export const AI_MODELS = {
     'gemini-2.5-pro': {
         name: 'Google Gemini 2.5 Pro',
         apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
@@ -33,26 +22,26 @@ exports.AI_MODELS = {
         maxCompletionTokens: 8000
     }
 };
-function getModelConfig(modelType) {
-    const config = exports.AI_MODELS[modelType];
+export function getModelConfig(modelType) {
+    const config = AI_MODELS[modelType];
     if (!config) {
         throw new Error(`Unsupported model type: ${modelType}`);
     }
     return config;
 }
-function getAvailableModels() {
-    return Object.keys(exports.AI_MODELS);
+export function getAvailableModels() {
+    return Object.keys(AI_MODELS);
 }
-function getModelDisplayName(modelType) {
-    return exports.AI_MODELS[modelType]?.name || modelType;
+export function getModelDisplayName(modelType) {
+    return AI_MODELS[modelType]?.name || modelType;
 }
-function isModelSupported(modelType) {
-    return modelType in exports.AI_MODELS;
+export function isModelSupported(modelType) {
+    return modelType in AI_MODELS;
 }
-function getDefaultModel() {
+export function getDefaultModel() {
     return 'chatgpt-4o';
 }
-function validateModelConfig(modelType) {
+export function validateModelConfig(modelType) {
     try {
         const config = getModelConfig(modelType);
         return !!(config.name &&
@@ -64,7 +53,7 @@ function validateModelConfig(modelType) {
         return false;
     }
 }
-function getModelPromptTemplate(modelType) {
+export function getModelPromptTemplate(modelType) {
     const basePrompt = `You are an expert mathematics tutor. Please analyze the provided homework or question and provide detailed feedback, step-by-step solutions, and constructive comments.`;
     switch (modelType) {
         case 'gemini-2.5-pro':
@@ -77,7 +66,7 @@ function getModelPromptTemplate(modelType) {
             return basePrompt;
     }
 }
-function getModelParameters(modelType) {
+export function getModelParameters(modelType) {
     const config = getModelConfig(modelType);
     switch (modelType) {
         case 'gemini-2.5-pro':

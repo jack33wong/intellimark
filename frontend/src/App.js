@@ -47,6 +47,9 @@ function AppContent() {
   const handleMarkingResultSaved = () => {
     // This will be called when a new marking result is saved
     // We'll pass this to the Sidebar to refresh the history
+    if (handleMarkingResultSaved.refresh) {
+      handleMarkingResultSaved.refresh();
+    }
   };
 
   // Function to trigger mark history refresh

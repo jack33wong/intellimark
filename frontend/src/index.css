@@ -159,6 +159,10 @@ code {
   background: var(--tertiary-bg);
   border: 1px solid var(--border-color);
   margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .mark-history-item:hover {
@@ -181,9 +185,7 @@ code {
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
 }
 
 .mark-history-item:hover .mark-history-text {
@@ -198,6 +200,45 @@ code {
 
 .mark-history-item:hover .mark-history-date {
   color: rgba(255, 255, 255, 0.8);
+}
+
+.mark-history-delete-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--muted-text);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.mark-history-item:hover .mark-history-delete-btn {
+  opacity: 1;
+  transform: scale(1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.mark-history-delete-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ff6b6b;
+  transform: scale(1.1);
+}
+
+.mark-history-delete-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: scale(1);
+}
+
+.mark-history-delete-btn:disabled:hover {
+  background: none;
+  color: rgba(255, 255, 255, 0.8);
+  transform: scale(1);
 }
 
 .mark-history-loading,

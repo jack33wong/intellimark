@@ -17,7 +17,7 @@ app.use(helmet());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000 // limit each IP to 1000 requests per windowMs (increased for development)
 });
 app.use(limiter);
 
@@ -89,8 +89,9 @@ function startServer(port: number) {
 
   server.on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
-      console.warn(`⚠️ Port ${port} in use, retrying with ${port + 1}...`);
-      startServer(port + 1);
+      console.error(`❌ Port ${port} is already in use. Please kill the process using port ${port} and try again.`);
+      console.error('❌ Only port 5001 is allowed for backend development.');
+      process.exit(1);
     } else {
       console.error('❌ Server error:', err);
       throw err;

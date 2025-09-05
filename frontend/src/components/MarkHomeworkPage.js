@@ -41,33 +41,88 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
 
   // === MODE MANAGEMENT ===
   
+  // Reset component state when component is mounted fresh (key change)
+  useEffect(() => {
+    setPageMode('upload');
+    setChatMessages([]);
+    setChatInput('');
+    setCurrentSessionId(null);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setError(null);
+    setApiResponse(null);
+    setClassificationResult(null);
+    setLastUploadedImageData(null);
+    setShowChatHeader(true);
+    setLastScrollTop(0);
+    setShowExpandedThinking(false);
+    setShowMarkingSchemeDetails(false);
+    setLoadingProgress(0);
+    // Clear localStorage
+    localStorage.removeItem('chatSessionId');
+    localStorage.removeItem('chatMessages');
+    localStorage.setItem('isChatMode', 'false');
+  }, []); // Empty dependency array means this runs once on mount
+  
   // Handle selected marking result from sidebar
   useEffect(() => {
     if (selectedMarkingResult) {
-      // Stay in upload mode but show historical data as "Analysis Results"
-      setPageMode('upload');
+      console.log('🔍 MarkHomeworkPage: Selected marking result:', selectedMarkingResult);
+      console.log('🔍 MarkHomeworkPage: Messages count:', selectedMarkingResult.messages?.length || 0);
+      console.log('🔍 MarkHomeworkPage: Messages:', selectedMarkingResult.messages);
       
-      // Set image preview if available
-      if (selectedMarkingResult.imageData) {
-        setPreviewUrl(`data:image/jpeg;base64,${selectedMarkingResult.imageData}`);
+      // Switch to chat mode to display the session messages
+      setPageMode('chat');
+      
+      // Load the session messages into chat
+      if (selectedMarkingResult.messages && Array.isArray(selectedMarkingResult.messages)) {
+        // Convert Firestore messages to chat format
+        const formattedMessages = selectedMarkingResult.messages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          timestamp: (() => {
+            try {
+              // Handle Firestore timestamp with _seconds
+              if (msg.timestamp && typeof msg.timestamp === 'object' && msg.timestamp._seconds) {
+                return new Date(msg.timestamp._seconds * 1000).toLocaleString();
+              }
+              // Handle Firestore timestamp with toDate method
+              else if (msg.timestamp && typeof msg.timestamp === 'object' && msg.timestamp.toDate) {
+                return msg.timestamp.toDate().toLocaleString();
+              }
+              // Handle ISO string or other valid date formats
+              else if (msg.timestamp && (typeof msg.timestamp === 'string' || typeof msg.timestamp === 'number')) {
+                const date = new Date(msg.timestamp);
+                if (!isNaN(date.getTime())) {
+                  return date.toLocaleString();
+                }
+              }
+              // Fallback to current time
+              return new Date().toLocaleString();
+            } catch (error) {
+              console.warn('Error parsing timestamp:', error, 'Raw timestamp:', msg.timestamp);
+              return new Date().toLocaleString();
+            }
+          })(),
+          type: msg.type,
+          imageLink: msg.imageLink,
+          imageData: msg.imageData,
+          markingData: msg.markingData,
+          model: msg.model,
+          detectedQuestion: msg.detectedQuestion // Add detectedQuestion field
+        }));
+        
+        setChatMessages(formattedMessages);
+        setCurrentSessionId(selectedMarkingResult.id);
+        
+        // Scroll to bottom of chat
+        setTimeout(() => {
+          if (chatMessagesRef.current) {
+            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+          }
+        }, 100);
       }
-      
-      // Set classification result if available
-      if (selectedMarkingResult.classification) {
-        setClassificationResult(selectedMarkingResult.classification);
-      }
-      
-      // Create API response format from historical data (same as upload mode results)
-      const historicalApiResponse = {
-        annotatedImage: selectedMarkingResult.annotatedImage,
-        instructions: selectedMarkingResult.markingInstructions,
-        classificationResult: selectedMarkingResult.classification,
-        questionDetection: selectedMarkingResult.questionDetection,
-        isHistorical: true,
-        historicalData: selectedMarkingResult
-      };
-      
-      setApiResponse(historicalApiResponse);
       
       // Clear the selected result after processing with a small delay
       if (onClearSelectedResult) {
@@ -292,20 +347,23 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   }, [handleFileSelect]);
 
   // Send initial chat message when switching to chat mode
-  const sendInitialChatMessage = useCallback(async (imageData, model, mode) => {
+  const sendInitialChatMessage = useCallback(async (imageData, model, mode, sessionId = null) => {
     setIsProcessing(true);
     
     try {
+      // Use the provided session ID, current session ID, or let the API create a new one
+      const sessionIdToUse = sessionId || currentSessionId || null;
+      
       const response = await fetch('/api/chat/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: 'chat-image-context',
+          message: 'I have a question about this image. Can you help me understand it?',
           imageData: imageData,
           model: model,
-          sessionId: currentSessionId,
+          sessionId: sessionIdToUse,
           ...(mode ? { mode } : {})
         }),
       });
@@ -360,6 +418,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
+
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       setError('Please select a file first');
@@ -404,69 +463,107 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         body: JSON.stringify(payload)
       });
 
-
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ API Error:', errorText);
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
-                   const result = await response.json();
+      const result = await response.json();
 
-       // Check if this is a question-only image
-       if (result.isQuestionOnly) {
-         
-         // Store the classification result
-         
-         setClassificationResult({
-           isQuestionOnly: true,
-           reasoning: result.reasoning,
-           apiUsed: result.apiUsed,
-           questionDetection: result.questionDetection
-         });
-         
-         // Switch to chat mode immediately
-         setPageMode('chat');
-         
-         // Refresh mark history in sidebar
-         if (onMarkingResultSaved) {
-           onMarkingResultSaved();
-         }
-         
-         // Add initial user message with the image
-         const initialUserMessage = {
-           id: Date.now(),
-           role: 'user',
-           content: 'chat-image-context',
-           timestamp: new Date().toLocaleTimeString(),
-           imageData: imageData,
-           isImageContext: true
-         };
-         
-         setChatMessages([initialUserMessage]);
-         
-         // Automatically send the first chat message to get AI response
-         setTimeout(() => {
-           sendInitialChatMessage(imageData, selectedModel);
-         }, 500);
-         
-         return; // Exit early for question-only mode
-       }
+      // Check if this is a question-only image
+      if (result.isQuestionOnly) {
+        // Store the classification result
+        setClassificationResult({
+          isQuestionOnly: true,
+          reasoning: result.reasoning,
+          apiUsed: result.apiUsed,
+          questionDetection: result.questionDetection
+        });
+        
+        // Switch to chat mode immediately
+        setPageMode('chat');
+        
+        // Refresh mark history in sidebar
+        if (onMarkingResultSaved) {
+          onMarkingResultSaved();
+        }
+        
+        // Set the session ID from the response
+        setCurrentSessionId(result.sessionId);
+        
+        // Add initial user message with the image
+        const initialUserMessage = {
+          id: Date.now(),
+          role: 'user',
+          content: 'I have a question about this image. Can you help me understand it?',
+          timestamp: new Date().toLocaleTimeString(),
+          imageData: imageData,
+          isImageContext: true
+        };
+        
+        // Append to existing chat history instead of replacing
+        setChatMessages(prevMessages => [...prevMessages, initialUserMessage]);
+        
+        // Automatically send the first chat message to get AI response
+        setTimeout(() => {
+          sendInitialChatMessage(imageData, selectedModel, null, result.sessionId);
+        }, 500);
+        
+        return; // Exit early for question-only mode
+      }
 
-       // For regular homework images, store the API response
-       setApiResponse(result);
-       
-       // Extract classification result if available
-       if (result.classificationResult) {
-         setClassificationResult(result.classificationResult);
-       }
-       
-       // Refresh mark history in sidebar
-       if (onMarkingResultSaved) {
-
-         onMarkingResultSaved();
-       }
+      // For regular homework images, go directly to chat mode
+      setPageMode('chat');
+      
+      // Refresh mark history in sidebar
+      if (onMarkingResultSaved) {
+        onMarkingResultSaved();
+      }
+      
+      // Since the backend already saves the data to Firestore, we can simulate the chat messages
+      // by creating them from the response data and appending to existing chat history
+      const newMessages = [
+        {
+          id: `msg-${Date.now()}`,
+          role: 'user',
+          content: 'Uploaded homework image for marking',
+          timestamp: new Date().toLocaleString(),
+          type: 'marking_original',
+          imageData: imageData,
+          detectedQuestion: result.questionDetection?.found ? {
+            examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
+            questionNumber: result.questionDetection.match?.questionNumber || 'Unknown',
+            questionText: result.questionDetection.match?.questionText || result.classification?.extractedQuestionText || '',
+            confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
+          } : undefined
+        },
+        {
+          id: `msg-${Date.now() + 1}`,
+          role: 'assistant',
+          content: 'Marking completed with annotations',
+          timestamp: new Date().toLocaleString(),
+          type: 'marking_annotated',
+          imageData: result.annotatedImage,
+          detectedQuestion: result.questionDetection?.found ? {
+            examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
+            questionNumber: result.questionDetection.match?.questionNumber || 'Unknown',
+            questionText: result.questionDetection.match?.questionText || result.classification?.extractedQuestionText || '',
+            confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
+          } : undefined
+        }
+      ];
+      
+      // Append new messages to existing chat history instead of replacing
+      setChatMessages(prevMessages => [...prevMessages, ...newMessages]);
+      setCurrentSessionId(result.sessionId);
+      
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        if (chatMessagesRef.current) {
+          chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+        }
+      }, 100);
       
     } catch (err) {
       console.error('❌ Upload error:', err);
@@ -474,7 +571,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     } finally {
       setIsProcessing(false);
     }
-     }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -498,6 +595,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
       const imageData = firstUserMessage?.imageData || lastUploadedImageData;
       
+      // Use the current session ID if available, otherwise let the API create a new one
+      const sessionIdToUse = currentSessionId || null;
+      
       const response = await fetch('/api/chat/', {
         method: 'POST',
         headers: {
@@ -507,7 +607,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           message: chatInput.trim(),
           imageData: imageData,
           model: selectedModel,
-          sessionId: currentSessionId,
+          sessionId: sessionIdToUse,
           mode: classificationResult?.isQuestionOnly ? 'question' : 'qa'
         }),
       });
@@ -751,13 +851,51 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                    key={message.id} 
                    className={`chat-message ${message.role}`}
                  >
-                   <div className="message-bubble">
+                   <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
                      {message.role === 'assistant' ? (
                        <div>
                          <MarkdownMathRenderer 
                            content={message.content}
                            className="chat-message-renderer"
                          />
+                         
+                         {/* Handle marking messages with annotated images */}
+                         {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
+                           <div className="homework-annotated-image">
+                             <h4>✅ Marked Homework Image</h4>
+                             <img 
+                               src={message.imageLink || message.imageData}
+                               alt="Marked homework"
+                               className="annotated-image"
+                             />
+                             
+                             {/* Display marking data if available */}
+                             {message.markingData && (
+                               <div className="marking-data-display">
+                                 <h5>📊 Marking Details</h5>
+                                 {message.markingData.ocrResult?.extractedText && (
+                                   <div className="extracted-text">
+                                     <strong>Extracted Text:</strong>
+                                     <div className="text-content">{message.markingData.ocrResult.extractedText}</div>
+                                   </div>
+                                 )}
+                                 {message.markingData.markingInstructions?.annotations?.length > 0 && (
+                                   <div className="annotations-list">
+                                     <strong>Annotations:</strong>
+                                     <ul>
+                                       {message.markingData.markingInstructions.annotations.map((annotation, index) => (
+                                         <li key={index}>
+                                           <span className="annotation-action">{annotation.action}:</span>
+                                           {annotation.text && <span className="annotation-text">{annotation.text}</span>}
+                                         </li>
+                                       ))}
+                                     </ul>
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                         )}
                          
                          {/* Historical marking data display */}
                          {message.isHistorical && message.historicalData && (
@@ -825,15 +963,106 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                        </div>
                      ) : (
                       <div>
-                         {message.isImageContext ? (
+                         {/* Handle marking messages with images */}
+                         {message.type === 'marking_original' && (message.imageLink || message.imageData) && (
+                           <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
+                             {/* Question Header */}
+                             {message.detectedQuestion && (
+                               <div className="question-header">
+                                 <div className="exam-meta">
+                                   <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
+                                   <div className="question-meta">
+                                     <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
+                                     <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
+                                   </div>
+                                 </div>
+                                 {message.detectedQuestion.questionText && (
+                                   <div className="question-text">
+                                     <strong>Question:</strong> {message.detectedQuestion.questionText}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                             <h4>📷 Original Homework Image</h4>
+                             <img 
+                               src={message.imageLink || message.imageData}
+                               alt="Original homework"
+                               className="annotated-image"
+                             />
+                           </div>
+                         )}
+                         
+                         {/* Handle marking messages with annotated images */}
+                         {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
+                           <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
+                             {/* Question Header */}
+                             {message.detectedQuestion && (
+                               <div className="question-header">
+                                 <div className="exam-meta">
+                                   <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
+                                   <div className="question-meta">
+                                     <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
+                                     <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
+                                   </div>
+                                 </div>
+                                 {message.detectedQuestion.questionText && (
+                                   <div className="question-text">
+                                     <strong>Question:</strong> {message.detectedQuestion.questionText}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                             <h4>✅ Marked Homework Image</h4>
+                             <img 
+                               src={message.imageLink || message.imageData}
+                               alt="Marked homework"
+                               className="annotated-image"
+                             />
+                           </div>
+                         )}
+                         
+                         {/* Handle question-only messages with images */}
+                         {message.type === 'question_original' && (message.imageLink || message.imageData) && (
+                           <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
+                             {/* Question Header */}
+                             {message.detectedQuestion && (
+                               <div className="question-header">
+                                 <div className="exam-meta">
+                                   <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
+                                   <div className="question-meta">
+                                     <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
+                                     <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
+                                   </div>
+                                 </div>
+                                 {message.detectedQuestion.questionText && (
+                                   <div className="question-text">
+                                     <strong>Question:</strong> {message.detectedQuestion.questionText}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                             <h4>📷 Question Image</h4>
+                             <img 
+                               src={message.imageLink || message.imageData}
+                               alt="Question image"
+                               className="annotated-image"
+                             />
+                           </div>
+                         )}
+                         
+                         {/* Handle regular image context */}
+                         {message.isImageContext && !message.type && (message.imageData || message.imageLink) && (
                            <div className="homework-annotated-image">
                              <img 
-                               src={message.imageData}
+                               src={message.imageLink || message.imageData}
                                alt="Uploaded homework"
                                className="annotated-image"
                              />
                            </div>
-                         ) : (
+                         )}
+                         
+                         {/* Handle text-only messages */}
+                         {!message.isImageContext && !message.type && (
                            <div className="message-text">{message.content}</div>
                          )}
                        </div>
@@ -1032,234 +1261,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
             </div>
           )}
 
-                      {/* Results Section */}
-            {apiResponse && (
-              <div className="results-section">
-                <div className="results-header">
-                  <h3>Analysis Results</h3>
-                  {apiResponse.isHistorical && (
-                    <button 
-                      className="back-to-upload-btn"
-                      onClick={() => {
-                        setApiResponse(null);
-                        setClassificationResult(null);
-                        setPreviewUrl(null);
-                        // setIsShowingHistoricalData(false); // Removed - not used
-                        setPageMode('upload');
-                      }}
-                    >
-                      ← Back to Upload
-                    </button>
-                  )}
-                </div>
-              
-              {/* Exam Paper Detection Header */}
-              {apiResponse.questionDetection && apiResponse.questionDetection.found && (
-                <div className="exam-paper-header">
-                  <div className="exam-paper-info">
-                    <h4>📄 Detected Exam Paper</h4>
-                    <div className="exam-paper-details">
-                      <span className="exam-board">{apiResponse.questionDetection.match.board}</span>
-                      <span className="exam-qualification">{apiResponse.questionDetection.match.qualification}</span>
-                      <span className="exam-paper-code">{apiResponse.questionDetection.match.paperCode}</span>
-                      <span className="exam-year">{apiResponse.questionDetection.match.year}</span>
-                      {apiResponse.questionDetection.match.questionNumber && (
-                        <span className="question-number">Question {apiResponse.questionDetection.match.questionNumber}</span>
-                      )}
-                    </div>
-                    {apiResponse.questionDetection.match.confidence && (
-                      <div className="confidence-score">
-                        Confidence: {Math.round(apiResponse.questionDetection.match.confidence * 100)}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-                             {classificationResult && (
-                 <div className="result-card">
-                   <h4>Classification</h4>
-                   <p><strong>Subject:</strong> {classificationResult.subject}</p>
-                   <p><strong>Grade Level:</strong> {classificationResult.gradeLevel}</p>
-                   <p><strong>Topic:</strong> {classificationResult.topic}</p>
-                 </div>
-               )}
-
-               {apiResponse.annotatedImage && (
-                 <div className="result-card">
-                   <h4>Annotated Image</h4>
-                   <div className="annotated-image">
-                     <img 
-                       src={apiResponse.annotatedImage} 
-                       alt="Annotated homework with burned overlays" 
-                       className="base-image"
-                       style={{ maxWidth: '100%', height: 'auto' }}
-                     />
-                   </div>
-                 </div>
-               )}
-
-               {/* Debug info */}
-               <div className="debug-info">
-                 <strong>Debug Info:</strong><br/>
-                 API Response: {apiResponse ? 'Present' : 'None'}<br/>
-                 Classification: {classificationResult ? 'Present' : 'None'}<br/>
-                 Error: {error || 'None'}<br/>
-                 {apiResponse && (
-                   <>
-                     <br/><strong>Response Details:</strong><br/>
-                     hasAnnotatedImage: {apiResponse.annotatedImage ? 'Yes' : 'No'}<br/>
-                     annotatedImageLength: {apiResponse.annotatedImage ? apiResponse.annotatedImage.length : 'N/A'}<br/>
-                     hasInstructions: {apiResponse.instructions ? 'Yes' : 'No'}<br/>
-                     annotationsCount: {apiResponse.instructions?.annotations?.length || 0}<br/>
-                   </>
-                 )}
-               </div>
-
-               {apiResponse.instructions && apiResponse.instructions.annotations && apiResponse.instructions.annotations.length > 0 && (
-                 <div className="result-card">
-                   <h4>AI Annotations ({apiResponse.instructions.annotations.length})</h4>
-                   <div className="annotations-list">
-                     {apiResponse.instructions.annotations.map((annotation, index) => (
-                       <div key={index} className="annotation-item">
-                         <div className="annotation-action">
-                           <span className={`action-badge action-${annotation.action}`}>
-                             {annotation.action}
-                           </span>
-                         </div>
-                         {annotation.comment && (
-                           <div className="annotation-comment">
-                             {annotation.comment}
-                           </div>
-                         )}
-                         {annotation.text && (
-                           <div className="annotation-text">
-                             {annotation.text}
-                           </div>
-                         )}
-                         <div className="annotation-position">
-                           Position: [{annotation.bbox.join(', ')}]
-                         </div>
-                       </div>
-                     ))}
-                   </div>
-                 </div>
-               )}
-
-                             {/* Follow-up Q&A CTA */}
-              <div style={{ marginTop: '12px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button
-                  className="upload-homework-btn"
-                  onClick={() => {
-                    // Switch to chat view with the annotated image as context
-                    setPageMode('chat');
-
-                    // Use the annotated image from API response as context
-                    const annotatedImageData = apiResponse?.annotatedImage;
-                    if (annotatedImageData) {
-                      const initialUserMessage = {
-                        id: Date.now(),
-                        role: 'user',
-                        content: 'chat-image-context',
-                        timestamp: new Date().toLocaleTimeString(),
-                        imageData: annotatedImageData,
-                        isImageContext: true
-                      };
-                      setChatMessages([initialUserMessage]);
-
-                      setTimeout(() => {
-                        // In Q&A mode we want answer-aware guidance
-                        sendInitialChatMessage(annotatedImageData, selectedModel, 'qa');
-                      }, 300);
-                    }
-                  }}
-                >
-                  Ask a follow-up in chat
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Upload Section - Show at bottom when response exists, but not when showing historical data */}
-          {!apiResponse && (
-            <div className="upload-section bottom-upload">
-              <div className="model-selector">
-                <label htmlFor="model-select">Select AI Model</label>
-                <select
-                  id="model-select"
-                  className="model-dropdown"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                >
-                  {models.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} - {model.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {previewUrl && (
-                <div className="image-preview-container">
-                  <img 
-                    src={previewUrl} 
-                    alt="Homework preview" 
-                    className="preview-image"
-                  />
-                  <div className="preview-overlay">
-                    <div className="preview-info">
-                      <div className="file-info">
-                        <span className="file-name">{selectedFile?.name}</span>
-                        <span className="file-size">
-                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
-                      <button 
-                        className="change-image-btn"
-                        onClick={() => document.getElementById('file-input').click()}
-                      >
-                        Change Image
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              )}
-
-              {error && (
-                <div className="error-message">
-                  <span>⚠️</span>
-                  {error}
-                </div>
-              )}
-
-              <div className="upload-actions">
-                <button
-                  className="upload-homework-btn"
-                  onClick={handleUpload}
-                  disabled={!selectedFile || isProcessing}
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="upload-spinner"></div>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload />
-                      Upload & Analyze
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Analysis Results Section - REMOVED - Now goes directly to chat mode */}
         </div>
       </div>
 

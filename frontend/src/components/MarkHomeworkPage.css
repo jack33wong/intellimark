@@ -1002,6 +1002,16 @@
   transition: all 0.2s ease;
 }
 
+/* Special styling for marking messages with images */
+.chat-message.user .message-bubble.marking-message {
+  max-width: 100%;
+  width: 100%;
+  background: rgba(127, 0, 255, 0.05); /* Subtle background */
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(127, 0, 255, 0.1);
+  border: 1px solid rgba(127, 0, 255, 0.2);
+}
+
 .chat-message.user .message-bubble:hover {
   box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
   transform: translateY(-1px);
@@ -1440,6 +1450,96 @@
 @keyframes sendSpin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Marking Data Display */
+.marking-data-display {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--tertiary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.marking-data-display h5 {
+  margin: 0 0 12px 0;
+  color: var(--accent-color);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.extracted-text {
+  margin-bottom: 16px;
+}
+
+.extracted-text strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--primary-text);
+}
+
+.text-content {
+  background: var(--secondary-bg);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.annotations-list {
+  margin-top: 16px;
+}
+
+.annotations-list strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--primary-text);
+}
+
+.annotations-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.annotations-list li {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--secondary-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.annotation-action {
+  font-weight: 600;
+  color: var(--accent-color);
+  min-width: 80px;
+  text-transform: capitalize;
+}
+
+.annotation-text {
+  color: var(--primary-text);
+  flex: 1;
+}
+
+/* Homework Image Styling */
+.homework-annotated-image h4 {
+  margin: 0 0 12px 0;
+  color: var(--accent-color);
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Loading States */
@@ -1994,31 +2094,42 @@
   border-radius: 0;
   border: none;
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column; /* Stack header and image vertically */
+  align-items: flex-end; /* Align to right side */
   width: 100%; /* Allow full width */
 }
 
 .homework-annotated-image .annotated-image {
   width: 100%;
-  max-width: none;
-  border-radius: 18px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  clip-path: polygon(
-    0 8px,
-    8px 0,
-    calc(100% - 8px) 0,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    8px 100%,
-    0 calc(100% - 8px)
-  );
+  max-width: 400px; /* Smaller max width */
+  height: auto; /* Maintain aspect ratio */
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
 
 .homework-annotated-image .annotated-image:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* When exam meta header is present, make image more compact */
+.homework-annotated-image:has(.question-header) .annotated-image {
+  max-width: 350px; /* Smaller max width when header is present */
+  margin: 0 auto; /* Center the image */
+}
+
+/* Fallback for browsers that don't support :has() */
+.homework-annotated-image.with-header .annotated-image {
+  max-width: 350px;
+  margin: 0 auto;
+}
+
+/* Make the homework container more compact when header is present */
+.homework-annotated-image.with-header {
+  margin: 8px 0; /* Reduce margin */
+  padding: 0;
+  align-items: center; /* Center the content when header is present */
 }
 
 .homework-annotated-image h4 {
@@ -2054,6 +2165,105 @@
 .homework-annotated-image .base-image:hover {
   box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
   transform: translateY(-1px);
+}
+
+/* Question Header Styling */
+.question-header {
+  background: rgba(127, 0, 255, 0.5) !important;
+  border: 2px solid rgba(127, 0, 255, 0.7) !important;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 6px rgba(127, 0, 255, 0.4) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Ensure question header background is not overridden in chat messages */
+.chat-message .message-bubble .question-header {
+  background: rgba(127, 0, 255, 0.5) !important;
+  border: 2px solid rgba(127, 0, 255, 0.7) !important;
+  box-shadow: 0 2px 6px rgba(127, 0, 255, 0.4) !important;
+}
+
+.exam-meta {
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.question-header h3 {
+  margin: 0;
+  color: #ffffff !important; /* White text for better contrast against dark purple background */
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  flex-shrink: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.question-meta {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.exam-meta .question-meta {
+  margin-bottom: 0;
+}
+
+.question-meta span {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: rgba(127, 0, 255, 0.9) !important;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  border: 1px solid rgba(127, 0, 255, 0.4);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.question-meta .paper-code {
+  background: rgba(40, 167, 69, 0.9) !important;
+  color: #ffffff !important;
+  border-color: rgba(40, 167, 69, 0.9) !important;
+  font-weight: 600;
+}
+
+.question-meta .question-number {
+  background: rgba(255, 193, 7, 0.9) !important;
+  color: #2c3e50 !important;
+  border-color: rgba(255, 193, 7, 0.9) !important;
+  font-weight: 600;
+}
+
+
+.question-text {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(127, 0, 255, 0.3) !important;
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #2c3e50 !important; /* Much darker, more readable color */
+  margin: 0;
+  display: block;
+  width: 100%;
+  font-weight: 500;
+}
+
+.question-text strong {
+  color: rgba(127, 0, 255, 0.9);
+  font-weight: 600;
 }
 
 /* First Chat Message Styling */

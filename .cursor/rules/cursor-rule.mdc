@@ -48,12 +48,14 @@ Cursor should apply the most relevant section depending on the file type (src, t
 - Commit messages MUST follow Conventional Commits (feat:, fix:, docs:, refactor:, test:, chore:).
 
 ## programming practice
+- never use other port for local development, only 3000 for frontend and 5001 for backend
 - never remove working code during refactor e.g. "I removed the auto-fill functionality when I refactored the code"
 - nerver use in memory data for frontend display expect it is designed by user. e.g. The issue is that the frontend is displaying data from the in-memory jsonCollections array, but the actual data should come directly from Firestore.
 - NEVER implement mock versions of production code. Always implement the real functionality directly.
 - If testing is needed, use proper mocks/stubs for external dependencies, not fake implementations of core business logic.  
 
 ## deployment
+- **CRITICAL: NEVER auto deploy to production**
 - **CRITICAL: NEVER change program logic during deployment**
 - **CRITICAL: Production and local must have IDENTICAL program logic**
 - **CRITICAL: Only fix deployment issues (config, paths, dependencies) - NEVER change business logic**

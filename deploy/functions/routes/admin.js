@@ -1,44 +1,9 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-Object.defineProperty(exports, "__esModule", { value: true });
-const express = __importStar(require("express"));
-const uuid_1 = require("uuid");
-const auth_1 = require("../middleware/auth");
-const firebase_1 = require("../config/firebase");
+import * as express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { requireAdmin } from '../middleware/auth';
+import { getFirestore } from '../config/firebase';
 const router = express.Router();
-router.use(auth_1.requireAdmin);
+router.use(requireAdmin);
 const mockData = {
     fullExamPapers: [],
     questionBanks: [],
@@ -51,7 +16,7 @@ router.get('/json/collections/:collectionName', async (req, res) => {
         if (!collectionName) {
             return res.status(400).json({ error: 'Collection name is required' });
         }
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 const snapshot = await db.collection(collectionName).get();
@@ -126,7 +91,7 @@ router.post('/json/collections/markingSchemes', async (req, res) => {
             return total;
         }, 0);
         const newEntry = {
-            id: (0, uuid_1.v4)(),
+            id: uuidv4(),
             markingSchemeData: parsedData,
             examDetails: {
                 board: examDetails.board || 'Unknown',
@@ -141,7 +106,7 @@ router.post('/json/collections/markingSchemes', async (req, res) => {
             uploadedAt: new Date().toISOString(),
             createdAt: new Date().toISOString()
         };
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 await db.collection('markingSchemes').doc(newEntry.id).set(newEntry);
@@ -177,11 +142,11 @@ router.post('/json/collections/:collectionName', async (req, res) => {
             return res.status(400).json({ error: 'Entry data is required' });
         }
         const newEntry = {
-            id: (0, uuid_1.v4)(),
+            id: uuidv4(),
             ...entryData,
             uploadedAt: new Date().toISOString()
         };
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 await db.collection(collectionName).doc(newEntry.id).set(newEntry);
@@ -209,7 +174,7 @@ router.post('/json/collections/:collectionName', async (req, res) => {
 router.delete('/json/collections/:collectionName/:entryId', async (req, res) => {
     try {
         const { collectionName, entryId } = req.params;
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 await db.collection(collectionName).doc(entryId).delete();
@@ -241,7 +206,7 @@ router.delete('/json/collections/:collectionName/:entryId', async (req, res) => 
 router.delete('/json/collections/:collectionName/clear-all', async (req, res) => {
     try {
         const { collectionName } = req.params;
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 const snapshot = await db.collection(collectionName).get();
@@ -278,11 +243,11 @@ router.post('/json/upload', async (req, res) => {
             return res.status(400).json({ error: 'JSON data is required' });
         }
         const newEntry = {
-            id: (0, uuid_1.v4)(),
+            id: uuidv4(),
             ...data,
             uploadedAt: new Date().toISOString()
         };
-        const db = (0, firebase_1.getFirestore)();
+        const db = getFirestore();
         if (db) {
             try {
                 await db.collection('fullExamPapers').doc(newEntry.id).set(newEntry);
@@ -306,4 +271,4 @@ router.post('/json/upload', async (req, res) => {
         res.status(500).json({ error: `Failed to upload JSON: ${error.message}` });
     }
 });
-exports.default = router;
+export default router;

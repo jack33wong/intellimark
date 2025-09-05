@@ -142,11 +142,21 @@ export interface QuestionDetectionResult {
 // Chat message types
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'follow_up';
   model?: ModelType;
-  imageData?: string;
+  imageData?: string; // Keep for backward compatibility
+  imageLink?: string; // NEW: Firebase Storage URL
+  markingData?: {     // NEW: Marking-specific data
+    originalImageUrl?: string;
+    annotatedImageUrl?: string;
+    ocrResult?: any;
+    markingInstructions?: any;
+    classification?: any;
+    metadata?: any;
+  };
 }
 
 export interface ChatSession {
@@ -157,6 +167,38 @@ export interface ChatSession {
   userId?: string;
   contextSummary?: string;
   lastSummaryUpdate?: Date;
+}
+
+// Subscription types
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  email: string;
+  planId: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: string;
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateSubscriptionData {
+  userId: string;
+  email: string;
+  planId: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: string;
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
 }
 
 export interface CreateChatSessionData {

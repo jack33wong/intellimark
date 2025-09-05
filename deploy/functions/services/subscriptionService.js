@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubscriptionService = void 0;
-const firestoreService_js_1 = require("./firestoreService.js");
-class SubscriptionService {
+import { FirestoreService } from './firestoreService.js';
+export class SubscriptionService {
     static async createOrUpdateSubscription(data) {
         try {
             const subscriptionData = {
@@ -23,12 +20,12 @@ class SubscriptionService {
             const existingSubscription = await this.getSubscriptionByStripeId(data.stripeSubscriptionId);
             if (existingSubscription) {
                 subscriptionData.createdAt = existingSubscription.createdAt;
-                await firestoreService_js_1.FirestoreService.updateDocument(this.COLLECTION_NAME, existingSubscription.id, subscriptionData);
+                await FirestoreService.updateDocument(this.COLLECTION_NAME, existingSubscription.id, subscriptionData);
                 console.log(`Updated existing subscription for user ${data.userId} with document ID: ${existingSubscription.id}`);
             }
             else {
                 await this.cancelAllActiveSubscriptions(data.userId);
-                const docRef = await firestoreService_js_1.FirestoreService.createDocument(this.COLLECTION_NAME, null, subscriptionData);
+                const docRef = await FirestoreService.createDocument(this.COLLECTION_NAME, null, subscriptionData);
                 console.log(`Created new subscription for user ${data.userId} with ID: ${docRef.id}`);
             }
             return subscriptionData;
@@ -40,7 +37,7 @@ class SubscriptionService {
     }
     static async getUserSubscription(userId) {
         try {
-            const subscriptions = await firestoreService_js_1.FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
+            const subscriptions = await FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
             const activeSubscription = subscriptions
                 .filter(sub => sub.status === 'active')
                 .sort((a, b) => b.createdAt - a.createdAt)[0];
@@ -53,7 +50,7 @@ class SubscriptionService {
     }
     static async getAllUserSubscriptions(userId) {
         try {
-            const subscriptions = await firestoreService_js_1.FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
+            const subscriptions = await FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
             return subscriptions.sort((a, b) => b.createdAt - a.createdAt);
         }
         catch (error) {
@@ -67,7 +64,7 @@ class SubscriptionService {
             if (!subscription) {
                 throw new Error(`Subscription not found: ${stripeSubscriptionId}`);
             }
-            await firestoreService_js_1.FirestoreService.updateDocument(this.COLLECTION_NAME, subscription.id, {
+            await FirestoreService.updateDocument(this.COLLECTION_NAME, subscription.id, {
                 status,
                 updatedAt: Date.now(),
             });
@@ -89,10 +86,10 @@ class SubscriptionService {
     }
     static async cancelAllActiveSubscriptions(userId) {
         try {
-            const subscriptions = await firestoreService_js_1.FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
+            const subscriptions = await FirestoreService.queryCollection(this.COLLECTION_NAME, 'userId', '==', userId);
             const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
             for (const subscription of activeSubscriptions) {
-                await firestoreService_js_1.FirestoreService.updateDocument(this.COLLECTION_NAME, subscription.id, {
+                await FirestoreService.updateDocument(this.COLLECTION_NAME, subscription.id, {
                     status: 'canceled',
                     updatedAt: Date.now(),
                 });
@@ -107,7 +104,7 @@ class SubscriptionService {
     static async getSubscriptionByStripeId(stripeSubscriptionId) {
         try {
             console.log('🔍 Looking for subscription with Stripe ID:', stripeSubscriptionId);
-            const subscriptions = await firestoreService_js_1.FirestoreService.queryCollection(this.COLLECTION_NAME, 'stripeSubscriptionId', '==', stripeSubscriptionId);
+            const subscriptions = await FirestoreService.queryCollection(this.COLLECTION_NAME, 'stripeSubscriptionId', '==', stripeSubscriptionId);
             console.log('📊 Found subscriptions:', subscriptions.length);
             console.log('📋 Subscription data:', subscriptions);
             return subscriptions.length > 0 ? subscriptions[0] : null;
@@ -118,6 +115,5 @@ class SubscriptionService {
         }
     }
 }
-exports.SubscriptionService = SubscriptionService;
 SubscriptionService.COLLECTION_NAME = 'userSubscriptions';
-exports.default = SubscriptionService;
+export default SubscriptionService;

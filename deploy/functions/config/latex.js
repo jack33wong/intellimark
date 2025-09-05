@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.LaTeXConfigService = void 0;
-class LaTeXConfigService {
+export class LaTeXConfigService {
     static getDefaultDelimiters() {
         return { ...this.DEFAULT_DELIMITERS };
     }
@@ -203,7 +200,6 @@ class LaTeXConfigService {
     `;
     }
 }
-exports.LaTeXConfigService = LaTeXConfigService;
 LaTeXConfigService.DEFAULT_DELIMITERS = {
     inline: ['$', '$'],
     display: ['$$', '$$'],

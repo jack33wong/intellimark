@@ -475,9 +475,12 @@ export class FirestoreService {
     try {
       console.log('🔍 Getting chat sessions for user from Firestore:', userId);
       
+      // For anonymous users, we still need to return their sessions
+      // The sessions are created with userId: 'anonymous' so they should be retrievable
+      console.log('🔍 Retrieving sessions for user:', userId);
+      
       const snapshot = await db.collection(COLLECTIONS.SESSIONS)
         .where('userId', '==', userId)
-        .orderBy('updatedAt', 'desc')
         .get();
 
       const sessions = snapshot.docs.map(doc => {
@@ -485,10 +488,17 @@ export class FirestoreService {
         return {
           id: doc.id,
           ...data,
-          timestamp: data?.['timestamp']?.toDate(),
-          createdAt: data?.['createdAt']?.toDate(),
-          updatedAt: data?.['updatedAt']?.toDate()
+          timestamp: data?.['timestamp']?.toDate ? data?.['timestamp']?.toDate() : data?.['timestamp'],
+          createdAt: data?.['createdAt']?.toDate ? data?.['createdAt']?.toDate() : data?.['createdAt'],
+          updatedAt: data?.['updatedAt']?.toDate ? data?.['updatedAt']?.toDate() : data?.['updatedAt']
         };
+      });
+
+      // Sort in memory instead of using Firestore orderBy
+      sessions.sort((a, b) => {
+        const aTime = a.updatedAt || a.createdAt || new Date(0);
+        const bTime = b.updatedAt || b.createdAt || new Date(0);
+        return bTime.getTime() - aTime.getTime(); // Descending order
       });
 
       console.log('✅ Chat sessions retrieved from Firestore:', sessions.length);
@@ -496,6 +506,14 @@ export class FirestoreService {
 
     } catch (error) {
       console.error('❌ Failed to get chat sessions from Firestore:', error);
+      console.error('❌ Error details:', error);
+      // For anonymous users, return empty array instead of throwing error
+      if (userId === 'anonymous') {
+        console.log('ℹ️ Anonymous user - returning empty sessions array due to error');
+        console.log('ℹ️ Error type:', typeof error);
+        console.log('ℹ️ Error message:', error instanceof Error ? error.message : 'Unknown error');
+        return [];
+      }
       throw new Error(`Firestore sessions retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -507,15 +525,38 @@ export class FirestoreService {
     try {
       console.log('🔍 Adding message to chat session in Firestore:', sessionId);
       
+      // Helper function to remove undefined values recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              cleaned[key] = removeUndefinedValues(value);
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+      
       // Serialize message to plain object for Firestore
-      const messageData = {
+      const messageData = removeUndefinedValues({
         id: message.id,
         role: message.role,
         content: message.content,
         timestamp: admin.firestore.Timestamp.now(),
         ...(message.imageData && { imageData: message.imageData }),
-        ...(message.model && { model: message.model })
-      };
+        ...(message.model && { model: message.model }),
+        ...(message.type && { type: message.type }),
+        ...(message.imageLink && { imageLink: message.imageLink }),
+        ...(message.detectedQuestion && { detectedQuestion: message.detectedQuestion })
+      });
 
       await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
         messages: admin.firestore.FieldValue.arrayUnion(messageData),
@@ -550,22 +591,6 @@ export class FirestoreService {
     }
   }
 
-  /**
-   * Delete chat session
-   */
-  static async deleteChatSession(sessionId: string): Promise<void> {
-    try {
-      console.log('🔍 Deleting chat session from Firestore:', sessionId);
-      
-      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).delete();
-
-      console.log('✅ Chat session deleted from Firestore');
-
-    } catch (error) {
-      console.error('❌ Failed to delete chat session from Firestore:', error);
-      throw new Error(`Firestore session deletion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
 
   // Generic document operations for subscriptions
   static async createDocument(collection: string, docId: string | null, data: any): Promise<any> {
@@ -632,6 +657,252 @@ export class FirestoreService {
       return results;
     } catch (error) {
       console.error(`❌ Error querying collection ${collection}:`, error);
+      throw error;
+    }
+  }
+
+  // NEW: Marking Results as Session Messages Methods
+
+  /**
+   * Save marking results as session messages
+   */
+  static async saveMarkingResultsAsMessages(
+    userId: string,
+    sessionId: string,
+    imageData: string,
+    model: string,
+    result: any,
+    instructions: any,
+    classification: any,
+    annotatedImage: string,
+    metadata: any,
+    questionDetection?: any
+  ): Promise<void> {
+    try {
+      console.log('🔍 Saving marking results as session messages...');
+      
+      // Upload images to Firebase Storage
+      const { ImageStorageService } = await import('./imageStorageService');
+      
+      console.log('🔍 Uploading images to Firebase Storage...');
+      const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
+      const annotatedImageUrl = await ImageStorageService.uploadImage(annotatedImage, userId, sessionId, 'annotated');
+      
+      console.log('✅ Images uploaded to Firebase Storage');
+
+      // Helper function to remove undefined values recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              cleaned[key] = removeUndefinedValues(value);
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+
+      // Create sanitized result without large image data and undefined values
+      const sanitizedResult = {
+        confidence: result.confidence || 0,
+        extractedText: result.extractedText || '',
+        annotations: result.annotations || [],
+        // Remove large image data fields
+        // originalImage: result.originalImage, // Remove this
+        // annotatedImage: result.annotatedImage, // Remove this
+        // Any other fields that might contain large data
+      };
+
+      // Create sanitized instructions without large data and undefined values
+      const sanitizedInstructions = {
+        annotations: instructions.annotations || [],
+        // Remove any large fields that might exist
+        // Keep only essential data
+      };
+
+      // Create detected question info
+      console.log('🔍 Question Detection Data:', JSON.stringify(questionDetection, null, 2));
+      console.log('🔍 Classification Data:', JSON.stringify(classification, null, 2));
+      
+      const detectedQuestion = questionDetection?.found ? {
+        examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
+        questionNumber: questionDetection.match?.questionNumber || 'Unknown',
+        questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
+        confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
+      } : undefined;
+      
+      console.log('🔍 Detected Question Info:', JSON.stringify(detectedQuestion, null, 2));
+
+      // Create original image message
+      const originalMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        content: 'Uploaded homework for marking',
+        timestamp: new Date().toISOString(),
+        type: 'marking_original',
+        imageLink: originalImageUrl,
+        detectedQuestion: removeUndefinedValues(detectedQuestion)
+      };
+
+      // Create annotated image message with context summary
+      const contextSummary = this.generateMarkingContextSummary(instructions, result);
+      const annotatedMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'assistant',
+        content: contextSummary,
+        timestamp: new Date().toISOString(),
+        type: 'marking_annotated',
+        imageLink: annotatedImageUrl,
+        detectedQuestion: removeUndefinedValues(detectedQuestion)
+      };
+
+      // Add both messages to the session
+      await this.addMessageToSession(sessionId, originalMessage);
+      await this.addMessageToSession(sessionId, annotatedMessage);
+
+      console.log('✅ Marking results saved as session messages');
+    } catch (error) {
+      console.error('❌ Failed to save marking results as session messages:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save question-only data as session messages
+   */
+  static async saveQuestionOnlyAsMessages(
+    userId: string,
+    sessionId: string,
+    imageData: string,
+    model: string,
+    classification: any,
+    questionDetection?: any
+  ): Promise<void> {
+    try {
+      console.log('🔍 Saving question-only data as session messages...');
+      
+      // Upload image to Firebase Storage
+      const { ImageStorageService } = await import('./imageStorageService');
+      
+      console.log('🔍 Uploading question image to Firebase Storage...');
+      const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
+      
+      console.log('✅ Question image uploaded to Firebase Storage');
+
+      // Helper function to remove undefined values recursively
+      const removeUndefinedValues = (obj: any): any => {
+        if (obj === null || obj === undefined) {
+          return null;
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedValues).filter(item => item !== undefined);
+        }
+        if (typeof obj === 'object') {
+          const cleaned: any = {};
+          for (const [key, value] of Object.entries(obj)) {
+            if (value !== undefined) {
+              cleaned[key] = removeUndefinedValues(value);
+            }
+          }
+          return cleaned;
+        }
+        return obj;
+      };
+
+      // Create detected question info
+      console.log('🔍 Question Detection Data:', JSON.stringify(questionDetection, null, 2));
+      console.log('🔍 Classification Data:', JSON.stringify(classification, null, 2));
+      
+      const detectedQuestion = questionDetection?.found ? {
+        examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
+        questionNumber: questionDetection.match?.questionNumber || 'Unknown',
+        questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
+        confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
+      } : undefined;
+      
+      console.log('🔍 Detected Question Info:', JSON.stringify(detectedQuestion, null, 2));
+
+      // Create question image message
+      const questionMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        content: 'Uploaded question for tutoring',
+        timestamp: new Date().toISOString(),
+        type: 'question_original',
+        imageLink: originalImageUrl,
+        detectedQuestion: removeUndefinedValues(detectedQuestion)
+      };
+
+      // Add message to the session
+      await this.addMessageToSession(sessionId, questionMessage);
+
+      console.log('✅ Question-only data saved as session messages');
+    } catch (error) {
+      console.error('❌ Failed to save question-only data as session messages:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate context summary for marking results
+   */
+  private static generateMarkingContextSummary(instructions: any, result: any): string {
+    const annotationCount = instructions.annotations?.length || 0;
+    const confidence = result.confidence || 0;
+    
+    return `I've marked your homework! Found ${annotationCount} areas to review with ${Math.round(confidence * 100)}% confidence. The annotated image shows my feedback and suggestions.`;
+  }
+
+  /**
+   * Delete session with image cleanup
+   */
+  static async deleteChatSession(sessionId: string, userId: string): Promise<void> {
+    try {
+      console.log('🔍 Deleting chat session with image cleanup...');
+      
+      // Import ImageStorageService dynamically to avoid circular dependencies
+      const { ImageStorageService } = await import('./imageStorageService');
+      
+      // Delete images from Firebase Storage
+      await ImageStorageService.deleteSessionImages(userId, sessionId);
+      
+      // Delete session from Firestore
+      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).delete();
+      
+      console.log('✅ Chat session deleted with image cleanup');
+    } catch (error) {
+      console.error('❌ Failed to delete chat session:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete user with image cleanup
+   */
+  static async deleteUser(userId: string): Promise<void> {
+    try {
+      console.log('🔍 Deleting user with image cleanup...');
+      
+      // Import ImageStorageService dynamically to avoid circular dependencies
+      const { ImageStorageService } = await import('./imageStorageService');
+      
+      // Delete all user images
+      await ImageStorageService.deleteUserImages(userId);
+      
+      // Delete user from Firestore
+      await db.collection(COLLECTIONS.USERS).doc(userId).delete();
+      
+      console.log('✅ User deleted with image cleanup');
+    } catch (error) {
+      console.error('❌ Failed to delete user:', error);
       throw error;
     }
   }

@@ -142,11 +142,26 @@ export interface QuestionDetectionResult {
 // Chat message types
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
+  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'follow_up';
   model?: ModelType;
-  imageData?: string;
+  imageData?: string; // Keep for backward compatibility
+  imageLink?: string; // Firebase Storage URL
+  detectedQuestion?: { // NEW: Question detection info
+    examDetails?: {
+      board?: string;
+      qualification?: string;
+      paperCode?: string;
+      tier?: string;
+      paper?: string;
+      date?: string;
+    };
+    questionNumber?: string;
+    questionText?: string;
+    confidence?: number;
+  };
 }
 
 export interface ChatSession {

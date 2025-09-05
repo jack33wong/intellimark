@@ -1,16 +1,11 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const firestoreService_1 = require("../services/firestoreService");
-const aiMarkingService_1 = require("../services/aiMarkingService");
-const chatSessionManager_1 = __importDefault(require("../services/chatSessionManager"));
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { FirestoreService } from '../services/firestoreService';
+import { AIMarkingService } from '../services/aiMarkingService';
+import ChatSessionManager from '../services/chatSessionManager';
+import { optionalAuth } from '../middleware/auth';
+const router = express.Router();
 console.log('🚀 CHAT ROUTE MODULE LOADED SUCCESSFULLY');
-router.post('/', auth_1.optionalAuth, async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
     console.log('🚀 ===== CHAT ROUTE CALLED =====');
     try {
         const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode } = req.body;
@@ -31,7 +26,7 @@ router.post('/', auth_1.optionalAuth, async (req, res) => {
             });
         }
         let currentSessionId = sessionId;
-        const sessionManager = chatSessionManager_1.default.getInstance();
+        const sessionManager = ChatSessionManager.getInstance();
         if (!currentSessionId) {
             console.log('📝 Creating new chat session');
             currentSessionId = await sessionManager.createSession({
@@ -77,7 +72,7 @@ router.post('/', auth_1.optionalAuth, async (req, res) => {
         try {
             if (imageData && chatHistory.length === 0) {
                 console.log('🔍 Processing initial image with AI for chat response');
-                const chatResponse = await aiMarkingService_1.AIMarkingService.generateChatResponse(imageData, message || 'I have a question that I need help with. Can you assist me?', model, mode === 'qa' ? false : true);
+                const chatResponse = await AIMarkingService.generateChatResponse(imageData, message || 'I have a question that I need help with. Can you assist me?', model, mode === 'qa' ? false : true);
                 aiResponse = chatResponse.response;
                 apiUsed = chatResponse.apiUsed;
                 console.log('✅ AI chat response generated successfully');
@@ -87,7 +82,7 @@ router.post('/', auth_1.optionalAuth, async (req, res) => {
                 const contextualMessage = imageData
                     ? `${message}\n\n[Image context available for reference]`
                     : message;
-                aiResponse = await aiMarkingService_1.AIMarkingService.generateContextualResponse(contextualMessage, chatHistory, model, contextSummary || undefined);
+                aiResponse = await AIMarkingService.generateContextualResponse(contextualMessage, chatHistory, model, contextSummary || undefined);
                 console.log('✅ AI contextual response generated successfully');
             }
         }
@@ -125,25 +120,18 @@ router.post('/', auth_1.optionalAuth, async (req, res) => {
         });
     }
 });
-router.get('/sessions/:userId', auth_1.optionalAuth, async (req, res) => {
+router.get('/sessions/:userId', optionalAuth, async (req, res) => {
     try {
         const { userId } = req.params;
         console.log('🔍 Getting chat sessions for user:', userId);
-        if (!req.user) {
-            return res.status(401).json({
-                success: false,
-                error: 'Authentication required',
-                message: 'Please log in to access your chat history'
-            });
-        }
-        if (req.user.uid !== userId) {
+        if (req.user && req.user.uid !== userId) {
             return res.status(403).json({
                 success: false,
                 error: 'Access denied',
                 message: 'You can only access your own chat sessions'
             });
         }
-        const sessions = await firestoreService_1.FirestoreService.getChatSessions(userId);
+        const sessions = await FirestoreService.getChatSessions(userId);
         return res.json({
             success: true,
             sessions: sessions || []
@@ -157,7 +145,7 @@ router.get('/sessions/:userId', auth_1.optionalAuth, async (req, res) => {
         });
     }
 });
-router.get('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
+router.get('/session/:sessionId', optionalAuth, async (req, res) => {
     try {
         const { sessionId } = req.params;
         console.log('🔍 Getting chat session:', sessionId);
@@ -168,7 +156,7 @@ router.get('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'Please log in to access chat sessions'
             });
         }
-        const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
+        const session = await FirestoreService.getChatSession(sessionId);
         if (!session) {
             return res.status(404).json({
                 success: false,
@@ -195,7 +183,7 @@ router.get('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
         });
     }
 });
-router.put('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
+router.put('/session/:sessionId', optionalAuth, async (req, res) => {
     try {
         const { sessionId } = req.params;
         const updates = req.body;
@@ -207,7 +195,7 @@ router.put('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'Please log in to update chat sessions'
             });
         }
-        const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
+        const session = await FirestoreService.getChatSession(sessionId);
         if (!session) {
             return res.status(404).json({
                 success: false,
@@ -221,7 +209,7 @@ router.put('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'You can only update your own chat sessions'
             });
         }
-        await firestoreService_1.FirestoreService.updateChatSession(sessionId, updates);
+        await FirestoreService.updateChatSession(sessionId, updates);
         return res.json({
             success: true,
             message: 'Session updated successfully'
@@ -235,7 +223,7 @@ router.put('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
         });
     }
 });
-router.delete('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
+router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
     try {
         const { sessionId } = req.params;
         console.log('🔍 Deleting chat session:', sessionId);
@@ -246,7 +234,7 @@ router.delete('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'Please log in to delete chat sessions'
             });
         }
-        const session = await firestoreService_1.FirestoreService.getChatSession(sessionId);
+        const session = await FirestoreService.getChatSession(sessionId);
         if (!session) {
             return res.status(404).json({
                 success: false,
@@ -260,7 +248,7 @@ router.delete('/session/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'You can only delete your own chat sessions'
             });
         }
-        await firestoreService_1.FirestoreService.deleteChatSession(sessionId);
+        await FirestoreService.deleteChatSession(sessionId, session.userId);
         return res.json({
             success: true,
             message: 'Session deleted successfully'
@@ -305,7 +293,7 @@ router.get('/status', (_req, res) => {
         });
     }
 });
-router.post('/restore/:sessionId', auth_1.optionalAuth, async (req, res) => {
+router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
     try {
         const { sessionId } = req.params;
         console.log('🔄 Restoring session context:', sessionId);
@@ -316,7 +304,7 @@ router.post('/restore/:sessionId', auth_1.optionalAuth, async (req, res) => {
                 message: 'Please log in to restore chat sessions'
             });
         }
-        const sessionManager = chatSessionManager_1.default.getInstance();
+        const sessionManager = ChatSessionManager.getInstance();
         const session = await sessionManager.restoreSession(sessionId);
         if (!session) {
             return res.status(404).json({
@@ -346,7 +334,7 @@ router.post('/restore/:sessionId', auth_1.optionalAuth, async (req, res) => {
 });
 router.get('/cache/stats', (_req, res) => {
     try {
-        const sessionManager = chatSessionManager_1.default.getInstance();
+        const sessionManager = ChatSessionManager.getInstance();
         const stats = sessionManager.getCacheStats();
         res.json({
             success: true,
@@ -365,7 +353,7 @@ router.get('/cache/stats', (_req, res) => {
 });
 router.post('/cache/clear', (_req, res) => {
     try {
-        const sessionManager = chatSessionManager_1.default.getInstance();
+        const sessionManager = ChatSessionManager.getInstance();
         sessionManager.cleanup();
         res.json({
             success: true,
@@ -379,4 +367,4 @@ router.post('/cache/clear', (_req, res) => {
         });
     }
 });
-exports.default = router;
+export default router;

@@ -13,7 +13,12 @@
     "build:watch": "tsc --watch --project tsconfig.json",
     "test": "jest",
     "type-check": "tsc --noEmit --project tsconfig.dev.json",
-    "deploy:prepare": "npm run build:deploy"
+    "deploy:prepare": "npm run build:deploy",
+    "cleanup-sessions": "tsx scripts/cleanup-sessions.ts",
+    "cleanup-old-marking-results": "tsx scripts/cleanup-old-marking-results.ts",
+    "test-image-config": "tsx scripts/test-image-config.ts",
+    "check-storage-buckets": "tsx scripts/check-storage-buckets.ts",
+    "test-image-upload": "tsx scripts/test-image-upload.ts"
   },
   "jest": {
     "testMatch": [
@@ -40,6 +45,7 @@
     "firebase-admin": "^13.5.0",
     "google-gax": "^5.0.3",
     "helmet": "^7.1.0",
+    "node-fetch": "^3.3.2",
     "sharp": "^0.34.3",
     "stripe": "^18.5.0",
     "typescript": "^5.9.2",
