@@ -463,7 +463,6 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
       line_items: [{ price: testPrice.id, quantity: 1 }],
       success_url: 'http://localhost:3000/?subscription=success&session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'http://localhost:3000/upgrade?canceled=true',
-      subscription: testSubscription.id,
       customer: testCustomer.id,
       metadata: {
         planId: 'pro',
@@ -483,10 +482,10 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
       amount: 2999,
       currency: 'usd',
       stripeSubscriptionId: testSubscription.id,
-      stripeCustomerId: testSubscription.customer,
+      stripeCustomerId: typeof testSubscription.customer === 'string' ? testSubscription.customer : testSubscription.customer.id,
       status: 'active',
-      currentPeriodStart: testSubscription.current_period_start,
-      currentPeriodEnd: testSubscription.current_period_end,
+      currentPeriodStart: (testSubscription as any).current_period_start,
+      currentPeriodEnd: (testSubscription as any).current_period_end,
     };
     
     const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);

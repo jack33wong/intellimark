@@ -375,7 +375,7 @@ export class FirestoreService {
       
       // Sanitize and serialize messages to plain objects for Firestore
       const serializedMessages = sessionData.messages.map(msg => {
-        const sanitized = {
+        const sanitized: any = {
           id: String(msg.id || ''),
           role: String(msg.role || ''),
           content: String(msg.content || ''),
@@ -402,8 +402,8 @@ export class FirestoreService {
         timestamp: new Date().toISOString(), // Use ISO string instead of Firestore Timestamp
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        contextSummary: sessionData.contextSummary || null,
-        lastSummaryUpdate: sessionData.lastSummaryUpdate ? new Date(sessionData.lastSummaryUpdate).toISOString() : null
+        contextSummary: (sessionData as any).contextSummary || null,
+        lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null
       };
 
       // Debug: Log the final payload before Firestore write

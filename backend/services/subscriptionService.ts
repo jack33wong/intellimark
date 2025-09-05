@@ -62,10 +62,10 @@ export class SubscriptionService {
         subscriptionData.createdAt = existingSubscription.createdAt;
         await FirestoreService.updateDocument(
           this.COLLECTION_NAME,
-          existingSubscription.id, // Use the actual document ID from the existing subscription
+          (existingSubscription as any).id, // Use the actual document ID from the existing subscription
           subscriptionData
         );
-        console.log(`Updated existing subscription for user ${data.userId} with document ID: ${existingSubscription.id}`);
+        console.log(`Updated existing subscription for user ${data.userId} with document ID: ${(existingSubscription as any).id}`);
       } else {
         // This is a new subscription - cancel any existing active subscriptions first
         await this.cancelAllActiveSubscriptions(data.userId);
@@ -145,7 +145,7 @@ export class SubscriptionService {
       
       await FirestoreService.updateDocument(
         this.COLLECTION_NAME,
-        subscription.id,
+        (subscription as any).id,
         {
           status,
           updatedAt: Date.now(),

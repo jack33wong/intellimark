@@ -159,6 +159,38 @@ export interface ChatSession {
   lastSummaryUpdate?: Date;
 }
 
+// Subscription types
+export interface UserSubscription {
+  id: string;
+  userId: string;
+  email: string;
+  planId: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: string;
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateSubscriptionData {
+  userId: string;
+  email: string;
+  planId: string;
+  billingCycle: string;
+  amount: number;
+  currency: string;
+  stripeSubscriptionId: string;
+  stripeCustomerId: string;
+  status: string;
+  currentPeriodStart: number;
+  currentPeriodEnd: number;
+}
+
 export interface CreateChatSessionData {
   title: string;
   messages: ChatMessage[];
