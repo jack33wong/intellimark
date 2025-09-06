@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
-import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
@@ -23,10 +22,8 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedMarkingResult, setSelectedMarkingResult] = useState(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
+  const [currentPageMode, setCurrentPageMode] = useState('upload');
 
-  const handleMenuToggle = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
 
   const handleMarkingHistoryClick = (result) => {
     setSelectedMarkingResult(result);
@@ -36,8 +33,20 @@ function AppContent() {
   };
 
   const handleMarkHomeworkClick = () => {
-    setSelectedMarkingResult(null);
-    setMarkHomeworkResetKey(prev => prev + 1);
+    if (currentPageMode === 'chat') {
+      // In chat mode, reset to upload mode
+      setCurrentPageMode('upload');
+      setSelectedMarkingResult(null);
+      setMarkHomeworkResetKey(prev => prev + 1);
+    } else {
+      // In upload mode, normal behavior
+      setSelectedMarkingResult(null);
+      setMarkHomeworkResetKey(prev => prev + 1);
+    }
+  };
+
+  const handlePageModeChange = (mode) => {
+    setCurrentPageMode(mode);
   };
   
 
@@ -72,7 +81,6 @@ function AppContent() {
             {/* Protected routes - with header and sidebar */}
             <Route path="/admin" element={
               <ProtectedRoute requireAdmin={true}>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <AdminPage />
                 </div>
@@ -81,7 +89,6 @@ function AppContent() {
             
             <Route path="/mark-homework" element={
               <OptionalAuthRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
                     <Sidebar 
@@ -89,6 +96,7 @@ function AppContent() {
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
                       onMarkingResultSaved={handleMarkingResultSaved}
+                      currentPageMode={currentPageMode}
                     />
 
 
@@ -97,6 +105,7 @@ function AppContent() {
                       selectedMarkingResult={selectedMarkingResult}
                       onClearSelectedResult={() => setSelectedMarkingResult(null)}
                       onMarkingResultSaved={refreshMarkHistory}
+                      onPageModeChange={handlePageModeChange}
                     />
                   </div>
                 </div>
@@ -108,7 +117,6 @@ function AppContent() {
             
             <Route path="/profile" element={
               <ProtectedRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <ProfilePage />
                 </div>
@@ -118,13 +126,13 @@ function AppContent() {
             {/* Add the new MarkdownMathDemo route */}
             <Route path="/markdown-demo" element={
               <ProtectedRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
+                      currentPageMode={currentPageMode}
                     />
                     <MarkdownMathDemo />
                   </div>
@@ -135,13 +143,13 @@ function AppContent() {
             {/* Main page route - handles subscription success */}
             <Route path="/" element={
               <OptionalAuthRoute>
-                <Header onMenuToggle={handleMenuToggle} isSidebarOpen={isSidebarOpen} />
                 <div className="main-content">
                   <div className="app">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
+                      currentPageMode={currentPageMode}
                     />
                     <div className="welcome-message">
                       <h1>Welcome to IntelliMark</h1>

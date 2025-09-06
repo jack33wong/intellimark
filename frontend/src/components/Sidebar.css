@@ -1,0 +1,295 @@
+/* Sidebar Styles - Clean and minimal design */
+
+.sidebar-content {
+  padding: 24px 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow: hidden;
+}
+
+/* IM Intellimark Branding */
+.sidebar-branding {
+  text-align: center;
+  margin-bottom: 0;
+  padding: 0 20px;
+}
+
+.brand-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary-text);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* Auth Buttons */
+.sidebar-auth-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  margin-bottom: 0;
+  padding: 0 20px;
+}
+
+.upgrade-btn {
+  background: transparent;
+  color: var(--secondary-text);
+  border: 1px solid #22c55e;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  flex: 1;
+}
+
+.upgrade-btn:hover {
+  background: var(--tertiary-bg);
+  color: var(--primary-text);
+}
+
+.signin-btn {
+  background: transparent;
+  color: var(--secondary-text);
+  border: 1px solid #7f00ff;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  flex: 1;
+}
+
+.signin-btn:hover {
+  background: var(--tertiary-bg);
+  color: var(--primary-text);
+}
+
+/* Main Mark Homework Button */
+.mark-homework-main-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 18px 24px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(127, 0, 255, 0.2);
+  margin: 0 20px;
+}
+
+.mark-homework-main-btn:hover {
+  background: #6b00cc;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
+}
+
+/* Sidebar Section */
+.sidebar-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  height: calc(100vh - 20px);
+  overflow: hidden;
+}
+
+.mark-history-title {
+  font-size: 21px !important;
+  font-weight: 900 !important;
+  color: white !important;
+  margin: 0 0 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding-left: 24px;
+  position: sticky;
+  top: 0;
+  background: transparent;
+  z-index: 10;
+}
+
+.mark-history-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Mark History Styles */
+.mark-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mark-history-item {
+  padding: 24px 24px;
+  border-radius: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.mark-history-item:hover {
+  background: transparent;
+  color: var(--accent-color);
+}
+
+.mark-history-item:last-child {
+  border-bottom: none;
+}
+
+.mark-history-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mark-history-text {
+  font-size: 13px;
+  color: var(--primary-text);
+  font-weight: 400;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mark-history-date {
+  font-size: 11px;
+  color: var(--secondary-text);
+}
+
+.mark-history-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--secondary-text);
+  padding: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0;
+  font-size: 12px;
+}
+
+.mark-history-item:hover .mark-history-delete-btn {
+  opacity: 1;
+}
+
+.mark-history-delete-btn:hover {
+  background: var(--error-color);
+  color: white;
+}
+
+/* Loading and Error States */
+.mark-history-loading,
+.mark-history-error,
+.mark-history-placeholder {
+  padding: 16px;
+  text-align: center;
+}
+
+.placeholder-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--secondary-text);
+  font-size: 12px;
+}
+
+/* Login Prompt */
+.mark-history-login-prompt {
+  margin-top: 16px;
+  padding: 12px;
+  background: transparent;
+  border-radius: 6px;
+  border: none;
+}
+
+.mark-history-login-prompt .placeholder-item {
+  text-align: center;
+}
+
+.login-prompt-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 6px;
+}
+
+.login-prompt-btn:hover {
+  background: #6b00cc;
+}
+
+/* Admin Section */
+.admin-section {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.admin-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: var(--secondary-text);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.admin-link:hover {
+  background: var(--tertiary-bg);
+  color: var(--primary-text);
+}
+
+/* Separator */
+.separator {
+  height: 1px;
+  background: var(--border-color);
+  margin: 16px 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .sidebar-content {
+    padding: 20px 16px;
+  }
+  
+  .brand-title {
+    font-size: 18px;
+  }
+  
+  .mark-homework-main-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
+

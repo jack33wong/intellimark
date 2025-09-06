@@ -4,10 +4,17 @@ import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 
-const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved }) => {
+const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
   // === CORE STATE ===
   const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
   // const [isShowingHistoricalData, setIsShowingHistoricalData] = useState(false); // Removed - not used
+  
+  // Notify parent of page mode changes
+  useEffect(() => {
+    if (onPageModeChange) {
+      onPageModeChange(pageMode);
+    }
+  }, [pageMode, onPageModeChange]);
   
   // === UPLOAD MODE STATE ===
   const [selectedFile, setSelectedFile] = useState(null);
@@ -24,10 +31,24 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [showChatHeader, setShowChatHeader] = useState(true);
   const [lastScrollTop, setLastScrollTop] = useState(0);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
+  const [showInfoDropdown, setShowInfoDropdown] = useState(false);
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showInfoDropdown && !event.target.closest('.info-dropdown') && !event.target.closest('.info-btn')) {
+        setShowInfoDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showInfoDropdown]);
   
   // === REFS ===
   // const fileInputRef = useRef(null); // Removed - not used
@@ -53,7 +74,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setApiResponse(null);
     setClassificationResult(null);
     setLastUploadedImageData(null);
-    setShowChatHeader(true);
     setLastScrollTop(0);
     setShowExpandedThinking(false);
     setShowMarkingSchemeDetails(false);
@@ -228,73 +248,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     };
   }, [isProcessing]);
 
-  // Handle chat header visibility based on scroll with sustained scroll up detection
-  useEffect(() => {
-    let scrollUpTimer = null;
-    let isCurrentlyScrollingUp = false;
-    let cleanupFunction = null;
-
-    const handleScroll = () => {
-      if (chatMessagesRef.current) {
-        const scrollTop = chatMessagesRef.current.scrollTop;
-        const isScrollingUp = scrollTop < lastScrollTop;
-        const isAtTop = scrollTop <= 10; // Show header when within 10px of top
-        
-        // Clear any existing timer
-        if (scrollUpTimer) {
-          clearTimeout(scrollUpTimer);
-          scrollUpTimer = null;
-        }
-        
-        // If at top, show header immediately
-        if (isAtTop) {
-          setShowChatHeader(true);
-          isCurrentlyScrollingUp = false;
-        }
-        // If scrolling up, start a timer
-        else if (isScrollingUp && !isCurrentlyScrollingUp) {
-          isCurrentlyScrollingUp = true;
-          scrollUpTimer = setTimeout(() => {
-            setShowChatHeader(true);
-            isCurrentlyScrollingUp = false;
-          }, 500); // 0.5 second delay
-        }
-        // If scrolling down, hide header immediately
-        else if (!isScrollingUp && scrollTop > 70) {
-          setShowChatHeader(false);
-          isCurrentlyScrollingUp = false;
-        }
-        
-        setLastScrollTop(scrollTop);
-      }
-    };
-
-    // Wait for the next tick to ensure the ref is available
-    const timer = setTimeout(() => {
-      const chatMessagesElement = chatMessagesRef.current;
-      if (chatMessagesElement) {
-        chatMessagesElement.addEventListener('scroll', handleScroll);
-        
-        // Store cleanup function
-        cleanupFunction = () => {
-          chatMessagesElement.removeEventListener('scroll', handleScroll);
-          if (scrollUpTimer) {
-            clearTimeout(scrollUpTimer);
-          }
-        };
-      }
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      if (scrollUpTimer) {
-        clearTimeout(scrollUpTimer);
-      }
-      if (cleanupFunction) {
-        cleanupFunction();
-      }
-    };
-  }, [lastScrollTop, pageMode]);
 
   // Function to convert file to base64
   const fileToBase64 = (file) => {
@@ -427,6 +380,142 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle image analysis
+  const handleAnalyzeImage = useCallback(async () => {
+    if (!selectedFile) return;
+    
+    setIsProcessing(true);
+    setError(null);
+    setApiResponse(null);
+    setClassificationResult(null);
+    
+    try {
+      // Convert image to base64
+      const imageData = await fileToBase64(selectedFile);
+      setLastUploadedImageData(imageData);
+
+      // Prepare request payload
+      const payload = {
+        imageData: imageData,
+        model: selectedModel
+      };
+
+      const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
+
+      // Get authentication token
+      const authToken = localStorage.getItem('authToken');
+      
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if token is available
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      // Make API call
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText);
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // Check if this is a question-only image
+      if (result.isQuestionOnly) {
+        // Store the classification result
+        setClassificationResult({
+          isQuestionOnly: true,
+          reasoning: result.reasoning,
+          apiUsed: result.apiUsed,
+          questionDetection: result.questionDetection
+        });
+        
+        // Switch to chat mode immediately
+        setPageMode('chat');
+        
+        // Refresh mark history in sidebar
+        if (onMarkingResultSaved) {
+          onMarkingResultSaved();
+        }
+        
+        // Set the session ID from the response
+        setCurrentSessionId(result.sessionId);
+        
+        // Add initial user message with the image
+        const initialUserMessage = {
+          id: Date.now(),
+          role: 'user',
+          content: 'I have a question about this image. Can you help me understand it?',
+          timestamp: new Date().toLocaleTimeString(),
+          imageData: imageData,
+          fileName: selectedFile.name
+        };
+        
+        // Add the user message to chat
+        setChatMessages([initialUserMessage]);
+        
+        // Automatically send the first chat message to get AI response
+        setTimeout(() => {
+          sendInitialChatMessage(imageData, selectedModel, null, result.sessionId);
+        }, 500);
+        
+        return; // Exit early for question-only mode
+      }
+
+      // Store the API response and classification result
+      setApiResponse(result);
+      setClassificationResult({
+        isQuestionOnly: false,
+        reasoning: result.reasoning,
+        apiUsed: result.apiUsed,
+        questionDetection: result.questionDetection
+      });
+
+      // Refresh mark history in sidebar
+      if (onMarkingResultSaved) {
+        onMarkingResultSaved();
+      }
+
+      // Switch to chat mode with the marked homework
+      setPageMode('chat');
+      
+      // Set the session ID from the response
+      setCurrentSessionId(result.sessionId);
+      
+      // Add the marked homework message to chat
+      const markedMessage = {
+        id: Date.now(),
+        role: 'assistant',
+        content: 'Marking completed with annotations',
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'marking_annotated',
+        imageData: result.annotatedImage,
+        markingData: {
+          examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
+          questionMarks: result.questionDetection.match?.markingScheme?.questionMarks || result.questionDetection.match?.questionMarks || {},
+          confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
+        }
+      };
+      
+      setChatMessages([markedMessage]);
+      
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      setError(`Failed to process the image: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]);
 
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
@@ -672,350 +761,308 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, [chatInput, selectedModel, chatMessages, lastUploadedImageData, currentSessionId, classificationResult]);
 
-  if (pageMode === 'chat') {
-    return (
-      <div className="mark-homework-page chat-mode">
-        <div className="chat-container">
-        <div className={`chat-header ${!showChatHeader ? 'hidden' : ''}`}>
-             <div className="chat-header-left">
-               <h1>AI Homework Assistant</h1>
-               <button 
-                 className="back-btn"
-                 onClick={() => {
-                   setPageMode('upload');
-                   setChatMessages([]);
-                   setChatInput('');
-                   setClassificationResult(null);
-                   setApiResponse(null);
-                   setCurrentSessionId(null);
-                   // Clear localStorage
-                   localStorage.removeItem('chatSessionId');
-                   localStorage.removeItem('chatMessages');
-                   localStorage.setItem('isChatMode', 'false');
-                 }}
-               >
-                 ← Back to Upload
-                 </button>
-               </div>
-             </div>
-          
-          <div className={`chat-content ${!showChatHeader ? 'header-hidden' : ''}`}>
-                                                   <div className="chat-messages" ref={chatMessagesRef}>
-                {/* Classification Info at the top */}
-                {classificationResult?.isQuestionOnly && (
-                 <div className="classification-info-chat">
-                   <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+  return (
+    <>
+      {pageMode === 'chat' ? (
+        <div className="mark-homework-page chat-mode">
+          <div className="chat-container">
+            <div className="chat-header">
+              <div className="chat-header-content">
+                <div className="chat-header-left">
+                  <h1>force and friction</h1>
+                </div>
+                <div className="chat-header-right">
+                <button 
+                  className="header-btn info-btn"
+                  onClick={() => {
+                    console.log('Info button clicked, current state:', showInfoDropdown);
+                    console.log('Classification result:', classificationResult);
+                    setShowInfoDropdown(!showInfoDropdown);
+                  }}
+                  title="Information"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                  </svg>
+                </button>
+                <button 
+                  className="header-btn bookmark-btn"
+                  onClick={() => {
+                    // TODO: Implement bookmark functionality
+                    console.log('Bookmark button clicked');
+                  }}
+                  title="Bookmark"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Info Dropdown */}
+            {showInfoDropdown && (
+              <div className="info-dropdown" style={{border: '2px solid red', background: 'yellow'}}>
+                <div className="info-dropdown-content">
+                  <div className="classification-info-chat">
+                    <p><strong>Test Dropdown:</strong> This should be visible!</p>
+                    {classificationResult ? (
+                      <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
+                    ) : (
+                      <p>No classification result available</p>
+                    )}
 
-                   {/* Exam Paper Detection for Chat Mode */}
-                   {classificationResult.questionDetection && classificationResult.questionDetection.found && (
-                     <div className="exam-paper-header-chat">
-                       <div className="exam-paper-info-chat" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'}}>
-                         <div style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
-                           <h5 style={{margin: '0', fontSize: '16px'}}>📄 Detected Exam Paper</h5>
-                           <div className="exam-paper-details-chat" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                             <span className="exam-board">{classificationResult.questionDetection.match.board}</span>
-                             <span className="exam-qualification">{classificationResult.questionDetection.match.qualification}</span>
-                             <span className="exam-paper-code">{classificationResult.questionDetection.match.paperCode}</span>
-                             <span className="exam-year">{classificationResult.questionDetection.match.year}</span>
-                             {classificationResult.questionDetection.match.questionNumber && (
-                               <span className="question-number">Question {classificationResult.questionDetection.match.questionNumber}</span>
-                             )}
-                             {classificationResult.questionDetection.match.confidence && (
-                               <span className="confidence-score" style={{fontSize: '12px', color: 'var(--secondary-text)'}}>
-                                 ({Math.round(classificationResult.questionDetection.match.confidence * 100)}% match)
-                               </span>
-                             )}
-                           </div>
-                         </div>
-                         {classificationResult.questionDetection.match.markingScheme && (
-                           <button 
-                             className="marking-scheme-btn"
-                             onClick={() => {
-                               setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
-                             }}
-                             title="Toggle Marking Scheme Details"
-                             style={{marginLeft: 'auto', flexShrink: 0}}
-                           >
-                             📋 {showMarkingSchemeDetails ? 'Hide' : 'View'} Marking Scheme
-                           </button>
-                         )}
-                       </div>
-
-                       {/* Expandable Marking Scheme Details */}
-                       {classificationResult.questionDetection.match.markingScheme && showMarkingSchemeDetails && (
-                         <div className="marking-scheme-details" style={{
-                           marginTop: '12px',
-                           padding: '16px',
-                           background: 'var(--tertiary-bg)',
-                           border: '1px solid var(--border-color)',
-                           borderRadius: '18px',
-                           fontSize: '14px',
-                           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                           transition: 'all 0.2s ease'
-                         }}>
-                           <h6 style={{margin: '0 0 12px 0', color: 'var(--primary-text)', fontSize: '16px', fontWeight: '600'}}>
-                             📋 Marking Scheme Details
-                           </h6>
-
-                           {/* Exam Details */}
-                           <div style={{marginBottom: '12px'}}>
-                             <strong style={{color: 'var(--primary-text)'}}>Exam Information:</strong>
-                             <div style={{marginTop: '4px', paddingLeft: '12px'}}>
-                               <div style={{color: 'var(--secondary-text)'}}>Board: {classificationResult.questionDetection.match.markingScheme.examDetails?.board || 'N/A'}</div>
-                               <div style={{color: 'var(--secondary-text)'}}>Qualification: {classificationResult.questionDetection.match.markingScheme.examDetails?.qualification || 'N/A'}</div>
-                               <div style={{color: 'var(--secondary-text)'}}>Paper Code: {classificationResult.questionDetection.match.markingScheme.examDetails?.paperCode || 'N/A'}</div>
-                               <div style={{color: 'var(--secondary-text)'}}>Year: {classificationResult.questionDetection.match.markingScheme.examDetails?.year || 'N/A'}</div>
+                    {/* Exam Paper Detection for Chat Mode */}
+                    {classificationResult && classificationResult.questionDetection && classificationResult.questionDetection.found && (
+                      <div className="exam-paper-header-chat">
+                         <div className="exam-paper-info-chat" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'}}>
+                           <div style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
+                             <h5 style={{margin: '0', fontSize: '16px'}}>📄 Detected Exam Paper</h5>
+                             <div className="exam-paper-details-chat" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
+                               <span className="exam-board">{classificationResult.questionDetection.match.board}</span>
+                               <span className="exam-qualification">{classificationResult.questionDetection.match.qualification}</span>
+                               <span className="exam-paper-code">{classificationResult.questionDetection.match.paperCode}</span>
+                               <span className="exam-year">{classificationResult.questionDetection.match.year}</span>
+                               {classificationResult.questionDetection.match.questionNumber && (
+                                 <span className="question-number">Question {classificationResult.questionDetection.match.questionNumber}</span>
+                               )}
+                               {classificationResult.questionDetection.match.confidence && (
+                                 <span className="confidence-score" style={{fontSize: '12px', color: 'var(--secondary-text)'}}>
+                                   ({Math.round(classificationResult.questionDetection.match.confidence * 100)}% match)
+                                 </span>
+                               )}
                              </div>
                            </div>
-
-                           {/* Summary Stats */}
-                           <div style={{marginBottom: '12px'}}>
-                             <strong style={{color: 'var(--primary-text)'}}>Summary:</strong>
-                             <div style={{marginTop: '4px', paddingLeft: '12px'}}>
-                               <div style={{color: 'var(--secondary-text)'}}>Total Questions: {classificationResult.questionDetection.match.markingScheme.totalQuestions || 'N/A'}</div>
-                               <div style={{color: 'var(--secondary-text)'}}>Total Marks: {classificationResult.questionDetection.match.markingScheme.totalMarks || 'N/A'}</div>
-                               <div style={{color: 'var(--secondary-text)'}}>Match Confidence: {Math.round((classificationResult.questionDetection.match.markingScheme.confidence || 0) * 100)}%</div>
-                             </div>
-                           </div>
-
-                           {/* Question Marks */}
-                           {classificationResult.questionDetection.match.markingScheme.questionMarks && (
-                             <div>
-                               <strong style={{color: 'var(--primary-text)'}}>Question Marks:</strong>
-                               <div style={{marginTop: '4px', paddingLeft: '12px', maxHeight: '200px', overflowY: 'auto'}}>
-                                 {(() => {
-                                   try {
-                                     return Object.entries(classificationResult.questionDetection.match.markingScheme.questionMarks)
-                                       .sort(([a], [b]) => {
-                                         const numA = parseInt(a.replace(/\D/g, '')) || 0;
-                                         const numB = parseInt(b.replace(/\D/g, '')) || 0;
-                                         return numA - numB;
-                                       })
-                                       .map(([questionKey, marksData]) => {
-                                         // Handle both simple number format and complex object format
-                                         const marks = typeof marksData === 'number' ? marksData : marksData?.mark || marksData;
-                                         const answer = marksData?.answer;
-                                         const comments = marksData?.comments;
-                                         const guidance = marksData?.guidance;
-
-                                         // Helper function to safely render nested objects
-                                         const renderValue = (value) => {
-                                           if (typeof value === 'object' && value !== null) {
-                                             return JSON.stringify(value, null, 2);
-                                           }
-                                           return String(value);
-                                         };
-
-                                         return (
-                                           <div key={questionKey} style={{
-                                             marginBottom: '8px', 
-                                             padding: '12px', 
-                                             background: '#2a2a2a', 
-                                             borderRadius: '12px', 
-                                             border: '1px solid #404040',
-                                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                                             transition: 'all 0.2s ease',
-                                             color: 'white'
-                                           }}>
-                                             <div style={{fontWeight: 'bold', marginBottom: '6px', color: 'white'}}>
-                                               {questionKey}: {renderValue(marks)} mark{marks !== 1 ? 's' : ''}
-                                             </div>
-                                             {answer && (
-                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
-                                                 <strong>Answer:</strong> {renderValue(answer)}
-                                               </div>
-                                             )}
-                                             {comments && (
-                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)', marginBottom: '4px'}}>
-                                                 <strong>Comments:</strong> {renderValue(comments)}
-                                               </div>
-                                             )}
-                                             {guidance && (
-                                               <div style={{fontSize: '12px', color: 'rgba(255, 255, 255, 0.9)'}}>
-                                                 <strong>Guidance:</strong> {renderValue(guidance)}
-                                               </div>
-                                             )}
-                                           </div>
-                                         );
-                                       });
-                                   } catch (error) {
-                                     return (
-                                       <div style={{color: 'red', padding: '8px'}}>
-                                         Error rendering question marks: {String(error.message)}
-                                       </div>
-                                     );
-                                   }
-                                 })()}
-                               </div>
-                             </div>
+                           {classificationResult.questionDetection.match.markingScheme && (
+                             <button 
+                               className="marking-scheme-btn"
+                               onClick={() => {
+                                 setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
+                               }}
+                               title="Toggle Marking Scheme Details"
+                               style={{marginLeft: 'auto', flexShrink: 0}}
+                             >
+                               📋 {showMarkingSchemeDetails ? 'Hide' : 'View'} Marking Scheme
+                             </button>
                            )}
                          </div>
-                       )}
-                     </div>
-                   )}
-                 </div>
-               )}
-               {chatMessages.map((message) => (
-                 <div 
-                   key={message.id} 
-                   className={`chat-message ${message.role}`}
-                 >
-                   <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
-                     {message.role === 'assistant' ? (
-                       <div>
-                         <MarkdownMathRenderer 
-                           content={message.content}
-                           className="chat-message-renderer"
-                         />
-                         
-                         {/* Handle marking messages with annotated images */}
-                         {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
-                           <div className="homework-annotated-image">
-                             <h4>✅ Marked Homework Image</h4>
-                             <img 
-                               src={message.imageLink || message.imageData}
-                               alt="Marked homework"
-                               className="annotated-image"
-                             />
-                             
-                             {/* Display marking data if available */}
-                             {message.markingData && (
-                               <div className="marking-data-display">
-                                 <h5>📊 Marking Details</h5>
-                                 {message.markingData.ocrResult?.extractedText && (
-                                   <div className="extracted-text">
-                                     <strong>Extracted Text:</strong>
-                                     <div className="text-content">{message.markingData.ocrResult.extractedText}</div>
-                                   </div>
-                                 )}
-                                 {message.markingData.markingInstructions?.annotations?.length > 0 && (
-                                   <div className="annotations-list">
-                                     <strong>Annotations:</strong>
-                                     <ul>
-                                       {message.markingData.markingInstructions.annotations.map((annotation, index) => (
-                                         <li key={index}>
-                                           <span className="annotation-action">{annotation.action}:</span>
-                                           {annotation.text && <span className="annotation-text">{annotation.text}</span>}
-                                         </li>
-                                       ))}
-                                     </ul>
-                                   </div>
-                                 )}
-                               </div>
-                             )}
-                           </div>
-                         )}
-                         
-                         {/* Historical marking data display */}
-                         {message.isHistorical && message.historicalData && (
-                           <div className="historical-marking-data">
-                             <div className="historical-header">
-                               <h4>Marking Instructions</h4>
-                               <div className="historical-meta">
-                                 <span>Model: {message.historicalData.model}</span>
-                                 <span>Date: {new Date(message.historicalData.createdAt?.toDate?.() || message.historicalData.createdAt).toLocaleDateString()}</span>
-                               </div>
+
+                         {/* Expandable Marking Scheme Details */}
+                         {classificationResult.questionDetection.match.markingScheme && showMarkingSchemeDetails && (
+                           <div className="marking-scheme-details" style={{
+                             marginTop: '12px',
+                             padding: '16px',
+                             background: 'var(--tertiary-bg)',
+                             border: '1px solid var(--border-color)',
+                             borderRadius: '18px',
+                             fontSize: '14px',
+                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                             transition: 'all 0.2s ease'
+                           }}>
+                             <div style={{marginBottom: '12px'}}>
+                               <strong>Answer:</strong> {classificationResult.questionDetection.match.markingScheme.questionMarks.answer}
                              </div>
                              
-                             {message.historicalData.markingInstructions?.annotations?.length > 0 && (
-                               <div className="marking-annotations">
-                                 <h5>Annotations:</h5>
-                                 <ul>
-                                   {message.historicalData.markingInstructions.annotations.map((annotation, index) => (
-                                     <li key={index}>
-                                       <strong>{annotation.action}:</strong> {annotation.comment || annotation.text || 'No comment'}
-                                       {annotation.bbox && (
-                                         <span className="bbox-info">
-                                           (Position: {annotation.bbox.join(', ')})
-                                         </span>
-                                       )}
+                             <div style={{marginBottom: '12px'}}>
+                               <strong>Marks:</strong>
+                               <ul style={{margin: '8px 0', paddingLeft: '20px'}}>
+                                 {classificationResult.questionDetection.match.markingScheme.questionMarks.marks.map((mark, index) => (
+                                   <li key={index} style={{marginBottom: '6px'}}>
+                                     <strong>{mark.mark}:</strong> {mark.answer}
+                                     {mark.comments && <span style={{color: 'var(--secondary-text)', fontStyle: 'italic'}}> ({mark.comments})</span>}
+                                   </li>
+                                 ))}
+                               </ul>
+                             </div>
+                             
+                             {classificationResult.questionDetection.match.markingScheme.questionMarks.guidance && classificationResult.questionDetection.match.markingScheme.questionMarks.guidance.length > 0 && (
+                               <div>
+                                 <strong>Guidance:</strong>
+                                 <ul style={{margin: '8px 0', paddingLeft: '20px'}}>
+                                   {classificationResult.questionDetection.match.markingScheme.questionMarks.guidance.map((guidance, index) => (
+                                     <li key={index} style={{marginBottom: '4px', color: 'var(--secondary-text)'}}>
+                                       <strong>{guidance.scenario}:</strong> {guidance.outcome}
                                      </li>
                                    ))}
                                  </ul>
                                </div>
                              )}
-                             
-                             {message.historicalData.ocrResult?.ocrText && (
-                               <div className="historical-ocr">
-                                 <h5>Extracted Text:</h5>
-                                 <div className="ocr-text">
-                                   {message.historicalData.ocrResult.ocrText}
-                                 </div>
-                               </div>
-                             )}
-                           </div>
-                         )}
-                         
-                         <button 
-                           className="raw-toggle-btn"
-                           onClick={() => {
-                             // const rawContent = message.rawContent || message.content; // Removed - not used
-                             if (message.showRaw) {
-                               message.showRaw = false;
-                             } else {
-                               message.showRaw = true;
-                             }
-                             setChatMessages([...chatMessages]);
-                           }}
-                           style={{marginTop: '8px', fontSize: '12px'}}
-                         >
-                           {message.showRaw ? 'Hide Raw' : 'Show Raw'}
-                         </button>
-                         {message.showRaw && (
-                           <div className="raw-response">
-                             <div className="raw-header">Raw Response</div>
-                             <div className="raw-content">
-                               {message.rawContent || message.content}
-                             </div>
                            </div>
                          )}
                        </div>
-                     ) : (
+                     )}
+                   </div>
+                 </div>
+               </div>
+            )}
+          
+          <div className="chat-content">
+            <div className="chat-messages" ref={chatMessagesRef}>
+              {chatMessages.map((message) => (
+                <div 
+                  key={message.id} 
+                  className={`chat-message ${message.role}`}
+                >
+                  <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
+                    {message.role === 'assistant' ? (
                       <div>
-                         {/* Handle marking messages with images */}
-                         {message.type === 'marking_original' && (message.imageLink || message.imageData) && (
-                           <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
-                             {/* Question Header */}
-                             {message.detectedQuestion && (
-                               <div className="question-header">
-                                 <div className="exam-meta">
-                                   <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
-                                   <div className="question-meta">
-                                     <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
-                                     <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
-                                   </div>
-                                 </div>
-                                 {message.detectedQuestion.questionText && (
-                                   <div className="question-text">
-                                     <strong>Question:</strong> {message.detectedQuestion.questionText}
-                                   </div>
-                                 )}
-                               </div>
-                             )}
-                             <h4>📷 Original Homework Image</h4>
-                             <img 
-                               src={message.imageLink || message.imageData}
-                               alt="Original homework"
-                               className="annotated-image"
-                             />
-                           </div>
-                         )}
-                         
-                         {/* Handle marking messages with annotated images */}
-                         {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
-                           <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
-                             {/* Question Header */}
-                             {message.detectedQuestion && (
-                               <div className="question-header">
-                                 <div className="exam-meta">
-                                   <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
-                                   <div className="question-meta">
-                                     <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
-                                     <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
-                                   </div>
-                                 </div>
-                                 {message.detectedQuestion.questionText && (
-                                   <div className="question-text">
+                        <div className="assistant-header">intellimark</div>
+                        <MarkdownMathRenderer 
+                          content={message.content}
+                          className="chat-message-renderer"
+                        />
+                        
+                        {/* Handle marking messages with annotated images */}
+                        {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
+                          <div className="homework-annotated-image">
+                            <h4>✅ Marked Homework Image</h4>
+                            <img 
+                              src={message.imageLink || message.imageData}
+                              alt="Marked homework"
+                              className="annotated-image"
+                            />
+                            
+                            {/* Display marking data if available */}
+                            {message.markingData && (
+                              <div className="marking-data-display">
+                                <h5>📊 Marking Details</h5>
+                                {message.markingData.ocrResult?.extractedText && (
+                                  <div className="extracted-text">
+                                    <strong>Extracted Text:</strong>
+                                    <div className="text-content">{message.markingData.ocrResult.extractedText}</div>
+                                  </div>
+                                )}
+                                {message.markingData.markingInstructions?.annotations?.length > 0 && (
+                                  <div className="annotations-list">
+                                    <strong>Annotations:</strong>
+                                    <ul>
+                                      {message.markingData.markingInstructions.annotations.map((annotation, index) => (
+                                        <li key={index}>
+                                          <span className="annotation-action">{annotation.action}:</span>
+                                          {annotation.text && <span className="annotation-text">{annotation.text}</span>}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Historical marking data display */}
+                        {message.isHistorical && message.historicalData && (
+                          <div className="historical-marking-data">
+                            <div className="historical-header">
+                              <h4>Marking Instructions</h4>
+                              <div className="historical-meta">
+                                <span>Model: {message.historicalData.model}</span>
+                                <span>Date: {new Date(message.historicalData.createdAt?.toDate?.() || message.historicalData.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            
+                            {message.historicalData.markingInstructions?.annotations?.length > 0 && (
+                              <div className="marking-annotations">
+                                <h5>Annotations:</h5>
+                                <ul>
+                                  {message.historicalData.markingInstructions.annotations.map((annotation, index) => (
+                                    <li key={index}>
+                                      <strong>{annotation.action}:</strong> {annotation.comment || annotation.text || 'No comment'}
+                                      {annotation.bbox && (
+                                        <span className="bbox-info">
+                                          (Position: {annotation.bbox.join(', ')})
+                                        </span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {message.historicalData.ocrResult?.ocrText && (
+                              <div className="historical-ocr">
+                                <h5>Extracted Text:</h5>
+                                <div className="ocr-text">
+                                  {message.historicalData.ocrResult.ocrText}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <button 
+                          className="raw-toggle-btn"
+                          onClick={() => {
+                            // const rawContent = message.rawContent || message.content; // Removed - not used
+                            if (message.showRaw) {
+                              message.showRaw = false;
+                            } else {
+                              message.showRaw = true;
+                            }
+                            setChatMessages([...chatMessages]);
+                          }}
+                          style={{marginTop: '8px', fontSize: '12px'}}
+                        >
+                          {message.showRaw ? 'Hide Raw' : 'Show Raw'}
+                        </button>
+                        {message.showRaw && (
+                          <div className="raw-response">
+                            <div className="raw-header">Raw Response</div>
+                            <div className="raw-content">
+                              {message.rawContent || message.content}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        {/* Handle marking messages with images */}
+                        {message.type === 'marking_original' && (message.imageLink || message.imageData) && (
+                          <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
+                            {/* Question Header */}
+                            {message.detectedQuestion && (
+                              <div className="question-header">
+                                <div className="exam-meta">
+                                  <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
+                                  <div className="question-meta">
+                                    <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
+                                    <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
+                                  </div>
+                                </div>
+                                {message.detectedQuestion.questionText && (
+                                  <div className="question-text">
+                                    <strong>Question:</strong> {message.detectedQuestion.questionText}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <h4>📷 Original Homework Image</h4>
+                            <img 
+                              src={message.imageLink || message.imageData}
+                              alt="Original homework"
+                              className="annotated-image"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Handle marking messages with annotated images */}
+                        {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
+                          <div className={`homework-annotated-image ${message.detectedQuestion ? 'with-header' : ''}`}>
+                            {/* Question Header */}
+                            {message.detectedQuestion && (
+                              <div className="question-header">
+                                <div className="exam-meta">
+                                  <h3>📚 {message.detectedQuestion.examDetails?.board || 'Exam'} - {message.detectedQuestion.examDetails?.qualification || 'Question'}</h3>
+                                  <div className="question-meta">
+                                    <span className="paper-code">{message.detectedQuestion.examDetails?.paperCode || 'N/A'}</span>
+                                    <span className="question-number">Question {message.detectedQuestion.questionNumber || 'N/A'}</span>
+                                  </div>
+                                </div>
+                                {message.detectedQuestion.questionText && (
+                                  <div className="question-text">
                                      <strong>Question:</strong> {message.detectedQuestion.questionText}
                                    </div>
                                  )}
@@ -1116,166 +1163,159 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           {/* Bottom Input Bar */}
           <div className="chat-input-bar">
             <div className={`chat-input ${isProcessing ? 'processing' : ''}`}>
-              <textarea
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder={isProcessing ? "AI is thinking..." : "Ask me anything about your homework..."}
-                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                disabled={isProcessing}
-              />
-              <button 
-                className="send-btn"
-                onClick={handleSendMessage}
-                disabled={isProcessing || !chatInput.trim()}
-              >
-                {isProcessing ? (
-                  <div className="send-spinner"></div>
-                ) : (
-                  'Send'
-                )}
-              </button>
+              {/* Model Selector */}
+              <div className="model-selector">
+                <select className="model-dropdown" disabled={isProcessing}>
+                  <option value="chatgpt-4o">GPT-4o</option>
+                  <option value="chatgpt-4">GPT-4</option>
+                  <option value="claude-3">Claude 3</option>
+                </select>
+              </div>
+              
+              {/* Main Input Area */}
+              <div className="input-container">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder={isProcessing ? "AI is thinking..." : "Ask me anything about your homework..."}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                  disabled={isProcessing}
+                />
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="action-buttons">
+                <button 
+                  className="upload-btn"
+                  onClick={() => document.getElementById('file-input').click()}
+                  disabled={isProcessing}
+                  title="Upload image"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7,10 12,15 17,10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </button>
+                
+                <button 
+                  className="send-btn"
+                  onClick={handleSendMessage}
+                  disabled={isProcessing || !chatInput.trim()}
+                >
+                  {isProcessing ? (
+                    <div className="send-spinner"></div>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="22" y1="2" x2="11" y2="13"/>
+                      <polygon points="22,2 15,22 11,13 2,9 22,2"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className="mark-homework-page">
-      <div className="mark-homework-container">
-        <div className="mark-homework-header">
-          <h1>AI Homework Marker</h1>
-          <p>Upload your homework images and get instant AI-powered feedback, explanations, and corrections</p>
+      ) : (
+    <div className="mark-homework-page upload-mode">
+      {/* Main Content */}
+      <div className="upload-main-content">
+        <div className="upload-title-section">
+          <div className="title-content">
+            <h1>intellimark</h1>
+            <p>Upload your homework images and get instant AI-powered feedback, explanations, and corrections</p>
+          </div>
+          <button 
+            className={`title-upload-btn ${selectedFile && previewUrl ? 'has-image' : ''}`}
+            onClick={() => document.getElementById('top-file-input').click()}
+            style={selectedFile && previewUrl ? {
+              backgroundImage: `url(${previewUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            } : {}}
+          >
+            {selectedFile && previewUrl ? (
+              <span className="change-image-text">Change Image</span>
+            ) : (
+              <>
+                <Upload size={20} />
+                Upload Homework
+              </>
+            )}
+          </button>
         </div>
 
-        <div className="mark-homework-content">
-          {/* Upload Section - Show at top if no response, at bottom if response exists */}
-          {!apiResponse && (
-            <div className="upload-section">
-              <div className="model-selector">
-                <label htmlFor="model-select">Select AI Model</label>
-                <select
-                  id="model-select"
-                  className="model-dropdown"
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                >
-                  {models.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} - {model.description}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        {/* Hidden file input for top button */}
+        <input
+          id="top-file-input"
+          type="file"
+          accept="image/*"
+          onChange={handleFileInput}
+          style={{ display: 'none' }}
+        />
 
-              {previewUrl ? (
-                <div className="image-preview-container">
-                  <img 
-                    src={previewUrl} 
-                    alt="Homework preview" 
-                    className="preview-image"
-                  />
-                  <div className="preview-overlay">
-                    <div className="preview-info">
-                      <div className="file-info">
-                        <span className="file-name">{selectedFile?.name}</span>
-                        <span className="file-size">
-                          {(selectedFile?.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
-                      <button 
-                        className="change-image-btn"
-                        onClick={() => document.getElementById('file-input').click()}
-                      >
-                        Change Image
-                      </button>
-                    </div>
-                  </div>
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              ) : (
-                <div
-                  className="upload-area"
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById('file-input').click()}
-                >
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileInput}
-                    style={{ display: 'none' }}
-                  />
-                  
-                  <Upload className="upload-icon" />
-                  <div className="upload-text">Drop your homework here</div>
-                  <div className="upload-subtext">or click to browse files</div>
-                  <div className="upload-hint">Supports JPG, PNG, GIF</div>
-                </div>
-              )}
+      </div>
 
-              {error && (
-                <div className="error-message">
-                  <span>⚠️</span>
-                  {error}
-                </div>
-              )}
-
-              <div className="upload-actions">
-                <button
-                  className="upload-homework-btn"
-                  onClick={handleUpload}
-                  disabled={!selectedFile || isProcessing}
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="upload-spinner"></div>
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload />
-                      Upload & Analyze
-                    </>
-                  )}
-                </button>
-                
-                {/* Fake Loading Progress Bar */}
-                {isProcessing && (
-                  <div className="loading-progress-container">
-                    <div className="loading-progress-bar">
-                      <div 
-                        className="loading-progress-fill"
-                        style={{ width: `${loadingProgress}%` }}
-                      ></div>
-                    </div>
-                    <div className="loading-progress-text">
-                      {loadingProgress < 30 && "Initializing analysis..."}
-                      {loadingProgress >= 30 && loadingProgress < 60 && "Processing image content..."}
-                      {loadingProgress >= 60 && loadingProgress < 90 && "Generating AI annotations..."}
-                      {loadingProgress >= 90 && "Finalizing results..."}
-                    </div>
-                  </div>
-                )}
-              </div>
+      {/* Loading Bar */}
+      {isProcessing && (
+        <div className="upload-loading-bar">
+          <div className="loading-content">
+            <div className="loading-text">Processing your homework...</div>
+            <div className="progress-bar">
+              <div 
+                className="progress-fill" 
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Analysis Results Section - REMOVED - Now goes directly to chat mode */}
+      {/* Bottom Chat Input Bar */}
+      <div className="upload-chat-input-bar">
+        <div className="upload-chat-input">
+          {/* Model Selector */}
+          <div className="model-selector">
+            <select className="model-dropdown" disabled={isProcessing}>
+              <option value="chatgpt-4o">ChatGPT-4o</option>
+              <option value="chatgpt-4">GPT-4</option>
+              <option value="claude-3">Claude 3</option>
+            </select>
+          </div>
+          
+          {/* Main Input Area */}
+          <div className="input-container">
+            <textarea
+              placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+              disabled={isProcessing}
+            />
+          </div>
+          
+          {/* Send/Analyze Button */}
+          <button 
+            className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
+            disabled={isProcessing || (!selectedFile && !chatInput.trim())}
+            onClick={selectedFile ? handleAnalyzeImage : undefined}
+          >
+            {isProcessing ? (
+              <div className="send-spinner"></div>
+            ) : selectedFile ? (
+              <span className="btn-text">Analyze</span>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 2L11 13"/>
+                <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
-
     </div>
+      )}
+    </>
   );
 };
 

@@ -214,12 +214,6 @@
   box-shadow: var(--shadow-lg);
 }
 
-.preview-image {
-  width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-  display: block;
-}
 
 .preview-overlay {
   position: absolute;
@@ -231,12 +225,6 @@
   color: white;
 }
 
-.preview-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
 
 .file-info {
   display: flex;
@@ -1571,6 +1559,250 @@
 .loading-subtext {
   font-size: 14px;
   color: var(--secondary-text);
+}
+
+/* Upload Mode Styles */
+.mark-homework-page.upload-mode {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: relative;
+  background: var(--primary-bg);
+}
+
+/* Title Upload Button */
+.title-upload-btn {
+  background: var(--secondary-bg);
+  color: var(--primary-text);
+  border: 2px solid var(--accent-color);
+  padding: 20px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0;
+  height: 100%;
+  min-height: 120px;
+}
+
+.title-upload-btn svg {
+  width: 32px;
+  height: 32px;
+}
+
+.title-upload-btn:hover {
+  background: var(--tertiary-bg);
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 2px rgba(127, 0, 255, 0.2);
+}
+
+.title-upload-btn.has-image {
+  position: relative;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+.title-upload-btn.has-image::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5%;
+  right: -5%;
+  bottom: 0;
+  width: 110%;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.title-upload-btn.has-image .change-image-text {
+  position: relative;
+  z-index: 2;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.title-upload-btn.has-image:hover::before {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Main Content */
+.upload-main-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 24px;
+}
+
+.upload-title-section {
+  text-align: left;
+  max-width: 1000px;
+  width: 80vw;
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+}
+
+.title-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.upload-title-section h1 {
+  font-size: 48px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 16px 0;
+  line-height: 1.2;
+}
+
+.upload-title-section p {
+  font-size: 18px;
+  color: var(--secondary-text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Chat Input Bar Below Title */
+.upload-chat-input-bar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 60%);
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 24px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.upload-chat-input {
+  max-width: 1000px;
+  width: 80vw;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 8px;
+  position: relative;
+}
+
+.upload-chat-input .model-selector {
+  flex-shrink: 0;
+}
+
+.upload-chat-input .model-dropdown {
+  background: transparent;
+  border: none;
+  color: var(--primary-text);
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.upload-chat-input .input-container {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+.upload-chat-input textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--primary-text);
+  font-size: 16px;
+  padding: 12px 100px 12px 12px;
+  resize: none;
+  outline: none;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.upload-chat-input textarea::placeholder {
+  color: var(--secondary-text);
+}
+
+.upload-chat-input .send-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 16px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 80px;
+  height: 48px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: hidden;
+}
+
+/* Shimmering gradient for analyze mode */
+.upload-chat-input .send-btn.analyze-mode {
+  background: linear-gradient(135deg, #7f00ff 0%, #e100ff 50%, #ff6b6b 100%);
+  background-size: 200% 200%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.upload-chat-input .send-btn .btn-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.upload-chat-input .send-btn:hover:not(:disabled) {
+  background: #7a00e6;
+}
+
+.upload-chat-input .send-btn.analyze-mode:hover:not(:disabled) {
+  background: linear-gradient(135deg, #8f00ff 0%, #f100ff 50%, #ff7b7b 100%);
+  background-size: 200% 200%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(127, 0, 255, 0.2);
+}
+
+.upload-chat-input .send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Responsive Design */

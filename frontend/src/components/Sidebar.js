@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Settings, 
   BookOpen,
@@ -9,12 +9,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
+import './Sidebar.css';
 
 /**
  * Sidebar component displaying navigation
  * @returns {JSX.Element} The sidebar component
  */
-function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick }) {
+function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, currentPageMode = 'upload' }) {
   const navigate = useNavigate();
   // const location = useLocation(); // Removed - not used
   const { user, getAuthToken } = useAuth();
@@ -178,23 +179,66 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   return (
     <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-content">
+        {/* IM Intellimark Branding */}
+        <div className="sidebar-branding">
+          <h2 className="brand-title">IM Intellimark</h2>
+        </div>
+
+        {/* Upgrade and Sign In Buttons */}
+        <div className="sidebar-auth-buttons">
+          {user ? (
+            <button 
+              className="upgrade-btn"
+              onClick={() => navigate('/upgrade')}
+            >
+              Upgrade
+            </button>
+          ) : (
+            <>
+              <button 
+                className="upgrade-btn"
+                onClick={() => navigate('/upgrade')}
+              >
+                Upgrade
+              </button>
+              <button 
+                className="signin-btn"
+                onClick={() => navigate('/login')}
+              >
+                Sign In
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Main Mark Homework Button */}
         <button 
-          className="new-chat-btn" 
+          className="mark-homework-main-btn" 
           onClick={() => {
-            // Call the reset handler if provided
-            if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
-              onMarkHomeworkClick();
+            if (currentPageMode === 'chat') {
+              // In chat mode, this acts as a back button
+              // We need to trigger the back functionality
+              // This will be handled by the MarkHomeworkPage component
+              if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
+                onMarkHomeworkClick();
+              }
+            } else {
+              // In upload mode, navigate to mark homework
+              if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
+                onMarkHomeworkClick();
+              }
+              navigate('/mark-homework');
             }
-            navigate('/mark-homework');
           }}
         >
-          <BookOpen size={16} />
-          Mark Homework
+          <BookOpen size={20} />
+          {currentPageMode === 'chat' ? 'Back to Upload' : 'Mark Homework'}
         </button>
 
         <div className="sidebar-section">
-          <h3>Recent Sessions</h3>
-          {isLoadingSessions ? (
+          <h3 className="mark-history-title">MARK HISTORY</h3>
+          <div className="mark-history-scrollable">
+            {isLoadingSessions ? (
             <div className="mark-history-loading">
               <div className="placeholder-item">
                 <Clock size={16} />
@@ -265,6 +309,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 

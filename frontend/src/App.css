@@ -6,13 +6,13 @@
 }
 
 .main-content {
-  padding-top: 70px; /* Account for fixed header */
+  padding-top: 0; /* No header padding needed */
   margin-left: 280px; /* Account for fixed sidebar */
 }
 
 .app {
   display: flex;
-  min-height: calc(100vh - 70px);
+  min-height: 100vh;
   background-color: var(--primary-bg);
   color: var(--primary-text);
 }
@@ -41,17 +41,17 @@
 
 .sidebar {
   width: 280px;
-  background: var(--secondary-bg);
+  background: transparent;
   color: var(--primary-text);
   padding: 0;
   box-shadow: var(--shadow-lg);
-  overflow-y: auto;
+  overflow: hidden;
   flex-shrink: 0;
   transition: transform 0.3s ease;
   border-right: 1px solid var(--border-color);
-  height: calc(100vh - 70px); /* Account for fixed header height */
+  height: 100vh; /* Full height since no header */
   position: fixed;
-  top: 70px; /* Position below fixed header */
+  top: 0; /* Start from top */
   left: 0;
   z-index: 200; /* Higher than chat-input-bar to ensure sidebar appears above it */
 }
@@ -64,8 +64,8 @@
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    top: 60px; /* Account for mobile header height */
-    height: calc(100vh - 60px);
+    top: 0; /* Start from top */
+    height: 100vh; /* Full height */
   }
   
   .sidebar.mobile-open {
@@ -74,7 +74,7 @@
   
   .main-content {
     margin-left: 0;
-    padding-top: 60px; /* Account for mobile header height */
+    padding-top: 0; /* No header to account for */
   }
 }
 

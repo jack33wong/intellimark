@@ -1,14 +1,13 @@
 /* Header Component Styles */
 .header {
-  background: var(--secondary-bg);
+  background: var(--primary-bg);
   color: var(--primary-text);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 9998;
-  /* backdrop-filter: blur(10px); */
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -16,9 +15,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px 0 16px;
-  height: 70px;
-  max-width: 2400px;
+  padding: 0 20px;
+  height: 60px;
+  max-width: 1200px;
   margin: 0 auto;
   gap: 0;
   /* Allow dropdowns to overflow */
@@ -78,11 +77,10 @@
 }
 
 .logo-text {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   margin: 0;
   color: var(--primary-text);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .logo-subtitle {
@@ -151,9 +149,9 @@
 }
 
 .nav-item.upgrade-nav {
-  background: rgba(34, 197, 94, 0.1);
-  color: var(--success-color, #22c55e);
-  border-color: var(--success-color, #22c55e);
+  background: transparent;
+  color: var(--primary-text);
+  border-color: var(--border-color);
   box-shadow: none;
   display: flex;
   align-items: center;
@@ -161,10 +159,9 @@
 }
 
 .nav-item.upgrade-nav:hover {
-  background: var(--success-color, #22c55e);
-  color: white;
-  border-color: var(--success-color, #22c55e);
-  box-shadow: var(--shadow-md);
+  background: var(--tertiary-bg);
+  color: var(--primary-text);
+  border-color: var(--accent-color);
 }
 
 .nav-item.upgrade-nav svg {
@@ -232,26 +229,23 @@
 .profile-button {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--tertiary-bg);
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 20px;
   color: var(--primary-text);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
-  height: 44px;
+  height: 36px;
   line-height: 1;
 }
 
 .profile-button:hover {
-  background: var(--quaternary-bg);
+  background: var(--tertiary-bg);
   border-color: var(--accent-color);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
 }
 
 .profile-button:active {
