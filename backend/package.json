@@ -10,6 +10,7 @@
     "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck",
     "build:clean": "rm -rf dist && npm run build",
     "build:deploy": "node build-for-deploy.cjs",
+    "build:production": "node build-production.cjs",
     "build:watch": "tsc --watch --project tsconfig.json",
     "test": "jest",
     "type-check": "tsc --noEmit --project tsconfig.dev.json",
