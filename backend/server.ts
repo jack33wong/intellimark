@@ -100,8 +100,15 @@ function startServer(port: number) {
 }
 
 // Start the server only if not being imported as a module
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   startServer(DEFAULT_PORT);
 }
 
+// Export the app directly for Firebase Functions
 export default app;
+
+// For CommonJS compatibility in Firebase Functions
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = app;
+  module.exports.default = app;
+}

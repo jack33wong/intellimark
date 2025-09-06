@@ -67,9 +67,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   // Handle selected marking result from sidebar
   useEffect(() => {
     if (selectedMarkingResult) {
-      console.log('🔍 MarkHomeworkPage: Selected marking result:', selectedMarkingResult);
-      console.log('🔍 MarkHomeworkPage: Messages count:', selectedMarkingResult.messages?.length || 0);
-      console.log('🔍 MarkHomeworkPage: Messages:', selectedMarkingResult.messages);
       
       // Switch to chat mode to display the session messages
       setPageMode('chat');
