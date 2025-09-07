@@ -32,6 +32,13 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
   // Function to refresh chat sessions with debouncing
   const refreshChatSessions = useCallback(async () => {
+    // Don't fetch if user is not authenticated
+    if (!user?.uid) {
+      console.log('🔍 Sidebar: User not authenticated, skipping fetch');
+      setChatSessions([]);
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastFetch = now - lastFetchTime;
     
@@ -50,9 +57,9 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       // Get authentication token
       const authToken = getAuthToken();
       
-      // Use actual user ID if available, otherwise fall back to anonymous
-      const userIdToFetch = user?.uid || 'anonymous';
-      console.log('🔍 Sidebar: Fetching sessions for user:', userIdToFetch);
+      // Use authenticated user ID
+      const userIdToFetch = user.uid;
+      console.log('🔍 Sidebar: Fetching sessions for authenticated user:', userIdToFetch);
       
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(userIdToFetch, 20, authToken);
       console.log('🔍 Sidebar: Service response:', response);
@@ -75,10 +82,16 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch chat sessions when user is available or for anonymous users
+  // Fetch chat sessions only when user is authenticated
   useEffect(() => {
-    // Always fetch sessions - either for authenticated user or anonymous
-    refreshChatSessions();
+    if (user?.uid) {
+      // Only fetch sessions if user is authenticated
+      refreshChatSessions();
+    } else {
+      // Clear sessions when user is not authenticated
+      setChatSessions([]);
+      setSessionsError(null);
+    }
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose refresh function to parent component

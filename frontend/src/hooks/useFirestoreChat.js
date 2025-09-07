@@ -15,6 +15,14 @@ export function useFirestoreChat(userId) {
 
   // Load chat sessions from Firestore
   const loadChatSessions = useCallback(async () => {
+    // Don't load sessions if userId is not provided
+    if (!userId) {
+      console.log('useFirestoreChat: No userId provided, skipping session load');
+      setChatSessions([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
