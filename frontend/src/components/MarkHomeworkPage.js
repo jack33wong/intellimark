@@ -1160,15 +1160,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           {/* Bottom Input Bar */}
           <div className="chat-input-bar">
             <div className={`chat-input ${isProcessing ? 'processing' : ''}`}>
-              {/* Model Selector */}
-              <div className="model-selector">
-                <select className="model-dropdown" disabled={isProcessing}>
-                  <option value="chatgpt-4o">GPT-4o</option>
-                  <option value="chatgpt-4">GPT-4</option>
-                  <option value="claude-3">Claude 3</option>
-                </select>
-              </div>
-              
               {/* Main Input Area */}
               <div className="input-container">
                 <textarea
@@ -1178,10 +1169,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                   disabled={isProcessing}
                 />
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="action-buttons">
+                
+                {/* Upload Button - Bottom Left */}
                 <button 
                   className="upload-btn"
                   onClick={() => document.getElementById('file-input').click()}
@@ -1195,6 +1184,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   </svg>
                 </button>
                 
+                {/* Send Button - Bottom Right */}
                 <button 
                   className="send-btn"
                   onClick={handleSendMessage}
@@ -1209,6 +1199,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                     </svg>
                   )}
                 </button>
+              </div>
+              
+              {/* Model Selector */}
+              <div className="model-selector">
+                <select className="model-dropdown" disabled={isProcessing}>
+                  <option value="chatgpt-4o">GPT-4o</option>
+                  <option value="chatgpt-4">GPT-4</option>
+                  <option value="claude-3">Claude 3</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1273,6 +1272,32 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       {/* Bottom Chat Input Bar */}
       <div className="upload-chat-input-bar">
         <div className="upload-chat-input">
+          {/* Main Input Area */}
+          <div className="input-container">
+            <textarea
+              placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+              disabled={isProcessing}
+            />
+            
+            {/* Send/Analyze Button */}
+            <button 
+              className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
+              disabled={isProcessing || (!selectedFile && !chatInput.trim())}
+              onClick={selectedFile ? handleAnalyzeImage : undefined}
+            >
+              {isProcessing ? (
+                <div className="send-spinner"></div>
+              ) : selectedFile ? (
+                <span className="btn-text">Analyze</span>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 2L11 13"/>
+                  <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
+                </svg>
+              )}
+            </button>
+          </div>
+          
           {/* Model Selector */}
           <div className="model-selector">
             <select className="model-dropdown" disabled={isProcessing}>
@@ -1281,32 +1306,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               <option value="claude-3">Claude 3</option>
             </select>
           </div>
-          
-          {/* Main Input Area */}
-          <div className="input-container">
-            <textarea
-              placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-              disabled={isProcessing}
-            />
-          </div>
-          
-          {/* Send/Analyze Button */}
-          <button 
-            className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
-            disabled={isProcessing || (!selectedFile && !chatInput.trim())}
-            onClick={selectedFile ? handleAnalyzeImage : undefined}
-          >
-            {isProcessing ? (
-              <div className="send-spinner"></div>
-            ) : selectedFile ? (
-              <span className="btn-text">Analyze</span>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 2L11 13"/>
-                <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
-              </svg>
-            )}
-          </button>
         </div>
       </div>
 
