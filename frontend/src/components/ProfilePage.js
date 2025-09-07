@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Mail, Shield, Save, Edit3, Home } from 'lucide-react';
+import { User, Mail, Shield, Save, Edit3, Home, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './ProfilePage.css';
 
 const ProfilePage = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -17,6 +17,15 @@ const ProfilePage = () => {
 
   const handleHomeClick = () => {
     navigate('/');
+  };
+
+  const handleBackClick = () => {
+    navigate(-1); // Go back to previous page
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/'); // Redirect to home page after logout
   };
 
   const handleInputChange = (e) => {
@@ -60,11 +69,16 @@ const ProfilePage = () => {
 
   return (
     <div className="profile-page">
-      {/* Header with IntelliMark Logo */}
+      {/* Header with Navigation */}
       <div className="profile-header-nav">
-        <div className="profile-logo" onClick={handleHomeClick}>
-          <Home size={24} />
-          <span>IntelliMark</span>
+        <div className="profile-nav-left">
+          <button className="back-button" onClick={handleBackClick} title="Go back">
+            <ArrowLeft size={20} />
+          </button>
+          <div className="profile-logo" onClick={handleHomeClick}>
+            <Home size={24} />
+            <span>IntelliMark</span>
+          </div>
         </div>
       </div>
       
@@ -170,6 +184,16 @@ const ProfilePage = () => {
             <div className="status-item">
               <User size={16} />
               <span>User ID: {user?.uid}</span>
+            </div>
+            
+            {/* Logout Button */}
+            <div className="logout-section">
+              <button 
+                className="logout-button"
+                onClick={handleLogout}
+              >
+                Sign Out
+              </button>
             </div>
           </div>
 

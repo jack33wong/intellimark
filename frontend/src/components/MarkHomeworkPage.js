@@ -1,10 +1,18 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
+import { useAuth } from '../contexts/AuthContext';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
+  // === NAVIGATION ===
+  const navigate = useNavigate();
+  
+  // === AUTH ===
+  const { user } = useAuth();
+  
   // === CORE STATE ===
   const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
   // const [isShowingHistoricalData, setIsShowingHistoricalData] = useState(false); // Removed - not used
@@ -1169,22 +1177,29 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                   disabled={isProcessing}
                 />
-                
-                {/* Upload Button - Bottom Left */}
-                <button 
-                  className="upload-btn"
-                  onClick={() => document.getElementById('file-input').click()}
-                  disabled={isProcessing}
-                  title="Upload image"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7,10 12,15 17,10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-                
-                {/* Send Button - Bottom Right */}
+              </div>
+              
+              {/* Model Selector with Upload Button and Send Button */}
+              <div className="model-selector">
+                <div className="left-controls">
+                  <button 
+                    className="upload-btn"
+                    onClick={() => document.getElementById('file-input').click()}
+                    disabled={isProcessing}
+                    title="Upload image"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7,10 12,15 17,10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  </button>
+                  <select className="model-dropdown" disabled={isProcessing}>
+                    <option value="chatgpt-4o">GPT-4o</option>
+                    <option value="chatgpt-4">GPT-4</option>
+                    <option value="claude-3">Claude 3</option>
+                  </select>
+                </div>
                 <button 
                   className="send-btn"
                   onClick={handleSendMessage}
@@ -1200,21 +1215,41 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   )}
                 </button>
               </div>
-              
-              {/* Model Selector */}
-              <div className="model-selector">
-                <select className="model-dropdown" disabled={isProcessing}>
-                  <option value="chatgpt-4o">GPT-4o</option>
-                  <option value="chatgpt-4">GPT-4</option>
-                  <option value="claude-3">Claude 3</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>
       </div>
       ) : (
     <div className="mark-homework-page upload-mode">
+      {/* Header Buttons */}
+      <div className="upload-header-buttons">
+        <button 
+          className="header-btn upgrade-btn"
+          onClick={() => navigate('/upgrade')}
+        >
+          Upgrade
+        </button>
+        {user ? (
+          <button 
+            className="header-btn profile-btn"
+            onClick={() => navigate('/profile')}
+            title="Profile"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </button>
+        ) : (
+          <button 
+            className="header-btn signin-btn"
+            onClick={() => navigate('/login')}
+          >
+            Sign In
+          </button>
+        )}
+      </div>
+      
       {/* Main Content */}
       <div className="upload-main-content">
         <div className="upload-title-section">

@@ -197,32 +197,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
           <h2 className="brand-title">IM Intellimark</h2>
         </div>
 
-        {/* Upgrade and Sign In Buttons */}
-        <div className="sidebar-auth-buttons">
-          {user ? (
-            <button 
-              className="upgrade-btn"
-              onClick={() => navigate('/upgrade')}
-            >
-              Upgrade
-            </button>
-          ) : (
-            <>
-              <button 
-                className="upgrade-btn"
-                onClick={() => navigate('/upgrade')}
-              >
-                Upgrade
-              </button>
-              <button 
-                className="signin-btn"
-                onClick={() => navigate('/login')}
-              >
-                Sign In
-              </button>
-            </>
-          )}
-        </div>
 
         {/* Main Mark Homework Button */}
         <button 

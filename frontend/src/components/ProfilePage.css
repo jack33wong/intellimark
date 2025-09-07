@@ -12,6 +12,32 @@
   padding: 16px 0;
 }
 
+.profile-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.back-button {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--primary-text);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.back-button:hover {
+  background: var(--tertiary-bg);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  transform: translateX(-2px);
+}
+
 .profile-logo {
   display: flex;
   align-items: center;
@@ -297,6 +323,32 @@
   font-weight: 600;
   text-transform: uppercase;
   margin-left: auto;
+}
+
+/* Logout Section */
+.logout-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+.logout-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.logout-button:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
 }
 
 /* Messages */
