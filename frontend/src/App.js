@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
+import Header from './components/Header';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
 
@@ -81,32 +82,53 @@ function AppContent() {
             {/* Protected routes - with header and sidebar */}
             <Route path="/admin" element={
               <ProtectedRoute requireAdmin={true}>
-                <div className="main-content">
-                  <AdminPage />
-                </div>
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/mark-homework" element={
-              <OptionalAuthRoute>
-                <div className="main-content">
-                  <div className="app">
+                <div className="app-container">
+                  <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
                       onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
+                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-
-
-                    <MarkHomeworkPage 
-                      key={markHomeworkResetKey}
-                      selectedMarkingResult={selectedMarkingResult}
-                      onClearSelectedResult={() => setSelectedMarkingResult(null)}
-                      onMarkingResultSaved={refreshMarkHistory}
-                      onPageModeChange={handlePageModeChange}
+                    <div className="right-side">
+                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+                      <div className="main-content">
+                        <AdminPage />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/mark-homework" element={
+              <OptionalAuthRoute>
+                <div className="app-container">
+                  <div className="app-body">
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                      onMarkingResultSaved={handleMarkingResultSaved}
+                      currentPageMode={currentPageMode}
+                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
+                    <div className={`right-side ${currentPageMode === 'chat' ? 'chat-mode' : ''}`}>
+                      {currentPageMode !== 'chat' && (
+                        <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+                      )}
+                      <div className="mark-homework-main-content">
+                        <MarkHomeworkPage 
+                          key={markHomeworkResetKey}
+                          selectedMarkingResult={selectedMarkingResult}
+                          onClearSelectedResult={() => setSelectedMarkingResult(null)}
+                          onMarkingResultSaved={refreshMarkHistory}
+                          onPageModeChange={handlePageModeChange}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </OptionalAuthRoute>
@@ -117,8 +139,23 @@ function AppContent() {
             
             <Route path="/profile" element={
               <ProtectedRoute>
-                <div className="main-content">
-                  <ProfilePage />
+                <div className="app-container">
+                  <div className="app-body">
+                    <Sidebar 
+                      isOpen={isSidebarOpen} 
+                      onMarkingHistoryClick={handleMarkingHistoryClick}
+                      onMarkHomeworkClick={handleMarkHomeworkClick}
+                      onMarkingResultSaved={handleMarkingResultSaved}
+                      currentPageMode={currentPageMode}
+                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+                    />
+                    <div className="right-side">
+                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+                      <div className="main-content">
+                        <ProfilePage />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </ProtectedRoute>
             } />
@@ -126,15 +163,22 @@ function AppContent() {
             {/* Add the new MarkdownMathDemo route */}
             <Route path="/markdown-demo" element={
               <ProtectedRoute>
-                <div className="main-content">
-                  <div className="app">
+                <div className="app-container">
+                  <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
+                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
+                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-                    <MarkdownMathDemo />
+                    <div className="right-side">
+                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+                      <div className="main-content">
+                        <MarkdownMathDemo />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </ProtectedRoute>
@@ -143,17 +187,24 @@ function AppContent() {
             {/* Main page route - handles subscription success */}
             <Route path="/" element={
               <OptionalAuthRoute>
-                <div className="main-content">
-                  <div className="app">
+                <div className="app-container">
+                  <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
+                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
+                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-                    <div className="welcome-message">
-                      <h1>Welcome to IntelliMark</h1>
-                      <p>Your AI-powered homework marking assistant</p>
+                    <div className="right-side">
+                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+                      <div className="main-content">
+                        <div className="welcome-message">
+                          <h1>Welcome to IntelliMark</h1>
+                          <p>Your AI-powered homework marking assistant</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

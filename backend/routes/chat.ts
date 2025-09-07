@@ -53,7 +53,8 @@ router.post('/', optionalAuth, async (req, res) => {
       currentSessionId = await sessionManager.createSession({
         title: imageData ? 'Image-based Chat' : 'Text Chat',
         messages: [],
-        userId: currentUserId
+        userId: currentUserId,
+        messageType: 'Chat'
       });
       console.log('📝 Created new session:', currentSessionId);
     } else {
@@ -64,7 +65,8 @@ router.post('/', optionalAuth, async (req, res) => {
         currentSessionId = await sessionManager.createSession({
           title: imageData ? 'Image-based Chat' : 'Text Chat',
           messages: [],
-          userId: currentUserId
+          userId: currentUserId,
+          messageType: 'Chat'
         });
       }
     }

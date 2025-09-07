@@ -1,13 +1,61 @@
 /* App Layout Styles */
 .app-container {
-  min-height: 100vh;
+  height: 100vh;
+  width: 100vw;
   background-color: var(--primary-bg);
   color: var(--primary-text);
+  display: flex;
+  overflow: hidden;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.right-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mark-homework-right-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.mark-homework-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 0; /* This forces the flex item to respect the flex: 1 constraint */
+}
+
+/* When header is hidden in chat mode, main content takes full height */
+.right-side.chat-mode .mark-homework-main-content {
+  height: 100vh;
 }
 
 .main-content {
-  padding-top: 0; /* No header padding needed */
-  margin-left: 280px; /* Account for fixed sidebar */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  margin-left: 0; /* No margin needed with flexbox layout */
+  padding-top: 0; /* No padding needed, header will be inside content area */
+  min-width: 0; /* Allow flex item to shrink below content size */
+  overflow-y: auto; /* Allow main content to scroll */
+}
+
+/* When chat header is present, add extra padding */
+.main-content.has-chat-header {
+  padding-top: 0; /* No padding needed with new layout */
 }
 
 .app {
@@ -25,6 +73,7 @@
   align-items: center;
   padding: 2rem;
   text-align: center;
+  min-height: 0;
 }
 
 .welcome-message h1 {
@@ -41,18 +90,17 @@
 
 .sidebar {
   width: 280px;
-  background: transparent;
+  min-width: 280px;
+  max-width: 280px;
+  background: var(--secondary-bg);
   color: var(--primary-text);
   padding: 0;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   flex-shrink: 0;
   transition: transform 0.3s ease;
-  border-right: 1px solid var(--border-color);
-  height: 100vh; /* Full height since no header */
-  position: fixed;
-  top: 0; /* Start from top */
-  left: 0;
+  height: 100vh; /* Full viewport height */
+  position: relative;
   z-index: 200; /* Higher than chat-input-bar to ensure sidebar appears above it */
 }
 
@@ -63,18 +111,37 @@
 /* Responsive sidebar */
 @media (max-width: 768px) {
   .sidebar {
+    position: fixed;
+    top: 0; /* Full height from top */
+    left: 0;
+    height: 100vh; /* Full viewport height */
     transform: translateX(-100%);
-    top: 0; /* Start from top */
-    height: 100vh; /* Full height */
+    z-index: 1000;
   }
   
   .sidebar.mobile-open {
     transform: translateX(0);
   }
   
+  .right-side {
+    width: 100%; /* Take full width on mobile */
+  }
+  
+  .mark-homework-right-side {
+    width: 100%; /* Take full width on mobile */
+  }
+  
+  .mark-homework-main-content {
+    width: 100%; /* Take full width on mobile */
+  }
+  
   .main-content {
     margin-left: 0;
-    padding-top: 0; /* No header to account for */
+    padding-top: 0;
+  }
+  
+  .main-content.has-chat-header {
+    padding-top: 0;
   }
 }
 

@@ -295,14 +295,12 @@ async function createNewMarkingSession(
     if (questionDetection?.found && questionDetection?.match) {
       const examDetails = questionDetection.match.markingScheme?.examDetails || {};
       const questionNumber = questionDetection.match.questionNumber;
-      const isQuestionOnly = imageClassification?.isQuestionOnly || false;
       
-      const type = isQuestionOnly ? 'Question' : 'Marking';
       const board = examDetails.board || questionDetection.match.board || 'Unknown';
-      const paperCode = examDetails.paperCode || questionDetection.match.paperCode || 'Unknown';
+      const qualification = examDetails.qualification || questionDetection.match.qualification || 'Unknown';
       const questionNum = questionNumber || 'Unknown';
       
-      sessionTitle = `${type} - ${board} ${paperCode} Q${questionNum}`;
+      sessionTitle = `${board} ${qualification} Q${questionNum}`;
     } else {
       // Fallback to timestamp-based title
       const timestamp = new Date().toISOString();
@@ -311,10 +309,18 @@ async function createNewMarkingSession(
     
     console.log('🔍 Session title:', sessionTitle);
     
+    // Determine messageType based on question detection and classification
+    let messageType: 'Marking' | 'Question' | 'Chat' = 'Chat';
+    if (questionDetection?.found && questionDetection?.match) {
+      const isQuestionOnly = imageClassification?.isQuestionOnly || false;
+      messageType = isQuestionOnly ? 'Question' : 'Marking';
+    }
+
     const sessionId = await FirestoreService.createChatSession({
       title: sessionTitle,
       messages: [],
-      userId
+      userId,
+      messageType
     });
     
     console.log('🔍 Created new marking session:', sessionId);

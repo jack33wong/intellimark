@@ -1,28 +1,64 @@
 /* Sidebar Styles - Clean and minimal design */
 
 .sidebar-content {
-  padding: 24px 0;
+  padding: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 0;
   overflow: hidden;
 }
 
-/* IM Intellimark Branding */
-.sidebar-branding {
-  text-align: center;
-  margin-bottom: 0;
-  padding: 0 20px;
+/* Sidebar Header - Menu Toggle and Logo */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  flex-shrink: 0;
 }
 
-.brand-title {
-  font-size: 24px;
+.sidebar-menu-toggle {
+  display: flex;
+  background: none;
+  border: none;
+  color: var(--primary-text);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  height: 44px;
+  width: 44px;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-menu-toggle:hover {
+  background-color: var(--tertiary-bg);
+  transform: scale(1.05);
+}
+
+.sidebar-logo {
+  cursor: pointer;
+  flex: 1;
+}
+
+.sidebar-logo-text {
+  font-size: 20px;
   font-weight: 700;
   color: var(--primary-text);
   margin: 0;
-  letter-spacing: -0.3px;
+  line-height: 1.2;
 }
+
+.sidebar-logo-subtitle {
+  font-size: 10px;
+  color: var(--muted-text);
+  margin: 0;
+  line-height: 1;
+  font-weight: 400;
+}
+
 
 /* Auth Buttons */
 .sidebar-auth-buttons {
@@ -73,8 +109,8 @@
 
 /* Main Mark Homework Button */
 .mark-homework-main-btn {
-  background: var(--accent-color);
-  color: white;
+  background: var(--primary-bg);
+  color: var(--primary-text);
   border: none;
   padding: 18px 24px;
   border-radius: 10px;
@@ -87,14 +123,23 @@
   justify-content: center;
   gap: 8px;
   margin-bottom: 0;
-  box-shadow: 0 2px 8px rgba(127, 0, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin: 0 20px;
 }
 
+.mark-homework-main-btn svg {
+  color: white;
+  background: var(--accent-color);
+  border-radius: 50%;
+  padding: 8px;
+  width: 36px;
+  height: 36px;
+}
+
 .mark-homework-main-btn:hover {
-  background: #6b00cc;
+  background: var(--tertiary-bg);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(127, 0, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* Sidebar Section */
@@ -135,7 +180,7 @@
 }
 
 .mark-history-item {
-  padding: 24px 24px;
+  padding: 16px 12px;
   border-radius: 0;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -143,8 +188,7 @@
   background: transparent !important;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -154,24 +198,79 @@
 }
 
 
+/* Message Type Icon */
+.mark-history-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--quaternary-bg);
+  border-radius: 50%;
+  color: var(--secondary-text);
+  opacity: 0.9;
+}
+
+.mark-history-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Content Area */
 .mark-history-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.mark-history-text {
-  font-size: 13px;
+/* Chat Item Title */
+.mark-history-item-title {
+  font-size: 12px !important;
   color: var(--primary-text);
-  font-weight: 400;
-  margin-bottom: 2px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.3;
+  text-align: left !important;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-.mark-history-date {
+/* Last Message */
+.mark-history-last-message {
   font-size: 11px;
   color: var(--secondary-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  opacity: 0.8;
+}
+
+/* Actions Column (Time + Delete Button) */
+.mark-history-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 35px;
+  align-self: flex-start;
+  padding-top: 2px;
+}
+
+/* Update Time */
+.mark-history-time {
+  font-size: 12px;
+  color: var(--secondary-text);
+  text-align: center;
+  opacity: 0.5;
 }
 
 .mark-history-delete-btn {
@@ -182,8 +281,13 @@
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s ease;
-  opacity: 0;
+  opacity: 0.3;
   font-size: 12px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mark-history-item:hover .mark-history-delete-btn {
@@ -246,7 +350,7 @@
 .admin-section {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid #1a1a1a;
 }
 
 .admin-link {
@@ -266,12 +370,6 @@
   color: var(--primary-text);
 }
 
-/* Separator */
-.separator {
-  height: 1px;
-  background: var(--border-color);
-  margin: 16px 0;
-}
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -279,9 +377,6 @@
     padding: 20px 16px;
   }
   
-  .brand-title {
-    font-size: 18px;
-  }
   
   .mark-homework-main-btn {
     padding: 10px 14px;

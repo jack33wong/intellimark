@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload } from 'lucide-react';
+import { Upload, Bot, ChevronDown } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
@@ -28,9 +28,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState(null);
+  const [, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
-  const [apiResponse, setApiResponse] = useState(null);
+  const [, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [lastUploadedImageData, setLastUploadedImageData] = useState(null);
@@ -39,10 +39,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [lastScrollTop, setLastScrollTop] = useState(0);
+  const [, setLastScrollTop] = useState(0);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -50,23 +51,26 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       if (showInfoDropdown && !event.target.closest('.info-dropdown') && !event.target.closest('.info-btn')) {
         setShowInfoDropdown(false);
       }
+      if (isModelDropdownOpen && !event.target.closest('.ai-model-dropdown') && !event.target.closest('.ai-model-button')) {
+        setIsModelDropdownOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showInfoDropdown]);
+  }, [showInfoDropdown, isModelDropdownOpen]);
   
   // === REFS ===
   // const fileInputRef = useRef(null); // Removed - not used
   const chatMessagesRef = useRef(null);
 
-  const models = [
-    { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
-    { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
-  ];
+  // const models = [
+  //   { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
+  //   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
+  //   { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
+  // ];
 
   // === MODE MANAGEMENT ===
   
@@ -286,25 +290,25 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, []);
 
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    e.currentTarget.classList.add('dragover');
-  }, []);
+  // const handleDragOver = useCallback((e) => {
+  //   e.preventDefault();
+  //   e.currentTarget.classList.add('dragover');
+  // }, []);
 
-  const handleDragLeave = useCallback((e) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-  }, []);
+  // const handleDragLeave = useCallback((e) => {
+  //   e.preventDefault();
+  //   e.currentTarget.classList.remove('dragover');
+  // }, []);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
+  // const handleDrop = useCallback((e) => {
+  //   e.preventDefault();
+  //   e.currentTarget.classList.remove('dragover');
+  //   
+  //   const files = e.dataTransfer.files;
+  //   if (files.length > 0) {
+  //     handleFileSelect(files[0]);
+  //   }
+  // }, [handleFileSelect]);
 
   const handleFileInput = useCallback((e) => {
     const file = e.target.files[0];
@@ -312,6 +316,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       handleFileSelect(file);
     }
   }, [handleFileSelect]);
+
+  const handleModelToggle = () => {
+    setIsModelDropdownOpen(!isModelDropdownOpen);
+  };
+
+  const handleModelSelect = (model) => {
+    setSelectedModel(model);
+    setIsModelDropdownOpen(false);
+  };
 
   // Send initial chat message when switching to chat mode
   const sendInitialChatMessage = useCallback(async (imageData, model, mode, sessionId = null) => {
@@ -522,159 +535,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]);
 
-  const handleUpload = useCallback(async () => {
-    if (!selectedFile) {
-      setError('Please select a file first');
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-    setApiResponse(null);
-    setClassificationResult(null);
-
-    try {
-      // Convert image to base64
-      const imageData = await fileToBase64(selectedFile);
-      setLastUploadedImageData(imageData);
-
-      // Prepare request payload
-      const payload = {
-        imageData: imageData,
-        model: selectedModel
-      };
-
-      const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
-
-      // Get authentication token
-      const authToken = localStorage.getItem('authToken');
-      
-      // Prepare headers
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Add authorization header if token is available
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      // Make API call
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error:', errorText);
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-
-      // Check if this is a question-only image
-      if (result.isQuestionOnly) {
-        // Store the classification result
-        setClassificationResult({
-          isQuestionOnly: true,
-          reasoning: result.reasoning,
-          apiUsed: result.apiUsed,
-          questionDetection: result.questionDetection
-        });
-        
-        // Switch to chat mode immediately
-        setPageMode('chat');
-        
-        // Refresh mark history in sidebar
-        if (onMarkingResultSaved) {
-          onMarkingResultSaved();
-        }
-        
-        // Set the session ID from the response
-        setCurrentSessionId(result.sessionId);
-        
-        // Add initial user message with the image
-        const initialUserMessage = {
-          id: Date.now(),
-          role: 'user',
-          content: 'I have a question about this image. Can you help me understand it?',
-          timestamp: new Date().toLocaleTimeString(),
-          imageData: imageData,
-          isImageContext: true
-        };
-        
-        // Append to existing chat history instead of replacing
-        setChatMessages(prevMessages => [...prevMessages, initialUserMessage]);
-        
-        // Automatically send the first chat message to get AI response
-        setTimeout(() => {
-          sendInitialChatMessage(imageData, selectedModel, null, result.sessionId);
-        }, 500);
-        
-        return; // Exit early for question-only mode
-      }
-
-      // For regular homework images, go directly to chat mode
-      setPageMode('chat');
-      
-      // Refresh mark history in sidebar
-      if (onMarkingResultSaved) {
-        onMarkingResultSaved();
-      }
-      
-      // Since the backend already saves the data to Firestore, we can simulate the chat messages
-      // by creating them from the response data and appending to existing chat history
-      const newMessages = [
-        {
-          id: `msg-${Date.now()}`,
-          role: 'user',
-          content: 'Uploaded homework image for marking',
-          timestamp: new Date().toLocaleString(),
-          type: 'marking_original',
-          imageData: imageData,
-          detectedQuestion: result.questionDetection?.found ? {
-            examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
-            questionNumber: result.questionDetection.match?.questionNumber || 'Unknown',
-            questionText: result.questionDetection.match?.questionText || result.classification?.extractedQuestionText || '',
-            confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
-          } : undefined
-        },
-        {
-          id: `msg-${Date.now() + 1}`,
-          role: 'assistant',
-          content: 'Marking completed with annotations',
-          timestamp: new Date().toLocaleString(),
-          type: 'marking_annotated',
-          imageData: result.annotatedImage,
-          detectedQuestion: result.questionDetection?.found ? {
-            examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
-            questionNumber: result.questionDetection.match?.questionNumber || 'Unknown',
-            questionText: result.questionDetection.match?.questionText || result.classification?.extractedQuestionText || '',
-            confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
-          } : undefined
-        }
-      ];
-      
-      // Append new messages to existing chat history instead of replacing
-      setChatMessages(prevMessages => [...prevMessages, ...newMessages]);
-      setCurrentSessionId(result.sessionId);
-      
-      // Auto-scroll to bottom
-      setTimeout(() => {
-        if (chatMessagesRef.current) {
-          chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-        }
-      }, 100);
-      
-    } catch (err) {
-      console.error('❌ Upload error:', err);
-      setError(`Failed to process the image: ${err.message}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -1105,7 +965,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                              <h4>📷 Question Image</h4>
                              <img 
                                src={message.imageLink || message.imageData}
-                               alt="Question image"
+                               alt="Question"
                                className="annotated-image"
                              />
                            </div>
@@ -1221,34 +1081,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       </div>
       ) : (
     <div className="mark-homework-page upload-mode">
-      {/* Header Buttons */}
-      <div className="upload-header-buttons">
-        <button 
-          className="header-btn upgrade-btn"
-          onClick={() => navigate('/upgrade')}
-        >
-          Upgrade
-        </button>
-        {user ? (
-          <button 
-            className="header-btn profile-btn"
-            onClick={() => navigate('/profile')}
-            title="Profile"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </button>
-        ) : (
-          <button 
-            className="header-btn signin-btn"
-            onClick={() => navigate('/login')}
-          >
-            Sign In
-          </button>
-        )}
-      </div>
       
       {/* Main Content */}
       <div className="upload-main-content">
@@ -1318,11 +1150,40 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           {/* Model Selector with Send Button */}
           <div className="model-selector">
             <div className="left-controls">
-              <select className="model-dropdown" disabled={isProcessing}>
-                <option value="chatgpt-4o">ChatGPT-4o</option>
-                <option value="chatgpt-4">GPT-4</option>
-                <option value="claude-3">Claude 3</option>
-              </select>
+              <div className="ai-model-dropdown">
+                <button 
+                  className="ai-model-button" 
+                  onClick={handleModelToggle}
+                  disabled={isProcessing}
+                >
+                  <Bot size={16} />
+                  <span>ai model</span>
+                  <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+                </button>
+                
+                {isModelDropdownOpen && (
+                  <div className="ai-model-dropdown-menu">
+                    <button 
+                      className={`ai-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('chatgpt-4o')}
+                    >
+                      GPT-4o
+                    </button>
+                    <button 
+                      className={`ai-model-option ${selectedModel === 'chatgpt-4' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('chatgpt-4')}
+                    >
+                      GPT-4
+                    </button>
+                    <button 
+                      className={`ai-model-option ${selectedModel === 'claude-3' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('claude-3')}
+                    >
+                      Claude 3
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <button 
               className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}

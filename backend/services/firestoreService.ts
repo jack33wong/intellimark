@@ -364,6 +364,7 @@ export class FirestoreService {
     title: string;
     messages: any[];
     userId?: string;
+    messageType?: 'Marking' | 'Question' | 'Chat';
   }): Promise<string> {
     try {
       console.log('🔍 Creating chat session in Firestore...');
@@ -403,7 +404,8 @@ export class FirestoreService {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         contextSummary: (sessionData as any).contextSummary || null,
-        lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null
+        lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null,
+        messageType: sessionData.messageType || 'Chat'
       };
 
       // Debug: Log the final payload before Firestore write

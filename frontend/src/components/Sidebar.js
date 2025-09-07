@@ -5,7 +5,9 @@ import {
   BookOpen,
   Code,
   Clock,
-  Trash2
+  Trash2,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
@@ -15,7 +17,7 @@ import './Sidebar.css';
  * Sidebar component displaying navigation
  * @returns {JSX.Element} The sidebar component
  */
-function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, currentPageMode = 'upload' }) {
+function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, currentPageMode = 'upload', onMenuToggle }) {
   const navigate = useNavigate();
   // const location = useLocation(); // Removed - not used
   const { user, getAuthToken } = useAuth();
@@ -164,6 +166,46 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     return 'Chat Session';
   };
 
+  // Helper function to get message type icon
+  const getMessageTypeIcon = (messageType) => {
+    switch (messageType) {
+      case 'Marking':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        );
+      case 'Question':
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <path d="M12 17h.01"/>
+          </svg>
+        );
+      case 'Chat':
+      default:
+        return (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        );
+    }
+  };
+
+  // Helper function to get last message content
+  const getLastMessage = (session) => {
+    if (session.messages && session.messages.length > 0) {
+      const lastMsg = session.messages[session.messages.length - 1];
+      if (lastMsg.content) {
+        // Show more content - allow up to 150 characters
+        return lastMsg.content.length > 150 ? lastMsg.content.substring(0, 150) + '...' : lastMsg.content;
+      }
+    }
+    return 'No messages yet';
+  };
+
   // Helper function to format session date
   const formatSessionDate = (session) => {
     const date = session.updatedAt || session.createdAt || session.timestamp;
@@ -192,11 +234,21 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   return (
     <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-content">
-        {/* IM Intellimark Branding */}
-        <div className="sidebar-branding">
-          <h2 className="brand-title">IM Intellimark</h2>
+        {/* Sidebar Header - Menu Toggle and Logo */}
+        <div className="sidebar-header">
+          <button 
+            className="sidebar-menu-toggle"
+            onClick={onMenuToggle}
+            aria-label="Toggle menu"
+          >
+            {isOpen ? <Menu size={24} /> : <X size={24} />}
+          </button>
+          
+          <div className="sidebar-logo" onClick={() => navigate('/')}>
+            <h1 className="sidebar-logo-text">Intellimark</h1>
+            <p className="sidebar-logo-subtitle">powered by AI</p>
+          </div>
         </div>
-
 
         {/* Main Mark Homework Button */}
         <button 
@@ -254,28 +306,44 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                   className="mark-history-item"
                   onClick={() => handleSessionClick(session)}
                 >
+                  {/* Message Type Icon */}
+                  <div className="mark-history-icon">
+                    {getMessageTypeIcon(session.messageType)}
+                  </div>
+                  
+                  {/* Content: Title (top) and Last Message (bottom) */}
                   <div className="mark-history-content">
-                    <div className="mark-history-text">
+                    <div className="mark-history-item-title">
                       {getSessionTitle(session)}
                     </div>
-                    <div className="mark-history-date">
-                      {formatSessionDate(session)}
+                    <div className="mark-history-last-message">
+                      {getLastMessage(session)}
                     </div>
                   </div>
-                  {user && (
-                    <button
-                      className="mark-history-delete-btn"
-                      onClick={(e) => handleDeleteSession(session.id, e)}
-                      disabled={deletingSessionId === session.id}
-                      title="Delete session"
-                    >
-                      {deletingSessionId === session.id ? (
-                        <Clock size={14} />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
-                    </button>
-                  )}
+                  
+                  {/* Time and Delete Button Column */}
+                  <div className="mark-history-actions">
+                    {/* Update Time */}
+                    <div className="mark-history-time">
+                      {formatSessionDate(session)}
+                    </div>
+                    
+                    {/* Delete Button */}
+                    {user && (
+                      <button
+                        className="mark-history-delete-btn"
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        disabled={deletingSessionId === session.id}
+                        title="Delete session"
+                      >
+                        {deletingSessionId === session.id ? (
+                          <Clock size={16} />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -299,8 +367,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
           </div>
         </div>
       </div>
-
-      <div className="separator" />
 
       {user && (
         <div className="admin-section">

@@ -43,21 +43,12 @@ const initializeFirebase = (): boolean => {
         join(__dirname, 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json')
       ];
       
-      console.log('🔍 Current working directory:', process.cwd());
-      console.log('🔍 __dirname:', __dirname);
-      console.log('🔍 Possible service account paths:');
-      possiblePaths.forEach((path, index) => {
-        console.log(`   ${index + 1}. ${path} - ${existsSync(path) ? '✅ EXISTS' : '❌ NOT FOUND'}`);
-      });
-      
       // Find the first path that exists
       const serviceAccountPath = possiblePaths.find(path => existsSync(path));
       
       if (!serviceAccountPath) {
         throw new Error(`Service account file not found in any of these locations:\n${possiblePaths.join('\n')}`);
       }
-      
-      console.log('✅ Using service account at:', serviceAccountPath);
       
       try {
         console.log('✅ Service account file found, initializing Firebase...');

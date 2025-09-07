@@ -172,6 +172,7 @@ export interface ChatSession {
   userId?: string;
   contextSummary?: string;
   lastSummaryUpdate?: Date;
+  messageType?: 'Marking' | 'Question' | 'Chat';
 }
 
 // Subscription types
@@ -210,6 +211,7 @@ export interface CreateChatSessionData {
   title: string;
   messages: ChatMessage[];
   userId?: string;
+  messageType?: 'Marking' | 'Question' | 'Chat';
 }
 
 export interface ChatHistory {

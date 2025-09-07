@@ -19,7 +19,8 @@
     "cleanup-old-marking-results": "tsx scripts/cleanup-old-marking-results.ts",
     "test-image-config": "tsx scripts/test-image-config.ts",
     "check-storage-buckets": "tsx scripts/check-storage-buckets.ts",
-    "test-image-upload": "tsx scripts/test-image-upload.ts"
+    "test-image-upload": "tsx scripts/test-image-upload.ts",
+    "test-google-vision": "tsx scripts/test-google-vision.ts"
   },
   "jest": {
     "testMatch": [
@@ -34,6 +35,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.3",
+    "@google-cloud/vision": "^4.0.2",
     "@grpc/proto-loader": "^0.8.0",
     "@types/express": "^5.0.3",
     "@types/stripe": "^8.0.416",

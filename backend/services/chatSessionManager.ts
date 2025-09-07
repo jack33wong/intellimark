@@ -163,7 +163,8 @@ export class ChatSessionManager {
           title: sessionData.title,
           messages: sessionData.messages,
           timestamp: new Date(),
-          userId: sessionData.userId || 'anonymous'
+          userId: sessionData.userId || 'anonymous',
+          messageType: sessionData.messageType || 'Chat'
         };
 
         // Cache the new session
@@ -179,7 +180,8 @@ export class ChatSessionManager {
         title: sessionData.title,
         messages: sessionData.messages,
         timestamp: new Date(),
-        userId: sessionData.userId || 'anonymous'
+        userId: sessionData.userId || 'anonymous',
+        messageType: sessionData.messageType || 'Chat'
       };
 
       // Cache the new session
@@ -464,6 +466,13 @@ export class ChatSessionManager {
       const messageCount = cached.pendingMessages.length;
       for (const message of cached.pendingMessages) {
         await FirestoreService.addMessageToSession(sessionId, message);
+      }
+
+      // Update session metadata (messageType if needed)
+      if (cached.session.messageType) {
+        await FirestoreService.updateChatSession(sessionId, {
+          messageType: cached.session.messageType
+        });
       }
 
       // Clear pending messages and mark as clean

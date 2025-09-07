@@ -5,10 +5,10 @@
 }
 
 :root {
-  --primary-bg: #000000;
-  --secondary-bg: #0f0f0f;
+  --primary-bg: #272728;
+  --secondary-bg: #212122;
   --tertiary-bg: #1a1a1a;
-  --quaternary-bg: #262626;
+  --quaternary-bg: #2a2a2a;
   --primary-text: #f9fafb;
   --secondary-text: #d1d5db;
   --muted-text: #9ca3af;
@@ -18,12 +18,20 @@
   --warning-color: #fbbf24;
   --error-color: #f87171;
   --success-color: #34d399;
-  --border-color: #374151;
-  --border-light: #4b5563;
+  --border-color: #e2e8f0;
+  --border-light: #cbd5e1;
   --focus-ring: rgba(127, 0, 255, 0.3);
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -35,6 +43,11 @@ body {
   background-color: var(--primary-bg);
   color: var(--primary-text);
   line-height: 1.6;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
 }
 
 code {
@@ -58,7 +71,6 @@ code {
   color: var(--primary-text);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-color);
   transition: all 0.3s ease;
   box-shadow: var(--shadow-lg);
   gap: 32px;
@@ -317,7 +329,6 @@ code {
 
 .chat-header {
   padding: 28px 32px;
-  border-bottom: 1px solid var(--border-color);
   background: var(--secondary-bg);
   box-shadow: var(--shadow-sm);
 }
