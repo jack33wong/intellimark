@@ -100,7 +100,8 @@ function startServer(port: number) {
 }
 
 // Start the server only if not being imported as a module
-if (import.meta.url === `file://${process.argv[1]}`) {
+// More reliable check for direct execution
+if (import.meta.url.endsWith(process.argv[1]) || process.argv[1]?.endsWith('server.ts')) {
   startServer(DEFAULT_PORT);
 }
 
