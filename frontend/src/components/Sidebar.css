@@ -140,7 +140,6 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  border-bottom: 1px solid var(--border-color);
   background: transparent !important;
   display: flex;
   align-items: center;
@@ -154,9 +153,6 @@
   color: var(--accent-color);
 }
 
-.mark-history-item:last-child {
-  border-bottom: none;
-}
 
 .mark-history-content {
   flex: 1;

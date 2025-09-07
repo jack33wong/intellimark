@@ -1313,8 +1313,17 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
               disabled={isProcessing}
             />
-            
-            {/* Send/Analyze Button */}
+          </div>
+          
+          {/* Model Selector with Send Button */}
+          <div className="model-selector">
+            <div className="left-controls">
+              <select className="model-dropdown" disabled={isProcessing}>
+                <option value="chatgpt-4o">ChatGPT-4o</option>
+                <option value="chatgpt-4">GPT-4</option>
+                <option value="claude-3">Claude 3</option>
+              </select>
+            </div>
             <button 
               className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
               disabled={isProcessing || (!selectedFile && !chatInput.trim())}
@@ -1331,15 +1340,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 </svg>
               )}
             </button>
-          </div>
-          
-          {/* Model Selector */}
-          <div className="model-selector">
-            <select className="model-dropdown" disabled={isProcessing}>
-              <option value="chatgpt-4o">ChatGPT-4o</option>
-              <option value="chatgpt-4">GPT-4</option>
-              <option value="claude-3">Claude 3</option>
-            </select>
           </div>
         </div>
       </div>
