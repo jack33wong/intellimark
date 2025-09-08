@@ -35,11 +35,12 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.3",
-    "@google-cloud/vision": "^4.0.2",
+    "@google-cloud/vision": "^4.3.3",
     "@grpc/proto-loader": "^0.8.0",
     "@types/express": "^5.0.3",
     "@types/stripe": "^8.0.416",
     "@types/uuid": "^10.0.0",
+    "axios": "^1.11.0",
     "canvas": "^3.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

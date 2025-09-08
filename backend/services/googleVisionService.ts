@@ -12,22 +12,26 @@ export class GoogleVisionService {
   private static staticClient: ImageAnnotatorClient | null = null;
 
   constructor() {
-    this.client = new ImageAnnotatorClient();
+    const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+    this.client = new ImageAnnotatorClient({
+      keyFilename: serviceAccountPath
+    });
   }
 
   private static ensureClient() {
     if (!this.staticClient) {
-      // Rely on Application Default Credentials (env var GOOGLE_APPLICATION_CREDENTIALS or gcloud)
+      // Use the Firebase service account file directly for Google Vision
+      const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+      
       try {
-        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-          console.log('🔐 Using GOOGLE_APPLICATION_CREDENTIALS at:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
-        } else {
-          console.log('🔐 Using Application Default Credentials (no explicit GOOGLE_APPLICATION_CREDENTIALS set)');
-        }
-      } catch (_e) {
-        // ignore
+        console.log('🔐 Using Firebase service account for Google Vision:', serviceAccountPath);
+        this.staticClient = new ImageAnnotatorClient({
+          keyFilename: serviceAccountPath
+        });
+      } catch (error) {
+        console.error('❌ Failed to initialize Google Vision client with service account:', error);
+        throw error;
       }
-      this.staticClient = new ImageAnnotatorClient();
     }
     return this.staticClient;
   }
