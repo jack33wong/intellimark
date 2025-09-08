@@ -1999,6 +1999,27 @@
   animation: dropdownSlideIn 0.2s ease-out;
 }
 
+/* In upload chat input, open the model dropdown upwards */
+.upload-chat-input .ai-model-dropdown-menu {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 8px;
+  /* Use upward slide animation when opening above */
+  animation: dropdownSlideInUp 0.2s ease-out;
+}
+
+@keyframes dropdownSlideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .ai-model-option {
   width: 100%;
   padding: 16px 16px !important; /* side padding matches bottom spacing */
