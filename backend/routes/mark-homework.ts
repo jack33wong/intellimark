@@ -9,6 +9,7 @@ import { questionDetectionService } from '../services/questionDetectionService';
 import { ImageAnnotationService } from '../services/imageAnnotationService';
 import { optionalAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
+import { ChatSessionManager } from '../services/chatSessionManager';
 
 // Get Firestore instance
 const db = admin.firestore();
@@ -337,6 +338,22 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const resultId = await saveMarkingResults(imageData, model, processedImage, markingInstructions, imageClassification, userId, userEmail);
 
+    // Step 5.5: Create chat session for question+answer images
+    let sessionId: string | undefined;
+    try {
+      const sessionManager = ChatSessionManager.getInstance();
+      sessionId = await sessionManager.createSession({
+        title: `Marking - ${new Date().toLocaleDateString()}`,
+        messages: [],
+        userId: userId,
+        messageType: 'Marking'
+      });
+      console.log('✅ Created chat session for marking:', sessionId);
+    } catch (error) {
+      console.error('❌ Failed to create chat session for marking:', error);
+      // Continue without sessionId - frontend will handle gracefully
+    }
+
     // Step 6: Respond
     const response: MarkHomeworkResponse = {
       success: true,
@@ -348,7 +365,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       apiUsed: 'Complete AI Marking System with Burned Overlays',
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification,
-      questionDetection
+      questionDetection,
+      sessionId: sessionId
     };
 
     const enhancedResponse = {
