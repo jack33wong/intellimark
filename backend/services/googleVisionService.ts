@@ -1,6 +1,8 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import type { protos } from '@google-cloud/vision';
 import type { ProcessedVisionResult, BoundingBox, ImageDimensions } from '../types/index';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Service for Google Cloud Vision API operations
@@ -15,6 +17,16 @@ export class GoogleVisionService {
 
   private static ensureClient() {
     if (!this.staticClient) {
+      // Rely on Application Default Credentials (env var GOOGLE_APPLICATION_CREDENTIALS or gcloud)
+      try {
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+          console.log('🔐 Using GOOGLE_APPLICATION_CREDENTIALS at:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
+        } else {
+          console.log('🔐 Using Application Default Credentials (no explicit GOOGLE_APPLICATION_CREDENTIALS set)');
+        }
+      } catch (_e) {
+        // ignore
+      }
       this.staticClient = new ImageAnnotatorClient();
     }
     return this.staticClient;
