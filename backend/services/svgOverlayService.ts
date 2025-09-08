@@ -167,7 +167,7 @@ export class SVGOverlayService {
     const rotationVariation = 15; // ±15 degrees rotation
     
     const randomX = centerX + (Math.random() - 0.5) * positionVariation;
-    const randomY = centerY + fontSize/3 + (Math.random() - 0.5) * positionVariation;
+    const randomY = centerY + baseFontSize/3 + (Math.random() - 0.5) * positionVariation;
     const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
     const randomRotation = (Math.random() - 0.5) * rotationVariation;
     
