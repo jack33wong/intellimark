@@ -34,6 +34,11 @@ html, body {
   overflow: hidden;
 }
 
+/* Allow full width for login page */
+body.login-page {
+  overflow: auto;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -116,8 +121,7 @@ code {
 
 .sidebar-section {
   margin-bottom: 32px;
-  gap: 20px;
-}
+ }
 
 .sidebar-section h3 {
   font-size: 12px;
@@ -125,7 +129,6 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted-text);
-  margin-bottom: 20px;
 }
 
 .mark-history-placeholder {

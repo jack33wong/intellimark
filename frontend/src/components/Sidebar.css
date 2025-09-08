@@ -13,7 +13,7 @@
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+
   padding: 20px;
   flex-shrink: 0;
 }
@@ -112,28 +112,32 @@
   background: var(--primary-bg);
   color: var(--primary-text);
   border: none;
-  padding: 18px 24px;
+  padding: 10px 15px;
   border-radius: 10px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
   margin-bottom: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin: 0 20px;
+  margin: 0 10px;
 }
 
 .mark-homework-main-btn svg {
   color: white;
   background: var(--accent-color);
   border-radius: 50%;
-  padding: 8px;
-  width: 36px;
-  height: 36px;
+  padding: 5px;
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .mark-homework-main-btn:hover {
@@ -152,18 +156,40 @@
   overflow: hidden;
 }
 
-.mark-history-title {
-  font-size: 21px !important;
-  font-weight: 900 !important;
-  color: white !important;
-  margin: 0 0 0 0;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  padding-left: 24px;
+/* Tab Menu */
+.mark-history-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 16px 20px 12px 20px;
   position: sticky;
   top: 0;
-  background: transparent;
+  background: var(--secondary-bg);
   z-index: 10;
+  justify-content: flex-start;
+}
+
+.mark-history-tab {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 20px;
+  border: none;
+  background: var(--tertiary-bg);
+  color: var(--secondary-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.mark-history-tab:hover {
+  background: var(--quaternary-bg);
+  color: var(--primary-text);
+}
+
+.mark-history-tab.active {
+  background: var(--accent-color);
+  color: white;
 }
 
 .mark-history-scrollable {
@@ -180,7 +206,7 @@
 }
 
 .mark-history-item {
-  padding: 16px 12px;
+  padding: 6px 20px;
   border-radius: 0;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -188,7 +214,7 @@
   background: transparent !important;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
@@ -379,8 +405,10 @@
   
   
   .mark-homework-main-btn {
-    padding: 10px 14px;
+    padding: 10px 12px;
     font-size: 13px;
+    margin: 0 6px;
+    gap: 8px;
   }
 }
 

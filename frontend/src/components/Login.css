@@ -2,6 +2,7 @@
 
 .auth-container {
   min-height: 100vh;
+  width: 100vw;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,6 +10,14 @@
   padding: 20px;
   position: relative;
   overflow: hidden;
+}
+
+/* Ensure full width on login page */
+body.login-page .auth-container {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 20px;
 }
 
 .auth-container::before {

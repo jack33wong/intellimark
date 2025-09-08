@@ -26,6 +26,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const [sessionsError, setSessionsError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [deletingSessionId, setDeletingSessionId] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
   
   // Debug props and route
 
@@ -166,6 +167,18 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     return 'Chat Session';
   };
 
+  // Helper function to filter sessions based on active tab
+  const getFilteredSessions = () => {
+    if (activeTab === 'all') {
+      return chatSessions;
+    } else if (activeTab === 'mark') {
+      return chatSessions.filter(session => session.messageType === 'Marking');
+    } else if (activeTab === 'question') {
+      return chatSessions.filter(session => session.messageType === 'Question');
+    }
+    return chatSessions;
+  };
+
   // Helper function to get message type icon
   const getMessageTypeIcon = (messageType) => {
     switch (messageType) {
@@ -275,7 +288,26 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
         </button>
 
         <div className="sidebar-section">
-          <h3 className="mark-history-title">MARK HISTORY</h3>
+          <div className="mark-history-tabs">
+            <button 
+              className={`mark-history-tab ${activeTab === 'all' ? 'active' : ''}`}
+              onClick={() => setActiveTab('all')}
+            >
+              All
+            </button>
+            <button 
+              className={`mark-history-tab ${activeTab === 'mark' ? 'active' : ''}`}
+              onClick={() => setActiveTab('mark')}
+            >
+              Mark
+            </button>
+            <button 
+              className={`mark-history-tab ${activeTab === 'question' ? 'active' : ''}`}
+              onClick={() => setActiveTab('question')}
+            >
+              Question
+            </button>
+          </div>
           <div className="mark-history-scrollable">
             {isLoadingSessions ? (
             <div className="mark-history-loading">
@@ -291,16 +323,16 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                 <span>Error loading sessions</span>
               </div>
             </div>
-          ) : chatSessions.length === 0 ? (
+          ) : getFilteredSessions().length === 0 ? (
             <div className="mark-history-placeholder">
               <div className="placeholder-item">
                 <BookOpen size={16} />
-                <span>No sessions yet</span>
+                <span>No {activeTab === 'all' ? '' : activeTab} sessions yet</span>
               </div>
             </div>
           ) : (
             <div className="mark-history-list">
-              {chatSessions.map((session) => (
+              {getFilteredSessions().map((session) => (
                 <div
                   key={session.id}
                   className="mark-history-item"

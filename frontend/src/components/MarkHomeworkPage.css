@@ -983,7 +983,7 @@
 .chat-messages {
   flex: 1;
   padding: 16px;
-  padding-top: 16px;
+  padding-top: 56px;
   padding-bottom: 120px; /* Space for fixed input bar */
   background: transparent;
   border-radius: 0;

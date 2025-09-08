@@ -19,8 +19,11 @@ const Login = () => {
   
   const { user, socialLogin, getProviders, error: authError } = useAuth();
 
-  // Debug Firebase imports
+  // Debug Firebase imports and set body class for full width
   useEffect(() => {
+    // Add login-page class to body for full width
+    document.body.classList.add('login-page');
+    
     console.log('🔍 Login Component Debug:', {
       auth: !!auth,
       googleProvider: !!googleProvider,
@@ -37,6 +40,11 @@ const Login = () => {
       console.log('✅ Firebase properly configured');
       setFirebaseError(null);
     }
+    
+    // Cleanup function to remove the class when component unmounts
+    return () => {
+      document.body.classList.remove('login-page');
+    };
   }, []);
 
   // Redirect if user is already authenticated
