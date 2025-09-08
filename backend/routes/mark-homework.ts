@@ -5,7 +5,6 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { MathpixService } from '../services/mathpixService';
 import { questionDetectionService } from '../services/questionDetectionService';
 import { ImageAnnotationService } from '../services/imageAnnotationService';
 import { optionalAuth } from '../middleware/auth';
@@ -20,7 +19,6 @@ import type {
   ImageClassification,
   ProcessedImageResult,
   MarkingInstructions,
-  ProcessedMathpixResult,
   ModelType,
   QuestionDetectionResult
 } from '../types/index';
@@ -68,61 +66,129 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
 }
 
 /**
- * Real OCR processing using Mathpix service
+ * Real OCR processing using Google Cloud Vision service
  */
 async function processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
   try {
-    console.log('🔍 ===== REAL OCR PROCESSING WITH MATHPIX =====');
+    console.log('🔍 ===== ENHANCED OCR PROCESSING WITH HYBRID OCR + PIPE DETECTION =====');
     
-    // Check if Mathpix service is available
-    if (!MathpixService.isAvailable()) {
-      throw new Error('Mathpix service not available. Please configure MATHPIX_API_KEY environment variable.');
-    }
+    // Import the hybrid OCR service
+    const { HybridOCRService } = await import('../services/hybridOCRService');
     
-    // Process image with Mathpix OCR
-    const mathpixResult: ProcessedMathpixResult = await MathpixService.processImage(imageData);
+    // Process image with hybrid OCR (Google Vision + Mathpix + enhanced pipe detection)
+    const hybridResult = await HybridOCRService.processImage(imageData, {
+      enablePreprocessing: true,
+      mathThreshold: 0.10 // Use the enhanced pipe detection threshold
+    });
     
-    console.log('✅ Mathpix OCR completed successfully');
-    console.log(`🔍 Extracted text length: ${mathpixResult.text.length} characters`);
-    console.log(`🔍 Bounding boxes found: ${mathpixResult.boundingBoxes.length}`);
-    console.log(`🔍 Confidence: ${(mathpixResult.confidence * 100).toFixed(2)}%`);
+    console.log('✅ Hybrid OCR completed successfully');
+    console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
+    console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
+    console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
     
-    // Convert Mathpix result to ProcessedImageResult format
+    // Convert hybrid OCR result to ProcessedImageResult format
     const processedResult: ProcessedImageResult = {
-      ocrText: mathpixResult.text,
-      boundingBoxes: mathpixResult.boundingBoxes,
-      confidence: mathpixResult.confidence,
-      imageDimensions: mathpixResult.dimensions,
+      ocrText: hybridResult.text,
+      boundingBoxes: hybridResult.mathBlocks.map(block => ({
+        x: block.coordinates.x,
+        y: block.coordinates.y,
+        width: block.coordinates.width,
+        height: block.coordinates.height,
+        text: block.googleVisionText,
+        confidence: block.confidence || 0.8
+      })),
+      confidence: hybridResult.confidence,
+      imageDimensions: hybridResult.dimensions,
       isQuestion: false // Will be determined by AI classification
     };
+    
+    console.log('🔍 Enhanced pipe detection results:');
+    hybridResult.mathBlocks.forEach((block, index) => {
+      const pipeCount = (block.googleVisionText.match(/\|/g) || []).length;
+      const hasPipePair = /\|.*\|/.test(block.googleVisionText);
+      if (pipeCount > 0) {
+        console.log(`   Block ${index + 1}: "${block.googleVisionText}" (${pipeCount} pipes, pair: ${hasPipePair}, score: ${block.mathLikenessScore.toFixed(3)})`);
+      }
+    });
     
     return processedResult;
     
   } catch (error) {
-    console.error('❌ Real OCR processing failed:', error);
-    throw new Error(`Real OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    console.error('❌ Enhanced OCR processing failed:', error);
+    throw new Error(`Enhanced OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 
 
 /**
- * Real AI marking service using simplified AI service
+ * NEW 3-STEP LLM FLOW: Real AI marking service using the new 3-step LLM pipeline
  */
-async function generateRealMarkingInstructions(
+async function generateRealMarkingInstructionsWithNewFlow(
   imageData: string, 
   model: ModelType, 
   processedImage: ProcessedImageResult,
   questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
   
-  console.log('🔍 Generating real AI marking instructions for model:', model);
+  console.log('🔍 Generating real AI marking instructions with NEW 3-STEP FLOW for model:', model);
   
   try {
     // Import the AI marking service to avoid circular dependencies
     const { AIMarkingService } = await import('../services/aiMarkingService');
     
-    // Use AI marking service for marking instructions
+    // Use NEW 3-step LLM flow for marking instructions
+    const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructionsWithNewFlow(
+      imageData, 
+      model, 
+      processedImage,
+      questionDetection
+    );
+    
+    // Convert SimpleMarkingInstructions to MarkingInstructions
+    const markingInstructions: MarkingInstructions = {
+      annotations: simpleMarkingInstructions.annotations.map(annotation => ({
+        action: annotation.action,
+        bbox: annotation.bbox,
+        ...(annotation.comment && { comment: annotation.comment }),
+        ...(annotation.text && { text: annotation.text })
+      }))
+    };
+    console.log('🔍 NEW 3-STEP FLOW Marking Instructions:', markingInstructions.annotations);
+    console.log('🔍 NEW 3-STEP FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
+    return markingInstructions;
+    
+  } catch (error) {
+    console.error('❌ NEW 3-STEP FLOW marking instructions failed:', error);
+    
+    // Fallback to legacy method if new flow fails
+    console.log('🔄 Falling back to legacy marking method...');
+    return await generateRealMarkingInstructionsLegacy(
+      imageData, 
+      model, 
+      processedImage,
+      questionDetection
+    );
+  }
+}
+
+/**
+ * LEGACY: Real AI marking service using simplified AI service (kept for fallback)
+ */
+async function generateRealMarkingInstructionsLegacy(
+  imageData: string, 
+  model: ModelType, 
+  processedImage: ProcessedImageResult,
+  questionDetection?: QuestionDetectionResult
+): Promise<MarkingInstructions> {
+  
+  console.log('🔍 Generating LEGACY AI marking instructions for model:', model);
+  
+  try {
+    // Import the AI marking service to avoid circular dependencies
+    const { AIMarkingService } = await import('../services/aiMarkingService');
+    
+    // Use legacy AI marking service for marking instructions
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
       imageData, 
       model, 
@@ -139,8 +205,8 @@ async function generateRealMarkingInstructions(
         ...(annotation.text && { text: annotation.text })
       }))
     };
-    console.log('🔍 Real AI Marking Instructions:', markingInstructions.annotations);
-    console.log('🔍 Real AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
+    console.log('🔍 LEGACY AI Marking Instructions:', markingInstructions.annotations);
+    console.log('🔍 LEGACY AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
     
   } catch (error) {
@@ -221,58 +287,6 @@ async function generateRealMarkingInstructions(
   }
 }
 
-/**
- * Professional SVG overlay generation
- */
-function generateProfessionalSVGOverlay(instructions: MarkingInstructions, width: number, height: number): string {
-  console.log('🔍 SVG Generation - Instructions:', instructions);
-  console.log('🔍 SVG Generation - Annotations count:', instructions.annotations?.length || 0);
-  console.log('🔍 SVG Generation - Dimensions:', width, 'x', height);
-  
-  if (!instructions.annotations || instructions.annotations.length === 0) {
-    console.log('🔍 SVG Generation - No annotations, returning empty string');
-    return '';
-  }
-  
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="position: absolute; top: 0; left: 0;">`;
-  
-  instructions.annotations.forEach((annotation, index) => {
-    const [x, y, w, h] = annotation.bbox;
-    console.log(`🔍 SVG Generation - Processing annotation ${index}:`, annotation.action, 'at', [x, y, w, h]);
-    
-    switch (annotation.action) {
-      case 'tick':
-        // Professional red checkmark using tick symbol
-        const centerX = x + w/2;
-        const centerY = y + h/2;
-        const tickSize = Math.max(24, Math.min(w, h) / 2);
-        svg += `<text x="${centerX}" y="${centerY + 5}" fill="red" font-family="Arial, sans-serif" font-size="${tickSize}" font-weight="bold" text-anchor="middle">✔</text>`;
-        break;
-      case 'circle':
-        // Professional red circle
-        svg += `<circle cx="${x+w/2}" cy="${y+h/2}" r="${Math.min(w,h)/2+2}" fill="none" stroke="red" stroke-width="2" opacity="0.8"/>`;
-        break;
-      case 'underline':
-        // Professional red underline
-        svg += `<line x1="${x}" y1="${y+h+2}" x2="${x+w}" y2="${y+h+2}" stroke="red" stroke-width="3" opacity="0.8"/>`;
-        break;
-             case 'comment':
-         // Professional comment box without background
-                   if (annotation.text) {
-            svg += `<text x="${x}" y="${y+15}" font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" font-size="24" fill="red" font-weight="900">${annotation.text}</text>`;
-          }
-         break;
-      default:
-        // Professional default rectangle
-        svg += `<rect x="${x-2}" y="${y-2}" width="${w+4}" height="${h+4}" fill="none" stroke="purple" stroke-width="2" opacity="0.8"/>`;
-    }
-  });
-  
-  svg += '</svg>';
-  console.log('🔍 SVG Generation - Final SVG length:', svg.length);
-  console.log('🔍 SVG Generation - Final SVG preview:', svg.substring(0, 300) + '...');
-  return svg;
-}
 
 
 /**
@@ -372,7 +386,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     // Step 1: AI-powered image classification
     console.log('🔍 ===== STEP 1: AI IMAGE CLASSIFICATION =====');
     const imageClassification = await classifyImageWithAI(imageData, model);
-    console.log('🔍 Image Classification:', imageClassification);
+      console.log('🔍 Image Classification:', imageClassification);
     
     // Log extracted question text for backend debugging
     if (imageClassification.extractedQuestionText) {
@@ -451,14 +465,14 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     // Step 2: Real OCR processing
     console.log('🔍 ===== STEP 2: REAL OCR PROCESSING =====');
     const processedImage = await processImageWithRealOCR(imageData);
-    console.log('🔍 OCR Processing completed successfully!');
-    console.log('🔍 OCR Text length:', processedImage.ocrText.length);
-    console.log('🔍 Bounding boxes found:', processedImage.boundingBoxes.length);
+      console.log('🔍 OCR Processing completed successfully!');
+      console.log('🔍 OCR Text length:', processedImage.ocrText.length);
+      console.log('🔍 Bounding boxes found:', processedImage.boundingBoxes.length);
 
-    // Step 3: AI-powered marking instructions
-    console.log('🔍 ===== STEP 3: AI MARKING INSTRUCTIONS =====');
-    const markingInstructions = await generateRealMarkingInstructions(imageData, model, processedImage, questionDetection);
-    console.log('🔍 AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
+    // Step 3: AI-powered marking instructions using NEW 3-STEP LLM FLOW
+    console.log('🔍 ===== STEP 3: AI MARKING INSTRUCTIONS (NEW 3-STEP LLM FLOW) =====');
+    const markingInstructions = await generateRealMarkingInstructionsWithNewFlow(imageData, model, processedImage, questionDetection);
+    console.log('🔍 NEW 3-STEP LLM FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
 
     // Step 4: Burn SVG overlay into image
     console.log('🔍 ===== STEP 4: BURNING SVG OVERLAY INTO IMAGE =====');
@@ -474,7 +488,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     
     // Generate burned image with annotations
     const annotationResult = await ImageAnnotationService.generateAnnotationResult(
-      imageData,
+        imageData,
       annotations,
       processedImage.imageDimensions
     );

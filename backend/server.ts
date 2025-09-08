@@ -39,6 +39,10 @@ import markHomeworkRoutes from './routes/mark-homework';
 import adminRoutes from './routes/admin';
 import chatRoutes from './routes/chat';
 import paymentRoutes from './routes/payment';
+import myscriptRoutes from './routes/myscript-recognition';
+import imageToMyscriptRoutes from './routes/image-to-myscript';
+import googleVisionRoutes from './routes/google-vision';
+import hybridOCRRoutes from './routes/hybrid-ocr';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -54,6 +58,18 @@ app.use('/api/chat', chatRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);
+
+// Enable MyScript stroke recognition routes
+app.use('/api/myscript', myscriptRoutes);
+
+// Enable image to MyScript conversion routes
+app.use('/api/image-to-myscript', imageToMyscriptRoutes);
+
+// Enable Google Cloud Vision routes
+app.use('/api/google-vision', googleVisionRoutes);
+
+// Enable Hybrid OCR routes
+app.use('/api/hybrid-ocr', hybridOCRRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

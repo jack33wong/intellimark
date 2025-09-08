@@ -51,6 +51,46 @@ export interface ProcessedMathpixResult {
   dimensions: ImageDimensions;
 }
 
+// Google Cloud Vision types
+export interface ProcessedVisionResult {
+  text: string;
+  boundingBoxes: BoundingBox[];
+  confidence: number;
+  dimensions: ImageDimensions;
+  symbols: Array<{
+    text: string;
+    boundingBox: BoundingBox;
+    confidence: number;
+  }>;
+  rawResponse?: any; // Raw Google Vision API response for math detection
+}
+
+// MyScript OCR types
+export interface MyScriptResult {
+  result: {
+    parts: Array<{
+      type: string;
+      latex?: string;
+      symbols?: Array<{
+        label: string;
+        boundingBox: {
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+        };
+      }>;
+    }>;
+  };
+}
+
+export interface ProcessedMyScriptResult {
+  text: string;
+  boundingBoxes: BoundingBox[];
+  confidence: number;
+  dimensions: ImageDimensions;
+}
+
 // Image annotation types
 export interface ImageAnnotation {
   position: {

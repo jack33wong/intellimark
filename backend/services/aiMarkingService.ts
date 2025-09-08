@@ -77,6 +77,70 @@ interface SimpleQuestionDetectionResult {
 
 export class AIMarkingService {
   /**
+   * Robust JSON cleaning and validation helper
+   */
+  private static cleanAndValidateJSON(response: string, expectedArrayKey: string): any {
+    let cleanedResponse = response.trim();
+    
+    // Try to extract JSON from markdown code blocks if present
+    const jsonMatch = cleanedResponse.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      cleanedResponse = jsonMatch[1];
+      console.log('🔍 Extracted JSON from markdown:', cleanedResponse);
+    }
+    
+    // Try to fix common JSON issues
+    cleanedResponse = cleanedResponse
+      .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+      .replace(/([{\[,])\s*([}\]])/g, '$1$2') // Remove commas before closing brackets
+      .replace(/(\w+):/g, '"$1":') // Add quotes around unquoted keys
+      .replace(/'/g, '"') // Replace single quotes with double quotes
+      .replace(/,(\s*})/g, '$1') // Remove trailing commas before closing braces
+      .replace(/,(\s*\])/g, '$1') // Remove trailing commas before closing brackets
+      .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2') // Fix unescaped backslashes
+      .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2') // Fix unescaped backslashes (second pass)
+      .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2') // Fix unescaped backslashes (third pass)
+      .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2'); // Fix unescaped backslashes (fourth pass)
+    
+    console.log('🔍 Cleaned JSON:', cleanedResponse);
+    
+    let result;
+    try {
+      result = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error('❌ JSON Parse Error:', parseError);
+      console.error('❌ Raw response:', response);
+      console.error('❌ Cleaned response:', cleanedResponse);
+      
+      // Try one more aggressive cleaning approach
+      try {
+        const aggressiveClean = cleanedResponse
+          .replace(/,(\s*[}\]])/g, '$1')
+          .replace(/([{\[,])\s*([}\]])/g, '$1$2')
+          .replace(/(\w+):/g, '"$1":')
+          .replace(/'/g, '"')
+          .replace(/,(\s*})/g, '$1')
+          .replace(/,(\s*\])/g, '$1')
+          .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2')
+          .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2')
+          .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2')
+          .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2');
+        
+        console.log('🔍 Aggressive clean attempt:', aggressiveClean);
+        result = JSON.parse(aggressiveClean);
+      } catch (secondError) {
+        throw new Error(`Invalid JSON response from AI: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+      }
+    }
+    
+    // Validate the result structure
+    if (!result[expectedArrayKey] || !Array.isArray(result[expectedArrayKey])) {
+      throw new Error(`AI response missing ${expectedArrayKey} array`);
+    }
+    
+    return result;
+  }
+  /**
    * Classify image as question-only or question+answer
    */
   static async classifyImage(
@@ -149,7 +213,584 @@ export class AIMarkingService {
   }
 
   /**
-   * Generate marking instructions for homework images
+   * LLM Call 1: Extrapolate bbox coordinates from Google Vision OCR into per-line coordinates
+   */
+  static async extrapolatePerLineCoordinates(
+    model: SimpleModelType,
+    processedImage: SimpleProcessedImageResult
+  ): Promise<{
+    lines: string; // Raw AI response as string
+  }> {
+
+    const systemPrompt = `You are an AI assistant that analyzes OCR bounding boxes and extrapolates per-line coordinates.
+
+    Your task is to:
+    1. Take the provided OCR bounding boxes from Google Vision
+    2. Analyze the text content and layout
+    3. Extrapolate individual line coordinates from the bounding boxes
+    4. Return structured per-line data with accurate coordinates
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "lines": [
+        {
+          "lineNumber": 1,
+          "text": "extracted line text",
+          "bbox": [x, y, width, height],
+          "confidence": 0.95
+        }
+      ]
+    }
+
+    EXTRAPOLATION RULES:
+    - If a bounding box contains multiple lines, split it into individual lines
+    - Estimate line positions based on text content and typical line spacing
+    - Preserve the original bounding box area but subdivide it logically
+    - Use the original confidence score for all derived lines
+    - Ensure no overlapping coordinates between lines
+    - Maintain proper text-to-coordinate mapping
+
+    Return ONLY the JSON object.`;
+
+    let userPrompt = `Here are the OCR bounding boxes from Google Vision that need to be extrapolated into per-line coordinates:
+
+IMAGE DIMENSIONS: ${processedImage.imageDimensions.width}x${processedImage.imageDimensions.height} pixels
+
+OCR BOUNDING BOXES:
+`;
+
+    if (processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
+      processedImage.boundingBoxes.forEach((bbox: any, index: number) => {
+        if (bbox.text && bbox.text.trim()) {
+          const confidence = ((bbox.confidence || 0) * 100).toFixed(1);
+          const cleanText = bbox.text.trim()
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\t/g, '\\t');
+
+          if (bbox.x !== undefined && bbox.y !== undefined && bbox.width !== undefined && bbox.height !== undefined) {
+            userPrompt += `Box ${index + 1}: bbox[${bbox.x},${bbox.y},${bbox.width},${bbox.height}], text: "${cleanText}", confidence: "${confidence}%"\n`;
+          }
+        }
+      });
+    }
+
+    userPrompt += `\nPlease extrapolate these bounding boxes into individual line coordinates.`;
+
+    // Console log the prompt for debugging
+    console.log('🔍 ===== LLM CALL 1: EXTRAPOLATE PER-LINE COORDINATES =====');
+    console.log('🔍 Model:', model);
+    console.log('🔍 System Prompt:', systemPrompt);
+    console.log('🔍 User Prompt:', userPrompt);
+
+    try {
+      let response: string;
+      if (model === 'gemini-2.5-pro') {
+        response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
+      } else {
+        response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
+      }
+      
+      // Console log the AI response
+      //console.log('🔍 AI Response:', response);
+      
+      // Since we're passing this as string to next LLM, no need to parse JSON
+      // Just return the raw response wrapped in the expected format
+      const result = {
+        lines: response // Pass raw response as string
+      };
+      
+      console.log('✅ Per-line coordinates response received (raw string)');
+      console.log('🔍 ===== LLM CALL 1 COMPLETED =====\n');
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to extrapolate per-line coordinates:', error);
+      console.log('🔍 ===== LLM CALL 1 FAILED =====\n');
+      throw new Error(`Per-line coordinate extrapolation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * LLM Call 2: Generate marking annotations based on per-line coordinates
+   */
+  static async generateMarkingAnnotations(
+    model: SimpleModelType,
+    perLineData: { lines: string }, // Raw AI response as string
+    questionDetection?: SimpleQuestionDetectionResult
+  ): Promise<{
+    annotations: string; // Raw AI response as string
+  }> {
+
+    const systemPrompt = `You are an AI assistant that generates marking annotations for student work.
+
+    Your task is to:
+    1. Analyze the student's work line by line
+    2. Generate appropriate marking annotations for each line (MULTIPLE ANNOTATIONS PER LINE ALLOWED)
+    3. Provide reasoning for each annotation decision
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "annotations": [
+        {
+          "lineNumber": 1,
+          "action": "tick|cross|comment",
+          "text": "M1|M0|A1|A0|B1|B0|C1|C0",
+          "reasoning": "Brief explanation of why this annotation was chosen"
+        }
+      ]
+    }
+
+    MULTIPLE ANNOTATIONS PER LINE:
+    - You can create MULTIPLE annotations for the same line number
+    - Each annotation should have its own entry in the annotations array
+    - Different parts of the same line can have different annotations
+    - For example, line 1 could have both a "tick" for correct method and a "comment" for "M1"
+    - This allows for more granular and detailed marking
+
+    ANNOTATION RULES:
+    - Use "tick" for correct answers or working
+    - Use "cross" for incorrect answers or errors
+    - Use "comment" to show marks achieved (e.g., "M1", "A1", "B1")
+
+    MARKING CRITERIA:
+    - Analyze mathematical correctness
+    - Check method accuracy
+    - Mark should only be awarded when the answer statisfy all the criteria for that mark
+    - Consider different aspects of the same line (method, accuracy, presentation)
+
+    EXAMPLES OF MULTIPLE ANNOTATIONS PER LINE:
+    - Line 1: "x = 5 + 3 = 8" could have:
+      * A "tick" for correct calculation
+      * A "comment" for "M1"
+    - Line 2: "y = 2x + 1" could have:
+      * A "cross" for wrong equation
+      * A "comment" for "M0"
+
+    Return ONLY the JSON object.`;
+
+    let userPrompt = `Here is the student's work broken down by lines:
+
+PER-LINE ANALYSIS (RAW AI RESPONSE):
+${perLineData.lines}
+`;
+    console.log('🔍 LLM 2 Promt:', systemPrompt+userPrompt);
+    // Add marking scheme context if available
+    if (questionDetection && questionDetection.found && questionDetection.match) {
+      const match = questionDetection.match;
+      if (match.markingScheme) {
+        const schemeJson = JSON.stringify(match.markingScheme, null, 2)
+          .replace(/\\/g, "\\\\")
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, "\\n");
+
+        userPrompt += `\nMARK SCHEME (JSON):\n"""${schemeJson}"""\n`;
+        userPrompt += `\nApply the marking strictly according to this scheme. Award marks only when criteria are fully satisfied.`;
+      }
+    }
+
+    userPrompt += `\nPlease generate marking annotations for each line of student work. Remember that you can create MULTIPLE annotations for the same line if different parts of the line deserve different types of feedback or marking.`;
+
+    // Console log the prompt for debugging
+    console.log('🔍 ===== LLM CALL 2: GENERATE MARKING ANNOTATIONS =====');
+    console.log('🔍 Model:', model);
+    console.log('🔍 System Prompt:', systemPrompt);
+    console.log('🔍 User Prompt:', userPrompt);
+
+    try {
+      let response: string;
+      if (model === 'gemini-2.5-pro') {
+        response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
+      } else {
+        response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
+      }
+      
+      // Console log the AI response
+      console.log('🔍 AI Response:', response);
+      
+      // Since we're passing this as string to next LLM, no need to parse JSON
+      // Just return the raw response wrapped in the expected format
+      const result = {
+        annotations: response // Pass raw response as string
+      };
+      
+      console.log('✅ Marking annotations response received (raw string)');
+      console.log('🔍 ===== LLM CALL 2 COMPLETED =====\n');
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to generate marking annotations:', error);
+      console.log('🔍 ===== LLM CALL 2 FAILED =====\n');
+      throw new Error(`Marking annotation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * LLM Call 3: Calculate relative coordinates for annotations
+   */
+  static async calculateAnnotationCoordinates(
+    model: SimpleModelType,
+    perLineData: { lines: string }, // Raw AI response as string
+    annotationData: { annotations: string } // Raw AI response as string
+  ): Promise<{
+    annotations: Array<{
+      action: 'tick' | 'cross' | 'circle' | 'underline' | 'comment';
+      bbox: [number, number, number, number];
+      text?: string;
+    }>;
+  }> {
+
+    const systemPrompt = `You are an AI assistant that calculates precise coordinates for marking annotations.
+
+    Your task is to:
+    1. Take per-line coordinates and annotation decisions
+    2. Calculate precise bounding box coordinates for each annotation
+    3. Position annotations to avoid overlapping with text
+    4. Calculate appropriate annotation sizes based on line dimensions
+    5. Return final annotation coordinates
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "annotations": [
+        {
+          "action": "tick|cross|circle|underline|comment",
+          "bbox": [x, y, width, height],
+          "text": "Comment text (only for comment action)"
+        }
+      ]
+    }
+
+    POSITIONING RULES:
+    - For ticks/crosses: Position to the right of the line text (x = line_x + line_width + 12px)
+    - For circles: Circle around the specific text or formula
+    - For underlines: Position directly under the text (y = line_y + line_height + 2px)
+    - For comments: Position to the right of the line, below the line if needed
+    - Ensure annotations don't overlap with each other
+
+    ANNOTATION SIZING RULES:
+    - Calculate annotation size based on the line bbox dimensions
+    - For ticks/crosses: width = height = line_height * 0.8 (80% of line height)
+    - For circles: width = height = line_height * 0.9 (90% of line height)
+    - For underlines: width = line_width * 0.8, height = line_height * 0.15 (15% of line height)
+    - For comments: width = max(60px, text_length * 8px), height = line_height * 0.7 (70% of line height)
+
+    VERTICAL CENTERING RULES:
+    - All annotations should be VERTICALLY CENTERED within the line bbox
+    - Calculate y position as: y = line_y + (line_height - annotation_height) / 2
+    - This ensures annotations appear in the middle of the line, not at the top
+    - For multiple annotations on the same line, space them horizontally but keep them vertically centered
+
+    SPACING RULES:
+    - Minimum 8px gap between annotations on the same line
+    - For multiple annotations per line, distribute them horizontally with equal spacing
+    - If line is too short for all annotations, place some below the line (y = line_y + line_height + 8px)
+
+    Return ONLY the JSON object.`;
+
+    let userPrompt = `Here are the per-line coordinates and annotation decisions:
+
+PER-LINE COORDINATES (RAW AI RESPONSE):
+${perLineData.lines}
+
+ANNOTATION DECISIONS (RAW AI RESPONSE):
+${annotationData.annotations}
+
+Please calculate precise coordinates for each annotation. Remember to:
+- Calculate appropriate sizes based on the line bbox dimensions
+- Position annotations VERTICALLY CENTERED within each line
+- Ensure proper spacing between multiple annotations on the same line
+- Use the sizing rules provided in the system prompt`;
+
+    // Console log the prompt for debugging
+    console.log('🔍 ===== LLM CALL 3: CALCULATE ANNOTATION COORDINATES =====');
+    console.log('🔍 Model:', model);
+    console.log('🔍 System Prompt:', systemPrompt);
+    console.log('🔍 User Prompt:', userPrompt);
+
+    try {
+      let response: string;
+      if (model === 'gemini-2.5-pro') {
+        response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
+      } else {
+        response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
+      }
+      
+      // Console log the AI response
+      console.log('🔍 AI Response:', response);
+      
+      // Only parse JSON at the very end since this is the final step
+      const result = this.cleanAndValidateJSON(response, 'annotations');
+      
+      console.log('✅ Annotation coordinates calculated:', result.annotations?.length || 0, 'annotations (sized and vertically centered)');
+      console.log('🔍 ===== LLM CALL 3 COMPLETED =====\n');
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to calculate annotation coordinates:', error);
+      console.log('🔍 ===== LLM CALL 3 FAILED =====\n');
+      throw new Error(`Annotation coordinate calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * NEW 3-STEP LLM FLOW: Complete marking pipeline with 3 LLM calls
+   * 1. Classification -> Google Vision OCR -> LLM extrapolate bbox coordinates into per-line
+   * 2. LLM create marking annotations based on per-line data
+   * 3. LLM calculate relative coordinates for annotations -> SVG overlay
+   */
+  static async generateMarkingInstructionsWithNewFlow(
+    imageData: string,
+    model: SimpleModelType,
+    processedImage: SimpleProcessedImageResult,
+    questionDetection?: SimpleQuestionDetectionResult
+  ): Promise<SimpleMarkingInstructions> {
+    console.log('🔍 ===== NEW 2-STEP LLM FLOW STARTED (LLM1 REMOVED) =====');
+    console.log('🔍 Model:', model);
+    console.log('🔍 Image data length:', imageData.length);
+    console.log('🔍 OCR text length:', processedImage.ocrText?.length || 0);
+    console.log('🔍 Math blocks found:', processedImage.boundingBoxes?.length || 0);
+
+    try {
+      // Step 1: Generate marking annotations based on final OCR text (LLM2)
+      console.log('🔍 ===== STEP 1: GENERATE MARKING ANNOTATIONS (LLM2) =====');
+      console.log('🔍 Input: Final OCR text without coordinates');
+      const annotationData = await this.generateMarkingAnnotationsFromText(
+        model,
+        processedImage.ocrText || '',
+        questionDetection
+      );
+      console.log('✅ Step 1 completed - Marking annotations response received');
+
+      // Step 2: Calculate precise coordinates for annotations (LLM3)
+      console.log('🔍 ===== STEP 2: CALCULATE ANNOTATION COORDINATES (LLM3) =====');
+      console.log('🔍 Input: Annotation decisions + OCR bounding boxes');
+      const finalAnnotations = await this.calculateAnnotationCoordinatesFromText(
+        model,
+        processedImage.ocrText || '',
+        processedImage.boundingBoxes || [],
+        annotationData
+      );
+      console.log('✅ Step 2 completed - Final annotations:', finalAnnotations.annotations.length, 'annotations');
+
+      // Convert to SimpleMarkingInstructions format
+      const result: SimpleMarkingInstructions = {
+        annotations: finalAnnotations.annotations.map(annotation => ({
+          action: annotation.action,
+          bbox: annotation.bbox,
+          ...(annotation.text && { text: annotation.text })
+        }))
+      };
+
+      console.log('✅ ===== NEW 2-STEP LLM FLOW COMPLETED =====');
+      console.log('✅ Total annotations generated:', result.annotations.length);
+      console.log('🔍 Final result summary:');
+      console.log('  - OCR text length:', processedImage.ocrText?.length || 0, 'characters');
+      console.log('  - Math blocks available:', processedImage.boundingBoxes?.length || 0, 'blocks');
+      console.log('  - Marking decisions:', annotationData.annotations.length, 'decisions');
+      console.log('  - Final annotations:', result.annotations.length, 'annotations');
+      console.log('🔍 ===== NEW 2-STEP LLM FLOW SUMMARY =====\n');
+      
+      return result;
+
+    } catch (error) {
+      console.error('❌ New 2-step LLM flow failed:', error);
+      
+      // Fallback to legacy method if new flow fails
+      console.log('🔄 Falling back to legacy marking method...');
+      return await this.generateMarkingInstructions(
+        imageData,
+        model,
+        processedImage,
+        questionDetection
+      );
+    }
+  }
+
+  /**
+   * NEW LLM2: Generate marking annotations based on final OCR text only (no coordinates)
+   */
+  static async generateMarkingAnnotationsFromText(
+    model: SimpleModelType,
+    ocrText: string,
+    questionDetection?: SimpleQuestionDetectionResult
+  ): Promise<{
+    annotations: string; // Raw AI response as string
+  }> {
+
+    const systemPrompt = `You are an AI assistant that generates marking annotations for student work.
+
+    Your task is to:
+    1. Analyze the student's work from the OCR text
+    2. Generate appropriate marking annotations for different parts of the work
+    3. Provide reasoning for each annotation decision
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "annotations": [
+        {
+          "textMatch": "exact text from OCR that this annotation applies to",
+          "action": "tick|cross|comment",
+          "text": "M1|M0|A1|A0|B1|B0|C1|C0|comment text",
+          "reasoning": "Brief explanation of why this annotation was chosen"
+        }
+      ]
+    }
+
+    ANNOTATION RULES:
+    - Use "tick" for correct answers or working
+    - Use "cross" for incorrect answers or errors
+    - Use "comment" to show marks achieved (e.g., "M1", "A1", "B1") or provide feedback
+    - "textMatch" should be the exact text from the OCR that this annotation applies to
+    - Be specific with text matches - use unique phrases that can be found in the OCR text
+
+    MARKING CRITERIA:
+    - Analyze mathematical correctness
+    - Check method accuracy
+    - Mark should only be awarded when the answer satisfies all the criteria for that mark
+    - Consider different aspects of the same work (method, accuracy, presentation)
+    - Look for mathematical expressions, especially those with pipe notation (|v|) for absolute values
+
+    EXAMPLES:
+    - For "|v| = 28/5 = 5.6ms^-1" you might create:
+      * A "tick" for correct absolute value notation
+      * A "tick" for correct calculation
+      * A "comment" for "M1" if method is correct
+    - For "x = 5 + 3 = 8" you might create:
+      * A "tick" for correct calculation
+      * A "comment" for "A1" if answer is correct
+
+    Return ONLY the JSON object.`;
+
+    let userPrompt = `Here is the OCR text from the student's work that needs to be marked:
+
+OCR TEXT:
+${ocrText}
+
+Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`;
+
+    // Add question detection context if available
+    if (questionDetection?.match?.markingScheme) {
+      userPrompt += `\n\nMARKING SCHEME CONTEXT:
+Exam: ${questionDetection.match.board} ${questionDetection.match.qualification} ${questionDetection.match.paperCode} ${questionDetection.match.year}
+Total Questions: ${questionDetection.match.markingScheme.totalQuestions}
+Total Marks: ${questionDetection.match.markingScheme.totalMarks}`;
+    }
+
+    let response: string;
+    if (model === 'gemini-2.5-pro') {
+      response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
+    } else {
+      response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
+    }
+    console.log('🔍 LLM2 (Marking Annotations) response received');
+
+    try {
+      this.cleanAndValidateJSON(response, 'annotations');
+      return { annotations: response }; // Return raw response for LLM3
+    } catch (error) {
+      console.error('❌ LLM2 JSON parsing failed:', error);
+      throw new Error(`LLM2 failed to generate valid marking annotations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * NEW LLM3: Calculate precise coordinates for annotations based on text matching
+   */
+  static async calculateAnnotationCoordinatesFromText(
+    model: SimpleModelType,
+    ocrText: string,
+    boundingBoxes: any[],
+    annotationData: { annotations: string }
+  ): Promise<{
+    annotations: SimpleAnnotation[];
+  }> {
+
+    const systemPrompt = `You are an AI assistant that calculates precise coordinates for marking annotations.
+
+    Your task is to:
+    1. Take marking annotations and OCR text with bounding boxes
+    2. Match each annotation to the correct text in the OCR
+    3. Calculate precise coordinates for each annotation
+    4. Return final annotations with accurate bounding boxes
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "annotations": [
+        {
+          "action": "tick|cross|comment",
+          "bbox": [x, y, width, height],
+          "text": "M1|M0|A1|A0|B1|B0|C1|C0|comment text"
+        }
+      ]
+    }
+
+    COORDINATE CALCULATION RULES:
+    - Use the provided bounding boxes to find text matches
+    - If text is found in multiple bounding boxes, use the most relevant one
+    - If text spans multiple bounding boxes, combine their coordinates
+    - Ensure coordinates are within the image bounds
+    - Use [x, y, width, height] format where (x,y) is top-left corner
+
+    TEXT MATCHING RULES:
+    - Match annotations to the exact text from the OCR
+    - Be flexible with whitespace and formatting differences
+    - Prioritize mathematical expressions and key terms
+    - If exact match not found, use the closest relevant text
+
+    Return ONLY the JSON object.`;
+
+    const userPrompt = `Here are the marking annotations and OCR data:
+
+MARKING ANNOTATIONS:
+${annotationData.annotations}
+
+OCR TEXT:
+${ocrText}
+
+BOUNDING BOXES:
+${JSON.stringify(boundingBoxes, null, 2)}
+
+Please calculate precise coordinates for each annotation by matching the text to the bounding boxes.`;
+
+    let response: string;
+    if (model === 'gemini-2.5-pro') {
+      response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
+    } else {
+      response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
+    }
+    console.log('🔍 LLM3 (Coordinate Calculation) response received');
+
+    try {
+      const result = this.cleanAndValidateJSON(response, 'annotations');
+      return {
+        annotations: result.annotations.map((annotation: any) => ({
+          action: annotation.action,
+          bbox: annotation.bbox,
+          ...(annotation.text && { text: annotation.text })
+        }))
+      };
+    } catch (error) {
+      console.error('❌ LLM3 JSON parsing failed:', error);
+      throw new Error(`LLM3 failed to calculate annotation coordinates: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate marking instructions for homework images (LEGACY - kept for backward compatibility)
    */
   static async generateMarkingInstructions(
     imageData: string, 
@@ -163,23 +804,13 @@ export class AIMarkingService {
     You will receive an image and your task is to:
     
     1. Analyze the image content using the provided OCR text and bounding box data
-    2. Provide helpful comment and marking annotations if it's math homework, or general feedback if not
+    2. Provide marking and annotations.
     
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
     - Output MUST strictly follow the format shown below
     - Use the provided OCR text to understand exactly what the student has written
-    - Use bounding box positions to place annotations accurately without overlapping text
-    
-    ==================== EXAMPLE OUTPUT ====================
-    
-    Math Homework Example:
-    {
-      "annotations": [
-        {"action": "tick", "bbox": [50, 80, 200, 150]},
-        {"action": "comment", "bbox": [50, 180, 200, 50], "text": "Verify this solution step by step"},
-      ]
-    }
+    - Use bounding box positions [x, y, width, height] to place annotations accurately without overlapping text
     
     ==================== OUTPUT FORMAT ====================
     
@@ -188,7 +819,7 @@ export class AIMarkingService {
         {
           "action": "tick|cross|circle|underline|comment",
           "bbox": [x, y, width, height],
-          "text": "comment text (only for comment action)"
+          "text": "Comment text (only for comment action)"
         }
       ]
     }
@@ -198,13 +829,17 @@ export class AIMarkingService {
     - Use "cross" for incorrect answers  
     - Use "circle" to highlight important parts
     - Use "underline" to emphasize key concepts
-    - Use "comment" to provide feedback or explanations
-    - Position bbox coordinates to avoid overlapping with existing text
-    - Provide helpful, constructive feedback without unnecessary prefixes
-    - Keep comments placed next to the part it is commenting on.
- 
-    MARKING RULES:
-    -Marking annotations must strictly follow the marking scheme and place at the bottom of image.
+    - Use "comment" to show which mark is achieved Eg "M1", "A1", "B1"
+   
+
+    POSITIONING RULES:
+    ann_x = text_x + text_w + 12 (12 px to the right of the right edge)
+    ann_y = text_y + text_h/2 (vertically centered)
+    ann_w = ann_h = text_h 
+    IF the bbox given are 1 big box, then extrapolate and calculate the positon of each line.
+    
+    MARKING RULES (IGNORE THIS IF MARK SCHEME IS NOT PROVIDED):
+    -Marking annotations must strictly follow the marking scheme.
     Glossary for maark scheme:
     - M Method marks are awarded for a correct method which could lead to a correct answer.
     - A Accuracy marks are awarded when following on from a correct method. It is not necessary to always see the method. This can be implied.
@@ -212,14 +847,11 @@ export class AIMarkingService {
     - Mark schemes should be applied positively. Candidates must be rewarded for what they have shown they can do rather than penalised for omissions.
     - To be awarded marks, the student must have fulfill completely the marking criteria.
     - There will be additional guidance given, read them and apply them to the marking annotations.
+    - IMPORTANT: For each mark awarded, add a comment "M1"/ "A1"/ "B1" next to the line that achieve the mark
 
     Return ONLY the JSON object.`;
 
-    let userPrompt = `Here is an uploaded image. Please:
-
-1. Analyze the image content
-2. If it's math homework, provide marking annotations with helpful feedback
-3. If it's not math homework, provide appropriate feedback
+    let userPrompt = `Here is an uploaded imageo of a student’s solution.
 
 ========================================================
 `;
@@ -234,7 +866,7 @@ export class AIMarkingService {
 
       if (match.markingScheme) {
         userPrompt += `\nMARK SCHEME (JSON):\n"""${schemeJson}"""\n`;
-        userPrompt += `Apply the marking strictly according to this scheme. Award marks only when criteria are fully satisfied, and summarize marks at the bottom of the image.`;
+        //userPrompt += `Apply the marking strictly according to this scheme. Award marks only when criteria are fully satisfied, and summarize marks at the bottom of the image.`;
       }
     }
 
@@ -242,7 +874,7 @@ export class AIMarkingService {
     if (processedImage && processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
       userPrompt += `\n\nHere is the OCR DETECTION RESULTS for the uploaded image (Only LaTex content are shown) - Use these bounding box positions as reference for annotations:`;
       
-      processedImage.boundingBoxes.forEach((bbox: any, index: number) => {
+      processedImage.boundingBoxes.forEach((bbox: any) => {
         if (bbox.text && bbox.text.trim()) {
           const confidence = ((bbox.confidence || 0) * 100).toFixed(1);
           
@@ -262,12 +894,12 @@ export class AIMarkingService {
         }
       });
       
-      userPrompt += `\nUse OCR positions as a guide to avoid overlaps and to find blank spaces for comments.`;
-      userPrompt += `\n\nIMAGE DIMENSIONS: ${processedImage.imageDimensions.width}x${processedImage.imageDimensions.height} pixels`;
+      ///userPrompt += `\nUse OCR positions as a guide to avoid overlaps and to find blank spaces for comments.`;
+      //userPrompt += `\n\nIMAGE DIMENSIONS: ${processedImage.imageDimensions.width}x${processedImage.imageDimensions.height} pixels`;
       userPrompt += `\nIMPORTANT: All annotations must stay within these dimensions.`;
       userPrompt += `\n(x + width) <= ${processedImage.imageDimensions.width}`;
       userPrompt += `\n(y + height) <= ${processedImage.imageDimensions.height}`;
-      userPrompt += `\nComments specificly must start within left haft of image: (x) <= ${processedImage.imageDimensions.width}/2`;
+      //userPrompt += `\nComments specificly must start within left haft of image: (x) <= ${processedImage.imageDimensions.width}/2`;
       userPrompt += `\nIf diagrams, graphs, or math symbols are not detected by OCR, estimate their positions and annotate accordingly.`;
     }
     console.log('🔍 ===== CALLING AI MARKING INSTRUCTIONS =====');
