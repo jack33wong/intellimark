@@ -96,7 +96,7 @@ export class SVGOverlayService {
 
     console.log('🔍 Creating SVG overlay with dimensions:', actualWidth, 'x', actualHeight);
     console.log('🔍 Original dimensions:', originalDimensions.width, 'x', originalDimensions.height);
-    
+    console.log('🔍 Annotations:', annotations);
     // Calculate scaling factors from provided dimensions to actual burn dimensions
     const scaleX = actualWidth / originalDimensions.width;
     const scaleY = actualHeight / originalDimensions.height;
