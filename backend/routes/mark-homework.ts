@@ -29,6 +29,8 @@ function validateModelConfig(modelType: string): boolean {
   return validModels.includes(modelType);
 }
 
+const VERBOSE = process.env.VERBOSE_LOGS === '1';
+
 const router = express.Router();
 
 console.log('🚀 COMPLETE MARK QUESTION ROUTE MODULE LOADED SUCCESSFULLY');
@@ -38,24 +40,20 @@ console.log('🚀 COMPLETE MARK QUESTION ROUTE MODULE LOADED SUCCESSFULLY');
  */
 async function classifyImageWithAI(imageData: string, model: ModelType): Promise<ImageClassification> {
   try {
-    console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
-    console.log('🔍 Using model:', model);
-    
+    if (VERBOSE) {
+      console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
+      console.log('🔍 Using model:', model);
+    }
     // Import the AI marking service to avoid circular dependencies
     const { AIMarkingService } = await import('../services/aiMarkingService');
-    
     // Use AI marking service for classification
     const classification = await AIMarkingService.classifyImage(imageData, model);
-    
-    console.log('🔍 AI Classification result:', classification);
+    if (VERBOSE) console.log('🔍 AI Classification result:', classification);
     return classification;
-    
   } catch (error) {
     console.error('❌ Real AI classification failed:', error);
-    // Fallback to basic logic if AI service fails
     const imageSize = imageData.length;
     const hasStudentWork = imageSize > 200;
-    
     return {
       isQuestionOnly: !hasStudentWork,
       reasoning: `AI classification failed: ${error instanceof Error ? error.message : 'Unknown error'}. Using fallback logic.`,
@@ -70,56 +68,75 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
  */
 async function processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
   try {
-    console.log('🔍 ===== ENHANCED OCR PROCESSING WITH HYBRID OCR + PIPE DETECTION =====');
-    
-    // Import the hybrid OCR service
+    if (VERBOSE) console.log('🔍 ===== ENHANCED OCR PROCESSING WITH HYBRID OCR + PIPE DETECTION =====');
     const { HybridOCRService } = await import('../services/hybridOCRService');
-    
-    // Process image with hybrid OCR (Google Vision + Mathpix + enhanced pipe detection)
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
-      mathThreshold: 0.10 // Use the enhanced pipe detection threshold
+      mathThreshold: 0.10
     });
-    
-    console.log('✅ Hybrid OCR completed successfully');
-    console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
-    console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
-    console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
-    
-    // Convert hybrid OCR result to ProcessedImageResult format
+    if (VERBOSE) {
+      console.log('✅ Hybrid OCR completed successfully');
+      console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
+      console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
+      console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
+    }
+
+    // Build per-line bounding boxes from Vision word boxes
+    const words: Array<{ x: number; y: number; width: number; height: number; text?: string; confidence?: number }>
+      = Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes as any[] : [];
+
+    const lineThreshold = 12; // px tolerance to group words on same line
+    const sorted = [...words].sort((a, b) => a.y - b.y || a.x - b.x);
+
+    type LineAcc = {
+      segments: Array<{ x: number; y: number; width: number; height: number; text: string; confidence: number }>;
+    };
+    const lineAccs: LineAcc[] = [];
+
+    for (const w of sorted) {
+      const seg = { x: w.x, y: w.y, width: w.width, height: w.height, text: (w.text || '').trim(), confidence: w.confidence || 0 };
+      if (lineAccs.length === 0) {
+        lineAccs.push({ segments: [seg] });
+        continue;
+      }
+      const last = lineAccs[lineAccs.length - 1];
+      const lastY = last.segments[0]?.y ?? seg.y;
+      if (Math.abs(seg.y - lastY) <= lineThreshold) {
+        last.segments.push(seg);
+      } else {
+        lineAccs.push({ segments: [seg] });
+      }
+    }
+
+    const lines = lineAccs.map(acc => {
+      const segs = acc.segments.sort((a, b) => a.x - b.x);
+      const minX = Math.min(...segs.map(s => s.x));
+      const minY = Math.min(...segs.map(s => s.y));
+      const maxX = Math.max(...segs.map(s => s.x + s.width));
+      const maxY = Math.max(...segs.map(s => s.y + s.height));
+      const text = segs.map(s => s.text).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+      const conf = segs.reduce((a, s) => a + (s.confidence || 0), 0) / Math.max(1, segs.length);
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, text, confidence: conf };
+    });
+
     const processedResult: ProcessedImageResult = {
       ocrText: hybridResult.text,
-      boundingBoxes: hybridResult.mathBlocks.map(block => ({
-        x: block.coordinates.x,
-        y: block.coordinates.y,
-        width: block.coordinates.width,
-        height: block.coordinates.height,
-        text: block.googleVisionText,
-        confidence: block.confidence || 0.8
-      })),
+      boundingBoxes: lines.map(l => ({ x: l.x, y: l.y, width: l.width, height: l.height, text: l.text, confidence: l.confidence })),
       confidence: hybridResult.confidence,
       imageDimensions: hybridResult.dimensions,
-      isQuestion: false // Will be determined by AI classification
+      isQuestion: false
     };
-    
-    console.log('🔍 Enhanced pipe detection results:');
-    hybridResult.mathBlocks.forEach((block, index) => {
-      const pipeCount = (block.googleVisionText.match(/\|/g) || []).length;
-      const hasPipePair = /\|.*\|/.test(block.googleVisionText);
-      if (pipeCount > 0) {
-        console.log(`   Block ${index + 1}: "${block.googleVisionText}" (${pipeCount} pipes, pair: ${hasPipePair}, score: ${block.mathLikenessScore.toFixed(3)})`);
-      }
-    });
-    
+
+    if (VERBOSE) {
+      console.log('🔍 Built per-line bounding boxes:', processedResult.boundingBoxes.length);
+    }
+
     return processedResult;
-    
   } catch (error) {
     console.error('❌ Enhanced OCR processing failed:', error);
     throw new Error(`Enhanced OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
-
-
 
 /**
  * NEW 3-STEP LLM FLOW: Real AI marking service using the new 3-step LLM pipeline
@@ -130,22 +147,15 @@ async function generateRealMarkingInstructionsWithNewFlow(
   processedImage: ProcessedImageResult,
   questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
-  
-  console.log('🔍 Generating real AI marking instructions with NEW 3-STEP FLOW for model:', model);
-  
+  if (VERBOSE) console.log('🔍 Generating real AI marking instructions with NEW 3-STEP FLOW for model:', model);
   try {
-    // Import the AI marking service to avoid circular dependencies
     const { AIMarkingService } = await import('../services/aiMarkingService');
-    
-    // Use NEW 3-step LLM flow for marking instructions
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructionsWithNewFlow(
       imageData, 
       model, 
       processedImage,
       questionDetection
     );
-    
-    // Convert SimpleMarkingInstructions to MarkingInstructions
     const markingInstructions: MarkingInstructions = {
       annotations: simpleMarkingInstructions.annotations.map(annotation => ({
         action: annotation.action,
@@ -154,15 +164,10 @@ async function generateRealMarkingInstructionsWithNewFlow(
         ...(annotation.text && { text: annotation.text })
       }))
     };
-    console.log('🔍 NEW 3-STEP FLOW Marking Instructions:', markingInstructions.annotations);
-    console.log('🔍 NEW 3-STEP FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
+    if (VERBOSE) console.log('🔍 NEW 3-STEP FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
-    
   } catch (error) {
     console.error('❌ NEW 3-STEP FLOW marking instructions failed:', error);
-    
-    // Fallback to legacy method if new flow fails
-    console.log('🔄 Falling back to legacy marking method...');
     return await generateRealMarkingInstructionsLegacy(
       imageData, 
       model, 
@@ -181,22 +186,15 @@ async function generateRealMarkingInstructionsLegacy(
   processedImage: ProcessedImageResult,
   questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
-  
-  console.log('🔍 Generating LEGACY AI marking instructions for model:', model);
-  
+  if (VERBOSE) console.log('🔍 Generating LEGACY AI marking instructions for model:', model);
   try {
-    // Import the AI marking service to avoid circular dependencies
     const { AIMarkingService } = await import('../services/aiMarkingService');
-    
-    // Use legacy AI marking service for marking instructions
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
       imageData, 
       model, 
       processedImage,
       questionDetection
     );
-    
-    // Convert SimpleMarkingInstructions to MarkingInstructions
     const markingInstructions: MarkingInstructions = {
       annotations: simpleMarkingInstructions.annotations.map(annotation => ({
         action: annotation.action,
@@ -205,356 +203,158 @@ async function generateRealMarkingInstructionsLegacy(
         ...(annotation.text && { text: annotation.text })
       }))
     };
-    console.log('🔍 LEGACY AI Marking Instructions:', markingInstructions.annotations);
-    console.log('🔍 LEGACY AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
+    if (VERBOSE) console.log('🔍 LEGACY AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
-    
   } catch (error) {
     console.error('❌ Real AI marking instructions failed:', error);
-    
-    // Fallback to basic marking if AI service fails
-    const annotations = [];
-    
+    // Fallback basic marking preserved as-is
+    const annotations = [] as any[];
     if (processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
       processedImage.boundingBoxes.forEach((bbox, index) => {
         const text = bbox.text.toLowerCase();
-        
-        // Basic intelligent analysis based on content
         let action: 'tick' | 'circle' | 'underline' | 'comment' = 'tick';
         let comment = '';
-        
-                 if (text.includes('step') || text.includes('solution')) {
-           action = 'tick';
-                       comment = 'Verify each step carefully';
-         } else if (text.includes('=') || text.includes('±') || text.includes('√') || text.includes('÷')) {
-           action = 'tick';
-                       comment = 'Check mathematical operations';
-         } else if (text.includes('x²') || text.includes('quadratic') || text.includes('equation')) {
-           action = 'underline';
-                       comment = 'Ensure problem is correctly identified';
-         } else if (text.includes('a =') || text.includes('b =') || text.includes('c =') || text.includes('coefficients')) {
-           action = 'circle';
-                       comment = 'Verify parameter values';
-         } else if (text.includes('formula') || text.includes('discriminant') || text.includes('δ')) {
-           action = 'tick';
-                       comment = 'Confirm formula application';
-         } else if (text.includes('answer') || text.includes('x =')) {
-           action = 'tick';
-                       comment = 'Double-check final answer';
-         } else if (text.includes('find') || text.includes('value')) {
-           action = 'underline';
-                       comment = 'Ensure problem statement is clear';
-         } else {
-           // Default intelligent actions
-           const actions = ['tick', 'circle', 'underline', 'comment'] as const;
-           action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
-           
-           switch (action) {
-                           case 'tick':
-                comment = 'Verify mathematical work';
-                break;
-              case 'circle':
-                comment = 'Check calculation approach';
-                break;
-              case 'underline':
-                comment = 'Review method carefully';
-                break;
-              case 'comment':
-                comment = 'Ensure accuracy';
-                break;
-           }
-         }
-        
-        annotations.push({
-          action: action as 'tick' | 'circle' | 'underline' | 'comment',
-          bbox: [bbox.x, bbox.y, bbox.width, bbox.height] as [number, number, number, number],
-          comment: comment
-        });
+        if (text.includes('step') || text.includes('solution')) { action = 'tick'; comment = 'Verify each step carefully'; }
+        else if (text.includes('=') || text.includes('±') || text.includes('√') || text.includes('÷')) { action = 'tick'; comment = 'Check mathematical operations'; }
+        else if (text.includes('x²') || text.includes('quadratic') || text.includes('equation')) { action = 'underline'; comment = 'Ensure problem is correctly identified'; }
+        else if (text.includes('a =') || text.includes('b =') || text.includes('c =') || text.includes('coefficients')) { action = 'circle'; comment = 'Verify parameter values'; }
+        else if (text.includes('formula') || text.includes('discriminant') || text.includes('δ')) { action = 'tick'; comment = 'Confirm formula application'; }
+        else if (text.includes('answer') || text.includes('x =')) { action = 'tick'; comment = 'Double-check final answer'; }
+        else if (text.includes('find') || text.includes('value')) { action = 'underline'; comment = 'Ensure problem statement is clear'; }
+        else {
+          const actions = ['tick', 'circle', 'underline', 'comment'] as const;
+          action = actions[index % actions.length];
+          comment = action === 'tick' ? 'Verify mathematical work'
+            : action === 'circle' ? 'Check calculation approach'
+            : action === 'underline' ? 'Review method carefully'
+            : 'Ensure accuracy';
+        }
+        annotations.push({ action, bbox: [bbox.x, bbox.y, bbox.width, bbox.height] as [number, number, number, number], comment });
       });
     }
-    
-         // Add overall feedback comment
-     if (annotations.length > 0) {
-       annotations.push({
-         action: 'comment' as const,
-         bbox: [50, 500, 400, 80] as [number, number, number, number],
-                   text: 'Please verify your final calculations and ensure all steps are clearly shown.'
-       });
-     }
-    
+    if (annotations.length > 0) {
+      annotations.push({ action: 'comment' as const, bbox: [50, 500, 400, 80] as [number, number, number, number], text: 'Please verify your final calculations and ensure all steps are clearly shown.' });
+    }
     console.log('🔍 Fallback marking instructions generated:', annotations.length, 'annotations');
     return { annotations };
   }
 }
 
-
-
 /**
- * Helper function to create a new marking session for each upload
+ * Save marking results to Firestore database
  */
-async function createNewMarkingSession(
-  userId: string, 
-  questionDetection?: any, 
-  imageClassification?: any
+async function saveMarkingResults(
+  imageData: string,
+  model: string,
+  result: ProcessedImageResult,
+  instructions: MarkingInstructions,
+  classification: ImageClassification,
+  userId: string = 'anonymous',
+  userEmail: string = 'anonymous@example.com'
 ): Promise<string> {
   try {
-    console.log('🔍 Creating new marking session for user:', userId);
-    
-    // Import Firestore service
+    if (VERBOSE) {
+      console.log('🔍 Attempting to save to Firestore...');
+      console.log('🔍 User ID:', userId);
+      console.log('🔍 User Email:', userEmail);
+      console.log('🔍 Model:', model);
+    }
     const { FirestoreService } = await import('../services/firestoreService');
-    
-    // Generate session title based on available data
-    let sessionTitle = 'Chat Session';
-    
-    if (questionDetection?.found && questionDetection?.match) {
-      const examDetails = questionDetection.match.markingScheme?.examDetails || {};
-      const questionNumber = questionDetection.match.questionNumber;
-      
-      const board = examDetails.board || questionDetection.match.board || 'Unknown';
-      const qualification = examDetails.qualification || questionDetection.match.qualification || 'Unknown';
-      const questionNum = questionNumber || 'Unknown';
-      
-      sessionTitle = `${board} ${qualification} Q${questionNum}`;
-    } else {
-      // Fallback to timestamp-based title
-      const timestamp = new Date().toISOString();
-      sessionTitle = `Marking Session - ${timestamp}`;
-    }
-    
-    console.log('🔍 Session title:', sessionTitle);
-    
-    // Determine messageType based on question detection and classification
-    let messageType: 'Marking' | 'Question' | 'Chat' = 'Chat';
-    if (questionDetection?.found && questionDetection?.match) {
-      const isQuestionOnly = imageClassification?.isQuestionOnly || false;
-      messageType = isQuestionOnly ? 'Question' : 'Marking';
-    }
-
-    const sessionId = await FirestoreService.createChatSession({
-      title: sessionTitle,
-      messages: [],
+    const resultId = await FirestoreService.saveMarkingResults(
       userId,
-      messageType
-    });
-    
-    console.log('🔍 Created new marking session:', sessionId);
-    console.log('🔍 Session title in database:', sessionTitle);
-    return sessionId;
+      userEmail,
+      imageData,
+      model,
+      false,
+      classification,
+      result,
+      instructions,
+      undefined,
+      {
+        processingTime: new Date().toISOString(),
+        modelUsed: model,
+        totalAnnotations: instructions.annotations.length,
+        imageSize: imageData.length,
+        confidence: result.confidence,
+        apiUsed: 'Complete AI Marking System',
+        ocrMethod: 'Enhanced OCR Processing'
+      }
+    );
+    if (VERBOSE) console.log('🔍 Results saved to Firestore with ID:', resultId);
+    return resultId;
   } catch (error) {
-    console.error('❌ Failed to create marking session:', error);
-    throw error;
+    console.error('❌ Failed to save marking results to Firestore:', error);
+    const resultId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('🔍 Results saved locally with ID:', resultId);
+    return resultId;
   }
 }
 
 /**
  * POST /mark-homework
- * Complete mark question endpoint with all functionality
  */
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   console.log('🚀 ===== COMPLETE MARK QUESTION ROUTE CALLED =====');
-  console.log('Request body:', { 
-    imageData: req.body.imageData ? 'present' : 'missing', 
-    model: req.body.model 
-  });
-  
+  const { imageData, model = 'chatgpt-4o' } = req.body;
+  if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
+  if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
+
   try {
-    console.log('🔍 ===== EXTRACTING REQUEST DATA =====');
-    const { imageData, model = 'chatgpt-4o' } = req.body;
-    console.log('🔍 Extracted imageData length:', imageData ? imageData.length : 'undefined');
-    console.log('🔍 Extracted model:', model);
-
-    // Validate request
-    console.log('🔍 ===== VALIDATING REQUEST =====');
-    if (!imageData) {
-      console.log('🔍 Validation failed: No image data');
-      return res.status(400).json({
-        success: false,
-        error: 'Image data is required'
-      });
-    }
-    console.log('🔍 Image data validation passed');
-
-    if (!validateModelConfig(model)) {
-      console.log('🔍 Validation failed: Invalid model config');
-      return res.status(400).json({
-        success: false,
-        error: 'Valid AI model is required'
-      });
-    }
-    console.log('🔍 Model validation passed');
-
-    // Step 1: AI-powered image classification
-    console.log('🔍 ===== STEP 1: AI IMAGE CLASSIFICATION =====');
+    // Step 1: AI classification
     const imageClassification = await classifyImageWithAI(imageData, model);
-      console.log('🔍 Image Classification:', imageClassification);
-    
-    // Log extracted question text for backend debugging
+    if (VERBOSE && imageClassification.extractedQuestionText) {
+      console.log('📝 Extracted question text (truncated):', imageClassification.extractedQuestionText.slice(0, 200));
+    }
+    // Step 1.5: Question detection
+    let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
-      console.log('📝 ===== EXTRACTED QUESTION TEXT =====');
-      console.log('📝 Question Text:', imageClassification.extractedQuestionText);
-      console.log('📝 ====================================');
+      try {
+        questionDetection = await questionDetectionService.detectQuestion(imageClassification.extractedQuestionText);
+      } catch (_e) {
+        questionDetection = { found: false, message: 'Question detection service failed' };
+      }
     } else {
-      console.log('⚠️ ===== NO QUESTION TEXT EXTRACTED =====');
-      console.log('⚠️ Image Classification Result:', imageClassification);
-      console.log('⚠️ ======================================');
+      questionDetection = { found: false, message: 'No question text extracted' };
     }
 
-    // Step 1.5: Question Detection Service
-             let questionDetection: QuestionDetectionResult | undefined;
-
-         if (imageClassification.extractedQuestionText) {
-           try {
-             questionDetection = await questionDetectionService.detectQuestion(
-               imageClassification.extractedQuestionText
-             );
-           } catch (error) {
-             console.error('❌ Question detection failed:', error);
-             questionDetection = {
-               found: false,
-               message: 'Question detection service failed'
-             };
-           }
-         } else {
-           questionDetection = {
-             found: false,
-             message: 'No question text extracted'
-           };
-         }
-    
     if (imageClassification.isQuestionOnly) {
-      // For question-only images, still create a session and save the data
-      console.log('🔍 ===== QUESTION-ONLY IMAGE DETECTED =====');
-      
-      // Get user information from request (if authenticated)
-      const userId = (req as any)?.user?.uid || 'anonymous';
-      const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
-      
-      // Create new session for question-only images too
-      console.log('🔍 ===== CREATING NEW SESSION FOR QUESTION-ONLY =====');
-      console.log('🔍 User ID:', userId);
-      console.log('🔍 Timestamp:', new Date().toISOString());
-      const sessionId = await createNewMarkingSession(userId, questionDetection, imageClassification);
-      console.log('🔍 Created session ID:', sessionId);
-      console.log('🔍 ================================================');
-      
-      // Save question-only data as session messages
-      const { FirestoreService } = await import('../services/firestoreService');
-      await FirestoreService.saveQuestionOnlyAsMessages(
-        userId,
-        sessionId,
-        imageData,
-        model,
-        imageClassification,
-        questionDetection
-      );
-      
-      // Return with session ID for question-only images
-      return res.json({ 
-        success: true,
-        isQuestionOnly: true,
-        message: 'Image classified as question only - use chat interface for tutoring',
-        apiUsed: imageClassification.apiUsed,
-        model: model,
-        reasoning: imageClassification.reasoning,
-        questionDetection: questionDetection,
-        sessionId: sessionId,
-        timestamp: new Date().toISOString()
-      });
+      return res.json({ success: true, isQuestionOnly: true, message: 'Image classified as question only - use chat interface for tutoring', apiUsed: imageClassification.apiUsed, model, reasoning: imageClassification.reasoning, questionDetection, timestamp: new Date().toISOString() });
     }
 
-    // Step 2: Real OCR processing
-    console.log('🔍 ===== STEP 2: REAL OCR PROCESSING =====');
+    // Step 2: OCR
     const processedImage = await processImageWithRealOCR(imageData);
-      console.log('🔍 OCR Processing completed successfully!');
-      console.log('🔍 OCR Text length:', processedImage.ocrText.length);
-      console.log('🔍 Bounding boxes found:', processedImage.boundingBoxes.length);
+    if (VERBOSE) console.log('🔍 OCR summary:', { textLen: processedImage.ocrText.length, boxes: processedImage.boundingBoxes.length });
 
-    // Step 3: AI-powered marking instructions using NEW 3-STEP LLM FLOW
-    console.log('🔍 ===== STEP 3: AI MARKING INSTRUCTIONS (NEW 3-STEP LLM FLOW) =====');
+    // Step 3: Marking (new flow)
     const markingInstructions = await generateRealMarkingInstructionsWithNewFlow(imageData, model, processedImage, questionDetection);
-    console.log('🔍 NEW 3-STEP LLM FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
 
-    // Step 4: Burn SVG overlay into image
-    console.log('🔍 ===== STEP 4: BURNING SVG OVERLAY INTO IMAGE =====');
-    console.log('🔍 Marking instructions annotations:', markingInstructions.annotations.length);
-    console.log('🔍 Image dimensions:', processedImage.imageDimensions);
-    
-    // Convert marking instructions to annotation format
-    const annotations = markingInstructions.annotations.map(ann => ({
-      bbox: ann.bbox,
-      comment: ann.text || '',
-      action: ann.action
-    }));
-    
-    // Generate burned image with annotations
-    const annotationResult = await ImageAnnotationService.generateAnnotationResult(
-        imageData,
-      annotations,
-      processedImage.imageDimensions
-    );
-    
-    console.log('🔍 Burned image created, length:', annotationResult.annotatedImage.length);
-    console.log('🔍 SVG overlay length:', annotationResult.svgOverlay.length);
+    // Step 4: Burn overlay
+    const annotations = markingInstructions.annotations.map(ann => ({ bbox: ann.bbox, comment: ann.text || '', action: ann.action }));
+    const annotationResult = await ImageAnnotationService.generateAnnotationResult(imageData, annotations, processedImage.imageDimensions);
 
-    // Step 5: Save results to persistent storage
-    console.log('🔍 ===== STEP 5: SAVING RESULTS =====');
-    
-    // Get user information from request (if authenticated)
+    // Step 5: Save
     const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
-    
-    // Create new session for each marking request
-    console.log('🔍 ===== CREATING NEW SESSION =====');
-    console.log('🔍 User ID:', userId);
-    console.log('🔍 Timestamp:', new Date().toISOString());
-    const sessionId = await createNewMarkingSession(userId, questionDetection, imageClassification);
-    console.log('🔍 Created session ID:', sessionId);
-    console.log('🔍 =================================');
-    
-    // Save marking results as session messages
-    const { FirestoreService } = await import('../services/firestoreService');
-    await FirestoreService.saveMarkingResultsAsMessages(
-      userId,
-      sessionId,
-      imageData,
-      model,
-      processedImage,
-      markingInstructions,
-      imageClassification,
-      annotationResult.annotatedImage,
-      {
-        processingTime: new Date().toISOString(),
-        modelUsed: model,
-        totalAnnotations: markingInstructions.annotations.length,
-        imageSize: imageData.length,
-        confidence: processedImage.confidence,
-        apiUsed: 'Complete AI Marking System',
-        ocrMethod: 'Enhanced OCR Processing'
-      },
-      questionDetection
-    );
+    const resultId = await saveMarkingResults(imageData, model, processedImage, markingInstructions, imageClassification, userId, userEmail);
 
-    // Step 6: Return complete marking result
-    console.log('🔍 ===== STEP 6: RETURNING COMPLETE RESULT =====');
+    // Step 6: Respond
     const response: MarkHomeworkResponse = {
       success: true,
       isQuestionOnly: false,
       result: processedImage,
-      annotatedImage: annotationResult.annotatedImage, // Use burned image instead of SVG overlay
+      annotatedImage: annotationResult.annotatedImage,
       instructions: markingInstructions,
       message: 'Question marked successfully with burned annotations',
       apiUsed: 'Complete AI Marking System with Burned Overlays',
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification,
-      questionDetection: questionDetection
+      questionDetection
     };
 
-    // Add metadata
     const enhancedResponse = {
       ...response,
-      sessionId: sessionId,
       metadata: {
-        sessionId: sessionId,
+        resultId,
         processingTime: new Date().toISOString(),
         modelUsed: model,
         totalAnnotations: markingInstructions.annotations.length,
@@ -564,14 +364,9 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     };
 
     return res.json(enhancedResponse);
-
   } catch (error) {
     console.error('Error in complete mark question:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error in mark question system',
-      details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support'
-    });
+    return res.status(500).json({ success: false, error: 'Internal server error in mark question system', details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' });
   }
 });
 

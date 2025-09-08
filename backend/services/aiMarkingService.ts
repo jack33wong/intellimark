@@ -255,7 +255,7 @@ export class AIMarkingService {
 
     Return ONLY the JSON object.`;
 
-    let userPrompt = `Here are the OCR bounding boxes from Google Vision that need to be extrapolated into per-line coordinates:
+    let userPrompt = `Here are the OCR bounding boxes from Google Vision that need to be extrapolated into individual line coordinates:
 
 IMAGE DIMENSIONS: ${processedImage.imageDimensions.width}x${processedImage.imageDimensions.height} pixels
 
@@ -569,14 +569,13 @@ Please calculate precise coordinates for each annotation. Remember to:
       );
       console.log('✅ Step 1 completed - Marking annotations response received');
 
-      // Step 2: Calculate precise coordinates for annotations (LLM3)
-      console.log('🔍 ===== STEP 2: CALCULATE ANNOTATION COORDINATES (LLM3) =====');
-      console.log('🔍 Input: Annotation decisions + OCR bounding boxes');
-      const finalAnnotations = await this.calculateAnnotationCoordinatesFromText(
-        model,
+      // Step 2: Programmatic coordinate placement (replace LLM3)
+      console.log('🔍 ===== STEP 2: PROGRAMMATIC COORDINATE PLACEMENT =====');
+      const finalAnnotations = this.calculateAnnotationCoordinatesProgrammatically(
         processedImage.ocrText || '',
         processedImage.boundingBoxes || [],
-        annotationData
+        annotationData,
+        processedImage.imageDimensions
       );
       console.log('✅ Step 2 completed - Final annotations:', finalAnnotations.annotations.length, 'annotations');
 
@@ -594,16 +593,14 @@ Please calculate precise coordinates for each annotation. Remember to:
       console.log('🔍 Final result summary:');
       console.log('  - OCR text length:', processedImage.ocrText?.length || 0, 'characters');
       console.log('  - Math blocks available:', processedImage.boundingBoxes?.length || 0, 'blocks');
-      console.log('  - Marking decisions:', annotationData.annotations.length, 'decisions');
       console.log('  - Final annotations:', result.annotations.length, 'annotations');
+      console.log('  - Math blocks available:', processedImage);
       console.log('🔍 ===== NEW 2-STEP LLM FLOW SUMMARY =====\n');
       
       return result;
 
     } catch (error) {
       console.error('❌ New 2-step LLM flow failed:', error);
-      
-      // Fallback to legacy method if new flow fails
       console.log('🔄 Falling back to legacy marking method...');
       return await this.generateMarkingInstructions(
         imageData,
@@ -648,28 +645,26 @@ Please calculate precise coordinates for each annotation. Remember to:
     }
 
     ANNOTATION RULES:
-    - Use "tick" for correct answers or working
-    - Use "cross" for incorrect answers or errors
-    - Use "comment" to show marks achieved (e.g., "M1", "A1", "B1") or provide feedback
-    - "textMatch" should be the exact text from the OCR that this annotation applies to
-    - Be specific with text matches - use unique phrases that can be found in the OCR text
+- Use "tick" for correct, minor steps that do not correspond to a specific mark.
+- Use "cross" for incorrect steps or calculations.
+- Use "comment" to award marks (e.g., "M1", "A1").
+- The "text" field MUST be one of the following: "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or a brief "comment text".
+- "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
 
-    MARKING CRITERIA:
-    - Analyze mathematical correctness
-    - Check method accuracy
-    - Mark should only be awarded when the answer satisfies all the criteria for that mark
-    - Consider different aspects of the same work (method, accuracy, presentation)
-    - Look for mathematical expressions, especially those with pipe notation (|v|) for absolute values
+MARKING CRITERIA:
+- The provided 'MARKING SCHEME CONTEXT' is the definitive source for mark allocation.
+- Your task is to award marks based on a one-to-one mapping between the student's work and the specific criteria in the mark scheme.
+- Award marks in the sequence they appear in the mark scheme (e.g., first M1, then M1dep, then A1).
+- If the student's work satisfies a mark's criteria, award it with a "comment" and the appropriate mark in the "text" field.
+- If a student's work shows an incorrect attempt at a specific mark (e.g., an incorrect calculation for "c" which prevents the M1dep mark), use a "cross" action and set the "text" to the corresponding mark with a "0" (e.g., M0, A0) to explicitly state the mark was not achieved.
+- You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
 
     EXAMPLES:
     - For "|v| = 28/5 = 5.6ms^-1" you might create:
       * A "tick" for correct absolute value notation
       * A "tick" for correct calculation
       * A "comment" for "M1" if method is correct
-    - For "x = 5 + 3 = 8" you might create:
-      * A "tick" for correct calculation
-      * A "comment" for "A1" if answer is correct
-
+      * Another "comment" for "A1" if answer is correct
     Return ONLY the JSON object.`;
 
     let userPrompt = `Here is the OCR text from the student's work that needs to be marked:
@@ -681,12 +676,17 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
 
     // Add question detection context if available
     if (questionDetection?.match?.markingScheme) {
-      userPrompt += `\n\nMARKING SCHEME CONTEXT:
-Exam: ${questionDetection.match.board} ${questionDetection.match.qualification} ${questionDetection.match.paperCode} ${questionDetection.match.year}
-Total Questions: ${questionDetection.match.markingScheme.totalQuestions}
-Total Marks: ${questionDetection.match.markingScheme.totalMarks}`;
+      const ms = questionDetection.match.markingScheme.questionMarks as any;
+      const schemeJson = JSON.stringify(ms, null, 2)
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n");
+      userPrompt += `\n\nMARKING SCHEME CONTEXT:\n"""${schemeJson}"""`;
     }
-
+    //console.log('🔍 SYSTEM PROMPT:', systemPrompt);
+    //console.log('🔍 USER PROMPT:', userPrompt);
+    //console .log('model used:', model);
+    model = 'gemini-2.5-pro';
     let response: string;
     if (model === 'gemini-2.5-pro') {
       response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
@@ -705,88 +705,172 @@ Total Marks: ${questionDetection.match.markingScheme.totalMarks}`;
   }
 
   /**
-   * NEW LLM3: Calculate precise coordinates for annotations based on text matching
+   * Replace LLM3: Calculate coordinates programmatically by placing annotations
+   * horizontally to the right of the best-matching line bbox.
    */
-  static async calculateAnnotationCoordinatesFromText(
-    model: SimpleModelType,
+  private static calculateAnnotationCoordinatesProgrammatically(
     ocrText: string,
-    boundingBoxes: any[],
-    annotationData: { annotations: string }
-  ): Promise<{
-    annotations: SimpleAnnotation[];
-  }> {
-
-    const systemPrompt = `You are an AI assistant that calculates precise coordinates for marking annotations.
-
-    Your task is to:
-    1. Take marking annotations and OCR text with bounding boxes
-    2. Match each annotation to the correct text in the OCR
-    3. Calculate precise coordinates for each annotation
-    4. Return final annotations with accurate bounding boxes
-
-    CRITICAL OUTPUT RULES:
-    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
-    - Output MUST strictly follow this format:
-
-    {
-      "annotations": [
-        {
-          "action": "tick|cross|comment",
-          "bbox": [x, y, width, height],
-          "text": "M1|M0|A1|A0|B1|B0|C1|C0|comment text"
-        }
-      ]
-    }
-
-    COORDINATE CALCULATION RULES:
-    - Use the provided bounding boxes to find text matches
-    - If text is found in multiple bounding boxes, use the most relevant one
-    - If text spans multiple bounding boxes, combine their coordinates
-    - Ensure coordinates are within the image bounds
-    - Use [x, y, width, height] format where (x,y) is top-left corner
-
-    TEXT MATCHING RULES:
-    - Match annotations to the exact text from the OCR
-    - Be flexible with whitespace and formatting differences
-    - Prioritize mathematical expressions and key terms
-    - If exact match not found, use the closest relevant text
-
-    Return ONLY the JSON object.`;
-
-    const userPrompt = `Here are the marking annotations and OCR data:
-
-MARKING ANNOTATIONS:
-${annotationData.annotations}
-
-OCR TEXT:
-${ocrText}
-
-BOUNDING BOXES:
-${JSON.stringify(boundingBoxes, null, 2)}
-
-Please calculate precise coordinates for each annotation by matching the text to the bounding boxes.`;
-
-    let response: string;
-    if (model === 'gemini-2.5-pro') {
-      response = await this.callGeminiForTextResponse(systemPrompt, userPrompt);
-    } else {
-      response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
-    }
-    console.log('🔍 LLM3 (Coordinate Calculation) response received');
-
+    boundingBoxes: Array<{ x: number; y: number; width: number; height: number; text?: string }>,
+    annotationData: { annotations: string },
+    imageDimensions?: { width: number; height: number }
+  ): {
+    annotations: Array<{
+      action: 'tick' | 'cross' | 'circle' | 'underline' | 'comment';
+      bbox: [number, number, number, number];
+      text?: string;
+    }>;
+  } {
+    // Parse the LLM2 response to JSON
+    let parsed: any;
     try {
-      const result = this.cleanAndValidateJSON(response, 'annotations');
-      return {
-        annotations: result.annotations.map((annotation: any) => ({
-          action: annotation.action,
-          bbox: annotation.bbox,
-          ...(annotation.text && { text: annotation.text })
-        }))
-      };
-    } catch (error) {
-      console.error('❌ LLM3 JSON parsing failed:', error);
-      throw new Error(`LLM3 failed to calculate annotation coordinates: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      parsed = this.cleanAndValidateJSON(annotationData.annotations, 'annotations');
+    } catch (e) {
+      return { annotations: [] };
     }
+
+    const anns: Array<any> = parsed.annotations || [];
+    const results: Array<{ action: any; bbox: [number, number, number, number]; text?: string }> = [];
+
+    const widthLimit = imageDimensions?.width ?? Number.MAX_SAFE_INTEGER;
+    const heightLimit = imageDimensions?.height ?? Number.MAX_SAFE_INTEGER;
+
+    const normalize = (s: string) =>
+      (s || '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/\^\s*\(/g, '^(')
+        .replace(/[()\[\]{}]/g, '')
+        .replace(/±/g, '+-')
+        .replace(/×/g, 'x')
+        .replace(/÷/g, '/')
+        .replace(/\|/g, '')
+        .replace(/[^a-z0-9+\-*/^=.,]/g, '');
+
+    const lcsLength = (aRaw: string, bRaw: string) => {
+      const a = normalize(aRaw);
+      const b = normalize(bRaw);
+      const n = a.length, m = b.length;
+      if (n === 0 || m === 0) return 0;
+      const dp = new Array(m + 1).fill(0);
+      for (let i = 1; i <= n; i++) {
+        let prev = 0;
+        for (let j = 1; j <= m; j++) {
+          const temp = dp[j];
+          if (a[i - 1] === b[j - 1]) dp[j] = prev + 1;
+          else dp[j] = Math.max(dp[j], dp[j - 1]);
+          prev = temp;
+        }
+      }
+      return dp[m];
+    };
+
+    const windowTightness = (needleRaw: string, hayRaw: string) => {
+      const needle = normalize(needleRaw);
+      const hay = normalize(hayRaw);
+      if (!needle || !hay) return 0;
+      // Greedy in-order positions of needle chars within hay
+      let pos = -1;
+      let first = -1;
+      let last = -1;
+      let matched = 0;
+      for (const ch of needle) {
+        const idx = hay.indexOf(ch, pos + 1);
+        if (idx === -1) { return 0; }
+        if (first === -1) first = idx;
+        last = idx;
+        pos = idx;
+        matched++;
+      }
+      const windowLen = (last - first + 1) || needle.length;
+      // Higher score when the matched window is tight/contiguous
+      return Math.min(1, needle.length / windowLen);
+    };
+
+    const scoreMatch = (needleRaw: string, hayRaw: string) => {
+      const needle = normalize(needleRaw);
+      const hay = normalize(hayRaw);
+      if (!needle || !hay) return 0;
+      if (hay.includes(needle)) return 1.0;
+      const lcs = lcsLength(needle, hay) / needle.length;
+      const tight = windowTightness(needle, hay);
+      // Require both order and contiguity; combine conservatively
+      return Math.min(lcs, tight);
+    };
+
+    const findBestBox = (needle: string | undefined) => {
+      if (!needle) return undefined as any;
+      let best = undefined as any;
+      let bestScore = -1;
+      for (const b of boundingBoxes) {
+        const s = scoreMatch(needle, b.text || '');
+        if (s > bestScore) {
+          bestScore = s;
+          best = b as any;
+        } else if (s === bestScore && best && b && b.y < (best as any).y) {
+          best = b as any;
+        }
+      }
+      // Only accept a match if it reaches the 0.9 threshold
+      if (bestScore >= 0.9) return best;
+      return undefined as any;
+    };
+
+    // Track placements per line to horizontally space multiple annotations
+    const lineUsage: Record<string, number> = {};
+    const sigSet = new Set<string>();
+
+    for (const a of anns) {
+      const action = (a.action || 'comment') as 'tick' | 'cross' | 'circle' | 'underline' | 'comment';
+      const textMatch = a.textMatch as string | undefined;
+      const commentText = a.text as string | undefined;
+
+      const line = findBestBox(textMatch || (commentText || '').toString());
+      if (!line) continue;
+
+      const lineX = Math.max(0, line.x || 0);
+      const lineY = Math.max(0, line.y || 0);
+      const lineW = Math.max(1, line.width || 0);
+      const lineH = Math.max(8, line.height || 0);
+
+      // Enforce minimum visible sizes
+      const baseSize = Math.max(18, Math.floor(lineH * 0.9));
+      let annW = baseSize;
+      let annH = baseSize;
+      if (action === 'underline') {
+        annW = Math.max(24, Math.floor(lineW * 0.8));
+        annH = Math.max(6, Math.floor(lineH * 0.18));
+      } else if (action === 'comment') {
+        const len = (commentText || '').length;
+        annW = Math.max(80, len * 8);
+        annH = Math.max(18, Math.floor(lineH * 0.8));
+      }
+
+      const lineKey = `${Math.round(lineY / 10)}`; // bucket by y to group same line
+      const idx = lineUsage[lineKey] || 0;
+      lineUsage[lineKey] = idx + 1;
+      const gap = 10;
+
+      // Place to the right of the line, spaced by previous placements on same line
+      let x = lineX + lineW + 12 + idx * (annW + gap);
+      let y = lineY + Math.max(0, Math.floor((lineH - annH) / 2));
+
+      // Clamp within image bounds if provided
+      if (imageDimensions) {
+        if (x + annW > widthLimit) x = Math.max(0, widthLimit - annW - 1);
+        if (y + annH > heightLimit) y = Math.max(0, heightLimit - annH - 1);
+      }
+
+      const bbox: [number, number, number, number] = [x, y, annW, annH];
+      const sig = `${Math.round(x)}-${Math.round(y)}-${Math.round(annW)}-${Math.round(annH)}-${action}-${commentText || ''}`;
+      if (sigSet.has(sig)) continue; // dedupe identical placements
+      sigSet.add(sig);
+
+      const out: { action: any; bbox: [number, number, number, number]; text?: string } = { action, bbox };
+      if (action === 'comment' && commentText) out.text = commentText;
+      results.push(out);
+    }
+
+    return { annotations: results };
   }
 
   /**
@@ -1551,8 +1635,8 @@ Summary:`;
             ]
           }],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000,
+            temperature: 0.2,
+            maxOutputTokens: 1500,
           }
         })
       });
