@@ -109,3 +109,6 @@ backend/uploads/
 
 # Generated verification images
 verification_overlay.png
+
+# Deployment artifacts
+deploy/
