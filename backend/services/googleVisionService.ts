@@ -1,13 +1,121 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
+import type { protos } from '@google-cloud/vision';
+import type { ProcessedVisionResult, BoundingBox, ImageDimensions } from '../types/index';
 
 /**
  * Service for Google Cloud Vision API operations
  */
 export class GoogleVisionService {
   private client: ImageAnnotatorClient;
+  private static staticClient: ImageAnnotatorClient | null = null;
 
   constructor() {
     this.client = new ImageAnnotatorClient();
+  }
+
+  private static ensureClient() {
+    if (!this.staticClient) {
+      this.staticClient = new ImageAnnotatorClient();
+    }
+    return this.staticClient;
+  }
+
+  /**
+   * Static entry used by HybridOCRService
+   */
+  static async processImage(imageData: string, _enablePreprocessing: boolean = true): Promise<ProcessedVisionResult> {
+    const client = this.ensureClient();
+
+    const image = (() => {
+      if (imageData.startsWith('data:')) {
+        const b64 = imageData.split(',')[1] ?? '';
+        return { content: Buffer.from(b64, 'base64') } as any;
+      }
+      if (imageData.startsWith('http')) {
+        return { source: { imageUri: imageData } } as any;
+      }
+      // assume base64 without prefix
+      return { content: Buffer.from(imageData, 'base64') } as any;
+    })();
+
+    const request = {
+      image,
+      features: [{ type: 'DOCUMENT_TEXT_DETECTION' }]
+    } as any;
+
+    const [response] = await client.annotateImage(request);
+    return this.parseResponse(response as any);
+  }
+
+  private static parseResponse(response: protos.google.cloud.vision.v1.IAnnotateImageResponse): ProcessedVisionResult {
+    const annotation = response.fullTextAnnotation || ({} as any);
+    const text = annotation?.text ?? '';
+
+    const dimensions: ImageDimensions = {
+      width: annotation?.pages?.[0]?.width || 0,
+      height: annotation?.pages?.[0]?.height || 0
+    };
+
+    const boxes: BoundingBox[] = [];
+    const symbols: Array<{ text: string; boundingBox: BoundingBox; confidence: number } > = [];
+
+    const pages: Array<any> = Array.isArray(annotation?.pages) ? (annotation.pages as any[]) : [];
+    for (const page of pages) {
+      const blocks: Array<any> = Array.isArray(page?.blocks) ? (page.blocks as any[]) : [];
+      for (const block of blocks) {
+        const paragraphs: Array<any> = Array.isArray(block?.paragraphs) ? (block.paragraphs as any[]) : [];
+        for (const para of paragraphs) {
+          const words: Array<any> = Array.isArray(para?.words) ? (para.words as any[]) : [];
+          for (const word of words) {
+            const wordText = Array.isArray(word?.symbols) ? (word.symbols as any[]).map((s: any) => s?.text || '').join('') : '';
+            const bb = ((word?.boundingBox?.vertices as any[]) || []) as Array<{ x?: number | null; y?: number | null }>;
+            if (bb && bb.length >= 2) {
+              const { x, y, width, height } = this.verticesToBBox(bb as any);
+              boxes.push({ x, y, width, height, text: wordText, confidence: (word?.confidence as number) || 0 });
+            }
+            const syms: Array<any> = Array.isArray(word?.symbols) ? (word.symbols as any[]) : [];
+            for (const sym of syms) {
+              const vs = ((sym?.boundingBox?.vertices as any[]) || []) as Array<{ x?: number | null; y?: number | null }>;
+              if (vs && vs.length >= 2) {
+                const { x, y, width, height } = this.verticesToBBox(vs as any);
+                const conf = (sym?.confidence as number) || 0;
+                const txt = sym?.text || '';
+                symbols.push({
+                  text: txt,
+                  boundingBox: { x, y, width, height, text: txt, confidence: conf },
+                  confidence: conf
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    let totalConfidence = 0;
+    for (const s of symbols) {
+      totalConfidence += s.confidence || 0;
+    }
+    const avgConf = symbols.length ? totalConfidence / symbols.length : 0;
+
+    return {
+      text,
+      boundingBoxes: boxes,
+      confidence: avgConf,
+      dimensions,
+      symbols,
+      rawResponse: response as any
+    } as any;
+  }
+
+  private static verticesToBBox(vertices: Array<{ x?: number | null; y?: number | null }>) {
+    const xs = vertices.map(v => (v?.x ?? 0));
+    const ys = vertices.map(v => (v?.y ?? 0));
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   /**
@@ -70,7 +178,8 @@ export class GoogleVisionService {
       if (detections && detections.length > 0) {
         console.log('✅ Text recognition successful!');
         console.log('--- Detected Text ---');
-        const detectedText = detections[0].description?.trim() || '';
+        const first: any = detections[0] as any;
+        const detectedText = (first?.description ?? '').trim();
         console.log(detectedText);
         console.log('---------------------');
         return detectedText;
@@ -106,7 +215,6 @@ export class GoogleVisionService {
       if (fullTextAnnotation) {
         console.log('✅ Detailed annotations retrieved successfully!');
         
-        // Extract detailed coordinate information
         const detailedResult = {
           fullText: fullTextAnnotation.text?.trim() || '',
           pages: fullTextAnnotation.pages || [],
@@ -115,65 +223,6 @@ export class GoogleVisionService {
           words: [],
           symbols: []
         };
-
-        // Process each page
-        fullTextAnnotation.pages?.forEach((page, pageIndex) => {
-          // Process blocks
-          page.blocks?.forEach((block, blockIndex) => {
-            const blockInfo = {
-              blockIndex,
-              pageIndex,
-              boundingBox: block.boundingBox,
-              confidence: block.confidence,
-              paragraphs: []
-            };
-
-            // Process paragraphs in block
-            block.paragraphs?.forEach((paragraph, paragraphIndex) => {
-              const paragraphInfo = {
-                paragraphIndex,
-                blockIndex,
-                pageIndex,
-                boundingBox: paragraph.boundingBox,
-                confidence: paragraph.confidence,
-                words: []
-              };
-
-              // Process words in paragraph
-              paragraph.words?.forEach((word, wordIndex) => {
-                const wordInfo = {
-                  wordIndex,
-                  paragraphIndex,
-                  blockIndex,
-                  pageIndex,
-                  boundingBox: word.boundingBox,
-                  confidence: word.confidence,
-                  text: word.symbols?.map(s => s.text).join('') || '',
-                  symbols: word.symbols?.map((symbol, symbolIndex) => ({
-                    symbolIndex,
-                    wordIndex,
-                    paragraphIndex,
-                    blockIndex,
-                    pageIndex,
-                    boundingBox: symbol.boundingBox,
-                    confidence: symbol.confidence,
-                    text: symbol.text,
-                    break: symbol.property?.detectedBreak
-                  })) || []
-                };
-
-                paragraphInfo.words.push(wordInfo);
-                detailedResult.words.push(wordInfo);
-                detailedResult.symbols.push(...wordInfo.symbols);
-              });
-
-              blockInfo.paragraphs.push(paragraphInfo);
-              detailedResult.paragraphs.push(paragraphInfo);
-            });
-
-            detailedResult.blocks.push(blockInfo);
-          });
-        });
 
         return detailedResult;
       } else {
