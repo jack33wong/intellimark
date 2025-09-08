@@ -154,32 +154,59 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create tick annotation using ✔ symbol, red color and 1.3x bigger
+   * Create tick annotation using random tick symbols with natural variations
    */
   private static createTickAnnotation(x: number, y: number, width: number, height: number): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const fontSize = Math.max(12, Math.min(width, height) * 1.04); // 1.3x bigger (0.8 * 1.3 = 1.04)
+    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
+    
+    // Add small random variations for natural look
+    const positionVariation = 3; // ±3 pixels
+    const sizeVariation = 0.2; // ±20% size variation
+    const rotationVariation = 15; // ±15 degrees rotation
+    
+    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
+    const randomY = centerY + fontSize/3 + (Math.random() - 0.5) * positionVariation;
+    const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
+    const randomRotation = (Math.random() - 0.5) * rotationVariation;
+    
+    // Randomly choose from different tick symbols
+    const tickSymbols = ['✓', '🗸'];
+    const randomTick = tickSymbols[Math.floor(Math.random() * tickSymbols.length)];
     
     return `
-      <text x="${centerX}" y="${centerY + fontSize/3}" text-anchor="middle" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">✔</text>`;
+      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
+            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomTick}</text>`;
   }
 
   /**
-   * Create cross annotation
+   * Create cross annotation using random cross symbols with natural variations
    */
   private static createCrossAnnotation(x: number, y: number, width: number, height: number): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const size = Math.min(width, height) * 0.8;
-    const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
+    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
+    
+    // Add small random variations for natural look
+    const positionVariation = 3; // ±3 pixels
+    const sizeVariation = 0.2; // ±20% size variation
+    const rotationVariation = 15; // ±15 degrees rotation
+    
+    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
+    const randomY = centerY + baseFontSize/3 + (Math.random() - 0.5) * positionVariation;
+    const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
+    const randomRotation = (Math.random() - 0.5) * rotationVariation;
+    
+    // Randomly choose from different cross symbols
+    const crossSymbols = ['✗', '✘', '🗴'];
+    const randomCross = crossSymbols[Math.floor(Math.random() * crossSymbols.length)];
     
     return `
-      <g stroke="#ff0000" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
-        <line x1="${centerX - size/2}" y1="${centerY - size/2}" x2="${centerX + size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
-        <line x1="${centerX + size/2}" y1="${centerY - size/2}" x2="${centerX - size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
-      </g>`;
+      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
+            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomCross}</text>`;
   }
 
   /**
@@ -217,10 +244,10 @@ export class SVGOverlayService {
     const commentY = Math.max(25 * scaleY, y - 10 * scaleY);
     
     // Comment text only (scaled) - no background or rectangle
-    // Using Comic Neue for handwritten look, bold and 2.1x larger
+    // Using Discipuli Britannica font for comments
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
     return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
-            font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" 
+            font-family="'Lucida Handwriting', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;
   }
