@@ -1025,9 +1025,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
              </div>
           </div>
           
-          {/* Bottom Input Bar */}
+          {/* Bottom Input Bar - chat input bar (bottom aligned) */}
           <div className="chat-input-bar">
-            <div className={`chat-input ${isProcessing ? 'processing' : ''}`}>
+            <div className="upload-chat-input">
               {/* Main Input Area */}
               <div className="input-container">
                 <textarea
@@ -1038,27 +1038,59 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   disabled={isProcessing}
                 />
               </div>
-              
-              {/* Model Selector with Upload Button and Send Button */}
+
+              {/* Model Selector with Upload Image and Send Button */}
               <div className="model-selector">
                 <div className="left-controls">
+                  <div className="ai-model-dropdown">
+                    <button 
+                      className="ai-model-button" 
+                      onClick={handleModelToggle}
+                      disabled={isProcessing}
+                    >
+                      <Bot size={16} />
+                      <span>ai model</span>
+                      <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+                    </button>
+                    {isModelDropdownOpen && (
+                      <div className="ai-model-dropdown-menu">
+                        <button 
+                          className={`ai-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                          onClick={() => handleModelSelect('chatgpt-4o')}
+                        >
+                          GPT-4o
+                        </button>
+                        <button 
+                          className={`ai-model-option ${selectedModel === 'chatgpt-4' ? 'selected' : ''}`}
+                          onClick={() => handleModelSelect('chatgpt-4')}
+                        >
+                          GPT-4
+                        </button>
+                        <button 
+                          className={`ai-model-option ${selectedModel === 'claude-3' ? 'selected' : ''}`}
+                          onClick={() => handleModelSelect('claude-3')}
+                        >
+                          Claude 3
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* Upload Image Button */}
                   <button 
                     className="upload-btn"
-                    onClick={() => document.getElementById('file-input').click()}
+                    onClick={() => document.getElementById('chat-file-input')?.click()}
                     disabled={isProcessing}
                     title="Upload image"
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7,10 12,15 17,10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
+                    <Upload size={18} />
                   </button>
-                  <select className="model-dropdown" disabled={isProcessing}>
-                    <option value="chatgpt-4o">GPT-4o</option>
-                    <option value="chatgpt-4">GPT-4</option>
-                    <option value="claude-3">Claude 3</option>
-                  </select>
+                  <input
+                    id="chat-file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInput}
+                    style={{ display: 'none' }}
+                  />
                 </div>
                 <button 
                   className="send-btn"
@@ -1068,9 +1100,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   {isProcessing ? (
                     <div className="send-spinner"></div>
                   ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="22" y1="2" x2="11" y2="13"/>
-                      <polygon points="22,2 15,22 11,13 2,9 22,2"/>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M22 2L11 13"/>
+                      <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
                     </svg>
                   )}
                 </button>
@@ -1120,21 +1152,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         />
 
       </div>
-
-      {/* Loading Bar */}
-      {isProcessing && (
-        <div className="upload-loading-bar">
-          <div className="loading-content">
-            <div className="loading-text">Processing your homework...</div>
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${loadingProgress}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Bottom Chat Input Bar */}
       <div className="upload-chat-input-bar">
@@ -1203,6 +1220,19 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
             </button>
           </div>
         </div>
+        {isProcessing && (
+          <div className="upload-loading-bar inside-input">
+            <div className="loading-content">
+              <div className="loading-text">Processing your homework...</div>
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
     </div>
