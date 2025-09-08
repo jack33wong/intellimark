@@ -106,3 +106,6 @@ Thumbs.db
 backend/uploads/
 *.pdf
 # Ignore all PDF files anywhere in the project
+
+# Generated verification images
+verification_overlay.png
