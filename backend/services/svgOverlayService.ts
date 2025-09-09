@@ -24,13 +24,7 @@ export class SVGOverlayService {
     imageDimensions: ImageDimensions
   ): Promise<string> {
     try {
-      console.log('🔥 Burning SVG overlay server-side with Sharp...');
-      console.log('🔍 Image dimensions:', imageDimensions);
-      console.log('🔍 Annotations count:', annotations.length);
-      console.log('🔍 First annotation bbox:', annotations[0]?.bbox);
-      
       if (!annotations || annotations.length === 0) {
-        console.log('🔍 No annotations to burn, returning original image');
         return originalImageData;
       }
 
@@ -43,15 +37,12 @@ export class SVGOverlayService {
       const originalWidth = imageMetadata.width || imageDimensions.width;
       const originalHeight = imageMetadata.height || imageDimensions.height;
       
-      console.log('🔍 Original image dimensions:', originalWidth, 'x', originalHeight);
-      console.log('🔍 Provided image dimensions:', imageDimensions.width, 'x', imageDimensions.height);
 
       // Use the original image dimensions for burning to maintain quality
       // The frontend will handle the final display scaling
       const burnWidth = originalWidth;
       const burnHeight = originalHeight;
       
-      console.log('🔍 Burning at original dimensions:', burnWidth, 'x', burnHeight);
 
       // Create SVG overlay with display dimensions
       const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, imageDimensions);
@@ -74,9 +65,6 @@ export class SVGOverlayService {
       // Convert back to base64 data URL
       const burnedImageData = `data:image/png;base64,${burnedImageBuffer.toString('base64')}`;
       
-      console.log('✅ Successfully burned SVG overlay server-side');
-      console.log('🔍 Original size:', imageBuffer.length, 'bytes');
-      console.log('🔍 Burned size:', burnedImageBuffer.length, 'bytes');
       
       return burnedImageData;
       
@@ -94,14 +82,10 @@ export class SVGOverlayService {
       return '';
     }
 
-    console.log('🔍 Creating SVG overlay with dimensions:', actualWidth, 'x', actualHeight);
-    console.log('🔍 Original dimensions:', originalDimensions.width, 'x', originalDimensions.height);
-    console.log('🔍 Annotations:', annotations);
     // Calculate scaling factors from provided dimensions to actual burn dimensions
     const scaleX = actualWidth / originalDimensions.width;
     const scaleY = actualHeight / originalDimensions.height;
     
-    console.log('🔍 Scaling factors:', { scaleX, scaleY });
     
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
     
@@ -126,7 +110,6 @@ export class SVGOverlayService {
     const scaledWidth = width * scaleX;
     const scaledHeight = height * scaleY;
     
-    console.log(`🔍 Annotation ${index + 1}: Original(${x}, ${y}, ${width}, ${height}) -> Scaled(${scaledX}, ${scaledY}, ${scaledWidth}, ${scaledHeight})`);
     
     let svg = '';
     
@@ -167,7 +150,7 @@ export class SVGOverlayService {
     const rotationVariation = 15; // ±15 degrees rotation
     
     const randomX = centerX + (Math.random() - 0.5) * positionVariation;
-    const randomY = centerY + fontSize/3 + (Math.random() - 0.5) * positionVariation;
+    const randomY = centerY + baseFontSize/3 + (Math.random() - 0.5) * positionVariation;
     const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
     const randomRotation = (Math.random() - 0.5) * rotationVariation;
     

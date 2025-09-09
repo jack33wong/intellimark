@@ -51,7 +51,6 @@ export class HybridOCRService {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    console.log('🔍 Starting hybrid OCR processing...');
 
     // Step 1: Process with Google Vision API
     console.log('📡 Processing with Google Cloud Vision...');
@@ -61,7 +60,6 @@ export class HybridOCRService {
     try {
       visionResult = await GoogleVisionService.processImage(imageData, opts.enablePreprocessing);
       // Step 2: Detect math blocks
-      console.log('🔍 Detecting math blocks...');
       mathBlocks = MathDetectionService.detectMathBlocks(visionResult);
     } catch (error) {
       console.log('⚠️ Google Vision failed, trying Mathpix only approach...');

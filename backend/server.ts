@@ -39,6 +39,7 @@ import markHomeworkRoutes from './routes/mark-homework';
 import adminRoutes from './routes/admin';
 import chatRoutes from './routes/chat';
 import paymentRoutes from './routes/payment';
+import testRoutes from './routes/test';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -54,6 +55,9 @@ app.use('/api/chat', chatRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);
+
+// Enable test routes
+app.use('/api/test', testRoutes);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

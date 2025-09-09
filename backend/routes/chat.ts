@@ -7,34 +7,80 @@ import express from 'express';
 import { FirestoreService } from '../services/firestoreService';
 import { AIMarkingService } from '../services/aiMarkingService';
 import ChatSessionManager from '../services/chatSessionManager';
+import { ImageStorageService } from '../services/imageStorageService';
 import { optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
-console.log('🚀 CHAT ROUTE MODULE LOADED SUCCESSFULLY');
+
+/**
+ * Helper function to convert Firebase Storage URL to base64 data URL if needed
+ */
+async function prepareImageDataForAI(imageData: any): Promise<string> {
+  
+  // Handle null/undefined
+  if (!imageData) {
+    throw new Error('Image data is null or undefined');
+  }
+  
+  // If it's already a string, use it directly
+  if (typeof imageData === 'string') {
+    
+    // Check if it's already a base64 data URL
+    if (imageData.startsWith('data:image/')) {
+      return imageData;
+    }
+    
+    // Check if it's a Firebase Storage URL
+    if (imageData.includes('firebasestorage.googleapis.com')) {
+      return await ImageStorageService.downloadImageAsBase64(imageData);
+    }
+    
+    // If it's neither, return as is (might be a regular URL)
+    console.warn('⚠️ Unknown image data format, using as is:', imageData.substring(0, 100) + '...');
+    return imageData;
+  }
+  
+  // If it's an object, try to extract a string value
+  if (typeof imageData === 'object') {
+    // Check if object is empty
+    if (Object.keys(imageData).length === 0) {
+      throw new Error('Image data object is empty - no image data provided');
+    }
+    
+    console.warn('⚠️ Image data is an object, attempting to extract string value');
+    
+    // Try common object properties that might contain the image data
+    const possibleKeys = ['url', 'data', 'imageData', 'image', 'src', 'content'];
+    for (const key of possibleKeys) {
+      if (imageData[key] && typeof imageData[key] === 'string') {
+        return await prepareImageDataForAI(imageData[key]);
+      }
+    }
+    
+    // If no string property found, convert the whole object to string
+    const imageDataStr = JSON.stringify(imageData);
+    console.warn('⚠️ No string property found in object, converting to JSON string:', imageDataStr.substring(0, 100) + '...');
+    return imageDataStr;
+  }
+  
+  // For any other type, convert to string
+  const imageDataStr = String(imageData);
+  return imageDataStr;
+}
 
 /**
  * POST /chat
  * Create a new chat session or send a message to existing session
  */
 router.post('/', optionalAuth, async (req, res) => {
-  console.log('🚀 ===== CHAT ROUTE CALLED =====');
   
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode, examMetadata } = req.body;
     
     // Use authenticated user ID if available, otherwise use provided userId or anonymous
     const currentUserId = req.user?.uid || userId || 'anonymous';
     
-    console.log('🔍 Request data:', { 
-      hasMessage: !!message, 
-      hasImage: !!imageData, 
-      model, 
-      sessionId, 
-      userId: currentUserId,
-      isAuthenticated: !!req.user,
-      mode
-    });
 
     // Validate request
     if (!message && !imageData) {
@@ -49,90 +95,133 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Create or use existing session
     if (!currentSessionId) {
-      console.log('📝 Creating new chat session');
+      
+      // Determine session title and message type based on mode
+      let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
+      let messageType: 'Marking' | 'Question' | 'Chat' = 'Chat';
+      
+      if (mode === 'question') {
+        sessionTitle = 'Question - ' + new Date().toLocaleDateString();
+        messageType = 'Question';
+      } else if (mode === 'marking') {
+        sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
+        messageType = 'Marking';
+      }
+      
       currentSessionId = await sessionManager.createSession({
-        title: imageData ? 'Image-based Chat' : 'Text Chat',
+        title: sessionTitle,
         messages: [],
         userId: currentUserId,
-        messageType: 'Chat'
+        messageType: messageType
       });
-      console.log('📝 Created new session:', currentSessionId);
     } else {
       // Verify session exists
       const existingSession = await sessionManager.getSession(currentSessionId);
       if (!existingSession) {
-        console.log('📝 Session not found, creating new one');
+        
+        // Determine session title and message type based on mode
+        let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
+        let messageType = 'Chat';
+        
+        if (mode === 'question') {
+          sessionTitle = 'Question - ' + new Date().toLocaleDateString();
+          messageType = 'Question';
+        } else if (mode === 'marking') {
+          sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
+          messageType = 'Marking';
+        }
+        
         currentSessionId = await sessionManager.createSession({
-          title: imageData ? 'Image-based Chat' : 'Text Chat',
+          title: sessionTitle,
           messages: [],
           userId: currentUserId,
-          messageType: 'Chat'
+          messageType: messageType as 'Marking' | 'Question' | 'Chat'
         });
       }
     }
 
     // Get chat history for context
     const chatHistory = await sessionManager.getChatHistory(currentSessionId, 20);
-    console.log('📝 Retrieved chat history:', chatHistory.length, 'messages');
 
     // Add user message to session
-    await sessionManager.addMessage(currentSessionId, {
+    const userMessage: any = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'user',
       content: message || 'I have a question that I need help with. Can you assist me?',
-      imageData: imageData
-    });
+      imageData: imageData,
+      type: mode === 'marking' ? 'marking_original' : mode === 'question' ? 'question_original' : undefined
+    };
+    
+    // Add exam metadata if provided
+    if (examMetadata) {
+      userMessage.detectedQuestion = {
+        examDetails: examMetadata.examDetails || {},
+        questionNumber: examMetadata.questionNumber || 'Unknown',
+        questionText: examMetadata.questionText || '',
+        confidence: examMetadata.confidence || 0
+      };
+    }
+    
+    await sessionManager.addMessage(currentSessionId, userMessage);
 
     // Generate context summary if needed (for conversations with multiple messages)
     let contextSummary: string | null = null;
     if (chatHistory.length > 0) {
-      console.log('🔍 Checking if context summary is needed...');
       contextSummary = await sessionManager.generateContextSummaryIfNeeded(currentSessionId);
       if (contextSummary) {
-        console.log('📝 Using context summary for response');
       } else {
-        console.log('📝 No summary needed, using recent messages');
       }
     }
 
-    // Generate AI response using context
-    let aiResponse: string;
-    let apiUsed = model === 'gemini-2.5-pro' ? 'Google Gemini 2.5 Pro' : 
-                  model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
-    try {
-      if (imageData && chatHistory.length === 0) {
-        // First message with image - use image-specific response
-        console.log('🔍 Processing initial image with AI for chat response');
-        const chatResponse = await AIMarkingService.generateChatResponse(
-          imageData, 
-          message || 'I have a question that I need help with. Can you assist me?', 
-          model, 
-          mode === 'qa' ? false : true // allow QA mode to indicate question+answer image
-        );
-        aiResponse = chatResponse.response;
-        apiUsed = chatResponse.apiUsed; // Store the API used for the response
-        console.log('✅ AI chat response generated successfully');
-      } else {
-        // Follow-up messages or text-only - use contextual response with image context
-        console.log('🔍 Processing follow-up message with context');
-        const contextualMessage = imageData 
-          ? `${message}\n\n[Image context available for reference]`
-          : message;
-        aiResponse = await AIMarkingService.generateContextualResponse(contextualMessage, chatHistory, model, contextSummary || undefined);
-        console.log('✅ AI contextual response generated successfully');
+    // Skip AI response generation for specific image persistence messages
+    const isImagePersistenceMessage = 
+      message === 'Original question image' ||
+      message === 'Annotated image with marking feedback' || 
+      message === 'Marking completed with annotations';
+    
+    // Initialize response variables
+    let aiResponse: string = 'Message saved successfully';
+    let apiUsed = 'None';
+    
+    if (!isImagePersistenceMessage) {
+      // Generate AI response using context
+      apiUsed = model === 'gemini-2.5-pro' ? 'Google Gemini 2.5 Pro' : 
+                model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
+      try {
+        if (imageData && chatHistory.length === 0) {
+          // First message with image - use image-specific response
+          
+          // Convert Firebase Storage URL to base64 data URL if needed
+          const preparedImageData = await prepareImageDataForAI(imageData);
+          
+          const chatResponse = await AIMarkingService.generateChatResponse(
+            preparedImageData, 
+            message || 'I have a question that I need help with. Can you assist me?', 
+            model, 
+            mode === 'qa' ? false : true // allow QA mode to indicate question+answer image
+          );
+          aiResponse = chatResponse.response;
+          apiUsed = chatResponse.apiUsed; // Store the API used for the response
+        } else {
+          // Follow-up messages or text-only - use contextual response with image context
+          const contextualMessage = imageData 
+            ? `${message}\n\n[Image context available for reference]`
+            : message;
+          aiResponse = await AIMarkingService.generateContextualResponse(contextualMessage, chatHistory, model, contextSummary || undefined);
+        }
+      } catch (error) {
+        console.error('❌ Failed to generate AI response:', error);
+        aiResponse = 'I apologize, but I encountered an error processing your request. Please try again.';
       }
-    } catch (error) {
-      console.error('❌ Failed to generate AI response:', error);
-      aiResponse = 'I apologize, but I encountered an error processing your request. Please try again.';
-    }
 
-    // Add AI response to session
-    await sessionManager.addMessage(currentSessionId, {
-      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'assistant',
-      content: aiResponse
-    });
-    console.log('📝 Added AI response to session');
+      // Add AI response to session
+      await sessionManager.addMessage(currentSessionId, {
+        id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'assistant',
+        content: aiResponse,
+        type: undefined // Don't set marking_annotated type here since we don't have the annotated image
+      });
+    }
 
     // Return success response
     return res.json({
@@ -142,7 +231,7 @@ router.post('/', optionalAuth, async (req, res) => {
       apiUsed: apiUsed,
       context: {
         sessionId: currentSessionId,
-        messageCount: chatHistory.length + 2, // +2 for user and AI messages
+        messageCount: chatHistory.length + (isImagePersistenceMessage ? 1 : 2), // +1 for user only, +2 for user and AI
         hasImage: !!imageData,
         hasContext: chatHistory.length > 0,
         usingSummary: !!contextSummary,
@@ -167,7 +256,6 @@ router.post('/', optionalAuth, async (req, res) => {
 router.get('/sessions/:userId', optionalAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log('🔍 Getting chat sessions for user:', userId);
 
     // If user is authenticated, ensure they can only access their own sessions
     if (req.user && req.user.uid !== userId) {
@@ -178,7 +266,9 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
       });
     }
 
-    const sessions = await FirestoreService.getChatSessions(userId);
+    // Use ChatSessionManager to get sessions (includes in-memory cache)
+    const sessionManager = ChatSessionManager.getInstance();
+    const sessions = await sessionManager.getUserSessions(userId);
     
     return res.json({
       success: true,
@@ -200,18 +290,9 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
 router.get('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
-    console.log('🔍 Getting chat session:', sessionId);
 
-    // Check if user is authenticated
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        message: 'Please log in to access chat sessions'
-      });
-    }
-
-    const session = await FirestoreService.getChatSession(sessionId);
+    const sessionManager = ChatSessionManager.getInstance();
+    const session = await sessionManager.getSession(sessionId);
     
     if (!session) {
       return res.status(404).json({
@@ -220,8 +301,11 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
       });
     }
 
+    // Determine the expected user ID
+    const expectedUserId = req.user ? req.user.uid : 'anonymous';
+    
     // Ensure user can only access their own sessions
-    if (session.userId !== req.user.uid) {
+    if (session.userId !== expectedUserId) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -250,7 +334,6 @@ router.put('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const updates = req.body;
-    console.log('🔍 Updating chat session:', sessionId, updates);
 
     // Check if user is authenticated
     if (!req.user) {
@@ -300,7 +383,6 @@ router.put('/session/:sessionId', optionalAuth, async (req, res) => {
 router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
-    console.log('🔍 Deleting chat session:', sessionId);
 
     // Check if user is authenticated
     if (!req.user) {
@@ -386,7 +468,6 @@ router.get('/status', (_req, res) => {
 router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
-    console.log('🔄 Restoring session context:', sessionId);
 
     // Check if user is authenticated
     if (!req.user) {

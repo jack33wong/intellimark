@@ -70,7 +70,6 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
         role: 'admin' // Default to admin in mock mode
       };
       
-      console.log(`✅ Mock user authenticated: ${req.user.email} (${req.user.uid}) - Role: ${req.user.role}`);
       next();
       return;
     }
@@ -102,7 +101,6 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       role: getUserRole(userRecord.email || '')
     };
 
-    console.log(`✅ User authenticated: ${req.user.email} (${req.user.uid}) - Role: ${req.user.role}`);
     next();
     
   } catch (error: any) {
@@ -186,7 +184,6 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
   try {
     // For development, allow all requests
     // In production, this would check Firebase custom claims
-    console.log(`✅ Admin access granted (development mode)`);
     next();
   } catch (error) {
     console.error('❌ Admin check failed:', error);

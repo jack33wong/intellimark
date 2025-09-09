@@ -146,11 +146,6 @@ export class GoogleVisionService {
       // Use documentTextDetection for dense text or handwriting
       const [result] = await this.client.documentTextDetection(filePath);
       
-      // Log the original Google Vision API response
-      console.log('\n🔍 ORIGINAL GOOGLE VISION API RESPONSE (Handwriting):');
-      console.log('==================================================');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('==================================================\n');
       
       const fullTextAnnotation = result.fullTextAnnotation;
 
@@ -183,11 +178,6 @@ export class GoogleVisionService {
       // Use textDetection for general text recognition
       const [result] = await this.client.textDetection(filePath);
       
-      // Log the original Google Vision API response
-      console.log('\n🔍 ORIGINAL GOOGLE VISION API RESPONSE (Text Detection):');
-      console.log('====================================================');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('====================================================\n');
       
       const detections = result.textAnnotations;
 
@@ -220,11 +210,6 @@ export class GoogleVisionService {
 
       const [result] = await this.client.documentTextDetection(filePath);
       
-      // Log the original Google Vision API response
-      console.log('\n🔍 ORIGINAL GOOGLE VISION API RESPONSE:');
-      console.log('=====================================');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('=====================================\n');
       
       const fullTextAnnotation = result.fullTextAnnotation;
 

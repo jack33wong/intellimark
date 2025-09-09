@@ -37,7 +37,6 @@ export class ChatSessionManager {
     try {
       this.startPeriodicPersistence();
       this.startSessionCleanup();
-      console.log('✅ ChatSessionManager background processes started successfully');
     } catch (error) {
       console.error('❌ Failed to start ChatSessionManager background processes:', error);
       // Continue without background processes
@@ -92,7 +91,6 @@ export class ChatSessionManager {
         return session.contextSummary || null;
       }
 
-      console.log('🔍 Generating context summary for session:', sessionId);
       
       // Get all messages except the last one (current user message)
       const messagesForSummary = session.messages.slice(0, -1);
@@ -106,7 +104,6 @@ export class ChatSessionManager {
         // Mark session as dirty for persistence
         sessionCache.isDirty = true;
         
-        console.log('✅ Context summary updated for session:', sessionId);
         return summary;
       }
 
@@ -153,26 +150,8 @@ export class ChatSessionManager {
    */
   async createSession(sessionData: CreateChatSessionData): Promise<string> {
     try {
-      // Check if the required methods exist
-      if (typeof FirestoreService.createChatSession !== 'function') {
-        console.warn('FirestoreService.createChatSession not available, using fallback');
-        const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        const newSession: ChatSession = {
-          id: sessionId,
-          title: sessionData.title,
-          messages: sessionData.messages,
-          timestamp: new Date(),
-          userId: sessionData.userId || 'anonymous',
-          messageType: sessionData.messageType || 'Chat'
-        };
-
-        // Cache the new session
-        this.cacheSession(newSession);
-        
-        return sessionId;
-      }
-
+      
+      // Always use Firestore for session creation
       const sessionId = await FirestoreService.createChatSession(sessionData);
       
       const newSession: ChatSession = {
@@ -199,10 +178,8 @@ export class ChatSessionManager {
    */
   async addMessage(sessionId: string, message: Omit<ChatMessage, 'timestamp'>): Promise<boolean> {
     try {
-      console.log(`🔍 ChatSessionManager: Adding message to session ${sessionId}`);
       const cached = this.activeSessions.get(sessionId);
       if (!cached) {
-        console.log(`🔍 ChatSessionManager: Session ${sessionId} not in cache, loading from database`);
         // Session not in cache, load it first
         const session = await this.getSession(sessionId);
         if (!session) {
@@ -214,9 +191,7 @@ export class ChatSessionManager {
         if (!reloadedCached) {
           throw new Error('Failed to load session into cache');
         }
-        console.log(`🔍 ChatSessionManager: Session ${sessionId} loaded into cache successfully`);
       } else {
-        console.log(`🔍 ChatSessionManager: Session ${sessionId} found in cache`);
       }
 
       const cachedSession = this.activeSessions.get(sessionId)!;
@@ -232,19 +207,14 @@ export class ChatSessionManager {
       cachedSession.lastAccessed = new Date();
 
       // Check if we should persist this batch
-      // Force immediate persistence for question-only sessions or when batch size is reached
+      // Force immediate persistence for question-only sessions, marking sessions, or when batch size is reached
       const isQuestionOnlySession = cachedSession.session.title?.includes('Question -') || 
                                    cachedSession.session.title?.includes('Marking -');
+      const isMarkingSession = cachedSession.session.messageType === 'Marking' || 
+                              cachedSession.session.messageType === 'Question';
       
-      console.log(`🔍 ChatSessionManager: Session title: ${cachedSession.session.title}`);
-      console.log(`🔍 ChatSessionManager: Is question-only session: ${isQuestionOnlySession}`);
-      console.log(`🔍 ChatSessionManager: Pending messages: ${cachedSession.pendingMessages.length}, Batch size: ${this.BATCH_SIZE}`);
-      
-      if (cachedSession.pendingMessages.length >= this.BATCH_SIZE || isQuestionOnlySession) {
-        console.log(`🔍 ChatSessionManager: Persisting session ${sessionId} immediately`);
+      if (cachedSession.pendingMessages.length >= this.BATCH_SIZE || isQuestionOnlySession || isMarkingSession) {
         await this.persistSession(sessionId);
-      } else {
-        console.log(`🔍 ChatSessionManager: Deferring persistence for session ${sessionId}`);
       }
 
       return true;
@@ -310,7 +280,6 @@ export class ChatSessionManager {
       // Cache the restored session
       this.cacheSession(session);
       
-      console.log(`✅ Session ${sessionId} restored with ${recentHistory.length} recent messages`);
       return session;
     } catch (error) {
       console.error('Failed to restore session:', error);
@@ -449,7 +418,6 @@ export class ChatSessionManager {
       // Persist any pending messages before eviction
       this.persistSession(oldestSessionId).then(() => {
         this.activeSessions.delete(oldestSessionId!);
-        console.log(`🗑️ Evicted session ${oldestSessionId} from cache`);
       });
     }
   }
@@ -479,7 +447,6 @@ export class ChatSessionManager {
       cached.pendingMessages = [];
       cached.isDirty = false;
       
-      console.log(`💾 Persisted ${messageCount} messages for session ${sessionId}`);
     } catch (error) {
       console.error('Failed to persist session:', error);
     }
@@ -496,7 +463,6 @@ export class ChatSessionManager {
         );
         
         await Promise.all(persistPromises);
-        console.log(`💾 Periodic persistence completed for ${this.activeSessions.size} sessions`);
       } catch (error) {
         console.error('Periodic persistence failed:', error);
       }
@@ -516,7 +482,6 @@ export class ChatSessionManager {
           // Persist and evict timed-out session
           this.persistSession(sessionId).then(() => {
             this.activeSessions.delete(sessionId);
-            console.log(`⏰ Evicted timed-out session ${sessionId}`);
           });
         }
       });
@@ -580,8 +545,53 @@ export class ChatSessionManager {
     
     Promise.all(persistPromises).then(() => {
       this.activeSessions.clear();
-      console.log('🧹 ChatSessionManager cleanup completed');
     });
+  }
+
+  /**
+   * Get all sessions for a specific user (from cache and Firestore)
+   */
+  async getUserSessions(userId: string): Promise<any[]> {
+    try {
+      // Get sessions from Firestore first
+      const firestoreSessions = await FirestoreService.getChatSessions(userId);
+      
+      // Merge with in-memory sessions that might not be persisted yet
+      const inMemorySessions = Array.from(this.activeSessions.values())
+        .filter(cached => cached.session.userId === userId)
+        .map(cached => cached.session);
+      
+      // Create a map of session IDs to avoid duplicates
+      const sessionMap = new Map();
+      
+      // Add Firestore sessions first
+      firestoreSessions.forEach(session => {
+        sessionMap.set(session.id, session);
+      });
+      
+      // Add in-memory sessions (these will override Firestore if they have more recent data)
+      inMemorySessions.forEach(session => {
+        const existing = sessionMap.get(session.id);
+        if (!existing || session.messages.length > existing.messages.length) {
+          sessionMap.set(session.id, session);
+        }
+      });
+      
+      // Convert back to array and sort by updatedAt
+      const allSessions = Array.from(sessionMap.values());
+      allSessions.sort((a, b) => {
+        const aTime = a.updatedAt || a.createdAt || new Date(0);
+        const bTime = b.updatedAt || b.createdAt || new Date(0);
+        const aDate = aTime instanceof Date ? aTime : new Date(aTime);
+        const bDate = bTime instanceof Date ? bTime : new Date(bTime);
+        return bDate.getTime() - aDate.getTime();
+      });
+      
+      return allSessions;
+    } catch (error) {
+      console.error('ChatSessionManager: Failed to get user sessions:', error);
+      return [];
+    }
   }
 }
 

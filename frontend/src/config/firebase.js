@@ -49,9 +49,7 @@ try {
   });
   console.log('✅ Firebase app initialized successfully');
 
-  console.log('🔄 Getting Firebase auth...');
   auth = getAuth(app);
-  console.log('✅ Firebase auth initialized successfully');
 
   console.log('🔄 Initializing Google provider...');
   googleProvider = new GoogleAuthProvider();

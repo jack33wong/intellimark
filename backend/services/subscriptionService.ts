@@ -206,7 +206,6 @@ export class SubscriptionService {
    */
   static async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<UserSubscription | null> {
     try {
-      console.log('🔍 Looking for subscription with Stripe ID:', stripeSubscriptionId);
       const subscriptions = await FirestoreService.queryCollection(
         this.COLLECTION_NAME,
         'stripeSubscriptionId',
