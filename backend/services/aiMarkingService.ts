@@ -591,8 +591,16 @@ Please calculate precise coordinates for each annotation. Remember to:
     annotations: string; // Raw AI response as string
   }> {
 
-    const systemPrompt = `You are an AI assistant that generates marking annotations for student work.
+    let systemPrompt = `You are an AI assistant that generates marking annotations for student work.`;
+    let userPrompt = `Here is the OCR text from the student's work that needs to be marked:
 
+    OCR TEXT:
+    ${ocrText}
+    
+    Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`;
+    
+    if (questionDetection?.match?.markingScheme) {
+    systemPrompt += `
     Your task is to:
     1. Analyze the student's work from the OCR text
     2. Generate appropriate marking annotations for different parts of the work
@@ -636,21 +644,44 @@ Please calculate precise coordinates for each annotation. Remember to:
       * Another "comment" for "A1" if answer is correct
     Return ONLY the JSON object.`;
 
-    let userPrompt = `Here is the OCR text from the student's work that needs to be marked:
-
-OCR TEXT:
-${ocrText}
-
-Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`;
-
+    
     // Add question detection context if available
-    if (questionDetection?.match?.markingScheme) {
+   
       const ms = questionDetection.match.markingScheme.questionMarks as any;
       const schemeJson = JSON.stringify(ms, null, 2)
         .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"')
         .replace(/\n/g, "\\n");
       userPrompt += `\n\nMARKING SCHEME CONTEXT:\n"""${schemeJson}"""`;
+    }else{
+      systemPrompt += `
+    Your task is to:
+    1. Analyze the student's work from the OCR text
+    2. Generate appropriate marking annotations for different parts of the work
+    3. Provide reasoning for each annotation decision
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
+    - Output MUST strictly follow this format:
+
+    {
+      "annotations": [
+        {
+          "textMatch": "exact text from OCR that this annotation applies to",
+          "action": "tick|cross|comment",
+          "text": "M1|M0|A1|A0|B1|B0|C1|C0|comment text",
+          "reasoning": "Brief explanation of why this annotation was chosen"
+        }
+      ]
+    }
+
+    ANNOTATION RULES:
+- Use "tick" for correct, minor steps that do not correspond to a specific mark.
+- Use "cross" for incorrect steps or calculations.
+- Use "comment" to award marks (e.g., "M1", "A1").
+- You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
+
+`;
     }
     //console.log('🔍 SYSTEM PROMPT:', systemPrompt);
     //console.log('🔍 USER PROMPT:', userPrompt);
@@ -1585,7 +1616,7 @@ Summary:`;
             ]
           }],
           generationConfig: {
-            temperature: 0.2,
+            temperature: 0.1,
             maxOutputTokens: 1500,
           }
         })

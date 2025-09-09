@@ -360,21 +360,21 @@ export class HybridOCRService {
       }
       
       // Debug: Print raw JSON from Google Vision before Mathpix processing
-      console.log('🔍 DEBUG: Raw Google Vision JSON before Mathpix processing:');
-      console.log(JSON.stringify({
-        detectedBlocks: detectedBlocks.map(block => ({
-          source: block.source,
-          text: block.text,
-          confidence: block.confidence,
-          geometry: block.geometry
-        })),
-        visionResult: {
-          text: visionResult.text,
-          boundingBoxes: visionResult.boundingBoxes,
-          confidence: visionResult.confidence,
-          dimensions: visionResult.dimensions
-        }
-      }, null, 2));
+      // console.log('🔍 DEBUG: Raw Google Vision JSON before Mathpix processing:');
+      // console.log(JSON.stringify({
+      //   detectedBlocks: detectedBlocks.map(block => ({
+      //     source: block.source,
+      //     text: block.text,
+      //     confidence: block.confidence,
+      //     geometry: block.geometry
+      //   })),
+      //   visionResult: {
+      //     text: visionResult.text,
+      //     boundingBoxes: visionResult.boundingBoxes,
+      //     confidence: visionResult.confidence,
+      //     dimensions: visionResult.dimensions
+      //   }
+      // }, null, 2));
 
       // Get image dimensions
       const metadata = await sharp(imageBuffer).metadata();
