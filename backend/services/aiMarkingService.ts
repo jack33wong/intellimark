@@ -89,21 +89,6 @@ export class AIMarkingService {
     const jsonMatch = cleanedResponse.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
     if (jsonMatch && jsonMatch[1]) {
       cleanedResponse = jsonMatch[1];
-      console.log('🔍 Extracted JSON from markdown:', cleanedResponse);
-    } else {
-      // Try to find JSON object in the response
-      const objectMatch = cleanedResponse.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        cleanedResponse = objectMatch[0];
-        console.log('🔍 Extracted JSON object:', cleanedResponse);
-      } else {
-        // Try to find JSON array
-        const arrayMatch = cleanedResponse.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-          cleanedResponse = arrayMatch[0];
-          console.log('🔍 Extracted JSON array:', cleanedResponse);
-        }
-      }
     }
     
     // Try to fix common JSON issues
@@ -119,7 +104,6 @@ export class AIMarkingService {
       .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2') // Fix unescaped backslashes (third pass)
       .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2'); // Fix unescaped backslashes (fourth pass)
     
-    console.log('🔍 Cleaned JSON:', cleanedResponse);
     
     let result;
     try {
@@ -143,7 +127,6 @@ export class AIMarkingService {
           .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2')
           .replace(/([^\\])\\([^"\\\/bfnrt])/g, '$1\\\\$2');
         
-        console.log('🔍 Aggressive clean attempt:', aggressiveClean);
         result = JSON.parse(aggressiveClean);
       } catch (secondError) {
         console.error('❌ All JSON parsing attempts failed');
@@ -182,12 +165,7 @@ export class AIMarkingService {
     imageData: string, 
     model: SimpleModelType
   ): Promise<SimpleImageClassification> {
-    console.log('🔍 ===== CLASSIFY IMAGE METHOD CALLED =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 Image data length:', imageData.length);
-    
     const compressedImage = await this.compressImage(imageData);
-    console.log('🔍 Image compressed, length:', compressedImage.length);
     
     const systemPrompt = `You are an AI assistant that classifies math images and extracts question text. 
     
@@ -227,12 +205,9 @@ export class AIMarkingService {
     const userPrompt = `Please classify this uploaded image and extract the question text. Analyze the image to determine if it contains only a math question or if it includes student work/answers, and extract the main question text from the image.`;
 
     try {
-      console.log('🔍 ===== CALLING AI CLASSIFICATION =====');
       if (model === 'gemini-2.5-pro') {
-        console.log('🔍 Using Gemini API');
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
-        console.log('🔍 Using OpenAI API');
         return await this.callOpenAIForClassification(compressedImage, systemPrompt, userPrompt, model);
       }
     } catch (error) {
@@ -317,11 +292,6 @@ OCR BOUNDING BOXES:
 
     userPrompt += `\nPlease extrapolate these bounding boxes into individual line coordinates.`;
 
-    // Console log the prompt for debugging
-    console.log('🔍 ===== LLM CALL 1: EXTRAPOLATE PER-LINE COORDINATES =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 System Prompt:', systemPrompt);
-    console.log('🔍 User Prompt:', userPrompt);
 
     try {
       let response: string;
@@ -340,12 +310,9 @@ OCR BOUNDING BOXES:
         lines: response // Pass raw response as string
       };
       
-      console.log('✅ Per-line coordinates response received (raw string)');
-      console.log('🔍 ===== LLM CALL 1 COMPLETED =====\n');
       return result;
     } catch (error) {
       console.error('❌ Failed to extrapolate per-line coordinates:', error);
-      console.log('🔍 ===== LLM CALL 1 FAILED =====\n');
       throw new Error(`Per-line coordinate extrapolation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -416,7 +383,6 @@ OCR BOUNDING BOXES:
 PER-LINE ANALYSIS (RAW AI RESPONSE):
 ${perLineData.lines}
 `;
-    console.log('🔍 LLM 2 Promt:', systemPrompt+userPrompt);
     // Add marking scheme context if available
     if (questionDetection && questionDetection.found && questionDetection.match) {
       const match = questionDetection.match;
@@ -433,11 +399,6 @@ ${perLineData.lines}
 
     userPrompt += `\nPlease generate marking annotations for each line of student work. Remember that you can create MULTIPLE annotations for the same line if different parts of the line deserve different types of feedback or marking.`;
 
-    // Console log the prompt for debugging
-    console.log('🔍 ===== LLM CALL 2: GENERATE MARKING ANNOTATIONS =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 System Prompt:', systemPrompt);
-    console.log('🔍 User Prompt:', userPrompt);
 
     try {
       let response: string;
@@ -447,21 +408,15 @@ ${perLineData.lines}
         response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
       }
       
-      // Console log the AI response
-      console.log('🔍 AI Response:', response);
-      
       // Since we're passing this as string to next LLM, no need to parse JSON
       // Just return the raw response wrapped in the expected format
       const result = {
         annotations: response // Pass raw response as string
       };
       
-      console.log('✅ Marking annotations response received (raw string)');
-      console.log('🔍 ===== LLM CALL 2 COMPLETED =====\n');
       return result;
     } catch (error) {
       console.error('❌ Failed to generate marking annotations:', error);
-      console.log('🔍 ===== LLM CALL 2 FAILED =====\n');
       throw new Error(`Marking annotation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -545,11 +500,6 @@ Please calculate precise coordinates for each annotation. Remember to:
 - Ensure proper spacing between multiple annotations on the same line
 - Use the sizing rules provided in the system prompt`;
 
-    // Console log the prompt for debugging
-    console.log('🔍 ===== LLM CALL 3: CALCULATE ANNOTATION COORDINATES =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 System Prompt:', systemPrompt);
-    console.log('🔍 User Prompt:', userPrompt);
 
     try {
       let response: string;
@@ -559,18 +509,11 @@ Please calculate precise coordinates for each annotation. Remember to:
         response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
       }
       
-      // Console log the AI response
-      console.log('🔍 AI Response:', response);
-      
       // Only parse JSON at the very end since this is the final step
       const result = this.cleanAndValidateJSON(response, 'annotations');
-      
-      console.log('✅ Annotation coordinates calculated:', result.annotations?.length || 0, 'annotations (sized and vertically centered)');
-      console.log('🔍 ===== LLM CALL 3 COMPLETED =====\n');
       return result;
     } catch (error) {
       console.error('❌ Failed to calculate annotation coordinates:', error);
-      console.log('🔍 ===== LLM CALL 3 FAILED =====\n');
       throw new Error(`Annotation coordinate calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -587,22 +530,14 @@ Please calculate precise coordinates for each annotation. Remember to:
     processedImage: SimpleProcessedImageResult,
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
-    console.log('🔍 ===== NEW 2-STEP LLM FLOW STARTED (LLM1 REMOVED) =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 Image data length:', imageData.length);
-    console.log('🔍 OCR text length:', processedImage.ocrText?.length || 0);
-    console.log('🔍 Math blocks found:', processedImage.boundingBoxes?.length || 0);
 
     try {
       // Step 1: Generate marking annotations based on final OCR text (LLM2)
-      console.log('🔍 ===== STEP 1: GENERATE MARKING ANNOTATIONS (LLM2) =====');
-      console.log('🔍 Input: Final OCR text without coordinates');
       const annotationData = await this.generateMarkingAnnotationsFromText(
         model,
         processedImage.ocrText || '',
         questionDetection
       );
-      console.log('✅ Step 1 completed - Marking annotations response received');
 
       // Step 2: Programmatic coordinate placement (replace LLM3)
       console.log('🔍 ===== STEP 2: PROGRAMMATIC COORDINATE PLACEMENT =====');
@@ -613,14 +548,13 @@ Please calculate precise coordinates for each annotation. Remember to:
       if ((processedImage.boundingBoxes || []).length > 0) {
         console.log('  - First bounding box:', processedImage.boundingBoxes[0]);
       }
-      
+ 
       const finalAnnotations = this.calculateAnnotationCoordinatesProgrammatically(
         processedImage.ocrText || '',
         processedImage.boundingBoxes || [],
         annotationData,
         processedImage.imageDimensions
       );
-      console.log('✅ Step 2 completed - Final annotations:', finalAnnotations.annotations.length, 'annotations');
 
       // Convert to SimpleMarkingInstructions format
       const result: SimpleMarkingInstructions = {
@@ -632,20 +566,11 @@ Please calculate precise coordinates for each annotation. Remember to:
         }))
       };
 
-      console.log('✅ ===== NEW 2-STEP LLM FLOW COMPLETED =====');
-      console.log('✅ Total annotations generated:', result.annotations.length);
-      console.log('🔍 Final result summary:');
-      console.log('  - OCR text length:', processedImage.ocrText?.length || 0, 'characters');
-      console.log('  - Math blocks available:', processedImage.boundingBoxes?.length || 0, 'blocks');
-      console.log('  - Final annotations:', result.annotations.length, 'annotations');
-      console.log('  - Math blocks available:', processedImage);
-      console.log('🔍 ===== NEW 2-STEP LLM FLOW SUMMARY =====\n');
       
       return result;
 
     } catch (error) {
       console.error('❌ New 2-step LLM flow failed:', error);
-      console.log('🔄 Falling back to legacy marking method...');
       return await this.generateMarkingInstructions(
         imageData,
         model,
@@ -737,7 +662,6 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
     } else {
       response = await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
     }
-    console.log('🔍 LLM2 (Marking Annotations) response received');
 
     try {
       this.cleanAndValidateJSON(response, 'annotations');
@@ -1032,9 +956,6 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
       //userPrompt += `\nComments specificly must start within left haft of image: (x) <= ${processedImage.imageDimensions.width}/2`;
       userPrompt += `\nIf diagrams, graphs, or math symbols are not detected by OCR, estimate their positions and annotate accordingly.`;
     }
-    console.log('🔍 ===== CALLING AI MARKING INSTRUCTIONS =====');
-    console.log('🔍 System prompt:', systemPrompt);
-    console.log('🔍 User prompt:', userPrompt);
     try {
       if (model === 'gemini-2.5-pro') {
         return await this.callGeminiForMarkingInstructions(compressedImage, systemPrompt, userPrompt);
@@ -1145,7 +1066,7 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
                 {
                   type: 'image_url',
                   image_url: {
-                    url: imageData
+                    url: typeof imageData === 'string' ? imageData : String(imageData)
                   }
                 }
               ]
@@ -1275,7 +1196,7 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
                 {
                   type: 'image_url',
                   image_url: {
-                    url: imageData
+                    url: typeof imageData === 'string' ? imageData : String(imageData)
                   }
                 }
               ]
@@ -1341,10 +1262,6 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
     model: SimpleModelType,
     isQuestionOnly: boolean = true
   ): Promise<{ response: string; apiUsed: string }> {
-    console.log('🔍 ===== GENERATING CHAT RESPONSE =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 Message:', message);
-    console.log('🔍 Is question only:', isQuestionOnly);
     
     const compressedImage = await this.compressImage(imageData);
     
@@ -1385,10 +1302,8 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
 
     try {
       if (model === 'gemini-2.5-pro') {
-        console.log('🔍 Using Gemini for chat response');
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else {
-        console.log('🔍 Using OpenAI for chat response');
         return await this.callOpenAIForChatResponse(compressedImage, systemPrompt, userPrompt, model);
       }
     } catch (error) {
@@ -1408,7 +1323,6 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
       return '';
     }
 
-    console.log('🔍 Generating context summary for', chatHistory.length, 'messages');
 
     const conversationText = chatHistory.map(item => 
       `${item.role}: ${item.content}`
@@ -1463,7 +1377,6 @@ Summary:`;
       }
 
       const summary = result.choices?.[0]?.message?.content?.trim() || '';
-      console.log('✅ Context summary generated:', summary.substring(0, 100) + '...');
       return summary;
     } catch (error) {
       console.error('❌ Context summary generation failed:', error);
@@ -1480,10 +1393,6 @@ Summary:`;
     model: SimpleModelType,
     contextSummary?: string
   ): Promise<string> {
-    console.log('🔍 ===== GENERATING CONTEXTUAL RESPONSE =====');
-    console.log('🔍 Model:', model);
-    console.log('🔍 Message:', message);
-    console.log('🔍 Chat history length:', chatHistory.length);
     
     const systemPrompt = `You are an AI tutor helping students with math problems. 
     
@@ -1502,10 +1411,8 @@ Summary:`;
     let contextPrompt = '';
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
-      console.log('🔍 Using context summary for response');
     } else if (chatHistory.length > 0) {
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
-      console.log('🔍 Using recent messages for context');
     }
 
     const userPrompt = `Student message: "${message}"${contextPrompt}
@@ -1514,10 +1421,8 @@ Summary:`;
 
     try {
       if (model === 'gemini-2.5-pro') {
-        console.log('🔍 Using Gemini for contextual response');
         return await this.callGeminiForTextResponse(systemPrompt, userPrompt);
       } else {
-        console.log('🔍 Using OpenAI for contextual response');
         return await this.callOpenAIForTextResponse(systemPrompt, userPrompt, model);
       }
     } catch (error) {
@@ -1619,7 +1524,7 @@ Summary:`;
                 {
                   type: 'image_url',
                   image_url: {
-                    url: imageData
+                    url: typeof imageData === 'string' ? imageData : String(imageData)
                   }
                 }
               ]
@@ -1632,7 +1537,6 @@ Summary:`;
 
       const result = await response.json() as any;
       
-      console.log('🔍 OpenAI Chat API Response for', model, ':', JSON.stringify(result, null, 2));
       
       if (!response.ok) {
         throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);

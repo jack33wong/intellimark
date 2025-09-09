@@ -35,66 +35,45 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
   // Function to refresh chat sessions with debouncing
   const refreshChatSessions = useCallback(async () => {
-    // Don't fetch if user is not authenticated
-    if (!user?.uid) {
-      console.log('🔍 Sidebar: User not authenticated, skipping fetch');
-      setChatSessions([]);
-      return;
-    }
-
     const now = Date.now();
     const timeSinceLastFetch = now - lastFetchTime;
     
     // Debounce: don't fetch if we've fetched within the last 1 second
     if (timeSinceLastFetch < 1000) {
-      console.log('🔍 Sidebar: Debouncing fetch request');
       return;
     }
-    
-    console.log('🔍 Sidebar: Starting to fetch chat sessions');
     setIsLoadingSessions(true);
     setSessionsError(null);
     setLastFetchTime(now);
     
     try {
       // Get authentication token
-      const authToken = getAuthToken();
+      const authToken = await getAuthToken();
       
-      // Use authenticated user ID
-      const userIdToFetch = user.uid;
-      console.log('🔍 Sidebar: Fetching sessions for authenticated user:', userIdToFetch);
+      // Use authenticated user ID or 'anonymous' for unauthenticated users
+      const userIdToFetch = user?.uid || 'anonymous';
       
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(userIdToFetch, 20, authToken);
-      console.log('🔍 Sidebar: Service response:', response);
       
       if (response.success) {
         const sessions = response.sessions || [];
-        console.log('🔍 Sidebar: Setting chat sessions:', sessions);
         setChatSessions(sessions);
       } else {
-        console.log('🔍 Sidebar: Service returned success=false');
         setSessionsError('Failed to load chat sessions');
       }
       
 
     } catch (error) {
-      console.error('🔍 Sidebar: Error fetching sessions:', error);
       setSessionsError('Failed to load chat sessions');
     } finally {
       setIsLoadingSessions(false);
     }
   }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch chat sessions only when user is authenticated
+  // Fetch chat sessions for both authenticated and anonymous users
   useEffect(() => {
-    if (user?.uid) {
-      // Only fetch sessions if user is authenticated
-      refreshChatSessions();
-    } else {
-      // Clear sessions when user is not authenticated
-      setChatSessions([]);
-      setSessionsError(null);
-    }
+    // Fetch sessions for both authenticated users and anonymous users
+    refreshChatSessions();
   }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Expose refresh function to parent component
@@ -127,7 +106,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     setDeletingSessionId(sessionId);
     
     try {
-      const authToken = getAuthToken();
+      const authToken = await getAuthToken();
       if (!authToken) {
         throw new Error('Authentication required to delete sessions');
       }
@@ -211,9 +190,22 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const getLastMessage = (session) => {
     if (session.messages && session.messages.length > 0) {
       const lastMsg = session.messages[session.messages.length - 1];
+      
+      // Check if message has image data (even if excluded from response)
+      const hasImage = lastMsg.hasImage || lastMsg.type === 'marking_original' || lastMsg.type === 'question_original' || lastMsg.type === 'marking_annotated';
+      
       if (lastMsg.content) {
-        // Show more content - allow up to 150 characters
-        return lastMsg.content.length > 150 ? lastMsg.content.substring(0, 150) + '...' : lastMsg.content;
+        let content = lastMsg.content.length > 150 ? lastMsg.content.substring(0, 150) + '...' : lastMsg.content;
+        
+        // Add image indicator if message contains an image
+        if (hasImage) {
+          content = `📷 ${content}`;
+        }
+        
+        return content;
+      } else if (hasImage) {
+        // If no text content but has image, show image indicator
+        return '📷 Image message';
       }
     }
     return 'No messages yet';

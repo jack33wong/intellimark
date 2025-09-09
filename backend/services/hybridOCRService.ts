@@ -315,8 +315,6 @@ export class HybridOCRService {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    console.log('🔍 Starting robust hybrid OCR processing...');
-
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');

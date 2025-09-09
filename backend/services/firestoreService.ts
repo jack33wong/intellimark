@@ -17,7 +17,6 @@ if (!admin.apps || admin.apps.length === 0) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccountPath)
     });
-    console.log('✅ Firebase Admin initialized successfully in Firestore service');
   } catch (error) {
     console.error('❌ Firebase Admin initialization failed in Firestore service:', error);
   }
@@ -130,7 +129,6 @@ export class FirestoreService {
     metadata?: any
   ): Promise<string> {
     try {
-      console.log('🔍 Saving marking results to Firestore...');
       
       const docData: Omit<MarkingResultDocument, 'id' | 'createdAt' | 'updatedAt'> = {
         userId,
@@ -159,7 +157,6 @@ export class FirestoreService {
         updatedAt: admin.firestore.Timestamp.now()
       });
 
-      console.log('✅ Marking results saved to Firestore with ID:', docRef.id);
       return docRef.id;
 
     } catch (error) {
@@ -173,17 +170,14 @@ export class FirestoreService {
    */
   static async getMarkingResults(resultId: string): Promise<MarkingResultDocument | null> {
     try {
-      console.log('🔍 Retrieving marking results from Firestore:', resultId);
       
       const docRef = await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).get();
       
       if (!docRef.exists) {
-        console.log('🔍 Marking results not found:', resultId);
         return null;
       }
 
       const data = docRef.data() as MarkingResultDocument;
-      console.log('✅ Marking results retrieved from Firestore');
       
       return {
         ...data,
@@ -201,7 +195,6 @@ export class FirestoreService {
    */
   static async getUserMarkingResults(userId: string, limit: number = 50): Promise<MarkingResultDocument[]> {
     try {
-      console.log('🔍 Retrieving marking results for user:', userId);
       
       // Use a simpler query to avoid index requirements
       const querySnapshot = await db.collection(COLLECTIONS.MARKING_RESULTS)
@@ -218,7 +211,6 @@ export class FirestoreService {
         });
       });
 
-      console.log(`✅ Retrieved ${results.length} marking results for user`);
       return results;
 
     } catch (error) {
@@ -235,14 +227,12 @@ export class FirestoreService {
     updates: Partial<MarkingResultDocument>
   ): Promise<void> {
     try {
-      console.log('🔍 Updating marking results in Firestore:', resultId);
       
       await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).update({
         ...updates,
         updatedAt: admin.firestore.Timestamp.now()
       });
 
-      console.log('✅ Marking results updated in Firestore');
 
     } catch (error) {
       console.error('❌ Failed to update marking results in Firestore:', error);
@@ -255,11 +245,9 @@ export class FirestoreService {
    */
   static async deleteMarkingResults(resultId: string): Promise<void> {
     try {
-      console.log('🔍 Deleting marking results from Firestore:', resultId);
       
       await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).delete();
 
-      console.log('✅ Marking results deleted from Firestore');
 
     } catch (error) {
       console.error('❌ Failed to delete marking results from Firestore:', error);
@@ -272,14 +260,12 @@ export class FirestoreService {
    */
   static async saveUser(userData: Omit<UserDocument, 'createdAt' | 'updatedAt'>): Promise<void> {
     try {
-      console.log('🔍 Saving/updating user in Firestore:', userData.uid);
       
       await db.collection(COLLECTIONS.USERS).doc(userData.uid).set({
         ...userData,
         updatedAt: admin.firestore.Timestamp.now()
       }, { merge: true });
 
-      console.log('✅ User saved/updated in Firestore');
 
     } catch (error) {
       console.error('❌ Failed to save user in Firestore:', error);
@@ -292,17 +278,14 @@ export class FirestoreService {
    */
   static async getUser(uid: string): Promise<UserDocument | null> {
     try {
-      console.log('🔍 Retrieving user from Firestore:', uid);
       
       const docRef = await db.collection(COLLECTIONS.USERS).doc(uid).get();
       
       if (!docRef.exists) {
-        console.log('🔍 User not found:', uid);
         return null;
       }
 
       const data = docRef.data() as UserDocument;
-      console.log('✅ User retrieved from Firestore');
       
       return {
         ...data,
@@ -324,7 +307,6 @@ export class FirestoreService {
     recentActivity: number;
   }> {
     try {
-      console.log('🔍 Retrieving system statistics from Firestore...');
       
       const [resultsSnapshot, usersSnapshot] = await Promise.all([
         db.collection(COLLECTIONS.MARKING_RESULTS).count().get(),
@@ -347,7 +329,6 @@ export class FirestoreService {
         recentActivity: recentSnapshot.data().count
       };
 
-      console.log('✅ System statistics retrieved from Firestore:', stats);
       return stats;
 
     } catch (error) {
@@ -367,12 +348,10 @@ export class FirestoreService {
     messageType?: 'Marking' | 'Question' | 'Chat';
   }): Promise<string> {
     try {
-      console.log('🔍 Creating chat session in Firestore...');
       
       const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
       // Debug: Log the raw payload before processing
-      console.log('🔍 Raw sessionData:', JSON.stringify(sessionData, null, 2));
       
       // Sanitize and serialize messages to plain objects for Firestore
       const serializedMessages = sessionData.messages.map(msg => {
@@ -409,11 +388,9 @@ export class FirestoreService {
       };
 
       // Debug: Log the final payload before Firestore write
-      console.log('🔍 Final docData payload:', JSON.stringify(docData, null, 2));
       
       // Sanitize the entire payload to remove any problematic fields
       const sanitizedDocData = sanitizeFirestoreData(docData);
-      console.log('🔍 Sanitized payload:', JSON.stringify(sanitizedDocData, null, 2));
 
       // Try using Firebase Admin's Firestore methods instead of direct Google Cloud client
       try {
@@ -428,7 +405,6 @@ export class FirestoreService {
         await batch.commit();
       }
 
-      console.log('✅ Chat session created in Firestore:', sessionId);
       return sessionId;
 
     } catch (error) {
@@ -442,17 +418,14 @@ export class FirestoreService {
    */
   static async getChatSession(sessionId: string): Promise<any | null> {
     try {
-      console.log('🔍 Getting chat session from Firestore:', sessionId);
       
       const doc = await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).get();
       
       if (!doc.exists) {
-        console.log('📝 Chat session not found in Firestore');
         return null;
       }
 
       const data = doc.data();
-      console.log('✅ Chat session retrieved from Firestore');
       
       // Process messages to convert Firestore timestamps
       const processedMessages = (data.messages || []).map((msg: any) => ({
@@ -484,25 +457,28 @@ export class FirestoreService {
    */
   static async getChatSessions(userId: string): Promise<any[]> {
     try {
-      console.log('🔍 Getting chat sessions for user from Firestore:', userId);
       
       // For anonymous users, we still need to return their sessions
       // The sessions are created with userId: 'anonymous' so they should be retrievable
-      console.log('🔍 Retrieving sessions for user:', userId);
       
       const snapshot = await db.collection(COLLECTIONS.SESSIONS)
         .where('userId', '==', userId)
         .get();
+      
 
       const sessions = snapshot.docs.map(doc => {
         const data = doc.data();
         
-        // Process messages to convert Firestore timestamps
+        // Process messages to convert Firestore timestamps and exclude image data for performance
         const processedMessages = (data.messages || []).map((msg: any) => ({
           ...msg,
           timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
                     (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
-                     (msg.timestamp ? new Date(msg.timestamp) : new Date()))
+                     (msg.timestamp ? new Date(msg.timestamp) : new Date())),
+          // Exclude imageData to reduce response size for session list
+          imageData: undefined,
+          // Keep hasImage flag to indicate if message originally had image data
+          hasImage: !!msg.imageData
         }));
         
         return {
@@ -519,10 +495,14 @@ export class FirestoreService {
       sessions.sort((a, b) => {
         const aTime = a.updatedAt || a.createdAt || new Date(0);
         const bTime = b.updatedAt || b.createdAt || new Date(0);
-        return bTime.getTime() - aTime.getTime(); // Descending order
+        
+        // Ensure we have Date objects
+        const aDate = aTime instanceof Date ? aTime : new Date(aTime);
+        const bDate = bTime instanceof Date ? bTime : new Date(bTime);
+        
+        return bDate.getTime() - aDate.getTime(); // Descending order
       });
 
-      console.log('✅ Chat sessions retrieved from Firestore:', sessions.length);
       return sessions;
 
     } catch (error) {
@@ -530,9 +510,6 @@ export class FirestoreService {
       console.error('❌ Error details:', error);
       // For anonymous users, return empty array instead of throwing error
       if (userId === 'anonymous') {
-        console.log('ℹ️ Anonymous user - returning empty sessions array due to error');
-        console.log('ℹ️ Error type:', typeof error);
-        console.log('ℹ️ Error message:', error instanceof Error ? error.message : 'Unknown error');
         return [];
       }
       throw new Error(`Firestore sessions retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -544,7 +521,6 @@ export class FirestoreService {
    */
   static async addMessageToSession(sessionId: string, message: any): Promise<void> {
     try {
-      console.log('🔍 Adding message to chat session in Firestore:', sessionId);
       
       // Helper function to remove undefined values recursively
       const removeUndefinedValues = (obj: any): any => {
@@ -584,7 +560,6 @@ export class FirestoreService {
         updatedAt: admin.firestore.Timestamp.now()
       });
 
-      console.log('✅ Message added to chat session in Firestore');
 
     } catch (error) {
       console.error('❌ Failed to add message to chat session in Firestore:', error);
@@ -597,14 +572,12 @@ export class FirestoreService {
    */
   static async updateChatSession(sessionId: string, updates: any): Promise<void> {
     try {
-      console.log('🔍 Updating chat session in Firestore:', sessionId);
       
       await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
         ...updates,
         updatedAt: admin.firestore.Timestamp.now()
       });
 
-      console.log('✅ Chat session updated in Firestore');
 
     } catch (error) {
       console.error('❌ Failed to update chat session in Firestore:', error);
@@ -624,7 +597,6 @@ export class FirestoreService {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        console.log(`✅ Document created in ${collection}/${docId}`);
         return { id: docId };
       } else {
         // Create document with auto-generated ID
@@ -633,7 +605,6 @@ export class FirestoreService {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        console.log(`✅ Document created in ${collection}/${docRef.id}`);
         return docRef;
       }
     } catch (error) {
@@ -661,7 +632,6 @@ export class FirestoreService {
         ...data,
         updatedAt: Date.now(),
       });
-      console.log(`✅ Document updated in ${collection}/${docId}`);
     } catch (error) {
       console.error(`❌ Error updating document in ${collection}:`, error);
       throw error;
@@ -700,16 +670,13 @@ export class FirestoreService {
     questionDetection?: any
   ): Promise<void> {
     try {
-      console.log('🔍 Saving marking results as session messages...');
       
       // Upload images to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService');
       
-      console.log('🔍 Uploading images to Firebase Storage...');
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
       const annotatedImageUrl = await ImageStorageService.uploadImage(annotatedImage, userId, sessionId, 'annotated');
       
-      console.log('✅ Images uploaded to Firebase Storage');
 
       // Helper function to remove undefined values recursively
       const removeUndefinedValues = (obj: any): any => {
@@ -750,8 +717,6 @@ export class FirestoreService {
       };
 
       // Create detected question info
-      console.log('🔍 Question Detection Data:', JSON.stringify(questionDetection, null, 2));
-      console.log('🔍 Classification Data:', JSON.stringify(classification, null, 2));
       
       const detectedQuestion = questionDetection?.found ? {
         examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
@@ -760,7 +725,6 @@ export class FirestoreService {
         confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
       } : undefined;
       
-      console.log('🔍 Detected Question Info:', JSON.stringify(detectedQuestion, null, 2));
 
       // Create original image message
       const originalMessage = {
@@ -789,7 +753,6 @@ export class FirestoreService {
       await this.addMessageToSession(sessionId, originalMessage);
       await this.addMessageToSession(sessionId, annotatedMessage);
 
-      console.log('✅ Marking results saved as session messages');
     } catch (error) {
       console.error('❌ Failed to save marking results as session messages:', error);
       throw error;
@@ -808,15 +771,12 @@ export class FirestoreService {
     questionDetection?: any
   ): Promise<void> {
     try {
-      console.log('🔍 Saving question-only data as session messages...');
       
       // Upload image to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService');
       
-      console.log('🔍 Uploading question image to Firebase Storage...');
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
       
-      console.log('✅ Question image uploaded to Firebase Storage');
 
       // Helper function to remove undefined values recursively
       const removeUndefinedValues = (obj: any): any => {
@@ -839,8 +799,6 @@ export class FirestoreService {
       };
 
       // Create detected question info
-      console.log('🔍 Question Detection Data:', JSON.stringify(questionDetection, null, 2));
-      console.log('🔍 Classification Data:', JSON.stringify(classification, null, 2));
       
       const detectedQuestion = questionDetection?.found ? {
         examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
@@ -849,7 +807,6 @@ export class FirestoreService {
         confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
       } : undefined;
       
-      console.log('🔍 Detected Question Info:', JSON.stringify(detectedQuestion, null, 2));
 
       // Create question image message
       const questionMessage = {
@@ -865,7 +822,6 @@ export class FirestoreService {
       // Add message to the session
       await this.addMessageToSession(sessionId, questionMessage);
 
-      console.log('✅ Question-only data saved as session messages');
     } catch (error) {
       console.error('❌ Failed to save question-only data as session messages:', error);
       throw error;
@@ -883,22 +839,38 @@ export class FirestoreService {
   }
 
   /**
+   * Get all sessions from database
+   */
+  static async getAllSessions(): Promise<any[]> {
+    try {
+      const snapshot = await db.collection(COLLECTIONS.SESSIONS).get();
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('❌ Failed to get all sessions:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete session with image cleanup
    */
-  static async deleteChatSession(sessionId: string, userId: string): Promise<void> {
+  static async deleteChatSession(sessionId: string, userId?: string): Promise<void> {
     try {
-      console.log('🔍 Deleting chat session with image cleanup...');
       
       // Import ImageStorageService dynamically to avoid circular dependencies
       const { ImageStorageService } = await import('./imageStorageService');
       
-      // Delete images from Firebase Storage
-      await ImageStorageService.deleteSessionImages(userId, sessionId);
+      // Delete images from Firebase Storage (if userId provided)
+      if (userId) {
+        await ImageStorageService.deleteSessionImages(userId, sessionId);
+      }
       
       // Delete session from Firestore
       await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).delete();
       
-      console.log('✅ Chat session deleted with image cleanup');
     } catch (error) {
       console.error('❌ Failed to delete chat session:', error);
       throw error;
@@ -910,7 +882,6 @@ export class FirestoreService {
    */
   static async deleteUser(userId: string): Promise<void> {
     try {
-      console.log('🔍 Deleting user with image cleanup...');
       
       // Import ImageStorageService dynamically to avoid circular dependencies
       const { ImageStorageService } = await import('./imageStorageService');
@@ -921,7 +892,6 @@ export class FirestoreService {
       // Delete user from Firestore
       await db.collection(COLLECTIONS.USERS).doc(userId).delete();
       
-      console.log('✅ User deleted with image cleanup');
     } catch (error) {
       console.error('❌ Failed to delete user:', error);
       throw error;

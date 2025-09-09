@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }) => {
 
   // Check if user is authenticated on component mount
   useEffect(() => {
-    console.log('AuthContext: Starting authentication check...');
     checkAuthStatus();
   }, []);
 
@@ -37,19 +36,15 @@ export const AuthProvider = ({ children }) => {
    */
   const checkAuthStatus = async () => {
     try {
-      console.log('AuthContext: Checking authentication status...');
       const token = localStorage.getItem('authToken');
-      console.log('AuthContext: Token found:', !!token);
       
       if (!token) {
-        console.log('AuthContext: No token found, user not authenticated');
         setLoading(false);
         return;
       }
 
       // Verify token with backend
       const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
-      console.log('AuthContext: Verifying token with backend at:', API_BASE);
       
       const response = await fetch(`${API_BASE}/api/auth/profile`, {
         headers: {
@@ -59,10 +54,8 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('AuthContext: Token verified, user authenticated:', data.user);
         setUser(data.user);
       } else {
-        console.log('AuthContext: Token invalid, removing from storage');
         // Token is invalid, remove it
         localStorage.removeItem('authToken');
         setUser(null);
@@ -72,7 +65,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('authToken');
       setUser(null);
     } finally {
-      console.log('AuthContext: Authentication check complete, loading:', false);
       setLoading(false);
     }
   };
@@ -200,10 +192,85 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Get authentication token for API requests
+   * Get authentication token for API requests with automatic refresh
    */
-  const getAuthToken = () => {
-    return localStorage.getItem('authToken');
+  const getAuthToken = async () => {
+    const token = localStorage.getItem('authToken');
+    
+    if (!token) {
+      return null;
+    }
+
+    // Check if token is expired by trying to use it
+    try {
+      const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+      const response = await fetch(`${API_BASE}/api/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        return token; // Token is still valid
+      } else if (response.status === 401) {
+        // Token is expired, try to refresh
+        return await refreshAuthToken();
+      }
+    } catch (error) {
+      console.error('AuthContext: Token validation failed:', error);
+      return await refreshAuthToken();
+    }
+
+    return null;
+  };
+
+  /**
+   * Refresh the authentication token
+   */
+  const refreshAuthToken = async () => {
+    try {
+      // Get the current user from Firebase Auth
+      const { getAuth } = await import('firebase/auth');
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        // User is not logged in, clear token
+        localStorage.removeItem('authToken');
+        setUser(null);
+        return null;
+      }
+
+      // Get a fresh ID token
+      const idToken = await currentUser.getIdToken(true); // Force refresh
+      
+      // Store the new token
+      localStorage.setItem('authToken', idToken);
+      
+      // Verify the new token with backend
+      const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+      const response = await fetch(`${API_BASE}/api/auth/profile`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        return idToken;
+      } else {
+        // New token is also invalid, logout user
+        localStorage.removeItem('authToken');
+        setUser(null);
+        return null;
+      }
+    } catch (error) {
+      console.error('AuthContext: Token refresh failed:', error);
+      localStorage.removeItem('authToken');
+      setUser(null);
+      return null;
+    }
   };
 
   /**

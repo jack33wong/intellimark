@@ -279,6 +279,7 @@ export interface MarkHomeworkResponse {
   ocrMethod?: string;
   classification?: ImageClassification;
   questionDetection?: QuestionDetectionResult;
+  sessionId?: string;
 }
 
 export interface ChatRequest {

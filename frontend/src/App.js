@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
@@ -25,12 +25,53 @@ function AppContent() {
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
   const [currentPageMode, setCurrentPageMode] = useState('upload');
 
+  // Get auth token function - will be provided by AuthProvider
+  const { getAuthToken } = useAuth();
 
-  const handleMarkingHistoryClick = (result) => {
-    setSelectedMarkingResult(result);
-    
-    // Navigate to mark-homework route using React Router
-    navigate('/mark-homework');
+  const handleMarkingHistoryClick = async (result) => {
+    try {
+      // If the result has a sessionId, fetch the full session data including images
+      if (result.id) {
+        console.log('🔍 Fetching full session data for:', result.id);
+        
+        const authToken = await getAuthToken();
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        
+        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001'}/api/chat/session/${result.id}`, {
+          method: 'GET',
+          headers,
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.session) {
+            console.log('🔍 Full session data loaded:', data.session);
+            setSelectedMarkingResult(data.session);
+          } else {
+            console.warn('🔍 Failed to load full session data, using basic data');
+            setSelectedMarkingResult(result);
+          }
+        } else {
+          console.warn('🔍 Failed to fetch full session data, using basic data');
+          setSelectedMarkingResult(result);
+        }
+      } else {
+        setSelectedMarkingResult(result);
+      }
+      
+      // Navigate to mark-homework route using React Router
+      navigate('/mark-homework');
+    } catch (error) {
+      console.error('🔍 Error fetching full session data:', error);
+      // Fallback to basic data
+      setSelectedMarkingResult(result);
+      navigate('/mark-homework');
+    }
   };
 
   const handleMarkHomeworkClick = () => {
@@ -72,8 +113,7 @@ function AppContent() {
   // - v7_startTransition: Wraps navigation updates in React.startTransition()
   // - v7_relativeSplatPath: Improves relative route resolution within splat routes
   return (
-    <AuthProvider>
-      <div className="app-container">
+    <div className="app-container">
           <Routes>
             {/* Public routes - no header/sidebar */}
             <Route path="/login" element={<Login />} />
@@ -215,7 +255,6 @@ function AppContent() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
-    </AuthProvider>
   );
 }
 
@@ -225,12 +264,14 @@ function AppContent() {
  */
 function App() {
   return (
-    <Router future={{ 
-      v7_startTransition: true,
-      v7_relativeSplatPath: true 
-    }}>
-      <AppContent />
-    </Router>
+    <AuthProvider>
+      <Router future={{ 
+        v7_startTransition: true,
+        v7_relativeSplatPath: true 
+      }}>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

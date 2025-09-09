@@ -50,7 +50,6 @@ const Login = () => {
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
-      console.log('User already authenticated, redirecting to main app');
       navigate('/mark-homework');
     }
   }, [user, navigate]);
@@ -91,8 +90,6 @@ const Login = () => {
     setFirebaseError(null);
     
     try {
-      console.log(`🔄 Starting ${provider} login...`);
-      
       if (provider === 'google') {
         const result = await signInWithPopup(auth, googleProvider);
         // Handle successful login
@@ -100,7 +97,6 @@ const Login = () => {
         const loginResult = await socialLogin(idToken, 'google');
         
         if (loginResult.success) {
-          console.log('Google login successful, redirecting to main app');
           navigate('/mark-homework');
         } else {
           setFirebaseError(loginResult.message);
@@ -112,7 +108,6 @@ const Login = () => {
         const loginResult = await socialLogin(idToken, 'facebook');
         
         if (loginResult.success) {
-          console.log('Facebook login successful, redirecting to main app');
           navigate('/mark-homework');
         } else {
           setFirebaseError(loginResult.message);

@@ -9,6 +9,7 @@ import { questionDetectionService } from '../services/questionDetectionService';
 import { ImageAnnotationService } from '../services/imageAnnotationService';
 import { optionalAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
+import { ChatSessionManager } from '../services/chatSessionManager';
 
 // Get Firestore instance
 admin.firestore();
@@ -33,22 +34,16 @@ const VERBOSE = process.env['VERBOSE_LOGS'] === '1';
 
 const router = express.Router();
 
-console.log('🚀 COMPLETE MARK QUESTION ROUTE MODULE LOADED SUCCESSFULLY');
 
 /**
  * Real AI image classification using simplified AI service
  */
 async function classifyImageWithAI(imageData: string, model: ModelType): Promise<ImageClassification> {
   try {
-    if (VERBOSE) {
-      console.log('🔍 ===== REAL AI IMAGE CLASSIFICATION =====');
-      console.log('🔍 Using model:', model);
-    }
     // Import the AI marking service to avoid circular dependencies
     const { AIMarkingService } = await import('../services/aiMarkingService');
     // Use AI marking service for classification
     const classification = await AIMarkingService.classifyImage(imageData, model);
-    if (VERBOSE) console.log('🔍 AI Classification result:', classification);
     return classification;
   } catch (error) {
     console.error('❌ Real AI classification failed:', error);
@@ -68,8 +63,6 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
  */
 async function processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
   try {
-    if (VERBOSE) console.log('🔍 ===== ENHANCED OCR PROCESSING WITH HYBRID OCR + PIPE DETECTION =====');
-    // @ts-ignore - dynamic import path resolved at runtime
     const { HybridOCRService } = await import('../services/hybridOCRService');
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -181,7 +174,6 @@ async function generateRealMarkingInstructionsWithNewFlow(
   processedImage: ProcessedImageResult,
   questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
-  if (VERBOSE) console.log('🔍 Generating real AI marking instructions with NEW 3-STEP FLOW for model:', model);
   try {
     const { AIMarkingService } = await import('../services/aiMarkingService');
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructionsWithNewFlow(
@@ -199,7 +191,6 @@ async function generateRealMarkingInstructionsWithNewFlow(
         ...((annotation as any).reasoning && { reasoning: (annotation as any).reasoning })
       }))
     };
-    if (VERBOSE) console.log('🔍 NEW 3-STEP FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
   } catch (error) {
     console.error('❌ NEW 3-STEP FLOW marking instructions failed:', error);
@@ -221,7 +212,6 @@ async function generateRealMarkingInstructionsLegacy(
   processedImage: ProcessedImageResult,
   questionDetection?: QuestionDetectionResult
 ): Promise<MarkingInstructions> {
-  if (VERBOSE) console.log('🔍 Generating LEGACY AI marking instructions for model:', model);
   try {
     const { AIMarkingService } = await import('../services/aiMarkingService');
     const simpleMarkingInstructions = await AIMarkingService.generateMarkingInstructions(
@@ -239,7 +229,6 @@ async function generateRealMarkingInstructionsLegacy(
         ...((annotation as any).reasoning && { reasoning: (annotation as any).reasoning })
       }))
     };
-    if (VERBOSE) console.log('🔍 LEGACY AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
     return markingInstructions;
   } catch (error) {
     console.error('❌ Real AI marking instructions failed:', error);
@@ -271,7 +260,6 @@ async function generateRealMarkingInstructionsLegacy(
     if (annotations.length > 0) {
       annotations.push({ action: 'comment' as const, bbox: [50, 500, 400, 80] as [number, number, number, number], text: 'Please verify your final calculations and ensure all steps are clearly shown.' });
     }
-    console.log('🔍 Fallback marking instructions generated:', annotations.length, 'annotations');
     return { annotations };
   }
 }
@@ -289,12 +277,6 @@ async function saveMarkingResults(
   userEmail: string = 'anonymous@example.com'
 ): Promise<string> {
   try {
-    if (VERBOSE) {
-      console.log('🔍 Attempting to save to Firestore...');
-      console.log('🔍 User ID:', userId);
-      console.log('🔍 User Email:', userEmail);
-      console.log('🔍 Model:', model);
-    }
     const { FirestoreService } = await import('../services/firestoreService');
     const resultId = await FirestoreService.saveMarkingResults(
       userId,
@@ -316,12 +298,10 @@ async function saveMarkingResults(
         ocrMethod: 'Enhanced OCR Processing'
       }
     );
-    if (VERBOSE) console.log('🔍 Results saved to Firestore with ID:', resultId);
     return resultId;
   } catch (error) {
     console.error('❌ Failed to save marking results to Firestore:', error);
     const resultId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log('🔍 Results saved locally with ID:', resultId);
     return resultId;
   }
 }
@@ -330,17 +310,17 @@ async function saveMarkingResults(
  * POST /mark-homework
  */
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
-  console.log('🚀 ===== COMPLETE MARK QUESTION ROUTE CALLED =====');
   const { imageData, model = 'chatgpt-4o' } = req.body;
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
 
   try {
+    // Get user information early
+    const userId = (req as any)?.user?.uid || 'anonymous';
+    const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+
     // Step 1: AI classification
     const imageClassification = await classifyImageWithAI(imageData, model);
-    if (VERBOSE && imageClassification.extractedQuestionText) {
-      console.log('📝 Extracted question text (truncated):', imageClassification.extractedQuestionText.slice(0, 200));
-    }
     // Step 1.5: Question detection
     let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
@@ -354,12 +334,48 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     }
 
     if (imageClassification.isQuestionOnly) {
-      return res.json({ success: true, isQuestionOnly: true, message: 'Image classified as question only - use chat interface for tutoring', apiUsed: imageClassification.apiUsed, model, reasoning: imageClassification.reasoning, questionDetection, timestamp: new Date().toISOString() });
+      // Create chat session for question-only images
+      let sessionId: string | undefined;
+      try {
+        const sessionManager = ChatSessionManager.getInstance();
+        
+        // Generate proper session title with exam details for question-only
+        let sessionTitle = `Question - ${new Date().toLocaleDateString()}`;
+        if (questionDetection?.found && questionDetection.match) {
+          const questionNumber = questionDetection.match.questionNumber || 'Unknown';
+          const board = questionDetection.match.board || 'Unknown';
+          const qualification = questionDetection.match.qualification || 'Unknown';
+          const paperCode = questionDetection.match.paperCode || 'Unknown';
+          const year = questionDetection.match.year || 'Unknown';
+          sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber} (${year})`;
+        }
+        
+        sessionId = await sessionManager.createSession({
+          title: sessionTitle,
+          messages: [],
+          userId: userId,
+          messageType: 'Question'
+        });
+      } catch (error) {
+        console.error('❌ Failed to create chat session for question-only:', error);
+        // Continue without sessionId - frontend will handle gracefully
+      }
+      
+      return res.json({ 
+        success: true, 
+        isQuestionOnly: true, 
+        message: 'Image classified as question only - use chat interface for tutoring', 
+        apiUsed: imageClassification.apiUsed, 
+        model, 
+        reasoning: imageClassification.reasoning, 
+        questionDetection, 
+        sessionId: sessionId,
+        timestamp: new Date().toISOString() 
+      });
     }
 
     // Step 2: OCR
     const processedImage = await processImageWithRealOCR(imageData);
-    if (VERBOSE) console.log('🔍 OCR summary:', { textLen: processedImage.ocrText.length, boxes: processedImage.boundingBoxes.length });
 
     // Step 3: Marking (new flow)
     const markingInstructions = await generateRealMarkingInstructionsWithNewFlow(imageData, model, processedImage, questionDetection);
@@ -369,9 +385,35 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const annotationResult = await ImageAnnotationService.generateAnnotationResult(imageData, annotations, processedImage.imageDimensions);
 
     // Step 5: Save
-    const userId = (req as any)?.user?.uid || 'anonymous';
-    const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const resultId = await saveMarkingResults(imageData, model, processedImage, markingInstructions, imageClassification, userId, userEmail);
+
+    // Step 5.5: Create chat session for question+answer images
+    let sessionId: string | undefined;
+    try {
+      const sessionManager = ChatSessionManager.getInstance();
+      
+      // Generate proper session title with exam details
+      let sessionTitle = `Marking - ${new Date().toLocaleDateString()}`;
+      if (questionDetection?.found && questionDetection.match) {
+        const examDetails = questionDetection.match.markingScheme?.examDetails || questionDetection.match;
+        const board = examDetails.board || 'Unknown';
+        const qualification = examDetails.qualification || 'Unknown';
+        const paperCode = examDetails.paperCode || 'Unknown';
+        const questionNumber = questionDetection.match.questionNumber || 'Unknown';
+        
+        sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber}`;
+      }
+      
+      sessionId = await sessionManager.createSession({
+        title: sessionTitle,
+        messages: [],
+        userId: userId,
+        messageType: 'Marking'
+      });
+    } catch (error) {
+      console.error('❌ Failed to create chat session for marking:', error);
+      // Continue without sessionId - frontend will handle gracefully
+    }
 
     // Step 6: Respond
     const response: MarkHomeworkResponse = {
@@ -384,7 +426,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       apiUsed: 'Complete AI Marking System with Burned Overlays',
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification,
-      questionDetection
+      questionDetection,
+      sessionId: sessionId
     };
 
     try {
@@ -429,7 +472,6 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
  */
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
-    console.log('🔍 Retrieving system statistics from Firestore...');
     
     // Import and use the real Firestore service
     const { FirestoreService } = await import('../services/firestoreService');

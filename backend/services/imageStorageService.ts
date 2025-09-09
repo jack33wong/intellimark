@@ -26,7 +26,6 @@ export class ImageStorageService {
     imageType: 'original' | 'annotated'
   ): Promise<string> {
     try {
-      console.log(`🔍 Uploading ${imageType} image for user ${userId}, session ${sessionId}`);
       
       // Get configuration
       const config = getImageStorageConfig();
@@ -118,11 +117,51 @@ export class ImageStorageService {
   }
 
   /**
+   * Download an image from Firebase Storage and convert to base64 data URL
+   */
+  static async downloadImageAsBase64(firebaseStorageURL: string): Promise<string> {
+    try {
+      
+      // Extract the file path from the Firebase Storage URL
+      const url = new URL(firebaseStorageURL);
+      const pathMatch = url.pathname.match(/\/o\/(.+?)\?/);
+      if (!pathMatch) {
+        throw new Error('Invalid Firebase Storage URL format');
+      }
+      
+      const filePath = decodeURIComponent(pathMatch[1]);
+      
+      // Get storage reference
+      const config = getImageStorageConfig();
+      const storageRef = this.getStorage().bucket(config.bucketName).file(filePath);
+      
+      // Download the file
+      const [fileBuffer] = await storageRef.download();
+      
+      // Convert to base64
+      const base64Data = fileBuffer.toString('base64');
+      
+      // Determine content type from file extension or use default
+      const contentType = filePath.toLowerCase().includes('.png') ? 'image/png' : 
+                         filePath.toLowerCase().includes('.webp') ? 'image/webp' : 
+                         filePath.toLowerCase().includes('.jpg') || filePath.toLowerCase().includes('.jpeg') ? 'image/jpeg' :
+                         'image/jpeg'; // default
+      
+      const dataURL = `data:${contentType};base64,${base64Data}`;
+      console.log('✅ Image downloaded and converted to base64 data URL');
+      
+      return dataURL;
+    } catch (error) {
+      console.error('❌ Failed to download image from Firebase Storage:', error);
+      throw new Error(`Image download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Delete all images for a specific session
    */
   static async deleteSessionImages(userId: string, sessionId: string): Promise<void> {
     try {
-      console.log(`🔍 Deleting images for session ${sessionId}, user ${userId}`);
       
       const config = getImageStorageConfig();
       const bucket = this.getStorage().bucket(config.bucketName);
@@ -156,7 +195,6 @@ export class ImageStorageService {
    */
   static async deleteUserImages(userId: string): Promise<void> {
     try {
-      console.log(`🔍 Deleting all images for user ${userId}`);
       
       const config = getImageStorageConfig();
       const bucket = this.getStorage().bucket(config.bucketName);

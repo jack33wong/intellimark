@@ -17,7 +17,6 @@ class MarkingHistoryService {
   static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null) {
     try {
       const url = `${API_BASE}/api/chat/sessions/${userId}`;
-      console.log('🔍 MarkingHistoryService: Fetching sessions from URL:', url);
       
       const headers = {
         'Content-Type': 'application/json',
@@ -33,41 +32,19 @@ class MarkingHistoryService {
         headers,
       });
       
-      console.log('🔍 MarkingHistoryService: Response status:', response.status);
-      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('🔍 MarkingHistoryService: Raw response:', result);
       
       // Check if the response has sessions array
       const sessions = result.sessions || result;
-      console.log('🔍 MarkingHistoryService: Sessions array:', sessions);
       
-      // Debug: Log message types in each session
-      sessions.forEach((session, index) => {
-        console.log(`🔍 MarkingHistoryService: Session ${index} messages:`, session.messages);
-        if (session.messages) {
-          session.messages.forEach((msg, msgIndex) => {
-            console.log(`🔍 MarkingHistoryService: Message ${msgIndex}:`, {
-              type: msg.type,
-              role: msg.role,
-              content: msg.content ? msg.content.substring(0, 100) + '...' : 'no content'
-            });
-          });
-        }
-      });
-      
-      // Filter sessions that contain marking messages
+      // Filter sessions that contain any messages (be more inclusive)
       const markingSessions = sessions.filter(session => 
-        session.messages && session.messages.some(msg => 
-          msg.type === 'marking_original' || msg.type === 'marking_annotated' || msg.type === 'question_original'
-        )
+        session.messages && session.messages.length > 0
       );
-      
-      console.log('🔍 MarkingHistoryService: Filtered marking sessions:', markingSessions);
 
       return {
         success: true,

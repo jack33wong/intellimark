@@ -114,7 +114,6 @@ export class MathpixService {
     };
 
     try {
-      console.log('🔍 Sending math block to Mathpix API...');
       const data = await this.postWithBackoff(body, headers);
       console.log('✅ Mathpix API response received');
       return data;
@@ -142,7 +141,6 @@ export class MathpixService {
     for (let i = 0; i < mathBlocks.length; i++) {
       const { imageBuffer, block } = mathBlocks[i];
       
-      console.log(`🔍 Processing math block ${i + 1}/${mathBlocks.length}...`);
       
       const result = await this.processImage(imageBuffer, options);
       results.push({ block, result });

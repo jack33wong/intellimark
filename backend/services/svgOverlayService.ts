@@ -24,13 +24,7 @@ export class SVGOverlayService {
     imageDimensions: ImageDimensions
   ): Promise<string> {
     try {
-      console.log('🔥 Burning SVG overlay server-side with Sharp...');
-      console.log('🔍 Image dimensions:', imageDimensions);
-      console.log('🔍 Annotations count:', annotations.length);
-      console.log('🔍 First annotation bbox:', annotations[0]?.bbox);
-      
       if (!annotations || annotations.length === 0) {
-        console.log('🔍 No annotations to burn, returning original image');
         return originalImageData;
       }
 
@@ -43,15 +37,12 @@ export class SVGOverlayService {
       const originalWidth = imageMetadata.width || imageDimensions.width;
       const originalHeight = imageMetadata.height || imageDimensions.height;
       
-      console.log('🔍 Original image dimensions:', originalWidth, 'x', originalHeight);
-      console.log('🔍 Provided image dimensions:', imageDimensions.width, 'x', imageDimensions.height);
 
       // Use the original image dimensions for burning to maintain quality
       // The frontend will handle the final display scaling
       const burnWidth = originalWidth;
       const burnHeight = originalHeight;
       
-      console.log('🔍 Burning at original dimensions:', burnWidth, 'x', burnHeight);
 
       // Create SVG overlay with display dimensions
       const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, imageDimensions);
@@ -74,9 +65,6 @@ export class SVGOverlayService {
       // Convert back to base64 data URL
       const burnedImageData = `data:image/png;base64,${burnedImageBuffer.toString('base64')}`;
       
-      console.log('✅ Successfully burned SVG overlay server-side');
-      console.log('🔍 Original size:', imageBuffer.length, 'bytes');
-      console.log('🔍 Burned size:', burnedImageBuffer.length, 'bytes');
       
       return burnedImageData;
       
@@ -94,14 +82,10 @@ export class SVGOverlayService {
       return '';
     }
 
-    console.log('🔍 Creating SVG overlay with dimensions:', actualWidth, 'x', actualHeight);
-    console.log('🔍 Original dimensions:', originalDimensions.width, 'x', originalDimensions.height);
-    console.log('🔍 Annotations:', annotations);
     // Calculate scaling factors from provided dimensions to actual burn dimensions
     const scaleX = actualWidth / originalDimensions.width;
     const scaleY = actualHeight / originalDimensions.height;
     
-    console.log('🔍 Scaling factors:', { scaleX, scaleY });
     
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
     
@@ -127,7 +111,6 @@ export class SVGOverlayService {
     const scaledWidth = width * scaleX;
     const scaledHeight = height * scaleY;
     
-    console.log(`🔍 Annotation ${index + 1}: Original(${x}, ${y}, ${width}, ${height}) -> Scaled(${scaledX}, ${scaledY}, ${scaledWidth}, ${scaledHeight})`);
     
     let svg = '';
     
@@ -155,46 +138,85 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create tick annotation using ✔ symbol, red color and 1.3x bigger
+   * Create tick annotation using random tick symbols with natural variations
    */
   private static createTickAnnotation(x: number, y: number, width: number, height: number): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const fontSize = Math.max(12, Math.min(width, height) * 1.04); // 1.3x bigger (0.8 * 1.3 = 1.04)
+    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
+    
+    // Add small random variations for natural look
+    const positionVariation = 3; // ±3 pixels
+    const sizeVariation = 0.2; // ±20% size variation
+    const rotationVariation = 15; // ±15 degrees rotation
+    
+    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
+    const randomY = centerY + baseFontSize/3 + (Math.random() - 0.5) * positionVariation;
+    const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
+    const randomRotation = (Math.random() - 0.5) * rotationVariation;
+    
+    // Randomly choose from different tick symbols
+    const tickSymbols = ['✓', '🗸'];
+    const randomTick = tickSymbols[Math.floor(Math.random() * tickSymbols.length)];
     
     return `
-      <text x="${centerX}" y="${centerY + fontSize/3}" text-anchor="middle" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">✔</text>`;
+      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
+            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomTick}</text>`;
   }
 
   /**
-   * Create cross annotation with optional text
+
+   * Create cross annotation using random cross symbols with natural variations
    */
-  private static createCrossAnnotation(x: number, y: number, width: number, height: number, text?: string): string {
+  private static createCrossAnnotation(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    text?: string
+  ): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const size = Math.min(width, height) * 0.8;
-    const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
-    
+    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
+  
+    // Random variations for natural look
+    const positionVariation = 3; // ±3 pixels
+    const sizeVariation = 0.2; // ±20% size variation
+    const rotationVariation = 15; // ±15 degrees rotation
+  
+    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
+    const randomY =
+      centerY + baseFontSize / 3 + (Math.random() - 0.5) * positionVariation;
+    const randomSize =
+      baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
+    const randomRotation = (Math.random() - 0.5) * rotationVariation;
+  
+    // Randomly choose from different cross symbols
+    const crossSymbols = ["✗", "✘", "🗴"];
+    const randomCross =
+      crossSymbols[Math.floor(Math.random() * crossSymbols.length)];
+  
+    // Start SVG with random cross
     let svg = `
-      <g stroke="#ff0000" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
-        <line x1="${centerX - size/2}" y1="${centerY - size/2}" x2="${centerX + size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
-        <line x1="${centerX + size/2}" y1="${centerY - size/2}" x2="${centerX - size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
-      </g>`;
-    
-    // Add text if provided - treat bbox as bottom-left origin for text
+      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000"
+            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
+            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomCross}</text>`;
+  
+    // Add text if provided - bottom-left positioning
     if (text && text.trim()) {
       const fontSize = Math.max(12, Math.min(width, height) * 0.6);
-      const textX = x + width + 8; // Position text to the right of the cross
-      const textY = y + height - 4; // Use bottom-left positioning for text baseline
-      
+      const textX = x + width + 8; // To the right of the bounding box
+      const textY = y + height - 4; // Bottom-left baseline
+  
       svg += `
-        <text x="${textX}" y="${textY}" fill="#ff0000" 
+        <text x="${textX}" y="${textY}" fill="#ff0000"
               font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${text}</text>`;
     }
-    
+  
     return svg;
   }
+  
 
   /**
    * Create circle annotation
@@ -231,10 +253,10 @@ export class SVGOverlayService {
     const commentY = y + height - 4; // Use bottom-left positioning for text baseline
     
     // Comment text only (scaled) - no background or rectangle
-    // Using Comic Neue for handwritten look, bold and 2.1x larger
+    // Using Discipuli Britannica font for comments
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
-    return `<text x="${commentX}" y="${commentY}" fill="#ff4444" 
-            font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" 
+    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
+            font-family="'Lucida Handwriting', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;
   }

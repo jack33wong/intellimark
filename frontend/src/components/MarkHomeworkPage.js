@@ -9,6 +9,22 @@ import { useAuth } from '../contexts/AuthContext';
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
   // === NAVIGATION ===
   const navigate = useNavigate();
+  const { getAuthToken } = useAuth();
+  
+  // Helper function to handle Firebase Storage URLs
+  const getImageSrc = (imageData) => {
+    if (!imageData) return null;
+    
+    // If it's already a data URL (base64), return as is
+    if (imageData.startsWith('data:')) {
+      return imageData;
+    }
+    
+    // If it's a Firebase Storage URL, we need to handle it differently
+    // For now, return the URL as is - the browser should handle it
+    // In production, you might want to add authentication headers
+    return imageData;
+  };
   
   // === AUTH ===
   const { user } = useAuth();
@@ -99,12 +115,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   // Handle selected marking result from sidebar
   useEffect(() => {
     if (selectedMarkingResult) {
-      
-      // Switch to chat mode to display the session messages
-      setPageMode('chat');
-      
-      // Load the session messages into chat
+      // Load the session messages into chat first
       if (selectedMarkingResult.messages && Array.isArray(selectedMarkingResult.messages)) {
+        
         // Convert Firestore messages to chat format
         const formattedMessages = selectedMarkingResult.messages.map(msg => ({
           id: msg.id,
@@ -151,28 +164,40 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           historicalData: msg.historicalData // Add historical data for marking messages
         }));
         
+        // Set messages first, then switch to chat mode
         setChatMessages(formattedMessages);
         setCurrentSessionId(selectedMarkingResult.id);
         
-        // Scroll to bottom of chat
+        // Switch to chat mode after messages are set
+        setPageMode('chat');
+        
+        // Scroll to bottom of chat after a delay to ensure DOM is updated
         setTimeout(() => {
           if (chatMessagesRef.current) {
             chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
           }
-        }, 100);
+        }, 200);
+      } else {
+        // Still switch to chat mode even if no messages
+        setPageMode('chat');
       }
       
-      // Clear the selected result after processing with a small delay
+      // Clear the selected result after processing with a longer delay
       if (onClearSelectedResult) {
         setTimeout(() => {
           onClearSelectedResult();
-        }, 100);
+        }, 500);
       }
     }
   }, [selectedMarkingResult, onClearSelectedResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load session from localStorage on component mount
   useEffect(() => {
+    // Don't load from localStorage if we have a selected marking result
+    if (selectedMarkingResult) {
+      return;
+    }
+    
     const savedSessionId = localStorage.getItem('chatSessionId');
     const savedChatMessages = localStorage.getItem('chatMessages');
     const savedChatMode = localStorage.getItem('isChatMode');
@@ -193,7 +218,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     if (savedChatMode === 'true' && pageMode === 'upload') {
       setPageMode('chat');
     }
-  }, [pageMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pageMode, selectedMarkingResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save session data to localStorage whenever it changes
   useEffect(() => {
@@ -334,11 +359,17 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       // Use the provided session ID, current session ID, or let the API create a new one
       const sessionIdToUse = sessionId || currentSessionId || null;
       
+      const authToken = await getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch('/api/chat/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: 'I have a question about this image. Can you help me understand it?',
           imageData: imageData,
@@ -421,7 +452,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
 
       // Get authentication token
-      const authToken = localStorage.getItem('authToken');
+      const authToken = await getAuthToken();
       
       // Prepare headers
       const headers = {
@@ -458,8 +489,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           questionDetection: result.questionDetection
         });
         
-        // Switch to chat mode immediately
-        setPageMode('chat');
+        // Log session message content before redirecting to chat
+        console.log('🔍 Question Only Upload - Session Message Content:');
+        console.log('📋 Session ID:', result.sessionId);
+        console.log('📋 Original Image Data Length:', imageData ? imageData.length : 'No image data');
         
         // Refresh mark history in sidebar
         if (onMarkingResultSaved) {
@@ -475,17 +508,82 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           role: 'user',
           content: 'I have a question about this image. Can you help me understand it?',
           timestamp: new Date().toLocaleTimeString(),
+          type: 'question_original',
           imageData: imageData,
-          fileName: selectedFile.name
+          fileName: selectedFile.name,
+          detectedQuestion: { // Add exam metadata for display
+            examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
+            questionNumber: result.questionDetection?.match?.questionNumber || 'Unknown',
+            questionText: result.questionDetection?.match?.questionText || result.classification?.extractedQuestionText || '',
+            confidence: result.questionDetection?.match?.markingScheme?.confidence || result.questionDetection?.match?.confidence || 0
+          }
         };
         
-        // Add the user message to chat
-        setChatMessages([initialUserMessage]);
+        // Wait for AI response before redirecting (same as marking mode)
+        if (result.sessionId) {
+          try {
+            const authToken = await getAuthToken();
+            const headers = {
+              'Content-Type': 'application/json',
+            };
+            if (authToken) {
+              headers['Authorization'] = `Bearer ${authToken}`;
+            }
+            
+            // Send original image to backend and get AI response
+            const response = await fetch('/api/chat/', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                message: 'I have a question about this image. Can you help me understand it?',
+                imageData: imageData, // Use original image
+                model: selectedModel,
+                sessionId: result.sessionId,
+                mode: 'question',
+                examMetadata: { // Add exam metadata
+                  examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
+                  questionMarks: result.questionDetection?.match?.markingScheme?.questionMarks || result.questionDetection?.match?.questionMarks || {},
+                  confidence: result.questionDetection?.match?.markingScheme?.confidence || result.questionDetection?.match?.confidence || 0
+                }
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              
+              // Create AI response message
+              const aiResponseMessage = {
+                id: Date.now() + 1,
+                role: 'assistant',
+                content: data.response,
+                timestamp: new Date().toLocaleTimeString(),
+                type: 'question_response'
+              };
+              
+              // Set both user and AI messages (both ready)
+              setChatMessages([initialUserMessage, aiResponseMessage]);
+              console.log('✅ Question-only chat messages set with AI response');
+            } else {
+              console.error('❌ Failed to get AI response:', response.status);
+              // Fallback - just show user message
+              setChatMessages([initialUserMessage]);
+            }
+          } catch (error) {
+            console.error('❌ Failed to send original image message to backend:', error);
+            // Fallback - just show user message
+            setChatMessages([initialUserMessage]);
+          }
+        } else {
+          // No sessionId - just show user message
+          setChatMessages([initialUserMessage]);
+          console.log('⚠️ No sessionId available, showing user message only');
+        }
         
-        // Automatically send the first chat message to get AI response
-        setTimeout(() => {
-          sendInitialChatMessage(imageData, selectedModel, null, result.sessionId);
-        }, 500);
+        // Set processing to false after AI response is ready
+        setIsProcessing(false);
+        
+        // Switch to chat mode after AI response is ready
+        setPageMode('chat');
         
         return; // Exit early for question-only mode
       }
@@ -504,13 +602,39 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         onMarkingResultSaved();
       }
 
+      // Log session message content before redirecting to chat
+      console.log('🔍 Question with Answer Upload - Session Message Content:');
+      console.log('📋 Session ID:', result.sessionId);
+      console.log('📋 Original Image Data Length:', imageData ? imageData.length : 'No image data');
+      console.log('📋 Annotated Image Data Length:', result.annotatedImage ? result.annotatedImage.length : 'No annotated image data');
+      console.log('📋 Marking Instructions:', result.instructions);
+      console.log('📋 Expected Message Sequence:');
+      console.log('  - Index 0: Original image (user message)');
+      console.log('  - Index 1: Annotated image (assistant message)');
+
       // Switch to chat mode with the marked homework
       setPageMode('chat');
       
       // Set the session ID from the response
       setCurrentSessionId(result.sessionId);
       
-      // Add the marked homework message to chat
+      // Add the original image message first, then the marked homework message
+      const originalImageMessage = {
+        id: Date.now() - 1, // Ensure it comes before the marked message
+        role: 'user',
+        content: 'Original question image',
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'marking_original',
+        imageData: imageData, // Original image
+        fileName: selectedFile.name,
+        detectedQuestion: {
+          examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
+          questionNumber: result.questionDetection?.match?.questionNumber || 'Unknown',
+          questionText: result.questionDetection?.match?.questionText || result.classification?.extractedQuestionText || '',
+          confidence: result.questionDetection?.match?.markingScheme?.confidence || result.questionDetection?.match?.confidence || 0
+        }
+      };
+      
       const markedMessage = {
         id: Date.now(),
         role: 'assistant',
@@ -521,11 +645,105 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         markingData: {
           examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
           questionMarks: result.questionDetection.match?.markingScheme?.questionMarks || result.questionDetection.match?.questionMarks || {},
-          confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0
+          confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0,
+          markingInstructions: result.instructions || null // Include the marking instructions with feedback
         }
       };
       
-      setChatMessages([markedMessage]);
+      setChatMessages([originalImageMessage, markedMessage]);
+      
+      // Set processing to false since we have the messages ready
+      setIsProcessing(false);
+      
+      // Send messages to backend for session persistence (without AI response)
+      if (result.sessionId) {
+        try {
+          const authToken = await getAuthToken();
+          const headers = {
+            'Content-Type': 'application/json',
+          };
+          if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+          }
+          
+          // Send original image to backend for session persistence
+          await fetch('/api/chat/', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: 'Original question image',
+              imageData: imageData, // Original image as base64
+              model: selectedModel,
+              sessionId: result.sessionId,
+              mode: 'marking',
+              examMetadata: {
+                examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
+                questionNumber: result.questionDetection?.match?.questionNumber || 'Unknown',
+                questionText: result.questionDetection?.match?.questionText || result.classification?.extractedQuestionText || '',
+                confidence: result.questionDetection?.match?.markingScheme?.confidence || result.questionDetection?.match?.confidence || 0
+              }
+            }),
+          });
+          console.log('✅ Original image sent to backend for session persistence');
+          
+          // Send annotated image to backend for session persistence
+          await fetch('/api/chat/', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              message: 'Annotated image with marking feedback',
+              imageData: result.annotatedImage,
+              model: selectedModel,
+              sessionId: result.sessionId,
+              mode: 'marking'
+            }),
+          });
+          console.log('✅ Annotated image sent to backend for session persistence');
+          
+          // Refresh messages from backend
+          setTimeout(async () => {
+            try {
+              const sessionResponse = await fetch(`/api/chat/session/${result.sessionId}`, {
+                headers: {
+                  'Authorization': `Bearer ${authToken}`
+                }
+              });
+              
+              if (sessionResponse.ok) {
+                const sessionData = await sessionResponse.json();
+                if (sessionData.success && sessionData.session.messages) {
+                  // Format messages for frontend display
+                  const formattedMessages = sessionData.session.messages.map((msg, index) => ({
+                    id: msg.id || `msg-${index}`,
+                    role: msg.role,
+                    content: msg.content,
+                    rawContent: msg.rawContent || msg.content,
+                    timestamp: msg.timestamp || new Date().toLocaleTimeString(),
+                    type: msg.type,
+                    imageData: msg.imageData,
+                    imageLink: msg.imageLink,
+                    markingData: msg.markingData,
+                    model: msg.model,
+                    detectedQuestion: msg.detectedQuestion,
+                    apiUsed: msg.apiUsed,
+                    showRaw: msg.showRaw || false,
+                    isImageContext: msg.isImageContext || false,
+                    historicalData: msg.historicalData
+                  }));
+                  
+                  setChatMessages(formattedMessages);
+                  console.log('✅ Messages refreshed from backend');
+                }
+              }
+            } catch (error) {
+              console.error('❌ Failed to refresh messages from backend:', error);
+            }
+          }, 1000); // Wait 1 second for backend to process
+          
+        } catch (error) {
+          console.error('❌ Failed to send messages to backend for persistence:', error);
+        }
+      }
       
     } catch (error) {
       console.error('❌ Upload error:', error);
@@ -554,24 +772,35 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
 
     try {
       
-      // Get the image data from the first user message (which contains the image)
-      const firstUserMessage = chatMessages.find(msg => msg.role === 'user' && msg.imageData);
-      const imageData = firstUserMessage?.imageData || lastUploadedImageData;
+      // For follow-up messages, don't send image data again
+      // Only send image data if this is the first message in a new session
+      const isFirstMessage = chatMessages.length === 0;
+      const imageData = isFirstMessage ? lastUploadedImageData : undefined;
       
       // Use the current session ID if available, otherwise let the API create a new one
       const sessionIdToUse = currentSessionId || null;
       
+      // For follow-up messages, don't send mode parameter to avoid incorrect type assignment
+      // Only send mode for the first message in a new session
+      const mode = isFirstMessage ? (classificationResult?.isQuestionOnly ? 'question' : 'qa') : undefined;
+      
+      const authToken = await getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
       const response = await fetch('/api/chat/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message: chatInput.trim(),
           imageData: imageData,
           model: selectedModel,
           sessionId: sessionIdToUse,
-          mode: classificationResult?.isQuestionOnly ? 'question' : 'qa'
+          mode: mode
         }),
       });
 
@@ -640,8 +869,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 <button 
                   className="header-btn info-btn"
                   onClick={() => {
-                    console.log('Info button clicked, current state:', showInfoDropdown);
-                    console.log('Classification result:', classificationResult);
                     setShowInfoDropdown(!showInfoDropdown);
                   }}
                   title="Information"
@@ -656,7 +883,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   className="header-btn bookmark-btn"
                   onClick={() => {
                     // TODO: Implement bookmark functionality
-                    console.log('Bookmark button clicked');
                   }}
                   title="Bookmark"
                 >
@@ -766,7 +992,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           
           <div className="chat-content">
             <div className="chat-messages" ref={chatMessagesRef}>
-              {chatMessages.map((message) => (
+              {chatMessages.map((message, index) => (
                 <div 
                   key={message.id} 
                   className={`chat-message ${message.role}`}
@@ -785,9 +1011,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                           <div className="homework-annotated-image">
                             <h4>✅ Marked Homework Image</h4>
                             <img 
-                              src={message.imageLink || message.imageData}
+                              src={getImageSrc(message.imageLink || message.imageData)}
                               alt="Marked homework"
                               className="annotated-image"
+                              onError={(e) => {
+                                console.warn('Failed to load image:', message.imageLink || message.imageData);
+                                e.target.style.display = 'none';
+                              }}
                             />
                             
                             {/* Display marking data if available */}
@@ -906,9 +1136,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                             )}
                             <h4>📷 Original Homework Image</h4>
                             <img 
-                              src={message.imageLink || message.imageData}
+                              src={getImageSrc(message.imageLink || message.imageData)}
                               alt="Original homework"
                               className="annotated-image"
+                              onError={(e) => {
+                                console.warn('Failed to load image:', message.imageLink || message.imageData);
+                                e.target.style.display = 'none';
+                              }}
                             />
                           </div>
                         )}
@@ -935,9 +1169,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                              )}
                              <h4>✅ Marked Homework Image</h4>
                              <img 
-                               src={message.imageLink || message.imageData}
+                               src={getImageSrc(message.imageLink || message.imageData)}
                                alt="Marked homework"
                                className="annotated-image"
+                               onError={(e) => {
+                                 console.warn('Failed to load image:', message.imageLink || message.imageData);
+                                 e.target.style.display = 'none';
+                               }}
                              />
                            </div>
                          )}
@@ -964,9 +1202,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                              )}
                              <h4>📷 Question Image</h4>
                              <img 
-                               src={message.imageLink || message.imageData}
+                               src={getImageSrc(message.imageLink || message.imageData)}
                                alt="Question"
                                className="annotated-image"
+                               onError={(e) => {
+                                 console.warn('Failed to load image:', message.imageLink || message.imageData);
+                                 e.target.style.display = 'none';
+                               }}
                              />
                            </div>
                          )}
@@ -975,17 +1217,21 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                          {message.isImageContext && !message.type && (message.imageData || message.imageLink) && (
                            <div className="homework-annotated-image">
                              <img 
-                               src={message.imageLink || message.imageData}
+                               src={getImageSrc(message.imageLink || message.imageData)}
                                alt="Uploaded homework"
                                className="annotated-image"
+                               onError={(e) => {
+                                 console.warn('Failed to load image:', message.imageLink || message.imageData);
+                                 e.target.style.display = 'none';
+                               }}
                              />
                            </div>
                          )}
                          
-                         {/* Handle text-only messages */}
-                         {!message.isImageContext && !message.type && (
-                           <div className="message-text">{message.content}</div>
-                         )}
+                        {/* Handle text-only messages */}
+                        {!message.isImageContext && !message.type && (
+                          <div className="message-text">{message.content}</div>
+                        )}
                        </div>
                      )}
                      <div className="message-timestamp">
