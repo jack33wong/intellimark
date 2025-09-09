@@ -119,6 +119,7 @@ export class SVGOverlayService {
     const [x, y, width, height] = annotation.bbox;
     const action = annotation.action || 'comment';
     const comment = annotation.comment || '';
+    const text = annotation.text || '';
     
     // Scale the bounding box coordinates
     const scaledX = x * scaleX;
@@ -136,7 +137,7 @@ export class SVGOverlayService {
         svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
       case 'cross':
-        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text);
         break;
       case 'circle':
         svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -167,19 +168,32 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create cross annotation
+   * Create cross annotation with optional text
    */
-  private static createCrossAnnotation(x: number, y: number, width: number, height: number): string {
+  private static createCrossAnnotation(x: number, y: number, width: number, height: number, text?: string): string {
     const centerX = x + width / 2;
     const centerY = y + height / 2;
     const size = Math.min(width, height) * 0.8;
     const strokeWidth = Math.max(6, Math.min(width, height) * 0.2);
     
-    return `
+    let svg = `
       <g stroke="#ff0000" stroke-width="${strokeWidth}" fill="none" opacity="0.8">
         <line x1="${centerX - size/2}" y1="${centerY - size/2}" x2="${centerX + size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
         <line x1="${centerX + size/2}" y1="${centerY - size/2}" x2="${centerX - size/2}" y2="${centerY + size/2}" stroke-linecap="round"/>
       </g>`;
+    
+    // Add text if provided - treat bbox as bottom-left origin for text
+    if (text && text.trim()) {
+      const fontSize = Math.max(12, Math.min(width, height) * 0.6);
+      const textX = x + width + 8; // Position text to the right of the cross
+      const textY = y + height - 4; // Use bottom-left positioning for text baseline
+      
+      svg += `
+        <text x="${textX}" y="${textY}" fill="#ff0000" 
+              font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${text}</text>`;
+    }
+    
+    return svg;
   }
 
   /**
@@ -212,14 +226,14 @@ export class SVGOverlayService {
   private static createCommentAnnotation(x: number, y: number, width: number, height: number, comment: string, scaleX: number, scaleY: number): string {
     if (!comment) return '';
     
-    // Calculate comment position (above the bounding box)
+    // Calculate comment position (use bottom-left of bbox as text start)
     const commentX = x;
-    const commentY = Math.max(25 * scaleY, y - 10 * scaleY);
+    const commentY = y + height - 4; // Use bottom-left positioning for text baseline
     
     // Comment text only (scaled) - no background or rectangle
     // Using Comic Neue for handwritten look, bold and 2.1x larger
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
-    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
+    return `<text x="${commentX}" y="${commentY}" fill="#ff4444" 
             font-family="'Comic Neue', 'Comic Sans MS', 'Lucida Handwriting', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;

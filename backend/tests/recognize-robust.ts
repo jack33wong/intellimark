@@ -11,10 +11,18 @@ import { fileURLToPath } from 'url';
 
 // --- Type Aliases for Clarity ---
 type IBlock = protos.google.cloud.vision.v1.IBlock;
+type IParagraph = protos.google.cloud.vision.v1.IParagraph;
+type ILine = protos.google.cloud.vision.v1.ILine;
+type IBoundingBox = protos.google.cloud.vision.v1.IBoundingBox;
 type IVertex = protos.google.cloud.vision.v1.IVertex;
+type IWord = protos.google.cloud.vision.v1.IWord;
+type ISymbol = protos.google.cloud.vision.v1.ISymbol;
+
 type DetectedBlock = {
     source: string;
     blockIndex: number;
+    parentBlockIndex?: number; // Added to preserve hierarchy
+    parentParagraphIndex?: number; // New field for paragraph parent
     text?: string | null;
     confidence?: number | null;
     geometry: {
@@ -27,22 +35,28 @@ type DetectedBlock = {
 };
 
 // --- Configuration ---
-const IMAGE_FILE_NAME = '../../testingdata/test3.png';
+const IMAGE_FILE_NAME = '../../testingdata/test5.png';
 const OUTPUT_JSON_FILE = 'analysis_result.json';
 const OUTPUT_VERIFICATION_IMAGE = 'verification_overlay.png';
 const RESIZE_FACTOR = 2; // Enlarge image for the aggressive pass
 const IOU_THRESHOLD = 0.7; // Overlap threshold to consider blocks as duplicates
+const LINE_GROUP_TOLERANCE_Y = 10; // Tolerance in pixels to group words into the same line.
 // --- End Configuration ---
 
 
 /**
- * Helper function to calculate width and height from bounding box vertices.
+ * Helper function to calculate width and height from bounding box vertices
+ * for any Vision API entity (block, paragraph, word, etc.).
  */
-function getBlockGeometry(block: IBlock, scale = 1) {
-    const vertices = block.boundingBox?.vertices;
+function getGeometry(entity: { boundingBox?: IBoundingBox | null }, scale = 1) {
+    const vertices = entity.boundingBox?.vertices;
     if (!vertices || vertices.length < 4) return { width: 0, height: 0, boundingBox: [], minX: 0, minY: 0 };
+    
+    // Extract and scale coordinates
     const xCoords = vertices.map(v => (v.x || 0) / scale);
     const yCoords = vertices.map(v => (v.y || 0) / scale);
+    
+    // Calculate min/max and dimensions
     const minX = Math.min(...xCoords);
     const maxX = Math.max(...xCoords);
     const minY = Math.min(...yCoords);
@@ -73,7 +87,6 @@ function calculateIoU(boxA: {minX: number, minY: number, width: number, height: 
     const iou = intersectionArea / (boxAArea + boxBArea - intersectionArea);
     return isNaN(iou) ? 0 : iou;
 }
-
 
 /**
  * Creates a verification image by drawing color-coded bounding boxes on the original image.
@@ -113,6 +126,112 @@ async function createVerificationImage(detectedBlocks: DetectedBlock[], original
     }
 }
 
+/**
+ * Processes a single fullTextAnnotation object and returns an array of DetectedBlocks.
+ * This function now uses a hybrid approach:
+ * 1. Tries to use Vision API's detected lines for a cleaner result.
+ * 2. If no lines are detected, falls back to a robust word-by-word grouping method.
+ */
+function processTextAnnotation(fullTextAnnotation: protos.google.cloud.vision.v1.IFullTextAnnotation | null | undefined, source: string, scale: number = 1): DetectedBlock[] {
+    const detectedBlocks: DetectedBlock[] = [];
+    if (!fullTextAnnotation || !fullTextAnnotation.pages) {
+        return detectedBlocks;
+    }
+    
+    fullTextAnnotation.pages.forEach(page => {
+        page.blocks?.forEach((block, blockIndex) => {
+            block.paragraphs?.forEach((paragraph, paragraphIndex) => {
+                // Hybrid Logic:
+                // First, check if the Vision API provided lines. This is usually more accurate.
+                if (paragraph.lines && paragraph.lines.length > 0) {
+                    paragraph.lines.forEach((line) => {
+                        const lineText = line.words?.map(word => word.symbols?.map(s => s.text).join('')).join(' ');
+                        if (line.boundingBox) {
+                            detectedBlocks.push({
+                                source,
+                                blockIndex: detectedBlocks.length + 1,
+                                parentBlockIndex: blockIndex + 1,
+                                parentParagraphIndex: paragraphIndex + 1,
+                                text: lineText,
+                                confidence: line.confidence,
+                                geometry: getGeometry(line, scale)
+                            });
+                        }
+                    });
+                } else {
+                    // Fallback to word-by-word grouping if no lines are detected
+                    const allWords: (IWord & { parentBlockIndex: number, parentParagraphIndex: number })[] = [];
+                    paragraph.words?.forEach(word => {
+                        allWords.push({
+                            ...word,
+                            parentBlockIndex: blockIndex + 1,
+                            parentParagraphIndex: paragraphIndex + 1
+                        });
+                    });
+
+                    allWords.sort((a, b) => {
+                        const aMinY = a.boundingBox?.vertices?.[0]?.y || 0;
+                        const bMinY = b.boundingBox?.vertices?.[0]?.y || 0;
+                        const aMinX = a.boundingBox?.vertices?.[0]?.x || 0;
+                        const bMinX = b.boundingBox?.vertices?.[0]?.x || 0;
+                        if (Math.abs(aMinY - bMinY) <= LINE_GROUP_TOLERANCE_Y) {
+                            return aMinX - bMinX;
+                        }
+                        return aMinY - bMinY;
+                    });
+
+                    let currentLine: (IWord & { parentBlockIndex: number, parentParagraphIndex: number })[] = [];
+
+                    allWords.forEach((word, index) => {
+                        if (currentLine.length === 0) {
+                            currentLine.push(word);
+                        } else {
+                            const lastWordInLine = currentLine[currentLine.length - 1];
+                            const lastWordMinY = lastWordInLine.boundingBox?.vertices?.[0]?.y || 0;
+                            const currentWordMinY = word.boundingBox?.vertices?.[0]?.y || 0;
+
+                            if (Math.abs(currentWordMinY - lastWordMinY) <= LINE_GROUP_TOLERANCE_Y) {
+                                currentLine.push(word);
+                            } else {
+                                // End of line, process and reset
+                                if (currentLine.length > 0) {
+                                    processLine(currentLine);
+                                }
+                                currentLine = [word];
+                            }
+                        }
+
+                        // Process the last line at the end of the loop
+                        if (index === allWords.length - 1 && currentLine.length > 0) {
+                            processLine(currentLine);
+                        }
+                    });
+
+                    function processLine(words: (IWord & { parentBlockIndex: number, parentParagraphIndex: number })[]) {
+                        const minX = Math.min(...words.map(w => w.boundingBox?.vertices?.[0]?.x || 0));
+                        const minY = Math.min(...words.map(w => w.boundingBox?.vertices?.[0]?.y || 0));
+                        const maxX = Math.max(...words.map(w => w.boundingBox?.vertices?.[2]?.x || 0));
+                        const maxY = Math.max(...words.map(w => w.boundingBox?.vertices?.[2]?.y || 0));
+                        
+                        const lineText = words.map(w => w.symbols?.map(s => s.text).join('')).join(' ');
+
+                        detectedBlocks.push({
+                            source,
+                            blockIndex: detectedBlocks.length + 1,
+                            parentBlockIndex: words[0].parentBlockIndex,
+                            parentParagraphIndex: words[0].parentParagraphIndex,
+                            text: lineText,
+                            confidence: words.reduce((sum, w) => sum + (w.confidence || 0), 0) / words.length,
+                            geometry: getGeometry({ boundingBox: { vertices: [{x: minX, y: minY}, {x: maxX, y: minY}, {x: maxX, y: maxY}, {x: minX, y: maxY}] } }, scale)
+                        });
+                    }
+                }
+            });
+        });
+    });
+
+    return detectedBlocks;
+}
 
 /**
  * Main execution function for the full document analysis pipeline.
@@ -141,75 +260,40 @@ async function analyzeFullDocument() {
     // --- Analysis A (Clean Scan for Completeness) ---
     console.log('\n🚀 Running Pass A (Clean Scan for Completeness)...');
     const [resultA] = await client.textDetection(originalBuffer);
-    const blocksA: DetectedBlock[] = [];
-    if (resultA.fullTextAnnotation) {
-        resultA.fullTextAnnotation.pages.forEach(page => {
-            page.blocks.forEach((block, index) => {
-                blocksA.push({
-                    source: 'pass_A_clean_scan',
-                    blockIndex: index + 1,
-                    text: block.paragraphs?.map(p => p.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ')).join('\n'),
-                    confidence: block.confidence,
-                    geometry: getBlockGeometry(block)
-                });
-            });
-        });
-    }
+    const blocksA = processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan');
     console.log(`✅ Pass A complete: ${blocksA.length} blocks found.`);
 
     // --- Analysis B (Enhanced Scan for Accuracy) ---
     console.log('\n🚀 Running Pass B (Enhanced Scan for Accuracy)...');
     const originalMetadata = await sharp(originalBuffer).metadata();
     const preprocessedBufferB = await sharp(originalBuffer)
-      .resize((originalMetadata.width || 0) * RESIZE_FACTOR)
+      .resize(originalMetadata.width ? originalMetadata.width * RESIZE_FACTOR : 0)
       .grayscale()
       .normalize()
       .toBuffer();
     
     const [resultB] = await client.textDetection(preprocessedBufferB);
-    const blocksB: DetectedBlock[] = [];
-     if (resultB.fullTextAnnotation) {
-        resultB.fullTextAnnotation.pages.forEach(page => {
-            page.blocks.forEach((block, index) => {
-                blocksB.push({
-                    source: 'pass_B_enhanced_scan',
-                    blockIndex: index + 1,
-                    text: block.paragraphs?.map(p => p.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ')).join('\n'),
-                    confidence: block.confidence,
-                    geometry: getBlockGeometry(block, RESIZE_FACTOR)
-                });
-            });
-        });
-    }
+    const blocksB = processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', RESIZE_FACTOR);
     console.log(`✅ Pass B complete: ${blocksB.length} blocks found.`);
     
     // --- Analysis C (Aggressive Scan for |V| Edge Cases) ---
     console.log('\n🚀 Running Pass C (Aggressive Scan for |V|)...');
     const preprocessedBufferC = await sharp(originalBuffer)
-      .resize((originalMetadata.width || 0) * RESIZE_FACTOR)
+      .resize(originalMetadata.width ? originalMetadata.width * RESIZE_FACTOR : 0)
       .sharpen()
       .threshold()
       .toBuffer();
       
     const [resultC] = await client.textDetection(preprocessedBufferC);
-    const blocksC: DetectedBlock[] = [];
-     if (resultC.fullTextAnnotation) {
-        resultC.fullTextAnnotation.pages.forEach(page => {
-            page.blocks.forEach((block, index) => {
-                blocksC.push({
-                    source: 'pass_C_aggressive_scan',
-                    blockIndex: index + 1,
-                    text: block.paragraphs?.map(p => p.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ')).join('\n'),
-                    confidence: block.confidence,
-                    geometry: getBlockGeometry(block, RESIZE_FACTOR)
-                });
-            });
-        });
-    }
+    const blocksC = processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', RESIZE_FACTOR);
     console.log(`✅ Pass C complete: ${blocksC.length} blocks found.`);
 
     // --- "Cluster and Select by Completeness" Merge Strategy ---
     console.log('\n🔄 Merging results with "Most Complete" strategy...');
+    console.log('🔍 DEBUG: blocksA count:', blocksA.length);
+    console.log('🔍 DEBUG: blocksB count:', blocksB.length);
+    console.log('🔍 DEBUG: blocksC count:', blocksC.length);
+    
     const masterList = [...blocksA, ...blocksB, ...blocksC];
     const finalBlocks: DetectedBlock[] = [];
     const processedIndices = new Set<number>();
@@ -242,6 +326,16 @@ async function analyzeFullDocument() {
     
     finalBlocks.forEach((block, index) => block.blockIndex = index + 1); // Re-index all blocks
     console.log(`✅ Merge complete: ${finalBlocks.length} unique blocks selected.`);
+    
+    // Debug final blocks geometry
+    console.log('🔍 DEBUG: Final blocks count:', finalBlocks.length);
+    if (finalBlocks.length > 0) {
+      console.log('🔍 DEBUG: First final block geometry:', finalBlocks[0].geometry);
+      console.log('🔍 DEBUG: First final block text:', finalBlocks);
+      if (finalBlocks.length > 1) {
+        console.log('🔍 DEBUG: Second final block geometry:', finalBlocks[1].geometry);
+      }
+    }
 
     // --- Final Consolidated Report ---
     const finalResult = {
@@ -270,4 +364,3 @@ async function analyzeFullDocument() {
 }
 
 analyzeFullDocument();
-

@@ -36,6 +36,7 @@ interface SimpleAnnotation {
   bbox: [number, number, number, number]; // [x, y, width, height]
   comment?: string; // Optional for marking actions
   text?: string; // For comment actions
+  reasoning?: string; // LLM-provided explanation
 }
 
 interface SimpleMarkingInstructions {
@@ -80,6 +81,8 @@ export class AIMarkingService {
    * Robust JSON cleaning and validation helper
    */
   private static cleanAndValidateJSON(response: string, expectedArrayKey: string): any {
+    console.log('🔍 Raw LLM response:', response);
+    
     let cleanedResponse = response.trim();
     
     // Try to extract JSON from markdown code blocks if present
@@ -87,6 +90,20 @@ export class AIMarkingService {
     if (jsonMatch && jsonMatch[1]) {
       cleanedResponse = jsonMatch[1];
       console.log('🔍 Extracted JSON from markdown:', cleanedResponse);
+    } else {
+      // Try to find JSON object in the response
+      const objectMatch = cleanedResponse.match(/\{[\s\S]*\}/);
+      if (objectMatch) {
+        cleanedResponse = objectMatch[0];
+        console.log('🔍 Extracted JSON object:', cleanedResponse);
+      } else {
+        // Try to find JSON array
+        const arrayMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          cleanedResponse = arrayMatch[0];
+          console.log('🔍 Extracted JSON array:', cleanedResponse);
+        }
+      }
     }
     
     // Try to fix common JSON issues
@@ -129,7 +146,25 @@ export class AIMarkingService {
         console.log('🔍 Aggressive clean attempt:', aggressiveClean);
         result = JSON.parse(aggressiveClean);
       } catch (secondError) {
-        throw new Error(`Invalid JSON response from AI: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+        console.error('❌ All JSON parsing attempts failed');
+        console.error('❌ Second error:', secondError);
+        
+        // Try to extract just the annotations array if possible
+        try {
+          const annotationsMatch = cleanedResponse.match(/"annotations"\s*:\s*\[([\s\S]*?)\]/);
+          if (annotationsMatch) {
+            const annotationsArray = JSON.parse(`[${annotationsMatch[1]}]`);
+            result = { [expectedArrayKey]: annotationsArray };
+            console.log('✅ Extracted annotations array directly');
+          } else {
+            throw new Error('No annotations array found');
+          }
+        } catch (extractError) {
+          console.error('❌ Direct extraction failed:', extractError);
+          // Return empty structure as last resort
+          result = { [expectedArrayKey]: [] };
+          console.log('🔄 Returning empty structure as fallback');
+        }
       }
     }
     
@@ -341,7 +376,7 @@ OCR BOUNDING BOXES:
       "annotations": [
         {
           "lineNumber": 1,
-          "action": "tick|cross|comment",
+          "action": "tick|cross|circle|underline|comment",
           "text": "M1|M0|A1|A0|B1|B0|C1|C0",
           "reasoning": "Brief explanation of why this annotation was chosen"
         }
@@ -571,6 +606,14 @@ Please calculate precise coordinates for each annotation. Remember to:
 
       // Step 2: Programmatic coordinate placement (replace LLM3)
       console.log('🔍 ===== STEP 2: PROGRAMMATIC COORDINATE PLACEMENT =====');
+      console.log('🔍 DEBUG: Input to calculateAnnotationCoordinatesProgrammatically:');
+      console.log('  - OCR text length:', (processedImage.ocrText || '').length);
+      console.log('  - Bounding boxes count:', (processedImage.boundingBoxes || []).length);
+      console.log('  - Image dimensions:', processedImage.imageDimensions);
+      if ((processedImage.boundingBoxes || []).length > 0) {
+        console.log('  - First bounding box:', processedImage.boundingBoxes[0]);
+      }
+      
       const finalAnnotations = this.calculateAnnotationCoordinatesProgrammatically(
         processedImage.ocrText || '',
         processedImage.boundingBoxes || [],
@@ -584,7 +627,8 @@ Please calculate precise coordinates for each annotation. Remember to:
         annotations: finalAnnotations.annotations.map(annotation => ({
           action: annotation.action,
           bbox: annotation.bbox,
-          ...(annotation.text && { text: annotation.text })
+          ...(annotation.text && { text: annotation.text }),
+          ...(annotation.reasoning && { reasoning: annotation.reasoning })
         }))
       };
 
@@ -651,7 +695,7 @@ Please calculate precise coordinates for each annotation. Remember to:
 - The "text" field MUST be one of the following: "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or a brief "comment text".
 - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
 
-MARKING CRITERIA:
+    MARKING CRITERIA:
 - The provided 'MARKING SCHEME CONTEXT' is the definitive source for mark allocation.
 - Your task is to award marks based on a one-to-one mapping between the student's work and the specific criteria in the mark scheme.
 - Award marks in the sequence they appear in the mark scheme (e.g., first M1, then M1dep, then A1).
@@ -718,6 +762,7 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
       action: 'tick' | 'cross' | 'circle' | 'underline' | 'comment';
       bbox: [number, number, number, number];
       text?: string;
+      reasoning?: string;
     }>;
   } {
     // Parse the LLM2 response to JSON
@@ -729,7 +774,7 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
     }
 
     const anns: Array<any> = parsed.annotations || [];
-    const results: Array<{ action: any; bbox: [number, number, number, number]; text?: string }> = [];
+    const results: Array<{ action: any; bbox: [number, number, number, number]; text?: string; reasoning?: string }> = [];
 
     const widthLimit = imageDimensions?.width ?? Number.MAX_SAFE_INTEGER;
     const heightLimit = imageDimensions?.height ?? Number.MAX_SAFE_INTEGER;
@@ -865,8 +910,9 @@ Please analyze this work and generate appropriate marking annotations. Focus on 
       if (sigSet.has(sig)) continue; // dedupe identical placements
       sigSet.add(sig);
 
-      const out: { action: any; bbox: [number, number, number, number]; text?: string } = { action, bbox };
+      const out: { action: any; bbox: [number, number, number, number]; text?: string; reasoning?: string } = { action, bbox };
       if (action === 'comment' && commentText) out.text = commentText;
+      if (a.reasoning && typeof a.reasoning === 'string') out.reasoning = a.reasoning;
       results.push(out);
     }
 

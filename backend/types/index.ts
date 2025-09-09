@@ -134,6 +134,7 @@ export interface Annotation {
   bbox: [number, number, number, number]; // [x, y, width, height]
   comment?: string; // Optional for marking actions
   text?: string; // For comment actions
+  reasoning?: string; // Optional explanation/rationale
 }
 
 export interface MarkingInstructions {

@@ -4,7 +4,7 @@ import { HybridOCRService } from '../services/hybridOCRService';
 
 async function main() {
   try {
-    const imagePath = join(process.cwd(), '..', 'testingdata', 'test4.png');
+    const imagePath = join(process.cwd(), '..', 'testingdata', 'test3.png');
     const buffer = readFileSync(imagePath);
     const base64 = `data:image/png;base64,${buffer.toString('base64')}`;
 

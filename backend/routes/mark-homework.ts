@@ -11,7 +11,7 @@ import { optionalAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
 
 // Get Firestore instance
-const db = admin.firestore();
+admin.firestore();
 
 // Import only the basic types we need
 import type { 
@@ -29,7 +29,7 @@ function validateModelConfig(modelType: string): boolean {
   return validModels.includes(modelType);
 }
 
-const VERBOSE = process.env.VERBOSE_LOGS === '1';
+const VERBOSE = process.env['VERBOSE_LOGS'] === '1';
 
 const router = express.Router();
 
@@ -69,6 +69,7 @@ async function classifyImageWithAI(imageData: string, model: ModelType): Promise
 async function processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
   try {
     if (VERBOSE) console.log('🔍 ===== ENHANCED OCR PROCESSING WITH HYBRID OCR + PIPE DETECTION =====');
+    // @ts-ignore - dynamic import path resolved at runtime
     const { HybridOCRService } = await import('../services/hybridOCRService');
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -79,49 +80,75 @@ async function processImageWithRealOCR(imageData: string): Promise<ProcessedImag
       console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
       console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
       console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
-    }
-
-    // Build per-line bounding boxes from Vision word boxes
-    const words: Array<{ x: number; y: number; width: number; height: number; text?: string; confidence?: number }>
-      = Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes as any[] : [];
-
-    const lineThreshold = 12; // px tolerance to group words on same line
-    const sorted = [...words].sort((a, b) => a.y - b.y || a.x - b.x);
-
-    type LineAcc = {
-      segments: Array<{ x: number; y: number; width: number; height: number; text: string; confidence: number }>;
-    };
-    const lineAccs: LineAcc[] = [];
-
-    for (const w of sorted) {
-      const seg = { x: w.x, y: w.y, width: w.width, height: w.height, text: (w.text || '').trim(), confidence: w.confidence || 0 };
-      if (lineAccs.length === 0) {
-        lineAccs.push({ segments: [seg] });
-        continue;
-      }
-      const last = lineAccs[lineAccs.length - 1];
-      const lastY = last.segments[0]?.y ?? seg.y;
-      if (Math.abs(seg.y - lastY) <= lineThreshold) {
-        last.segments.push(seg);
-      } else {
-        lineAccs.push({ segments: [seg] });
+      console.log('🔍 DEBUG: Hybrid result boundingBoxes type:', typeof hybridResult.boundingBoxes);
+      console.log('🔍 DEBUG: Hybrid result boundingBoxes length:', Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes.length : 'not array');
+      if (Array.isArray(hybridResult.boundingBoxes) && hybridResult.boundingBoxes.length > 0) {
+        console.log('🔍 DEBUG: First hybrid boundingBox:', hybridResult.boundingBoxes[0]);
       }
     }
 
-    const lines = lineAccs.map(acc => {
-      const segs = acc.segments.sort((a, b) => a.x - b.x);
-      const minX = Math.min(...segs.map(s => s.x));
-      const minY = Math.min(...segs.map(s => s.y));
-      const maxX = Math.max(...segs.map(s => s.x + s.width));
-      const maxY = Math.max(...segs.map(s => s.y + s.height));
-      const text = segs.map(s => s.text).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-      const conf = segs.reduce((a, s) => a + (s.confidence || 0), 0) / Math.max(1, segs.length);
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY, text, confidence: conf };
+    // Use robust recognition bounding boxes directly (already block-level)
+    const boundingBoxes = Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes as any[] : [];
+    
+    if (VERBOSE) {
+      console.log('🔍 Raw bounding boxes from robust recognition:', boundingBoxes.length);
+      console.log('🔍 First few bounding boxes:', boundingBoxes.slice(0, 3));
+    }
+    
+    // Convert to the expected format and split multi-line blocks
+    const lines = boundingBoxes.map(bbox => ({
+      x: bbox.x || 0,
+      y: bbox.y || 0, 
+      width: bbox.width || 0,
+      height: bbox.height || 0,
+      text: (bbox.text || '').trim(),
+      confidence: bbox.confidence || 0
+    })).filter(bbox => {
+      const isValid = !isNaN(bbox.x) && !isNaN(bbox.y) && 
+        !isNaN(bbox.width) && !isNaN(bbox.height) &&
+        bbox.width > 0 && bbox.height > 0;
+      if (!isValid && VERBOSE) {
+        console.log('🔍 Filtered out invalid bbox:', bbox);
+      }
+      return isValid;
     });
+
+    // Split multi-line blocks into individual lines
+    const splitLines: Array<{ x: number; y: number; width: number; height: number; text: string; confidence: number }> = [];
+    
+    for (const line of lines) {
+      const textLines = line.text.split('\n').filter((t: string) => t.trim().length > 0);
+      
+      if (textLines.length === 1) {
+        // Single line, keep as is
+        splitLines.push(line);
+      } else {
+        // Multiple lines, split vertically
+        const lineHeight = line.height / textLines.length;
+        const avgCharWidth = line.width / line.text.length;
+        
+        textLines.forEach((text: string, index: number) => {
+          const estimatedWidth = Math.min(line.width, text.length * avgCharWidth);
+          splitLines.push({
+            x: line.x,
+            y: line.y + (index * lineHeight),
+            width: estimatedWidth,
+            height: lineHeight,
+            text: text.trim(),
+            confidence: line.confidence
+          });
+        });
+      }
+    }
+    
+    if (VERBOSE) {
+      console.log('🔍 After splitting multi-line blocks:', splitLines.length, 'lines');
+      console.log('🔍 First few split lines:', splitLines.slice(0, 3));
+    }
 
     const processedResult: ProcessedImageResult = {
       ocrText: hybridResult.text,
-      boundingBoxes: lines.map(l => ({ x: l.x, y: l.y, width: l.width, height: l.height, text: l.text, confidence: l.confidence })),
+      boundingBoxes: splitLines.map(l => ({ x: l.x, y: l.y, width: l.width, height: l.height, text: l.text, confidence: l.confidence })),
       confidence: hybridResult.confidence,
       imageDimensions: hybridResult.dimensions,
       isQuestion: false
@@ -129,6 +156,13 @@ async function processImageWithRealOCR(imageData: string): Promise<ProcessedImag
 
     if (VERBOSE) {
       console.log('🔍 Built per-line bounding boxes:', processedResult.boundingBoxes.length);
+      console.log('🔍 DEBUG: Final processedResult.boundingBoxes length:', processedResult.boundingBoxes.length);
+      if (processedResult.boundingBoxes.length > 0) {
+        console.log('🔍 DEBUG: First processed boundingBox:', processedResult.boundingBoxes[0]);
+      } else {
+        console.log('🔍 DEBUG: No bounding boxes in final result!');
+        console.log('🔍 DEBUG: Raw hybridResult.boundingBoxes:', hybridResult.boundingBoxes);
+      }
     }
 
     return processedResult;
@@ -158,10 +192,11 @@ async function generateRealMarkingInstructionsWithNewFlow(
     );
     const markingInstructions: MarkingInstructions = {
       annotations: simpleMarkingInstructions.annotations.map(annotation => ({
-        action: annotation.action,
+        action: (annotation.action || 'comment') as any,
         bbox: annotation.bbox,
         ...(annotation.comment && { comment: annotation.comment }),
-        ...(annotation.text && { text: annotation.text })
+        ...(annotation.text && { text: annotation.text }),
+        ...((annotation as any).reasoning && { reasoning: (annotation as any).reasoning })
       }))
     };
     if (VERBOSE) console.log('🔍 NEW 3-STEP FLOW Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
@@ -197,10 +232,11 @@ async function generateRealMarkingInstructionsLegacy(
     );
     const markingInstructions: MarkingInstructions = {
       annotations: simpleMarkingInstructions.annotations.map(annotation => ({
-        action: annotation.action,
+        action: (annotation.action || 'comment') as any,
         bbox: annotation.bbox,
         ...(annotation.comment && { comment: annotation.comment }),
-        ...(annotation.text && { text: annotation.text })
+        ...(annotation.text && { text: annotation.text }),
+        ...((annotation as any).reasoning && { reasoning: (annotation as any).reasoning })
       }))
     };
     if (VERBOSE) console.log('🔍 LEGACY AI Marking Instructions generated:', markingInstructions.annotations.length, 'annotations');
@@ -222,8 +258,8 @@ async function generateRealMarkingInstructionsLegacy(
         else if (text.includes('answer') || text.includes('x =')) { action = 'tick'; comment = 'Double-check final answer'; }
         else if (text.includes('find') || text.includes('value')) { action = 'underline'; comment = 'Ensure problem statement is clear'; }
         else {
-          const actions = ['tick', 'circle', 'underline', 'comment'] as const;
-          action = actions[index % actions.length];
+          const actions: Array<'tick' | 'circle' | 'underline' | 'comment'> = ['tick', 'circle', 'underline', 'comment'];
+          action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
           comment = action === 'tick' ? 'Verify mathematical work'
             : action === 'circle' ? 'Check calculation approach'
             : action === 'underline' ? 'Review method carefully'
@@ -350,6 +386,22 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       classification: imageClassification,
       questionDetection
     };
+
+    try {
+      const simplified = {
+        annotations: markingInstructions.annotations.map(a => ({
+          action: a.action,
+          bbox: a.bbox,
+          ...(a.text ? { text: a.text } : {}),
+          ...(a.comment ? { comment: a.comment } : {}),
+          ...(a.reasoning ? { reasoning: a.reasoning } : {})
+        }))
+      };
+      console.log('🔍 MarkingInstructions (simplified):');
+      console.log(JSON.stringify(simplified, null, 2));
+    } catch (_e) {
+      console.log('⚠️ Failed to stringify marking instructions');
+    }
 
     const enhancedResponse = {
       ...response,
