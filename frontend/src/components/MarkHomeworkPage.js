@@ -208,6 +208,17 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     };
   }, [lastRequestTime, subscriptionType, canMakeRequest, getRemainingDelay]);
   
+  // Refresh sidebar when switching to chat mode (for question-only mode)
+  useEffect(() => {
+    if (pageMode === 'chat' && currentSessionId && onMarkingResultSaved) {
+      // Small delay to ensure session is fully created before refreshing sidebar
+      const timer = setTimeout(() => {
+        onMarkingResultSaved();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pageMode, currentSessionId, onMarkingResultSaved]);
+  
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -685,11 +696,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Log session message content before redirecting to chat
         
-        // Refresh mark history in sidebar
-        if (onMarkingResultSaved) {
-          onMarkingResultSaved();
-        }
-        
         // Set the session ID from the response
         setCurrentSessionId(result.sessionId);
         
@@ -773,11 +779,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Switch to chat mode after AI response is ready
         setPageMode('chat');
-        
-        // Refresh sidebar to show new session
-        if (onMarkingResultSaved) {
-          onMarkingResultSaved();
-        }
         
         return; // Exit early for question-only mode
       }

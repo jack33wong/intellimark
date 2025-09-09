@@ -6,8 +6,6 @@ import {
   LogOut, 
   Settings, 
   ChevronDown,
-  Menu,
-  X,
   Crown,
   Calendar,
   CreditCard,
@@ -19,7 +17,6 @@ import './Header.css';
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isProfileClosing, setIsProfileClosing] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
@@ -167,16 +164,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     }, 300);
   };
 
-  const handleMobileMenuToggle = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-    if (onMenuToggle) {
-      onMenuToggle();
-    }
-  };
 
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false);
-  };
 
   const getUpgradeButtonText = () => {
     if (subscriptionLoading) return 'Loading...';
@@ -271,21 +259,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   return (
     <header className="header">
       <div className="header-content">
-        {/* Left side - Logo and Menu Toggle */}
-        <div className="header-left">
-          <button 
-            className="menu-toggle"
-            onClick={handleMobileMenuToggle}
-            aria-label="Toggle menu"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          
-          <div className="logo" onClick={() => navigate('/')}>
-            <h1 className="logo-text">Intellimark</h1>
-            <p className="logo-subtitle">powered by AI</p>
-          </div>
-        </div>
 
         {/* Center - Navigation */}
         <nav className="header-nav">
@@ -467,48 +440,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </div>
       </div>
 
-      {/* Mobile Navigation Menu */}
-      {isMobileMenuOpen && (
-        <div className="mobile-nav">
-          <button 
-            className="mobile-nav-item upgrade-nav"
-            onClick={() => {
-              if (userSubscription && userSubscription.status === 'active') {
-                setIsSubscriptionDetailsOpen(true);
-                setIsSubscriptionDetailsClosing(false);
-              } else {
-                navigate('/upgrade');
-              }
-              closeMobileMenu();
-            }}
-          >
-            {getUpgradeButtonIcon()}
-            {getUpgradeButtonText()}
-          </button>
-          {!user && (
-            <button 
-              className="mobile-nav-item login-nav"
-              onClick={() => {
-                navigate('/login');
-                closeMobileMenu();
-              }}
-            >
-              Sign In
-            </button>
-          )}
-          {user?.isAdmin && (
-            <button 
-              className="mobile-nav-item admin-nav"
-              onClick={() => {
-                navigate('/admin');
-                closeMobileMenu();
-              }}
-            >
-              Admin
-            </button>
-          )}
-        </div>
-      )}
     </header>
   );
 };
