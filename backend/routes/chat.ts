@@ -9,6 +9,7 @@ import { AIMarkingService } from '../services/aiMarkingService';
 import ChatSessionManager from '../services/chatSessionManager';
 import { ImageStorageService } from '../services/imageStorageService';
 import { optionalAuth } from '../middleware/auth';
+import SubscriptionDelayService from '../services/subscriptionDelayService';
 
 const router = express.Router();
 
@@ -152,6 +153,16 @@ router.post('/', optionalAuth, async (req, res) => {
       type: mode === 'marking' ? 'marking_original' : mode === 'question' ? 'question_original' : undefined
     };
     
+    // Add markingData if provided
+    if (req.body.markingData) {
+      userMessage.markingData = req.body.markingData;
+      // If markingData is provided, this is likely an annotated image message
+      if (message === 'Annotated image with marking feedback') {
+        userMessage.type = 'marking_annotated';
+        userMessage.role = 'assistant'; // Annotated images should be assistant messages
+      }
+    }
+    
     // Add exam metadata if provided
     if (examMetadata) {
       userMessage.detectedQuestion = {
@@ -178,6 +189,8 @@ router.post('/', optionalAuth, async (req, res) => {
       message === 'Original question image' ||
       message === 'Annotated image with marking feedback' || 
       message === 'Marking completed with annotations';
+    
+    console.log('🔍 Chat route: message =', message, 'isImagePersistenceMessage =', isImagePersistenceMessage);
     
     // Initialize response variables
     let aiResponse: string = 'Message saved successfully';
@@ -411,6 +424,10 @@ router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
     }
 
     await FirestoreService.deleteChatSession(sessionId, session.userId);
+    
+    // Clear the session from in-memory cache
+    const sessionManager = ChatSessionManager.getInstance();
+    sessionManager.removeSessionFromCache(sessionId);
     
     return res.json({
       success: true,

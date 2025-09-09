@@ -552,7 +552,8 @@ export class FirestoreService {
         ...(message.model && { model: message.model }),
         ...(message.type && { type: message.type }),
         ...(message.imageLink && { imageLink: message.imageLink }),
-        ...(message.detectedQuestion && { detectedQuestion: message.detectedQuestion })
+        ...(message.detectedQuestion && { detectedQuestion: message.detectedQuestion }),
+        ...(message.markingData && { markingData: message.markingData })
       });
 
       await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({

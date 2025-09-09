@@ -22,15 +22,12 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
-  const [isProfilePopupOpen, setIsProfilePopupOpen] = useState(false);
-  const [isProfilePopupClosing, setIsProfilePopupClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
-  const profilePopupRef = useRef(null);
 
   // Fetch user subscription data
   useEffect(() => {
@@ -56,11 +53,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     const subscriptionSuccess = urlParams.get('subscription');
     const sessionId = urlParams.get('session_id');
     
-    console.log('🔍 Checking URL parameters:', { 
-      subscriptionSuccess, 
-      sessionId, 
-      userId: user?.uid
-    });
     
     if (subscriptionSuccess === 'success' && user?.uid && sessionId) {
       console.log('✅ Subscription success detected, creating subscription record...');
@@ -133,19 +125,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       if (subscriptionRef.current && !subscriptionRef.current.contains(event.target)) {
         handleSubscriptionDetailsClose();
       }
-      if (profilePopupRef.current && !profilePopupRef.current.contains(event.target)) {
-        handleProfilePopupClose();
-      }
     };
 
-    if (isProfileMenuOpen || isSubscriptionDetailsOpen || isProfilePopupOpen) {
+    if (isProfileMenuOpen || isSubscriptionDetailsOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isProfileMenuOpen, isSubscriptionDetailsOpen, isProfilePopupOpen]);
+  }, [isProfileMenuOpen, isSubscriptionDetailsOpen]);
 
   const handleLogout = () => {
     logout();
@@ -153,9 +142,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     handleProfileClose();
   };
 
-  const handleProfileClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleProfileClick = () => {
     if (isProfileMenuOpen) {
       handleProfileClose();
     } else {
@@ -177,20 +164,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     setTimeout(() => {
       setIsSubscriptionDetailsOpen(false);
       setIsSubscriptionDetailsClosing(false);
-    }, 300);
-  };
-
-  const handleProfilePopupOpen = () => {
-    setIsProfilePopupOpen(true);
-    setIsProfilePopupClosing(false);
-    handleProfileClose(); // Close the dropdown menu
-  };
-
-  const handleProfilePopupClose = () => {
-    setIsProfilePopupClosing(true);
-    setTimeout(() => {
-      setIsProfilePopupOpen(false);
-      setIsProfilePopupClosing(false);
     }, 300);
   };
 
@@ -283,21 +256,36 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   };
 
   // Function to refresh subscription data (can be called from other components)
-  const refreshSubscriptionData = async () => {
-    if (!user?.uid) return;
-    
-    try {
-      const response = await SubscriptionService.getUserSubscription(user.uid);
-      setUserSubscription(response.subscription);
-      console.log('Subscription data refreshed:', response.subscription);
-    } catch (error) {
-      console.error('Error refreshing subscription data:', error);
-    }
-  };
+  // const refreshSubscriptionData = async () => {
+  //   if (!user?.uid) return;
+  //   
+  //   try {
+  //     const response = await SubscriptionService.getUserSubscription(user.uid);
+  //     setUserSubscription(response.subscription);
+  //     console.log('Subscription data refreshed:', response.subscription);
+  //   } catch (error) {
+  //     console.error('Error refreshing subscription data:', error);
+  //   }
+  // };
 
   return (
     <header className="header">
       <div className="header-content">
+        {/* Left side - Logo and Menu Toggle */}
+        <div className="header-left">
+          <button 
+            className="menu-toggle"
+            onClick={handleMobileMenuToggle}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+          
+          <div className="logo" onClick={() => navigate('/')}>
+            <h1 className="logo-text">Intellimark</h1>
+            <p className="logo-subtitle">powered by AI</p>
+          </div>
+        </div>
 
         {/* Center - Navigation */}
         <nav className="header-nav">
@@ -396,7 +384,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               </div>
               <div className="profile-section" ref={profileRef}>
               <button 
-                type="button"
                 className="profile-button"
                 onClick={handleProfileClick}
                 aria-label="Profile menu"
@@ -417,51 +404,44 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               {/* Profile Dropdown */}
               {isProfileMenuOpen && (
                 <div className={`profile-dropdown ${isProfileClosing ? 'closing' : ''}`}>
-                  {/* User Info Section */}
                   <div className="profile-info">
-                    <div className="profile-name-large">
-                      {user.displayName || 'User'}
+                    <div className="profile-avatar large">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt="Profile" />
+                      ) : (
+                        <User size={24} />
+                      )}
                     </div>
-                    <div className="profile-email">
-                      {user.email}
+                    <div className="profile-details">
+                      <div className="profile-name-large">
+                        {user.displayName || 'User'}
+                      </div>
+                      <div className="profile-email">
+                        {user.email}
+                      </div>
+                      {user.isAdmin && (
+                        <div className="admin-badge">Admin</div>
+                      )}
                     </div>
                   </div>
                   
-                  {/* Horizontal Divider */}
-                  <div className="profile-divider"></div>
-                  
-                  {/* Menu Items */}
                   <div className="profile-actions">
-                    <button 
-                      className="profile-action"
-                      onClick={handleProfilePopupOpen}
-                    >
-                      <Settings size={16} />
-                      Account
-                    </button>
                     <button 
                       className="profile-action"
                       onClick={() => {
-                        navigate('/subscription');
+                        navigate('/profile');
                         handleProfileClose();
                       }}
                     >
-                      <CreditCard size={16} />
-                      Usage
+                      <Settings size={16} />
+                      Settings
                     </button>
-                  </div>
-                  
-                  {/* Horizontal Divider */}
-                  <div className="profile-divider"></div>
-                  
-                  {/* Sign Out */}
-                  <div className="profile-actions">
                     <button 
                       className="profile-action logout"
                       onClick={handleLogout}
                     >
                       <LogOut size={16} />
-                      Sign Out
+                      Logout
                     </button>
                   </div>
                 </div>
@@ -486,81 +466,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           )}
         </div>
       </div>
-
-      {/* Profile Popup */}
-      {isProfilePopupOpen && (
-        <div className="profile-popup-overlay">
-          <div ref={profilePopupRef} className={`profile-popup ${isProfilePopupClosing ? 'closing' : ''}`}>
-            <div className="profile-popup-header">
-              <h2>Account Settings</h2>
-              <button 
-                className="profile-popup-close"
-                onClick={handleProfilePopupClose}
-                aria-label="Close"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="profile-popup-content">
-              <div className="profile-popup-section">
-                <h3>Profile Information</h3>
-                <div className="profile-popup-field">
-                  <label>Display Name</label>
-                  <input 
-                    type="text" 
-                    value={user?.displayName || ''} 
-                    readOnly
-                    className="profile-popup-input"
-                  />
-                </div>
-                <div className="profile-popup-field">
-                  <label>Email</label>
-                  <input 
-                    type="email" 
-                    value={user?.email || ''} 
-                    readOnly
-                    className="profile-popup-input"
-                  />
-                </div>
-                <div className="profile-popup-field">
-                  <label>User ID</label>
-                  <input 
-                    type="text" 
-                    value={user?.uid || ''} 
-                    readOnly
-                    className="profile-popup-input"
-                  />
-                </div>
-              </div>
-              
-              <div className="profile-popup-section">
-                <h3>Account Actions</h3>
-                <div className="profile-popup-actions">
-                  <button 
-                    className="profile-popup-btn primary"
-                    onClick={() => {
-                      // TODO: Add edit profile functionality
-                      alert('Edit profile feature coming soon!');
-                    }}
-                  >
-                    Edit Profile
-                  </button>
-                  <button 
-                    className="profile-popup-btn secondary"
-                    onClick={() => {
-                      // TODO: Add change password functionality
-                      alert('Change password feature coming soon!');
-                    }}
-                  >
-                    Change Password
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Mobile Navigation Menu */}
       {isMobileMenuOpen && (

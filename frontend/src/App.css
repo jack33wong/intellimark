@@ -1,11 +1,11 @@
 /* App Layout Styles */
 .app-container {
-  height: 100vh;
+  min-height: 100vh; /* Allow growth beyond viewport */
   width: 100vw;
   background-color: var(--primary-bg);
   color: var(--primary-text);
   display: flex;
-  overflow: hidden;
+  overflow: visible; /* Allow content to overflow */
 }
 
 .app-body {
@@ -18,7 +18,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: hidden; /* Let chat-content handle scrolling */
+  height: 100vh; /* Fixed height to contain scroll */
 }
 
 .mark-homework-right-side {
@@ -45,12 +46,12 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* Remove height constraint - let content grow naturally */
   width: 100%;
   margin-left: 0; /* No margin needed with flexbox layout */
   padding-top: 0; /* No padding needed, header will be inside content area */
   min-width: 0; /* Allow flex item to shrink below content size */
-  overflow-y: auto; /* Allow main content to scroll */
+  overflow: visible; /* Allow content to overflow */
 }
 
 /* When chat header is present, add extra padding */

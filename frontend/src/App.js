@@ -32,8 +32,6 @@ function AppContent() {
     try {
       // If the result has a sessionId, fetch the full session data including images
       if (result.id) {
-        console.log('🔍 Fetching full session data for:', result.id);
-        
         const authToken = await getAuthToken();
         const headers = {
           'Content-Type': 'application/json',
@@ -50,7 +48,6 @@ function AppContent() {
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.session) {
-            console.log('🔍 Full session data loaded:', data.session);
             setSelectedMarkingResult(data.session);
           } else {
             console.warn('🔍 Failed to load full session data, using basic data');

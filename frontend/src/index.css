@@ -15,6 +15,7 @@
   --accent-color: #7f00ff;
   --accent-hover: #8f1aff;
   --accent-light: #a855f7;
+  --secondary-accent: #00d4ff;
   --warning-color: #fbbf24;
   --error-color: #f87171;
   --success-color: #34d399;
@@ -31,7 +32,8 @@ html, body {
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-y: auto; /* Allow vertical scroll */
 }
 
 /* Allow full width for login page */

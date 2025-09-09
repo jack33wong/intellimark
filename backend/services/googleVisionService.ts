@@ -12,25 +12,31 @@ export class GoogleVisionService {
   private static staticClient: ImageAnnotatorClient | null = null;
 
   constructor() {
-    const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-    this.client = new ImageAnnotatorClient({
-      keyFilename: serviceAccountPath
-    });
+    // Try automatic credential discovery first
+    try {
+      this.client = new ImageAnnotatorClient();
+    } catch (error) {
+      // Fall back to explicit file if automatic discovery fails
+      const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+      this.client = new ImageAnnotatorClient({
+        keyFilename: serviceAccountPath
+      });
+    }
   }
 
   private static ensureClient() {
     if (!this.staticClient) {
-      // Use the Firebase service account file directly for Google Vision
-      const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-      
       try {
-        console.log('🔐 Using Firebase service account for Google Vision:', serviceAccountPath);
+        // Try automatic credential discovery first
+        this.staticClient = new ImageAnnotatorClient();
+        console.log('🔐 Using automatic Google Cloud credentials discovery');
+      } catch (error) {
+        // Fall back to explicit file if automatic discovery fails
+        const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
+        console.log('🔐 Using explicit credentials file:', serviceAccountPath);
         this.staticClient = new ImageAnnotatorClient({
           keyFilename: serviceAccountPath
         });
-      } catch (error) {
-        console.error('❌ Failed to initialize Google Vision client with service account:', error);
-        throw error;
       }
     }
     return this.staticClient;

@@ -549,6 +549,40 @@ export class ChatSessionManager {
   }
 
   /**
+   * Remove a session from the in-memory cache
+   */
+  removeSessionFromCache(sessionId: string): void {
+    this.activeSessions.delete(sessionId);
+    console.log(`🗑️ ChatSessionManager: Removed session ${sessionId} from cache`);
+  }
+
+  /**
+   * Clear all sessions from cache for a specific user
+   */
+  clearUserSessionsFromCache(userId: string): void {
+    const sessionsToRemove = Array.from(this.activeSessions.keys())
+      .filter(sessionId => {
+        const cached = this.activeSessions.get(sessionId);
+        return cached && cached.session.userId === userId;
+      });
+    
+    sessionsToRemove.forEach(sessionId => {
+      this.activeSessions.delete(sessionId);
+    });
+    
+    console.log(`🗑️ ChatSessionManager: Cleared ${sessionsToRemove.length} sessions from cache for user ${userId}`);
+  }
+
+  /**
+   * Clear all sessions from cache
+   */
+  clearAllSessionsFromCache(): void {
+    const count = this.activeSessions.size;
+    this.activeSessions.clear();
+    console.log(`🗑️ ChatSessionManager: Cleared all ${count} sessions from cache`);
+  }
+
+  /**
    * Get all sessions for a specific user (from cache and Firestore)
    */
   async getUserSessions(userId: string): Promise<any[]> {
@@ -572,8 +606,21 @@ export class ChatSessionManager {
       // Add in-memory sessions (these will override Firestore if they have more recent data)
       inMemorySessions.forEach(session => {
         const existing = sessionMap.get(session.id);
-        if (!existing || session.messages.length > existing.messages.length) {
+        if (!existing) {
+          // No existing session, add the in-memory one
           sessionMap.set(session.id, session);
+        } else {
+          // Compare timestamps to determine which is more recent
+          const existingTime = existing.updatedAt || existing.createdAt || existing.timestamp || new Date(0);
+          const inMemoryTime = session.updatedAt || session.createdAt || session.timestamp || new Date(0);
+          
+          const existingDate = existingTime instanceof Date ? existingTime : new Date(existingTime);
+          const inMemoryDate = inMemoryTime instanceof Date ? inMemoryTime : new Date(inMemoryTime);
+          
+          // Use the more recent session
+          if (inMemoryDate.getTime() > existingDate.getTime()) {
+            sessionMap.set(session.id, session);
+          }
         }
       });
       
@@ -586,6 +633,7 @@ export class ChatSessionManager {
         const bDate = bTime instanceof Date ? bTime : new Date(bTime);
         return bDate.getTime() - aDate.getTime();
       });
+      
       
       return allSessions;
     } catch (error) {

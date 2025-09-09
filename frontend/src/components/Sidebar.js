@@ -84,11 +84,21 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   }, [onMarkingResultSaved, refreshChatSessions]);
 
-  const handleSessionClick = (session) => {
-    console.log('🔍 Sidebar: Session clicked:', session);
-    console.log('🔍 Sidebar: Session messages count:', session.messages?.length || 0);
-    console.log('🔍 Sidebar: Session messages:', session.messages);
+  // Listen for custom events to refresh sessions
+  useEffect(() => {
+    const handleSessionsCleared = () => {
+      console.log('🔄 Sidebar: Received sessionsCleared event, refreshing...');
+      refreshChatSessions();
+    };
+
+    window.addEventListener('sessionsCleared', handleSessionsCleared);
     
+    return () => {
+      window.removeEventListener('sessionsCleared', handleSessionsCleared);
+    };
+  }, [refreshChatSessions]);
+
+  const handleSessionClick = (session) => {
     if (onMarkingHistoryClick && typeof onMarkingHistoryClick === 'function') {
       onMarkingHistoryClick(session);
     }
@@ -117,6 +127,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       setChatSessions(prevSessions => 
         prevSessions.filter(session => session.id !== sessionId)
       );
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('sessionDeleted', { detail: { sessionId } }));
+      
+      // Navigate to mark homework page after successful deletion
+      navigate('/mark-homework');
       
       console.log('✅ Session deleted successfully:', sessionId);
     } catch (error) {
