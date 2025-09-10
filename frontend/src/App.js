@@ -12,6 +12,7 @@ import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
+import API_CONFIG from './config/api';
 import './App.css';
 
 /**
@@ -40,7 +41,7 @@ function AppContent() {
           headers['Authorization'] = `Bearer ${authToken}`;
         }
         
-        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001'}/api/chat/session/${result.id}`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/session/${result.id}`, {
           method: 'GET',
           headers,
         });
