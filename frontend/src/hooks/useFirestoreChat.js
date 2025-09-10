@@ -17,7 +17,6 @@ export function useFirestoreChat(userId) {
   const loadChatSessions = useCallback(async () => {
     // Don't load sessions if userId is not provided
     if (!userId) {
-      console.log('useFirestoreChat: No userId provided, skipping session load');
       setChatSessions([]);
       setIsLoading(false);
       return;
@@ -197,7 +196,6 @@ export function useFirestoreChat(userId) {
   // Initialize with a default session if none exist
   useEffect(() => {
     if (isClient && !isLoading && chatSessions.length === 0 && !currentSessionId) {
-      console.log('🆕 No existing sessions, creating default session...');
       createNewChat().catch(err => {
         console.error('Failed to create default session:', err);
         setError(`Failed to initialize chat: ${err.message}`);

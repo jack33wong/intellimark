@@ -7,7 +7,6 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPage';
-import TestScrollPage from './components/TestScrollPage';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
@@ -167,29 +166,6 @@ function AppContent() {
               </OptionalAuthRoute>
             } />
             
-            {/* Test Scroll Page Route */}
-            <Route path="/test-scroll" element={
-              <OptionalAuthRoute>
-                <div className="app-container">
-                  <div className="app-body">
-                    <Sidebar 
-                      isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
-                      onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode="test"
-                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                    />
-                    <div className="right-side">
-                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                      <div className="mark-homework-main-content">
-                        <TestScrollPage />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </OptionalAuthRoute>
-            } />
             
             <Route path="/profile" element={
               <ProtectedRoute>

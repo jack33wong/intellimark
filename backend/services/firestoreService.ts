@@ -573,12 +573,10 @@ export class FirestoreService {
    */
   static async updateChatSession(sessionId: string, updates: any): Promise<void> {
     try {
-      
       await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
         ...updates,
         updatedAt: admin.firestore.Timestamp.now()
       });
-
 
     } catch (error) {
       console.error('❌ Failed to update chat session in Firestore:', error);

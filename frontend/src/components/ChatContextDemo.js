@@ -49,8 +49,6 @@ export default function ChatContextDemo() {
         apiUsed: 'Demo AI (Context-Aware)'
       });
       
-      console.log('Message added to session:', currentSessionId);
-      
       setMessage('');
       setImageData('');
     } catch (err) {
@@ -93,7 +91,6 @@ export default function ChatContextDemo() {
   const handleCreateNewChat = async () => {
     try {
       await createNewChat();
-      console.log('New chat session created');
     } catch (err) {
       console.error('Failed to create new chat:', err);
     }
@@ -106,7 +103,6 @@ export default function ChatContextDemo() {
   const handleDeleteSession = async (sessionId) => {
     try {
       await deleteSession(sessionId);
-      console.log('Session deleted:', sessionId);
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
@@ -115,7 +111,6 @@ export default function ChatContextDemo() {
   const handleUpdateTitle = async (sessionId, newTitle) => {
     try {
       await updateSessionTitle(sessionId, newTitle);
-      console.log('Session title updated');
     } catch (err) {
       console.error('Failed to update title:', err);
     }

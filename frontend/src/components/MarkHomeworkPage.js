@@ -870,8 +870,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     
     // Check if enough time has passed since last request
     if (!canMakeRequest()) {
-      const remainingDelay = getRemainingDelay();
-      console.log(`⏱️ Please wait ${Math.ceil(remainingDelay / 1000)} seconds before sending another message`);
       return;
     }
 

@@ -91,8 +91,6 @@ const ChatInterface = ({
 
   const toggleRawContent = useCallback((messageId) => {
     // This would need to be handled by parent component
-    // For now, we'll just log it
-    console.log('Toggle raw content for message:', messageId);
   }, []);
 
   return (

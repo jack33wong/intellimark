@@ -127,15 +127,9 @@ export class FirestoreService {
    * @returns {Promise<boolean>} Success status
    */
   static async addMessageToSession(sessionId, message) {
-    try {
-      // This will be handled by the chat API when sending messages
-      // We just need to ensure the session exists
-      console.log(`Adding message to session ${sessionId}:`, message);
-      return true;
-    } catch (error) {
-      console.error('Failed to add message to session:', error);
-      return false;
-    }
+    // This will be handled by the chat API when sending messages
+    // We just need to ensure the session exists
+    return true;
   }
 
   /**
