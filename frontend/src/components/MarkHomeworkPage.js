@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Upload, Bot, ChevronDown } from 'lucide-react';
+import { Upload, Bot, ChevronDown, Brain } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
@@ -1120,7 +1120,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
                     {message.role === 'assistant' ? (
                       <div>
-                        <div className="assistant-header">intellimark</div>
+                        <div className="assistant-header">
+                          <Brain size={20} className="assistant-brain-icon" />
+                        </div>
                         
                         {/* Only show content for regular chat messages, not marking messages */}
                         {message.type !== 'marking_annotated' && message.type !== 'marking_original' && message.content && message.content.trim() !== '' && (

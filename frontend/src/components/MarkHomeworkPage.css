@@ -1102,7 +1102,7 @@
 /* Scroll to Bottom Button */
 .scroll-to-bottom-container {
   position: fixed;
-  bottom: 100px; /* Move higher since input bar is more compact */
+  bottom: 140px; /* Moved higher for better visibility */
   left: 280px;
   right: 0;
   display: flex;
@@ -1240,7 +1240,7 @@
   border-radius: 0;
   box-shadow: none;
   transition: none;
-  font-size: 1.2em;
+  font-size: 1.1em;
 }
 
 .chat-message.assistant .message-bubble:hover {
@@ -1274,6 +1274,14 @@
   font-size: 20px;
   color: var(--primary-text);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.assistant-brain-icon {
+  color: var(--accent-color);
+  flex-shrink: 0;
 }
 
 /* AI Thinking Animation */
@@ -1633,16 +1641,16 @@
   max-width: 1000px;
   width: 80vw;
   margin: 0 auto;
-  margin-bottom: 20px; /* Move higher by adding bottom margin */
+  margin-bottom: 16px; /* Reduced bottom margin for more compact look */
   display: flex;
   flex-direction: column;
   gap: 0px;
   background: #363537;
   border: 1px solid #111827;
-  border-radius: 8px; /* Smaller border radius for more compact look */
-  padding: 6px 6px 0px 6px; /* Reduced padding for more compact look */
+  border-radius: 6px; /* Even smaller border radius for more compact look */
+  padding: 4px 4px 0px 4px; /* Further reduced padding for more compact look */
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for more compact, elevated look */
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1); /* Lighter shadow for more compact look */
 }
 
 /* Chat History Input Elements */
@@ -1656,28 +1664,28 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 44px; /* Reduced height for more compact look */
-  min-height: 44px; /* Reduced height for more compact look */
-  padding: 0 10px 12px 10px !important; /* Reduced padding for more compact look */
+  height: 36px; /* Further reduced height for more compact look */
+  min-height: 36px; /* Further reduced height for more compact look */
+  padding: 0 8px 8px 8px !important; /* Further reduced padding for more compact look */
   margin-top: 0 !important;
-  margin-bottom: 6px !important; /* Reduced margin for more compact look */
+  margin-bottom: 4px !important; /* Further reduced margin for more compact look */
 }
 
 .chat-history-input textarea {
   width: 100%;
   background: transparent;
   border: none;
-  border-radius: 6px; /* Smaller border radius to match container */
+  border-radius: 4px; /* Even smaller border radius to match container */
   color: var(--primary-text);
-  font-size: 15px; /* Slightly smaller font for more compact look */
-  padding: 12px 16px 12px 16px; /* Reduced padding for more compact look */
+  font-size: 14px; /* Smaller font for more compact look */
+  padding: 8px 12px 8px 12px; /* Further reduced padding for more compact look */
   resize: none;
   outline: none;
   font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   box-sizing: border-box;
-  min-height: 60px; /* Reduced height for more compact look */
-  max-height: 60px; /* Reduced height for more compact look */
-  line-height: 1.4; /* Tighter line height */
+  min-height: 48px; /* Further reduced height for more compact look */
+  max-height: 48px; /* Further reduced height for more compact look */
+  line-height: 1.3; /* Even tighter line height */
   transition: all 0.2s ease;
   text-align: left !important;
   direction: ltr;
@@ -1689,7 +1697,7 @@
 
 /* Increased padding for chat mode on MarkHomework page */
 .mark-homework-page.chat-mode .chat-history-input {
-  padding: 20px 32px 6px 32px; /* More compact padding */
+  padding: 12px 20px 4px 20px; /* More compact padding */
 }
 
 .input-container {
@@ -1733,11 +1741,11 @@
 }
 
 .upload-btn {
-  width: 36px; /* Reduced width for more compact look */
-  height: 36px; /* Reduced height for more compact look */
+  width: 28px; /* Match other controls width for consistent height */
+  height: 28px; /* Match other controls height for consistent alignment */
   background: var(--tertiary-bg);
-  border: 2px solid var(--border-color);
-  border-radius: 6px; /* Smaller border radius for more compact look */
+  border: 1px solid var(--border-color);
+  border-radius: 4px; /* Smaller border radius for more compact look */
   color: var(--primary-text);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1764,16 +1772,16 @@
   background: var(--accent-color);
   color: white;
   border: none;
-  padding: 12px 10px; /* Reduced padding for more compact look */
-  border-radius: 6px; /* Smaller border radius for more compact look */
+  padding: 6px 10px; /* Adjusted padding for 28px height */
+  border-radius: 4px; /* Smaller border radius for more compact look */
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px; /* Reduced gap for more compact look */
-  min-width: 60px; /* Reduced min-width for more compact look */
-  height: 36px; /* Reduced height for more compact look */
+  gap: 3px; /* Further reduced gap for more compact look */
+  min-width: 28px; /* Match other controls width */
+  height: 28px; /* Match other controls height for consistent alignment */
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1938,14 +1946,14 @@
 .subscription-select {
   background: var(--secondary-bg);
   border: 1px solid #111827;
-  border-radius: 8px;
-  padding: 8px 12px;
+  border-radius: 4px; /* Smaller border radius for more compact look */
+  padding: 4px 8px; /* Reduced padding for more compact look */
   color: var(--primary-text);
-  font-size: 14px;
+  font-size: 12px; /* Smaller font for more compact look */
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 140px;
-  height:36px
+  min-width: 120px; /* Reduced min-width for more compact look */
+  height: 28px; /* Reduced height for more compact look */
 }
 
 .subscription-select:hover:not(:disabled) {
@@ -2139,24 +2147,24 @@
 .main-upload-input .model-selector .left-controls {
   display: flex;
   align-items: center;
-  gap: 8px; /* Reduced gap for more compact look */
+  gap: 6px; /* Further reduced gap for more compact look */
 }
 
 .ai-model-button {
   display: flex;
   align-items: center;
-  gap: 6px; /* Reduced gap for more compact look */
-  padding: 10px 12px !important; /* Reduced padding for more compact look */
+  gap: 4px; /* Further reduced gap for more compact look */
+  padding: 6px 8px !important; /* Further reduced padding for more compact look */
   background: var(--tertiary-bg);
-  border: 2px solid #111827;
-  border-radius: 6px; /* Smaller border radius for more compact look */
+  border: 1px solid #111827;
+  border-radius: 4px; /* Smaller border radius for more compact look */
   color: var(--primary-text);
-  font-size: 13px; /* Smaller font for more compact look */
+  font-size: 12px; /* Smaller font for more compact look */
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 100px; /* Reduced min-width for more compact look */
-  height: 36px !important; /* Reduced height for more compact look */
+  min-width: 80px; /* Further reduced min-width for more compact look */
+  height: 28px !important; /* Further reduced height for more compact look */
   box-sizing: border-box;
 }
 
@@ -2416,7 +2424,7 @@
   .scroll-to-bottom-container {
     left: 0;
     right: 0;
-    bottom: 100px; /* Move higher since input bar is more compact */
+    bottom: 140px; /* Moved higher for better visibility */
   }
   
   .chat-messages {
