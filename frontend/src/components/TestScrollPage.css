@@ -1,4 +1,4 @@
-/* Test Scroll Page - Using MarkHomeworkPage CSS Structure */
+/* Test Scroll Page - Completely Independent CSS */
 .test-scroll-page {
   display: flex;
   flex-direction: column;
@@ -17,9 +17,9 @@
   display: none;
 }
 
-/* Chat Container - The "Grow" Element */
-.chat-container {
-  flex: 1; /* This is the magic - takes all available space */
+/* Test Scroll Chat Container - The "Grow" Element */
+.test-scroll-page .test-chat-container {
+  flex: 1 !important; /* This is the magic - takes all available space */
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -29,10 +29,11 @@
   align-items: stretch;
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
+  background: var(--primary-bg);
 }
 
-/* Chat Messages */
-.chat-messages {
+/* Test Scroll Chat Messages */
+.test-scroll-page .test-chat-messages {
   padding: 16px;
   padding-top: 56px;
   padding-bottom: 16px; /* Minimal padding - no manual space needed */
@@ -45,6 +46,25 @@
   flex-direction: column;
   overflow: visible;
   position: relative;
+}
+
+/* Test Scroll Input Bar - The "Fixed Size" Element */
+.test-scroll-page .test-input-bar {
+  position: relative !important; /* Part of flexbox layout */
+  background: var(--primary-bg);
+  border-radius: 0;
+  padding: 16px 24px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  min-height: 180px;
+  z-index: 100;
+  display: flex !important;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0 !important; /* Prevent shrinking */
+  /* No special flex properties - takes height it needs */
 }
 
 /* Enhanced Message Styles */
@@ -146,25 +166,7 @@
   opacity: 0.8;
 }
 
-/* Bottom Input Bar - The "Fixed Size" Element */
-.input-bar {
-  position: relative; /* Part of flexbox layout */
-  background: var(--primary-bg);
-  border-radius: 0;
-  padding: 16px 24px;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-  max-width: none;
-  width: 100%;
-  margin: 0;
-  min-height: 80px;
-  z-index: 100;
-  /* No special flex properties - takes height it needs */
-}
-
-/* Increased padding for chat mode on Test Scroll page */
-.test-scroll-page.chat-mode .input-bar {
-  padding: 20px 32px;
-}
+/* Bottom Input Bar - Now using MarkHomeworkPage.css */
 
 .input-field {
   flex: 1;
@@ -207,53 +209,54 @@
   transform: translateY(1px);
 }
 
-/* Scroll to Bottom Button */
-.scroll-to-bottom-container {
+/* Test Scroll to Bottom Button */
+.test-scroll-to-bottom-container {
   position: fixed;
-  bottom: 120px; /* Move higher to avoid input bar overlap */
-  left: 280px;
-  right: 0;
+  bottom: 200px; /* Move much higher to be clearly visible */
+  left: 20px; /* Move to left side for better visibility */
+  right: auto; /* Override right positioning */
   display: flex;
   justify-content: center;
-  z-index: 1000;
+  z-index: 1001; /* Higher z-index to ensure visibility */
   opacity: 1;
   transition: all 0.3s ease;
   pointer-events: auto;
 }
 
-.scroll-to-bottom-container.show {
+.test-scroll-to-bottom-container.show {
   opacity: 1;
 }
 
-.scroll-to-bottom-container.hidden {
+.test-scroll-to-bottom-container.hidden {
   opacity: 0;
   pointer-events: none;
 }
 
-.scroll-to-bottom {
-  width: 50px;
-  height: 50px;
+.test-scroll-to-bottom {
+  width: 60px; /* Larger size for better visibility */
+  height: 60px; /* Larger size for better visibility */
   background: var(--accent-color);
   color: white;
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  font-size: 20px;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  font-size: 24px; /* Larger font size */
+  font-weight: bold; /* Make text bolder */
+  box-shadow: 0 6px 16px rgba(0, 123, 255, 0.5); /* More prominent shadow */
   transition: all 0.2s ease;
 }
 
-.scroll-to-bottom:hover {
+.test-scroll-to-bottom:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
 }
 
-.scroll-to-bottom.hidden {
+.test-scroll-to-bottom.hidden {
   opacity: 0;
   pointer-events: none;
 }
 
-.scroll-to-bottom.show {
+.test-scroll-to-bottom.show {
   opacity: 1;
   pointer-events: auto;
 }
@@ -380,11 +383,7 @@
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
-  .scroll-to-bottom-container {
-    left: 0;
-    right: 0;
-    bottom: 120px; /* Move higher to avoid input bar overlap */
-  }
+  /* Scroll to bottom container mobile styles now in MarkHomeworkPage.css */
   
   .test-controls {
     top: 20px;
@@ -424,8 +423,11 @@
     margin-bottom: 4px;
   }
   
-  .input-bar {
-    padding: 16px 20px;
-    min-height: 80px;
+  /* Input bar mobile styles now in MarkHomeworkPage.css */
+  
+  .test-scroll-to-bottom-container {
+    left: 20px;
+    right: auto;
+    bottom: 200px; /* Move much higher to be clearly visible */
   }
 }

@@ -258,13 +258,13 @@ const TestScrollPage = () => {
         </div>
       </div>
 
-      {/* Chat Container - The "Grow" Element */}
+      {/* Test Chat Container - The "Grow" Element */}
       <div 
-        className="chat-container" 
+        className="test-chat-container" 
         ref={chatContainerRef}
       >
-        {/* Chat Messages */}
-        <div className="chat-messages">
+        {/* Test Chat Messages */}
+        <div className="test-chat-messages">
           {messages.length === 0 ? (
             <div className="empty-state">
               <p>No messages yet. Click "Random Message" to start testing!</p>
@@ -305,8 +305,8 @@ const TestScrollPage = () => {
         </div>
       </div>
 
-      {/* Input Bar - The "Fixed Size" Element */}
-      <div className="input-bar">
+      {/* Test Input Bar - The "Fixed Size" Element */}
+      <div className="test-input-bar">
         <input 
           type="text" 
           className="input-field" 
@@ -317,10 +317,10 @@ const TestScrollPage = () => {
         <button className="send-btn" onClick={sendMessage}>Send</button>
       </div>
 
-      {/* Scroll to Bottom Button */}
-      <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
+      {/* Test Scroll to Bottom Button */}
+      <div className={`test-scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
         <button 
-          className="scroll-to-bottom"
+          className="test-scroll-to-bottom"
           onClick={scrollToBottom}
           title="Scroll to bottom"
         >

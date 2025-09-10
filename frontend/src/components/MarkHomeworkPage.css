@@ -10,10 +10,6 @@
 
 /* Chat mode specific styles - currently none needed */
 
-.mark-homework-container {
-  /* Remove this wrapper in chat mode - not needed */
-  display: none;
-}
 
 /* Header Section */
 .mark-homework-header {
@@ -154,33 +150,8 @@
   margin-left: 8px;
 }
 
-.historical-ocr {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-color);
-}
 
-.historical-ocr h5 {
-  margin: 0 0 8px 0;
-  color: var(--primary-text);
-  font-size: 14px;
-  font-weight: 600;
-}
 
-.ocr-text {
-  background: #363537;
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid #111827;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--secondary-text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Removed purple shimmer bar */
 
 .upload-section:hover {
   border-color: var(--accent-color);
@@ -766,12 +737,18 @@
 
 .chat-container {
   flex: 1; /* This is the magic - takes all available space */
-  overflow-y: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 0;
+  margin: 0;
+  align-items: stretch;
+  overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--primary-bg);
 }
 
-/* Removed old standalone chat-image-context and classification-info styles */
 
 .chat-header {
   position: sticky;
@@ -781,7 +758,6 @@
   justify-content: space-between;
   align-items: center;
   margin: 0 auto;
-  padding: 0 24px;
   background: var(--primary-bg);
   flex-shrink: 0;
   max-width: 1000px;
@@ -795,7 +771,6 @@
 .chat-header-content {
   display: flex;
   align-items: center;
-  padding: 0 24px;
   height: 60px;
   margin: 0 auto;
   gap: 0;
@@ -810,8 +785,8 @@
 }
 
 .chat-header-left h1 {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 500;
   color: var(--primary-text);
   margin-bottom: 8px;
 }
@@ -930,38 +905,19 @@
   transform: none;
 }
 
-.chat-content {
-  display: flex;
-  flex-direction: column;
-  /* Remove flex: 1 - let chat-container handle the scrolling */
-  overflow: visible; /* No scroll here - handled by chat-container */
-  max-width: 1000px; /* match input width cap */
-  margin: 0 auto;
-  width: 80vw; /* match input-container width */
-  transition: all 0.3s ease-out;
-  position: relative;
-  margin-top: 0;
-  padding-top: 0;
-}
-
-.chat-content.header-hidden {
-  /* When header is hidden, content is already at the top */
-  margin-top: 0;
-  padding-top: 0;
-  /* Ensure content fills the entire viewport */
-  min-height: 100vh;
-}
-
-.chat-content:not(.header-hidden) {
-  /* When header is visible, content still starts from top */
-  margin-top: 0;
-  padding-top: 0;
-  /* Header will overlay on top of content */
-}
 
 .chat-messages {
-  padding: 16px 24px;
+  padding-top: 56px;
+  padding-bottom: 16px; /* Minimal padding - no manual space needed */
   background: transparent;
+  border-radius: 0;
+  margin-bottom: 0;
+  border: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  position: relative;
   max-width: 1000px;
   width: 80vw;
   margin: 0 auto;
@@ -970,7 +926,7 @@
 /* Scroll to Bottom Button */
 .scroll-to-bottom-container {
   position: fixed;
-  bottom: 20px;
+  bottom: 100px; /* Move higher since input bar is more compact */
   left: 280px;
   right: 0;
   display: flex;
@@ -1480,128 +1436,89 @@
 
 /* Bottom Input Bar - The "Fixed Size" Element */
 .input-bar {
+  position: relative; /* Part of flexbox layout */
   background: var(--primary-bg);
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  padding: 16px 24px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  min-height: 80px;
+  z-index: 100;
   display: flex;
   gap: 12px;
   align-items: center;
   /* No special flex properties - takes height it needs */
 }
 
-/* Input bar content in chat mode */
-.input-bar .upload-chat-input {
+/* Chat History Input - for ongoing chat */
+.chat-history-input {
   max-width: 1000px;
   width: 80vw;
   margin: 0 auto;
+  margin-bottom: 20px; /* Move higher by adding bottom margin */
   display: flex;
   flex-direction: column;
   gap: 0px;
   background: #363537;
   border: 1px solid #111827;
-  border-radius: 12px;
-  padding: 8px 8px 0px 8px;
+  border-radius: 8px; /* Smaller border radius for more compact look */
+  padding: 6px 6px 0px 6px; /* Reduced padding for more compact look */
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for more compact, elevated look */
 }
 
-/* Input bar content elements */
-.input-bar .upload-chat-input .input-container {
+/* Chat History Input Elements */
+.chat-history-input .input-container {
   width: 100%;
   position: relative;
 }
 
-.input-bar .upload-chat-input .model-selector {
+.chat-history-input .model-selector {
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 52px;
-  min-height: 52px;
-  padding: 0 12px 16px 12px !important;
+  height: 44px; /* Reduced height for more compact look */
+  min-height: 44px; /* Reduced height for more compact look */
+  padding: 0 10px 12px 10px !important; /* Reduced padding for more compact look */
   margin-top: 0 !important;
-  margin-bottom: 8px !important;
+  margin-bottom: 6px !important; /* Reduced margin for more compact look */
 }
 
-.input-bar .upload-chat-input textarea {
+.chat-history-input textarea {
   width: 100%;
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px; /* Smaller border radius to match container */
   color: var(--primary-text);
-  font-size: 16px;
-  padding: 16px 20px 16px 20px;
+  font-size: 15px; /* Slightly smaller font for more compact look */
+  padding: 12px 16px 12px 16px; /* Reduced padding for more compact look */
   resize: none;
   outline: none;
   font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   box-sizing: border-box;
-  min-height: 80px;
-  max-height: 80px;
-  line-height: 1.5;
+  min-height: 60px; /* Reduced height for more compact look */
+  max-height: 60px; /* Reduced height for more compact look */
+  line-height: 1.4; /* Tighter line height */
   transition: all 0.2s ease;
   text-align: left !important;
   direction: ltr;
 }
 
-.input-bar .upload-chat-input textarea::placeholder {
+.chat-history-input textarea::placeholder {
   color: var(--secondary-text);
 }
 
 /* Increased padding for chat mode on MarkHomework page */
-.mark-homework-page.chat-mode .input-bar {
-  padding: 20px 32px;
-}
-
-.chat-input {
-  display: flex;
-  flex-direction: column;
-  gap: 0px;
-  align-items: stretch;
-  max-width: 1000px;
-  width: 80vw;
-  margin: 0 auto;
-  position: relative;
-  background: #363537;
-  border: 1px solid #111827;
-  border-radius: 12px;
-  padding: 8px 8px 4px 8px;
+.mark-homework-page.chat-mode .chat-history-input {
+  padding: 20px 32px 6px 32px; /* More compact padding */
 }
 
 .input-container {
   width: 100%;
   position: relative;
-}
-
-.chat-input textarea {
-  width: 100%;
-  padding: 16px 20px 16px 20px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: var(--primary-text);
-  font-size: 16px;
-  line-height: 1.5;
-  resize: none;
-  min-height: 80px;
-  max-height: 80px;
-  transition: all 0.2s ease;
-  text-align: left !important;
-  direction: ltr;
-  box-sizing: border-box;
-  outline: none;
-  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-
-.chat-input textarea:focus {
-  outline: none;
-}
-
-.chat-input.processing textarea {
-  background: var(--quaternary-bg);
-}
-
-.chat-input.processing textarea::placeholder {
-  color: var(--accent-color);
-  font-style: italic;
 }
 
 .model-selector {
@@ -1616,7 +1533,7 @@
 .left-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px; /* Reduced gap for more compact look */
 }
 
 .model-selector .model-dropdown {
@@ -1640,11 +1557,11 @@
 }
 
 .upload-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px; /* Reduced width for more compact look */
+  height: 36px; /* Reduced height for more compact look */
   background: var(--tertiary-bg);
   border: 2px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px; /* Smaller border radius for more compact look */
   color: var(--primary-text);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1671,16 +1588,16 @@
   background: var(--accent-color);
   color: white;
   border: none;
-  padding: 16px 12px;
-  border-radius: 8px;
+  padding: 12px 10px; /* Reduced padding for more compact look */
+  border-radius: 6px; /* Smaller border radius for more compact look */
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 80px;
-  height: 44px;
+  gap: 4px; /* Reduced gap for more compact look */
+  min-width: 60px; /* Reduced min-width for more compact look */
+  height: 36px; /* Reduced height for more compact look */
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1852,6 +1769,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 140px;
+  height:36px
 }
 
 .subscription-select:hover:not(:disabled) {
@@ -1908,22 +1826,6 @@
   transform: translateX(0);
 }
 
-/* Extended background that connects to upload-chat-input-bar - DISABLED */
-/*
-.title-upload-btn::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  bottom: -120px;
-  left: -15px;
-  right: 0;
-  height: auto;
-  background: #363537;
-  border: 1px solid #111827;
-  border-radius: 0 0 12px 12px;
-  z-index: -2;
-}
-*/
 
 .title-upload-btn svg {
   width: 32px;
@@ -2013,7 +1915,7 @@
 }
 
 /* Chat Input Bar Below Title */
-.upload-chat-input-bar {
+.main-upload-input-bar {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -2026,7 +1928,7 @@
   box-shadow: none;
 }
 
-.upload-chat-input {
+.main-upload-input {
   max-width: 1000px;
   width: 80vw;
   margin: 0 auto;
@@ -2040,12 +1942,12 @@
   position: relative;
 }
 
-.upload-chat-input .input-container {
+.main-upload-input .input-container {
   width: 100%;
   position: relative;
 }
 
-.upload-chat-input .model-selector {
+.main-upload-input .model-selector {
   width: 100%;
   display: flex;
   justify-content: space-between;
@@ -2058,27 +1960,27 @@
 }
 
 /* Ensure spacing between items inside model selector */
-.upload-chat-input .model-selector .left-controls {
+.main-upload-input .model-selector .left-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px; /* Reduced gap for more compact look */
 }
 
 .ai-model-button {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 14px !important; /* side padding matches bottom spacing */
+  gap: 6px; /* Reduced gap for more compact look */
+  padding: 10px 12px !important; /* Reduced padding for more compact look */
   background: var(--tertiary-bg);
   border: 2px solid #111827;
-  border-radius: 8px;
+  border-radius: 6px; /* Smaller border radius for more compact look */
   color: var(--primary-text);
-  font-size: 15px;
+  font-size: 13px; /* Smaller font for more compact look */
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  min-width: 120px;
-  height: 52px !important;
+  min-width: 100px; /* Reduced min-width for more compact look */
+  height: 36px !important; /* Reduced height for more compact look */
   box-sizing: border-box;
 }
 
@@ -2118,7 +2020,7 @@
   margin-top: 4px;
   background: var(--tertiary-bg);
   border: 2px solid #111827;
-  border-radius: 8px;
+  border-radius: 6px; /* Smaller border radius for more compact look */
   box-shadow: var(--shadow-lg);
   z-index: 1000;
   overflow: hidden;
@@ -2126,7 +2028,7 @@
 }
 
 /* In upload chat input, open the model dropdown upwards */
-.upload-chat-input .ai-model-dropdown-menu {
+.main-upload-input .ai-model-dropdown-menu {
   top: auto;
   bottom: 100%;
   margin-top: 0;
@@ -2190,7 +2092,7 @@
   }
 }
 
-.upload-chat-input textarea {
+.main-upload-input textarea {
   width: 100%;
   background: transparent;
   border: none;
@@ -2210,30 +2112,30 @@
   direction: ltr;
 }
 
-.upload-chat-input textarea::placeholder {
+.main-upload-input textarea::placeholder {
   color: var(--secondary-text);
 }
 
-.upload-chat-input .send-btn {
+.main-upload-input .send-btn {
   background: var(--accent-color);
   color: white;
   border: none;
-  padding: 14px 14px; /* side padding matches bottom spacing */
-  border-radius: 8px;
+  padding: 12px 10px; /* Reduced padding for more compact look */
+  border-radius: 6px; /* Smaller border radius for more compact look */
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 80px;
-  height: 52px;
+  gap: 4px; /* Reduced gap for more compact look */
+  min-width: 60px; /* Reduced min-width for more compact look */
+  height: 36px; /* Reduced height for more compact look */
   flex-shrink: 0;
   box-sizing: border-box;
 }
 
 /* Shimmering gradient for analyze mode */
-.upload-chat-input .send-btn.analyze-mode {
+.main-upload-input .send-btn.analyze-mode {
   background: linear-gradient(135deg, #7f00ff 0%, #e100ff 50%, #ff6b6b 100%);
   background-size: 200% 200%;
   animation: shimmer 2s ease-in-out infinite;
@@ -2251,23 +2153,23 @@
   }
 }
 
-.upload-chat-input .send-btn .btn-text {
+.main-upload-input .send-btn .btn-text {
   font-size: 14px;
   font-weight: 500;
 }
 
-.upload-chat-input .send-btn:hover:not(:disabled) {
+.main-upload-input .send-btn:hover:not(:disabled) {
   background: #7a00e6;
 }
 
-.upload-chat-input .send-btn.analyze-mode:hover:not(:disabled) {
+.main-upload-input .send-btn.analyze-mode:hover:not(:disabled) {
   background: linear-gradient(135deg, #8f00ff 0%, #f100ff 50%, #ff7b7b 100%);
   background-size: 200% 200%;
   animation: shimmer 1.5s ease-in-out infinite;
   box-shadow: 0 2px 8px rgba(127, 0, 255, 0.2);
 }
 
-.upload-chat-input .send-btn:disabled {
+.main-upload-input .send-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -2275,9 +2177,6 @@
 /* Responsive Design */
 
 @media (max-width: 768px) {
-  .mark-homework-container {
-    padding: 24px 16px;
-  }
   
   .mark-homework-header h1 {
     font-size: 36px;
@@ -2334,29 +2233,14 @@
     padding: 6px 10px;
   }
   
-  .chat-input {
-    flex-direction: column;
-    align-items: stretch;
-    margin-left: 0; /* Remove sidebar offset on mobile */
-  }
-  
   .send-btn {
     align-self: flex-end;
-  }
-  
-  .chat-input-bar {
-    padding: 16px 20px;
-    min-height: 80px;
-  }
-  
-  .chat-input {
-    width: 90vw;
   }
   
   .scroll-to-bottom-container {
     left: 0;
     right: 0;
-    bottom: 20px;
+    bottom: 100px; /* Move higher since input bar is more compact */
   }
   
   .chat-messages {

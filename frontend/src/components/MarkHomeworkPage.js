@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-// import { useNavigate } from 'react-router-dom'; // Removed unused import
 import { Upload, Bot, ChevronDown } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
@@ -7,10 +6,7 @@ import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { useAuth } from '../contexts/AuthContext';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
-  // === NAVIGATION ===
-  // const navigate = useNavigate(); // Removed unused import
   const { getAuthToken } = useAuth();
-  // const { user } = useAuth(); // Removed unused variable
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -27,13 +23,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     return imageData;
   };
   
-  // === AUTH ===
-  // const { user } = useAuth(); // Removed unused variable
-  
   // === CORE STATE ===
   const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
   const [showScrollButton, setShowScrollButton] = useState(false);
-  // const [isShowingHistoricalData, setIsShowingHistoricalData] = useState(false); // Removed - not used
   
   // Notify parent of page mode changes
   useEffect(() => {
@@ -46,15 +38,14 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [, setError] = useState(null);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
-  const [, setApiResponse] = useState(null);
   const [classificationResult, setClassificationResult] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [lastUploadedImageData, setLastUploadedImageData] = useState(null);
   
   // === CHAT MODE STATE ===
   const [chatMessages, setChatMessages] = useState([]);
+  const [sessionTitle, setSessionTitle] = useState('Chat Session');
 
   // Helper function to deduplicate messages by ID
   const deduplicateMessages = (messages) => {
@@ -69,7 +60,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   };
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [, setLastScrollTop] = useState(0);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
@@ -176,7 +166,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       handleScroll(); // Check initial state
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [handleScroll]);
+  }, [handleScroll, chatMessages.length]);
   
   // Handle delay countdown timer
   useEffect(() => {
@@ -231,14 +221,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   }, [showInfoDropdown, isModelDropdownOpen]);
   
   // === REFS ===
-  // const fileInputRef = useRef(null); // Removed - not used
-  // const chatMessagesRef = useRef(null); // Removed - using chatContainerRef instead
-
-  // const models = [
-  //   { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
-  //   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Google\'s advanced model' },
-  //   { id: 'chatgpt-5', name: 'ChatGPT-5', description: 'Next generation AI' }
-  // ];
 
   // === MODE MANAGEMENT ===
   
@@ -250,11 +232,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setCurrentSessionId(null);
     setSelectedFile(null);
     setPreviewUrl(null);
-    setError(null);
-    setApiResponse(null);
     setClassificationResult(null);
     setLastUploadedImageData(null);
-    setLastScrollTop(0);
     setShowExpandedThinking(false);
     setShowMarkingSchemeDetails(false);
     setLoadingProgress(0);
@@ -359,13 +338,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           detectedQuestion: msg.detectedQuestion,
           apiUsed: msg.apiUsed, // Add API used field
           showRaw: msg.showRaw || false, // Add raw toggle state
-          isImageContext: msg.isImageContext || false, // Add image context flag
-          historicalData: msg.historicalData // Add historical data for marking messages
+          isImageContext: msg.isImageContext || false // Add image context flag
         }));
         
         // Set messages first, then switch to chat mode
         setChatMessages(deduplicateMessages(formattedMessages));
         setCurrentSessionId(selectedMarkingResult.id);
+        
+        // Store the session title for display
+        setSessionTitle(selectedMarkingResult.title || 'Chat Session');
         
         // Switch to chat mode after messages are set
         setPageMode('chat');
@@ -376,6 +357,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         }, 200);
       } else {
         // Still switch to chat mode even if no messages
+        setSessionTitle(selectedMarkingResult.title || 'Chat Session');
         setPageMode('chat');
       }
       
@@ -434,8 +416,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     localStorage.setItem('isChatMode', (pageMode === 'chat').toString());
   }, [pageMode]);
 
-  // Auto-scroll to bottom when new messages arrive (handled by main scrollToBottom function)
-  // Removed duplicate scroll logic - using chatContainerRef instead
 
   // Handle expanded thinking bubble after 10 seconds
   useEffect(() => {
@@ -494,7 +474,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const handleFileSelect = useCallback((file) => {
     if (file && file.type.startsWith('image/')) {
       setSelectedFile(file);
-      setError(null);
       
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -502,31 +481,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       };
       reader.readAsDataURL(file);
     } else {
-      setError('Please select a valid image file (JPG, PNG, or GIF)');
       setSelectedFile(null);
       setPreviewUrl(null);
     }
   }, []);
 
-  // const handleDragOver = useCallback((e) => {
-  //   e.preventDefault();
-  //   e.currentTarget.classList.add('dragover');
-  // }, []);
-
-  // const handleDragLeave = useCallback((e) => {
-  //   e.preventDefault();
-  //   e.currentTarget.classList.remove('dragover');
-  // }, []);
-
-  // const handleDrop = useCallback((e) => {
-  //   e.preventDefault();
-  //   e.currentTarget.classList.remove('dragover');
-  //   
-  //   const files = e.dataTransfer.files;
-  //   if (files.length > 0) {
-  //     handleFileSelect(files[0]);
-  //   }
-  // }, [handleFileSelect]);
 
   const handleFileInput = useCallback((e) => {
     const file = e.target.files[0];
@@ -544,91 +503,12 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setIsModelDropdownOpen(false);
   };
 
-  // Send initial chat message when switching to chat mode
-  // const sendInitialChatMessage = useCallback(async (imageData, model, mode, sessionId = null) => {
-  //   setIsProcessing(true);
-  //   
-  //   try {
-  //     // Use the provided session ID, current session ID, or let the API create a new one
-  //     const sessionIdToUse = sessionId || currentSessionId || null;
-  //     
-  //     const authToken = await getAuthToken();
-  //     const headers = {
-  //       'Content-Type': 'application/json',
-  //     };
-  //     if (authToken) {
-  //       headers['Authorization'] = `Bearer ${authToken}`;
-  //     }
-  //     
-  //     const response = await fetch('/api/chat/', {
-  //       method: 'POST',
-  //       headers,
-  //       body: JSON.stringify({
-  //         message: 'I have a question about this image. Can you help me understand it?',
-  //         imageData: imageData,
-  //         model: model,
-  //         sessionId: sessionIdToUse,
-  //         ...(mode ? { mode } : {})
-  //       }),
-  //     });
-
-  //     const data = await response.json();
-
-  //     if (data.success) {
-  //       // Update session ID if we got a new one
-  //       if (data.sessionId && data.sessionId !== currentSessionId) {
-  //         setCurrentSessionId(data.sessionId);
-  //       }
-  //       
-  //       // Add AI response to chat
-  //       const aiResponse = {
-  //         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  //         role: 'assistant',
-  //         content: data.response,
-  //         rawContent: data.response, // Store raw content for toggle
-  //         timestamp: new Date().toLocaleTimeString(),
-  //         apiUsed: data.apiUsed,
-  //         showRaw: false // Track raw toggle state
-  //       };
-  //       
-  //       setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
-  //     } else {
-  //       console.error('🔍 Initial chat failed:', data.error);
-  //       
-  //       // Add error message to chat
-  //       const errorResponse = {
-  //         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  //         role: 'assistant',
-  //         content: 'Sorry, I encountered an error while processing your image. Please try again.',
-  //         timestamp: new Date().toLocaleTimeString()
-  //       };
-  //       
-  //       setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
-  //     }
-  //   } catch (error) {
-  //     console.error('🔍 Initial chat network error:', error);
-  //     
-  //     // Add error message to chat
-  //     const errorResponse = {
-  //       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-  //       role: 'assistant',
-  //       content: 'Sorry, I encountered a network error. Please check your connection and try again.',
-  //       timestamp: new Date().toLocaleTimeString()
-  //     };
-  //     
-  //     setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
-  // }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle image analysis
   const handleAnalyzeImage = useCallback(async () => {
     if (!selectedFile) return;
     
     setIsProcessing(true);
-    setError(null);
-    setApiResponse(null);
     setClassificationResult(null);
     
     try {
@@ -771,8 +651,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         return; // Exit early for question-only mode
       }
 
-      // Store the API response and classification result
-      setApiResponse(result);
+      // Store the classification result
       setClassificationResult({
         isQuestionOnly: false,
         reasoning: result.reasoning,
@@ -907,8 +786,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                       detectedQuestion: msg.detectedQuestion,
                       apiUsed: msg.apiUsed,
                       showRaw: msg.showRaw || false,
-                      isImageContext: msg.isImageContext || false,
-                      historicalData: msg.historicalData
+                      isImageContext: msg.isImageContext || false
                     };
                   });
                   
@@ -932,7 +810,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       
     } catch (error) {
       console.error('❌ Upload error:', error);
-      setError(`Failed to process the image: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -1070,7 +947,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
             <div className="chat-header">
               <div className="chat-header-content">
                 <div className="chat-header-left">
-                  <h1>force and friction</h1>
+                  <h1>
+                    {sessionTitle}
+                  </h1>
                 </div>
                 <div className="chat-header-right">
                 <button 
@@ -1233,50 +1112,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                           </div>
                         )}
                         
-                        {/* Historical marking data display */}
-                        {message.isHistorical && message.historicalData && (
-                          <div className="historical-marking-data">
-                            <div className="historical-header">
-                              <h4>Marking Instructions</h4>
-                              <div className="historical-meta">
-                                <span>Model: {message.historicalData.model}</span>
-                                <span>Date: {new Date(message.historicalData.createdAt?.toDate?.() || message.historicalData.createdAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                            
-                            {message.historicalData.markingInstructions?.annotations?.length > 0 && (
-                              <div className="marking-annotations">
-                                <h5>Annotations:</h5>
-                                <ul>
-                                  {message.historicalData.markingInstructions.annotations.map((annotation, index) => (
-                                    <li key={index}>
-                                      <strong>{annotation.action}:</strong> {annotation.comment || annotation.text || 'No comment'}
-                                      {annotation.bbox && (
-                                        <span className="bbox-info">
-                                          (Position: {annotation.bbox.join(', ')})
-                                        </span>
-                                      )}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            
-                            {message.historicalData.ocrResult?.ocrText && (
-                              <div className="historical-ocr">
-                                <h5>Extracted Text:</h5>
-                                <div className="ocr-text">
-                                  {message.historicalData.ocrResult.ocrText}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
                         
                         <button 
                           className="raw-toggle-btn"
                           onClick={() => {
-                            // const rawContent = message.rawContent || message.content; // Removed - not used
                             setChatMessages(prev => prev.map(msg => 
                               msg.id === message.id 
                                 ? { ...msg, showRaw: !msg.showRaw }
@@ -1469,8 +1308,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           </div>
           
           {/* Bottom Input Bar - chat input bar (bottom aligned) */}
-          <div className="input-bar">
-            <div className="upload-chat-input">
+          <div className="chat-history-input">
               {/* Main Input Area */}
               <div className="input-container">
                 <textarea
@@ -1568,7 +1406,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 </button>
               </div>
             </div>
-          </div>
       </div>
       ) : (
     <div className="mark-homework-page upload-mode">
@@ -1613,8 +1450,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       </div>
 
       {/* Bottom Chat Input Bar */}
-      <div className="upload-chat-input-bar">
-        <div className="upload-chat-input">
+      <div className="main-upload-input-bar">
+        <div className="main-upload-input">
           {/* Main Input Area */}
           <div className="input-container">
             <textarea
