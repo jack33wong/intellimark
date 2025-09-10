@@ -295,6 +295,16 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
           {currentPageMode === 'chat' ? 'Back to Upload' : 'Mark Homework'}
         </button>
 
+        {/* Test Scroll Button */}
+        <button 
+          className="mark-homework-main-btn test-scroll-btn" 
+          onClick={() => navigate('/test-scroll')}
+          style={{ marginTop: '8px', backgroundColor: '#28a745' }}
+        >
+          <Code size={20} />
+          Test Scroll
+        </button>
+
         <div className="sidebar-section">
           <div className="mark-history-tabs">
             <button 

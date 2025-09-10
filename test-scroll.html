@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS Grid Scroll Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Main Layout with Sidebar and Header - MATCHING REAL APP */
+        .app-container {
+            min-height: 100vh;
+            width: 100vw;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            overflow: visible;
+        }
+
+        .app-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .right-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .mark-homework-main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* This is the key fix! */
+            height: 0;
+        }
+
+        /* When header is hidden in chat mode, main content takes full height */
+        .right-side.chat-mode .mark-homework-main-content {
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #2a2a2a;
+            border-right: 1px solid #333;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        .sidebar h3 {
+            color: #007bff;
+            margin-bottom: 20px;
+        }
+
+        .sidebar ul {
+            list-style: none;
+        }
+
+        .sidebar li {
+            padding: 8px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            padding-left: 12px;
+        }
+
+        .sidebar li:hover {
+            background: #333;
+        }
+
+        /* Main Content Area */
+        /* Header */
+        .header {
+            height: 60px;
+            background: #2a2a2a;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            color: #007bff;
+            font-size: 18px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+
+        /* Chat Page - Main Flex Container */
+        .chat-page {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Chat Container - The "Grow" Element */
+        .chat-container {
+            flex: 1; /* This is the magic - takes all available space */
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: #2a2a2a;
+        }
+
+        /* Chat Messages */
+        .chat-messages {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Individual Messages */
+        .message {
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #007bff;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+
+        .message.assistant {
+            background: #333;
+            align-self: flex-start;
+        }
+
+        /* Input Bar - The "Fixed Size" Element */
+        .input-bar {
+            background: #1a1a1a;
+            padding: 16px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            /* No special flex properties - takes height it needs */
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #555;
+            border-radius: 20px;
+            background: #333;
+            color: white;
+            font-size: 16px;
+        }
+
+        .send-btn {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .send-btn:hover {
+            background: #0056b3;
+        }
+
+        /* Scroll to Bottom Button */
+        .scroll-to-bottom {
+            position: fixed;
+            bottom: 100px;
+            left: 280px; /* Account for sidebar width */
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+            transition: all 0.2s ease;
+            margin: 0 auto;
+        }
+
+        .scroll-to-bottom:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .scroll-to-bottom.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Test Controls */
+        .test-controls {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 16px;
+            border-radius: 8px;
+            z-index: 1001;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            
+            .scroll-to-bottom {
+                left: 20px;
+                right: 20px;
+            }
+        }
+
+        .test-btn {
+            display: block;
+            margin: 8px 0;
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .test-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <!-- Test Controls -->
+    <div class="test-controls">
+        <button class="test-btn" onclick="addMessage()">Add Message</button>
+        <button class="test-btn" onclick="addManyMessages()">Add 10 Messages</button>
+        <button class="test-btn" onclick="clearMessages()">Clear All</button>
+        <div style="margin-top: 8px; font-size: 12px; color: #ccc;">
+            Messages: <span id="messageCount">0</span>
+        </div>
+    </div>
+
+    <!-- Main App Layout - MATCHING REAL APP STRUCTURE -->
+    <div class="app-container">
+        <div class="app-body">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h3>Navigation</h3>
+            <ul>
+                <li>Mark Homework</li>
+                <li>Chat History</li>
+                <li>Settings</li>
+                <li>Profile</li>
+            </ul>
+        </div>
+
+            <!-- Right Side -->
+            <div class="right-side chat-mode">
+                <!-- Header (hidden in chat mode) -->
+                <div class="header" style="display: none;">
+                    <h1>IntelliMark</h1>
+                </div>
+
+                <!-- Main Content -->
+                <div class="mark-homework-main-content">
+                    <!-- Chat Page - Main Flex Container -->
+                    <div class="chat-page">
+                <!-- Chat Container - The "Grow" Element -->
+                <div class="chat-container" id="chatContainer">
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Messages will be added here -->
+                    </div>
+                </div>
+
+                <!-- Input Bar - The "Fixed Size" Element -->
+                <div class="input-bar">
+                    <input type="text" class="input-field" id="messageInput" placeholder="Type a message..." onkeypress="handleKeyPress(event)">
+                    <button class="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll to Bottom Button -->
+    <button class="scroll-to-bottom hidden" id="scrollBtn" onclick="scrollToBottom()">↓</button>
+
+    <script>
+        let messageCount = 0;
+        const chatContainer = document.getElementById('chatContainer');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const scrollBtn = document.getElementById('scrollBtn');
+
+        // Add a message
+        function addMessage(content = null) {
+            messageCount++;
+            const message = document.createElement('div');
+            message.className = `message ${messageCount % 2 === 0 ? 'user' : 'assistant'}`;
+            message.textContent = content || `Message ${messageCount}: This is a test message to see how the scroll area behaves.`;
+            chatMessages.appendChild(message);
+            
+            updateMessageCount();
+            checkScrollButton();
+            scrollToBottom();
+        }
+
+        // Add many messages at once
+        function addManyMessages() {
+            for (let i = 0; i < 10; i++) {
+                addMessage(`Bulk message ${i + 1}: This is a longer message to test scrolling behavior and see if there's extra space at the bottom.`);
+            }
+        }
+
+        // Clear all messages
+        function clearMessages() {
+            chatMessages.innerHTML = '';
+            messageCount = 0;
+            updateMessageCount();
+            checkScrollButton();
+        }
+
+        // Send message from input
+        function sendMessage() {
+            const content = messageInput.value.trim();
+            if (content) {
+                addMessage(content);
+                messageInput.value = '';
+            }
+        }
+
+        // Handle Enter key
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Update message count display
+        function updateMessageCount() {
+            document.getElementById('messageCount').textContent = messageCount;
+        }
+
+        // Check if scroll button should be shown
+        function checkScrollButton() {
+            const isAtBottom = chatContainer.scrollTop + chatContainer.clientHeight >= chatContainer.scrollHeight - 10;
+            scrollBtn.classList.toggle('hidden', isAtBottom || messageCount === 0);
+        }
+
+        // Scroll to bottom
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Add scroll event listener
+        chatContainer.addEventListener('scroll', checkScrollButton);
+
+        // Initialize with a few messages
+        addMessage('Welcome! This is a test of the CSS Grid scroll solution.');
+        addMessage('Try adding more messages to test the scroll behavior.');
+        addMessage('The scroll area should have no extra space at the bottom.');
+    </script>
+</body>
+</html>

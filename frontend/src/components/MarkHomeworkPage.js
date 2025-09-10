@@ -107,13 +107,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     return Math.max(0, requiredDelay - timeSinceLastRequest);
   }, [lastRequestTime, getCurrentDelay]);
   
+  // Create ref for chat container
+  const chatContainerRef = useRef(null);
+
   // Auto-scroll to bottom function
   const scrollToBottom = useCallback(() => {
-    // Scroll the chat-content container (scroll bar inside chat content)
-    const chatContent = document.querySelector('.chat-content');
-    
-    if (chatContent) {
-      chatContent.scrollTop = chatContent.scrollHeight;
+    // Use ref instead of querySelector for more reliable targeting
+    if (chatContainerRef.current) {
+      const container = chatContainerRef.current;
+      container.scrollTop = container.scrollHeight;
     }
   }, []);
   
@@ -138,51 +140,43 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   }, [pageMode, chatMessages.length, scrollToBottom]);
 
+  // Handle scroll events with enhanced debugging - match test-scroll page logic
+  const handleScroll = useCallback(() => {
+    if (chatContainerRef.current) {
+      const container = chatContainerRef.current;
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      
+      // Check if we're at the bottom (within 10px tolerance) - more reliable calculation
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      const isAtBottom = distanceFromBottom <= 10;
+      
+      // Check if scroll button should be shown - match MarkHomeworkPage logic
+      const shouldShowButton = !isAtBottom && chatMessages.length > 0;
+      setShowScrollButton(shouldShowButton);
+    }
+  }, [chatMessages.length]);
+
   // Show/hide scroll button based on scroll position
   useEffect(() => {
-    // No need to force body height - container-based scrolling
-    // Remove body height manipulation
-
-    const handleScroll = () => {
-      const chatContent = document.querySelector('.chat-content');
-      if (chatContent) {
-        const scrollTop = chatContent.scrollTop;
-        const scrollHeight = chatContent.scrollHeight;
-        const clientHeight = chatContent.clientHeight;
-        
-        // Check if we're at the bottom (within 10px tolerance)
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
-        
-        // Check if scroll button should be shown
-        setShowScrollButton(!isAtBottom && chatMessages.length > 0);
-      }
-    };
-
-    // Show button if there are messages and content is scrollable
+    // Show button if there are messages and content is scrollable - match MarkHomeworkPage logic
     if (chatMessages.length > 0) {
-      const chatContent = document.querySelector('.chat-content');
-      if (chatContent) {
-        const isScrollable = chatContent.scrollHeight > chatContent.clientHeight;
+      if (chatContainerRef.current) {
+        const container = chatContainerRef.current;
+        const isScrollable = container.scrollHeight > container.clientHeight;
         setShowScrollButton(isScrollable);
       }
     } else {
       setShowScrollButton(false);
     }
 
-    // Add scroll event listener to chat-content container
-    const chatContent = document.querySelector('.chat-content');
-    if (chatContent) {
-      chatContent.addEventListener('scroll', handleScroll);
+    // Add scroll event listener
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      handleScroll(); // Check initial state
+      return () => container.removeEventListener('scroll', handleScroll);
     }
-    handleScroll(); // Check initial state
-
-    return () => {
-      const chatContent = document.querySelector('.chat-content');
-      if (chatContent) {
-        chatContent.removeEventListener('scroll', handleScroll);
-      }
-    };
-  }, [chatMessages.length, canMakeRequest, getRemainingDelay]);
+  }, [handleScroll]);
   
   // Handle delay countdown timer
   useEffect(() => {
@@ -238,7 +232,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   
   // === REFS ===
   // const fileInputRef = useRef(null); // Removed - not used
-  const chatMessagesRef = useRef(null);
+  // const chatMessagesRef = useRef(null); // Removed - using chatContainerRef instead
 
   // const models = [
   //   { id: 'chatgpt-4o', name: 'ChatGPT-4o', description: 'Latest OpenAI model' },
@@ -378,9 +372,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Scroll to bottom of chat after a delay to ensure DOM is updated
         setTimeout(() => {
-          if (chatMessagesRef.current) {
-            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-          }
+          scrollToBottom();
         }, 200);
       } else {
         // Still switch to chat mode even if no messages
@@ -442,12 +434,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     localStorage.setItem('isChatMode', (pageMode === 'chat').toString());
   }, [pageMode]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (chatMessagesRef.current && chatMessages.length > 0) {
-      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+  // Auto-scroll to bottom when new messages arrive (handled by main scrollToBottom function)
+  // Removed duplicate scroll logic - using chatContainerRef instead
 
   // Handle expanded thinking bubble after 10 seconds
   useEffect(() => {
@@ -1078,7 +1066,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     <>
       {pageMode === 'chat' ? (
         <div className="mark-homework-page chat-mode">
-          <div className="chat-container">
+          <div className="chat-container" ref={chatContainerRef}>
             <div className="chat-header">
               <div className="chat-header-content">
                 <div className="chat-header-left">
@@ -1209,8 +1197,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                </div>
             )}
           
-          <div className="chat-content">
-            <div className="chat-messages" ref={chatMessagesRef}>
+          <div className="chat-messages">
               {chatMessages.map((message, index) => (
                 <div 
                   key={`${message.id}-${index}`} 
@@ -1465,7 +1452,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                )}
                
                {/* Scroll to Bottom Button */}
-               <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : ''}`}>
+               <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
                  <button 
                    className="scroll-to-bottom-btn"
                    onClick={scrollToBottom}
@@ -1478,19 +1465,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                
                
                
-               {/* Force scrollable content - temporary */}
-               <div style={{ 
-                 height: '800px', 
-                 background: 'transparent',
-                 minHeight: '800px',
-                 display: 'block'
-               }}></div>
-
             </div>
           </div>
           
           {/* Bottom Input Bar - chat input bar (bottom aligned) */}
-          <div className="chat-input-bar">
+          <div className="input-bar">
             <div className="upload-chat-input">
               {/* Main Input Area */}
               <div className="input-container">
@@ -1590,7 +1569,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               </div>
             </div>
           </div>
-        </div>
       </div>
       ) : (
     <div className="mark-homework-page upload-mode">
