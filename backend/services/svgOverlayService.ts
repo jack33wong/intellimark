@@ -155,8 +155,8 @@ export class SVGOverlayService {
     const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
     const randomRotation = (Math.random() - 0.5) * rotationVariation;
     
-    // Randomly choose from different tick symbols
-    const tickSymbols = ['✓', '🗸'];
+    // Use simple Unicode symbols that won't be converted to codes
+    const tickSymbols = ['✓', '✓'];
     const randomTick = tickSymbols[Math.floor(Math.random() * tickSymbols.length)];
     
     return `
@@ -192,8 +192,8 @@ export class SVGOverlayService {
       baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
     const randomRotation = (Math.random() - 0.5) * rotationVariation;
   
-    // Randomly choose from different cross symbols
-    const crossSymbols = ["✗", "✘", "🗴"];
+    // Use simple Unicode symbols that won't be converted to codes
+    const crossSymbols = ["✗", "✗"];
     const randomCross =
       crossSymbols[Math.floor(Math.random() * crossSymbols.length)];
   
