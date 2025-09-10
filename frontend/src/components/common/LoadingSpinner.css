@@ -1,0 +1,104 @@
+/* Loading Spinner Container */
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Spinner Base */
+.spinner {
+  border: 3px solid transparent;
+  border-top: 3px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Spinner Sizes */
+.loading-spinner-small .spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.loading-spinner-medium .spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+.loading-spinner-large .spinner {
+  width: 48px;
+  height: 48px;
+  border-width: 4px;
+}
+
+/* Spinner Colors */
+.spinner-primary {
+  color: var(--primary-color, #3b82f6);
+}
+
+.spinner-secondary {
+  color: var(--secondary-color, #64748b);
+}
+
+.spinner-white {
+  color: white;
+}
+
+.spinner-success {
+  color: var(--success-color, #10b981);
+}
+
+.spinner-danger {
+  color: var(--danger-color, #ef4444);
+}
+
+/* Loading Text */
+.loading-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+}
+
+.loading-spinner-small .loading-text {
+  font-size: 12px;
+}
+
+.loading-spinner-large .loading-text {
+  font-size: 16px;
+}
+
+/* Animation */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Full Screen Loading */
+.loading-spinner-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.9);
+  z-index: 9999;
+}
+
+.loading-spinner-fullscreen .spinner {
+  width: 64px;
+  height: 64px;
+  border-width: 6px;
+}
+
+.loading-spinner-fullscreen .loading-text {
+  font-size: 18px;
+  font-weight: 500;
+}

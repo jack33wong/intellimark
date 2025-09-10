@@ -124,7 +124,6 @@ class MarkingHistoryService {
   static async deleteSession(sessionId, authToken) {
     try {
       const url = `${API_BASE}/api/chat/session/${sessionId}`;
-      console.log('🔍 MarkingHistoryService: Deleting session:', sessionId);
       
       const headers = {
         'Content-Type': 'application/json',
@@ -142,7 +141,6 @@ class MarkingHistoryService {
         headers,
       });
       
-      console.log('🔍 MarkingHistoryService: Delete response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -150,7 +148,6 @@ class MarkingHistoryService {
       }
 
       const result = await response.json();
-      console.log('🔍 MarkingHistoryService: Delete result:', result);
 
       return {
         success: true,

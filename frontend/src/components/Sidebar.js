@@ -87,7 +87,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   // Listen for custom events to refresh sessions
   useEffect(() => {
     const handleSessionsCleared = () => {
-      console.log('🔄 Sidebar: Received sessionsCleared event, refreshing...');
       refreshChatSessions();
     };
 
@@ -101,6 +100,8 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const handleSessionClick = (session) => {
     if (onMarkingHistoryClick && typeof onMarkingHistoryClick === 'function') {
       onMarkingHistoryClick(session);
+    } else {
+      console.warn('Sidebar: onMarkingHistoryClick not available');
     }
   };
 
@@ -134,7 +135,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       // Navigate to mark homework page after successful deletion
       navigate('/mark-homework');
       
-      console.log('✅ Session deleted successfully:', sessionId);
     } catch (error) {
       console.error('❌ Error deleting session:', error);
       alert(`Failed to delete session: ${error.message}`);

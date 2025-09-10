@@ -1,3 +1,10 @@
+/* CSS Variables are defined in index.css - no need to override here */
+
+/* Import component styles */
+@import './components/common/Button.css';
+@import './components/common/Modal.css';
+@import './components/common/LoadingSpinner.css';
+
 /* App Layout Styles */
 .app-container {
   min-height: 100vh; /* Allow growth beyond viewport */

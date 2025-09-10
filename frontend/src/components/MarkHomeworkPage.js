@@ -208,16 +208,16 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     };
   }, [lastRequestTime, subscriptionType, canMakeRequest, getRemainingDelay]);
   
-  // Refresh sidebar when switching to chat mode (for question-only mode)
+  // Refresh sidebar when switching to chat mode (for question-only mode only)
   useEffect(() => {
-    if (pageMode === 'chat' && currentSessionId && onMarkingResultSaved) {
+    if (pageMode === 'chat' && currentSessionId && onMarkingResultSaved && classificationResult?.isQuestionOnly) {
       // Small delay to ensure session is fully created before refreshing sidebar
       const timer = setTimeout(() => {
         onMarkingResultSaved();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [pageMode, currentSessionId, onMarkingResultSaved]);
+  }, [pageMode, currentSessionId, onMarkingResultSaved, classificationResult?.isQuestionOnly]);
   
   // Close dropdown when clicking outside
   useEffect(() => {
