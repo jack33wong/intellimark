@@ -69,95 +69,100 @@ async function processImageWithRealOCR(imageData: string): Promise<ProcessedImag
       mathThreshold: 0.10
     });
     if (VERBOSE) {
-      console.log('✅ Hybrid OCR completed successfully');
-      console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
-      console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
-      console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
-      console.log('🔍 DEBUG: Hybrid result boundingBoxes type:', typeof hybridResult.boundingBoxes);
-      console.log('🔍 DEBUG: Hybrid result boundingBoxes length:', Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes.length : 'not array');
-      if (Array.isArray(hybridResult.boundingBoxes) && hybridResult.boundingBoxes.length > 0) {
-        console.log('🔍 DEBUG: First hybrid boundingBox:', hybridResult.boundingBoxes[0]);
-      }
+    console.log('✅ Hybrid OCR completed successfully');
+    console.log(`🔍 Extracted text length: ${hybridResult.text.length} characters`);
+    console.log(`🔍 Math blocks found: ${hybridResult.mathBlocks.length}`);
+    console.log(`🔍 Confidence: ${(hybridResult.confidence * 100).toFixed(2)}%`);
+      // console.log('🔍 DEBUG: Hybrid result boundingBoxes type:', typeof hybridResult.boundingBoxes);
+      // console.log('🔍 DEBUG: Hybrid result boundingBoxes length:', Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes.length : 'not array');
+      // if (Array.isArray(hybridResult.boundingBoxes) && hybridResult.boundingBoxes.length > 0) {
+      //   console.log('🔍 DEBUG: First hybrid boundingBox:', hybridResult.boundingBoxes[0]);
+      // }
     }
 
-    // Use robust recognition bounding boxes directly (already block-level)
-    const boundingBoxes = Array.isArray(hybridResult.boundingBoxes) ? hybridResult.boundingBoxes as any[] : [];
-    
     if (VERBOSE) {
-      console.log('🔍 Raw bounding boxes from robust recognition:', boundingBoxes.length);
-      console.log('🔍 First few bounding boxes:', boundingBoxes.slice(0, 3));
+      console.log('🔍 Hybrid OCR result:');
+      console.log(`  Text length: ${hybridResult.text.length} characters`);
+      console.log(`  Bounding boxes: ${hybridResult.boundingBoxes.length}`);
+      console.log(`  Math blocks: ${hybridResult.mathBlocks.length}`);
+      console.log(`  Confidence: ${hybridResult.confidence}`);
     }
     
-    // Convert to the expected format and split multi-line blocks
-    const lines = boundingBoxes.map(bbox => ({
-      x: bbox.x || 0,
-      y: bbox.y || 0, 
-      width: bbox.width || 0,
-      height: bbox.height || 0,
-      text: (bbox.text || '').trim(),
-      confidence: bbox.confidence || 0
-    })).filter(bbox => {
-      const isValid = !isNaN(bbox.x) && !isNaN(bbox.y) && 
-        !isNaN(bbox.width) && !isNaN(bbox.height) &&
-        bbox.width > 0 && bbox.height > 0;
-      if (!isValid && VERBOSE) {
-        console.log('🔍 Filtered out invalid bbox:', bbox);
-      }
-      return isValid;
-    });
-
-    // Split multi-line blocks into individual lines
-    const splitLines: Array<{ x: number; y: number; width: number; height: number; text: string; confidence: number }> = [];
+    // Use math blocks directly to build the final result (no text replacement needed!)
+    console.log('\n🔍 DEBUG: Building final result from math blocks:');
+    console.log(`  Math blocks available: ${hybridResult.mathBlocks.length}`);
     
-    for (const line of lines) {
-      const textLines = line.text.split('\n').filter((t: string) => t.trim().length > 0);
-      
-      if (textLines.length === 1) {
-        // Single line, keep as is
-        splitLines.push(line);
-      } else {
-        // Multiple lines, split vertically
-        const lineHeight = line.height / textLines.length;
-        const avgCharWidth = line.width / line.text.length;
-        
-        textLines.forEach((text: string, index: number) => {
-          const estimatedWidth = Math.min(line.width, text.length * avgCharWidth);
-          splitLines.push({
-            x: line.x,
-            y: line.y + (index * lineHeight),
-            width: estimatedWidth,
-            height: lineHeight,
-            text: text.trim(),
-            confidence: line.confidence
-          });
-        });
-      }
-    }
+    // Sort math blocks by y-coordinate for proper reading order
+    const sortedMathBlocks = hybridResult.mathBlocks.sort((a, b) => a.coordinates.y - b.coordinates.y);
     
-    if (VERBOSE) {
-      console.log('🔍 After splitting multi-line blocks:', splitLines.length, 'lines');
-      console.log('🔍 First few split lines:', splitLines.slice(0, 3));
-    }
-
+    // Build OCR text from math blocks (using LaTeX)
+    const processedOcrText = sortedMathBlocks
+      .filter(block => block.mathpixLatex) // Only include blocks with LaTeX
+      .map(block => block.mathpixLatex)
+      .join('\n');
+    
+    // Build bounding boxes from math blocks (using coordinates)
+    const processedBoundingBoxes = sortedMathBlocks
+      .filter(block => block.mathpixLatex) // Only include blocks with LaTeX
+      .map(block => ({
+        x: block.coordinates.x,
+        y: block.coordinates.y,
+        width: block.coordinates.width,
+        height: block.coordinates.height,
+        text: block.mathpixLatex,
+        confidence: block.confidence
+      }));
+    
+    console.log(`✅ Built from ${sortedMathBlocks.length} math blocks`);
+    console.log(`  Final text length: ${processedOcrText.length}`);
+    console.log(`  Final bounding boxes: ${processedBoundingBoxes.length}`);
+    
     const processedResult: ProcessedImageResult = {
-      ocrText: hybridResult.text,
-      boundingBoxes: splitLines.map(l => ({ x: l.x, y: l.y, width: l.width, height: l.height, text: l.text, confidence: l.confidence })),
+      ocrText: processedOcrText,
+      boundingBoxes: processedBoundingBoxes,
       confidence: hybridResult.confidence,
       imageDimensions: hybridResult.dimensions,
       isQuestion: false
     };
 
+    // Log final OCR result in test script style
+    console.log('\n📊 FINAL OCR RESULT (Main Flow):');
+    console.log('=' .repeat(50));
+    console.log(`  Text length: ${processedResult.ocrText.length} characters`);
+    console.log(`  Bounding boxes: ${processedResult.boundingBoxes.length}`);
+    console.log(`  Confidence: ${processedResult.confidence.toFixed(3)}`);
+    console.log(`  Image dimensions: ${processedResult.imageDimensions.width}x${processedResult.imageDimensions.height}`);
+    
+    // Show before/after comparison
     if (VERBOSE) {
-      console.log('🔍 Built per-line bounding boxes:', processedResult.boundingBoxes.length);
-      console.log('🔍 DEBUG: Final processedResult.boundingBoxes length:', processedResult.boundingBoxes.length);
-      if (processedResult.boundingBoxes.length > 0) {
-        console.log('🔍 DEBUG: First processed boundingBox:', processedResult.boundingBoxes[0]);
-      } else {
-        console.log('🔍 DEBUG: No bounding boxes in final result!');
-        console.log('🔍 DEBUG: Raw hybridResult.boundingBoxes:', hybridResult.boundingBoxes);
-      }
+      console.log('\n🔍 OCR TEXT COMPARISON:');
+      console.log('🔍 Original (Google Vision):', hybridResult.text.substring(0, 200) + '...');
+      console.log('🔍 Processed (with LaTeX):', processedOcrText.substring(0, 200) + '...');
+      console.log('🔍 Arabic text in original:', hybridResult.text.includes('ي ا انا'));
+      console.log('🔍 Arabic text in processed:', processedOcrText.includes('ي ا انا'));
+      console.log('🔍 LaTeX in processed:', processedOcrText.includes('\\Rightarrow|\\mathrm{V}|'));
     }
-
+    
+    // Show math blocks (same as test script) - these are the processed results
+    if (hybridResult.mathBlocks.length > 0) {
+      // Sort math blocks by y-coordinate (same as test script)
+      const sortedMathBlocks = hybridResult.mathBlocks.sort((a, b) => a.coordinates.y - b.coordinates.y);
+      
+      console.log('\n🔢 MATH BLOCKS (last 5, sorted by y-coordinate):');
+      sortedMathBlocks.slice(-5).forEach((block, index) => {
+        console.log(`  ${index + 1}. Vision: "${block.googleVisionText}"`);
+        console.log(`     LaTeX: "${block.mathpixLatex || 'N/A'}"`);
+        console.log(`     Confidence: ${block.confidence.toFixed(3)}`);
+        console.log(`     Coordinates: [${block.coordinates.x}, ${block.coordinates.y}, ${block.coordinates.width}, ${block.coordinates.height}]`);
+      });
+    }
+    
+    // Show raw bounding boxes for comparison
+    console.log('\n📝 RAW BOUNDING BOXES (last 5):');
+    processedResult.boundingBoxes.slice(-5).forEach((block, index) => {
+      console.log(`  ${index + 1}. "${block.text}" (conf: ${block.confidence.toFixed(3)}, bbox: [${block.x}, ${block.y}, ${block.width}, ${block.height}])`);
+    });
+    
     return processedResult;
   } catch (error) {
     console.error('❌ Enhanced OCR processing failed:', error);
@@ -248,7 +253,7 @@ async function generateRealMarkingInstructionsLegacy(
         else if (text.includes('find') || text.includes('value')) { action = 'underline'; comment = 'Ensure problem statement is clear'; }
         else {
           const actions: Array<'tick' | 'circle' | 'underline' | 'comment'> = ['tick', 'circle', 'underline', 'comment'];
-          action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
+           action = actions[index % actions.length] as 'tick' | 'circle' | 'underline' | 'comment';
           comment = action === 'tick' ? 'Verify mathematical work'
             : action === 'circle' ? 'Check calculation approach'
             : action === 'underline' ? 'Review method carefully'
@@ -257,7 +262,7 @@ async function generateRealMarkingInstructionsLegacy(
         annotations.push({ action, bbox: [bbox.x, bbox.y, bbox.width, bbox.height] as [number, number, number, number], comment });
       });
     }
-    if (annotations.length > 0) {
+     if (annotations.length > 0) {
       annotations.push({ action: 'comment' as const, bbox: [50, 500, 400, 80] as [number, number, number, number], text: 'Please verify your final calculations and ensure all steps are clearly shown.' });
     }
     return { annotations };
@@ -331,8 +336,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       }
     } else {
       questionDetection = { found: false, message: 'No question text extracted' };
-    }
-
+         }
+    
     if (imageClassification.isQuestionOnly) {
       // Create chat session for question-only images
       let sessionId: string | undefined;
@@ -362,15 +367,15 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       }
       
       return res.json({ 
-        success: true, 
-        isQuestionOnly: true, 
-        message: 'Image classified as question only - use chat interface for tutoring', 
-        apiUsed: imageClassification.apiUsed, 
+        success: true,
+        isQuestionOnly: true,
+        message: 'Image classified as question only - use chat interface for tutoring',
+        apiUsed: imageClassification.apiUsed,
         model, 
-        reasoning: imageClassification.reasoning, 
+        reasoning: imageClassification.reasoning,
         questionDetection, 
         sessionId: sessionId,
-        timestamp: new Date().toISOString() 
+        timestamp: new Date().toISOString()
       });
     }
 

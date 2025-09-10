@@ -511,10 +511,10 @@ export class HybridOCRService {
     }));
 
     // Debug final result
-    console.log('🔍 DEBUG: Final hybrid OCR result - boundingBoxes count:', finalBoundingBoxes.length);
-    if (finalBoundingBoxes.length > 0) {
-      console.log('🔍 DEBUG: First final bounding box:', finalBoundingBoxes);
-    }
+    // console.log('🔍 DEBUG: Final hybrid OCR result - boundingBoxes count:', finalBoundingBoxes.length);
+    // if (finalBoundingBoxes.length > 0) {
+    //   console.log('🔍 DEBUG: First final bounding box:', finalBoundingBoxes);
+    // }
     const finalConfidence = detectedBlocks.reduce((sum, block) => sum + (block.confidence || 0), 0) / detectedBlocks.length || 0;
     const finalSymbols = detectedBlocks.map(block => ({
       text: block.text || '',

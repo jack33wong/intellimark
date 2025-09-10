@@ -81,7 +81,7 @@ export class AIMarkingService {
    * Robust JSON cleaning and validation helper
    */
   private static cleanAndValidateJSON(response: string, expectedArrayKey: string): any {
-    console.log('🔍 Raw LLM response:', response);
+    //console.log('🔍 Raw LLM response:', response);
     
     let cleanedResponse = response.trim();
     
@@ -531,6 +531,9 @@ Please calculate precise coordinates for each annotation. Remember to:
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
 
+    console.log('🔍 ===== STEP 1: GENERATE MARKING ANNOTATIONS =====');
+
+    //console.log('🔍 DEBUG: Input to generateMarkingAnnotationsFromText:',processedImage);
     try {
       // Step 1: Generate marking annotations based on final OCR text (LLM2)
       const annotationData = await this.generateMarkingAnnotationsFromText(
@@ -540,14 +543,14 @@ Please calculate precise coordinates for each annotation. Remember to:
       );
 
       // Step 2: Programmatic coordinate placement (replace LLM3)
-      console.log('🔍 ===== STEP 2: PROGRAMMATIC COORDINATE PLACEMENT =====');
-      console.log('🔍 DEBUG: Input to calculateAnnotationCoordinatesProgrammatically:');
-      console.log('  - OCR text length:', (processedImage.ocrText || '').length);
-      console.log('  - Bounding boxes count:', (processedImage.boundingBoxes || []).length);
-      console.log('  - Image dimensions:', processedImage.imageDimensions);
-      if ((processedImage.boundingBoxes || []).length > 0) {
-        console.log('  - First bounding box:', processedImage.boundingBoxes[0]);
-      }
+      // console.log('🔍 ===== STEP 2: PROGRAMMATIC COORDINATE PLACEMENT =====');
+      // console.log('🔍 DEBUG: Input to calculateAnnotationCoordinatesProgrammatically:');
+      // console.log('  - OCR text length:', (processedImage.ocrText || '').length);
+      // console.log('  - Bounding boxes count:', (processedImage.boundingBoxes || []).length);
+      // console.log('  - Image dimensions:', processedImage.imageDimensions);
+      // if ((processedImage.boundingBoxes || []).length > 0) {
+      //   console.log('  - First bounding box:', processedImage.boundingBoxes[0]);
+      // }
  
       const finalAnnotations = this.calculateAnnotationCoordinatesProgrammatically(
         processedImage.ocrText || '',
@@ -592,9 +595,8 @@ Please calculate precise coordinates for each annotation. Remember to:
   }> {
 
     let systemPrompt = `You are an AI assistant that generates marking annotations for student work.`;
-    let userPrompt = `Here is the OCR text from the student's work that needs to be marked:
+    let userPrompt = `Here is the OCR TEXT:
 
-    OCR TEXT:
     ${ocrText}
     
     Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`;
@@ -656,7 +658,7 @@ Please calculate precise coordinates for each annotation. Remember to:
     }else{
       systemPrompt += `
     Your task is to:
-    1. Analyze the student's work from the OCR text
+    1. Read and understand the question and answer from ocr text
     2. Generate appropriate marking annotations for different parts of the work
     3. Provide reasoning for each annotation decision
 
@@ -669,7 +671,7 @@ Please calculate precise coordinates for each annotation. Remember to:
         {
           "textMatch": "exact text from OCR that this annotation applies to",
           "action": "tick|cross|comment",
-          "text": "M1|M0|A1|A0|B1|B0|C1|C0|comment text",
+          "text": "comment text",
           "reasoning": "Brief explanation of why this annotation was chosen"
         }
       ]
@@ -678,13 +680,13 @@ Please calculate precise coordinates for each annotation. Remember to:
     ANNOTATION RULES:
 - Use "tick" for correct, minor steps that do not correspond to a specific mark.
 - Use "cross" for incorrect steps or calculations.
-- Use "comment" to award marks (e.g., "M1", "A1").
+- Use "comment" to comment.
 - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
 
 `;
     }
-    //console.log('🔍 SYSTEM PROMPT:', systemPrompt);
-    //console.log('🔍 USER PROMPT:', userPrompt);
+    console.log('🔍 SYSTEM PROMPT:', systemPrompt);
+    console.log('🔍 USER PROMPT:', userPrompt);
     //console .log('model used:', model);
     model = 'gemini-2.5-pro';
     let response: string;

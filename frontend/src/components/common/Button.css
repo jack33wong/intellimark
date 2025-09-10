@@ -1,0 +1,137 @@
+/* Button Base Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+/* Button Sizes */
+.btn-small {
+  padding: 6px 12px;
+  font-size: 14px;
+  min-height: 32px;
+}
+
+.btn-medium {
+  padding: 8px 16px;
+  font-size: 16px;
+  min-height: 40px;
+}
+
+.btn-large {
+  padding: 12px 24px;
+  font-size: 18px;
+  min-height: 48px;
+}
+
+/* Button Variants */
+.btn-primary {
+  background-color: var(--primary-color, #3b82f6);
+  color: white;
+}
+
+.btn-primary:hover:not(.btn-disabled) {
+  background-color: var(--primary-hover, #2563eb);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color, #f1f5f9);
+  color: var(--text-color, #1e293b);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.btn-secondary:hover:not(.btn-disabled) {
+  background-color: var(--secondary-hover, #e2e8f0);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background-color: var(--danger-color, #ef4444);
+  color: white;
+}
+
+.btn-danger:hover:not(.btn-disabled) {
+  background-color: var(--danger-hover, #dc2626);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-color, #1e293b);
+  border: 1px solid transparent;
+}
+
+.btn-ghost:hover:not(.btn-disabled) {
+  background-color: var(--ghost-hover, #f8fafc);
+  border-color: var(--border-color, #e2e8f0);
+}
+
+/* Button States */
+.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn-loading {
+  cursor: wait;
+}
+
+/* Loading Spinner */
+.btn-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.btn-content-loading {
+  opacity: 0.7;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Button Groups */
+.btn-group {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.btn-group .btn {
+  border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.btn-group .btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}

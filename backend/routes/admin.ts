@@ -384,4 +384,74 @@ router.post('/json/upload', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/admin/clear-all-sessions
+ * Clear all chat sessions from the database
+ */
+router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
+  try {
+    console.log('🗑️ Admin clearing all sessions...');
+    
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Firestore not available' 
+      });
+    }
+
+    // Get all sessions
+    const sessionsSnapshot = await db.collection('sessions').get();
+    const sessionIds = sessionsSnapshot.docs.map(doc => doc.id);
+    
+    console.log(`🗑️ Found ${sessionIds.length} sessions to delete`);
+    
+    if (sessionIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No sessions found to delete',
+        deletedCount: 0
+      });
+    }
+
+    // Delete all sessions in batches
+    const batchSize = 500; // Firestore batch limit
+    let deletedCount = 0;
+    
+    for (let i = 0; i < sessionIds.length; i += batchSize) {
+      const batch = db.batch();
+      const batchIds = sessionIds.slice(i, i + batchSize);
+      
+      batchIds.forEach(sessionId => {
+        const sessionRef = db.collection('sessions').doc(sessionId);
+        batch.delete(sessionRef);
+      });
+      
+      await batch.commit();
+      deletedCount += batchIds.length;
+      console.log(`🗑️ Deleted batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${sessionIds.length} sessions`);
+    }
+
+    console.log(`✅ Successfully deleted ${deletedCount} sessions`);
+    
+    // Clear all sessions from in-memory cache
+    const { ChatSessionManager } = await import('../services/chatSessionManager');
+    const sessionManager = ChatSessionManager.getInstance();
+    sessionManager.clearAllSessionsFromCache();
+    
+    res.json({
+      success: true,
+      message: `Successfully cleared ${deletedCount} chat sessions`,
+      deletedCount: deletedCount
+    });
+    
+  } catch (error) {
+    console.error('❌ Error clearing sessions:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: `Failed to clear sessions: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    });
+  }
+});
+
 export default router;

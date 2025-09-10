@@ -84,13 +84,24 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   }, [onMarkingResultSaved, refreshChatSessions]);
 
-  const handleSessionClick = (session) => {
-    console.log('🔍 Sidebar: Session clicked:', session);
-    console.log('🔍 Sidebar: Session messages count:', session.messages?.length || 0);
-    console.log('🔍 Sidebar: Session messages:', session.messages);
+  // Listen for custom events to refresh sessions
+  useEffect(() => {
+    const handleSessionsCleared = () => {
+      refreshChatSessions();
+    };
+
+    window.addEventListener('sessionsCleared', handleSessionsCleared);
     
+    return () => {
+      window.removeEventListener('sessionsCleared', handleSessionsCleared);
+    };
+  }, [refreshChatSessions]);
+
+  const handleSessionClick = (session) => {
     if (onMarkingHistoryClick && typeof onMarkingHistoryClick === 'function') {
       onMarkingHistoryClick(session);
+    } else {
+      console.warn('Sidebar: onMarkingHistoryClick not available');
     }
   };
 
@@ -118,7 +129,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
         prevSessions.filter(session => session.id !== sessionId)
       );
       
-      console.log('✅ Session deleted successfully:', sessionId);
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('sessionDeleted', { detail: { sessionId } }));
+      
+      // Navigate to mark homework page after successful deletion
+      navigate('/mark-homework');
+      
     } catch (error) {
       console.error('❌ Error deleting session:', error);
       alert(`Failed to delete session: ${error.message}`);

@@ -18,14 +18,37 @@ function scoreMathLikeness(text: string): number {
   const t = text || "";
   if (!t.trim()) return 0;
 
+  // Check if it's clearly an English word/phrase (exclude these)
+  const englishWordPattern = /^[a-zA-Z\s]+$/;
+  if (englishWordPattern.test(t.trim()) && t.length > 3) {
+    // Only exclude if it's a common English word, not mathematical terms
+    const commonEnglishWords = [
+      'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+      'question', 'answer', 'find', 'calculate', 'solve', 'show', 'prove', 'given',
+      'particle', 'mass', 'attached', 'light', 'spring', 'natural', 'length',
+      'modulus', 'elasticity', 'other', 'end', 'fixed', 'point', 'ceiling',
+      'hanging', 'rest', 'vertically', 'below', 'pulled', 'downwards', 'released',
+      'ignoring', 'external', 'resistances', 'speed', 'when', 'level', 'zero',
+      'gravitational', 'potential', 'energy', 'kinetic', 'potential', 'elastic'
+    ];
+    
+    const words = t.toLowerCase().split(/\s+/);
+    const isCommonEnglish = words.every(word => commonEnglishWords.includes(word));
+    if (isCommonEnglish) {
+      return 0; // Exclude common English words
+    }
+  }
+
+  // Mathematical features (more inclusive)
   const features = [
-    /[=≠≈≤≥]/g,
-    /[+\-×÷*/]/g,
-    /\b\d+\b/g,
-    /[()\[\]{}]/g,
-    /\|.*\|/g,
-    /√|∑|∫|π|θ|λ/g,
-    /\b\w\^\d/g
+    /[=≠≈≤≥]/g,                    // Equality/inequality symbols
+    /[+\-×÷*/]/g,                  // Basic operators
+    /\b\d+\b/g,                    // Numbers
+    /[()\[\]{}]/g,                 // Brackets
+    /\|.*\|/g,                     // Absolute value
+    /√|∑|∫|π|θ|λ|α|β|γ|δ|ε|ζ|η|θ|ι|κ|λ|μ|ν|ξ|ο|π|ρ|σ|τ|υ|φ|χ|ψ|ω/g, // Greek letters
+    /\b\w\^\d/g,                   // Exponents
+    /[^a-zA-Z0-9\s]/g              // Any non-alphanumeric characters (including foreign chars)
   ];
 
   let score = 0;
@@ -34,11 +57,22 @@ function scoreMathLikeness(text: string): number {
     score += m ? Math.min(1, m.length / 3) : 0;
   }
 
+  // Boost score for foreign characters (likely misrecognized math symbols)
+  const foreignCharCount = (t.match(/[^\x00-\x7F]/g) || []).length;
+  if (foreignCharCount > 0) {
+    score += Math.min(0.5, foreignCharCount / 2); // Boost for foreign characters
+  }
+
+  // Boost score for short text with symbols (likely math)
+  if (t.length <= 10 && (t.match(/[^a-zA-Z0-9\s]/g) || []).length > 0) {
+    score += 0.3;
+  }
+
   const symbolCount = (t.match(/[^a-zA-Z0-9\s]/g) || []).length;
-  const density = symbolCount / Math.max(8, t.length);
+  const density = symbolCount / Math.max(4, t.length); // Lower threshold for shorter text
   score += density;
 
-  return Math.max(0, Math.min(1, score / 4));
+  return Math.max(0, Math.min(1, score / 3)); // Adjusted threshold
 }
 
 function mergeNearbyBoxes(boxes: BoundingBox[], maxGapPx = 18): BoundingBox[] {

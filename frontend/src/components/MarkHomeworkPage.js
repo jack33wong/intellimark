@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+// import { useNavigate } from 'react-router-dom'; // Removed unused import
 import { Upload, Bot, ChevronDown } from 'lucide-react';
 import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
@@ -8,8 +8,9 @@ import { useAuth } from '../contexts/AuthContext';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
   // === NAVIGATION ===
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // Removed unused import
   const { getAuthToken } = useAuth();
+  // const { user } = useAuth(); // Removed unused variable
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -27,10 +28,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   };
   
   // === AUTH ===
-  const { user } = useAuth();
+  // const { user } = useAuth(); // Removed unused variable
   
   // === CORE STATE ===
   const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
+  const [showScrollButton, setShowScrollButton] = useState(false);
   // const [isShowingHistoricalData, setIsShowingHistoricalData] = useState(false); // Removed - not used
   
   // Notify parent of page mode changes
@@ -53,6 +55,18 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   
   // === CHAT MODE STATE ===
   const [chatMessages, setChatMessages] = useState([]);
+
+  // Helper function to deduplicate messages by ID
+  const deduplicateMessages = (messages) => {
+    const seen = new Set();
+    return messages.filter(message => {
+      if (seen.has(message.id)) {
+        return false;
+      }
+      seen.add(message.id);
+      return true;
+    });
+  };
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [, setLastScrollTop] = useState(0);
@@ -60,6 +74,150 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  
+  // Subscription type for delay calculation (can be made dynamic later)
+  const [subscriptionType, setSubscriptionType] = useState('free'); // 'free', 'pro', 'enterprise'
+  const [lastRequestTime, setLastRequestTime] = useState(0);
+  const [isDelayActive, setIsDelayActive] = useState(false);
+  const [delayCountdown, setDelayCountdown] = useState(0);
+  
+  // Subscription delay configuration (in milliseconds) - configurable via .env.local
+  const subscriptionDelays = useMemo(() => ({
+    free: parseInt(process.env.REACT_APP_SUBSCRIPTION_DELAY_FREE) || 3000,      // 3 seconds default
+    pro: parseInt(process.env.REACT_APP_SUBSCRIPTION_DELAY_PRO) || 1000,        // 1 second default
+    enterprise: parseInt(process.env.REACT_APP_SUBSCRIPTION_DELAY_ENTERPRISE) || 0    // 0 seconds default
+  }), []);
+  
+  // Get delay for current subscription
+  const getCurrentDelay = useCallback(() => subscriptionDelays[subscriptionType] || parseInt(process.env.REACT_APP_SUBSCRIPTION_DELAY_DEFAULT) || 3000, [subscriptionType, subscriptionDelays]);
+  
+  // Check if enough time has passed since last request
+  const canMakeRequest = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    const requiredDelay = getCurrentDelay();
+    return timeSinceLastRequest >= requiredDelay;
+  }, [lastRequestTime, getCurrentDelay]);
+  
+  // Get remaining delay time
+  const getRemainingDelay = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    const requiredDelay = getCurrentDelay();
+    return Math.max(0, requiredDelay - timeSinceLastRequest);
+  }, [lastRequestTime, getCurrentDelay]);
+  
+  // Auto-scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    // Scroll the chat-content container (scroll bar inside chat content)
+    const chatContent = document.querySelector('.chat-content');
+    
+    if (chatContent) {
+      chatContent.scrollTop = chatContent.scrollHeight;
+    }
+  }, []);
+  
+  // Auto-scroll when processing starts (thinking animation appears)
+  useEffect(() => {
+    if (isProcessing) {
+      scrollToBottom();
+    }
+  }, [isProcessing, scrollToBottom]);
+
+  // Auto-scroll when new messages are added
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [chatMessages.length, scrollToBottom]);
+
+  // Auto-scroll when switching to chat mode
+  useEffect(() => {
+    if (pageMode === 'chat' && chatMessages.length > 0) {
+      scrollToBottom();
+    }
+  }, [pageMode, chatMessages.length, scrollToBottom]);
+
+  // Show/hide scroll button based on scroll position
+  useEffect(() => {
+    // No need to force body height - container-based scrolling
+    // Remove body height manipulation
+
+    const handleScroll = () => {
+      const chatContent = document.querySelector('.chat-content');
+      if (chatContent) {
+        const scrollTop = chatContent.scrollTop;
+        const scrollHeight = chatContent.scrollHeight;
+        const clientHeight = chatContent.clientHeight;
+        
+        // Check if we're at the bottom (within 10px tolerance)
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
+        
+        // Check if scroll button should be shown
+        setShowScrollButton(!isAtBottom && chatMessages.length > 0);
+      }
+    };
+
+    // Show button if there are messages and content is scrollable
+    if (chatMessages.length > 0) {
+      const chatContent = document.querySelector('.chat-content');
+      if (chatContent) {
+        const isScrollable = chatContent.scrollHeight > chatContent.clientHeight;
+        setShowScrollButton(isScrollable);
+      }
+    } else {
+      setShowScrollButton(false);
+    }
+
+    // Add scroll event listener to chat-content container
+    const chatContent = document.querySelector('.chat-content');
+    if (chatContent) {
+      chatContent.addEventListener('scroll', handleScroll);
+    }
+    handleScroll(); // Check initial state
+
+    return () => {
+      const chatContent = document.querySelector('.chat-content');
+      if (chatContent) {
+        chatContent.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [chatMessages.length, canMakeRequest, getRemainingDelay]);
+  
+  // Handle delay countdown timer
+  useEffect(() => {
+    let interval;
+    
+    if (lastRequestTime > 0 && !canMakeRequest()) {
+      setIsDelayActive(true);
+      
+      interval = setInterval(() => {
+        const remaining = getRemainingDelay();
+        setDelayCountdown(Math.ceil(remaining / 1000));
+        
+        if (remaining <= 0) {
+          setIsDelayActive(false);
+          setDelayCountdown(0);
+          clearInterval(interval);
+        }
+      }, 100);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [lastRequestTime, subscriptionType, canMakeRequest, getRemainingDelay]);
+  
+  // Refresh sidebar when switching to chat mode (for question-only mode only)
+  useEffect(() => {
+    if (pageMode === 'chat' && currentSessionId && onMarkingResultSaved && classificationResult?.isQuestionOnly) {
+      // Small delay to ensure session is fully created before refreshing sidebar
+      const timer = setTimeout(() => {
+        onMarkingResultSaved();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pageMode, currentSessionId, onMarkingResultSaved, classificationResult?.isQuestionOnly]);
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -111,6 +269,53 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     localStorage.removeItem('chatMessages');
     localStorage.setItem('isChatMode', 'false');
   }, []); // Empty dependency array means this runs once on mount
+
+  // Listen for session deletion events to reset to upload mode
+  useEffect(() => {
+    const handleSessionDeleted = () => {
+      setPageMode('upload');
+      setChatMessages([]);
+      setChatInput('');
+      setCurrentSessionId(null);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setClassificationResult(null);
+      setLastUploadedImageData(null);
+      setShowExpandedThinking(false);
+      setShowMarkingSchemeDetails(false);
+      setLoadingProgress(0);
+      // Clear localStorage
+      localStorage.removeItem('chatSessionId');
+      localStorage.removeItem('chatMessages');
+      localStorage.setItem('isChatMode', 'false');
+    };
+
+    const handleSessionsCleared = () => {
+      setPageMode('upload');
+      setChatMessages([]);
+      setChatInput('');
+      setCurrentSessionId(null);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setClassificationResult(null);
+      setLastUploadedImageData(null);
+      setShowExpandedThinking(false);
+      setShowMarkingSchemeDetails(false);
+      setLoadingProgress(0);
+      // Clear localStorage
+      localStorage.removeItem('chatSessionId');
+      localStorage.removeItem('chatMessages');
+      localStorage.setItem('isChatMode', 'false');
+    };
+
+    window.addEventListener('sessionDeleted', handleSessionDeleted);
+    window.addEventListener('sessionsCleared', handleSessionsCleared);
+    
+    return () => {
+      window.removeEventListener('sessionDeleted', handleSessionDeleted);
+      window.removeEventListener('sessionsCleared', handleSessionsCleared);
+    };
+  }, []);
   
   // Handle selected marking result from sidebar
   useEffect(() => {
@@ -165,7 +370,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         }));
         
         // Set messages first, then switch to chat mode
-        setChatMessages(formattedMessages);
+        setChatMessages(deduplicateMessages(formattedMessages));
         setCurrentSessionId(selectedMarkingResult.id);
         
         // Switch to chat mode after messages are set
@@ -209,7 +414,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     if (savedChatMessages) {
       try {
         const messages = JSON.parse(savedChatMessages);
-        setChatMessages(messages);
+        setChatMessages(deduplicateMessages(messages));
       } catch (error) {
         console.error('❌ Failed to parse saved chat messages:', error);
       }
@@ -352,82 +557,82 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   };
 
   // Send initial chat message when switching to chat mode
-  const sendInitialChatMessage = useCallback(async (imageData, model, mode, sessionId = null) => {
-    setIsProcessing(true);
-    
-    try {
-      // Use the provided session ID, current session ID, or let the API create a new one
-      const sessionIdToUse = sessionId || currentSessionId || null;
-      
-      const authToken = await getAuthToken();
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-      
-      const response = await fetch('/api/chat/', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: 'I have a question about this image. Can you help me understand it?',
-          imageData: imageData,
-          model: model,
-          sessionId: sessionIdToUse,
-          ...(mode ? { mode } : {})
-        }),
-      });
+  // const sendInitialChatMessage = useCallback(async (imageData, model, mode, sessionId = null) => {
+  //   setIsProcessing(true);
+  //   
+  //   try {
+  //     // Use the provided session ID, current session ID, or let the API create a new one
+  //     const sessionIdToUse = sessionId || currentSessionId || null;
+  //     
+  //     const authToken = await getAuthToken();
+  //     const headers = {
+  //       'Content-Type': 'application/json',
+  //     };
+  //     if (authToken) {
+  //       headers['Authorization'] = `Bearer ${authToken}`;
+  //     }
+  //     
+  //     const response = await fetch('/api/chat/', {
+  //       method: 'POST',
+  //       headers,
+  //       body: JSON.stringify({
+  //         message: 'I have a question about this image. Can you help me understand it?',
+  //         imageData: imageData,
+  //         model: model,
+  //         sessionId: sessionIdToUse,
+  //         ...(mode ? { mode } : {})
+  //       }),
+  //     });
 
-      const data = await response.json();
+  //     const data = await response.json();
 
-      if (data.success) {
-        // Update session ID if we got a new one
-        if (data.sessionId && data.sessionId !== currentSessionId) {
-          setCurrentSessionId(data.sessionId);
-        }
-        
-        // Add AI response to chat
-        const aiResponse = {
-          id: Date.now() + 2,
-          role: 'assistant',
-          content: data.response,
-          rawContent: data.response, // Store raw content for toggle
-          timestamp: new Date().toLocaleTimeString(),
-          apiUsed: data.apiUsed,
-          showRaw: false // Track raw toggle state
-        };
-        
-        setChatMessages(prev => [...prev, aiResponse]);
-      } else {
-        console.error('🔍 Initial chat failed:', data.error);
-        
-        // Add error message to chat
-        const errorResponse = {
-          id: Date.now() + 2,
-          role: 'assistant',
-          content: 'Sorry, I encountered an error while processing your image. Please try again.',
-          timestamp: new Date().toLocaleTimeString()
-        };
-        
-        setChatMessages(prev => [...prev, errorResponse]);
-      }
-    } catch (error) {
-      console.error('🔍 Initial chat network error:', error);
-      
-      // Add error message to chat
-      const errorResponse = {
-        id: Date.now() + 2,
-        role: 'assistant',
-        content: 'Sorry, I encountered a network error. Please check your connection and try again.',
-        timestamp: new Date().toLocaleTimeString()
-      };
-      
-      setChatMessages(prev => [...prev, errorResponse]);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+  //     if (data.success) {
+  //       // Update session ID if we got a new one
+  //       if (data.sessionId && data.sessionId !== currentSessionId) {
+  //         setCurrentSessionId(data.sessionId);
+  //       }
+  //       
+  //       // Add AI response to chat
+  //       const aiResponse = {
+  //         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  //         role: 'assistant',
+  //         content: data.response,
+  //         rawContent: data.response, // Store raw content for toggle
+  //         timestamp: new Date().toLocaleTimeString(),
+  //         apiUsed: data.apiUsed,
+  //         showRaw: false // Track raw toggle state
+  //       };
+  //       
+  //       setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
+  //     } else {
+  //       console.error('🔍 Initial chat failed:', data.error);
+  //       
+  //       // Add error message to chat
+  //       const errorResponse = {
+  //         id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  //         role: 'assistant',
+  //         content: 'Sorry, I encountered an error while processing your image. Please try again.',
+  //         timestamp: new Date().toLocaleTimeString()
+  //       };
+  //       
+  //       setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
+  //     }
+  //   } catch (error) {
+  //     console.error('🔍 Initial chat network error:', error);
+  //     
+  //     // Add error message to chat
+  //     const errorResponse = {
+  //       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  //       role: 'assistant',
+  //       content: 'Sorry, I encountered a network error. Please check your connection and try again.',
+  //       timestamp: new Date().toLocaleTimeString()
+  //     };
+  //     
+  //     setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // }, [currentSessionId, onMarkingResultSaved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle image analysis
   const handleAnalyzeImage = useCallback(async () => {
@@ -490,21 +695,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         });
         
         // Log session message content before redirecting to chat
-        console.log('🔍 Question Only Upload - Session Message Content:');
-        console.log('📋 Session ID:', result.sessionId);
-        console.log('📋 Original Image Data Length:', imageData ? imageData.length : 'No image data');
-        
-        // Refresh mark history in sidebar
-        if (onMarkingResultSaved) {
-          onMarkingResultSaved();
-        }
         
         // Set the session ID from the response
         setCurrentSessionId(result.sessionId);
         
         // Add initial user message with the image
         const initialUserMessage = {
-          id: Date.now(),
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user',
           content: 'I have a question about this image. Can you help me understand it?',
           timestamp: new Date().toLocaleTimeString(),
@@ -553,7 +750,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               
               // Create AI response message
               const aiResponseMessage = {
-                id: Date.now() + 1,
+                id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 role: 'assistant',
                 content: data.response,
                 timestamp: new Date().toLocaleTimeString(),
@@ -561,22 +758,20 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               };
               
               // Set both user and AI messages (both ready)
-              setChatMessages([initialUserMessage, aiResponseMessage]);
-              console.log('✅ Question-only chat messages set with AI response');
+              setChatMessages(deduplicateMessages([initialUserMessage, aiResponseMessage]));
             } else {
               console.error('❌ Failed to get AI response:', response.status);
               // Fallback - just show user message
-              setChatMessages([initialUserMessage]);
+              setChatMessages(deduplicateMessages([initialUserMessage]));
             }
           } catch (error) {
             console.error('❌ Failed to send original image message to backend:', error);
             // Fallback - just show user message
-            setChatMessages([initialUserMessage]);
+            setChatMessages(deduplicateMessages([initialUserMessage]));
           }
         } else {
           // No sessionId - just show user message
           setChatMessages([initialUserMessage]);
-          console.log('⚠️ No sessionId available, showing user message only');
         }
         
         // Set processing to false after AI response is ready
@@ -597,20 +792,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         questionDetection: result.questionDetection
       });
 
-      // Refresh mark history in sidebar
-      if (onMarkingResultSaved) {
-        onMarkingResultSaved();
-      }
-
-      // Log session message content before redirecting to chat
-      console.log('🔍 Question with Answer Upload - Session Message Content:');
-      console.log('📋 Session ID:', result.sessionId);
-      console.log('📋 Original Image Data Length:', imageData ? imageData.length : 'No image data');
-      console.log('📋 Annotated Image Data Length:', result.annotatedImage ? result.annotatedImage.length : 'No annotated image data');
-      console.log('📋 Marking Instructions:', result.instructions);
-      console.log('📋 Expected Message Sequence:');
-      console.log('  - Index 0: Original image (user message)');
-      console.log('  - Index 1: Annotated image (assistant message)');
 
       // Switch to chat mode with the marked homework
       setPageMode('chat');
@@ -620,7 +801,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       
       // Add the original image message first, then the marked homework message
       const originalImageMessage = {
-        id: Date.now() - 1, // Ensure it comes before the marked message
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Ensure it comes before the marked message
         role: 'user',
         content: 'Original question image',
         timestamp: new Date().toLocaleTimeString(),
@@ -636,7 +817,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       };
       
       const markedMessage = {
-        id: Date.now(),
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'assistant',
         content: 'Marking completed with annotations',
         timestamp: new Date().toLocaleTimeString(),
@@ -650,7 +831,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         }
       };
       
-      setChatMessages([originalImageMessage, markedMessage]);
+      
+      setChatMessages(deduplicateMessages([originalImageMessage, markedMessage]));
       
       // Set processing to false since we have the messages ready
       setIsProcessing(false);
@@ -684,7 +866,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               }
             }),
           });
-          console.log('✅ Original image sent to backend for session persistence');
           
           // Send annotated image to backend for session persistence
           await fetch('/api/chat/', {
@@ -695,10 +876,16 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               imageData: result.annotatedImage,
               model: selectedModel,
               sessionId: result.sessionId,
-              mode: 'marking'
+              mode: 'marking',
+              markingData: {
+                examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
+                questionMarks: result.questionDetection.match?.markingScheme?.questionMarks || result.questionDetection.match?.questionMarks || {},
+                confidence: result.questionDetection.match?.markingScheme?.confidence || result.questionDetection.match?.confidence || 0,
+                markingInstructions: result.instructions || null,
+                ocrResult: result.ocrResult || null
+              }
             }),
           });
-          console.log('✅ Annotated image sent to backend for session persistence');
           
           // Refresh messages from backend
           setTimeout(async () => {
@@ -713,26 +900,36 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 const sessionData = await sessionResponse.json();
                 if (sessionData.success && sessionData.session.messages) {
                   // Format messages for frontend display
-                  const formattedMessages = sessionData.session.messages.map((msg, index) => ({
-                    id: msg.id || `msg-${index}`,
-                    role: msg.role,
-                    content: msg.content,
-                    rawContent: msg.rawContent || msg.content,
-                    timestamp: msg.timestamp || new Date().toLocaleTimeString(),
-                    type: msg.type,
-                    imageData: msg.imageData,
-                    imageLink: msg.imageLink,
-                    markingData: msg.markingData,
-                    model: msg.model,
-                    detectedQuestion: msg.detectedQuestion,
-                    apiUsed: msg.apiUsed,
-                    showRaw: msg.showRaw || false,
-                    isImageContext: msg.isImageContext || false,
-                    historicalData: msg.historicalData
-                  }));
+                  const formattedMessages = sessionData.session.messages.map((msg, index) => {
+                    // Find the corresponding local message to preserve marking data
+                    const localMessage = chatMessages.find(localMsg => localMsg.id === (msg.id || `msg-${index}`));
+                    
+                    return {
+                      id: msg.id || `msg-${index}`,
+                      role: msg.role,
+                      content: msg.content,
+                      rawContent: msg.rawContent || msg.content,
+                      timestamp: msg.timestamp || new Date().toLocaleTimeString(),
+                      type: msg.type,
+                      imageData: msg.imageData,
+                      imageLink: msg.imageLink,
+                      // Preserve marking data from local message if backend doesn't have it
+                      markingData: msg.markingData || (localMessage ? localMessage.markingData : null),
+                      model: msg.model,
+                      detectedQuestion: msg.detectedQuestion,
+                      apiUsed: msg.apiUsed,
+                      showRaw: msg.showRaw || false,
+                      isImageContext: msg.isImageContext || false,
+                      historicalData: msg.historicalData
+                    };
+                  });
                   
-                  setChatMessages(formattedMessages);
-                  console.log('✅ Messages refreshed from backend');
+                  setChatMessages(deduplicateMessages(formattedMessages));
+                  
+                  // Refresh sidebar after backend persistence is complete
+                  if (onMarkingResultSaved) {
+                    onMarkingResultSaved();
+                  }
                 }
               }
             } catch (error) {
@@ -751,13 +948,20 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, selectedModel, onMarkingResultSaved, sendInitialChatMessage]);
+  }, [selectedFile, selectedModel, onMarkingResultSaved, chatMessages, getAuthToken]);
 
 
 
 
    const handleSendMessage = useCallback(async () => {
     if (!chatInput.trim()) return;
+    
+    // Check if enough time has passed since last request
+    if (!canMakeRequest()) {
+      const remainingDelay = getRemainingDelay();
+      console.log(`⏱️ Please wait ${Math.ceil(remainingDelay / 1000)} seconds before sending another message`);
+      return;
+    }
 
     const userMessage = {
       id: Date.now(),
@@ -766,9 +970,15 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       timestamp: new Date().toLocaleTimeString()
     };
 
-    setChatMessages(prev => [...prev, userMessage]);
+    setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
     setChatInput('');
     setIsProcessing(true);
+    
+    // Update last request time
+    setLastRequestTime(Date.now());
+    
+    // Scroll to bottom when user sends message
+    scrollToBottom();
 
     try {
       
@@ -815,7 +1025,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Add AI response to chat
         const aiResponse = {
-          id: Date.now() + 1,
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'assistant',
           content: data.response,
           rawContent: data.response, // Store raw content for toggle
@@ -824,36 +1034,45 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           showRaw: false // Track raw toggle state
         };
         
-        setChatMessages(prev => [...prev, aiResponse]);
+        setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
+        
+        // Scroll to bottom when AI response is received
+        scrollToBottom();
       } else {
         console.error('🔍 Chat failed:', data.error);
         
         // Add error message to chat
         const errorResponse = {
-          id: Date.now() + 1,
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'assistant',
           content: 'Sorry, I encountered an error while processing your message. Please try again.',
           timestamp: new Date().toLocaleTimeString()
         };
         
-        setChatMessages(prev => [...prev, errorResponse]);
+        setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
+        
+        // Scroll to bottom when error response is received
+        scrollToBottom();
       }
     } catch (error) {
       console.error('🔍 Chat network error:', error);
       
       // Add error message to chat
       const errorResponse = {
-        id: Date.now() + 1,
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'assistant',
         content: 'Sorry, I encountered a network error. Please check your connection and try again.',
         timestamp: new Date().toLocaleTimeString()
       };
       
-      setChatMessages(prev => [...prev, errorResponse]);
+      setChatMessages(prev => deduplicateMessages([...prev, errorResponse]));
+      
+      // Scroll to bottom when network error response is received
+      scrollToBottom();
     } finally {
       setIsProcessing(false);
     }
-  }, [chatInput, selectedModel, chatMessages, lastUploadedImageData, currentSessionId, classificationResult]);
+  }, [chatInput, selectedModel, chatMessages, lastUploadedImageData, currentSessionId, classificationResult, scrollToBottom, canMakeRequest, getAuthToken, getRemainingDelay]);
 
   return (
     <>
@@ -994,17 +1213,21 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
             <div className="chat-messages" ref={chatMessagesRef}>
               {chatMessages.map((message, index) => (
                 <div 
-                  key={message.id} 
+                  key={`${message.id}-${index}`} 
                   className={`chat-message ${message.role}`}
                 >
                   <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
                     {message.role === 'assistant' ? (
                       <div>
                         <div className="assistant-header">intellimark</div>
-                        <MarkdownMathRenderer 
-                          content={message.content}
-                          className="chat-message-renderer"
-                        />
+                        
+                        {/* Only show content for regular chat messages, not marking messages */}
+                        {message.type !== 'marking_annotated' && message.type !== 'marking_original' && message.content && message.content.trim() !== '' && (
+                          <MarkdownMathRenderer 
+                            content={message.content}
+                            className="chat-message-renderer"
+                          />
+                        )}
                         
                         {/* Handle marking messages with annotated images */}
                         {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
@@ -1020,31 +1243,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                               }}
                             />
                             
-                            {/* Display marking data if available */}
-                            {message.markingData && (
-                              <div className="marking-data-display">
-                                <h5>📊 Marking Details</h5>
-                                {message.markingData.ocrResult?.extractedText && (
-                                  <div className="extracted-text">
-                                    <strong>Extracted Text:</strong>
-                                    <div className="text-content">{message.markingData.ocrResult.extractedText}</div>
-                                  </div>
-                                )}
-                                {message.markingData.markingInstructions?.annotations?.length > 0 && (
-                                  <div className="annotations-list">
-                                    <strong>Annotations:</strong>
-                                    <ul>
-                                      {message.markingData.markingInstructions.annotations.map((annotation, index) => (
-                                        <li key={index}>
-                                          <span className="annotation-action">{annotation.action}:</span>
-                                          {annotation.text && <span className="annotation-text">{annotation.text}</span>}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            )}
                           </div>
                         )}
                         
@@ -1092,12 +1290,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                           className="raw-toggle-btn"
                           onClick={() => {
                             // const rawContent = message.rawContent || message.content; // Removed - not used
-                            if (message.showRaw) {
-                              message.showRaw = false;
-                            } else {
-                              message.showRaw = true;
-                            }
-                            setChatMessages([...chatMessages]);
+                            setChatMessages(prev => prev.map(msg => 
+                              msg.id === message.id 
+                                ? { ...msg, showRaw: !msg.showRaw }
+                                : msg
+                            ));
                           }}
                           style={{marginTop: '8px', fontSize: '12px'}}
                         >
@@ -1239,7 +1436,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                      </div>
                    </div>
                  </div>
-               ))}
+              ))}
                
                {/* AI Thinking Loading Animation */}
                {isProcessing && (
@@ -1267,8 +1464,29 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                  </div>
                )}
                
+               {/* Scroll to Bottom Button */}
+               <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : ''}`}>
+                 <button 
+                   className="scroll-to-bottom-btn"
+                   onClick={scrollToBottom}
+                   title="Scroll to bottom"
+                 >
+                   <ChevronDown size={20} />
+                 </button>
+               </div>
+               
+               
+               
+               
+               {/* Force scrollable content - temporary */}
+               <div style={{ 
+                 height: '800px', 
+                 background: 'transparent',
+                 minHeight: '800px',
+                 display: 'block'
+               }}></div>
 
-             </div>
+            </div>
           </div>
           
           {/* Bottom Input Bar - chat input bar (bottom aligned) */}
@@ -1321,6 +1539,21 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                       </div>
                     )}
                   </div>
+                  
+                  {/* Subscription Type Selector */}
+                  <div className="subscription-selector">
+                    <select 
+                      value={subscriptionType} 
+                      onChange={(e) => setSubscriptionType(e.target.value)}
+                      disabled={isProcessing || isDelayActive}
+                      className="subscription-select"
+                    >
+                      <option value="free">Free ({subscriptionDelays.free / 1000}s delay)</option>
+                      <option value="pro">Pro ({subscriptionDelays.pro / 1000}s delay)</option>
+                      <option value="enterprise">Enterprise ({subscriptionDelays.enterprise / 1000}s delay)</option>
+                    </select>
+                  </div>
+                  
                   {/* Upload Image Button */}
                   <button 
                     className="upload-btn"
@@ -1341,10 +1574,12 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 <button 
                   className="send-btn"
                   onClick={handleSendMessage}
-                  disabled={isProcessing || !chatInput.trim()}
+                  disabled={isProcessing || !chatInput.trim() || isDelayActive}
                 >
                   {isProcessing ? (
                     <div className="send-spinner"></div>
+                  ) : isDelayActive ? (
+                    <span className="delay-countdown">{delayCountdown}s</span>
                   ) : (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 2L11 13"/>

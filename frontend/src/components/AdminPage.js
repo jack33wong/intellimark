@@ -3,9 +3,9 @@ import {
   FileText, 
   Trash2, 
   Database,
-  ClipboardList
+  ClipboardList,
+  Search
 } from 'lucide-react';
-import Sidebar from './Sidebar';
 import './AdminPage.css';
 
 // Utility functions
@@ -50,6 +50,9 @@ function AdminPage() {
   const [markingSchemeForm, setMarkingSchemeForm] = useState({
     markingSchemeData: ''
   });
+  
+  // Query tab state
+  const [isClearingSessions, setIsClearingSessions] = useState(false);
   
   // Constants
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
@@ -305,7 +308,45 @@ function AdminPage() {
       setError(`Error uploading marking scheme: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [markingSchemeForm, API_BASE, resetMarkingSchemeForm, isMarkingSchemeFormValid]);
+  }, [markingSchemeForm, API_BASE, resetMarkingSchemeForm, isMarkingSchemeFormValid, loadMarkingSchemeEntries]);
+
+  // Clear all sessions data
+  const clearAllSessions = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete ALL chat sessions? This action cannot be undone and will remove all user conversation history.')) {
+      return;
+    }
+    
+    setIsClearingSessions(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/clear-all-sessions`, {
+        method: 'DELETE'
+      });
+      
+            if (response.ok) {
+              const result = await response.json();
+              console.log('All sessions cleared:', result.message);
+              setError(`✅ All chat sessions have been cleared successfully.`);
+              setTimeout(() => setError(null), 5000);
+              
+              // Dispatch custom event to notify sidebar to refresh
+              window.dispatchEvent(new CustomEvent('sessionsCleared'));
+              
+              // Navigate to mark homework page after clearing all sessions
+              window.location.href = '/mark-homework';
+            } else {
+        const error = await response.json();
+        console.error('Failed to clear sessions:', error);
+        setError(`Failed to clear sessions: ${error.error}`);
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (error) {
+      console.error('Error clearing sessions:', error);
+      setError(`Error clearing sessions: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsClearingSessions(false);
+    }
+  }, [API_BASE]);
 
   // Handle JSON form input changes
   const handleJsonInputChange = useCallback((field, value) => {
@@ -334,7 +375,6 @@ function AdminPage() {
   if (loading) {
     return (
       <div className="admin-page">
-        <Sidebar />
         <div className="admin-content">
           <div className="loading-container">
             <div className="loading-spinner"></div>
@@ -347,7 +387,6 @@ function AdminPage() {
   
   return (
     <div className="admin-page">
-      <Sidebar />
       <div className="admin-content">
         <div className="admin-header">
           <h1>Admin Panel</h1>
@@ -376,6 +415,13 @@ function AdminPage() {
           >
             <ClipboardList size={16} />
             Marking Scheme
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'query' ? 'active' : ''}`}
+            onClick={() => setActiveTab('query')}
+          >
+            <Search size={16} />
+            Query
           </button>
               </div>
 
@@ -985,6 +1031,50 @@ function AdminPage() {
           </div>
               )}
           </div>
+          </div>
+        )}
+
+        {/* Query Tab */}
+        {activeTab === 'query' && (
+          <div className="tab-content">
+            <div className="section-header">
+              <h2>Database Queries</h2>
+              <p>Execute database operations and manage system data</p>
+            </div>
+            
+            {/* Clear Sessions Panel */}
+            <div className="query-section">
+              <div className="query-panel">
+                <div className="query-panel-header">
+                  <h3>Clear All Sessions</h3>
+                  <p>Remove all chat session data from the database</p>
+                </div>
+                
+                <div className="query-panel-content">
+                  <div className="query-description">
+                    <p><strong>Warning:</strong> This action will permanently delete all chat sessions and conversation history from the database. This includes:</p>
+                    <ul>
+                      <li>All user chat sessions (authenticated and anonymous)</li>
+                      <li>All conversation messages and AI responses</li>
+                      <li>All uploaded images and annotations</li>
+                      <li>All session metadata and timestamps</li>
+                    </ul>
+                    <p><strong>This action cannot be undone.</strong></p>
+                  </div>
+                  
+                  <div className="query-actions">
+                    <button
+                      className="btn btn-danger"
+                      onClick={clearAllSessions}
+                      disabled={isClearingSessions}
+                    >
+                      <Trash2 size={16} />
+                      {isClearingSessions ? 'Clearing Sessions...' : 'Clear All Sessions'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

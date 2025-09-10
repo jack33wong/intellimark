@@ -35,7 +35,7 @@ type DetectedBlock = {
 };
 
 // --- Configuration ---
-const IMAGE_FILE_NAME = '../../testingdata/test5.png';
+const IMAGE_FILE_NAME = '../../testingdata/test3.png';
 const OUTPUT_JSON_FILE = 'analysis_result.json';
 const OUTPUT_VERIFICATION_IMAGE = 'verification_overlay.png';
 const RESIZE_FACTOR = 2; // Enlarge image for the aggressive pass
