@@ -256,7 +256,7 @@ export class SVGOverlayService {
     // Using Discipuli Britannica font for comments
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
     return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
-            font-family="'Lucida Handwriting', cursive, Arial, sans-serif" 
+            font-family="'Lucida Handwriting', 'Lucida Calligraphy', 'Brush Script MT', 'Comic Sans MS', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;
   }
