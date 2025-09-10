@@ -4,6 +4,7 @@ import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { useAuth } from '../contexts/AuthContext';
+import { FirestoreService } from '../services/firestoreService';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
   const { getAuthToken } = useAuth();
@@ -46,6 +47,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   // === CHAT MODE STATE ===
   const [chatMessages, setChatMessages] = useState([]);
   const [sessionTitle, setSessionTitle] = useState('Chat Session');
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
 
   // Helper function to deduplicate messages by ID
   const deduplicateMessages = (messages) => {
@@ -57,6 +61,45 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       seen.add(message.id);
       return true;
     });
+  };
+
+  // Handle favorite toggle
+  const handleFavoriteToggle = async () => {
+    if (!currentSessionId) return;
+    
+    const newFavoriteState = !isFavorite;
+    setIsFavorite(newFavoriteState);
+    
+    try {
+      const authToken = await getAuthToken();
+      await FirestoreService.updateChatSession(currentSessionId, {
+        favorite: newFavoriteState
+      }, authToken);
+    } catch (error) {
+      console.error('Failed to update favorite status:', error);
+      // Revert on error
+      setIsFavorite(!newFavoriteState);
+    }
+  };
+
+  // Handle rating change
+  const handleRatingChange = async (newRating) => {
+    if (!currentSessionId) return;
+    
+    const previousRating = rating;
+    const numericRating = Number(newRating);
+    setRating(numericRating);
+    
+    try {
+      const authToken = await getAuthToken();
+      await FirestoreService.updateChatSession(currentSessionId, {
+        rating: numericRating
+      }, authToken);
+    } catch (error) {
+      console.error('Failed to update rating:', error);
+      // Revert on error
+      setRating(previousRating);
+    }
   };
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -347,6 +390,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Store the session title for display
         setSessionTitle(selectedMarkingResult.title || 'Chat Session');
+        
+        // Load favorite and rating from session
+        setIsFavorite(selectedMarkingResult.favorite || false);
+        setRating(Number(selectedMarkingResult.rating) || 0);
         
         // Switch to chat mode after messages are set
         setPageMode('chat');
@@ -948,133 +995,123 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               <div className="chat-header-content">
                 <div className="chat-header-left">
                   <h1>
-                    {sessionTitle}
+                    {sessionTitle.length > 100 ? sessionTitle.substring(0, 100) + '...' : sessionTitle}
                   </h1>
                 </div>
                 <div className="chat-header-right">
+                <div className="info-dropdown-container">
+                  <button 
+                    className="header-btn info-btn"
+                    onClick={() => {
+                      setShowInfoDropdown(!showInfoDropdown);
+                    }}
+                    title="Information"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 16v-4"/>
+                      <path d="M12 8h.01"/>
+                    </svg>
+                  </button>
+                  
+                  {/* Info Dropdown */}
+                  {showInfoDropdown && (
+                    <div className="info-dropdown">
+                      <div className="info-dropdown-content">
+                        {/* Header */}
+                        <div className="dropdown-header">
+                          <h3>Task Details</h3>
+                        </div>
+                        
+                        {/* Main Content */}
+                        <div className="dropdown-main-content">
+                          {/* Label-Value Pairs */}
+                          <div className="label-value-pairs">
+                            <div className="label-value-item">
+                              <span className="label">Title:</span>
+                              <span className="value">{sessionTitle.length > 30 ? sessionTitle.substring(0, 30) + '...' : sessionTitle}</span>
+                            </div>
+                            <div className="label-value-item">
+                              <span className="label">Question Type:</span>
+                              <span className="value">{classificationResult?.classification?.questionType || 'Math Problem'}</span>
+                            </div>
+                            <div className="label-value-item">
+                              <span className="label">Difficulty:</span>
+                              <span className="value">{classificationResult?.classification?.difficulty || 'Medium'}</span>
+                            </div>
+                            <div className="label-value-item">
+                              <span className="label">Subject:</span>
+                              <span className="value">{classificationResult?.classification?.subject || 'Mathematics'}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Agent and Speed */}
+                          <div className="agent-speed-section">
+                            <div className="agent-info">
+                              <span className="label">Agent:</span>
+                              <span className="value">AI Tutor v2.1</span>
+                            </div>
+                            <div className="speed-info">
+                              <span className="label">Speed:</span>
+                              <span className="value">Fast</span>
+                            </div>
+                          </div>
+                          
+                          {/* Rating */}
+                            <div className="rating-section">
+                              <span className="label">Rating:</span>
+                              <div 
+                                className="star-rating"
+                                onMouseLeave={() => setHoveredRating(0)}
+                              >
+                                {[1, 2, 3, 4, 5].map((starValue) => {
+                                  const displayRating = hoveredRating || rating;
+                                  const isFilled = starValue <= displayRating;
+                                  return (
+                                    <span 
+                                      key={starValue}
+                                      className={`star ${isFilled ? 'filled' : ''}`}
+                                      onClick={() => handleRatingChange(starValue)}
+                                      onMouseEnter={() => setHoveredRating(starValue)}
+                                      style={{ cursor: 'pointer' }}
+                                    >
+                                      ★
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                        </div>
+                        
+                        {/* Footer */}
+                        <div className="dropdown-footer">
+                          <div className="token-count">
+                            <span className="label">Tokens:</span>
+                            <span className="value">1,247</span>
+                          </div>
+                          <div className="last-update">
+                            <span className="label">Last Update:</span>
+                            <span className="value">{new Date().toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
                 <button 
-                  className="header-btn info-btn"
-                  onClick={() => {
-                    setShowInfoDropdown(!showInfoDropdown);
-                  }}
-                  title="Information"
+                  className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
+                  onClick={handleFavoriteToggle}
+                  title={isFavorite ? "Remove from favorites" : "Add to favorites"}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <path d="M12 16v-4"/>
-                    <path d="M12 8h.01"/>
-                  </svg>
-                </button>
-                <button 
-                  className="header-btn bookmark-btn"
-                  onClick={() => {
-                    // TODO: Implement bookmark functionality
-                  }}
-                  title="Bookmark"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
                 </button>
                 </div>
               </div>
             </div>
             
-            {/* Info Dropdown */}
-            {showInfoDropdown && (
-              <div className="info-dropdown" style={{border: '2px solid red', background: 'yellow'}}>
-                <div className="info-dropdown-content">
-                  <div className="classification-info-chat">
-                    <p><strong>Test Dropdown:</strong> This should be visible!</p>
-                    {classificationResult ? (
-                      <p><strong>Question Mode:</strong> {classificationResult.reasoning}</p>
-                    ) : (
-                      <p>No classification result available</p>
-                    )}
-
-                    {/* Exam Paper Detection for Chat Mode */}
-                    {classificationResult && classificationResult.questionDetection && classificationResult.questionDetection.found && (
-                      <div className="exam-paper-header-chat">
-                         <div className="exam-paper-info-chat" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'}}>
-                           <div style={{display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap'}}>
-                             <h5 style={{margin: '0', fontSize: '16px'}}>📄 Detected Exam Paper</h5>
-                             <div className="exam-paper-details-chat" style={{display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap'}}>
-                               <span className="exam-board">{classificationResult.questionDetection.match.board}</span>
-                               <span className="exam-qualification">{classificationResult.questionDetection.match.qualification}</span>
-                               <span className="exam-paper-code">{classificationResult.questionDetection.match.paperCode}</span>
-                               <span className="exam-year">{classificationResult.questionDetection.match.year}</span>
-                               {classificationResult.questionDetection.match.questionNumber && (
-                                 <span className="question-number">Question {classificationResult.questionDetection.match.questionNumber}</span>
-                               )}
-                               {classificationResult.questionDetection.match.confidence && (
-                                 <span className="confidence-score" style={{fontSize: '12px', color: 'var(--secondary-text)'}}>
-                                   ({Math.round(classificationResult.questionDetection.match.confidence * 100)}% match)
-                                 </span>
-                               )}
-                             </div>
-                           </div>
-                           {classificationResult.questionDetection.match.markingScheme && (
-                             <button 
-                               className="marking-scheme-btn"
-                               onClick={() => {
-                                 setShowMarkingSchemeDetails(!showMarkingSchemeDetails);
-                               }}
-                               title="Toggle Marking Scheme Details"
-                               style={{marginLeft: 'auto', flexShrink: 0}}
-                             >
-                               📋 {showMarkingSchemeDetails ? 'Hide' : 'View'} Marking Scheme
-                             </button>
-                           )}
-                         </div>
-
-                         {/* Expandable Marking Scheme Details */}
-                         {classificationResult.questionDetection.match.markingScheme && showMarkingSchemeDetails && (
-                           <div className="marking-scheme-details" style={{
-                             marginTop: '12px',
-                             padding: '16px',
-                             background: 'var(--tertiary-bg)',
-                             border: '1px solid var(--border-color)',
-                             borderRadius: '18px',
-                             fontSize: '14px',
-                             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                             transition: 'all 0.2s ease'
-                           }}>
-                             <div style={{marginBottom: '12px'}}>
-                               <strong>Answer:</strong> {classificationResult.questionDetection.match.markingScheme.questionMarks.answer}
-                             </div>
-                             
-                             <div style={{marginBottom: '12px'}}>
-                               <strong>Marks:</strong>
-                               <ul style={{margin: '8px 0', paddingLeft: '20px'}}>
-                                 {classificationResult.questionDetection.match.markingScheme.questionMarks.marks.map((mark, index) => (
-                                   <li key={index} style={{marginBottom: '6px'}}>
-                                     <strong>{mark.mark}:</strong> {mark.answer}
-                                     {mark.comments && <span style={{color: 'var(--secondary-text)', fontStyle: 'italic'}}> ({mark.comments})</span>}
-                                   </li>
-                                 ))}
-                               </ul>
-                             </div>
-                             
-                             {classificationResult.questionDetection.match.markingScheme.questionMarks.guidance && classificationResult.questionDetection.match.markingScheme.questionMarks.guidance.length > 0 && (
-                               <div>
-                                 <strong>Guidance:</strong>
-                                 <ul style={{margin: '8px 0', paddingLeft: '20px'}}>
-                                   {classificationResult.questionDetection.match.markingScheme.questionMarks.guidance.map((guidance, index) => (
-                                     <li key={index} style={{marginBottom: '4px', color: 'var(--secondary-text)'}}>
-                                       <strong>{guidance.scenario}:</strong> {guidance.outcome}
-                                     </li>
-                                   ))}
-                                 </ul>
-                               </div>
-                             )}
-                           </div>
-                         )}
-                       </div>
-                     )}
-                   </div>
-                 </div>
-               </div>
-            )}
           
           <div className="chat-messages">
               {chatMessages.map((message, index) => (

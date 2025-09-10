@@ -299,6 +299,15 @@
   opacity: 0.5;
 }
 
+/* Inline Favorite Star */
+.favorite-star-inline {
+  color: #ffc107; /* Gold color for favorited sessions */
+  fill: #ffc107;
+  margin-right: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 .mark-history-delete-btn {
   background: transparent;
   border: none;

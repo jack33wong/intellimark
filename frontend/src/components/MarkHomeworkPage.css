@@ -864,13 +864,189 @@
 }
 
 .header-btn.info-btn,
-.header-btn.bookmark-btn {
+.header-btn.favorite-btn {
   background: none;
 }
 
 .header-btn.info-btn:hover,
-.header-btn.bookmark-btn:hover {
+.header-btn.favorite-btn:hover {
   background: rgba(127, 0, 255, 0.1);
+}
+
+.header-btn.favorite-btn.favorited {
+  color: #ffc107; /* Gold color for favorited state */
+}
+
+.header-btn.favorite-btn.favorited:hover {
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffc107;
+}
+
+/* Info Dropdown Container - Position relative for dropdown positioning */
+.info-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Info Dropdown - Match User Profile Dropdown Style */
+.info-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #363537; /* Match chat history input background */
+  border: 1px solid #111827; /* Darker border to match chat input */
+  border-radius: 16px; /* More rounded corners */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  min-width: 380px; /* Even wider dropdown */
+  z-index: 10000 !important;
+  opacity: 1;
+  transform: translateY(0);
+  animation: dropdownSlideIn 0.3s ease-out;
+}
+
+.info-dropdown.closing {
+  animation: dropdownSlideOut 0.3s ease-in forwards;
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.info-dropdown-content {
+  padding: 20px;
+  background: #363537; /* Match chat history input background */
+  border-radius: 16px; /* Match parent rounded corners */
+  overflow: hidden; /* Ensure content respects rounded corners */
+}
+
+/* Dropdown Header */
+.dropdown-header {
+  border-bottom: 1px solid #111827; /* Darker border to match chat input */
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.dropdown-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff; /* White text for contrast */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dropdown Main Content */
+.dropdown-main-content {
+  margin-bottom: 16px;
+}
+
+/* Label-Value Pairs */
+.label-value-pairs {
+  margin-bottom: 16px;
+}
+
+.label-value-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #111827; /* Darker border to match chat input */
+}
+
+.label-value-item:last-child {
+  border-bottom: none;
+}
+
+.label-value-item .label {
+  font-size: 13px;
+  color: #adb5bd; /* Light grey text */
+  font-weight: 500;
+}
+
+.label-value-item .value {
+  font-size: 13px;
+  color: #ffffff; /* White text for contrast */
+  font-weight: 600;
+}
+
+/* Agent and Speed Section */
+.agent-speed-section {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #2a2a2b; /* Darker background for contrast */
+  border-radius: 12px; /* More rounded corners */
+  border: 1px solid #111827; /* Darker border to match chat input */
+}
+
+.agent-info, .speed-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-info .label, .speed-info .label {
+  font-size: 11px;
+  color: #adb5bd; /* Light grey text */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-info .value, .speed-info .value {
+  font-size: 14px;
+  color: #ffffff; /* White text for contrast */
+  font-weight: 600;
+}
+
+/* Rating Section */
+.rating-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rating-section .label {
+  font-size: 13px;
+  color: #adb5bd; /* Light grey text */
+  font-weight: 500;
+}
+
+.star-rating {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  font-size: 16px;
+  color: #6c757d; /* Medium grey for empty stars */
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.star.filled {
+  color: #ffc107; /* Gold color for filled stars */
+}
+
+/* Dropdown Footer */
+.dropdown-footer {
+  border-top: 1px solid #111827; /* Darker border to match chat input */
+  padding-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.dropdown-footer .label {
+  color: #adb5bd; /* Light grey text */
+  margin-right: 4px;
+}
+
+.dropdown-footer .value {
+  color: #ffffff; /* White text for contrast */
+  font-weight: 500;
 }
 
 /* Back Button - House Style */

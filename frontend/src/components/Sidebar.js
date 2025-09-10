@@ -7,7 +7,8 @@ import {
   Clock,
   Trash2,
   Menu,
-  X
+  X,
+  Star
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
@@ -170,6 +171,8 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       return chatSessions.filter(session => session.messageType === 'Marking');
     } else if (activeTab === 'question') {
       return chatSessions.filter(session => session.messageType === 'Question');
+    } else if (activeTab === 'favorite') {
+      return chatSessions.filter(session => session.favorite === true);
     }
     return chatSessions;
   };
@@ -325,6 +328,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
             >
               Question
             </button>
+            <button 
+              className={`mark-history-tab ${activeTab === 'favorite' ? 'active' : ''}`}
+              onClick={() => setActiveTab('favorite')}
+            >
+              Favorite
+            </button>
           </div>
           <div className="mark-history-scrollable">
             {isLoadingSessions ? (
@@ -345,7 +354,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
             <div className="mark-history-placeholder">
               <div className="placeholder-item">
                 <BookOpen size={16} />
-                <span>No {activeTab === 'all' ? '' : activeTab} sessions yet</span>
+                <span>No {activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet</span>
               </div>
             </div>
           ) : (
@@ -364,6 +373,9 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                   {/* Content: Title (top) and Last Message (bottom) */}
                   <div className="mark-history-content">
                     <div className="mark-history-item-title">
+                      {session.favorite && (
+                        <Star size={14} className="favorite-star-inline" />
+                      )}
                       {getSessionTitle(session)}
                     </div>
                     <div className="mark-history-last-message">

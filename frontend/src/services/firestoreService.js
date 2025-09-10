@@ -88,13 +88,32 @@ export class FirestoreService {
    * Update an existing chat session
    * @param {string} sessionId - Session identifier
    * @param {Object} updates - Fields to update
+   * @param {string} authToken - Authentication token
    * @returns {Promise<boolean>} Success status
    */
-  static async updateChatSession(sessionId, updates) {
+  static async updateChatSession(sessionId, updates, authToken = null) {
     try {
-      // For now, we'll use a simple approach - in a real app, you might want a dedicated endpoint
-      console.log(`Updating session ${sessionId}:`, updates);
-      return true;
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add authorization header if token is provided
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.success;
     } catch (error) {
       console.error('Failed to update chat session:', error);
       return false;
