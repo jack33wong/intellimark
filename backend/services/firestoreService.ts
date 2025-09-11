@@ -346,6 +346,8 @@ export class FirestoreService {
     messages: any[];
     userId?: string;
     messageType?: 'Marking' | 'Question' | 'Chat';
+    favorite?: boolean;
+    rating?: number;
   }): Promise<string> {
     try {
       
@@ -384,7 +386,9 @@ export class FirestoreService {
         updatedAt: new Date().toISOString(),
         contextSummary: (sessionData as any).contextSummary || null,
         lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null,
-        messageType: sessionData.messageType || 'Chat'
+        messageType: sessionData.messageType || 'Chat',
+        favorite: (sessionData as any).favorite || false,
+        rating: (sessionData as any).rating || 0
       };
 
       // Debug: Log the final payload before Firestore write
@@ -469,14 +473,14 @@ export class FirestoreService {
       const sessions = snapshot.docs.map(doc => {
         const data = doc.data();
         
-        // Process messages to convert Firestore timestamps and exclude image data for performance
+        // Process messages to convert Firestore timestamps and include image data
         const processedMessages = (data.messages || []).map((msg: any) => ({
           ...msg,
           timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
                     (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
                      (msg.timestamp ? new Date(msg.timestamp) : new Date())),
-          // Exclude imageData to reduce response size for session list
-          imageData: undefined,
+          // Include imageData for complete session data
+          imageData: msg.imageData,
           // Keep hasImage flag to indicate if message originally had image data
           hasImage: !!msg.imageData
         }));

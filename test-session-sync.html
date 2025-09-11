@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session Sync Test</title>
+</head>
+<body>
+    <h1>Session Sync Test</h1>
+    <p>This page tests if the session sync fixes are working.</p>
+    
+    <h2>Test Steps:</h2>
+    <ol>
+        <li>Open the main app at <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></li>
+        <li>Upload an image to create a new session</li>
+        <li>Check that the session appears in the sidebar</li>
+        <li>Click the favorite star in the chat header</li>
+        <li>Verify that the sidebar updates immediately (star should appear in sidebar)</li>
+        <li>Click on a rating star (1-5 stars)</li>
+        <li>Verify that the sidebar updates immediately</li>
+        <li>Click on a different session in the sidebar</li>
+        <li>Verify that the favorite/rating state loads correctly</li>
+    </ol>
+    
+    <h2>Expected Results:</h2>
+    <ul>
+        <li>✅ Sidebar updates immediately when favorite is toggled</li>
+        <li>✅ Sidebar updates immediately when rating is changed</li>
+        <li>✅ Favorite/rating state persists when switching between sessions</li>
+        <li>✅ New sessions are created with favorite=false and rating=0 by default</li>
+    </ul>
+    
+    <h2>Console Logs to Check:</h2>
+    <p>Open browser console and look for:</p>
+    <ul>
+        <li>No "sessionManager.on is not a function" errors</li>
+        <li>No 404 errors for API calls</li>
+        <li>Successful API responses for session updates</li>
+    </ul>
+    
+    <script>
+        console.log('Session Sync Test Page Loaded');
+        console.log('Frontend should be running at http://localhost:3000');
+        console.log('Backend should be running at http://localhost:5001');
+    </script>
+</body>
+</html>

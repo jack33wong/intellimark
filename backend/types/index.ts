@@ -255,6 +255,8 @@ export interface CreateChatSessionData {
   messages: ChatMessage[];
   userId?: string;
   messageType?: 'Marking' | 'Question' | 'Chat';
+  favorite?: boolean;
+  rating?: number;
 }
 
 export interface ChatHistory {

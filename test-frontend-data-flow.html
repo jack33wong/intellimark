@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Data Flow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .result { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Frontend Data Flow Test</h1>
+    <p>This test simulates exactly what the frontend does to load sessions.</p>
+
+    <div class="test-section">
+        <h3>📥 Test Frontend API Call</h3>
+        <button onclick="testFrontendAPICall()">Test Frontend API Call (Same as Sidebar)</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎯 Test Session Click (Same as MarkHomeworkPage)</h3>
+        <button onclick="testSessionClick()">Test Session Click</button>
+        <div id="clickResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        let testSessions = [];
+
+        async function testFrontendAPICall() {
+            const resultDiv = document.getElementById('apiResult');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                // This is exactly what the frontend does in Sidebar.js
+                const response = await fetch(`${API_BASE}/chat/sessions/anonymous`);
+                const data = await response.json();
+                
+                console.log('🔍 DEBUG: Frontend API response:', data);
+                
+                if (data.success) {
+                    const sessions = data.sessions || [];
+                    testSessions = sessions;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Frontend API call successful!<br>
+                            <strong>Sessions found:</strong> ${sessions.length}<br>
+                            ${sessions.length > 0 ? `
+                                <strong>First session:</strong><br>
+                                <pre>${JSON.stringify(sessions[0], null, 2)}</pre>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            ❌ Frontend API call failed: ${data.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ Request failed: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function testSessionClick() {
+            const resultDiv = document.getElementById('clickResult');
+            
+            if (testSessions.length === 0) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ No sessions available. Run the API test first.
+                    </div>
+                `;
+                return;
+            }
+            
+            // This simulates what happens when a session is clicked in the sidebar
+            const session = testSessions[0];
+            
+            console.log('🔍 DEBUG: Session clicked (selectedMarkingResult):', session);
+            console.log('🔍 DEBUG: Session favorite/rating:', {
+                favorite: session.favorite,
+                rating: session.rating
+            });
+            
+            // Simulate the MarkHomeworkPage logic
+            const favorite = session.favorite || false;
+            const rating = Number(session.rating) || 0;
+            
+            resultDiv.innerHTML = `
+                <div class="success">
+                    ✅ Session click simulation successful!<br>
+                    <strong>Session ID:</strong> ${session.id}<br>
+                    <strong>Session Title:</strong> ${session.title}<br>
+                    <strong>Favorite (raw):</strong> ${session.favorite}<br>
+                    <strong>Rating (raw):</strong> ${session.rating}<br>
+                    <strong>Favorite (processed):</strong> ${favorite}<br>
+                    <strong>Rating (processed):</strong> ${rating}<br>
+                    <strong>Full session data:</strong><br>
+                    <pre>${JSON.stringify(session, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        // Auto-run API test on page load
+        window.onload = function() {
+            console.log('🔍 Frontend Data Flow Test Page Loaded');
+            testFrontendAPICall();
+        };
+    </script>
+</body>
+</html>

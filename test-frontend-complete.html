@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Frontend Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        .result { margin-top: 10px; }
+        .session-item { border: 1px solid #ccc; margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .favorite-star { color: gold; }
+        .rating { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Complete Frontend Test</h1>
+    <p>This test simulates the exact frontend behavior to verify favorite/rating display.</p>
+
+    <div class="test-section">
+        <h3>📥 Load Sessions (Same as Sidebar)</h3>
+        <button onclick="loadSessions()">Load Sessions</button>
+        <div id="sessionsResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎯 Display Sessions (Same as Sidebar)</h3>
+        <div id="sessionsDisplay"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔍 Session Click Test (Same as MarkHomeworkPage)</h3>
+        <button onclick="testSessionClick()">Test Session Click</button>
+        <div id="clickResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        let testSessions = [];
+
+        async function loadSessions() {
+            const resultDiv = document.getElementById('sessionsResult');
+            resultDiv.innerHTML = 'Loading...';
+            
+            try {
+                // This is exactly what the frontend does in Sidebar.js
+                const response = await fetch(`${API_BASE}/chat/sessions/anonymous`);
+                const data = await response.json();
+                
+                console.log('🔍 DEBUG: Sessions loaded:', data);
+                
+                if (data.success) {
+                    const sessions = data.sessions || [];
+                    testSessions = sessions;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Sessions loaded successfully!<br>
+                            <strong>Count:</strong> ${sessions.length}
+                        </div>
+                    `;
+                    
+                    displaySessions(sessions);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            ❌ Failed to load sessions: ${data.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        ❌ Request failed: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function displaySessions(sessions) {
+            const displayDiv = document.getElementById('sessionsDisplay');
+            
+            if (sessions.length === 0) {
+                displayDiv.innerHTML = '<p>No sessions found</p>';
+                return;
+            }
+            
+            let html = '<h4>Sessions:</h4>';
+            sessions.forEach((session, index) => {
+                html += `
+                    <div class="session-item" onclick="selectSession(${index})">
+                        <div>
+                            <strong>Title:</strong> ${session.title}
+                        </div>
+                        <div>
+                            <strong>ID:</strong> ${session.id}
+                        </div>
+                        <div>
+                            <strong>Favorite:</strong> 
+                            <span class="favorite-star">${session.favorite ? '⭐' : '☆'}</span>
+                            (${session.favorite})
+                        </div>
+                        <div>
+                            <strong>Rating:</strong> 
+                            <span class="rating">${'★'.repeat(session.rating || 0)}</span>
+                            (${session.rating})
+                        </div>
+                        <div>
+                            <strong>Raw Data:</strong>
+                            <pre>${JSON.stringify({
+                                favorite: session.favorite,
+                                rating: session.rating
+                            }, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            displayDiv.innerHTML = html;
+        }
+
+        function selectSession(index) {
+            const session = testSessions[index];
+            console.log('🔍 DEBUG: Session selected:', session);
+            console.log('🔍 DEBUG: Favorite/Rating:', {
+                favorite: session.favorite,
+                rating: session.rating
+            });
+            
+            // Simulate MarkHomeworkPage logic
+            const favorite = session.favorite || false;
+            const rating = Number(session.rating) || 0;
+            
+            document.getElementById('clickResult').innerHTML = `
+                <div class="success">
+                    ✅ Session clicked successfully!<br>
+                    <strong>Title:</strong> ${session.title}<br>
+                    <strong>Favorite (raw):</strong> ${session.favorite}<br>
+                    <strong>Rating (raw):</strong> ${session.rating}<br>
+                    <strong>Favorite (processed):</strong> ${favorite}<br>
+                    <strong>Rating (processed):</strong> ${rating}<br>
+                    <strong>Favorite truthy:</strong> ${!!session.favorite}<br>
+                    <strong>Rating truthy:</strong> ${!!session.rating}
+                </div>
+            `;
+        }
+
+        function testSessionClick() {
+            if (testSessions.length === 0) {
+                document.getElementById('clickResult').innerHTML = `
+                    <div class="error">
+                        ❌ No sessions available. Load sessions first.
+                    </div>
+                `;
+                return;
+            }
+            
+            selectSession(0);
+        }
+
+        // Auto-load sessions on page load
+        window.onload = function() {
+            console.log('🔍 Complete Frontend Test Page Loaded');
+            loadSessions();
+        };
+    </script>
+</body>
+</html>

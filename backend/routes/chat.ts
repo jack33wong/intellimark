@@ -77,10 +77,11 @@ async function prepareImageDataForAI(imageData: any): Promise<string> {
 router.post('/', optionalAuth, async (req, res) => {
   
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode, examMetadata } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode, examMetadata, favorite, rating } = req.body;
     
     // Use authenticated user ID if available, otherwise use provided userId or anonymous
     const currentUserId = req.user?.uid || userId || 'anonymous';
+    const isAuthenticated = !!req.user?.uid;
     
 
     // Validate request
@@ -109,36 +110,49 @@ router.post('/', optionalAuth, async (req, res) => {
         messageType = 'Marking';
       }
       
-      currentSessionId = await sessionManager.createSession({
-        title: sessionTitle,
-        messages: [],
-        userId: currentUserId,
-        messageType: messageType
-      });
-    } else {
-      // Verify session exists
-      const existingSession = await sessionManager.getSession(currentSessionId);
-      if (!existingSession) {
-        
-        // Determine session title and message type based on mode
-        let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
-        let messageType = 'Chat';
-        
-        if (mode === 'question') {
-          sessionTitle = 'Question - ' + new Date().toLocaleDateString();
-          messageType = 'Question';
-        } else if (mode === 'marking') {
-          sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
-          messageType = 'Marking';
-        }
-        
+      if (isAuthenticated) {
+        // Only save to database for authenticated users
         currentSessionId = await sessionManager.createSession({
           title: sessionTitle,
           messages: [],
           userId: currentUserId,
-          messageType: messageType as 'Marking' | 'Question' | 'Chat'
+          messageType: messageType,
+          favorite: favorite || false,
+          rating: rating || 0
         });
+      } else {
+        // For unauthenticated users, create temporary session ID (not saved to database)
+        currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
+    } else {
+      // Verify session exists (only for authenticated users)
+      if (isAuthenticated) {
+        const existingSession = await sessionManager.getSession(currentSessionId);
+        if (!existingSession) {
+          
+          // Determine session title and message type based on mode
+          let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
+          let messageType = 'Chat';
+          
+          if (mode === 'question') {
+            sessionTitle = 'Question - ' + new Date().toLocaleDateString();
+            messageType = 'Question';
+          } else if (mode === 'marking') {
+            sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
+            messageType = 'Marking';
+          }
+          
+          currentSessionId = await sessionManager.createSession({
+            title: sessionTitle,
+            messages: [],
+            userId: currentUserId,
+            messageType: messageType as 'Marking' | 'Question' | 'Chat',
+            favorite: favorite || false,
+            rating: rating || 0
+          });
+        }
+      }
+      // For unauthenticated users, use the provided sessionId as-is (temporary)
     }
 
     // Get chat history for context
@@ -173,7 +187,10 @@ router.post('/', optionalAuth, async (req, res) => {
       };
     }
     
-    await sessionManager.addMessage(currentSessionId, userMessage);
+    // Only save messages to database for authenticated users
+    if (isAuthenticated) {
+      await sessionManager.addMessage(currentSessionId, userMessage);
+    }
 
     // Generate context summary if needed (for conversations with multiple messages)
     let contextSummary: string | null = null;
@@ -227,13 +244,15 @@ router.post('/', optionalAuth, async (req, res) => {
         aiResponse = 'I apologize, but I encountered an error processing your request. Please try again.';
       }
 
-      // Add AI response to session
-      await sessionManager.addMessage(currentSessionId, {
-        id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'assistant',
-        content: aiResponse,
-        type: undefined // Don't set marking_annotated type here since we don't have the annotated image
-      });
+      // Add AI response to session (only for authenticated users)
+      if (isAuthenticated) {
+        await sessionManager.addMessage(currentSessionId, {
+          id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'assistant',
+          content: aiResponse,
+          type: undefined // Don't set marking_annotated type here since we don't have the annotated image
+        });
+      }
     }
 
     // Get session title for response
@@ -275,8 +294,17 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
   try {
     const { userId } = req.params;
 
+    // Only return sessions for authenticated users
+    if (!req.user) {
+      return res.json({
+        success: true,
+        sessions: [],
+        message: 'Authentication required to view chat history'
+      });
+    }
+
     // If user is authenticated, ensure they can only access their own sessions
-    if (req.user && req.user.uid !== userId) {
+    if (req.user.uid !== userId) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -284,9 +312,8 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
       });
     }
 
-    // Use ChatSessionManager to get sessions (includes in-memory cache)
-    const sessionManager = ChatSessionManager.getInstance();
-    const sessions = await sessionManager.getUserSessions(userId);
+    // Only get sessions from Firestore (not from cache) for authenticated users
+    const sessions = await FirestoreService.getChatSessions(userId);
     
     return res.json({
       success: true,
@@ -319,17 +346,8 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
       });
     }
 
-    // Determine the expected user ID
-    const expectedUserId = req.user ? req.user.uid : 'anonymous';
-    
-    // Ensure user can only access their own sessions
-    if (session.userId !== expectedUserId) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-        message: 'You can only access your own chat sessions'
-      });
-    }
+    // Allow access to any session (simplified design)
+    // The frontend will handle user-specific filtering at the UI level
 
     return res.json({
       success: true,

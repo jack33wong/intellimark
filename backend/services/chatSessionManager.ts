@@ -160,7 +160,9 @@ export class ChatSessionManager {
         messages: sessionData.messages,
         timestamp: new Date(),
         userId: sessionData.userId || 'anonymous',
-        messageType: sessionData.messageType || 'Chat'
+        messageType: sessionData.messageType || 'Chat',
+        favorite: (sessionData as any).favorite || false,
+        rating: (sessionData as any).rating || 0
       };
 
       // Cache the new session
