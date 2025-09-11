@@ -101,6 +101,19 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       setRating(previousRating);
     }
   };
+
+  // Load session data including favorite and rating
+  const loadSessionData = async (sessionId) => {
+    try {
+      const session = await FirestoreService.getChatSession(sessionId);
+      if (session) {
+        setIsFavorite(session.favorite || false);
+        setRating(Number(session.rating) || 0);
+      }
+    } catch (error) {
+      console.error('Failed to load session data:', error);
+    }
+  };
   const [chatInput, setChatInput] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
@@ -709,6 +722,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           // Use session title from backend (which uses the same logic as database)
           const sessionTitle = result.sessionTitle || `Question - ${new Date().toLocaleDateString()}`;
           setSessionTitle(sessionTitle);
+          
+          // Load session data including favorite and rating
+          loadSessionData(result.sessionId);
         }
         
         // Switch to chat mode after AI response is ready
@@ -731,6 +747,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         // Use session title from backend (which uses the same logic as database)
         const sessionTitle = result.sessionTitle || `Marking - ${new Date().toLocaleDateString()}`;
         setSessionTitle(sessionTitle);
+        
+        // Load session data including favorite and rating
+        loadSessionData(result.sessionId);
       }
       
       // Switch to chat mode with the marked homework

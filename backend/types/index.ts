@@ -214,6 +214,8 @@ export interface ChatSession {
   contextSummary?: string;
   lastSummaryUpdate?: Date;
   messageType?: 'Marking' | 'Question' | 'Chat';
+  favorite?: boolean;
+  rating?: number;
 }
 
 // Subscription types
