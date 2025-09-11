@@ -5,7 +5,7 @@ export class MarkingInstructionService {
     model: ModelType,
     ocrText: string,
     questionDetection?: any
-  ): Promise<{ annotations: string }> {
+  ): Promise<{ annotations: string; usageTokens: number }> {
     let systemPrompt = `You are an AI assistant that generates marking annotations for student work.`;
     let userPrompt = `Here is the OCR TEXT:
 
@@ -94,20 +94,25 @@ export class MarkingInstructionService {
     
     // Force model to gemini for consistency
     const actualModel = 'gemini-2.5-pro';
-    let response: string;
+    let responseText: string;
+    let usageTokens = 0;
     
     if (actualModel === 'gemini-2.5-pro') {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, actualModel as any);
+      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, actualModel as any);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     }
 
     try {
       const { JsonUtils } = await import('./JsonUtils');
-      JsonUtils.cleanAndValidateJSON(response, 'annotations');
-      return { annotations: response }; // Return raw response for LLM3
+      JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
+      return { annotations: responseText, usageTokens }; // Return raw response for LLM3
     } catch (error) {
       console.error('❌ LLM2 JSON parsing failed:', error);
       throw new Error(`LLM2 failed to generate valid marking annotations: ${error instanceof Error ? error.message : 'Unknown error'}`);

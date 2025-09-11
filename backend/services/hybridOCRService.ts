@@ -41,6 +41,7 @@ export interface HybridOCRResult {
   mathBlocks: MathBlock[];
   processingTime: number;
   rawResponse?: any;
+  usage?: { mathpixCalls: number };
 }
 
 export interface HybridOCROptions {
@@ -536,6 +537,7 @@ export class HybridOCRService {
     // Step 3: Process math blocks with Mathpix if available
     let processedMathBlocks: MathBlock[] = mathBlocks;
     
+    let mathpixCalls = 0;
     if (mathBlocks.length > 0 && MathpixService.isAvailable()) {
       console.log(`🔢 Processing ${mathBlocks.length} math blocks with Mathpix...`);
       
@@ -573,6 +575,7 @@ export class HybridOCRService {
             
             // Process with Mathpix
             const mathpixResult = await MathpixService.processImage(croppedBuffer);
+            mathpixCalls += 1;
             
             if (mathpixResult.latex_styled && !mathpixResult.error) {
               mathBlock.mathpixLatex = mathpixResult.latex_styled;
@@ -651,7 +654,8 @@ export class HybridOCRService {
         detectedBlocks,
         // Expose pre-cluster blocks for visualization
         preClusterBlocks
-      }
+      },
+      usage: { mathpixCalls }
     };
   }
 

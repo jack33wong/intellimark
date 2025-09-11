@@ -5,6 +5,7 @@ export interface ClassificationResult {
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string;
+  usageTokens?: number;
 }
 
 export class ClassificationService {
@@ -43,7 +44,8 @@ export class ClassificationService {
         isQuestionOnly: false,
         reasoning: 'Classification failed, defaulting to homework marking',
         apiUsed: 'Fallback',
-        extractedQuestionText: 'Unable to extract question text - AI service failed'
+        extractedQuestionText: 'Unable to extract question text - AI service failed',
+        usageTokens: 0
       };
     }
   }
@@ -74,11 +76,13 @@ export class ClassificationService {
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) throw new Error('No content in Gemini response');
     const parsed = JSON.parse(content);
+    const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
     return {
       isQuestionOnly: parsed.isQuestionOnly,
       reasoning: parsed.reasoning,
       apiUsed: 'Google Gemini 2.0 Flash Exp',
-      extractedQuestionText: parsed.extractedQuestionText
+      extractedQuestionText: parsed.extractedQuestionText,
+      usageTokens
     };
   }
 
@@ -110,11 +114,13 @@ export class ClassificationService {
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new Error('No content in OpenAI response');
     const parsed = JSON.parse(content);
+    const usageTokens = (result.usage?.total_tokens as number) || 0;
     return {
       isQuestionOnly: parsed.isQuestionOnly,
       reasoning: parsed.reasoning,
       apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni',
-      extractedQuestionText: parsed.extractedQuestionText
+      extractedQuestionText: parsed.extractedQuestionText,
+      usageTokens
     };
   }
 }

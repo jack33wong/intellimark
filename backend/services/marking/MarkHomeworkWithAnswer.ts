@@ -79,7 +79,7 @@ export class MarkHomeworkWithAnswer {
   /**
    * Process image with enhanced OCR
    */
-  private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
+  private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const { HybridOCRService } = await import('../hybridOCRService');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
@@ -131,12 +131,13 @@ export class MarkHomeworkWithAnswer {
         confidence: block.confidence
       }));
 
-    const processedResult: ProcessedImageResult = {
+    const processedResult: ProcessedImageResult & { mathpixCalls?: number } = {
       ocrText: processedOcrText,
       boundingBoxes: processedBoundingBoxes,
       confidence: hybridResult.confidence,
       imageDimensions: hybridResult.dimensions,
-      isQuestion: false
+      isQuestion: false,
+      mathpixCalls: (hybridResult as any)?.usage?.mathpixCalls || 0
     };
 
     return processedResult;
@@ -150,7 +151,7 @@ export class MarkHomeworkWithAnswer {
     model: ModelType,
     processedImage: ProcessedImageResult,
     questionDetection?: QuestionDetectionResult
-  ): Promise<MarkingInstructions> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number } }> {
     try {
       const { LLMOrchestrator } = await import('../ai/LLMOrchestrator');
       return await LLMOrchestrator.executeMarking({
@@ -161,7 +162,7 @@ export class MarkHomeworkWithAnswer {
       });
     } catch (_err) {
       // Fallback to basic annotations if the new flow fails
-      return { annotations: [] };
+      return { annotations: [], usage: { llmTokens: 0 } } as any;
     }
   }
 
@@ -175,7 +176,9 @@ export class MarkHomeworkWithAnswer {
     instructions: MarkingInstructions,
     classification: ImageClassification,
     userId: string,
-    userEmail: string
+    userEmail: string,
+    classificationTokens: number = 0,
+    processingTimeMs: number = 0
   ): Promise<string> {
     try {
       const { FirestoreService } = await import('../firestoreService');
@@ -191,12 +194,14 @@ export class MarkHomeworkWithAnswer {
         undefined,
         {
           processingTime: new Date().toISOString(),
+          totalProcessingTimeMs: processingTimeMs,
           modelUsed: model,
           totalAnnotations: instructions.annotations.length,
           imageSize: imageData.length,
           confidence: result.confidence,
           apiUsed: 'Complete AI Marking System',
-          ocrMethod: 'Enhanced OCR Processing'
+          ocrMethod: 'Enhanced OCR Processing',
+          tokens: [ classificationTokens + ((instructions as any)?.usage?.llmTokens || 0), (result as any)?.mathpixCalls || 0 ]
         }
       );
       return resultId;
@@ -216,12 +221,14 @@ export class MarkHomeworkWithAnswer {
     userId?: string;
     userEmail?: string;
   }): Promise<MarkHomeworkResponse> {
+    const startTime = Date.now();
     const { imageData, model } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
     // Step 1: Classification
     const imageClassification = await this.classifyImageWithAI(imageData, model);
+    const classificationTokens = imageClassification.usageTokens || 0;
 
     // Step 1.5: Question detection
     let questionDetection: QuestionDetectionResult | undefined;
@@ -300,6 +307,9 @@ export class MarkHomeworkWithAnswer {
       processedImage.imageDimensions
     );
 
+    // Calculate processing time before saving
+    const totalProcessingTime = Date.now() - startTime;
+
     // Step 5: Save
     const resultId = await this.saveMarkingResults(
       imageData,
@@ -308,7 +318,9 @@ export class MarkHomeworkWithAnswer {
       markingInstructions,
       imageClassification,
       userId,
-      userEmail
+      userEmail,
+      classificationTokens,
+      totalProcessingTime
     );
 
     // Step 6: Create session for marking
@@ -354,10 +366,15 @@ export class MarkHomeworkWithAnswer {
       metadata: {
         resultId,
         processingTime: new Date().toISOString(),
+        totalProcessingTimeMs: totalProcessingTime,
         modelUsed: model,
         totalAnnotations: markingInstructions.annotations.length,
         imageSize: imageData.length,
-        confidence: processedImage.confidence
+        confidence: processedImage.confidence,
+        tokens: [
+          classificationTokens + ((markingInstructions as any).usage?.llmTokens || 0),
+          (processedImage as any)?.mathpixCalls || 0
+        ]
       }
     } as unknown as MarkHomeworkResponse;
   }

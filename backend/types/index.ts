@@ -146,6 +146,7 @@ export interface ImageClassification {
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string;
+  usageTokens?: number;
 }
 
 export interface MarkingSchemeMatch {

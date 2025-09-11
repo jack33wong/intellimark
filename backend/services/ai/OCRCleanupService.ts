@@ -27,7 +27,7 @@ export class OCRCleanupService {
   static async cleanOCRTextWithStepIds(
     model: ModelType,
     originalWithStepIds: string
-  ): Promise<{ cleanedText: string }> {
+  ): Promise<{ cleanedText: string; usageTokens: number }> {
     const systemPrompt = `Analyze the provided OCR text of a math problem solution. Clean up the text by removing repeated lines, scribbles, and irrelevant content while preserving the mathematical structure.
 
     Your task is to:
@@ -62,17 +62,22 @@ export class OCRCleanupService {
 
     Please provide the cleaned, structured version while preserving step_id and bbox_index exactly, and without reordering.`;
 
-    let response: string;
+    let responseText: string;
+    let usageTokens = 0;
     
     if (model === 'gemini-2.5-pro') {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     }
 
-    return { cleanedText: response };
+    return { cleanedText: responseText, usageTokens };
   }
 
   /**
@@ -81,7 +86,7 @@ export class OCRCleanupService {
   static async cleanOCRText(
     model: ModelType,
     ocrText: string
-  ): Promise<{ cleanedText: string }> {
+  ): Promise<{ cleanedText: string; usageTokens: number }> {
     const systemPrompt = `Analyze the provided OCR text of a math problem solution. Identify and extract the key steps of the solution and the original question. Structure the output as a clean, logical list of mathematical equations and key values. Ignore extraneous text, scribbles, or repeated lines from the OCR.
 
     Your task is to:
@@ -119,17 +124,22 @@ export class OCRCleanupService {
     console.log('🔍 SYSTEM PROMPT:', systemPrompt);
     console.log('🔍 USER PROMPT:', userPrompt);
     
-    let response: string;
+    let responseText: string;
+    let usageTokens = 0;
     
     if (model === 'gemini-2.5-pro') {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      response = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      responseText = res.content;
+      usageTokens = res.usageTokens;
     }
 
-    console.log('✅ OCR Cleanup Response:', response);
-    return { cleanedText: response };
+    console.log('✅ OCR Cleanup Response:', responseText);
+    return { cleanedText: responseText, usageTokens };
   }
 }

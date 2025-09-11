@@ -24,7 +24,7 @@ export class LLMOrchestrator {
    * Execute marking flow and return existing SimpleMarkingInstructions.
    * Uses the new modular services directly.
    */
-  static async executeMarking(inputs: MarkingInputs): Promise<SimpleMarkingInstructions> {
+  static async executeMarking(inputs: MarkingInputs): Promise<SimpleMarkingInstructions & { usage?: { llmTokens: number } }> {
     const { imageData, model, processedImage, questionDetection } = inputs;
 
     // Log full raw OCR text (math block) prior to cleanup
@@ -63,6 +63,7 @@ export class LLMOrchestrator {
         model,
         stepAssignmentResult.originalWithStepIds
       );
+      let totalTokens = cleanupResult.usageTokens || 0;
 
       // Parse the step assignment result
       let stepAssignmentData;
@@ -90,6 +91,7 @@ export class LLMOrchestrator {
         cleanupResult.cleanedText,
         questionDetection
       );
+      totalTokens += annotationData.usageTokens || 0;
 
       // Re-opened: print raw AI response from marking LLM
       console.log('🔍 Raw annotation data from MarkingInstructionService:', annotationData);
@@ -105,12 +107,12 @@ export class LLMOrchestrator {
         stepAssignment: stepAssignmentData.steps || [] // Pass the original step assignment for bbox matching
       });
 
-      const result: SimpleMarkingInstructions = { annotations: placed.annotations as any };
+      const result: SimpleMarkingInstructions & { usage?: { llmTokens: number } } = { annotations: placed.annotations as any, usage: { llmTokens: totalTokens } };
       return result;
     } catch (error) {
       console.error('❌ New 2-step LLM flow failed:', error);
       // Fallback to basic annotations if the new flow fails
-      return { annotations: [] };
+      return { annotations: [], usage: { llmTokens: 0 } } as any;
     }
   }
 }
