@@ -52,7 +52,9 @@ export function useFirestoreChat(userId) {
       const sessionData = {
         title: 'New Chat',
         messages: [],
-        userId
+        userId,
+        favorite: false,
+        rating: 0
       };
 
       const newSessionId = await FirestoreService.createChatSession(sessionData);
@@ -63,7 +65,9 @@ export function useFirestoreChat(userId) {
         title: sessionData.title,
         messages: sessionData.messages,
         timestamp: new Date(),
-        userId
+        userId,
+        favorite: sessionData.favorite,
+        rating: sessionData.rating
       };
 
       setChatSessions(prev => [newSession, ...prev]);

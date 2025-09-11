@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
@@ -11,7 +11,6 @@ import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
-import API_CONFIG from './config/api';
 import './App.css';
 
 /**
@@ -25,41 +24,11 @@ function AppContent() {
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
   const [currentPageMode, setCurrentPageMode] = useState('upload');
 
-  // Get auth token function - will be provided by AuthProvider
-  const { getAuthToken } = useAuth();
 
   const handleMarkingHistoryClick = async (result) => {
     try {
-      // If the result has a sessionId, fetch the full session data including images
-      if (result.id) {
-        const authToken = await getAuthToken();
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        if (authToken) {
-          headers['Authorization'] = `Bearer ${authToken}`;
-        }
-        
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/session/${result.id}`, {
-          method: 'GET',
-          headers,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.session) {
-            setSelectedMarkingResult(data.session);
-          } else {
-            console.warn('🔍 Failed to load full session data, using basic data');
-            setSelectedMarkingResult(result);
-          }
-        } else {
-          console.warn('🔍 Failed to fetch full session data, using basic data');
-          setSelectedMarkingResult(result);
-        }
-      } else {
-        setSelectedMarkingResult(result);
-      }
+      // Use sidebar data directly - single source of truth
+      setSelectedMarkingResult(result);
       
       // Navigate to mark-homework route using React Router
       navigate('/mark-homework');

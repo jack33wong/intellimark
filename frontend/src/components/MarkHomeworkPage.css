@@ -8,6 +8,19 @@
   color: var(--primary-text);
 }
 
+/* Disabled state for unauthenticated users */
+.favorite-btn.disabled,
+.star-rating.disabled .star {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.favorite-btn.disabled:hover,
+.star-rating.disabled .star:hover {
+  opacity: 0.5;
+  transform: none;
+}
+
 /* Chat mode specific styles - currently none needed */
 
 

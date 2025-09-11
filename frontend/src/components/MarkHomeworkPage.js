@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { FirestoreService } from '../services/firestoreService';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, user } = useAuth();
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -63,9 +63,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     });
   };
 
-  // Handle favorite toggle
+  // Handle favorite toggle (only for authenticated users)
   const handleFavoriteToggle = async () => {
-    if (!currentSessionId) return;
+    if (!currentSessionId || !user?.uid) return;
     
     const newFavoriteState = !isFavorite;
     setIsFavorite(newFavoriteState);
@@ -75,6 +75,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       await FirestoreService.updateChatSession(currentSessionId, {
         favorite: newFavoriteState
       }, authToken);
+      
+      // Notify sidebar to refresh
+      window.dispatchEvent(new CustomEvent('sessionUpdated', { 
+        detail: { sessionId: currentSessionId, field: 'favorite', value: newFavoriteState } 
+      }));
     } catch (error) {
       console.error('Failed to update favorite status:', error);
       // Revert on error
@@ -82,9 +87,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   };
 
-  // Handle rating change
+  // Handle rating change (only for authenticated users)
   const handleRatingChange = async (newRating) => {
-    if (!currentSessionId) return;
+    if (!currentSessionId || !user?.uid) return;
     
     const previousRating = rating;
     const numericRating = Number(newRating);
@@ -95,6 +100,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       await FirestoreService.updateChatSession(currentSessionId, {
         rating: numericRating
       }, authToken);
+      
+      // Notify sidebar to refresh
+      window.dispatchEvent(new CustomEvent('sessionUpdated', { 
+        detail: { sessionId: currentSessionId, field: 'rating', value: numericRating } 
+      }));
     } catch (error) {
       console.error('Failed to update rating:', error);
       // Revert on error
@@ -103,15 +113,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   };
 
   // Load session data including favorite and rating
-  const loadSessionData = async (sessionId) => {
-    try {
-      const session = await FirestoreService.getChatSession(sessionId);
-      if (session) {
-        setIsFavorite(session.favorite || false);
-        setRating(Number(session.rating) || 0);
-      }
-    } catch (error) {
-      console.error('Failed to load session data:', error);
+  const loadSessionData = (sessionData) => {
+    if (sessionData) {
+      setIsFavorite(sessionData.favorite || false);
+      setRating(Number(sessionData.rating) || 0);
     }
   };
   const [chatInput, setChatInput] = useState('');
@@ -677,6 +682,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 model: selectedModel,
                 sessionId: result.sessionId,
                 mode: 'question',
+                favorite: false,
+                rating: 0,
                 examMetadata: { // Add exam metadata
                   examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
                   questionMarks: result.questionDetection?.match?.markingScheme?.questionMarks || result.questionDetection?.match?.questionMarks || {},
@@ -723,8 +730,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           const sessionTitle = result.sessionTitle || `Question - ${new Date().toLocaleDateString()}`;
           setSessionTitle(sessionTitle);
           
-          // Load session data including favorite and rating
-          loadSessionData(result.sessionId);
+          // Initialize session data with default values for new sessions
+          loadSessionData({ favorite: false, rating: 0 });
         }
         
         // Switch to chat mode after AI response is ready
@@ -748,8 +755,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         const sessionTitle = result.sessionTitle || `Marking - ${new Date().toLocaleDateString()}`;
         setSessionTitle(sessionTitle);
         
-        // Load session data including favorite and rating
-        loadSessionData(result.sessionId);
+        // Initialize session data with default values for new sessions
+        loadSessionData({ favorite: false, rating: 0 });
       }
       
       // Switch to chat mode with the marked homework
@@ -817,6 +824,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               model: selectedModel,
               sessionId: result.sessionId,
               mode: 'marking',
+              favorite: false,
+              rating: 0,
               examMetadata: {
                 examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
                 questionNumber: result.questionDetection?.match?.questionNumber || 'Unknown',
@@ -836,6 +845,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               model: selectedModel,
               sessionId: result.sessionId,
               mode: 'marking',
+              favorite: false,
+              rating: 0,
               markingData: {
                 examDetails: result.questionDetection.match?.markingScheme?.examDetails || result.questionDetection.match?.examDetails || {},
                 questionMarks: result.questionDetection.match?.markingScheme?.questionMarks || result.questionDetection.match?.questionMarks || {},
@@ -965,7 +976,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           imageData: imageData,
           model: selectedModel,
           sessionId: sessionIdToUse,
-          mode: mode
+          mode: mode,
+          favorite: false,
+          rating: 0
         }),
       });
 
@@ -1118,8 +1131,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                             <div className="rating-section">
                               <span className="label">Rating:</span>
                               <div 
-                                className="star-rating"
+                                className={`star-rating ${!user?.uid ? 'disabled' : ''}`}
                                 onMouseLeave={() => setHoveredRating(0)}
+                                title={!user?.uid ? "Login required to save ratings" : "Rate this session"}
                               >
                                 {[1, 2, 3, 4, 5].map((starValue) => {
                                   const displayRating = hoveredRating || rating;
@@ -1127,10 +1141,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                                   return (
                                     <span 
                                       key={starValue}
-                                      className={`star ${isFilled ? 'filled' : ''}`}
-                                      onClick={() => handleRatingChange(starValue)}
-                                      onMouseEnter={() => setHoveredRating(starValue)}
-                                      style={{ cursor: 'pointer' }}
+                                      className={`star ${isFilled ? 'filled' : ''} ${!user?.uid ? 'disabled' : ''}`}
+                                      onClick={() => user?.uid && handleRatingChange(starValue)}
+                                      onMouseEnter={() => user?.uid && setHoveredRating(starValue)}
+                                      style={{ cursor: user?.uid ? 'pointer' : 'not-allowed' }}
                                     >
                                       ★
                                     </span>
@@ -1157,9 +1171,10 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                 </div>
                 
                 <button 
-                  className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
+                  className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''} ${!user?.uid ? 'disabled' : ''}`}
                   onClick={handleFavoriteToggle}
-                  title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                  title={!user?.uid ? "Login required to save favorites" : (isFavorite ? "Remove from favorites" : "Add to favorites")}
+                  disabled={!user?.uid}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>

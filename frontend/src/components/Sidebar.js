@@ -51,16 +51,20 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       // Get authentication token
       const authToken = await getAuthToken();
       
-      // Use authenticated user ID or 'anonymous' for unauthenticated users
-      const userIdToFetch = user?.uid || 'anonymous';
-      
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(userIdToFetch, 20, authToken);
-      
-      if (response.success) {
-        const sessions = response.sessions || [];
-        setChatSessions(sessions);
+      // Only load sessions for authenticated users
+      if (user?.uid) {
+        const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 20, authToken);
+        
+        if (response.success) {
+          const sessions = response.sessions || [];
+          setChatSessions(sessions);
+        } else {
+          setSessionsError('Failed to load chat sessions');
+        }
       } else {
-        setSessionsError('Failed to load chat sessions');
+        // For unauthenticated users, show empty state
+        setChatSessions([]);
+        setSessionsError(null);
       }
       
 
@@ -91,10 +95,16 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       refreshChatSessions();
     };
 
+    const handleSessionUpdated = () => {
+      refreshChatSessions();
+    };
+
     window.addEventListener('sessionsCleared', handleSessionsCleared);
+    window.addEventListener('sessionUpdated', handleSessionUpdated);
     
     return () => {
       window.removeEventListener('sessionsCleared', handleSessionsCleared);
+      window.removeEventListener('sessionUpdated', handleSessionUpdated);
     };
   }, [refreshChatSessions]);
 
@@ -346,7 +356,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
             <div className="mark-history-placeholder">
               <div className="placeholder-item">
                 <BookOpen size={16} />
-                <span>No {activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet</span>
+                <span>
+                  {!user?.uid 
+                    ? "Login to save chat history" 
+                    : `No ${activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet`
+                  }
+                </span>
               </div>
             </div>
           ) : (
