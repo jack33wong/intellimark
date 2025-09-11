@@ -1085,6 +1085,8 @@
 .chat-messages {
   padding-top: 56px;
   padding-bottom: 16px; /* Minimal padding - no manual space needed */
+  padding-left: 10px;
+  padding-right: 10px;
   background: transparent;
   border-radius: 0;
   margin-bottom: 0;

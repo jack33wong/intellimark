@@ -53,6 +53,7 @@ function AdminPage() {
   
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
+  const [isClearingMarkingResults, setIsClearingMarkingResults] = useState(false);
   
   // Constants
   const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
@@ -345,6 +346,38 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsClearingSessions(false);
+    }
+  }, [API_BASE]);
+
+  // Clear all marking results data
+  const clearAllMarkingResults = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete ALL marking results? This action cannot be undone and will remove all homework marking data.')) {
+      return;
+    }
+    
+    setIsClearingMarkingResults(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/clear-all-marking-results`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('All marking results cleared:', result.message);
+        setError(`✅ All marking results have been cleared successfully.`);
+        setTimeout(() => setError(null), 5000);
+      } else {
+        const error = await response.json();
+        console.error('Failed to clear marking results:', error);
+        setError(`Failed to clear marking results: ${error.error}`);
+        setTimeout(() => setError(null), 5000);
+      }
+    } catch (error) {
+      console.error('Error clearing marking results:', error);
+      setError(`Error clearing marking results: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsClearingMarkingResults(false);
     }
   }, [API_BASE]);
 
@@ -1070,6 +1103,40 @@ function AdminPage() {
                     >
                       <Trash2 size={16} />
                       {isClearingSessions ? 'Clearing Sessions...' : 'Clear All Sessions'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Clear Marking Results Panel */}
+            <div className="query-section">
+              <div className="query-panel">
+                <div className="query-panel-header">
+                  <h3>Clear All Marking Results</h3>
+                  <p>Remove all homework marking results from the database</p>
+                </div>
+                
+                <div className="query-panel-content">
+                  <div className="query-description">
+                    <p><strong>Warning:</strong> This action will permanently delete all marking results data from the database. This includes:</p>
+                    <ul>
+                      <li>All homework marking results and annotations</li>
+                      <li>All AI-generated feedback and corrections</li>
+                      <li>All uploaded homework images and processed data</li>
+                      <li>All marking metadata and timestamps</li>
+                    </ul>
+                    <p><strong>This action cannot be undone.</strong></p>
+                  </div>
+                  
+                  <div className="query-actions">
+                    <button
+                      className="btn btn-danger"
+                      onClick={clearAllMarkingResults}
+                      disabled={isClearingMarkingResults}
+                    >
+                      <Trash2 size={16} />
+                      {isClearingMarkingResults ? 'Clearing Marking Results...' : 'Clear All Marking Results'}
                     </button>
                   </div>
                 </div>

@@ -522,7 +522,7 @@ export class FirestoreService {
   static async addMessageToSession(sessionId: string, message: any): Promise<void> {
     try {
       
-      // Helper function to remove undefined values recursively
+      // Helper function to remove undefined values and clean nested objects for Firestore
       const removeUndefinedValues = (obj: any): any => {
         if (obj === null || obj === undefined) {
           return null;
@@ -534,7 +534,35 @@ export class FirestoreService {
           const cleaned: any = {};
           for (const [key, value] of Object.entries(obj)) {
             if (value !== undefined) {
-              cleaned[key] = removeUndefinedValues(value);
+              // Skip complex objects that might cause Firestore issues
+              if (typeof value === 'object' && value !== null) {
+                // Only include simple objects or arrays of primitives
+                if (Array.isArray(value)) {
+                  // Check if array contains only primitives
+                  const hasOnlyPrimitives = value.every(item => 
+                    item === null || 
+                    typeof item === 'string' || 
+                    typeof item === 'number' || 
+                    typeof item === 'boolean'
+                  );
+                  if (hasOnlyPrimitives) {
+                    cleaned[key] = value;
+                  }
+                } else {
+                  // For objects, only include if they have simple properties
+                  const simpleProps = Object.values(value).every(val => 
+                    val === null || 
+                    typeof val === 'string' || 
+                    typeof val === 'number' || 
+                    typeof val === 'boolean'
+                  );
+                  if (simpleProps) {
+                    cleaned[key] = value;
+                  }
+                }
+              } else {
+                cleaned[key] = removeUndefinedValues(value);
+              }
             }
           }
           return cleaned;
@@ -552,7 +580,14 @@ export class FirestoreService {
         ...(message.model && { model: message.model }),
         ...(message.type && { type: message.type }),
         ...(message.imageLink && { imageLink: message.imageLink }),
-        ...(message.detectedQuestion && { detectedQuestion: message.detectedQuestion }),
+        // Only include detectedQuestion if it's simple enough for Firestore
+        ...(message.detectedQuestion && typeof message.detectedQuestion === 'object' && 
+            Object.values(message.detectedQuestion).every(val => 
+              val === null || 
+              typeof val === 'string' || 
+              typeof val === 'number' || 
+              typeof val === 'boolean'
+            ) && { detectedQuestion: message.detectedQuestion }),
         ...(message.markingData && { markingData: message.markingData })
       });
 

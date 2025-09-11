@@ -236,10 +236,15 @@ router.post('/', optionalAuth, async (req, res) => {
       });
     }
 
+    // Get session title for response
+    const session = await sessionManager.getSession(currentSessionId);
+    const sessionTitle = session?.title || 'Chat Session';
+
     // Return success response
     return res.json({
       success: true,
       sessionId: currentSessionId,
+      sessionTitle: sessionTitle,
       response: aiResponse,
       apiUsed: apiUsed,
       context: {

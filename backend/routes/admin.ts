@@ -454,4 +454,74 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/admin/clear-all-marking-results
+ * Clear all marking results from the database
+ */
+router.delete('/clear-all-marking-results', async (req: Request, res: Response) => {
+  try {
+    console.log('🗑️ Admin clearing all marking results...');
+    
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Firestore not available' 
+      });
+    }
+
+    // Get all marking results
+    const markingResultsSnapshot = await db.collection('markingResults').get();
+    const markingResultIds = markingResultsSnapshot.docs.map(doc => doc.id);
+    
+    console.log(`🗑️ Found ${markingResultIds.length} marking results to delete`);
+    
+    if (markingResultIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No marking results found to delete',
+        deletedCount: 0
+      });
+    }
+
+    // Delete all marking results in batches
+    const batchSize = 100; // Reduced batch size to avoid transaction too big error
+    let deletedCount = 0;
+    
+    for (let i = 0; i < markingResultIds.length; i += batchSize) {
+      const batch = db.batch();
+      const batchIds = markingResultIds.slice(i, i + batchSize);
+      
+      batchIds.forEach(resultId => {
+        const resultRef = db.collection('markingResults').doc(resultId);
+        batch.delete(resultRef);
+      });
+      
+      await batch.commit();
+      deletedCount += batchIds.length;
+      console.log(`🗑️ Deleted batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${markingResultIds.length} marking results`);
+      
+      // Small delay between batches to prevent overwhelming the database
+      if (i + batchSize < markingResultIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    console.log(`✅ Successfully deleted ${deletedCount} marking results`);
+    
+    res.json({
+      success: true,
+      message: `Successfully cleared ${deletedCount} marking results`,
+      deletedCount: deletedCount
+    });
+    
+  } catch (error) {
+    console.error('❌ Error clearing marking results:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: `Failed to clear marking results: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    });
+  }
+});
+
 export default router;
