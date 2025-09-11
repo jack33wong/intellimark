@@ -6,11 +6,14 @@ import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { useAuth } from '../contexts/AuthContext';
 import { useSessionActions } from '../hooks/useSessionActions';
 import { useSessionSync } from '../hooks/useSessionSync';
+import { useSessionContext } from '../contexts/SessionContext';
+import { handleSessionCreation } from '../utils/sessionUtils';
 
 const MarkHomeworkPage = ({ onPageModeChange }) => {
   const { getAuthToken } = useAuth();
   const { currentSession, selectSession, updateTask } = useSessionActions();
   const { currentSessionId } = useSessionSync();
+  const { sessionManager } = useSessionContext();
   
   
   // Helper function to handle Firebase Storage URLs
@@ -107,6 +110,13 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
   // Load session data including favorite and rating from current session
   const loadSessionData = (session) => {
     if (session) {
+      console.log('🔍 Loading session data:', {
+        id: session.id,
+        title: session.title,
+        favorite: session.favorite,
+        rating: session.rating,
+        fullSession: session
+      });
       setIsFavorite(session.favorite || false);
       setRating(Number(session.rating) || 0);
     }
@@ -327,14 +337,15 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
       localStorage.setItem('isChatMode', 'false');
     };
 
-    window.addEventListener('sessionDeleted', handleSessionDeleted);
-    window.addEventListener('sessionsCleared', handleSessionsCleared);
+    // Use SessionManager events instead of window events
+    const unsubscribeSessionDeleted = sessionManager.on('sessionDeleted', handleSessionDeleted);
+    const unsubscribeSessionsCleared = sessionManager.on('sessionsCleared', handleSessionsCleared);
     
     return () => {
-      window.removeEventListener('sessionDeleted', handleSessionDeleted);
-      window.removeEventListener('sessionsCleared', handleSessionsCleared);
+      unsubscribeSessionDeleted();
+      unsubscribeSessionsCleared();
     };
-  }, []);
+  }, [sessionManager, selectSession]);
   
   // Handle selected marking result from sidebar
   useEffect(() => {
@@ -609,10 +620,16 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
           questionDetection: result.questionDetection
         });
         
-        // Log session message content before redirecting to chat
-        
-        // Set the session ID from the response
-        selectSession(result.sessionId);
+        // Handle session creation for question-only mode
+        await handleSessionCreation({
+          sessionId: result.sessionId,
+          sessionTitle: result.sessionTitle,
+          mode: 'question',
+          getAuthToken,
+          sessionManager,
+          selectSession,
+          setSessionTitle
+        });
         
         // Add initial user message with the image
         const initialUserMessage = {
@@ -717,14 +734,17 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
       });
 
 
-      // Set session title for marking mode
+      // Handle session creation for marking mode (question with answer)
       if (result.sessionId) {
-        // Use session title from backend (which uses the same logic as database)
-        const sessionTitle = result.sessionTitle || `Marking - ${new Date().toLocaleDateString()}`;
-        setSessionTitle(sessionTitle);
-        
-        // Select the session in the new session management system
-        selectSession(result.sessionId);
+        await handleSessionCreation({
+          sessionId: result.sessionId,
+          sessionTitle: result.sessionTitle,
+          mode: 'marking',
+          getAuthToken,
+          sessionManager,
+          selectSession,
+          setSessionTitle
+        });
       }
       
       // Switch to chat mode with the marked homework
@@ -944,16 +964,18 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
         
         // Update session ID if we got a new one
         if (data.sessionId && data.sessionId !== currentSessionId) {
-          selectSession(data.sessionId);
+          // Handle session creation for new chat sessions
+          const sessionTitle = data.sessionTitle || (chatInput.length > 50 ? chatInput.substring(0, 50) + '...' : chatInput) || 'Chat Session';
           
-          // Set session title for new session
-          if (data.sessionTitle) {
-            setSessionTitle(data.sessionTitle);
-          } else {
-            // Generate a default title based on the first message
-            const title = chatInput.length > 50 ? chatInput.substring(0, 50) + '...' : chatInput;
-            setSessionTitle(title || 'Chat Session');
-          }
+          await handleSessionCreation({
+            sessionId: data.sessionId,
+            sessionTitle: sessionTitle,
+            mode: 'chat',
+            getAuthToken,
+            sessionManager,
+            selectSession,
+            setSessionTitle
+          });
         } else {
           // Even for existing sessions, update the title if provided
           if (data.sessionTitle && data.sessionTitle !== 'Chat Session') {
@@ -1093,6 +1115,7 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
                                 {[1, 2, 3, 4, 5].map((starValue) => {
                                   const displayRating = hoveredRating || rating;
                                   const isFilled = starValue <= displayRating;
+                                  console.log('🔍 Rating display:', { starValue, displayRating, rating, hoveredRating, isFilled });
                                   return (
                                     <span 
                                       key={starValue}

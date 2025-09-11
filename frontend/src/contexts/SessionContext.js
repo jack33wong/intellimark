@@ -42,6 +42,7 @@ export const SessionProvider = ({ children }) => {
 
   // Listen to SessionManager events
   useEffect(() => {
+    // Bulk operations
     const unsubscribeSessionsLoaded = sessionManager.on('sessionsLoaded', ({ sessions: loadedSessions }) => {
       setSessions(loadedSessions);
     });
@@ -50,20 +51,38 @@ export const SessionProvider = ({ children }) => {
       setError(loadError.message);
     });
 
-    const unsubscribeCurrentSessionChanged = sessionManager.on('currentSessionChanged', ({ sessionId }) => {
-      setCurrentSessionId(sessionId);
-    });
-
     const unsubscribeSessionsCleared = sessionManager.on('sessionsCleared', () => {
       setSessions([]);
       setCurrentSessionId(null);
     });
 
+    // Individual session operations
+    const unsubscribeSessionCreated = sessionManager.on('sessionCreated', ({ session }) => {
+      setSessions(prev => [...prev, session]);
+    });
+
+    const unsubscribeSessionUpdated = sessionManager.on('sessionUpdated', ({ session }) => {
+      setSessions(prev => prev.map(s => s.id === session.id ? session : s));
+    });
+
+    const unsubscribeSessionDeleted = sessionManager.on('sessionDeleted', ({ sessionId }) => {
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+    });
+
+    // Current session changes
+    const unsubscribeCurrentSessionChanged = sessionManager.on('currentSessionChanged', ({ sessionId }) => {
+      setCurrentSessionId(sessionId);
+    });
+
     return () => {
+      // Cleanup all event listeners
       unsubscribeSessionsLoaded();
       unsubscribeSessionsLoadError();
-      unsubscribeCurrentSessionChanged();
       unsubscribeSessionsCleared();
+      unsubscribeSessionCreated();
+      unsubscribeSessionUpdated();
+      unsubscribeSessionDeleted();
+      unsubscribeCurrentSessionChanged();
     };
   }, []);
 

@@ -63,8 +63,14 @@ class SessionManager {
   }
 
   setSession(session) {
+    const isNewSession = !this.sessions.has(session.id);
     this.sessions.set(session.id, session);
-    this.emit('sessionUpdated', { session });
+    
+    if (isNewSession) {
+      this.emit('sessionCreated', { session });
+    } else {
+      this.emit('sessionUpdated', { session });
+    }
   }
 
   deleteSession(sessionId) {

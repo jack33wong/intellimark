@@ -384,7 +384,9 @@ export class FirestoreService {
         updatedAt: new Date().toISOString(),
         contextSummary: (sessionData as any).contextSummary || null,
         lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null,
-        messageType: sessionData.messageType || 'Chat'
+        messageType: sessionData.messageType || 'Chat',
+        favorite: (sessionData as any).favorite || false,
+        rating: (sessionData as any).rating || 0
       };
 
       // Debug: Log the final payload before Firestore write

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Search
 } from 'lucide-react';
+import { useSessionContext } from '../contexts/SessionContext';
 import './AdminPage.css';
 
 // Utility functions
@@ -31,6 +32,9 @@ const formatDate = (dateString) => {
  * @returns {JSX.Element} The admin page component
  */
 function AdminPage() {
+  // Get sessionManager from context
+  const { sessionManager } = useSessionContext();
+  
   // State management
   const [activeTab, setActiveTab] = useState('json'); // Default to JSON tab
   const [loading, setLoading] = useState(true);
@@ -329,8 +333,8 @@ function AdminPage() {
               setError(`✅ All chat sessions have been cleared successfully.`);
               setTimeout(() => setError(null), 5000);
               
-              // Dispatch custom event to notify sidebar to refresh
-              window.dispatchEvent(new CustomEvent('sessionsCleared'));
+              // Use SessionManager event to notify sidebar to refresh
+              sessionManager.clearAllSessions();
               
               // Navigate to mark homework page after clearing all sessions
               window.location.href = '/mark-homework';
