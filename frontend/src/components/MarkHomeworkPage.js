@@ -9,11 +9,9 @@ import { useSessionSync } from '../hooks/useSessionSync';
 
 const MarkHomeworkPage = ({ onPageModeChange }) => {
   const { getAuthToken } = useAuth();
-  const { currentSession, selectSession, createTask, updateTask } = useSessionActions();
+  const { currentSession, selectSession, updateTask } = useSessionActions();
   const { currentSessionId } = useSessionSync();
   
-  // Use currentSession instead of selectedMarkingResult
-  const selectedMarkingResult = currentSession;
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -122,7 +120,6 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
   }, [currentSession]);
   const [chatInput, setChatInput] = useState('');
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
-  const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   
@@ -287,7 +284,6 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
     setClassificationResult(null);
     setLastUploadedImageData(null);
     setShowExpandedThinking(false);
-    setShowMarkingSchemeDetails(false);
     setLoadingProgress(0);
     // Clear localStorage
     localStorage.removeItem('chatSessionId');
@@ -307,7 +303,6 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
       setClassificationResult(null);
       setLastUploadedImageData(null);
       setShowExpandedThinking(false);
-      setShowMarkingSchemeDetails(false);
       setLoadingProgress(0);
       // Clear localStorage
       localStorage.removeItem('chatSessionId');
@@ -325,7 +320,6 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
       setClassificationResult(null);
       setLastUploadedImageData(null);
       setShowExpandedThinking(false);
-      setShowMarkingSchemeDetails(false);
       setLoadingProgress(0);
       // Clear localStorage
       localStorage.removeItem('chatSessionId');
@@ -344,12 +338,12 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
   
   // Handle selected marking result from sidebar
   useEffect(() => {
-    if (selectedMarkingResult) {
+    if (currentSession) {
       // Load the session messages into chat first
-      if (selectedMarkingResult.messages && Array.isArray(selectedMarkingResult.messages)) {
+      if (currentSession.messages && Array.isArray(currentSession.messages)) {
         
         // Convert Firestore messages to chat format
-        const formattedMessages = selectedMarkingResult.messages.map(msg => ({
+        const formattedMessages = currentSession.messages.map(msg => ({
           id: msg.id,
           role: msg.role,
           content: msg.content,
@@ -395,14 +389,14 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
         
         // Set messages first, then switch to chat mode
         setChatMessages(deduplicateMessages(formattedMessages));
-        selectSession(selectedMarkingResult.id);
+        selectSession(currentSession.id);
         
         // Store the session title for display
-        setSessionTitle(selectedMarkingResult.title || 'Chat Session');
+        setSessionTitle(currentSession.title || 'Chat Session');
         
         // Load favorite and rating from session
-        setIsFavorite(selectedMarkingResult.favorite || false);
-        setRating(Number(selectedMarkingResult.rating) || 0);
+        setIsFavorite(currentSession.favorite || false);
+        setRating(Number(currentSession.rating) || 0);
         
         // Switch to chat mode after messages are set
         setPageMode('chat');
@@ -413,20 +407,20 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
         }, 200);
       } else {
         // Still switch to chat mode even if no messages
-        setSessionTitle(selectedMarkingResult.title || 'Chat Session');
+        setSessionTitle(currentSession.title || 'Chat Session');
         setPageMode('chat');
       }
       
       // Session management is now handled by the new system
     }
-  }, [selectedMarkingResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Session management is now handled by the new system
 
   // Load session from localStorage on component mount
   useEffect(() => {
     // Don't load from localStorage if we have a selected marking result
-    if (selectedMarkingResult) {
+    if (currentSession) {
       return;
     }
     
@@ -450,7 +444,7 @@ const MarkHomeworkPage = ({ onPageModeChange }) => {
     if (savedChatMode === 'true' && pageMode === 'upload') {
       setPageMode('chat');
     }
-  }, [pageMode, selectedMarkingResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pageMode, currentSession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save session data to localStorage whenever it changes
   useEffect(() => {

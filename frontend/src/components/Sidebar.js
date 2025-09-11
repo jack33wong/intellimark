@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Settings, 
@@ -13,7 +13,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useSessions } from '../hooks/useSessions';
 import { useSessionActions } from '../hooks/useSessionActions';
-import MarkingHistoryService from '../services/markingHistoryService';
 import './Sidebar.css';
 
 /**
@@ -22,9 +21,9 @@ import './Sidebar.css';
  */
 function Sidebar({ isOpen = true, onMarkHomeworkClick, currentPageMode = 'upload', onMenuToggle }) {
   const navigate = useNavigate();
-  const { user, getAuthToken } = useAuth();
-  const { sessions: chatSessions, isLoading: isLoadingSessions, error: sessionsError, refreshSessions } = useSessions();
-  const { currentSession, selectSession, selectSessionWithFullData, deleteTask } = useSessionActions();
+  const { user } = useAuth();
+  const { sessions: chatSessions, isLoading: isLoadingSessions, error: sessionsError } = useSessions();
+  const { selectSessionWithFullData, deleteTask } = useSessionActions();
   const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   

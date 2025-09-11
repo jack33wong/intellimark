@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { useSessionActions } from './hooks/useSessionActions';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -13,7 +13,6 @@ import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
-import API_CONFIG from './config/api';
 import './App.css';
 
 /**
@@ -21,65 +20,19 @@ import './App.css';
  * @returns {JSX.Element} The main application layout
  */
 function AppContent() {
-  const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [selectedMarkingResult, setSelectedMarkingResult] = useState(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
   const [currentPageMode, setCurrentPageMode] = useState('upload');
 
-  // Get auth token function - will be provided by AuthProvider
-  const { getAuthToken } = useAuth();
-  
   // Get session actions from the new session management system
   const { selectSession } = useSessionActions();
 
-  const handleMarkingHistoryClick = async (result) => {
-    try {
-      // If the result has a sessionId, fetch the full session data including images
-      if (result.id) {
-        const authToken = await getAuthToken();
-        const headers = {
-          'Content-Type': 'application/json',
-        };
-        if (authToken) {
-          headers['Authorization'] = `Bearer ${authToken}`;
-        }
-        
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/task/${result.id}`, {
-          method: 'GET',
-          headers,
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.session) {
-            setSelectedMarkingResult(data.session);
-          } else {
-            console.warn('🔍 Failed to load full session data, using basic data');
-            setSelectedMarkingResult(result);
-          }
-        } else {
-          console.warn('🔍 Failed to fetch full session data, using basic data');
-          setSelectedMarkingResult(result);
-        }
-      } else {
-        setSelectedMarkingResult(result);
-      }
-      
-      // Navigate to mark-homework route using React Router
-      navigate('/mark-homework');
-    } catch (error) {
-      console.error('🔍 Error fetching full session data:', error);
-      // Fallback to basic data
-      setSelectedMarkingResult(result);
-      navigate('/mark-homework');
-    }
-  };
+  // Note: handleMarkingHistoryClick is no longer needed as session management 
+  // is now handled by the new session management system in the sidebar
 
   const handleMarkHomeworkClick = () => {
     // Reset to upload mode and clear current session
     setCurrentPageMode('upload');
-    setSelectedMarkingResult(null);
     selectSession(null); // Clear current session using new session management
     setMarkHomeworkResetKey(prev => prev + 1);
   };
@@ -90,15 +43,8 @@ function AppContent() {
   
 
 
-  const handleMarkingResultSaved = () => {
-    // This will be called when a new marking result is saved
-    // We'll pass this to the Sidebar to refresh the history
-    
-    // Call the refresh function if it exists
-    if (handleMarkingResultSaved.refresh) {
-      handleMarkingResultSaved.refresh();
-    }
-  };
+  // Note: handleMarkingResultSaved is no longer needed as session management 
+  // is now handled by the new session management system
 
   // Using future flags to opt-in to React Router v7 behavior early
   // This eliminates all deprecation warnings:
@@ -118,9 +64,7 @@ function AppContent() {
                   <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
@@ -141,9 +85,7 @@ function AppContent() {
                   <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
@@ -170,9 +112,7 @@ function AppContent() {
                   <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
@@ -194,9 +134,7 @@ function AppContent() {
                   <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
@@ -218,9 +156,7 @@ function AppContent() {
                   <div className="app-body">
                     <Sidebar 
                       isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
                       currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
