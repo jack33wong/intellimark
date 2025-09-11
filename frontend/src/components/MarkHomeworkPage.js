@@ -389,7 +389,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         setCurrentSessionId(selectedMarkingResult.id);
         
         // Store the session title for display
-        console.log('📝 Setting session title from selectedMarkingResult:', selectedMarkingResult.title);
         setSessionTitle(selectedMarkingResult.title || 'Chat Session');
         
         // Load favorite and rating from session
@@ -705,6 +704,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         // Set processing to false after AI response is ready
         setIsProcessing(false);
         
+        // Set session title for question-only mode
+        if (result.sessionId) {
+          // Use session title from backend (which uses the same logic as database)
+          const sessionTitle = result.sessionTitle || `Question - ${new Date().toLocaleDateString()}`;
+          setSessionTitle(sessionTitle);
+        }
+        
         // Switch to chat mode after AI response is ready
         setPageMode('chat');
         
@@ -720,6 +726,13 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       });
 
 
+      // Set session title for marking mode
+      if (result.sessionId) {
+        // Use session title from backend (which uses the same logic as database)
+        const sessionTitle = result.sessionTitle || `Marking - ${new Date().toLocaleDateString()}`;
+        setSessionTitle(sessionTitle);
+      }
+      
       // Switch to chat mode with the marked homework
       setPageMode('chat');
       
@@ -943,21 +956,20 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Update session ID if we got a new one
         if (data.sessionId && data.sessionId !== currentSessionId) {
-          console.log('🆕 New session created:', data.sessionId);
-          console.log('📝 Session title from backend:', data.sessionTitle);
-          console.log('💬 Chat input for title:', chatInput);
-          
           setCurrentSessionId(data.sessionId);
           
           // Set session title for new session
           if (data.sessionTitle) {
-            console.log('✅ Using backend session title:', data.sessionTitle);
             setSessionTitle(data.sessionTitle);
           } else {
             // Generate a default title based on the first message
             const title = chatInput.length > 50 ? chatInput.substring(0, 50) + '...' : chatInput;
-            console.log('📝 Generated title from input:', title);
             setSessionTitle(title || 'Chat Session');
+          }
+        } else {
+          // Even for existing sessions, update the title if provided
+          if (data.sessionTitle && data.sessionTitle !== 'Chat Session') {
+            setSessionTitle(data.sessionTitle);
           }
         }
         
@@ -1023,7 +1035,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   <h1>
                     {sessionTitle.length > 100 ? sessionTitle.substring(0, 100) + '...' : sessionTitle}
                   </h1>
-                  {console.log('🎯 Rendering chat header with sessionTitle:', sessionTitle)}
                 </div>
                 <div className="chat-header-right">
                 <div className="info-dropdown-container">

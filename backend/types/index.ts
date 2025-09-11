@@ -280,6 +280,7 @@ export interface MarkHomeworkResponse {
   classification?: ImageClassification;
   questionDetection?: QuestionDetectionResult;
   sessionId?: string;
+  sessionTitle?: string;
 }
 
 export interface ChatRequest {

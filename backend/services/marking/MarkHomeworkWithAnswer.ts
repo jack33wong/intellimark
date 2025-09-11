@@ -168,9 +168,10 @@ export class MarkHomeworkWithAnswer {
     // If question-only, short-circuit like current route
     if (imageClassification.isQuestionOnly) {
       let sessionId: string | undefined;
+      let sessionTitle = `Question - ${new Date().toLocaleDateString()}`;
+      
       try {
         const sessionManager = ChatSessionManager.getInstance();
-        let sessionTitle = `Question - ${new Date().toLocaleDateString()}`;
         if (questionDetection?.found && (questionDetection as any).match) {
           const match: any = (questionDetection as any).match;
           const questionNumber = match.questionNumber || 'Unknown';
@@ -199,6 +200,7 @@ export class MarkHomeworkWithAnswer {
         reasoning: imageClassification.reasoning,
         questionDetection,
         sessionId,
+        sessionTitle: sessionTitle,
         timestamp: new Date().toISOString()
       } as unknown as MarkHomeworkResponse;
     }
@@ -239,9 +241,10 @@ export class MarkHomeworkWithAnswer {
 
     // Step 6: Create session for marking
     let sessionId: string | undefined;
+    let sessionTitle = `Marking - ${new Date().toLocaleDateString()}`;
+    
     try {
       const sessionManager = ChatSessionManager.getInstance();
-      let sessionTitle = `Marking - ${new Date().toLocaleDateString()}`;
       if (questionDetection?.found && (questionDetection as any).match) {
         const match: any = (questionDetection as any).match;
         const examDetails = match.markingScheme?.examDetails || match;
@@ -272,7 +275,8 @@ export class MarkHomeworkWithAnswer {
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification,
       questionDetection,
-      sessionId
+      sessionId,
+      sessionTitle: sessionTitle
     } as unknown as MarkHomeworkResponse;
 
     return {
