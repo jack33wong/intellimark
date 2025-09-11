@@ -4,10 +4,16 @@ import './MarkHomeworkPage.css';
 import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { useAuth } from '../contexts/AuthContext';
-import { FirestoreService } from '../services/firestoreService';
+import { useSessionActions } from '../hooks/useSessionActions';
+import { useSessionSync } from '../hooks/useSessionSync';
 
-const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
+const MarkHomeworkPage = ({ onPageModeChange }) => {
   const { getAuthToken } = useAuth();
+  const { currentSession, selectSession, createTask, updateTask } = useSessionActions();
+  const { currentSessionId } = useSessionSync();
+  
+  // Use currentSession instead of selectedMarkingResult
+  const selectedMarkingResult = currentSession;
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -71,10 +77,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setIsFavorite(newFavoriteState);
     
     try {
-      const authToken = await getAuthToken();
-      await FirestoreService.updateChatSession(currentSessionId, {
+      await updateTask(currentSessionId, {
         favorite: newFavoriteState
-      }, authToken);
+      });
     } catch (error) {
       console.error('Failed to update favorite status:', error);
       // Revert on error
@@ -91,10 +96,9 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setRating(numericRating);
     
     try {
-      const authToken = await getAuthToken();
-      await FirestoreService.updateChatSession(currentSessionId, {
+      await updateTask(currentSessionId, {
         rating: numericRating
-      }, authToken);
+      });
     } catch (error) {
       console.error('Failed to update rating:', error);
       // Revert on error
@@ -102,20 +106,21 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   };
 
-  // Load session data including favorite and rating
-  const loadSessionData = async (sessionId) => {
-    try {
-      const session = await FirestoreService.getChatSession(sessionId);
-      if (session) {
-        setIsFavorite(session.favorite || false);
-        setRating(Number(session.rating) || 0);
-      }
-    } catch (error) {
-      console.error('Failed to load session data:', error);
+  // Load session data including favorite and rating from current session
+  const loadSessionData = (session) => {
+    if (session) {
+      setIsFavorite(session.favorite || false);
+      setRating(Number(session.rating) || 0);
     }
   };
+
+  // Load session data when current session changes
+  useEffect(() => {
+    if (currentSession) {
+      loadSessionData(currentSession);
+    }
+  }, [currentSession]);
   const [chatInput, setChatInput] = useState('');
-  const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
@@ -248,16 +253,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     };
   }, [lastRequestTime, subscriptionType, canMakeRequest, getRemainingDelay]);
   
-  // Refresh sidebar when switching to chat mode (for question-only mode only)
-  useEffect(() => {
-    if (pageMode === 'chat' && currentSessionId && onMarkingResultSaved && classificationResult?.isQuestionOnly) {
-      // Small delay to ensure session is fully created before refreshing sidebar
-      const timer = setTimeout(() => {
-        onMarkingResultSaved();
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [pageMode, currentSessionId, onMarkingResultSaved, classificationResult?.isQuestionOnly]);
+  // Sidebar is now automatically updated by the new session management system
   
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -285,7 +281,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     setPageMode('upload');
     setChatMessages([]);
     setChatInput('');
-    setCurrentSessionId(null);
+    selectSession(null);
     setSelectedFile(null);
     setPreviewUrl(null);
     setClassificationResult(null);
@@ -305,7 +301,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       setPageMode('upload');
       setChatMessages([]);
       setChatInput('');
-      setCurrentSessionId(null);
+      selectSession(null);
       setSelectedFile(null);
       setPreviewUrl(null);
       setClassificationResult(null);
@@ -323,7 +319,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       setPageMode('upload');
       setChatMessages([]);
       setChatInput('');
-      setCurrentSessionId(null);
+      selectSession(null);
       setSelectedFile(null);
       setPreviewUrl(null);
       setClassificationResult(null);
@@ -399,7 +395,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Set messages first, then switch to chat mode
         setChatMessages(deduplicateMessages(formattedMessages));
-        setCurrentSessionId(selectedMarkingResult.id);
+        selectSession(selectedMarkingResult.id);
         
         // Store the session title for display
         setSessionTitle(selectedMarkingResult.title || 'Chat Session');
@@ -421,26 +417,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         setPageMode('chat');
       }
       
-      // Clear the selected result after processing with a longer delay
-      // Only clear if we're not in chat mode (to preserve session title)
-      if (onClearSelectedResult && pageMode !== 'chat') {
-        setTimeout(() => {
-          onClearSelectedResult();
-        }, 500);
-      }
+      // Session management is now handled by the new system
     }
-  }, [selectedMarkingResult, onClearSelectedResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedMarkingResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Clear selectedMarkingResult after switching to chat mode to prevent title reversion
-  useEffect(() => {
-    if (pageMode === 'chat' && selectedMarkingResult && onClearSelectedResult) {
-      const timer = setTimeout(() => {
-        onClearSelectedResult();
-      }, 1000); // Clear after 1 second to ensure title is set
-      
-      return () => clearTimeout(timer);
-    }
-  }, [pageMode, selectedMarkingResult, onClearSelectedResult]);
+  // Session management is now handled by the new system
 
   // Load session from localStorage on component mount
   useEffect(() => {
@@ -454,7 +435,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     const savedChatMode = localStorage.getItem('isChatMode');
     
     if (savedSessionId) {
-      setCurrentSessionId(savedSessionId);
+      selectSession(savedSessionId);
     }
     
     if (savedChatMessages) {
@@ -637,7 +618,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         // Log session message content before redirecting to chat
         
         // Set the session ID from the response
-        setCurrentSessionId(result.sessionId);
+        selectSession(result.sessionId);
         
         // Add initial user message with the image
         const initialUserMessage = {
@@ -723,8 +704,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           const sessionTitle = result.sessionTitle || `Question - ${new Date().toLocaleDateString()}`;
           setSessionTitle(sessionTitle);
           
-          // Load session data including favorite and rating
-          loadSessionData(result.sessionId);
+          // Select the session in the new session management system
+          selectSession(result.sessionId);
         }
         
         // Switch to chat mode after AI response is ready
@@ -748,15 +729,12 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         const sessionTitle = result.sessionTitle || `Marking - ${new Date().toLocaleDateString()}`;
         setSessionTitle(sessionTitle);
         
-        // Load session data including favorite and rating
-        loadSessionData(result.sessionId);
+        // Select the session in the new session management system
+        selectSession(result.sessionId);
       }
       
       // Switch to chat mode with the marked homework
       setPageMode('chat');
-      
-      // Set the session ID from the response
-      setCurrentSessionId(result.sessionId);
       
       // Add the original image message first, then the marked homework message
       const originalImageMessage = {
@@ -849,7 +827,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
           // Refresh messages from backend
           setTimeout(async () => {
             try {
-              const sessionResponse = await fetch(`/api/chat/session/${result.sessionId}`, {
+              const sessionResponse = await fetch(`${API_CONFIG.BASE_URL}/api/chat/task/${result.sessionId}`, {
                 headers: {
                   'Authorization': `Bearer ${authToken}`
                 }
@@ -884,10 +862,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                   
                   setChatMessages(deduplicateMessages(formattedMessages));
                   
-                  // Refresh sidebar after backend persistence is complete
-                  if (onMarkingResultSaved) {
-                    onMarkingResultSaved();
-                  }
+                  // Sidebar is now automatically updated by the new session management system
                 }
               }
             } catch (error) {
@@ -905,7 +880,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, selectedModel, onMarkingResultSaved, chatMessages, getAuthToken]);
+  }, [selectedFile, selectedModel, chatMessages, getAuthToken]);
 
 
 
@@ -975,7 +950,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         
         // Update session ID if we got a new one
         if (data.sessionId && data.sessionId !== currentSessionId) {
-          setCurrentSessionId(data.sessionId);
+          selectSession(data.sessionId);
           
           // Set session title for new session
           if (data.sessionTitle) {

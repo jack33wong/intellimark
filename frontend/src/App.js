@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SessionProvider } from './contexts/SessionContext';
+import { useSessionActions } from './hooks/useSessionActions';
 import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
@@ -27,6 +29,9 @@ function AppContent() {
 
   // Get auth token function - will be provided by AuthProvider
   const { getAuthToken } = useAuth();
+  
+  // Get session actions from the new session management system
+  const { selectSession } = useSessionActions();
 
   const handleMarkingHistoryClick = async (result) => {
     try {
@@ -40,7 +45,7 @@ function AppContent() {
           headers['Authorization'] = `Bearer ${authToken}`;
         }
         
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/session/${result.id}`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/task/${result.id}`, {
           method: 'GET',
           headers,
         });
@@ -72,16 +77,11 @@ function AppContent() {
   };
 
   const handleMarkHomeworkClick = () => {
-    if (currentPageMode === 'chat') {
-      // In chat mode, reset to upload mode
-      setCurrentPageMode('upload');
-      setSelectedMarkingResult(null);
-      setMarkHomeworkResetKey(prev => prev + 1);
-    } else {
-      // In upload mode, normal behavior
-      setSelectedMarkingResult(null);
-      setMarkHomeworkResetKey(prev => prev + 1);
-    }
+    // Reset to upload mode and clear current session
+    setCurrentPageMode('upload');
+    setSelectedMarkingResult(null);
+    selectSession(null); // Clear current session using new session management
+    setMarkHomeworkResetKey(prev => prev + 1);
   };
 
   const handlePageModeChange = (mode) => {
@@ -154,9 +154,6 @@ function AppContent() {
                       <div className="mark-homework-main-content">
                         <MarkHomeworkPage 
                           key={markHomeworkResetKey}
-                          selectedMarkingResult={selectedMarkingResult}
-                          onClearSelectedResult={() => setSelectedMarkingResult(null)}
-                          onMarkingResultSaved={handleMarkingResultSaved}
                           onPageModeChange={handlePageModeChange}
                         />
                       </div>
@@ -255,12 +252,14 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <Router future={{ 
-        v7_startTransition: true,
-        v7_relativeSplatPath: true 
-      }}>
-        <AppContent />
-      </Router>
+      <SessionProvider>
+        <Router future={{ 
+          v7_startTransition: true,
+          v7_relativeSplatPath: true 
+        }}>
+          <AppContent />
+        </Router>
+      </SessionProvider>
     </AuthProvider>
   );
 }

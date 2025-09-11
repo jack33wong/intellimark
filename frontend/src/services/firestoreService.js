@@ -13,7 +13,7 @@ export class FirestoreService {
    */
   static async getChatSessions(userId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/sessions/${userId || 'anonymous'}`);
+      const response = await fetch(`${API_BASE_URL}/chat/tasks/${userId || 'anonymous'}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -32,7 +32,7 @@ export class FirestoreService {
    */
   static async getChatSession(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`);
+      const response = await fetch(`${API_BASE_URL}/chat/task/${sessionId}`);
       if (!response.ok) {
         if (response.status === 404) {
           return null;
@@ -102,7 +102,7 @@ export class FirestoreService {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`, {
+      const response = await fetch(`${API_BASE_URL}/chat/task/${sessionId}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(updates),
@@ -139,7 +139,7 @@ export class FirestoreService {
    */
   static async deleteChatSession(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`, {
+      const response = await fetch(`${API_BASE_URL}/chat/task/${sessionId}`, {
         method: 'DELETE',
       });
 

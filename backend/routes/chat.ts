@@ -268,10 +268,10 @@ router.post('/', optionalAuth, async (req, res) => {
 });
 
 /**
- * GET /chat/sessions/:userId
- * Get all chat sessions for a user (requires authentication)
+ * GET /chat/tasks/:userId
+ * Get all chat tasks for a user (requires authentication)
  */
-router.get('/sessions/:userId', optionalAuth, async (req, res) => {
+router.get('/tasks/:userId', optionalAuth, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -302,15 +302,15 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
 });
 
 /**
- * GET /chat/session/:sessionId
- * Get a specific chat session (requires authentication)
+ * GET /chat/task/:taskId
+ * Get a specific chat task (requires authentication)
  */
-router.get('/session/:sessionId', optionalAuth, async (req, res) => {
+router.get('/task/:taskId', optionalAuth, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { taskId } = req.params;
 
     const sessionManager = ChatSessionManager.getInstance();
-    const session = await sessionManager.getSession(sessionId);
+    const session = await sessionManager.getSession(taskId);
     
     if (!session) {
       return res.status(404).json({
@@ -345,12 +345,12 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
 });
 
 /**
- * PUT /chat/session/:sessionId
- * Update a chat session (e.g., title) (requires authentication)
+ * PUT /chat/task/:taskId
+ * Update a chat task (e.g., title) (requires authentication)
  */
-router.put('/session/:sessionId', optionalAuth, async (req, res) => {
+router.put('/task/:taskId', optionalAuth, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { taskId } = req.params;
     const updates = req.body;
 
     // Check if user is authenticated
@@ -363,7 +363,7 @@ router.put('/session/:sessionId', optionalAuth, async (req, res) => {
     }
 
     // Verify session ownership before updating
-    const session = await FirestoreService.getChatSession(sessionId);
+    const session = await FirestoreService.getChatSession(taskId);
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -379,7 +379,7 @@ router.put('/session/:sessionId', optionalAuth, async (req, res) => {
       });
     }
 
-    await FirestoreService.updateChatSession(sessionId, updates);
+    await FirestoreService.updateChatSession(taskId, updates);
     
     return res.json({
       success: true,
@@ -395,12 +395,12 @@ router.put('/session/:sessionId', optionalAuth, async (req, res) => {
 });
 
 /**
- * DELETE /chat/session/:sessionId
- * Delete a chat session (requires authentication)
+ * DELETE /chat/task/:taskId
+ * Delete a chat task (requires authentication)
  */
-router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
+router.delete('/task/:taskId', optionalAuth, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { taskId } = req.params;
 
     // Check if user is authenticated
     if (!req.user) {
@@ -412,7 +412,7 @@ router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
     }
 
     // Verify session ownership before deleting
-    const session = await FirestoreService.getChatSession(sessionId);
+    const session = await FirestoreService.getChatSession(taskId);
     if (!session) {
       return res.status(404).json({
         success: false,
@@ -428,11 +428,11 @@ router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
       });
     }
 
-    await FirestoreService.deleteChatSession(sessionId, session.userId);
+    await FirestoreService.deleteChatSession(taskId, session.userId);
     
     // Clear the session from in-memory cache
     const sessionManager = ChatSessionManager.getInstance();
-    sessionManager.removeSessionFromCache(sessionId);
+    sessionManager.removeSessionFromCache(taskId);
     
     return res.json({
       success: true,
@@ -489,7 +489,7 @@ router.get('/status', (_req, res) => {
  */
 router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
   try {
-    const { sessionId } = req.params;
+    const { taskId } = req.params;
 
     // Check if user is authenticated
     if (!req.user) {
@@ -501,7 +501,7 @@ router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
     }
 
     const sessionManager = ChatSessionManager.getInstance();
-    const session = await sessionManager.restoreSession(sessionId);
+    const session = await sessionManager.restoreSession(taskId);
 
     if (!session) {
       return res.status(404).json({

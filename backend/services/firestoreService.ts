@@ -29,7 +29,7 @@ const db = admin.firestore();
 const COLLECTIONS = {
   MARKING_RESULTS: 'markingResults',
   USERS: 'users',
-  SESSIONS: 'sessions'
+  SESSIONS: 'tasks'
 } as const;
 
 // Types for Firestore documents

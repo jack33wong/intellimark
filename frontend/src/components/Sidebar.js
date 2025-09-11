@@ -11,6 +11,8 @@ import {
   Star
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSessions } from '../hooks/useSessions';
+import { useSessionActions } from '../hooks/useSessionActions';
 import MarkingHistoryService from '../services/markingHistoryService';
 import './Sidebar.css';
 
@@ -18,14 +20,11 @@ import './Sidebar.css';
  * Sidebar component displaying navigation
  * @returns {JSX.Element} The sidebar component
  */
-function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, currentPageMode = 'upload', onMenuToggle }) {
+function Sidebar({ isOpen = true, onMarkHomeworkClick, currentPageMode = 'upload', onMenuToggle }) {
   const navigate = useNavigate();
-  // const location = useLocation(); // Removed - not used
   const { user, getAuthToken } = useAuth();
-  const [chatSessions, setChatSessions] = useState([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
-  const [sessionsError, setSessionsError] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
+  const { sessions: chatSessions, isLoading: isLoadingSessions, error: sessionsError, refreshSessions } = useSessions();
+  const { currentSession, selectSession, selectSessionWithFullData, deleteTask } = useSessionActions();
   const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   
@@ -34,75 +33,18 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   
 
 
-  // Function to refresh chat sessions with debouncing
-  const refreshChatSessions = useCallback(async () => {
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastFetchTime;
-    
-    // Debounce: don't fetch if we've fetched within the last 1 second
-    if (timeSinceLastFetch < 1000) {
-      return;
-    }
-    setIsLoadingSessions(true);
-    setSessionsError(null);
-    setLastFetchTime(now);
-    
+
+  // Sessions are now automatically managed by the new session management system
+
+  const handleSessionClick = async (session) => {
     try {
-      // Get authentication token
-      const authToken = await getAuthToken();
+      // Load full session data with images and select it
+      await selectSessionWithFullData(session.id);
       
-      // Use authenticated user ID or 'anonymous' for unauthenticated users
-      const userIdToFetch = user?.uid || 'anonymous';
-      
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(userIdToFetch, 20, authToken);
-      
-      if (response.success) {
-        const sessions = response.sessions || [];
-        setChatSessions(sessions);
-      } else {
-        setSessionsError('Failed to load chat sessions');
-      }
-      
-
+      // Navigate to mark homework page
+      navigate('/mark-homework');
     } catch (error) {
-      setSessionsError('Failed to load chat sessions');
-    } finally {
-      setIsLoadingSessions(false);
-    }
-  }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch chat sessions for both authenticated and anonymous users
-  useEffect(() => {
-    // Fetch sessions for both authenticated users and anonymous users
-    refreshChatSessions();
-  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Expose refresh function to parent component
-  useEffect(() => {
-    if (onMarkingResultSaved) {
-      // Store the refresh function in the callback so parent can call it
-      onMarkingResultSaved.refresh = refreshChatSessions;
-    }
-  }, [onMarkingResultSaved, refreshChatSessions]);
-
-  // Listen for custom events to refresh sessions
-  useEffect(() => {
-    const handleSessionsCleared = () => {
-      refreshChatSessions();
-    };
-
-    window.addEventListener('sessionsCleared', handleSessionsCleared);
-    
-    return () => {
-      window.removeEventListener('sessionsCleared', handleSessionsCleared);
-    };
-  }, [refreshChatSessions]);
-
-  const handleSessionClick = (session) => {
-    if (onMarkingHistoryClick && typeof onMarkingHistoryClick === 'function') {
-      onMarkingHistoryClick(session);
-    } else {
-      console.warn('Sidebar: onMarkingHistoryClick not available');
+      console.error('❌ Error selecting session:', error);
     }
   };
 
@@ -118,20 +60,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     setDeletingSessionId(sessionId);
     
     try {
-      const authToken = await getAuthToken();
-      if (!authToken) {
-        throw new Error('Authentication required to delete sessions');
-      }
-
-      await MarkingHistoryService.deleteSession(sessionId, authToken);
-      
-      // Remove the session from the local state
-      setChatSessions(prevSessions => 
-        prevSessions.filter(session => session.id !== sessionId)
-      );
-      
-      // Dispatch custom event to notify other components
-      window.dispatchEvent(new CustomEvent('sessionDeleted', { detail: { sessionId } }));
+      await deleteTask(sessionId);
       
       // Navigate to mark homework page after successful deletion
       navigate('/mark-homework');

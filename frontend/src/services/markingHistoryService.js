@@ -16,7 +16,7 @@ class MarkingHistoryService {
    */
   static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null) {
     try {
-      const url = `${API_BASE}/api/chat/sessions/${userId}`;
+      const url = `${API_BASE}/api/chat/tasks/${userId}`;
       
       const headers = {
         'Content-Type': 'application/json',
@@ -67,7 +67,7 @@ class MarkingHistoryService {
    */
   static async getMarkingMessagesFromSession(sessionId, authToken = null) {
     try {
-      const url = `${API_BASE}/api/chat/sessions/${sessionId}`;
+      const url = `${API_BASE}/api/chat/tasks/${sessionId}`;
       
       const headers = {
         'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ class MarkingHistoryService {
    */
   static async deleteSession(sessionId, authToken) {
     try {
-      const url = `${API_BASE}/api/chat/session/${sessionId}`;
+      const url = `${API_BASE}/api/chat/task/${sessionId}`;
       
       const headers = {
         'Content-Type': 'application/json',

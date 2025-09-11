@@ -8,7 +8,7 @@ export const API_ENDPOINTS = {
   MARKING: '/api/marking/',
   ADMIN: '/api/admin/',
   SUBSCRIPTION: '/api/subscription/',
-  SESSION: (id) => `/api/chat/session/${id}`,
+  SESSION: (id) => `/api/chat/task/${id}`,
 };
 
 // Subscription Plans
