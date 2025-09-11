@@ -48,6 +48,8 @@ export interface HybridOCROptions {
   mathThreshold?: number;
   minMathBlockSize?: number;
   maxMathBlockSize?: number;
+  dbscanEpsPx?: number;
+  dbscanMinPts?: number;
 }
 
 export class HybridOCRService {
@@ -55,13 +57,89 @@ export class HybridOCRService {
     enablePreprocessing: true,
     mathThreshold: 0.35,
     minMathBlockSize: 20,
-    maxMathBlockSize: 2000
+    maxMathBlockSize: 2000,
+    dbscanEpsPx: 40,
+    dbscanMinPts: 2
   };
 
   // Configuration for robust recognition
   private static readonly RESIZE_FACTOR = 2;
   private static readonly IOU_THRESHOLD = 0.7;
   private static readonly LINE_GROUP_TOLERANCE_Y = 10; // pixels tolerance to group words into same line
+
+  /**
+   * Merge overlapping blocks into unified clusters. Uses simple rectangle intersection.
+   * Repeats until no merges occur or a safety iteration cap is reached.
+   */
+  private static mergeOverlappingBlocks(blocks: DetectedBlock[]): DetectedBlock[] {
+    const intersects = (a: DetectedBlock, b: DetectedBlock): boolean => {
+      const ax1 = a.geometry.minX;
+      const ay1 = a.geometry.minY;
+      const ax2 = a.geometry.minX + a.geometry.width;
+      const ay2 = a.geometry.minY + a.geometry.height;
+      const bx1 = b.geometry.minX;
+      const by1 = b.geometry.minY;
+      const bx2 = b.geometry.minX + b.geometry.width;
+      const by2 = b.geometry.minY + b.geometry.height;
+      return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+    };
+
+    const mergeTwo = (a: DetectedBlock, b: DetectedBlock): DetectedBlock => {
+      const minX = Math.min(a.geometry.minX, b.geometry.minX);
+      const minY = Math.min(a.geometry.minY, b.geometry.minY);
+      const maxX = Math.max(a.geometry.minX + a.geometry.width, b.geometry.minX + b.geometry.width);
+      const maxY = Math.max(a.geometry.minY + a.geometry.height, b.geometry.minY + b.geometry.height);
+      const mergedWidth = Math.round(maxX - minX);
+      const mergedHeight = Math.round(maxY - minY);
+      const text = [a.text || '', b.text || ''].filter(Boolean).join(' ').trim();
+      const confidence = (((a.confidence || 0) + (b.confidence || 0)) / (2)) || 0;
+      return {
+        source: `${a.source}|${b.source}|merged`,
+        blockIndex: Math.min(a.blockIndex, b.blockIndex),
+        text,
+        confidence,
+        geometry: {
+          width: mergedWidth,
+          height: mergedHeight,
+          boundingBox: [
+            { x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }
+          ],
+          minX,
+          minY
+        }
+      } as DetectedBlock;
+    };
+
+    // Work on a copy
+    let current = [...blocks];
+    let changed = true;
+    let iterations = 0;
+    const MAX_ITERATIONS = 20;
+    while (changed && iterations < MAX_ITERATIONS) {
+      changed = false;
+      iterations++;
+      const result: DetectedBlock[] = [];
+      const used = new Set<number>();
+      for (let i = 0; i < current.length; i++) {
+        if (used.has(i)) continue;
+        let mergedBlock = current[i];
+        for (let j = i + 1; j < current.length; j++) {
+          if (used.has(j)) continue;
+          if (intersects(mergedBlock, current[j])) {
+            mergedBlock = mergeTwo(mergedBlock, current[j]);
+            used.add(j);
+            changed = true;
+          }
+        }
+        used.add(i);
+        result.push(mergedBlock);
+      }
+      current = result;
+    }
+    // Reindex blockIndex for stability
+    current.forEach((b, idx) => (b.blockIndex = idx + 1));
+    return current;
+  }
 
   /**
    * Helper function to calculate width and height from bounding box vertices.
@@ -211,7 +289,10 @@ export class HybridOCRService {
   /**
    * Perform robust three-pass Google Vision recognition
    */
-  private static async performRobustRecognition(imageBuffer: Buffer): Promise<DetectedBlock[]> {
+  private static async performRobustRecognition(
+    imageBuffer: Buffer,
+    opts: Required<HybridOCROptions>
+  ): Promise<{ finalBlocks: DetectedBlock[]; preClusterBlocks: DetectedBlock[] }> {
     const client = new ImageAnnotatorClient();
     const allBlocks: DetectedBlock[] = [];
 
@@ -254,53 +335,78 @@ export class HybridOCRService {
       console.log('⚠️ Pass C failed:', error instanceof Error ? error.message : 'Unknown error');
     }
 
-    // Merge results using "Most Complete" strategy
-    console.log('🔄 Merging results...');
+    // Keep a copy of raw detected blocks prior to clustering for visualization/debugging
+    const preClusterBlocks: DetectedBlock[] = allBlocks.slice();
+
+    // Cluster results using DBSCAN (center-point clustering)
+    console.log('🔄 Clustering Vision blocks with DBSCAN...');
+    const { DBSCAN } = await import('density-clustering') as unknown as { DBSCAN: new () => any };
+    const algo: any = new (DBSCAN as any)();
+
+    const points: Array<[number, number]> = allBlocks.map(b => [
+      b.geometry.minX + b.geometry.width / 2,
+      b.geometry.minY + b.geometry.height / 2
+    ]);
+
+    const clusters: number[][] = algo.run(points, opts.dbscanEpsPx, opts.dbscanMinPts);
+    const noise: number[] = algo.noise || [];
+
     const finalBlocks: DetectedBlock[] = [];
-    const processedIndices = new Set<number>();
 
-    for (let i = 0; i < allBlocks.length; i++) {
-      if (processedIndices.has(i)) continue;
+    // Convert clusters to merged blocks
+    clusters.forEach((idxs, clusterIdx) => {
+      if (!Array.isArray(idxs) || idxs.length === 0) return;
+      const members = idxs.map(i => allBlocks[i]);
 
-      const cluster = [allBlocks[i]];
-      processedIndices.add(i);
+      const minX = Math.min(...members.map(m => m.geometry.minX));
+      const minY = Math.min(...members.map(m => m.geometry.minY));
+      const maxX = Math.max(...members.map(m => m.geometry.minX + m.geometry.width));
+      const maxY = Math.max(...members.map(m => m.geometry.minY + m.geometry.height));
 
-      for (let j = i + 1; j < allBlocks.length; j++) {
-        if (processedIndices.has(j)) continue;
-        
-        // Check IoU overlap
-        const iou = this.calculateIoU(allBlocks[i].geometry, allBlocks[j].geometry);
-        
-        // Only merge if high overlap AND they're on the same line (similar y-coordinates)
-        const yDifference = Math.abs(allBlocks[i].geometry.minY - allBlocks[j].geometry.minY);
-        const avgHeight = (allBlocks[i].geometry.height + allBlocks[j].geometry.height) / 2;
-        const isSameLine = yDifference < avgHeight * 0.5; // Within 50% of average height
-        
-        if (iou > this.IOU_THRESHOLD && isSameLine) {
-          console.log(`🔄 Merging blocks: "${allBlocks[i].text}" + "${allBlocks[j].text}" (IoU: ${iou.toFixed(3)}, yDiff: ${yDifference.toFixed(1)})`);
-          cluster.push(allBlocks[j]);
-          processedIndices.add(j);
-        } else if (iou > this.IOU_THRESHOLD && !isSameLine) {
-          console.log(`⚠️ Skipping merge: "${allBlocks[i].text}" + "${allBlocks[j].text}" (IoU: ${iou.toFixed(3)}, yDiff: ${yDifference.toFixed(1)} - different lines)`);
+      const mergedWidth = Math.round(maxX - minX);
+      const mergedHeight = Math.round(maxY - minY);
+
+      const text = members
+        .slice()
+        .sort((a, b) => (a.geometry.minY - b.geometry.minY) || (a.geometry.minX - b.geometry.minX))
+        .map(m => (m.text || '').trim())
+        .filter(Boolean)
+        .join(' ');
+
+      const avgConfidence = members.reduce((sum, m) => sum + (m.confidence || 0), 0) / members.length;
+
+      finalBlocks.push({
+        source: 'dbscan_cluster',
+        blockIndex: clusterIdx + 1,
+        text,
+        confidence: avgConfidence,
+        geometry: {
+          width: mergedWidth,
+          height: mergedHeight,
+          boundingBox: [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }],
+          minX,
+          minY
         }
-      }
-      
-      let bestBlock = cluster[0];
-      for (let k = 1; k < cluster.length; k++) {
-        const currentBestText = bestBlock.text || '';
-        const candidateText = cluster[k].text || '';
-        if (candidateText.length > currentBestText.length) {
-          bestBlock = cluster[k];
-        }
-      }
-      
-      finalBlocks.push(bestBlock);
-    }
-    
+      });
+    });
+
+    // Include noise points as individual blocks (optional but useful)
+    noise.forEach((i, nIdx) => {
+      const b = allBlocks[i];
+      finalBlocks.push({
+        ...b,
+        source: `${b.source}|noise`
+      });
+    });
+
     finalBlocks.forEach((block, index) => block.blockIndex = index + 1);
-    console.log(`✅ Robust recognition complete: ${finalBlocks.length} unique blocks found`);
-    
-    return finalBlocks;
+    console.log(`✅ DBSCAN clustering complete: ${finalBlocks.length} blocks (${clusters.length} clusters, ${noise.length} noise)`);
+
+    // Post-process: merge overlapping cluster boxes for cleaner regions
+    const mergedClusters = this.mergeOverlappingBlocks(finalBlocks);
+    console.log(`🔗 Overlap-merge complete: ${mergedClusters.length} blocks after merging`);
+
+    return { finalBlocks: mergedClusters, preClusterBlocks };
   }
 
   /**
@@ -323,9 +429,12 @@ export class HybridOCRService {
     console.log('📡 Running robust three-pass Google Vision recognition...');
     let detectedBlocks: DetectedBlock[] = [];
     let mathBlocks: MathBlock[] = [];
+    let preClusterBlocks: DetectedBlock[] = [];
     
     try {
-      detectedBlocks = await this.performRobustRecognition(imageBuffer);
+      const robust = await this.performRobustRecognition(imageBuffer, opts);
+      detectedBlocks = robust.finalBlocks;
+      preClusterBlocks = robust.preClusterBlocks;
       
       // Convert detected blocks to our standard format
       const visionResult: ProcessedVisionResult = {
@@ -538,7 +647,11 @@ export class HybridOCRService {
       symbols: finalSymbols,
       mathBlocks: processedMathBlocks,
       processingTime,
-      rawResponse: { detectedBlocks }
+      rawResponse: {
+        detectedBlocks,
+        // Expose pre-cluster blocks for visualization
+        preClusterBlocks
+      }
     };
   }
 

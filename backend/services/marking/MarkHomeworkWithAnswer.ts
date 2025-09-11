@@ -31,6 +31,52 @@ export class MarkHomeworkWithAnswer {
   }
 
   /**
+   * Public method to get full hybrid OCR result with proper sorting for testing
+   */
+  public static async getHybridOCRResult(imageData: string, options?: any): Promise<any> {
+    const { HybridOCRService } = await import('../hybridOCRService');
+
+    const hybridResult = await HybridOCRService.processImage(imageData, {
+      enablePreprocessing: true,
+      mathThreshold: 0.10,
+      ...options
+    });
+
+    // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
+    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+
+    return {
+      ...hybridResult,
+      mathBlocks: sortedMathBlocks
+    };
+  }
+
+  /**
    * Process image with enhanced OCR
    */
   private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
@@ -41,11 +87,37 @@ export class MarkHomeworkWithAnswer {
       mathThreshold: 0.10
     });
 
-    // Build OCR text from math blocks (consistent with current route logic)
-    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => a.coordinates.y - b.coordinates.y);
+    // Build OCR text by concatenating LaTeX text, falling back to Vision text if LaTeX not available
+    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+    
     const processedOcrText = sortedMathBlocks
-      .filter(block => block.mathpixLatex)
-      .map(block => block.mathpixLatex as string)
+      .map(block => block.mathpixLatex || block.googleVisionText || '')
+      .filter(Boolean)
       .join('\n');
 
     const processedBoundingBoxes = sortedMathBlocks
@@ -218,7 +290,9 @@ export class MarkHomeworkWithAnswer {
     const annotations = markingInstructions.annotations.map(ann => ({
       bbox: ann.bbox,
       comment: (ann as any).text || '',
-      action: ann.action
+      action: ann.action,
+      step_id: (ann as any).step_id,
+      textMatch: (ann as any).textMatch
     }));
     const annotationResult = await ImageAnnotationService.generateAnnotationResult(
       imageData,

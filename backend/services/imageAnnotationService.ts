@@ -235,6 +235,19 @@ export class ImageAnnotationService {
   ): Promise<ImageAnnotationResult> {
     try {
       console.log('🔥 Generating annotation result with burned overlays...');
+
+      // Log concise mapping details for each annotation
+      annotations.forEach((ann, index) => {
+        const anyAnn = ann as unknown as { action?: string; text?: string; reasoning?: string; step_id?: string; comment?: string; textMatch?: string };
+        console.log(
+          `[Overlay] #${index} bbox=[${ann.bbox.join(',')}]` +
+          ` action=${anyAnn.action || 'n/a'}` +
+          ` step_id=${anyAnn.step_id || 'n/a'}` +
+          ` text=${anyAnn.text || 'n/a'}` +
+          ` comment=${anyAnn.comment || 'n/a'}` +
+          ` textMatch=${anyAnn.textMatch || 'n/a'}`
+        );
+      });
       
       // Create SVG overlay for reference
       const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
