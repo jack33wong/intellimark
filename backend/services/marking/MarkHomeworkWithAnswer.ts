@@ -31,9 +31,55 @@ export class MarkHomeworkWithAnswer {
   }
 
   /**
+   * Public method to get full hybrid OCR result with proper sorting for testing
+   */
+  public static async getHybridOCRResult(imageData: string, options?: any): Promise<any> {
+    const { HybridOCRService } = await import('../hybridOCRService');
+
+    const hybridResult = await HybridOCRService.processImage(imageData, {
+      enablePreprocessing: true,
+      mathThreshold: 0.10,
+      ...options
+    });
+
+    // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
+    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+
+    return {
+      ...hybridResult,
+      mathBlocks: sortedMathBlocks
+    };
+  }
+
+  /**
    * Process image with enhanced OCR
    */
-  private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult> {
+  private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const { HybridOCRService } = await import('../hybridOCRService');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
@@ -41,11 +87,37 @@ export class MarkHomeworkWithAnswer {
       mathThreshold: 0.10
     });
 
-    // Build OCR text from math blocks (consistent with current route logic)
-    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => a.coordinates.y - b.coordinates.y);
+    // Build OCR text by concatenating LaTeX text, falling back to Vision text if LaTeX not available
+    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+    
     const processedOcrText = sortedMathBlocks
-      .filter(block => block.mathpixLatex)
-      .map(block => block.mathpixLatex as string)
+      .map(block => block.mathpixLatex || block.googleVisionText || '')
+      .filter(Boolean)
       .join('\n');
 
     const processedBoundingBoxes = sortedMathBlocks
@@ -59,12 +131,13 @@ export class MarkHomeworkWithAnswer {
         confidence: block.confidence
       }));
 
-    const processedResult: ProcessedImageResult = {
+    const processedResult: ProcessedImageResult & { mathpixCalls?: number } = {
       ocrText: processedOcrText,
       boundingBoxes: processedBoundingBoxes,
       confidence: hybridResult.confidence,
       imageDimensions: hybridResult.dimensions,
-      isQuestion: false
+      isQuestion: false,
+      mathpixCalls: (hybridResult as any)?.usage?.mathpixCalls || 0
     };
 
     return processedResult;
@@ -78,7 +151,7 @@ export class MarkHomeworkWithAnswer {
     model: ModelType,
     processedImage: ProcessedImageResult,
     questionDetection?: QuestionDetectionResult
-  ): Promise<MarkingInstructions> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number } }> {
     try {
       const { LLMOrchestrator } = await import('../ai/LLMOrchestrator');
       return await LLMOrchestrator.executeMarking({
@@ -89,7 +162,7 @@ export class MarkHomeworkWithAnswer {
       });
     } catch (_err) {
       // Fallback to basic annotations if the new flow fails
-      return { annotations: [] };
+      return { annotations: [], usage: { llmTokens: 0 } } as any;
     }
   }
 
@@ -103,7 +176,9 @@ export class MarkHomeworkWithAnswer {
     instructions: MarkingInstructions,
     classification: ImageClassification,
     userId: string,
-    userEmail: string
+    userEmail: string,
+    classificationTokens: number = 0,
+    processingTimeMs: number = 0
   ): Promise<string> {
     try {
       const { FirestoreService } = await import('../firestoreService');
@@ -119,12 +194,14 @@ export class MarkHomeworkWithAnswer {
         undefined,
         {
           processingTime: new Date().toISOString(),
+          totalProcessingTimeMs: processingTimeMs,
           modelUsed: model,
           totalAnnotations: instructions.annotations.length,
           imageSize: imageData.length,
           confidence: result.confidence,
           apiUsed: 'Complete AI Marking System',
-          ocrMethod: 'Enhanced OCR Processing'
+          ocrMethod: 'Enhanced OCR Processing',
+          tokens: [ classificationTokens + ((instructions as any)?.usage?.llmTokens || 0), (result as any)?.mathpixCalls || 0 ]
         }
       );
       return resultId;
@@ -144,12 +221,14 @@ export class MarkHomeworkWithAnswer {
     userId?: string;
     userEmail?: string;
   }): Promise<MarkHomeworkResponse> {
+    const startTime = Date.now();
     const { imageData, model } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
     // Step 1: Classification
     const imageClassification = await this.classifyImageWithAI(imageData, model);
+    const classificationTokens = imageClassification.usageTokens || 0;
 
     // Step 1.5: Question detection
     let questionDetection: QuestionDetectionResult | undefined;
@@ -220,13 +299,18 @@ export class MarkHomeworkWithAnswer {
     const annotations = markingInstructions.annotations.map(ann => ({
       bbox: ann.bbox,
       comment: (ann as any).text || '',
-      action: ann.action
+      action: ann.action,
+      step_id: (ann as any).step_id,
+      textMatch: (ann as any).textMatch
     }));
     const annotationResult = await ImageAnnotationService.generateAnnotationResult(
       imageData,
       annotations,
       processedImage.imageDimensions
     );
+
+    // Calculate processing time before saving
+    const totalProcessingTime = Date.now() - startTime;
 
     // Step 5: Save
     const resultId = await this.saveMarkingResults(
@@ -236,7 +320,9 @@ export class MarkHomeworkWithAnswer {
       markingInstructions,
       imageClassification,
       userId,
-      userEmail
+      userEmail,
+      classificationTokens,
+      totalProcessingTime
     );
 
     // Step 6: Create session for marking
@@ -284,10 +370,15 @@ export class MarkHomeworkWithAnswer {
       metadata: {
         resultId,
         processingTime: new Date().toISOString(),
+        totalProcessingTimeMs: totalProcessingTime,
         modelUsed: model,
         totalAnnotations: markingInstructions.annotations.length,
         imageSize: imageData.length,
-        confidence: processedImage.confidence
+        confidence: processedImage.confidence,
+        tokens: [
+          classificationTokens + ((markingInstructions as any).usage?.llmTokens || 0),
+          (processedImage as any)?.mathpixCalls || 0
+        ]
       }
     } as unknown as MarkHomeworkResponse;
   }

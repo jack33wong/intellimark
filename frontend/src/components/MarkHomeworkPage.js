@@ -34,6 +34,36 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
       onPageModeChange(pageMode);
     }
   }, [pageMode, onPageModeChange]);
+
+  // Handle selected marking result from sidebar
+  useEffect(() => {
+    if (selectedMarkingResult) {
+      // Set the marking result for task details display
+      setMarkingResult(selectedMarkingResult);
+      
+      // Set other relevant state
+      if (selectedMarkingResult.messages && selectedMarkingResult.messages.length > 0) {
+        setChatMessages(selectedMarkingResult.messages);
+        setPageMode('chat');
+      }
+      
+      if (selectedMarkingResult.title) {
+        setSessionTitle(selectedMarkingResult.title);
+      }
+      
+      if (selectedMarkingResult.favorite !== undefined) {
+        setIsFavorite(selectedMarkingResult.favorite);
+      }
+      
+      if (selectedMarkingResult.rating !== undefined) {
+        setRating(selectedMarkingResult.rating);
+      }
+      
+      if (selectedMarkingResult.id) {
+        setCurrentSessionId(selectedMarkingResult.id);
+      }
+    }
+  }, [selectedMarkingResult]);
   
   // === UPLOAD MODE STATE ===
   const [selectedFile, setSelectedFile] = useState(null);
@@ -50,6 +80,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
   const [isFavorite, setIsFavorite] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
+  const [markingResult, setMarkingResult] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
 
   // Helper function to deduplicate messages by ID
   const deduplicateMessages = (messages) => {
@@ -120,7 +152,6 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     }
   };
   const [chatInput, setChatInput] = useState('');
-  const [currentSessionId, setCurrentSessionId] = useState(null);
   const [showExpandedThinking, setShowExpandedThinking] = useState(false);
   const [showMarkingSchemeDetails, setShowMarkingSchemeDetails] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
@@ -748,6 +779,14 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         questionDetection: result.questionDetection
       });
 
+      // Store the marking result with metadata for task details
+      setMarkingResult({
+        metadata: result.metadata || {},
+        instructions: result.instructions,
+        annotatedImage: result.annotatedImage,
+        apiUsed: result.apiUsed
+      });
+
 
       // Set session title for marking mode
       if (result.sessionId) {
@@ -1157,8 +1196,21 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                         {/* Footer */}
                         <div className="dropdown-footer">
                           <div className="token-count">
-                            <span className="label">Tokens:</span>
-                            <span className="value">1,247</span>
+                            <span className="label">LLM Tokens:</span>
+                            <span className="value">{markingResult?.metadata?.tokens?.[0]?.toLocaleString() || 'N/A'}</span>
+                          </div>
+                          <div className="mathpix-count">
+                            <span className="label">Mathpix Calls:</span>
+                            <span className="value">{markingResult?.metadata?.tokens?.[1] || 'N/A'}</span>
+                          </div>
+                          <div className="processing-time">
+                            <span className="label">Processing Time:</span>
+                            <span className="value">
+                              {markingResult?.metadata?.totalProcessingTimeMs 
+                                ? `${(markingResult.metadata.totalProcessingTimeMs / 1000).toFixed(1)}s`
+                                : 'N/A'
+                              }
+                            </span>
                           </div>
                           <div className="last-update">
                             <span className="label">Last Update:</span>

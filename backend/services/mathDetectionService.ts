@@ -69,10 +69,12 @@ function scoreMathLikeness(text: string): number {
   }
 
   const symbolCount = (t.match(/[^a-zA-Z0-9\s]/g) || []).length;
+  const numberCount = (t.match(/\b\d+\b/g) || []).length;
   const density = symbolCount / Math.max(4, t.length); // Lower threshold for shorter text
-  score += density;
+  const numberDensity = numberCount / Math.max(2, t.length); // Boost for number density
+  score += density + numberDensity;
 
-  return Math.max(0, Math.min(1, score / 3)); // Adjusted threshold
+  return Math.max(0, Math.min(1, score / 2.5)); // Reduced divisor to be more inclusive
 }
 
 function mergeNearbyBoxes(boxes: BoundingBox[], maxGapPx = 18): BoundingBox[] {
@@ -108,7 +110,8 @@ export class MathDetectionService {
   static detectMathBlocks(vision: ProcessedVisionResult | null, threshold = 0.35): MathBlock[] {
     if (!vision) return [];
 
-    const candidateBoxes = mergeNearbyBoxes(vision.boundingBoxes || []);
+    // Use bounding boxes directly without additional merging
+    const candidateBoxes = vision.boundingBoxes || [];
 
     const blocks: MathBlock[] = [];
     for (const b of candidateBoxes) {

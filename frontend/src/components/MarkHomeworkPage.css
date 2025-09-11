@@ -1047,19 +1047,52 @@
 .dropdown-footer {
   border-top: 1px solid #111827; /* Darker border to match chat input */
   padding-top: 12px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   font-size: 11px;
+}
+
+.dropdown-footer .token-count,
+.dropdown-footer .mathpix-count,
+.dropdown-footer .processing-time,
+.dropdown-footer .last-update {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dropdown-footer .last-update {
+  grid-column: 1 / -1; /* Span full width */
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #111827;
 }
 
 .dropdown-footer .label {
   color: #adb5bd; /* Light grey text */
-  margin-right: 4px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .dropdown-footer .value {
   color: #ffffff; /* White text for contrast */
-  font-weight: 500;
+  font-weight: 600;
+}
+
+/* Special styling for processing time */
+.dropdown-footer .processing-time .value {
+  color: #10b981; /* Green color for processing time */
+}
+
+/* Special styling for token counts */
+.dropdown-footer .token-count .value {
+  color: #3b82f6; /* Blue color for LLM tokens */
+}
+
+.dropdown-footer .mathpix-count .value {
+  color: #f59e0b; /* Orange color for Mathpix calls */
 }
 
 /* Back Button - House Style */

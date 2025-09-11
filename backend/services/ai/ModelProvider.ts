@@ -1,7 +1,7 @@
 import type { ModelType } from '../../types/index';
 
 export class ModelProvider {
-  static async callGeminiText(systemPrompt: string, userPrompt: string): Promise<string> {
+  static async callGeminiText(systemPrompt: string, userPrompt: string): Promise<{ content: string; usageTokens: number }> {
     const apiKey = process.env['GEMINI_API_KEY'];
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
@@ -16,10 +16,11 @@ export class ModelProvider {
     const result = await response.json() as any;
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) throw new Error('No content in Gemini response');
-    return content;
+    const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+    return { content, usageTokens };
   }
 
-  static async callOpenAIText(systemPrompt: string, userPrompt: string, model: ModelType): Promise<string> {
+  static async callOpenAIText(systemPrompt: string, userPrompt: string, model: ModelType): Promise<{ content: string; usageTokens: number }> {
     const apiKey = process.env['OPENAI_API_KEY'];
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -35,7 +36,8 @@ export class ModelProvider {
     if (!response.ok) throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new Error('No content in OpenAI response');
-    return content;
+    const usageTokens = (result.usage?.total_tokens as number) || 0;
+    return { content, usageTokens };
   }
 }
 
