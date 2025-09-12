@@ -6,7 +6,7 @@ import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AdminPage from './components/AdminPage';
-import MarkHomeworkPage from './components/MarkHomeworkPage';
+import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
