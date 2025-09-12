@@ -158,18 +158,6 @@ const MarkHomeworkPageRefactored = ({
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       const isAtBottom = distanceFromBottom <= 10;
       const shouldShowButton = !isAtBottom && chatMessages.length > 0;
-      
-      // Debug logging
-      console.log('Scroll Debug:', {
-        scrollTop,
-        scrollHeight,
-        clientHeight,
-        distanceFromBottom,
-        isAtBottom,
-        shouldShowButton,
-        messageCount: chatMessages.length
-      });
-      
       setShowScrollButton(shouldShowButton);
     }
   }, [chatMessages.length, chatContainerRef]);

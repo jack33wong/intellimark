@@ -2166,11 +2166,11 @@
   box-shadow: none;
 }
 
-/* Chat Input Bar for Chat Mode - Position at Bottom */
+/* Chat Input Bar for Chat Mode - Position at Bottom, Respecting Sidebar */
 .chat-mode .main-upload-input-bar {
   position: fixed;
   bottom: 0;
-  left: 0;
+  left: 280px; /* Start after sidebar width */
   right: 0;
   top: auto;
   transform: none;
@@ -2180,6 +2180,13 @@
   padding: 16px 20px;
   z-index: 1000;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile responsive - input bar takes full width when sidebar is hidden */
+@media (max-width: 768px) {
+  .chat-mode .main-upload-input-bar {
+    left: 0; /* Full width on mobile */
+  }
 }
 
 .main-upload-input {
