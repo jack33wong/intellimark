@@ -88,7 +88,7 @@ export class QuestionDetectionService {
         }
       }
 
-      if (bestMatch && bestScore > 0.1) { // Lower confidence threshold for testing
+      if (bestMatch) {
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
@@ -191,7 +191,7 @@ export class QuestionDetectionService {
       }
 
       // If we found a good match, return the exam paper info
-      if (bestQuestionMatch && bestScore > 0.3) {
+      if (bestQuestionMatch && bestScore > 0.5) {
         // Handle different data structures
         const metadata = examPaper.metadata || {};
         const board = metadata.exam_board || examPaper.board || 'Unknown';
@@ -317,30 +317,106 @@ export class QuestionDetectionService {
 
     if (norm1 === norm2) return 1.0;
 
-    // Simple word-based similarity
+    // Word-based similarity with fuzzy matching (Levenshtein)
     const words1 = norm1.split(' ');
     const words2 = norm2.split(' ');
 
-    let commonWords = 0;
+    let matchedCount = 0;
+    const usedWord2Indexes: Set<number> = new Set();
+    const matchedWord2Indexes: Array<number | null> = [];
     const totalWords = Math.max(words1.length, words2.length);
 
-    for (const word1 of words1) {
-      for (const word2 of words2) {
-        if (word1 === word2) {
-          commonWords++;
+    for (let i = 0; i < words1.length; i++) {
+      const queryWord = words1[i];
+      let foundExact = false;
+
+      for (let j = 0; j < words2.length; j++) {
+        if (usedWord2Indexes.has(j)) continue;
+        if (queryWord === words2[j]) {
+          usedWord2Indexes.add(j);
+          matchedCount++;
+          matchedWord2Indexes.push(j);
+          foundExact = true;
           break;
         }
       }
+
+      if (foundExact) continue;
+
+      // Fuzzy match using Levenshtein distance
+      for (let j = 0; j < words2.length; j++) {
+        if (usedWord2Indexes.has(j)) continue;
+        const candidateWord = words2[j];
+        const maxLen = Math.max(queryWord.length, candidateWord.length);
+        const threshold = Math.floor(maxLen / 5); // heuristic: word length / 5
+        const distance = this.levenshteinDistance(queryWord, candidateWord);
+        if (distance <= threshold) {
+          usedWord2Indexes.add(j);
+          matchedCount++;
+          matchedWord2Indexes.push(j);
+          break;
+        }
+      }
+
+      // If no match found for this query word, record null to maintain order tracking
+      if (matchedWord2Indexes.length < i + 1) {
+        matchedWord2Indexes.push(null);
+      }
     }
 
-    const wordSimilarity = commonWords / totalWords;
+    const wordSimilarity = totalWords === 0 ? 0 : matchedCount / totalWords;
 
-    // Check for partial matches (substring matching)
-    const partialMatch = norm1.includes(norm2) || norm2.includes(norm1);
-    const partialScore = partialMatch ? 0.5 : 0;
+    // Order-based score: reward longest run of consecutive, in-order matches
+    let longestRun = 0;
+    let currentRun = 0;
+    let prevJ: number | null = null;
+    for (const j of matchedWord2Indexes) {
+      if (j === null) {
+        currentRun = 0;
+        prevJ = null;
+        continue;
+      }
+      if (prevJ !== null && j === prevJ + 1) {
+        currentRun += 1;
+      } else {
+        currentRun = 1;
+      }
+      longestRun = Math.max(longestRun, currentRun);
+      prevJ = j;
+    }
+    const orderScore = totalWords === 0 ? 0 : longestRun / totalWords;
 
     // Combine scores
-    return Math.max(wordSimilarity, partialScore);
+    return Math.max(wordSimilarity, orderScore);
+  }
+
+  /**
+   * Compute Levenshtein edit distance between two strings
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    const lenA = a.length;
+    const lenB = b.length;
+    if (lenA === 0) return lenB;
+    if (lenB === 0) return lenA;
+
+    const dp: number[] = new Array(lenB + 1);
+    for (let j = 0; j <= lenB; j++) dp[j] = j;
+
+    for (let i = 1; i <= lenA; i++) {
+      let prev = dp[0];
+      dp[0] = i;
+      for (let j = 1; j <= lenB; j++) {
+        const temp = dp[j];
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[j] = Math.min(
+          dp[j] + 1,        // deletion
+          dp[j - 1] + 1,    // insertion
+          prev + cost       // substitution
+        );
+        prev = temp;
+      }
+    }
+    return dp[lenB];
   }
 }
 
