@@ -3311,8 +3311,8 @@
   transform: translateY(-1px);
 }
 
-/* Upload Mode Styles for Refactored Components */
-.upload-mode {
+/* Upload Mode Styles for Refactored Components - Now matches original structure */
+.mark-homework-page.upload-mode {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -3322,14 +3322,14 @@
   padding: 20px;
 }
 
-.upload-mode .upload-section {
+.mark-homework-page.upload-mode .upload-section {
   margin: 0 auto;
   max-width: 800px;
   width: 100%;
 }
 
-/* Chat Mode Styles for Refactored Components */
-.chat-mode {
+/* Chat Mode Styles for Refactored Components - Now matches original structure */
+.mark-homework-page.chat-mode {
   background: transparent;
   border: none;
   padding: 0;
@@ -3339,14 +3339,14 @@
   flex-direction: column;
 }
 
-.chat-mode .session-header {
+.mark-homework-page.chat-mode .session-header {
   background: var(--secondary-bg);
   border-bottom: 1px solid var(--border-color);
   padding: 16px 20px;
   margin-bottom: 0;
 }
 
-.chat-mode .chat-interface {
+.mark-homework-page.chat-mode .chat-interface {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -3826,11 +3826,11 @@
     font-size: 16px;
   }
   
-  .upload-mode {
+  .mark-homework-page.upload-mode {
     padding: 10px;
   }
   
-  .chat-mode .session-header {
+  .mark-homework-page.chat-mode .session-header {
     padding: 12px 16px;
   }
 }

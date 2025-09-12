@@ -307,9 +307,9 @@ const MarkHomeworkPageRefactored = ({
   // ============================================================================
   
   return (
-    <div className="mark-homework-page">
+    <>
       {pageMode === 'upload' ? (
-        <div className="upload-mode">
+        <div className="mark-homework-page upload-mode">
           <ImageUploadForm
             selectedFile={selectedFile}
             previewUrl={previewUrl}
@@ -319,6 +319,8 @@ const MarkHomeworkPageRefactored = ({
             onClearFile={clearFile}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
+            loadingProgress={loadingProgress}
+            showExpandedThinking={isProcessing}
           />
           
           {markError && (
@@ -328,7 +330,7 @@ const MarkHomeworkPageRefactored = ({
           )}
         </div>
       ) : (
-        <div className="chat-mode">
+        <div className="mark-homework-page chat-mode">
           <SessionHeader
             sessionTitle={sessionTitle}
             isFavorite={isFavorite}
@@ -367,7 +369,7 @@ const MarkHomeworkPageRefactored = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
