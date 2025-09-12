@@ -70,6 +70,7 @@ const MarkHomeworkPageRefactored = ({
   // Chat functionality
   const {
     chatMessages,
+    setChatMessages,
     chatInput,
     setChatInput,
     isProcessing: isChatProcessing,

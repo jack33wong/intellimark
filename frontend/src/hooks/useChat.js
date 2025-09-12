@@ -175,6 +175,7 @@ export const useChat = () => {
   return {
     // State
     chatMessages,
+    setChatMessages,
     chatInput,
     setChatInput,
     isProcessing,
