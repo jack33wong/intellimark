@@ -1462,6 +1462,19 @@
   background: linear-gradient(90deg, var(--accent-color), #9f7aea);
   border-radius: 4px;
   transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-loading-bar .progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 1.5s infinite;
 }
 
 .progress-text {

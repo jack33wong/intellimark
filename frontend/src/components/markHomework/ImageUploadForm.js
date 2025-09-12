@@ -145,20 +145,20 @@ const ImageUploadForm = ({
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Progress Bar Overlay */}
-      {isProcessing && (
-        <div className="loading-content">
-          <div className="loading-text">Processing your homework...</div>
-          <div className="progress-bar">
-            <div 
-              className="progress-fill" 
-              style={{ width: `${loadingProgress}%` }}
-            ></div>
+        {isProcessing && (
+          <div className="upload-loading-bar inside-input">
+            <div className="loading-content">
+              <div className="loading-text">Processing your homework...</div>
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 };
