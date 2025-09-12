@@ -95,6 +95,7 @@ const MarkHomeworkPageRefactored = ({
   
   // Session management
   const {
+    currentSessionId,
     sessionTitle,
     isFavorite,
     rating,
@@ -159,7 +160,7 @@ const MarkHomeworkPageRefactored = ({
       const shouldShowButton = !isAtBottom && chatMessages.length > 0;
       setShowScrollButton(shouldShowButton);
     }
-  }, [chatMessages.length]);
+  }, [chatMessages.length, chatContainerRef]);
 
   // Add scroll event listener
   useEffect(() => {
@@ -169,7 +170,7 @@ const MarkHomeworkPageRefactored = ({
       handleScroll(); // Check initial state
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [handleScroll]);
+  }, [handleScroll, chatContainerRef]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -279,7 +280,7 @@ const MarkHomeworkPageRefactored = ({
       sessionId: currentSessionId,
       mode: mode
     });
-  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel, currentSessionId]);
+  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel]);
   
   // Handle key press in chat input
   const handleKeyPress = useCallback((e) => {
