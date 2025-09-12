@@ -1147,10 +1147,10 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Centered in middle of textarea area */
+/* Scroll to Bottom Button - Aligned with chat input bar middle */
 .scroll-to-bottom-container {
   position: fixed; /* Must be fixed to float */
-  bottom: 56px; /* Middle of textarea area (16px padding + 40px middle of 80px textarea) */
+  bottom: 82px; /* Middle of chat input bar (input bar height ~164px, so middle at 82px) */
   left: 50%;
   transform: translateX(-50%);
   max-width: 1000px;
@@ -2509,7 +2509,7 @@
     transform: translateX(-50%);
     width: 100%;
     max-width: none;
-    bottom: 56px; /* Middle of textarea area on mobile too */
+    bottom: 82px; /* Middle of chat input bar on mobile too */
   }
   
   .chat-messages {
