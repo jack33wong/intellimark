@@ -1147,7 +1147,7 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Centered like chat input button */
+/* Scroll to Bottom Button - Centered in middle of textarea area */
 .scroll-to-bottom-container {
   position: fixed;
   bottom: 56px; /* Middle of textarea area (16px padding + 40px middle of 80px textarea) */
@@ -1157,7 +1157,7 @@
   width: 80vw;
   margin: 0 auto;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center; /* Center the button horizontally */
   z-index: 1001; /* Above input bar z-index: 1000 */
   opacity: 1;
   transition: all 0.3s ease;
