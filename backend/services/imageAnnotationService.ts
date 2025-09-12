@@ -236,6 +236,17 @@ export class ImageAnnotationService {
     try {
       console.log('🔥 Generating annotation result with burned overlays...');
 
+      // Early exit if there are no annotations to render
+      if (!annotations || annotations.length === 0) {
+        console.log('ℹ️ No annotations to burn; returning original image');
+        return {
+          originalImage,
+          annotatedImage: originalImage,
+          annotations: [],
+          svgOverlay: ''
+        };
+      }
+
       // Log concise mapping details for each annotation
       annotations.forEach((ann, index) => {
         const anyAnn = ann as unknown as { action?: string; text?: string; reasoning?: string; step_id?: string; comment?: string; textMatch?: string };

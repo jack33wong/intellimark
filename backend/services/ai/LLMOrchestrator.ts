@@ -25,28 +25,17 @@ export class LLMOrchestrator {
    * Uses the new modular services directly.
    */
   static async executeMarking(inputs: MarkingInputs): Promise<SimpleMarkingInstructions & { usage?: { llmTokens: number } }> {
-    const { imageData, model, processedImage, questionDetection } = inputs;
+    const { imageData: _imageData, model, processedImage, questionDetection } = inputs;
 
     // Log full raw OCR text (math block) prior to cleanup
     try {
-      console.log('🧾 RAW OCR TEXT (pre-clean):');
+      /*console.log('🧾 RAW OCR TEXT (pre-clean):');
       console.log('─'.repeat(80));
       console.log(processedImage.ocrText || '');
       console.log('─'.repeat(80));
       const boxes = processedImage.boundingBoxes || [];
-      console.log(`🧮 OCR bounding boxes: ${boxes.length}`);
-      if (boxes.length > 0) {
-        console.log('📦 OCR math blocks (with coordinates):');
-        const dump = boxes.map((b: any, i: number) => ({
-          index: i,
-          x: b.x,
-          y: b.y,
-          width: b.width,
-          height: b.height,
-          text: b.text
-        }));
-        console.log(JSON.stringify(dump, null, 2));
-      }
+      console.log(`🧮 OCR bounding boxes: ${boxes.length}`);*/
+      // OCR math blocks log removed for cleaner output
     } catch {}
 
     try {
@@ -65,46 +54,121 @@ export class LLMOrchestrator {
       );
       let totalTokens = cleanupResult.usageTokens || 0;
 
-      // Parse the step assignment result
-      let stepAssignmentData;
+      // Parse the step assignment result (not used in current implementation)
       try {
-        stepAssignmentData = JSON.parse(stepAssignmentResult.originalWithStepIds);
+        JSON.parse(stepAssignmentResult.originalWithStepIds);
       } catch (error) {
         console.error('❌ Failed to parse step assignment JSON:', error);
-        stepAssignmentData = { steps: [] };
       }
 
-      // Parse the cleaned OCR to extract steps with step_id
+      // Parse the cleaned OCR to extract steps with step_id and cleaned text
       let cleanedData;
       try {
-        cleanedData = JSON.parse(cleanupResult.cleanedText.replace(/```json\n?/g, '').replace(/```\n?/g, ''));
+        // Use JsonUtils for robust JSON cleaning and parsing
+        const { JsonUtils } = await import('./JsonUtils');
+        //console.log('🔍 Raw AI Result:', cleanupResult.cleanedText);
+        
+        cleanedData = JsonUtils.cleanAndValidateJSON(cleanupResult.cleanedText, 'steps');
+        
+        //console.log('✅ Successfully parsed cleaned OCR JSON with', cleanedData.steps.length, 'steps');
+        
       } catch (error) {
-        console.error('❌ Failed to parse cleaned OCR JSON:', error);
-        // Fallback to treating as plain text
-        cleanedData = { steps: [{ step_id: 'step_1', text: cleanupResult.cleanedText }] };
+        console.error('❌ Failed to parse cleaned OCR JSON with JsonUtils:', error);
+        console.error('📄 Raw cleaned text (first 1000 chars):', cleanupResult.cleanedText.substring(0, 1000));
+        
+        // Try manual parsing as fallback
+        try {
+          let jsonText = cleanupResult.cleanedText
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+          
+          // Try to extract JSON from the response if it's embedded in text
+          const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonText = jsonMatch[0];
+          }
+          
+          console.log('🔍 Attempting manual JSON parse (first 500 chars):', jsonText.substring(0, 500));
+          
+          cleanedData = JSON.parse(jsonText);
+          
+          // Validate the parsed data structure
+          if (!cleanedData.steps || !Array.isArray(cleanedData.steps)) {
+            throw new Error('Invalid data structure: missing or invalid steps array');
+          }
+          
+          console.log('✅ Successfully parsed cleaned OCR JSON manually with', cleanedData.steps.length, 'steps');
+          
+        } catch (manualError) {
+          console.error('❌ Manual JSON parsing also failed:', manualError);
+          
+          // Final fallback: Create a single step with the raw cleaned text
+          cleanedData = { 
+            question: "Unknown question",
+            steps: [{ 
+              unified_step_id: 'step_1', 
+              original_text: cleanupResult.cleanedText,
+              cleaned_text: cleanupResult.cleanedText,
+              bbox: [0, 0, 100, 30]
+            }] 
+          };
+          
+          console.log('⚠️ Using final fallback data structure');
+        }
       }
 
       // Step 1: Generate raw annotations from cleaned OCR text
       const { MarkingInstructionService } = await import('./MarkingInstructionService');
+      
+      // Create a clean copy for marking service (remove original_text to avoid confusing the AI)
+      const cleanDataForMarking = {
+        question: cleanedData.question || "Unknown question",
+        steps: cleanedData.steps?.map((step: any) => ({
+          unified_step_id: step.unified_step_id,
+          bbox: step.bbox,
+          cleaned_text: step.cleaned_text
+        })) || []
+      };
+      
       const annotationData = await MarkingInstructionService.generateFromOCR(
         model,
-        cleanupResult.cleanedText,
+        JSON.stringify(cleanDataForMarking),
         questionDetection
       );
       totalTokens += annotationData.usageTokens || 0;
 
+      // Print raw cleaned OCR text from cleanup service
+      /*console.log('🧹 CLEANED OCR TEXT:');
+      console.log('─'.repeat(80));
+      console.log(cleanupResult.cleanedText);
+      console.log('─'.repeat(80));*/
+      
       // Re-opened: print raw AI response from marking LLM
       console.log('🔍 Raw annotation data from MarkingInstructionService:', annotationData);
 
-      // Step 2: Map annotations to coordinates using bounding boxes and step_id mapping
+      // Step 2: Map annotations to coordinates using pre-built unified lookup table
       const { AnnotationMapper } = await import('./AnnotationMapper');
+      
+      // Build the complete unified lookup table from cleaned data
+      const unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
+      if (cleanedData.steps && Array.isArray(cleanedData.steps)) {
+        for (const step of cleanedData.steps) {
+          if (step.unified_step_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
+            unifiedLookupTable[step.unified_step_id] = {
+              bbox: step.bbox,
+              cleanedText: step.cleaned_text || ''
+            };
+          }
+        }
+      }
+      
       const placed = await AnnotationMapper.mapAnnotations({
         ocrText: cleanupResult.cleanedText,
         boundingBoxes: (processedImage.boundingBoxes || []) as any,
         rawAnnotations: annotationData,
         imageDimensions: processedImage.imageDimensions,
-        stepMapping: cleanedData.steps || [], // Pass the cleaned step mapping
-        stepAssignment: stepAssignmentData.steps || [] // Pass the original step assignment for bbox matching
+        unifiedLookupTable: unifiedLookupTable // Pass the complete pre-built lookup table
       });
 
       const result: SimpleMarkingInstructions & { usage?: { llmTokens: number } } = { annotations: placed.annotations as any, usage: { llmTokens: totalTokens } };

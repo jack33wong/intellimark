@@ -463,11 +463,11 @@ export class HybridOCRService {
       };
 
       // Debug logging for hybrid OCR results
-      console.log('🔍 DEBUG: Hybrid OCR detected blocks count:', detectedBlocks.length);
+      /*console.log('🔍 DEBUG: Hybrid OCR detected blocks count:', detectedBlocks.length);
       console.log('🔍 DEBUG: Hybrid OCR visionResult.boundingBoxes count:', visionResult.boundingBoxes.length);
       if (visionResult.boundingBoxes.length > 0) {
-        console.log('🔍 DEBUG: First bounding box from hybrid OCR:', visionResult.boundingBoxes[0]);
-      }
+        //console.log('🔍 DEBUG: First bounding box from hybrid OCR:', visionResult.boundingBoxes[0]);
+      }*/
       
       // Debug: Print raw JSON from Google Vision before Mathpix processing
       // console.log('🔍 DEBUG: Raw Google Vision JSON before Mathpix processing:');
@@ -580,9 +580,9 @@ export class HybridOCRService {
             if (mathpixResult.latex_styled && !mathpixResult.error) {
               mathBlock.mathpixLatex = mathpixResult.latex_styled;
               mathBlock.confidence = mathpixResult.confidence;
-              console.log(`✅ Math block ${i + 1} processed: ${mathpixResult.latex_styled.substring(0, 50)}...`);
+              //console.log(`✅ Math block ${i + 1} processed: ${mathpixResult.latex_styled.substring(0, 50)}...`);
             } else {
-              console.warn(`⚠️ Math block ${i + 1} failed: ${mathpixResult.error || 'Unknown error'}`);
+              //console.warn(`⚠️ Math block ${i + 1} failed: ${mathpixResult.error || 'Unknown error'}`);
             }
             
             // Small delay to avoid rate limiting

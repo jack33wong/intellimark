@@ -115,7 +115,7 @@ export class MathpixService {
 
     try {
       const data = await this.postWithBackoff(body, headers);
-      console.log('✅ Mathpix API response received');
+      //console.log('✅ Mathpix API response received');
       return data;
     } catch (error: any) {
       console.error('❌ Mathpix API Error:', error.response?.data || error.message);

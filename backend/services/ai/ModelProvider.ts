@@ -9,7 +9,7 @@ export class ModelProvider {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1500 }
+        generationConfig: { temperature: 0, maxOutputTokens: 4500 }
       })
     });
     if (!response.ok) throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
