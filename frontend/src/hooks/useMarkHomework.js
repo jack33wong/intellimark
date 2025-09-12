@@ -3,7 +3,7 @@
  * Handles image analysis, API calls, and result processing
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import API_CONFIG from '../config/api';
 
@@ -17,13 +17,33 @@ export const useMarkHomework = () => {
   const [error, setError] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
+  // Handle fake loading progress when processing
+  useEffect(() => {
+    let progressInterval;
+    if (isProcessing) {
+      setLoadingProgress(0);
+      progressInterval = setInterval(() => {
+        setLoadingProgress(prev => {
+          if (prev >= 95) return 95; // Stop at 95% until processing is complete
+          return prev + Math.random() * 15; // Random increment between 0-15
+        });
+      }, 200); // Update every 200ms
+    } else {
+      setLoadingProgress(100); // Complete the progress bar
+      setTimeout(() => setLoadingProgress(0), 500); // Reset after animation
+    }
+    
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+    };
+  }, [isProcessing]);
+
   // Analyze image through mark homework API
   const analyzeImage = useCallback(async (imageData, model = 'chatgpt-4o') => {
     if (!imageData) return null;
     
     setIsProcessing(true);
     setError(null);
-    setLoadingProgress(0);
     
     try {
       // Prepare request payload
@@ -47,16 +67,12 @@ export const useMarkHomework = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      setLoadingProgress(25);
-
       // Make API call
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
       });
-
-      setLoadingProgress(50);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -65,7 +81,6 @@ export const useMarkHomework = () => {
       }
 
       const result = await response.json();
-      setLoadingProgress(75);
 
       // Process result based on type
       if (result.isQuestionOnly) {
@@ -92,7 +107,6 @@ export const useMarkHomework = () => {
         setClassificationResult(null);
       }
 
-      setLoadingProgress(100);
       return result;
 
     } catch (error) {
@@ -101,7 +115,6 @@ export const useMarkHomework = () => {
       throw error;
     } finally {
       setIsProcessing(false);
-      setLoadingProgress(0);
     }
   }, [getAuthToken]);
 
