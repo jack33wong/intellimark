@@ -744,8 +744,10 @@
   border: none;
   padding: 0;
   margin-top: 0;
-  min-height: 100vh;
-  overflow: visible;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-container {
@@ -759,7 +761,9 @@
   align-items: stretch;
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
+  min-height: 0; /* Important for flex scrolling */
   background: var(--primary-bg);
+  padding-bottom: 80px; /* Space for fixed input bar */
 }
 
 
@@ -1140,6 +1144,7 @@
   background: transparent;
   border-radius: 0;
   border: none;
+  min-height: 0; /* Important for flex scrolling */
 }
 
 /* Scroll to Bottom Button */
@@ -2166,6 +2171,22 @@
   padding: 16px 24px;
   z-index: 100;
   box-shadow: none;
+}
+
+/* Chat Input Bar for Chat Mode - Position at Bottom */
+.chat-mode .main-upload-input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: auto;
+  transform: none;
+  background: var(--primary-bg);
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  padding: 16px 20px;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .main-upload-input {
