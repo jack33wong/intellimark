@@ -14,8 +14,6 @@ export const useChat = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [sessionTitle, setSessionTitle] = useState('Chat Session');
   
   // Refs
   const chatContainerRef = useRef(null);
@@ -96,24 +94,7 @@ export const useChat = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Update session ID if we got a new one
-        if (data.sessionId && data.sessionId !== currentSessionId) {
-          setCurrentSessionId(data.sessionId);
-          
-          // Set session title for new session
-          if (data.sessionTitle) {
-            setSessionTitle(data.sessionTitle);
-          } else {
-            // Generate a default title based on the first message
-            const title = message.length > 50 ? message.substring(0, 50) + '...' : message;
-            setSessionTitle(title || 'Chat Session');
-          }
-        } else {
-          // Even for existing sessions, update the title if provided
-          if (data.sessionTitle && data.sessionTitle !== 'Chat Session') {
-            setSessionTitle(data.sessionTitle);
-          }
-        }
+        // Session ID and title will be handled by useSession hook
         
         // Add AI response to chat
         const aiResponse = {
@@ -139,7 +120,7 @@ export const useChat = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [getAuthToken, currentSessionId, deduplicateMessages, scrollToBottom]);
+  }, [getAuthToken, deduplicateMessages, scrollToBottom]);
 
   // Load messages from session data
   const loadMessages = useCallback((sessionData) => {
@@ -159,8 +140,6 @@ export const useChat = () => {
       }));
       
       setChatMessages(formattedMessages);
-      setCurrentSessionId(sessionData.id);
-      setSessionTitle(sessionData.title || 'Chat Session');
     }
   }, []);
 
@@ -168,8 +147,6 @@ export const useChat = () => {
   const clearChat = useCallback(() => {
     setChatMessages([]);
     setChatInput('');
-    setCurrentSessionId(null);
-    setSessionTitle('Chat Session');
   }, []);
 
   return {
@@ -179,9 +156,6 @@ export const useChat = () => {
     chatInput,
     setChatInput,
     isProcessing,
-    currentSessionId,
-    sessionTitle,
-    setSessionTitle,
     
     // Actions
     sendMessage,

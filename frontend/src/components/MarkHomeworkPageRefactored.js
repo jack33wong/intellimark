@@ -74,9 +74,6 @@ const MarkHomeworkPageRefactored = ({
     chatInput,
     setChatInput,
     isProcessing: isChatProcessing,
-    currentSessionId,
-    sessionTitle,
-    setSessionTitle,
     sendMessage,
     loadMessages,
     clearChat,
@@ -99,6 +96,10 @@ const MarkHomeworkPageRefactored = ({
   
   // Session management
   const {
+    currentSessionId,
+    setCurrentSessionId,
+    sessionTitle,
+    setSessionTitle,
     isFavorite,
     rating,
     hoveredRating,
