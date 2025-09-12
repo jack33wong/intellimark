@@ -8,7 +8,7 @@
  * - Clear separation of concerns
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 // Custom hooks
@@ -20,7 +20,6 @@ import { useSubscriptionDelay } from '../hooks/useSubscriptionDelay';
 
 // Components
 import ImageUploadForm from './markHomework/ImageUploadForm';
-import ChatInterface from './markHomework/ChatInterface';
 import SessionHeader from './markHomework/SessionHeader';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 
@@ -31,7 +30,7 @@ import { ensureStringContent } from '../utils/contentUtils';
 import { Bot, ChevronDown, Brain } from 'lucide-react';
 
 // Services
-import MarkHomeworkService from '../services/markHomeworkService';
+// import MarkHomeworkService from '../services/markHomeworkService';
 
 // Styles
 import './MarkHomeworkPage.css';
@@ -96,10 +95,7 @@ const MarkHomeworkPageRefactored = ({
   
   // Session management
   const {
-    currentSessionId,
-    setCurrentSessionId,
     sessionTitle,
-    setSessionTitle,
     isFavorite,
     rating,
     hoveredRating,
@@ -165,6 +161,16 @@ const MarkHomeworkPageRefactored = ({
     }
   }, [chatMessages.length]);
 
+  // Add scroll event listener
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      handleScroll(); // Check initial state
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
@@ -182,23 +188,6 @@ const MarkHomeworkPageRefactored = ({
       
       // Handle question-only case
       if (result.isQuestionOnly) {
-        // Create initial user message
-        const initialUserMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
-          content: 'I have a question about this image. Can you help me understand it?',
-          timestamp: new Date().toISOString(),
-          type: 'question_original',
-          imageData: imageData,
-          fileName: selectedFile.name,
-          detectedQuestion: {
-            examDetails: result.questionDetection?.match?.markingScheme?.examDetails || result.questionDetection?.match?.examDetails || {},
-            questionNumber: result.questionDetection?.match?.questionNumber || 'Unknown',
-            questionText: result.questionDetection?.match?.questionText || result.classification?.extractedQuestionText || '',
-            confidence: result.questionDetection?.match?.markingScheme?.confidence || result.questionDetection?.match?.confidence || 0
-          }
-        };
-        
         // Send to chat API for AI response
         await sendMessage('I have a question about this image. Can you help me understand it?', {
           imageData: imageData,
@@ -300,16 +289,7 @@ const MarkHomeworkPageRefactored = ({
     }
   }, [handleSendMessage]);
   
-  // Handle clear result
-  const handleClearResult = useCallback(() => {
-    clearResults();
-    clearChat();
-    clearSession();
-    setPageMode('upload');
-    if (onClearSelectedResult) {
-      onClearSelectedResult();
-    }
-  }, [clearResults, clearChat, clearSession, onClearSelectedResult]);
+  // Handle clear result - removed as not used in current implementation
   
   // ============================================================================
   // RENDER
@@ -340,21 +320,22 @@ const MarkHomeworkPageRefactored = ({
         </div>
       ) : (
         <div className="mark-homework-page chat-mode">
-          <SessionHeader
-            sessionTitle={sessionTitle}
-            isFavorite={isFavorite}
-            onFavoriteToggle={handleFavoriteToggle}
-            rating={rating}
-            onRatingChange={handleRatingChange}
-            hoveredRating={hoveredRating}
-            onRatingHover={setHoveredRating}
-            user={user}
-            markingResult={markingResult}
-            showInfoDropdown={showInfoDropdown}
-            onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
-          />
-          
-          <div className="chat-messages" ref={chatContainerRef}>
+          <div className="chat-container" ref={chatContainerRef}>
+            <SessionHeader
+              sessionTitle={sessionTitle}
+              isFavorite={isFavorite}
+              onFavoriteToggle={handleFavoriteToggle}
+              rating={rating}
+              onRatingChange={handleRatingChange}
+              hoveredRating={hoveredRating}
+              onRatingHover={setHoveredRating}
+              user={user}
+              markingResult={markingResult}
+              showInfoDropdown={showInfoDropdown}
+              onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
+            />
+            
+            <div className="chat-messages">
             {chatMessages.map((message, index) => (
               <div 
                 key={`${message.id}-${index}`} 
@@ -466,6 +447,18 @@ const MarkHomeworkPageRefactored = ({
                 </div>
               </div>
             )}
+            </div>
+            
+            {/* Scroll to Bottom Button */}
+            <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
+              <button 
+                className="scroll-to-bottom-btn"
+                onClick={scrollToBottom}
+                title="Scroll to bottom"
+              >
+                <ChevronDown size={20} />
+              </button>
+            </div>
           </div>
           
           {/* Bottom Chat Input Bar */}
