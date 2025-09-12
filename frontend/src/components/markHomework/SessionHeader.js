@@ -3,7 +3,7 @@
  * Displays session title, favorite, rating, and metadata
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 const SessionHeader = ({
   sessionTitle,
@@ -18,6 +18,27 @@ const SessionHeader = ({
   showInfoDropdown = false,
   onToggleInfoDropdown
 }) => {
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        if (showInfoDropdown && onToggleInfoDropdown) {
+          onToggleInfoDropdown();
+        }
+      }
+    };
+
+    if (showInfoDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showInfoDropdown, onToggleInfoDropdown]);
+
   const renderStars = (currentRating, hoverRating = currentRating) => {
     return Array.from({ length: 5 }, (_, index) => {
       const starValue = index + 1;
@@ -47,7 +68,7 @@ const SessionHeader = ({
           </h1>
         </div>
         <div className="chat-header-right">
-          <div className="info-dropdown-container">
+          <div className="info-dropdown-container" ref={dropdownRef}>
             <button 
               className="header-btn info-btn"
               onClick={onToggleInfoDropdown}
@@ -105,6 +126,16 @@ const SessionHeader = ({
                     </div>
                   </div>
                   
+                  {/* Rating Section */}
+                  <div className="dropdown-rating-section">
+                    <div className="rating-stars">
+                      {renderStars(rating, hoveredRating)}
+                    </div>
+                    <span className="rating-text">
+                      {rating > 0 ? `${rating} star${rating !== 1 ? 's' : ''}` : 'Rate this session'}
+                    </span>
+                  </div>
+                  
                   {/* Footer */}
                   <div className="dropdown-footer">
                     <div className="token-count">
@@ -132,16 +163,6 @@ const SessionHeader = ({
                 </div>
               </div>
             )}
-          </div>
-          
-          {/* Rating Section */}
-          <div className="rating-section">
-            <div className="rating-stars">
-              {renderStars(rating, hoveredRating)}
-            </div>
-            <span className="rating-text">
-              {rating > 0 ? `${rating} star${rating !== 1 ? 's' : ''}` : 'Rate this session'}
-            </span>
           </div>
           
           {/* Favorite button */}
