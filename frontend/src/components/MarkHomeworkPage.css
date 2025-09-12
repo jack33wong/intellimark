@@ -1147,17 +1147,14 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Aligned with chat input bar middle */
+/* Scroll to Bottom Button - Centered within input bar width */
 .scroll-to-bottom-container {
   position: fixed; /* Must be fixed to float */
-  bottom: 82px; /* Middle of chat input bar (input bar height ~164px, so middle at 82px) */
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 1000px;
-  width: 80vw;
-  margin: 0 auto;
+  bottom: 82px; /* Middle of chat input bar height */
+  left: 280px; /* Start after sidebar, same as input bar */
+  right: 0; /* Extend to right edge, same as input bar */
   display: flex;
-  justify-content: center; /* Center the button horizontally */
+  justify-content: center; /* Center horizontally within input bar width */
   z-index: 1001; /* Above input bar z-index: 1000 */
   opacity: 1;
   transition: all 0.3s ease;
@@ -2505,10 +2502,8 @@
   }
   
   .scroll-to-bottom-container {
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: none;
+    left: 0; /* Full width on mobile, same as input bar */
+    right: 0;
     bottom: 82px; /* Middle of chat input bar on mobile too */
   }
   
