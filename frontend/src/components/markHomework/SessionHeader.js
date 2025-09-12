@@ -39,60 +39,73 @@ const SessionHeader = ({
   };
 
   return (
-    <div className="session-header">
-      <div className="session-title-section">
-        <h2 className="session-title">{sessionTitle}</h2>
-        
-        <div className="session-actions">
-          {/* Rating */}
-          <div className="rating-section">
-            <div className="rating-stars">
-              {renderStars(rating, hoveredRating)}
-            </div>
-            <span className="rating-text">
-              {rating > 0 ? `${rating} star${rating !== 1 ? 's' : ''}` : 'Rate this session'}
-            </span>
-          </div>
-
-          {/* Info dropdown */}
-          {markingResult && (
-            <div className="info-dropdown-container">
-              <button 
-                className="info-btn"
-                onClick={onToggleInfoDropdown}
-                title="View session info"
-              >
-                ℹ️
-              </button>
-              
-              {showInfoDropdown && (
-                <div className="info-dropdown">
+    <div className="chat-header">
+      <div className="chat-header-content">
+        <div className="chat-header-left">
+          <h1>
+            {sessionTitle.length > 100 ? sessionTitle.substring(0, 100) + '...' : sessionTitle}
+          </h1>
+        </div>
+        <div className="chat-header-right">
+          <div className="info-dropdown-container">
+            <button 
+              className="header-btn info-btn"
+              onClick={onToggleInfoDropdown}
+              title="Information"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 16v-4"/>
+                <path d="M12 8h.01"/>
+              </svg>
+            </button>
+            
+            {/* Info Dropdown */}
+            {showInfoDropdown && (
+              <div className="info-dropdown">
+                <div className="info-dropdown-content">
+                  {/* Header */}
                   <div className="dropdown-header">
-                    <h4>Session Information</h4>
+                    <h3>Task Details</h3>
                   </div>
                   
-                  <div className="dropdown-content">
-                    <div className="info-item">
-                      <span className="label">API Used:</span>
-                      <span className="value">{markingResult.apiUsed || 'N/A'}</span>
-                    </div>
-                    
-                    <div className="info-item">
-                      <span className="label">OCR Method:</span>
-                      <span className="value">{markingResult.ocrMethod || 'N/A'}</span>
-                    </div>
-                    
-                    <div className="info-item">
-                      <span className="label">Confidence:</span>
-                      <span className="value">
-                        {markingResult.metadata?.confidence 
-                          ? `${(markingResult.metadata.confidence * 100).toFixed(1)}%`
-                          : 'N/A'
-                        }
-                      </span>
+                  {/* Main Content */}
+                  <div className="dropdown-main-content">
+                    {/* Label-Value Pairs */}
+                    <div className="label-value-pairs">
+                      <div className="label-value-item">
+                        <span className="label">Title:</span>
+                        <span className="value">{sessionTitle.length > 30 ? sessionTitle.substring(0, 30) + '...' : sessionTitle}</span>
+                      </div>
+                      <div className="label-value-item">
+                        <span className="label">Question Type:</span>
+                        <span className="value">{markingResult?.classification?.questionType || 'Math Problem'}</span>
+                      </div>
+                      <div className="label-value-item">
+                        <span className="label">Difficulty:</span>
+                        <span className="value">{markingResult?.classification?.difficulty || 'Medium'}</span>
+                      </div>
+                      <div className="label-value-item">
+                        <span className="label">API Used:</span>
+                        <span className="value">{markingResult?.apiUsed || 'N/A'}</span>
+                      </div>
+                      <div className="label-value-item">
+                        <span className="label">OCR Method:</span>
+                        <span className="value">{markingResult?.ocrMethod || 'N/A'}</span>
+                      </div>
+                      <div className="label-value-item">
+                        <span className="label">Confidence:</span>
+                        <span className="value">
+                          {markingResult?.metadata?.confidence 
+                            ? `${(markingResult.metadata.confidence * 100).toFixed(1)}%`
+                            : 'N/A'
+                          }
+                        </span>
+                      </div>
                     </div>
                   </div>
                   
+                  {/* Footer */}
                   <div className="dropdown-footer">
                     <div className="token-count">
                       <span className="label">LLM Tokens:</span>
@@ -117,10 +130,20 @@ const SessionHeader = ({
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+          </div>
+          
+          {/* Rating Section */}
+          <div className="rating-section">
+            <div className="rating-stars">
+              {renderStars(rating, hoveredRating)}
             </div>
-          )}
-
+            <span className="rating-text">
+              {rating > 0 ? `${rating} star${rating !== 1 ? 's' : ''}` : 'Rate this session'}
+            </span>
+          </div>
+          
           {/* Favorite button */}
           <button 
             className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''} ${!user?.uid ? 'disabled' : ''}`}

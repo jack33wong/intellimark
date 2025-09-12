@@ -331,32 +331,34 @@ const MarkHomeworkPageRefactored = ({
         </div>
       ) : (
         <div className="mark-homework-page chat-mode">
-          <SessionHeader
-            sessionTitle={sessionTitle}
-            isFavorite={isFavorite}
-            onFavoriteToggle={handleFavoriteToggle}
-            rating={rating}
-            onRatingChange={handleRatingChange}
-            hoveredRating={hoveredRating}
-            onRatingHover={setHoveredRating}
-            user={user}
-            markingResult={markingResult}
-            showInfoDropdown={showInfoDropdown}
-            onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
-          />
-          
-          <ChatInterface
-            messages={chatMessages}
-            chatInput={chatInput}
-            onInputChange={setChatInput}
-            onSendMessage={handleSendMessage}
-            onKeyPress={handleKeyPress}
-            isProcessing={isProcessing}
-            showScrollButton={showScrollButton}
-            onScrollToBottom={scrollToBottom}
-            markingResult={markingResult}
-            getImageSrc={getImageSrc}
-          />
+          <div className="chat-container" ref={chatContainerRef}>
+            <SessionHeader
+              sessionTitle={sessionTitle}
+              isFavorite={isFavorite}
+              onFavoriteToggle={handleFavoriteToggle}
+              rating={rating}
+              onRatingChange={handleRatingChange}
+              hoveredRating={hoveredRating}
+              onRatingHover={setHoveredRating}
+              user={user}
+              markingResult={markingResult}
+              showInfoDropdown={showInfoDropdown}
+              onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
+            />
+            
+            <ChatInterface
+              messages={chatMessages}
+              chatInput={chatInput}
+              onInputChange={setChatInput}
+              onSendMessage={handleSendMessage}
+              onKeyPress={handleKeyPress}
+              isProcessing={isProcessing}
+              showScrollButton={showScrollButton}
+              onScrollToBottom={scrollToBottom}
+              markingResult={markingResult}
+              getImageSrc={getImageSrc}
+            />
+          </div>
           
           <div className="chat-actions">
             <button 

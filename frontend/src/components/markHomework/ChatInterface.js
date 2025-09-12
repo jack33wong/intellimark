@@ -21,7 +21,7 @@ const ChatInterface = ({
   getImageSrc = (src) => src
 }) => {
   return (
-    <div className="chat-interface">
+    <>
       {/* Chat Messages */}
       <div className="chat-messages" ref={onScrollToBottom}>
         {messages.map((message, index) => (
@@ -145,28 +145,53 @@ const ChatInterface = ({
         </button>
       )}
 
-      {/* Chat Input */}
-      <div className="chat-input-container">
-        <div className="chat-input-wrapper">
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyPress={onKeyPress}
-            placeholder="Ask a question about the homework..."
-            className="chat-input"
-            disabled={isProcessing}
-          />
-          <button
-            className="send-btn"
-            onClick={onSendMessage}
-            disabled={isProcessing || !chatInput.trim()}
-          >
-            <Bot size={20} />
-          </button>
+      {/* Chat Input Bar */}
+      <div className="main-upload-input-bar">
+        <div className="main-upload-input">
+          {/* Main Input Area */}
+          <div className="input-container">
+            <textarea
+              placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+              value={chatInput}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyPress={onKeyPress}
+              disabled={isProcessing}
+              className="chat-history-input"
+            />
+          </div>
+          
+          {/* Model Selector with Send Button */}
+          <div className="model-selector">
+            <div className="left-controls">
+              <div className="ai-model-dropdown">
+                <button 
+                  className="ai-model-button" 
+                  disabled={isProcessing}
+                >
+                  <Bot size={16} />
+                  <span>ai model</span>
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+            </div>
+            <button 
+              className={`send-btn ${chatInput.trim() ? 'analyze-mode' : ''}`}
+              disabled={isProcessing || !chatInput.trim()}
+              onClick={onSendMessage}
+            >
+              {isProcessing ? (
+                <div className="send-spinner"></div>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
