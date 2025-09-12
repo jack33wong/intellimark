@@ -259,6 +259,13 @@ export class MarkHomeworkWithAnswer {
           const paperCode = match.paperCode || 'Unknown';
           const year = match.year || 'Unknown';
           sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber} (${year})`;
+        } else if (imageClassification.extractedQuestionText) {
+          // For non-exam paper questions, use first 20 characters of question text
+          const questionText = imageClassification.extractedQuestionText.trim();
+          const truncatedText = questionText.length > 20 
+            ? questionText.substring(0, 20) + '...' 
+            : questionText;
+          sessionTitle = `Question: ${truncatedText}`;
         }
         sessionId = await sessionManager.createSession({
           title: sessionTitle,

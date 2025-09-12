@@ -53,7 +53,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       role: 'user',
       content: 'I have a question about this image. Can you help me understand it?',
       timestamp: new Date().toISOString(),
-      type: 'marking_original',
+      type: result.isQuestionOnly ? 'question_original' : 'marking_original',
       imageData: imageData,
       fileName: 'uploaded-image.png',
       metadata: {
@@ -69,7 +69,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       role: 'assistant',
       content: result.message || 'Question marked successfully with burned annotations',
       timestamp: new Date().toISOString(),
-      type: 'marking_annotated',
+      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       model: model,
       apiUsed: result.apiUsed || 'Complete AI Marking System',
       markingData: {
@@ -95,7 +95,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       title: sessionTitle,
       messages: [userMessage, aiMessage],
       userId: userId,
-      messageType: 'Marking',
+      messageType: result.isQuestionOnly ? 'Question' : 'Marking',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       favorite: false,

@@ -286,6 +286,13 @@ export interface MarkHomeworkResponse {
   questionDetection?: QuestionDetectionResult;
   sessionId?: string;
   sessionTitle?: string;
+  metadata?: {
+    totalProcessingTimeMs?: number;
+    tokens?: number[];
+    confidence?: number;
+    totalAnnotations?: number;
+    imageSize?: number;
+  };
 }
 
 export interface ChatRequest {
