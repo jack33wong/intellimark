@@ -1129,22 +1129,18 @@
 
 
 .chat-messages {
-  padding-top: 56px;
-  padding-bottom: 16px; /* Minimal padding - no manual space needed */
-  padding-left: 10px;
-  padding-right: 10px;
-  background: transparent;
-  border-radius: 0;
-  margin-bottom: 0;
-  border: none;
-  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  overflow: visible;
-  position: relative;
+  gap: 16px;
   max-width: 1000px;
   width: 80vw;
   margin: 0 auto;
+  background: transparent;
+  border-radius: 0;
+  border: none;
 }
 
 /* Scroll to Bottom Button */
