@@ -1147,11 +1147,17 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Positioned at middle of textarea area */
+/* Scroll to Bottom Button - Centered like chat input button */
 .scroll-to-bottom-container {
   position: fixed;
   bottom: 56px; /* Middle of textarea area (16px padding + 40px middle of 80px textarea) */
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 1000px;
+  width: 80vw;
+  margin: 0 auto;
+  display: flex;
+  justify-content: flex-end;
   z-index: 1001; /* Above input bar z-index: 1000 */
   opacity: 1;
   transition: all 0.3s ease;
@@ -2499,8 +2505,10 @@
   }
   
   .scroll-to-bottom-container {
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: none;
     bottom: 56px; /* Middle of textarea area on mobile too */
   }
   
@@ -3830,7 +3838,7 @@
 
 .scroll-to-bottom-btn {
   position: fixed;
-  bottom: 100px;
+  bottom: 200px;
   right: 20px;
   background: var(--accent-color);
   color: white;
