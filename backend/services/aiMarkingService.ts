@@ -316,11 +316,14 @@ Summary:`;
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider');
+      let response;
       if (model === 'gemini-2.5-pro') {
-        return await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+        response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       } else {
-        return await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+        response = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
       }
+      // Extract content from the response object
+      return response.content;
     } catch (error) {
       console.error('❌ Contextual response generation failed:', error);
       return 'I apologize, but I encountered an error while processing your message. Please try again.';

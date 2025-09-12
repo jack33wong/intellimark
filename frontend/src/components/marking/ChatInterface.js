@@ -135,7 +135,7 @@ const ChatInterface = ({
                 )}
                 
                 <div className="message-text">
-                  <MarkdownMathRenderer content={message.content} />
+                  <MarkdownMathRenderer content={typeof message.content === 'string' ? message.content : String(message.content || '')} />
                 </div>
                 
                 {message.rawContent && message.rawContent !== message.content && (

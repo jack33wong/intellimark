@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
+import { ensureStringContent } from '../utils/contentUtils';
 import './Sidebar.css';
 
 /**
@@ -224,7 +225,9 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       const hasImage = lastMsg.hasImage || lastMsg.type === 'marking_original' || lastMsg.type === 'question_original' || lastMsg.type === 'marking_annotated';
       
       if (lastMsg.content) {
-        let content = lastMsg.content.length > 150 ? lastMsg.content.substring(0, 150) + '...' : lastMsg.content;
+        // Ensure content is a string before processing
+        const contentStr = ensureStringContent(lastMsg.content);
+        let content = contentStr.length > 150 ? contentStr.substring(0, 150) + '...' : contentStr;
         
         // Add image indicator if message contains an image
         if (hasImage) {

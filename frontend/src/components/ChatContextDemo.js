@@ -250,7 +250,7 @@ export default function ChatContextDemo() {
                   {currentSession.messages.slice(-4).map((msg, index) => (
                     <div key={`context-${index}`} className={`context-message ${msg.role}`}>
                       <span className="role-badge">{msg.role === 'user' ? 'Student' : 'Tutor'}</span>
-                      <span className="content-preview">{msg.content.substring(0, 100)}...</span>
+                      <span className="content-preview">{typeof msg.content === 'string' ? msg.content.substring(0, 100) : String(msg.content || '').substring(0, 100)}...</span>
                     </div>
                   ))}
                 </div>
@@ -268,7 +268,7 @@ export default function ChatContextDemo() {
                     {new Date(msg.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
-                <div className="content">{msg.content}</div>
+                <div className="content">{typeof msg.content === 'string' ? msg.content : String(msg.content || '')}</div>
                 {msg.imageData && (
                   <div className="image-attachment">
                     <img src={msg.imageData} alt="Attached" style={{ maxWidth: '200px' }} />

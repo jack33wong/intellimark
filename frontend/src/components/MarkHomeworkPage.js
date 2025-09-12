@@ -5,9 +5,12 @@ import API_CONFIG from '../config/api';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { useAuth } from '../contexts/AuthContext';
 import { FirestoreService } from '../services/firestoreService';
+import { ensureStringContent } from '../utils/contentUtils';
 
 const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMarkingResultSaved, onPageModeChange }) => {
   const { getAuthToken, user } = useAuth();
+  
+  // Using imported utility function
   
   // Helper function to handle Firebase Storage URLs
   const getImageSrc = (imageData) => {
@@ -392,8 +395,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         const formattedMessages = selectedMarkingResult.messages.map(msg => ({
           id: msg.id,
           role: msg.role,
-          content: msg.content,
-          rawContent: msg.rawContent || msg.content, // Store raw content for toggle
+          content: ensureStringContent(msg.content),
+          rawContent: ensureStringContent(msg.rawContent || msg.content), // Store raw content for toggle
           timestamp: (() => {
             try {
               // Handle already formatted Date objects from backend
@@ -730,7 +733,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
               const aiResponseMessage = {
                 id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 role: 'assistant',
-                content: data.response,
+                content: ensureStringContent(data.response),
                 timestamp: new Date().toLocaleTimeString(),
                 type: 'question_response'
               };
@@ -916,8 +919,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                     return {
                       id: msg.id || `msg-${index}`,
                       role: msg.role,
-                      content: msg.content,
-                      rawContent: msg.rawContent || msg.content,
+                      content: ensureStringContent(msg.content),
+                      rawContent: ensureStringContent(msg.rawContent || msg.content),
                       timestamp: msg.timestamp || new Date().toLocaleTimeString(),
                       type: msg.type,
                       imageData: msg.imageData,
@@ -971,7 +974,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
     const userMessage = {
       id: Date.now(),
       role: 'user',
-      content: chatInput,
+      content: ensureStringContent(chatInput),
       timestamp: new Date().toLocaleTimeString()
     };
 
@@ -1048,8 +1051,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
         const aiResponse = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'assistant',
-          content: data.response,
-          rawContent: data.response, // Store raw content for toggle
+          content: ensureStringContent(data.response),
+          rawContent: ensureStringContent(data.response), // Store raw content for toggle
           timestamp: new Date().toLocaleTimeString(),
           apiUsed: data.apiUsed,
           showRaw: false // Track raw toggle state
@@ -1251,9 +1254,11 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                         </div>
                         
                         {/* Only show content for regular chat messages, not marking messages */}
-                        {message.type !== 'marking_annotated' && message.type !== 'marking_original' && message.content && message.content.trim() !== '' && (
+                        {message.type !== 'marking_annotated' && message.type !== 'marking_original' && 
+                         message.content && 
+                         ensureStringContent(message.content).trim() !== '' && (
                           <MarkdownMathRenderer 
-                            content={message.content}
+                            content={ensureStringContent(message.content)}
                             className="chat-message-renderer"
                           />
                         )}
@@ -1293,7 +1298,7 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                           <div className="raw-response">
                             <div className="raw-header">Raw Response</div>
                             <div className="raw-content">
-                              {message.rawContent || message.content}
+                              {ensureStringContent(message.rawContent || message.content)}
                             </div>
                           </div>
                         )}
@@ -1415,8 +1420,8 @@ const MarkHomeworkPage = ({ selectedMarkingResult, onClearSelectedResult, onMark
                          )}
                          
                         {/* Handle text-only messages */}
-                        {!message.isImageContext && !message.type && (
-                          <div className="message-text">{message.content}</div>
+                        {!message.isImageContext && !message.type && message.content && ensureStringContent(message.content).trim() !== '' && (
+                          <div className="message-text">{ensureStringContent(message.content)}</div>
                         )}
                        </div>
                      )}

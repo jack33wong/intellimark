@@ -255,20 +255,45 @@ router.post('/', optionalAuth, async (req, res) => {
       }
     }
 
-    // Get session title for response
+    // Get full session data for response
     const session = await sessionManager.getSession(currentSessionId);
     const sessionTitle = session?.title || 'Chat Session';
 
-    // Return success response
+    // Create full session response
+    const fullSession = {
+      id: currentSessionId,
+      title: sessionTitle,
+      messages: session?.messages || [],
+      userId: currentUserId,
+      messageType: session?.messageType || 'Chat',
+      createdAt: session?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      favorite: session?.favorite || false,
+      rating: session?.rating || 0,
+      contextSummary: contextSummary,
+      lastSummaryUpdate: contextSummary ? new Date().toISOString() : undefined,
+      sessionMetadata: {
+        totalMessages: (session?.messages || []).length,
+        hasImage: !!imageData,
+        hasContext: chatHistory.length > 0,
+        usingSummary: !!contextSummary,
+        lastApiUsed: apiUsed,
+        lastModelUsed: model
+      }
+    };
+
+    // Return success response with full session data
     return res.json({
       success: true,
+      session: fullSession,
+      // Keep original fields for backward compatibility
       sessionId: currentSessionId,
       sessionTitle: sessionTitle,
       response: aiResponse,
       apiUsed: apiUsed,
       context: {
         sessionId: currentSessionId,
-        messageCount: chatHistory.length + (isImagePersistenceMessage ? 1 : 2), // +1 for user only, +2 for user and AI
+        messageCount: chatHistory.length + (isImagePersistenceMessage ? 1 : 2),
         hasImage: !!imageData,
         hasContext: chatHistory.length > 0,
         usingSummary: !!contextSummary,
