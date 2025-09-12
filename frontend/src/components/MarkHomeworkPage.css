@@ -1147,10 +1147,10 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Positioned above chat input bar */
+/* Scroll to Bottom Button - Positioned at middle of chat input bar */
 .scroll-to-bottom-container {
   position: fixed;
-  bottom: 100px; /* Above the chat input bar (which has padding + height ~80px) */
+  bottom: 82px; /* Middle of chat input bar (total height ~164px, so middle at 82px) */
   right: 20px;
   z-index: 1001; /* Above input bar z-index: 1000 */
   opacity: 1;
@@ -2500,7 +2500,7 @@
   .scroll-to-bottom-container {
     left: 0;
     right: 0;
-    bottom: 100px; /* Above chat input bar on mobile too */
+    bottom: 82px; /* Middle of chat input bar on mobile too */
   }
   
   .chat-messages {
