@@ -1149,12 +1149,9 @@
 
 /* Scroll to Bottom Button */
 .scroll-to-bottom-container {
-  position: fixed;
-  bottom: 140px; /* Moved higher for better visibility */
-  left: 280px;
-  right: 0;
-  display: flex;
-  justify-content: center;
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
   z-index: 1000;
   opacity: 1;
   transition: all 0.3s ease;
@@ -3710,7 +3707,6 @@
 
 .chat-messages {
   flex: 1;
-  overflow-y: auto;
   padding: 20px;
   display: flex;
   flex-direction: column;
