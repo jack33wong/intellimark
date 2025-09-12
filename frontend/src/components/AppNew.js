@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 import MarkHomeworkPageNew from './MarkHomeworkPageNew';
 import SidebarNew from './SidebarNew';
 import localSessionService from '../services/localSessionService';

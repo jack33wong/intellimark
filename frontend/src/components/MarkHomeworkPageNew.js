@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 import localSessionService from '../services/localSessionService';
 import { UnifiedSession, LightweightSession, UnifiedMessage } from '../types/unifiedTypes';
 import './MarkHomeworkPage.css';

@@ -92,26 +92,6 @@ export class AIMarkingService {
 
   // Legacy per-line coordinate calculation removed
 
-  /**
-   * NEW 3-STEP LLM FLOW: Complete marking pipeline with 3 LLM calls
-   * 1. Classification -> Google Vision OCR -> LLM extrapolate bbox coordinates into per-line
-   * 2. LLM create marking annotations based on per-line data
-   * 3. LLM calculate relative coordinates for annotations -> SVG overlay
-   */
-  static async generateMarkingInstructionsWithNewFlow(
-    imageData: string,
-    model: SimpleModelType,
-    processedImage: SimpleProcessedImageResult,
-    questionDetection?: SimpleQuestionDetectionResult
-  ): Promise<SimpleMarkingInstructions> {
-    const { LLMOrchestrator } = await import('./ai/LLMOrchestrator');
-    return LLMOrchestrator.executeMarking({
-      imageData,
-      model,
-      processedImage,
-      questionDetection
-    });
-  }
 
   /**
    * NEW LLM2: Generate marking annotations based on final OCR text only (no coordinates)
@@ -129,7 +109,7 @@ export class AIMarkingService {
 
 
   /**
-   * Generate marking instructions for homework images (LEGACY - kept for backward compatibility)
+   * Generate marking instructions for homework images
    */
   static async generateMarkingInstructions(
     imageData: string, 
@@ -137,13 +117,13 @@ export class AIMarkingService {
     processedImage?: SimpleProcessedImageResult,
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
-    // Delegate to the unified new flow to remove legacy code
-    return this.generateMarkingInstructionsWithNewFlow(
+    const { LLMOrchestrator } = await import('./ai/LLMOrchestrator');
+    return LLMOrchestrator.executeMarking({
       imageData,
       model,
-      processedImage || ({} as SimpleProcessedImageResult),
+      processedImage: processedImage || ({} as SimpleProcessedImageResult),
       questionDetection
-    );
+    });
   }
 
 

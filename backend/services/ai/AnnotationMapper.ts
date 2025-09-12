@@ -56,8 +56,7 @@ export class AnnotationMapper {
       unifiedStepLookup = unifiedLookupTable;
       //console.log('✅ Using pre-built unified lookup table from OCR cleanup');
     } else {
-      // Legacy: Build unified step lookup table from separate inputs
-      console.log('⚠️ Building unified lookup table from legacy inputs');
+      // Build unified step lookup table from separate inputs
       
       // Start with original step assignments (from OCR processing)
       if (stepAssignment && stepAssignment.length > 0) {
