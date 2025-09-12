@@ -1149,7 +1149,7 @@
 
 /* Scroll to Bottom Button - Centered in middle of textarea area */
 .scroll-to-bottom-container {
-  position: fixed;
+  position: fixed; /* Must be fixed to float */
   bottom: 56px; /* Middle of textarea area (16px padding + 40px middle of 80px textarea) */
   left: 50%;
   transform: translateX(-50%);
@@ -3837,9 +3837,6 @@
 }
 
 .scroll-to-bottom-btn {
-  position: fixed;
-  bottom: 200px;
-  right: 20px;
   background: var(--accent-color);
   color: white;
   border: none;
