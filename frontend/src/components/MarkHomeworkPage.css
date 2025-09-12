@@ -1147,12 +1147,12 @@
   min-height: 0; /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button */
+/* Scroll to Bottom Button - Positioned above chat input bar */
 .scroll-to-bottom-container {
-  position: absolute;
-  bottom: 20px;
+  position: fixed;
+  bottom: 100px; /* Above the chat input bar (which has padding + height ~80px) */
   right: 20px;
-  z-index: 1000;
+  z-index: 1001; /* Above input bar z-index: 1000 */
   opacity: 1;
   transition: all 0.3s ease;
   pointer-events: auto;
@@ -2175,7 +2175,6 @@
   top: auto;
   transform: none;
   background: var(--primary-bg);
-  border-top: 1px solid var(--border-color);
   border-radius: 0;
   padding: 16px 20px;
   z-index: 1000;
@@ -2501,7 +2500,7 @@
   .scroll-to-bottom-container {
     left: 0;
     right: 0;
-    bottom: 140px; /* Moved higher for better visibility */
+    bottom: 100px; /* Above chat input bar on mobile too */
   }
   
   .chat-messages {
@@ -3461,7 +3460,6 @@
 
 .info-btn {
   background: var(--tertiary-bg);
-  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 8px;
   cursor: pointer;
@@ -3672,7 +3670,6 @@
 
 .header-btn {
   background: var(--tertiary-bg);
-  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 8px;
   cursor: pointer;
@@ -3692,12 +3689,6 @@
 .header-btn.disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.favorite-btn.favorited {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  color: white;
 }
 
 /* Chat Interface Styles */
