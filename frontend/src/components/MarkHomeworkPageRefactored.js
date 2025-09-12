@@ -162,15 +162,26 @@ const MarkHomeworkPageRefactored = ({
     }
   }, [chatMessages.length, chatContainerRef]);
 
-  // Add scroll event listener
+  // Show/hide scroll button based on scroll position and content
   useEffect(() => {
+    if (chatMessages.length > 0) {
+      const container = chatContainerRef.current;
+      if (container) {
+        const isScrollable = container.scrollHeight > container.clientHeight;
+        setShowScrollButton(isScrollable);
+      }
+    } else {
+      setShowScrollButton(false);
+    }
+
+    // Add scroll event listener
     const container = chatContainerRef.current;
     if (container) {
       container.addEventListener('scroll', handleScroll);
       handleScroll(); // Check initial state
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [handleScroll, chatContainerRef]);
+  }, [handleScroll, chatContainerRef, chatMessages.length]);
 
   // ============================================================================
   // EVENT HANDLERS
