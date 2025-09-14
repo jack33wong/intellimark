@@ -3,7 +3,9 @@
  * Handles communication with backend chat API endpoints
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+import API_CONFIG from '../config/api';
+
+const API_BASE_URL = API_CONFIG.BASE_URL;
 
 export class FirestoreService {
   /**
@@ -102,7 +104,7 @@ export class FirestoreService {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/messages/session/${sessionId}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(updates),

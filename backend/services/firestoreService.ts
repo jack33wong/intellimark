@@ -10,6 +10,26 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Helper function to sanitize data for Firestore (remove undefined values)
+function sanitizeForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore).filter(item => item !== undefined);
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        sanitized[key] = sanitizeForFirestore(value);
+      }
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps || admin.apps.length === 0) {
   try {
@@ -29,7 +49,8 @@ const db = admin.firestore();
 const COLLECTIONS = {
   MARKING_RESULTS: 'markingResults',
   USERS: 'users',
-  SESSIONS: 'sessions'
+  SESSIONS: 'sessions',
+  UNIFIED_SESSIONS: 'unifiedSessions'  // NEW: Single collection with nested messages
 } as const;
 
 // Types for Firestore documents
@@ -113,57 +134,6 @@ function sanitizeFirestoreData(obj: any): any {
 }
 
 export class FirestoreService {
-  /**
-   * Save marking results to Firestore
-   */
-  static async saveMarkingResults(
-    userId: string,
-    userEmail: string,
-    imageData: string,
-    model: string,
-    isQuestionOnly: boolean,
-    classification: any,
-    ocrResult: any,
-    markingInstructions: any,
-    annotatedImage?: string,
-    metadata?: any
-  ): Promise<string> {
-    try {
-      
-      const docData: Omit<MarkingResultDocument, 'id' | 'createdAt' | 'updatedAt'> = {
-        userId,
-        userEmail,
-        imageData,
-        model,
-        isQuestionOnly,
-        classification,
-        ocrResult,
-        markingInstructions,
-        ...(annotatedImage && { annotatedImage }), // Only include if defined
-        metadata: metadata || {
-          processingTime: new Date().toISOString(),
-          modelUsed: model,
-          totalAnnotations: markingInstructions?.annotations?.length || 0,
-          imageSize: imageData.length,
-          confidence: ocrResult?.confidence || 0,
-          apiUsed: 'Complete AI Marking System',
-          ocrMethod: 'Enhanced OCR Processing'
-        }
-      };
-
-      const docRef = await db.collection(COLLECTIONS.MARKING_RESULTS).add({
-        ...docData,
-        createdAt: admin.firestore.Timestamp.now(),
-        updatedAt: admin.firestore.Timestamp.now()
-      });
-
-      return docRef.id;
-
-    } catch (error) {
-      console.error('❌ Failed to save marking results to Firestore:', error);
-      throw new Error(`Firestore save failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
 
   /**
    * Retrieve marking results by ID
@@ -339,7 +309,7 @@ export class FirestoreService {
 
   // Chat Session Methods
   /**
-   * Create a new chat session
+   * Create a new chat session (DEPRECATED - use createUnifiedSessionWithMessages)
    */
   static async createChatSession(sessionData: {
     title: string;
@@ -348,279 +318,63 @@ export class FirestoreService {
     messageType?: 'Marking' | 'Question' | 'Chat';
     favorite?: boolean;
     rating?: number;
+    sessionMetadata?: any;
   }): Promise<string> {
-    try {
-      
-      const sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Debug: Log the raw payload before processing
-      
-      // Sanitize and serialize messages to plain objects for Firestore
-      const serializedMessages = sessionData.messages.map(msg => {
-        const sanitized: any = {
-          id: String(msg.id || ''),
-          role: String(msg.role || ''),
-          content: String(msg.content || ''),
-          timestamp: new Date().toISOString() // Use ISO string instead of Firestore Timestamp
-        };
-        
-        // Only add optional fields if they exist and are valid
-        if (msg.imageData && typeof msg.imageData === 'string') {
-          sanitized.imageData = msg.imageData;
-        }
-        if (msg.model && typeof msg.model === 'string') {
-          sanitized.model = msg.model;
-        }
-        
-        return sanitized;
-      });
-
-      // Create a minimal document structure to avoid protobuf issues
-      const docData = {
-        id: sessionId,
-        title: String(sessionData.title || 'Untitled'),
-        messages: serializedMessages,
-        userId: String(sessionData.userId || 'anonymous'),
-        timestamp: new Date().toISOString(), // Use ISO string instead of Firestore Timestamp
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        contextSummary: (sessionData as any).contextSummary || null,
-        lastSummaryUpdate: (sessionData as any).lastSummaryUpdate ? new Date((sessionData as any).lastSummaryUpdate).toISOString() : null,
-        messageType: sessionData.messageType || 'Chat',
-        favorite: (sessionData as any).favorite || false,
-        rating: (sessionData as any).rating || 0
-      };
-
-      // Debug: Log the final payload before Firestore write
-      
-      // Sanitize the entire payload to remove any problematic fields
-      const sanitizedDocData = sanitizeFirestoreData(docData);
-
-      // Try using Firebase Admin's Firestore methods instead of direct Google Cloud client
-      try {
-        await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).set(sanitizedDocData);
-      } catch (firestoreError) {
-        console.error('❌ Direct Firestore write failed, trying alternative approach:', firestoreError);
-        
-        // Alternative: Use Firebase Admin's batch write
-        const batch = db.batch();
-        const docRef = db.collection(COLLECTIONS.SESSIONS).doc(sessionId);
-        batch.set(docRef, sanitizedDocData);
-        await batch.commit();
-      }
-
-      return sessionId;
-
-    } catch (error) {
-      console.error('❌ Failed to create chat session in Firestore:', error);
-      throw new Error(`Firestore session creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error(`
+❌ DEPRECATED METHOD: createChatSession() is no longer supported.
+📋 Use createUnifiedSessionWithMessages() instead.
+💡 The old sessions collection has been removed. All data now uses unifiedSessions.
+🔧 Update your code to use the new unified architecture.
+    `);
   }
 
   /**
-   * Get a specific chat session
+   * Get a specific chat session (DEPRECATED - use getUnifiedSession)
    */
   static async getChatSession(sessionId: string): Promise<any | null> {
-    try {
-      
-      const doc = await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).get();
-      
-      if (!doc.exists) {
-        return null;
-      }
-
-      const data = doc.data();
-      
-      // Process messages to convert Firestore timestamps
-      const processedMessages = (data.messages || []).map((msg: any) => ({
-        ...msg,
-        timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
-                  (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
-                   (msg.timestamp ? new Date(msg.timestamp) : new Date()))
-      }));
-      
-      return {
-        id: doc.id,
-        ...data,
-        messages: processedMessages,
-        timestamp: data?.['timestamp']?.toDate ? data['timestamp'].toDate() : new Date(data?.['timestamp']),
-        createdAt: data?.['createdAt']?.toDate ? data['createdAt'].toDate() : new Date(data?.['createdAt']),
-        updatedAt: data?.['updatedAt']?.toDate ? data['updatedAt'].toDate() : new Date(data?.['updatedAt']),
-        contextSummary: data?.['contextSummary'] || null,
-        lastSummaryUpdate: data?.['lastSummaryUpdate'] ? new Date(data['lastSummaryUpdate']) : null
-      };
-
-    } catch (error) {
-      console.error('❌ Failed to get chat session from Firestore:', error);
-      throw new Error(`Firestore session retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error(`
+❌ DEPRECATED METHOD: getChatSession() is no longer supported.
+📋 Use getUnifiedSession() instead.
+💡 The old sessions collection has been removed. All data now uses unifiedSessions.
+🔧 Update your code to use the new unified architecture.
+🆔 Session ID: ${sessionId}
+    `);
   }
 
   /**
-   * Get all chat sessions for a user
+   * Get all chat sessions for a user (DEPRECATED - use getUserUnifiedSessions)
    */
   static async getChatSessions(userId: string): Promise<any[]> {
-    try {
-      
-      // For anonymous users, we still need to return their sessions
-      // The sessions are created with userId: 'anonymous' so they should be retrievable
-      
-      const snapshot = await db.collection(COLLECTIONS.SESSIONS)
-        .where('userId', '==', userId)
-        .get();
-      
-
-      const sessions = snapshot.docs.map(doc => {
-        const data = doc.data();
-        
-        // Process messages to convert Firestore timestamps and include image data
-        const processedMessages = (data.messages || []).map((msg: any) => ({
-          ...msg,
-          timestamp: msg.timestamp?.toDate ? msg.timestamp.toDate() : 
-                    (msg.timestamp?._seconds ? new Date(msg.timestamp._seconds * 1000) : 
-                     (msg.timestamp ? new Date(msg.timestamp) : new Date())),
-          // Include imageData for complete session data
-          imageData: msg.imageData,
-          // Keep hasImage flag to indicate if message originally had image data
-          hasImage: !!msg.imageData
-        }));
-        
-        return {
-          id: doc.id,
-          ...data,
-          messages: processedMessages,
-          timestamp: data?.['timestamp']?.toDate ? data?.['timestamp']?.toDate() : data?.['timestamp'],
-          createdAt: data?.['createdAt']?.toDate ? data?.['createdAt']?.toDate() : data?.['createdAt'],
-          updatedAt: data?.['updatedAt']?.toDate ? data?.['updatedAt']?.toDate() : data?.['updatedAt']
-        };
-      });
-
-      // Sort in memory instead of using Firestore orderBy
-      sessions.sort((a, b) => {
-        const aTime = a.updatedAt || a.createdAt || new Date(0);
-        const bTime = b.updatedAt || b.createdAt || new Date(0);
-        
-        // Ensure we have Date objects
-        const aDate = aTime instanceof Date ? aTime : new Date(aTime);
-        const bDate = bTime instanceof Date ? bTime : new Date(bTime);
-        
-        return bDate.getTime() - aDate.getTime(); // Descending order
-      });
-
-      return sessions;
-
-    } catch (error) {
-      console.error('❌ Failed to get chat sessions from Firestore:', error);
-      console.error('❌ Error details:', error);
-      // For anonymous users, return empty array instead of throwing error
-      if (userId === 'anonymous') {
-        return [];
-      }
-      throw new Error(`Firestore sessions retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error(`
+❌ DEPRECATED METHOD: getChatSessions() is no longer supported.
+📋 Use getUserUnifiedSessions() instead.
+💡 The old sessions collection has been removed. All data now uses unifiedSessions.
+🔧 Update your code to use the new unified architecture.
+👤 User ID: ${userId}
+    `);
   }
 
   /**
-   * Add message to chat session
+   * Add message to chat session (DEPRECATED - use createUnifiedSessionWithMessages)
    */
   static async addMessageToSession(sessionId: string, message: any): Promise<void> {
-    try {
-      
-      // Helper function to remove undefined values and clean nested objects for Firestore
-      const removeUndefinedValues = (obj: any): any => {
-        if (obj === null || obj === undefined) {
-          return null;
-        }
-        if (Array.isArray(obj)) {
-          return obj.map(removeUndefinedValues).filter(item => item !== undefined);
-        }
-        if (typeof obj === 'object') {
-          const cleaned: any = {};
-          for (const [key, value] of Object.entries(obj)) {
-            if (value !== undefined) {
-              // Skip complex objects that might cause Firestore issues
-              if (typeof value === 'object' && value !== null) {
-                // Only include simple objects or arrays of primitives
-                if (Array.isArray(value)) {
-                  // Check if array contains only primitives
-                  const hasOnlyPrimitives = value.every(item => 
-                    item === null || 
-                    typeof item === 'string' || 
-                    typeof item === 'number' || 
-                    typeof item === 'boolean'
-                  );
-                  if (hasOnlyPrimitives) {
-                    cleaned[key] = value;
-                  }
-                } else {
-                  // For objects, only include if they have simple properties
-                  const simpleProps = Object.values(value).every(val => 
-                    val === null || 
-                    typeof val === 'string' || 
-                    typeof val === 'number' || 
-                    typeof val === 'boolean'
-                  );
-                  if (simpleProps) {
-                    cleaned[key] = value;
-                  }
-                }
-              } else {
-                cleaned[key] = removeUndefinedValues(value);
-              }
-            }
-          }
-          return cleaned;
-        }
-        return obj;
-      };
-      
-      // Serialize message to plain object for Firestore
-      const messageData = removeUndefinedValues({
-        id: message.id,
-        role: message.role,
-        content: message.content,
-        timestamp: admin.firestore.Timestamp.now(),
-        ...(message.imageData && { imageData: message.imageData }),
-        ...(message.model && { model: message.model }),
-        ...(message.type && { type: message.type }),
-        ...(message.imageLink && { imageLink: message.imageLink }),
-        // Only include detectedQuestion if it's simple enough for Firestore
-        ...(message.detectedQuestion && typeof message.detectedQuestion === 'object' && 
-            Object.values(message.detectedQuestion).every(val => 
-              val === null || 
-              typeof val === 'string' || 
-              typeof val === 'number' || 
-              typeof val === 'boolean'
-            ) && { detectedQuestion: message.detectedQuestion }),
-        ...(message.markingData && { markingData: message.markingData })
-      });
-
-      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
-        messages: admin.firestore.FieldValue.arrayUnion(messageData),
-        updatedAt: admin.firestore.Timestamp.now()
-      });
-
-
-    } catch (error) {
-      console.error('❌ Failed to add message to chat session in Firestore:', error);
-      throw new Error(`Firestore message addition failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error(`
+❌ DEPRECATED METHOD: addMessageToSession() is no longer supported.
+📋 Use createUnifiedSessionWithMessages() to create complete sessions atomically.
+💡 The old sessions collection has been removed. All data now uses unifiedSessions.
+🔧 In the unified architecture, messages are created with sessions, not added individually.
+🆔 Session ID: ${sessionId}
+    `);
   }
 
   /**
-   * Update chat session
+   * Update chat session (REDIRECTED - deprecated in unified architecture)
    */
   static async updateChatSession(sessionId: string, updates: any): Promise<void> {
-    try {
-      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).update({
-        ...updates,
-        updatedAt: admin.firestore.Timestamp.now()
-      });
-
-    } catch (error) {
-      console.error('❌ Failed to update chat session in Firestore:', error);
-      throw new Error(`Firestore session update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    // REDIRECTED: In unified architecture, sessions are immutable after creation
+    // Updates should create new messages rather than modifying existing sessions
+    console.log(`📝 updateChatSession called for ${sessionId} - skipped (using unified architecture)`);
+    return; // No-op - unified sessions are immutable
   }
 
 
@@ -687,6 +441,236 @@ export class FirestoreService {
     } catch (error) {
       console.error(`❌ Error querying collection ${collection}:`, error);
       throw error;
+    }
+  }
+
+  // ============================================================================
+  // UNIFIED SESSIONS & MESSAGES (Parent-Child Structure)
+  // ============================================================================
+
+  /**
+   * Create a UnifiedSession with nested messages (single document structure)
+   * Stores large images in Firebase Storage and keeps only URLs in the document
+   */
+  static async createUnifiedSessionWithMessages(sessionData: {
+    sessionId: string;
+    title: string;
+    userId: string;
+    messageType: 'Marking' | 'Question' | 'Chat';
+    messages: any[];
+    sessionMetadata?: any;
+  }): Promise<string> {
+    try {
+      const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
+      
+      // Import ImageStorageService
+      const { ImageStorageService } = await import('./imageStorageService');
+      
+      // Prepare messages array with proper formatting  
+      const unifiedMessages = await Promise.all(messages.map(async (message, index) => {
+        let processedImageLink = message.imageLink;
+
+        // All images should already be uploaded to Firebase Storage and have imageLink
+        if (!message.imageLink && message.imageData) {
+          // Legacy fallback - upload to Firebase Storage if imageData exists
+          try {
+            console.log(`⬆️ Legacy: Uploading image to Firebase Storage (${(message.imageData.length / 1024).toFixed(1)}KB)...`);
+            const imageUrl = await ImageStorageService.uploadImage(
+              message.imageData,
+              userId,
+              sessionId,
+              message.type === 'marking_original' ? 'original' : 'annotated'
+            );
+            processedImageLink = imageUrl;
+            console.log(`✅ Legacy image uploaded to Firebase Storage: ${imageUrl}`);
+          } catch (error) {
+            console.error(`❌ Legacy image upload failed:`, error);
+            processedImageLink = null;
+          }
+        }
+
+
+        const messageDoc = {
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          timestamp: new Date().toISOString(),
+          type: message.type || 'chat',
+          imageLink: processedImageLink,
+          fileName: message.fileName || null,
+          model: message.model || null,
+          apiUsed: message.apiUsed || null,
+          detectedQuestion: message.detectedQuestion || null,
+          metadata: message.metadata || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        // Remove null values
+        return Object.fromEntries(
+          Object.entries(messageDoc).filter(([_, value]) => value !== null && value !== undefined)
+        );
+      }));
+
+      // Create single session document with nested messages
+      const sessionDoc = {
+        id: sessionId,
+        title,
+        userId,
+        messageType,
+        messageCount: messages.length,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0,
+        sessionMetadata: sessionMetadata || null,
+        unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
+      };
+
+      // Save complete session document to unifiedSessions collection
+      await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
+      console.log(`✅ UnifiedSession ${sessionId} created with ${messages.length} nested messages`);
+
+      return sessionId;
+    } catch (error) {
+      console.error('❌ Failed to create UnifiedSession with nested messages:', error);
+      throw new Error(`Session creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get UnifiedSession with nested messages (single document structure)
+   */
+  static async getUnifiedSession(sessionId: string): Promise<any | null> {
+    try {
+      console.log(`🔍 Getting UnifiedSession: ${sessionId}`);
+      
+      // Get session document with nested messages
+      const sessionDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
+      
+      if (!sessionDoc.exists) {
+        console.log(`❌ Session ${sessionId} does not exist in unifiedSessions collection`);
+        return null;
+      }
+
+      const sessionData = sessionDoc.data();
+      console.log(`✅ Found session data:`, { id: sessionId, messageType: sessionData?.messageType });
+      
+      // Extract nested messages
+      const unifiedMessages = sessionData?.unifiedMessages || [];
+      console.log(`📊 Found ${unifiedMessages.length} nested messages`);
+      
+      // Sort messages by timestamp in JavaScript
+      unifiedMessages.sort((a: any, b: any) => {
+        const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+        const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+        return timeA - timeB;
+      });
+
+      // Map messages to ensure frontend compatibility (messageId -> id)
+      const mappedMessages = unifiedMessages.map((msg: any) => ({
+        ...msg,
+        id: msg.messageId || msg.id, // Map messageId to id for frontend
+        messageId: msg.messageId || msg.id // Keep original messageId
+      }));
+
+      // Create result without unifiedMessages to avoid duplication
+      const result = {
+        id: sessionData.id,
+        title: sessionData.title,
+        userId: sessionData.userId,
+        messageType: sessionData.messageType,
+        messageCount: sessionData.messageCount,
+        createdAt: sessionData.createdAt,
+        updatedAt: sessionData.updatedAt,
+        favorite: sessionData.favorite,
+        rating: sessionData.rating,
+        sessionMetadata: sessionData.sessionMetadata,
+        messages: mappedMessages  // Use mapped messages with id field
+      };
+      
+      console.log(`✅ Returning session with ${unifiedMessages.length} nested messages`);
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to get UnifiedSession:', error);
+      throw new Error(`Failed to get session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Get user's UnifiedSessions (lightweight list with nested messages)
+   */
+  static async getUserUnifiedSessions(userId: string, limit: number = 50): Promise<any[]> {
+    try {
+      console.log(`🔍 Getting UnifiedSessions for user: ${userId}`);
+      
+      const sessionsRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
+        .where('userId', '==', userId)
+        .limit(limit);
+      
+      const snapshot = await sessionsRef.get();
+      console.log(`📊 Found ${snapshot.size} sessions for user ${userId}`);
+      
+      if (snapshot.empty) {
+        return [];
+      }
+
+      const sessions = [];
+      
+      for (const doc of snapshot.docs) {
+        const sessionData = doc.data();
+        
+        // Get nested messages directly from the session document
+        const unifiedMessages = sessionData.unifiedMessages || [];
+        
+        // Find the last message by sorting in JavaScript
+        let lastMessage = null;
+        if (unifiedMessages.length > 0) {
+          const sortedMessages = [...unifiedMessages].sort((a: any, b: any) => {
+            const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
+            const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+            return timeB - timeA; // Descending order
+          });
+          lastMessage = sortedMessages[0];
+        }
+
+        // Check if session has images in nested messages
+        const hasImage = unifiedMessages.some((msg: any) => 
+          msg.imageLink
+        );
+
+        sessions.push({
+          id: doc.id,
+          title: sessionData.title,
+          userId: sessionData.userId,
+          messageType: sessionData.messageType,
+          createdAt: sessionData.createdAt,
+          updatedAt: sessionData.updatedAt,
+          favorite: sessionData.favorite || false,
+          rating: sessionData.rating || 0,
+          lastMessage: lastMessage ? {
+            content: lastMessage.content,
+            role: lastMessage.role,
+            timestamp: lastMessage.timestamp
+          } : null,
+          messageCount: sessionData.messageCount || 0,
+          hasImage,
+          lastApiUsed: lastMessage?.apiUsed
+        });
+      }
+      
+      // Sort sessions by updatedAt in JavaScript
+      sessions.sort((a: any, b: any) => {
+        const timeA = new Date(a.updatedAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || 0).getTime();
+        return timeB - timeA; // Descending order
+      });
+      
+      console.log(`✅ Returning ${sessions.length} sessions`);
+      return sessions;
+    } catch (error) {
+      console.error('❌ Failed to get user UnifiedSessions:', error);
+      throw new Error(`Failed to get sessions: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -757,11 +741,13 @@ export class FirestoreService {
       // Create detected question info
       
       const detectedQuestion = questionDetection?.found ? {
-        examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
-        questionNumber: questionDetection.match?.questionNumber || 'Unknown',
+        found: true,
         questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
-        confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
-      } : undefined;
+        message: questionDetection.message || 'Question detected'
+      } : {
+        found: false,
+        message: questionDetection?.message || 'No question detected'
+      };
       
 
       // Create original image message
@@ -839,11 +825,13 @@ export class FirestoreService {
       // Create detected question info
       
       const detectedQuestion = questionDetection?.found ? {
-        examDetails: questionDetection.match?.markingScheme?.examDetails || questionDetection.match?.examDetails || {},
-        questionNumber: questionDetection.match?.questionNumber || 'Unknown',
+        found: true,
         questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
-        confidence: questionDetection.match?.markingScheme?.confidence || questionDetection.match?.confidence || 0
-      } : undefined;
+        message: questionDetection.message || 'Question detected'
+      } : {
+        found: false,
+        message: questionDetection?.message || 'No question detected'
+      };
       
 
       // Create question image message
@@ -932,6 +920,96 @@ export class FirestoreService {
       
     } catch (error) {
       console.error('❌ Failed to delete user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a UnifiedSession and its messages
+   */
+  static async deleteUnifiedSession(sessionId: string, userId: string): Promise<void> {
+    try {
+      console.log(`🗑️ Deleting UnifiedSession: ${sessionId} for user: ${userId}`);
+      
+      // Delete the session document (which contains nested messages)
+      await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).delete();
+      
+      console.log(`✅ UnifiedSession deleted successfully: ${sessionId}`);
+    } catch (error) {
+      console.error('❌ Failed to delete UnifiedSession:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a message to an existing UnifiedSession
+   * For chat functionality that requires incremental message addition
+   */
+  static async addMessageToUnifiedSession(sessionId: string, message: UnifiedMessage): Promise<void> {
+    try {
+      console.log(`📝 Adding message to UnifiedSession: ${sessionId}`);
+      
+      // First, get the existing session
+      const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+      
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      const sessionData = sessionDoc.data();
+      const existingMessages = sessionData?.unifiedMessages || [];
+      
+      // Sanitize the new message
+      const sanitizedMessage = sanitizeForFirestore(message);
+      
+      // Add the new message to the array
+      const updatedMessages = [...existingMessages, sanitizedMessage];
+      
+      // Update the session with new message and metadata
+      const updateData = {
+        unifiedMessages: updatedMessages,
+        updatedAt: new Date().toISOString(),
+        'sessionMetadata.totalMessages': updatedMessages.length,
+        'sessionMetadata.hasImage': updatedMessages.some((msg: any) => msg.imageLink),
+        'sessionMetadata.lastApiUsed': message.metadata?.apiUsed || 'Unknown',
+        'sessionMetadata.lastModelUsed': message.metadata?.modelUsed || 'Unknown'
+      };
+      
+      await sessionRef.update(updateData);
+      
+      console.log(`✅ Message added to UnifiedSession: ${sessionId}`);
+    } catch (error) {
+      console.error('❌ Failed to add message to UnifiedSession:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update UnifiedSession metadata (favorite, rating, title, etc.)
+   */
+  static async updateUnifiedSession(sessionId: string, updates: any): Promise<void> {
+    try {
+      console.log(`📝 Updating UnifiedSession: ${sessionId}`);
+      
+      const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+      
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      // Sanitize updates and add timestamp
+      const sanitizedUpdates = sanitizeForFirestore({
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+      
+      await sessionRef.update(sanitizedUpdates);
+      
+      console.log(`✅ UnifiedSession updated: ${sessionId}`);
+    } catch (error) {
+      console.error('❌ Failed to update UnifiedSession:', error);
       throw error;
     }
   }

@@ -19,6 +19,7 @@ import {
   ChatRequest,
   ChatResponse
 } from '../types/unifiedTypes';
+import API_CONFIG from '../config/api';
 
 class LocalSessionService implements SessionManagerActions {
   private state: SessionManagerState = {
@@ -62,8 +63,8 @@ class LocalSessionService implements SessionManagerActions {
     this.setState({ isLoading: true, error: null });
 
     try {
-      // Fetch full session from backend
-      const response = await fetch(`/api/chat/session/${sessionId}`, {
+      // Fetch messages for session using new messages API
+      const response = await fetch(`/api/messages/session/${sessionId}`, {
         headers: {
           'Content-Type': 'application/json',
         }
@@ -78,7 +79,7 @@ class LocalSessionService implements SessionManagerActions {
         throw new Error(data.error || 'Failed to load session');
       }
 
-      // Convert to unified format
+      // Use session data directly from parent-child structure
       const session = this.convertToUnifiedSession(data.session);
       
       // Update current session
@@ -103,7 +104,7 @@ class LocalSessionService implements SessionManagerActions {
     this.setState({ isProcessing: true, error: null });
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -210,7 +211,8 @@ class LocalSessionService implements SessionManagerActions {
       // Get user ID from current session or use anonymous
       const userId = this.state.currentSession?.userId || 'anonymous';
       
-      const response = await fetch(`/api/chat/sessions/${userId}`, {
+      // Use new messages API to get sessions
+      const response = await fetch(`/api/messages/sessions/${userId}`, {
         headers: {
           'Content-Type': 'application/json',
         }
@@ -225,10 +227,10 @@ class LocalSessionService implements SessionManagerActions {
         throw new Error(data.error || 'Failed to load sessions');
       }
 
-      // Convert to lightweight sessions
+      // Sessions are already in lightweight format from the messages API
       const lightweightSessions = data.sessions
         .slice(0, this.MAX_SIDEBAR_SESSIONS)
-        .map((session: any) => this.convertToLightweightSession(session));
+        .map((session: any) => this.convertApiSessionToLightweight(session));
 
       this.setState({ 
         sidebarSessions: lightweightSessions,
@@ -265,7 +267,7 @@ class LocalSessionService implements SessionManagerActions {
         userId: this.state.currentSession?.userId || 'anonymous'
       };
 
-      const response = await fetch('/api/mark-homework', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,7 +324,7 @@ class LocalSessionService implements SessionManagerActions {
         mode: this.state.currentSession.messageType.toLowerCase() as 'marking' | 'question' | 'chat'
       };
 
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -399,6 +401,127 @@ class LocalSessionService implements SessionManagerActions {
       detectedQuestion: messageData.detectedQuestion,
       markingData: messageData.markingData,
       metadata: messageData.metadata
+    };
+  }
+
+  private convertMessagesToUnifiedSession(sessionId: string, messages: any[]): UnifiedSession {
+    if (messages.length === 0) {
+      return {
+        id: sessionId,
+        title: 'Empty Session',
+        messages: [],
+        userId: 'anonymous',
+        messageType: 'Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0
+      };
+    }
+
+    // Convert messages to UnifiedMessage format
+    const unifiedMessages = messages.map((msg: any) => this.convertToUnifiedMessage(msg));
+    
+    // Get session metadata from first message
+    const firstMessage = messages[0];
+    const lastMessage = messages[messages.length - 1];
+    
+    // Generate title from first message
+    const title = this.generateSessionTitleFromMessage(firstMessage);
+    
+    // Determine message type
+    const messageType = this.getSessionTypeFromMessages(messages);
+
+    return {
+      id: sessionId,
+      title,
+      messages: unifiedMessages,
+      userId: firstMessage.userId || 'anonymous',
+      messageType,
+      createdAt: firstMessage.timestamp || new Date().toISOString(),
+      updatedAt: lastMessage.timestamp || new Date().toISOString(),
+      favorite: false,
+      rating: 0,
+      sessionMetadata: this.calculateSessionMetadata(messages)
+    };
+  }
+
+  private convertApiSessionToLightweight(sessionData: any): LightweightSession {
+    return {
+      id: sessionData.id,
+      title: sessionData.title,
+      userId: sessionData.userId,
+      messageType: sessionData.messageType || 'Chat',
+      createdAt: sessionData.createdAt,
+      updatedAt: sessionData.updatedAt,
+      favorite: sessionData.favorite || false,
+      rating: sessionData.rating || 0,
+      lastMessage: sessionData.lastMessage,
+      messageCount: sessionData.messageCount || 0,
+      hasImage: sessionData.hasImage || false,
+      lastApiUsed: sessionData.lastApiUsed
+    };
+  }
+
+  private generateSessionTitleFromMessage(message: any): string {
+    if (message.detectedQuestion?.examDetails) {
+      const exam = message.detectedQuestion.examDetails;
+      const questionNumber = message.detectedQuestion.questionNumber || 'Unknown';
+      return `${exam.board || 'Unknown'} ${exam.qualification || 'Unknown'} ${exam.paperCode || 'Unknown'} - Q${questionNumber}`;
+    }
+    
+    if (message.type === 'question_original') {
+      return `Question - ${new Date(message.timestamp).toLocaleDateString()}`;
+    }
+    
+    if (message.type === 'marking_original') {
+      return `Marking - ${new Date(message.timestamp).toLocaleDateString()}`;
+    }
+    
+    return `Chat - ${new Date(message.timestamp).toLocaleDateString()}`;
+  }
+
+  private getSessionTypeFromMessages(messages: any[]): 'Marking' | 'Question' | 'Chat' {
+    const hasMarking = messages.some((msg: any) => msg.type?.includes('marking'));
+    const hasQuestion = messages.some((msg: any) => msg.type?.includes('question'));
+    
+    if (hasMarking) return 'Marking';
+    if (hasQuestion) return 'Question';
+    return 'Chat';
+  }
+
+  private calculateSessionMetadata(messages: any[]): any {
+    const totalMessages = messages.length;
+    const lastMessage = messages[messages.length - 1];
+    
+    // Sum up processing times and tokens from message metadata
+    let totalProcessingTime = 0;
+    let totalTokens = 0;
+    let totalConfidence = 0;
+    let confidenceCount = 0;
+
+    messages.forEach((msg: any) => {
+      if (msg.metadata) {
+        if (msg.metadata.processingTimeMs) {
+          totalProcessingTime += msg.metadata.processingTimeMs;
+        }
+        if (msg.metadata.tokens && Array.isArray(msg.metadata.tokens)) {
+          totalTokens += msg.metadata.tokens.reduce((a: number, b: number) => a + b, 0);
+        }
+        if (msg.metadata.confidence) {
+          totalConfidence += msg.metadata.confidence;
+          confidenceCount++;
+        }
+      }
+    });
+
+    return {
+      totalProcessingTimeMs: totalProcessingTime,
+      totalTokens: totalTokens,
+      averageConfidence: confidenceCount > 0 ? totalConfidence / confidenceCount : 0,
+      lastApiUsed: lastMessage?.apiUsed,
+      lastModelUsed: lastMessage?.model,
+      totalMessages: totalMessages
     };
   }
 

@@ -134,8 +134,6 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
     
     // Check if this is a test subscription (starts with 'sub_test_' or 'sub_debug_')
     const isTestSubscription = id.startsWith('sub_test_') || id.startsWith('sub_debug_');
-    console.log('🔍 Subscription ID:', id);
-    console.log('🔍 Is test subscription:', isTestSubscription);
     
     let subscription;
     if (isTestSubscription) {
@@ -150,7 +148,6 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
     }
     
     // Update subscription status in Firestore
-    console.log('🔍 Looking up subscription in Firestore for ID:', id);
     
     try {
       const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(id);
@@ -165,7 +162,6 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
         // Try to find it using direct Firestore query as fallback
         const { FirestoreService } = await import('../services/firestoreService.js');
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
-        console.log('🔍 Direct query result:', directQuery);
         
         if (directQuery.length > 0) {
           console.log('✅ Found subscription via direct query, updating status...');
@@ -182,7 +178,6 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
       try {
         const { FirestoreService } = await import('../services/firestoreService.js');
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
-        console.log('🔍 Fallback direct query result:', directQuery);
         
         if (directQuery.length > 0) {
           console.log('✅ Found subscription via fallback query, updating status...');
@@ -228,7 +223,6 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       return res.status(400).json({ error: 'Missing sessionId or userId' });
     }
     
-    console.log('🔍 Retrieving session from Stripe:', sessionId);
     
     // Retrieve the checkout session from Stripe
     const stripe = (await import('../config/stripe.js')).default;
@@ -248,15 +242,17 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       
       if (!session.subscription) {
         console.log('❌ No subscription found in session');
-        console.log('🔍 Session details:', {
-          id: session.id,
-          status: session.status,
-          payment_status: session.payment_status,
-          mode: session.mode,
-          success_url: session.success_url,
-          cancel_url: session.cancel_url
+        return res.status(400).json({
+          error: 'No subscription found in session',
+          sessionDetails: {
+            id: session.id,
+            status: session.status,
+            payment_status: session.payment_status,
+            mode: session.mode,
+            success_url: session.success_url,
+            cancel_url: session.cancel_url
+          }
         });
-        return res.status(400).json({ error: 'No subscription found in session' });
       }
     } catch (stripeError) {
       console.error('❌ Stripe API error:', stripeError);
@@ -269,13 +265,6 @@ router.post('/create-subscription-after-payment', async (req, res) => {
     // Get subscription details
     const subscription = session.subscription;
     const customer = session.customer;
-    
-    console.log('🔍 Subscription details:', {
-      id: subscription.id,
-      status: subscription.status,
-      hasPeriodStart: !!subscription.current_period_start,
-      hasPeriodEnd: !!subscription.current_period_end
-    });
     
     // Extract data from session metadata
     const { planId, billingCycle } = session.metadata || {};
@@ -327,7 +316,6 @@ router.post('/create-subscription-after-payment', async (req, res) => {
 // Debug endpoint to list all subscriptions
 router.get('/debug/all-subscriptions', async (req, res) => {
   try {
-    console.log('🔍 Debug: Listing all subscriptions');
     
     // Get all subscriptions from Firestore directly
     const { FirestoreService } = await import('../services/firestoreService.js');
@@ -351,7 +339,6 @@ router.get('/debug/all-subscriptions', async (req, res) => {
 router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
   try {
     const { stripeId } = req.params;
-    console.log('🔍 Testing subscription lookup for:', stripeId);
     
     const { FirestoreService } = await import('../services/firestoreService.js');
     const subscriptions = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', stripeId);

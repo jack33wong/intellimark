@@ -12,6 +12,26 @@ import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnsw
 // Get Firestore instance
 admin.firestore();
 
+// Helper function to sanitize data for Firestore (remove undefined values)
+function sanitizeForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore).filter(item => item !== undefined);
+  }
+  if (typeof obj === 'object') {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        sanitized[key] = sanitizeForFirestore(value);
+      }
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
 // Orchestrator owns inner service types; route stays thin
 
 // Simple model validation function to avoid import issues
@@ -47,6 +67,23 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const sessionId = result.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sessionTitle = result.sessionTitle || 'Marking Session';
     
+    // Upload original image to Firebase Storage
+    const { ImageStorageService } = await import('../services/imageStorageService');
+    let originalImageLink;
+    try {
+      console.log('⬆️ Uploading original image to Firebase Storage...');
+      originalImageLink = await ImageStorageService.uploadImage(
+        imageData,
+        userId || 'anonymous', 
+        sessionId,
+        'original'
+      );
+      console.log('✅ Original image uploaded:', originalImageLink);
+    } catch (error) {
+      console.error('❌ Failed to upload original image:', error);
+      originalImageLink = null;
+    }
+    
     // Create user message
     const userMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -54,14 +91,42 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       content: 'I have a question about this image. Can you help me understand it?',
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_original' : 'marking_original',
-      imageData: imageData,
+      imageLink: originalImageLink,
       fileName: 'uploaded-image.png',
+      // Add simplified detectedQuestion data 
+      detectedQuestion: result.questionDetection?.found ? {
+        found: true,
+        questionText: result.classification?.extractedQuestionText || '',
+        message: result.questionDetection?.message || 'Question detected'
+      } : {
+        found: false,
+        message: result.questionDetection?.message || 'No question detected'
+      },
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
         imageSize: result.metadata?.imageSize || 0
       }
     };
+
+    // Upload annotated image to Firebase Storage if it's a marking result
+    let annotatedImageLink;
+    if (!result.isQuestionOnly && result.annotatedImage) {
+      const { ImageStorageService } = await import('../services/imageStorageService');
+      try {
+        console.log('⬆️ Uploading annotated image to Firebase Storage...');
+        annotatedImageLink = await ImageStorageService.uploadImage(
+          result.annotatedImage,
+          userId || 'anonymous', 
+          sessionId,
+          'annotated'
+        );
+        console.log('✅ Annotated image uploaded:', annotatedImageLink);
+      } catch (error) {
+        console.error('❌ Failed to upload annotated image:', error);
+        annotatedImageLink = null;
+      }
+    }
 
     // Create AI response message
     const aiMessage = {
@@ -72,12 +137,16 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       model: model,
       apiUsed: result.apiUsed || 'Complete AI Marking System',
-      markingData: {
-        instructions: result.instructions,
-        annotatedImage: result.annotatedImage,
-        classification: result.classification
+      // Add imageLink for annotated images (uploaded to Firebase Storage)
+      imageLink: annotatedImageLink,
+      detectedQuestion: result.questionDetection?.found ? {
+        found: true,
+        questionText: result.classification?.extractedQuestionText || '',
+        message: result.questionDetection?.message || 'Question detected'
+      } : {
+        found: false,
+        message: result.questionDetection?.message || 'No question detected'
       },
-      detectedQuestion: result.questionDetection,
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         tokens: result.metadata?.tokens || [0, 0],
@@ -85,7 +154,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         totalAnnotations: result.metadata?.totalAnnotations || 0,
         imageSize: result.metadata?.imageSize || 0,
         ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
-        classificationResult: result.classification
+        classificationResult: result.classification ? sanitizeForFirestore(result.classification) : null
       }
     };
 
@@ -110,30 +179,85 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       }
     };
 
-    // Save session to Firestore
+    // Create UnifiedSession with Messages (parent-child structure)
+    let finalSessionId = sessionId;
+    let sessionSaved = false;
+    
     try {
       const { FirestoreService } = await import('../services/firestoreService');
-      const savedSessionId = await FirestoreService.createChatSession({
+      
+      // Create complete session with messages using parent-child structure
+      finalSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+        sessionId: finalSessionId,
         title: sessionTitle,
-        messages: [userMessage, aiMessage],
         userId: userId,
         messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-        favorite: false,
-        rating: 0,
-        contextSummary: null,
-        lastSummaryUpdate: null
+        messages: [userMessage, aiMessage],
+        sessionMetadata: {
+          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+          averageConfidence: result.metadata?.confidence || 0,
+          lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+          lastModelUsed: model,
+          totalMessages: 2
+        }
       });
-      console.log(`✅ Session ${savedSessionId} saved to Firestore for ${result.isQuestionOnly ? 'Question' : 'Marking'} mode`);
+      
+      sessionSaved = true;
+      console.log(`✅ UnifiedSession ${finalSessionId} created with ${result.isQuestionOnly ? 'Question' : 'Marking'} messages`);
     } catch (firestoreError) {
-      console.error('⚠️ Failed to save session to Firestore:', firestoreError);
-      // Continue with response even if Firestore save fails
+      console.error('⚠️ Failed to save UnifiedSession to Firestore:', firestoreError);
+      // Fallback: Create temporary session ID for anonymous users
+      finalSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
+
+    // Get the properly formatted session from our UnifiedSession API
+    let finalSession;
+    try {
+      if (sessionSaved) {
+        const { FirestoreService } = await import('../services/firestoreService');
+        finalSession = await FirestoreService.getUnifiedSession(finalSessionId);
+      } else {
+        // Fallback for unsaved sessions
+        finalSession = {
+          ...session,
+          id: finalSessionId,
+          messages: session.messages || []
+        };
+      }
+    } catch (error) {
+      console.error('Failed to get formatted session:', error);
+      // Fallback to basic session structure
+      finalSession = {
+        ...session,
+        id: finalSessionId,
+        messages: session.messages || []
+      };
+    }
+
+    // Create clean result without markingData or base64 images for response
+    const cleanResult = {
+      isQuestionOnly: result.isQuestionOnly,
+      result: result.result,
+      // annotatedImage removed - frontend will get imageLink in messages
+      instructions: result.instructions,
+      message: result.message,
+      apiUsed: result.apiUsed,
+      ocrMethod: result.ocrMethod,
+      classification: result.classification,
+      questionDetection: result.questionDetection,
+      sessionId: result.sessionId,
+      sessionTitle: result.sessionTitle,
+      metadata: result.metadata
+    };
 
     return res.json({
       success: true,
-      session: session,
-      // Keep original result for backward compatibility
-      ...result
+      session: finalSession,
+      sessionSaved: sessionSaved,
+      warning: sessionSaved ? undefined : 'Session not saved - please sign in to persist your work',
+      // Keep original result for backward compatibility (without markingData)
+      ...cleanResult
     });
   } catch (error) {
     console.error('Error in complete mark question:', error);

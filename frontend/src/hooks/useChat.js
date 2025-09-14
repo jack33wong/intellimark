@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureStringContent } from '../utils/contentUtils';
+import API_CONFIG from '../config/api';
 
 export const useChat = () => {
   const { getAuthToken } = useAuth();
@@ -14,6 +15,7 @@ export const useChat = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentSessionData, setCurrentSessionData] = useState(null);
   
   // Refs
   const chatContainerRef = useRef(null);
@@ -58,14 +60,17 @@ export const useChat = () => {
 
     if (!message.trim()) return;
 
-    const userMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'user',
-      content: ensureStringContent(message),
-      timestamp: new Date().toISOString()
-    };
+    // Add user message immediately for better UX (only for new conversations, not follow-ups)
+    if (!sessionId) {
+      const userMessage = {
+        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        content: ensureStringContent(message),
+        timestamp: new Date().toISOString()
+      };
 
-    setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
+      setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
+    }
     setIsProcessing(true);
 
     try {
@@ -77,7 +82,7 @@ export const useChat = () => {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch('/api/chat/', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/messages/chat`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -96,20 +101,39 @@ export const useChat = () => {
       if (data.success) {
         // Session ID and title will be handled by useSession hook
         
-        // Add AI response to chat
-        const aiResponse = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'assistant',
-          content: ensureStringContent(data.response),
-          rawContent: ensureStringContent(data.response),
-          timestamp: new Date().toISOString(),
-          apiUsed: data.apiUsed,
-          showRaw: false
-        };
+        // Handle unified session response
+        const sessionMessages = data.session?.unifiedMessages || data.session?.messages || [];
+        if (data.session && sessionMessages.length > 0) {
+          // Convert unified messages to chat format
+          const formattedMessages = sessionMessages.map(msg => ({
+            id: msg.messageId || msg.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            role: msg.role,
+            content: ensureStringContent(msg.content),
+            timestamp: msg.timestamp,
+            type: msg.type,
+            detectedQuestion: msg.detectedQuestion,
+            metadata: msg.metadata,
+            apiUsed: msg.metadata?.apiUsed || data.apiUsed,
+            imageLink: msg.imageLink // Include image link for display
+          }));
+          
+          // Replace all messages with the complete session data from backend
+          // The backend returns the full session with all messages (old + new)
+          setChatMessages(deduplicateMessages(formattedMessages));
+        } else {
+          // Fallback to old response format
+          const aiResponse = {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            role: 'assistant',
+            content: ensureStringContent(data.response),
+            timestamp: new Date().toISOString(),
+            apiUsed: data.apiUsed
+          };
+          
+          setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
+        }
         
-        setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
         scrollToBottom();
-        
         onSuccess(data);
       } else {
         throw new Error(data.error || 'Failed to send message');
@@ -126,20 +150,24 @@ export const useChat = () => {
   const loadMessages = useCallback((sessionData) => {
     if (sessionData && sessionData.messages) {
       const formattedMessages = sessionData.messages.map((msg, index) => ({
-        id: msg.id || `msg-${index}`,
+        id: msg.id || msg.messageId || `msg-${index}`, // Handle both id and messageId
+        messageId: msg.messageId, // Preserve backend messageId
         role: msg.role || 'user',
         content: ensureStringContent(msg.content),
         rawContent: ensureStringContent(msg.rawContent || msg.content),
         timestamp: msg.timestamp || new Date().toISOString(),
         type: msg.type,
-        imageData: msg.imageData,
+        imageData: msg.imageData, // Legacy support
+        imageLink: msg.imageLink, // NEW: Firebase Storage URL
         fileName: msg.fileName,
         detectedQuestion: msg.detectedQuestion,
         metadata: msg.metadata,
+        apiUsed: msg.apiUsed || msg.metadata?.apiUsed,
         showRaw: false
       }));
       
       setChatMessages(formattedMessages);
+      setCurrentSessionData(sessionData); // Store the full session data
     }
   }, []);
 
@@ -147,6 +175,7 @@ export const useChat = () => {
   const clearChat = useCallback(() => {
     setChatMessages([]);
     setChatInput('');
+    setCurrentSessionData(null);
   }, []);
 
   return {
@@ -156,6 +185,7 @@ export const useChat = () => {
     chatInput,
     setChatInput,
     isProcessing,
+    currentSessionData,
     
     // Actions
     sendMessage,

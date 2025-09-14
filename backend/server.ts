@@ -44,6 +44,7 @@ import adminRoutes from './routes/admin.js';
 import chatRoutes from './routes/chat.js';
 import paymentRoutes from './routes/payment.js';
 import testRoutes from './routes/test.js';
+import messagesRoutes from './routes/messages.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -56,6 +57,9 @@ app.use('/api/admin', adminRoutes);
 
 // Enable chat system
 app.use('/api/chat', chatRoutes);
+
+// Enable messages API (new UnifiedMessage system)
+app.use('/api/messages', messagesRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);

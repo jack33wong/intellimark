@@ -613,8 +613,8 @@ export class ChatSessionManager {
           sessionMap.set(session.id, session);
         } else {
           // Compare timestamps to determine which is more recent
-          const existingTime = existing.updatedAt || existing.createdAt || existing.timestamp || new Date(0);
-          const inMemoryTime = session.updatedAt || session.createdAt || session.timestamp || new Date(0);
+          const existingTime = existing.timestamp || new Date(0);
+          const inMemoryTime = session.timestamp || new Date(0);
           
           const existingDate = existingTime instanceof Date ? existingTime : new Date(existingTime);
           const inMemoryDate = inMemoryTime instanceof Date ? inMemoryTime : new Date(inMemoryTime);

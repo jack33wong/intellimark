@@ -27,8 +27,21 @@ function AppContent() {
 
   const handleMarkingHistoryClick = async (result) => {
     try {
-      // Use sidebar data directly - single source of truth
-      setSelectedMarkingResult(result);
+      // Fetch full session data including messages
+      const response = await fetch(`http://localhost:5001/api/messages/session/${result.id}`);
+      if (response.ok) {
+        const sessionData = await response.json();
+        if (sessionData.success && sessionData.session) {
+          // Use full session data with messages
+          setSelectedMarkingResult(sessionData.session);
+        } else {
+          // Fallback to sidebar data
+          setSelectedMarkingResult(result);
+        }
+      } else {
+        // Fallback to sidebar data
+        setSelectedMarkingResult(result);
+      }
       
       // Navigate to mark-homework route using React Router
       navigate('/mark-homework');

@@ -73,9 +73,9 @@ const MarkHomeworkPageRefactored = ({
     chatInput,
     setChatInput,
     isProcessing: isChatProcessing,
+    currentSessionData,
     sendMessage,
     loadMessages,
-    clearChat,
     chatContainerRef,
     scrollToBottom
   } = useChat();
@@ -88,7 +88,6 @@ const MarkHomeworkPageRefactored = ({
     error: markError,
     loadingProgress,
     analyzeImage,
-    clearResults,
     getImageSrc,
     setMarkingResult
   } = useMarkHomework();
@@ -103,8 +102,7 @@ const MarkHomeworkPageRefactored = ({
     setHoveredRating,
     loadSessionData,
     handleFavoriteToggle,
-    handleRatingChange,
-    clearSession
+    handleRatingChange
   } = useSession();
   
   // Subscription delay management
@@ -200,13 +198,15 @@ const MarkHomeworkPageRefactored = ({
       
       // Handle question-only case
       if (result.isQuestionOnly) {
-        // Send to chat API for AI response
-        await sendMessage('I have a question about this image. Can you help me understand it?', {
-          imageData: imageData,
-          model: selectedModel,
-          sessionId: result.sessionId,
-          mode: 'question'
-        });
+        // Question-only sessions are now handled entirely by the mark-homework API
+        // Load messages from the backend response instead of calling chat API
+        if (result.session && result.session.messages) {
+          loadMessages({
+            id: result.session.id,
+            title: result.session.title,
+            messages: result.session.messages
+          });
+        }
         
         // Switch to chat mode
         setPageMode('chat');
@@ -221,48 +221,14 @@ const MarkHomeworkPageRefactored = ({
           ocrMethod: result.ocrMethod
         });
         
-        // Create messages for marking result
-        const userMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
-          content: 'I have a question about this image. Can you help me understand it?',
-          timestamp: new Date().toISOString(),
-          type: 'marking_original',
-          imageData: imageData,
-          fileName: selectedFile.name
-        };
-        
-        const aiMessage = {
-          id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'assistant',
-          content: result.message || 'Question marked successfully with burned annotations',
-          timestamp: new Date().toISOString(),
-          type: 'marking_annotated',
-          model: selectedModel,
-          apiUsed: result.apiUsed,
-          markingData: {
-            instructions: result.instructions,
-            annotatedImage: result.annotatedImage,
-            classification: result.classification
-          },
-          detectedQuestion: result.questionDetection,
-          metadata: {
-            processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            tokens: result.metadata?.tokens || [0, 0],
-            confidence: result.metadata?.confidence || 0,
-            totalAnnotations: result.metadata?.totalAnnotations || 0,
-            imageSize: result.metadata?.imageSize || 0,
-            ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
-            classificationResult: result.classification
-          }
-        };
-        
-        // Load messages and switch to chat
-        loadMessages({
-          id: result.sessionId,
-          title: result.sessionTitle,
-          messages: [userMessage, aiMessage]
-        });
+        // Load messages from backend response (contains proper imageLink)
+        if (result.session && result.session.messages) {
+          loadMessages({
+            id: result.session.id,
+            title: result.session.title,
+            messages: result.session.messages
+          });
+        }
         setPageMode('chat');
       }
       
@@ -291,7 +257,7 @@ const MarkHomeworkPageRefactored = ({
       sessionId: currentSessionId,
       mode: mode
     });
-  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel]);
+  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel, currentSessionId]);
   
   // Handle key press in chat input
   const handleKeyPress = useCallback((e) => {
@@ -343,6 +309,7 @@ const MarkHomeworkPageRefactored = ({
               onRatingHover={setHoveredRating}
               user={user}
               markingResult={markingResult}
+              sessionData={currentSessionData}
               showInfoDropdown={showInfoDropdown}
               onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
             />
@@ -353,7 +320,7 @@ const MarkHomeworkPageRefactored = ({
                 key={`${message.id}-${index}`} 
                 className={`chat-message ${message.role}`}
               >
-                <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated') ? 'marking-message' : ''}`}>
+                <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated' || message.type === 'question_original') ? 'marking-message' : ''}`}>
                   {message.role === 'assistant' ? (
                     <div>
                       <div className="assistant-header">
@@ -371,52 +338,29 @@ const MarkHomeworkPageRefactored = ({
                       )}
                       
                       {/* Handle marking messages with annotated images */}
-                      {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
+                      {message.type === 'marking_annotated' && message.imageLink && (
                         <div className="homework-annotated-image">
                           <h4>✅ Marked Homework Image</h4>
                           <img 
-                            src={getImageSrc(message.imageLink || message.imageData)}
+                            src={getImageSrc(message.imageLink)}
                             alt="Marked homework"
                             className="annotated-image"
                             onError={(e) => {
-                              console.warn('Failed to load image:', message.imageLink || message.imageData);
+                              console.warn('Failed to load image:', message.imageLink);
                               e.target.style.display = 'none';
                             }}
                           />
                         </div>
                       )}
                       
-                      {/* Raw content toggle */}
-                      <button 
-                        className="raw-toggle-btn"
-                        onClick={() => {
-                          setChatMessages(prev => prev.map(msg => 
-                            msg.id === message.id 
-                              ? { ...msg, showRaw: !msg.showRaw }
-                              : msg
-                          ));
-                        }}
-                        style={{marginTop: '8px', fontSize: '12px'}}
-                      >
-                        {message.showRaw ? 'Hide Raw' : 'Show Raw'}
-                      </button>
-                      
-                      {message.showRaw && (
-                        <div className="raw-response">
-                          <div className="raw-header">Raw Response</div>
-                          <div className="raw-content">
-                            {ensureStringContent(message.rawContent || message.content)}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div>
                       {/* User message content */}
-                      {message.imageData && (
+                      {message.imageLink && (
                         <div className="message-image">
                           <img 
-                            src={getImageSrc(message.imageData)}
+                            src={getImageSrc(message.imageLink)}
                             alt="Uploaded"
                             className="content-image"
                           />
@@ -426,15 +370,6 @@ const MarkHomeworkPageRefactored = ({
                       <div className="message-text">
                         {typeof message.content === 'string' ? message.content : String(message.content || '')}
                       </div>
-                      
-                      {message.metadata && (
-                        <div className="message-metadata">
-                          <div className="metadata-item">
-                            <span>Processing Time:</span>
-                            <span>{message.metadata.processingTimeMs}ms</span>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

@@ -61,7 +61,7 @@ class MarkHomeworkService {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch('/api/chat/', {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/chat/`, {
       method: 'POST',
       headers,
       body: JSON.stringify(messageData)

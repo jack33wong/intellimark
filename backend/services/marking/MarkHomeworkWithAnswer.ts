@@ -6,7 +6,6 @@
 
 import { questionDetectionService } from '../../services/questionDetectionService';
 import { ImageAnnotationService } from '../../services/imageAnnotationService';
-import { ChatSessionManager } from '../../services/chatSessionManager';
 
 import type {
   MarkHomeworkResponse,
@@ -166,50 +165,6 @@ export class MarkHomeworkWithAnswer {
     }
   }
 
-  /**
-   * Persist results via FirestoreService
-   */
-  private static async saveMarkingResults(
-    imageData: string,
-    model: string,
-    result: ProcessedImageResult,
-    instructions: MarkingInstructions,
-    classification: ImageClassification,
-    userId: string,
-    userEmail: string,
-    classificationTokens: number = 0,
-    processingTimeMs: number = 0
-  ): Promise<string> {
-    try {
-      const { FirestoreService } = await import('../firestoreService');
-      const resultId = await FirestoreService.saveMarkingResults(
-        userId,
-        userEmail,
-        imageData,
-        model,
-        false,
-        classification,
-        result,
-        instructions,
-        undefined,
-        {
-          processingTime: new Date().toISOString(),
-          totalProcessingTimeMs: processingTimeMs,
-          modelUsed: model,
-          totalAnnotations: instructions.annotations.length,
-          imageSize: imageData.length,
-          confidence: result.confidence,
-          apiUsed: 'Complete AI Marking System',
-          ocrMethod: 'Enhanced OCR Processing',
-          tokens: [ classificationTokens + ((instructions as any)?.usage?.llmTokens || 0), (result as any)?.mathpixCalls || 0 ]
-        }
-      );
-      return resultId;
-    } catch (_err) {
-      // Preserve current non-throwing fallback behavior
-      return `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-  }
 
   /**
    * Execute the full marking flow.
@@ -244,50 +199,70 @@ export class MarkHomeworkWithAnswer {
       questionDetection = { found: false, message: 'No question text extracted' };
     }
 
-    // If question-only, short-circuit like current route
+    // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
-      let sessionId: string | undefined;
       let sessionTitle = `Question - ${new Date().toLocaleDateString()}`;
       
-      try {
-        const sessionManager = ChatSessionManager.getInstance();
-        if (questionDetection?.found && (questionDetection as any).match) {
-          const match: any = (questionDetection as any).match;
-          const questionNumber = match.questionNumber || 'Unknown';
-          const board = match.board || 'Unknown';
-          const qualification = match.qualification || 'Unknown';
-          const paperCode = match.paperCode || 'Unknown';
-          const year = match.year || 'Unknown';
-          sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber} (${year})`;
-        } else if (imageClassification.extractedQuestionText) {
-          // For non-exam paper questions, use first 20 characters of question text
-          const questionText = imageClassification.extractedQuestionText.trim();
-          const truncatedText = questionText.length > 20 
-            ? questionText.substring(0, 20) + '...' 
-            : questionText;
-          sessionTitle = `Question: ${truncatedText}`;
-        }
-        sessionId = await sessionManager.createSession({
-          title: sessionTitle,
-          messages: [],
-          userId,
-          messageType: 'Question'
-        });
-      } catch (_err) {
-        // swallow, maintain behavior
+      // Generate session title based on question detection
+      if (questionDetection?.found && (questionDetection as any).match) {
+        const match: any = (questionDetection as any).match;
+        const questionNumber = match.questionNumber || 'Unknown';
+        const board = match.board || 'Unknown';
+        const qualification = match.qualification || 'Unknown';
+        const paperCode = match.paperCode || 'Unknown';
+        const year = match.year || 'Unknown';
+        sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber} (${year})`;
+      } else if (imageClassification.extractedQuestionText) {
+        // For non-exam paper questions, use first 20 characters of question text
+        const questionText = imageClassification.extractedQuestionText.trim();
+        const truncatedText = questionText.length > 20 
+          ? questionText.substring(0, 20) + '...' 
+          : questionText;
+        sessionTitle = `Question: ${truncatedText}`;
       }
 
+      // Calculate processing time for question-only mode
+      const totalProcessingTime = Date.now() - startTime;
+      
+      // For question-only mode, generate simple AI tutoring response
+      let chatResponse;
+      try {
+        const { AIMarkingService } = await import('../aiMarkingService');
+        chatResponse = await AIMarkingService.generateChatResponse(
+          imageData,
+          'I have a question that I need help with. Can you assist me?',
+          model as any, // Convert to SimpleModelType
+          true // isQuestionOnly
+        );
+      } catch (error) {
+        // Fallback response if AI service fails
+        chatResponse = {
+          response: 'I can see your question! For the best tutoring experience, please use the chat interface where I can provide step-by-step guidance and ask follow-up questions to help you understand the concept.',
+          apiUsed: 'Fallback'
+        };
+      }
+      
       return {
         success: true,
         isQuestionOnly: true,
-        message: 'Image classified as question only - use chat interface for tutoring',
-        apiUsed: imageClassification.apiUsed,
+        message: chatResponse.response,
+        apiUsed: chatResponse.apiUsed,
         model,
         reasoning: imageClassification.reasoning,
         questionDetection,
-        sessionId,
+        sessionId: null, // Will be set by route
         sessionTitle: sessionTitle,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        metadata: {
+          resultId: `question-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          processingTime: new Date().toISOString(),
+          totalProcessingTimeMs: totalProcessingTime,
+          modelUsed: model,
+          totalAnnotations: 0,
+          imageSize: imageData.length,
+          confidence: 0,
+          tokens: [classificationTokens, 0] // [input, output]
+        }
       } as unknown as MarkHomeworkResponse;
     }
 
@@ -319,43 +294,25 @@ export class MarkHomeworkWithAnswer {
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
-    // Step 5: Save
-    const resultId = await this.saveMarkingResults(
-      imageData,
-      model,
-      processedImage,
-      markingInstructions,
-      imageClassification,
-      userId,
-      userEmail,
-      classificationTokens,
-      totalProcessingTime
-    );
+    // Step 5: Data processed - session will be created by route
 
     // Step 6: Create session for marking
     let sessionId: string | undefined;
     let sessionTitle = `Marking - ${new Date().toLocaleDateString()}`;
     
-    try {
-      const sessionManager = ChatSessionManager.getInstance();
-      if (questionDetection?.found && (questionDetection as any).match) {
-        const match: any = (questionDetection as any).match;
-        const examDetails = match.markingScheme?.examDetails || match;
-        const board = examDetails.board || 'Unknown';
-        const qualification = examDetails.qualification || 'Unknown';
-        const paperCode = examDetails.paperCode || 'Unknown';
-        const questionNumber = match.questionNumber || 'Unknown';
-        sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber}`;
-      }
-      sessionId = await sessionManager.createSession({
-        title: sessionTitle,
-        messages: [],
-        userId,
-        messageType: 'Marking'
-      });
-    } catch (_err) {
-      // keep behavior: continue without sessionId
+    // Generate session title but don't create session yet
+    if (questionDetection?.found && (questionDetection as any).match) {
+      const match: any = (questionDetection as any).match;
+      const examDetails = match.markingScheme?.examDetails || match;
+      const board = examDetails.board || 'Unknown';
+      const qualification = examDetails.qualification || 'Unknown';
+      const paperCode = examDetails.paperCode || 'Unknown';
+      const questionNumber = match.questionNumber || 'Unknown';
+      sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber}`;
     }
+    
+    // Session will be created by the route with complete data
+    sessionId = null;
 
     const response: MarkHomeworkResponse = {
       success: true,
@@ -375,7 +332,7 @@ export class MarkHomeworkWithAnswer {
     return {
       ...response,
       metadata: {
-        resultId,
+        resultId: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         processingTime: new Date().toISOString(),
         totalProcessingTimeMs: totalProcessingTime,
         modelUsed: model,

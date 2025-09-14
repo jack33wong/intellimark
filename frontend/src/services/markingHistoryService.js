@@ -16,7 +16,8 @@ class MarkingHistoryService {
    */
   static async getMarkingHistoryFromSessions(userId, limit = 50, authToken = null) {
     try {
-      const url = `${API_BASE}/api/chat/sessions/${userId}`;
+      // Use new messages API instead of old chat API
+      const url = `${API_BASE}/api/messages/sessions/${userId}`;
       
       const headers = {
         'Content-Type': 'application/json',
@@ -43,7 +44,7 @@ class MarkingHistoryService {
       
       // Filter sessions that contain any messages (be more inclusive)
       const markingSessions = sessions.filter(session => 
-        session.messages && session.messages.length > 0
+        session.messageCount > 0
       );
 
       return {
@@ -67,7 +68,8 @@ class MarkingHistoryService {
    */
   static async getMarkingMessagesFromSession(sessionId, authToken = null) {
     try {
-      const url = `${API_BASE}/api/chat/sessions/${sessionId}`;
+      // Use new messages API instead of old chat API
+      const url = `${API_BASE}/api/messages/session/${sessionId}`;
       
       const headers = {
         'Content-Type': 'application/json',
@@ -87,7 +89,8 @@ class MarkingHistoryService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const session = await response.json();
+      const result = await response.json();
+      const session = result.session;
       
       // Filter only marking messages
       const markingMessages = session.messages.filter(msg => 
@@ -123,7 +126,7 @@ class MarkingHistoryService {
    */
   static async deleteSession(sessionId, authToken) {
     try {
-      const url = `${API_BASE}/api/chat/session/${sessionId}`;
+      const url = `${API_BASE}/api/messages/session/${sessionId}`;
       
       const headers = {
         'Content-Type': 'application/json',

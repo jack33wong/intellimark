@@ -149,39 +149,62 @@ export interface ImageClassification {
   usageTokens?: number;
 }
 
-export interface MarkingSchemeMatch {
-  id: string;
-  examDetails: {
-    board: string;
-    qualification: string;
-    paperCode: string;
-    tier: string;
-    paper: string;
-    date: string;
-  };
-  questionMarks?: any;
-  totalQuestions: number;
-  totalMarks: number;
-  confidence?: number;
-}
-
-export interface ExamPaperMatch {
-  board: string;
-  qualification: string;
-  paperCode: string;
-  year: string;
-  questionNumber?: string;
-  confidence?: number;
-  markingScheme?: MarkingSchemeMatch;
-}
-
 export interface QuestionDetectionResult {
   found: boolean;
-  match?: ExamPaperMatch;
+  questionText?: string;
   message?: string;
 }
 
-// Chat message types
+// Unified Message types (matches frontend)
+export interface UnifiedMessage {
+  id?: string; // Frontend ID (optional in backend)
+  messageId: string; // Backend primary key
+  sessionId?: string;
+  userId?: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string; // ISO string format
+  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
+  
+  // Image data (imageLink only - Firebase Storage URLs)
+  imageLink?: string;
+  fileName?: string;
+  
+  // AI metadata
+  model?: string;
+  apiUsed?: string;
+  
+  // Display options
+  isImageContext?: boolean;
+  
+  // Question detection (simplified)
+  detectedQuestion?: {
+    found: boolean;
+    questionText?: string;
+    message?: string;
+  };
+  
+  // Processing metadata (comprehensive)
+  metadata?: {
+    resultId?: string;
+    processingTime?: string;
+    totalProcessingTimeMs?: number;
+    modelUsed?: string;
+    tokens?: number[];
+    confidence?: number;
+    totalAnnotations?: number;
+    imageSize?: number;
+    ocrMethod?: string;
+    classificationResult?: any;
+    apiUsed?: string;
+  };
+  
+  // Firestore metadata
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Legacy ChatMessage (keep for backward compatibility during migration)
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -189,20 +212,12 @@ export interface ChatMessage {
   timestamp: Date;
   type?: 'chat' | 'marking_original' | 'marking_annotated' | 'follow_up';
   model?: ModelType;
-  imageData?: string; // Keep for backward compatibility
-  imageLink?: string; // Firebase Storage URL
-  detectedQuestion?: { // NEW: Question detection info
-    examDetails?: {
-      board?: string;
-      qualification?: string;
-      paperCode?: string;
-      tier?: string;
-      paper?: string;
-      date?: string;
-    };
-    questionNumber?: string;
+  imageData?: string;
+  imageLink?: string;
+  detectedQuestion?: {
+    found?: boolean;
     questionText?: string;
-    confidence?: number;
+    message?: string;
   };
 }
 

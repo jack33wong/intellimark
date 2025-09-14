@@ -16,9 +16,63 @@ const SessionHeader = ({
   user,
   markingResult = null,
   showInfoDropdown = false,
-  onToggleInfoDropdown
+  onToggleInfoDropdown,
+  sessionData = null // Add sessionData prop to access unified session messages
 }) => {
   const dropdownRef = useRef(null);
+
+  // Helper function to get token data from either markingResult or sessionData
+  const getTokenData = () => {
+    // First try to get from markingResult (for current sessions)
+    if (markingResult?.metadata?.tokens) {
+      return markingResult.metadata.tokens;
+    }
+    
+    // Fallback: try to get from session messages metadata (for historical sessions)
+    if (sessionData?.messages) {
+      const aiMessage = sessionData.messages.find(msg => 
+        msg.role === 'assistant' && msg.metadata?.tokens
+      );
+      if (aiMessage?.metadata?.tokens) {
+        return aiMessage.metadata.tokens;
+      }
+    }
+    
+    return null;
+  };
+
+  const tokens = getTokenData();
+
+  // Helper function to get model information
+  const getModelUsed = () => {
+    // First try to get from markingResult
+    if (markingResult?.metadata?.modelUsed) {
+      return markingResult.metadata.modelUsed;
+    }
+    
+    // Check for different model field names in markingResult
+    if (markingResult?.model) {
+      return markingResult.model;
+    }
+    
+    // Fallback: try to get from session messages metadata
+    if (sessionData?.messages) {
+      const aiMessage = sessionData.messages.find(msg => 
+        msg.role === 'assistant' && (msg.metadata?.modelUsed || msg.model)
+      );
+      if (aiMessage?.metadata?.modelUsed) {
+        return aiMessage.metadata.modelUsed;
+      }
+      if (aiMessage?.model) {
+        return aiMessage.model;
+      }
+    }
+    
+    // Default model based on common usage
+    return 'ChatGPT-4 Omni';
+  };
+
+  const modelUsed = getModelUsed();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -90,70 +144,58 @@ const SessionHeader = ({
                     <h3>Task Details</h3>
                   </div>
                   
-                  {/* Main Content */}
-                  <div className="dropdown-main-content">
-                    {/* Label-Value Pairs */}
-                    <div className="label-value-pairs">
-                      <div className="label-value-item">
-                        <span className="label">Title:</span>
-                        <span className="value">{sessionTitle.length > 30 ? sessionTitle.substring(0, 30) + '...' : sessionTitle}</span>
-                      </div>
-                      <div className="label-value-item">
-                        <span className="label">Question Type:</span>
-                        <span className="value">{markingResult?.classification?.questionType || 'Math Problem'}</span>
-                      </div>
-                      <div className="label-value-item">
-                        <span className="label">Difficulty:</span>
-                        <span className="value">{markingResult?.classification?.difficulty || 'Medium'}</span>
-                      </div>
-                      <div className="label-value-item">
-                        <span className="label">API Used:</span>
-                        <span className="value">{markingResult?.apiUsed || 'N/A'}</span>
-                      </div>
-                      <div className="label-value-item">
-                        <span className="label">OCR Method:</span>
-                        <span className="value">{markingResult?.ocrMethod || 'N/A'}</span>
-                      </div>
-                      <div className="label-value-item">
-                        <span className="label">Confidence:</span>
-                        <span className="value">
-                          {markingResult?.metadata?.confidence 
-                            ? `${(markingResult.metadata.confidence * 100).toFixed(1)}%`
-                            : 'N/A'
-                          }
-                        </span>
-                      </div>
+                  {/* Title Section - First row */}
+                  <div className="dropdown-title-section">
+                    <div className="label-value-item">
+                      <span className="label">Title:</span>
+                      <span className="value">{sessionTitle.length > 30 ? sessionTitle.substring(0, 30) + '...' : sessionTitle}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Model and Processing Time Section */}
+                  <div className="dropdown-model-section">
+                    <div className="label-value-item">
+                      <span className="label">Model Used:</span>
+                      <span className="value">{modelUsed}</span>
+                    </div>
+                    <div className="label-value-item">
+                      <span className="label">Processing Time:</span>
+                      <span className="value">
+                        {(() => {
+                          // Try different sources for processing time
+                          const timeMs = markingResult?.metadata?.totalProcessingTimeMs ||
+                                        markingResult?.metadata?.processingTimeMs ||
+                                        (sessionData?.messages?.find(msg => 
+                                          msg.role === 'assistant' && msg.metadata?.processingTimeMs
+                                        )?.metadata?.processingTimeMs);
+                          
+                          return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
+                        })()}
+                      </span>
                     </div>
                   </div>
                   
                   {/* Rating Section */}
                   <div className="dropdown-rating-section">
-                    <div className="rating-stars">
-                      {renderStars(rating, hoveredRating)}
+                    <div className="rating-container">
+                      <div className="rating-label">
+                        <span className="label">Rate this task:</span>
+                      </div>
+                      <div className="rating-stars">
+                        {renderStars(rating, hoveredRating)}
+                      </div>
                     </div>
-                    <span className="rating-text">
-                      {rating > 0 ? `${rating} star${rating !== 1 ? 's' : ''}` : 'Rate this session'}
-                    </span>
                   </div>
                   
-                  {/* Footer */}
+                  {/* Footer - Restored original fields */}
                   <div className="dropdown-footer">
                     <div className="token-count">
                       <span className="label">LLM Tokens:</span>
-                      <span className="value">{markingResult?.metadata?.tokens?.[0]?.toLocaleString() || 'N/A'}</span>
+                      <span className="value">{tokens?.[0]?.toLocaleString() || 'N/A'}</span>
                     </div>
                     <div className="mathpix-count">
                       <span className="label">Mathpix Calls:</span>
-                      <span className="value">{markingResult?.metadata?.tokens?.[1] || 'N/A'}</span>
-                    </div>
-                    <div className="processing-time">
-                      <span className="label">Processing Time:</span>
-                      <span className="value">
-                        {markingResult?.metadata?.totalProcessingTimeMs 
-                          ? `${(markingResult.metadata.totalProcessingTimeMs / 1000).toFixed(1)}s`
-                          : 'N/A'
-                        }
-                      </span>
+                      <span className="value">{tokens?.[1] || 'N/A'}</span>
                     </div>
                     <div className="last-update">
                       <span className="label">Last Update:</span>

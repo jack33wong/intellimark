@@ -12,6 +12,7 @@ import {
   StripePaymentProps
 } from '../types/payment';
 import { ArrowLeft, CreditCard, Lock } from 'lucide-react';
+import API_CONFIG from '../config/api';
 import './StripePayment.css';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || '');
@@ -51,7 +52,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
-      const response = await fetch('/api/payment/create-payment-intent', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +159,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ planId, billingCycle, onSucce
     if (!user?.email || !user?.uid) return;
 
     try {
-      const response = await fetch('/api/payment/create-subscription', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-subscription`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -161,16 +161,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       return session.title;
     }
     
-    // Fallback: Find the first marking message to extract question text
-    const markingMessage = session.messages?.find(msg => 
-      msg.type === 'marking_original' || msg.type === 'marking_annotated' || msg.type === 'question_original'
-    );
-    
-    if (markingMessage?.markingData?.ocrResult?.extractedText) {
-      const text = markingMessage.markingData.ocrResult.extractedText;
-      return text.length > 50 ? text.substring(0, 50) + '...' : text;
-    }
-    
+    // Fallback: Use generic title
     return 'Chat Session';
   };
 
@@ -216,30 +207,43 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   };
 
-  // Helper function to get last message content
+  // Helper function to get last message content (max 20 characters)
   const getLastMessage = (session) => {
+    // Use lastMessage from unified sessions API
+    if (session.lastMessage && session.lastMessage.content) {
+      const contentStr = ensureStringContent(session.lastMessage.content);
+      // Truncate to 20 characters as requested
+      const truncated = contentStr.length > 20 ? contentStr.substring(0, 20) + '...' : contentStr;
+      
+      // Add image indicator if session has images
+      if (session.hasImage) {
+        return `📷 ${truncated}`;
+      }
+      
+      return truncated;
+    }
+    
+    // Fallback: check if session has images but no text content
+    if (session.hasImage) {
+      return '📷 Image message';
+    }
+    
+    // Fallback: check old messages array format (for backward compatibility)
     if (session.messages && session.messages.length > 0) {
       const lastMsg = session.messages[session.messages.length - 1];
-      
-      // Check if message has image data (even if excluded from response)
-      const hasImage = lastMsg.hasImage || lastMsg.type === 'marking_original' || lastMsg.type === 'question_original' || lastMsg.type === 'marking_annotated';
-      
       if (lastMsg.content) {
-        // Ensure content is a string before processing
         const contentStr = ensureStringContent(lastMsg.content);
-        let content = contentStr.length > 150 ? contentStr.substring(0, 150) + '...' : contentStr;
+        const truncated = contentStr.length > 20 ? contentStr.substring(0, 20) + '...' : contentStr;
         
-        // Add image indicator if message contains an image
+        const hasImage = lastMsg.hasImage || lastMsg.type === 'marking_original' || lastMsg.type === 'question_original' || lastMsg.type === 'marking_annotated';
         if (hasImage) {
-          content = `📷 ${content}`;
+          return `📷 ${truncated}`;
         }
         
-        return content;
-      } else if (hasImage) {
-        // If no text content but has image, show image indicator
-        return '📷 Image message';
+        return truncated;
       }
     }
+    
     return 'No messages yet';
   };
 

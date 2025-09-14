@@ -12,6 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import SubscriptionService from '../services/subscriptionService.ts';
+import API_CONFIG from '../config/api';
 import './Header.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
@@ -59,7 +60,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         try {
           console.log('📞 Calling create-subscription-after-payment with:', { sessionId, userId: user.uid });
           
-          const response = await fetch('/api/payment/create-subscription-after-payment', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-subscription-after-payment`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

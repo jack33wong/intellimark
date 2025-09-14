@@ -62,8 +62,6 @@ export interface ChatMessage {
   imageData?: string;
   fileName?: string;
   apiUsed?: string;
-  showRaw?: boolean;
-  rawContent?: string;
   detectedQuestion?: {
     examDetails: Record<string, any>;
     questionNumber: string;

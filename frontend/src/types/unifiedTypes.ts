@@ -8,14 +8,16 @@
 // ============================================================================
 
 export interface UnifiedMessage {
-  id: string;
+  id: string; // Frontend ID (mapped from messageId)
+  messageId?: string; // Backend messageId (for compatibility)
+  sessionId?: string; // Backend session reference
+  userId?: string; // Backend user reference
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string; // ISO string format
   type?: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
   
-  // Image data
-  imageData?: string;
+  // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
   fileName?: string;
   
@@ -24,35 +26,33 @@ export interface UnifiedMessage {
   apiUsed?: string;
   
   // Display options
-  showRaw?: boolean;
-  rawContent?: string;
   isImageContext?: boolean;
   
-  // Question detection
+  // Question detection (simplified)
   detectedQuestion?: {
-    examDetails: Record<string, any>;
-    questionNumber: string;
-    questionText: string;
-    confidence: number;
+    found: boolean;
+    questionText?: string;
+    message?: string;
   };
   
-  // Marking data
-  markingData?: {
-    instructions?: any;
-    annotatedImage?: string;
-    classification?: any;
-  };
-  
-  // Processing metadata (NEW: Rich stats from backend)
+  // Processing metadata (matches backend)
   metadata?: {
-    processingTimeMs?: number;
+    resultId?: string;
+    processingTime?: string;
+    totalProcessingTimeMs?: number;
+    modelUsed?: string;
     tokens?: number[];
     confidence?: number;
     totalAnnotations?: number;
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
+    apiUsed?: string;
   };
+  
+  // Firestore timestamps (for backend compatibility)
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ============================================================================

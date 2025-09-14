@@ -167,23 +167,13 @@ router.post('/', optionalAuth, async (req, res) => {
       type: mode === 'marking' ? 'marking_original' : mode === 'question' ? 'question_original' : undefined
     };
     
-    // Add markingData if provided
-    if (req.body.markingData) {
-      userMessage.markingData = req.body.markingData;
-      // If markingData is provided, this is likely an annotated image message
-      if (message === 'Annotated image with marking feedback') {
-        userMessage.type = 'marking_annotated';
-        userMessage.role = 'assistant'; // Annotated images should be assistant messages
-      }
-    }
     
-    // Add exam metadata if provided
+    // Add exam metadata if provided (simplified)
     if (examMetadata) {
       userMessage.detectedQuestion = {
-        examDetails: examMetadata.examDetails || {},
-        questionNumber: examMetadata.questionNumber || 'Unknown',
+        found: examMetadata.found || false,
         questionText: examMetadata.questionText || '',
-        confidence: examMetadata.confidence || 0
+        message: examMetadata.message || 'No question detected'
       };
     }
     
@@ -207,7 +197,6 @@ router.post('/', optionalAuth, async (req, res) => {
       message === 'Annotated image with marking feedback' || 
       message === 'Marking completed with annotations';
     
-    console.log('🔍 Chat route: message =', message, 'isImagePersistenceMessage =', isImagePersistenceMessage);
     
     // Initialize response variables
     let aiResponse: string = 'Message saved successfully';
@@ -266,7 +255,7 @@ router.post('/', optionalAuth, async (req, res) => {
       messages: session?.messages || [],
       userId: currentUserId,
       messageType: session?.messageType || 'Chat',
-      createdAt: session?.createdAt || new Date().toISOString(),
+      createdAt: session?.timestamp ? session.timestamp.toISOString() : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       favorite: session?.favorite || false,
       rating: session?.rating || 0,
