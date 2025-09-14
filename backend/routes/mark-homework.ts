@@ -110,6 +110,25 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       }
     };
 
+    // Save session to Firestore
+    try {
+      const { FirestoreService } = await import('../services/firestoreService');
+      const savedSessionId = await FirestoreService.createChatSession({
+        title: sessionTitle,
+        messages: [userMessage, aiMessage],
+        userId: userId,
+        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+        favorite: false,
+        rating: 0,
+        contextSummary: null,
+        lastSummaryUpdate: null
+      });
+      console.log(`✅ Session ${savedSessionId} saved to Firestore for ${result.isQuestionOnly ? 'Question' : 'Marking'} mode`);
+    } catch (firestoreError) {
+      console.error('⚠️ Failed to save session to Firestore:', firestoreError);
+      // Continue with response even if Firestore save fails
+    }
+
     return res.json({
       success: true,
       session: session,
