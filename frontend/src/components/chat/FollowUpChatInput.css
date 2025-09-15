@@ -47,10 +47,18 @@
   padding: 8px 0;
 }
 
-/* Controls Row - Upload, Model, Text, Send */
+/* Controls Row - Text area on top, buttons below */
 .followup-controls-row {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Buttons Row - Upload, Model, Send buttons under text area */
+.followup-buttons-row {
+  display: flex;
+  align-items: center;
   gap: 12px;
   width: 100%;
 }
@@ -164,7 +172,6 @@
 
 /* Text Input Wrapper */
 .followup-text-wrapper {
-  flex: 1;
   display: flex;
   align-items: center;
   min-height: 32px;
@@ -230,13 +237,13 @@
   width: 100%;
   min-height: 32px;
   max-height: 80px;
-  padding: 6px 12px;
+  padding: 6px;
   background: transparent;
   border: none;
   outline: none;
   font-size: 16px;
-  line-height: 1.3;
-  color: #374151;
+ 
+  color: #aebcd2;
   resize: none;
   box-sizing: border-box;
   font-family: inherit;

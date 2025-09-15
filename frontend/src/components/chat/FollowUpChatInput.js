@@ -114,56 +114,6 @@ const FollowUpChatInput = ({
 
         {/* Controls Row */}
         <div className="followup-controls-row">
-          {/* Upload Button */}
-          <button
-            className="followup-upload-button"
-            onClick={handleUploadClick}
-            disabled={isProcessing}
-            title="Upload image"
-          >
-            <Plus size={14} />
-          </button>
-
-          {/* Model Dropdown */}
-          <div className="followup-model-dropdown">
-            <button
-              className="followup-model-button"
-              onClick={handleModelToggle}
-              disabled={isProcessing}
-            >
-              <Bot size={16} />
-              <span>
-                {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
-                 selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
-                 selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
-              </span>
-              <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
-            </button>
-
-            {isModelDropdownOpen && (
-              <div className="followup-model-dropdown-menu">
-                <button
-                  className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                  onClick={() => handleModelSelect('chatgpt-4o')}
-                >
-                  GPT-4o
-                </button>
-                <button
-                  className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                  onClick={() => handleModelSelect('gemini-2.5-pro')}
-                >
-                  Gemini 2.5 Pro
-                </button>
-                <button
-                  className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                  onClick={() => handleModelSelect('chatgpt-5')}
-                >
-                  GPT-5
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Text Input */}
           <div className="followup-text-wrapper">
             <textarea
@@ -176,21 +126,74 @@ const FollowUpChatInput = ({
             />
           </div>
 
-          {/* Send Button */}
-          <button
-            className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
-            disabled={isProcessing || (!chatInput.trim() && !previewImage)}
-            onClick={handleSendClick}
-          >
-          {isProcessing ? (
-            <div className="followup-send-spinner"></div>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
-            </svg>
-          )}
-          </button>
+          {/* Buttons Row - Upload, Model, Send */}
+          <div className="followup-buttons-row">
+            {/* Upload Button */}
+            <button
+              className="followup-upload-button"
+              onClick={handleUploadClick}
+              disabled={isProcessing}
+              title="Upload image"
+            >
+              <Plus size={14} />
+            </button>
+
+            {/* Model Dropdown */}
+            <div className="followup-model-dropdown">
+              <button
+                className="followup-model-button"
+                onClick={handleModelToggle}
+                disabled={isProcessing}
+              >
+                <Bot size={16} />
+                <span>
+                  {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
+                   selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
+                   selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
+                </span>
+                <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+              </button>
+
+              {isModelDropdownOpen && (
+                <div className="followup-model-dropdown-menu">
+                  <button
+                    className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                    onClick={() => handleModelSelect('chatgpt-4o')}
+                  >
+                    GPT-4o
+                  </button>
+                  <button
+                    className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
+                    onClick={() => handleModelSelect('gemini-2.5-pro')}
+                  >
+                    Gemini 2.5 Pro
+                  </button>
+                  <button
+                    className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
+                    onClick={() => handleModelSelect('chatgpt-5')}
+                  >
+                    GPT-5
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Send Button */}
+            <button
+              className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
+              disabled={isProcessing || (!chatInput.trim() && !previewImage)}
+              onClick={handleSendClick}
+            >
+            {isProcessing ? (
+              <div className="followup-send-spinner"></div>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
+              </svg>
+            )}
+            </button>
+          </div>
         </div>
       </div>
 
