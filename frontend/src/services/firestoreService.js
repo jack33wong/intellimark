@@ -101,15 +101,7 @@ export class FirestoreService {
    */
   static async deleteChatSession(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await ApiClient.delete(`/chat/session/${sessionId}`);
       return data.success;
     } catch (error) {
       console.error('Failed to delete chat session:', error);

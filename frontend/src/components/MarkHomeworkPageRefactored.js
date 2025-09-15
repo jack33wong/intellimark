@@ -60,7 +60,7 @@ const MarkHomeworkPageRefactored = ({
     selectedModel,
     setPageMode,
     setScrollButton,
-    toggleInfoDropdown,
+    setInfoDropdown,
     setModel
   } = usePageState();
   
@@ -341,7 +341,7 @@ const MarkHomeworkPageRefactored = ({
             onAnalyzeImage={handleAnalyzeImage}
             onClearFile={clearFile}
             selectedModel={selectedModel}
-            onModelChange={setSelectedModel}
+            onModelChange={setModel}
             loadingProgress={loadingProgress}
             showExpandedThinking={isProcessing}
           />
@@ -367,7 +367,7 @@ const MarkHomeworkPageRefactored = ({
               markingResult={markingResult}
               sessionData={currentSessionData}
               showInfoDropdown={showInfoDropdown}
-              onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
+              onToggleInfoDropdown={() => setInfoDropdown(!showInfoDropdown)}
             />
             
             <div className="chat-messages">
