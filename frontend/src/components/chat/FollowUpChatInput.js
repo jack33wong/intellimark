@@ -21,6 +21,17 @@ const FollowUpChatInput = ({
 }) => {
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
 
+  const handleUploadClick = useCallback(() => {
+    document.getElementById('followup-file-input')?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUploadClick(file);
+    }
+  }, [onUploadClick]);
+
   const handleModelToggle = useCallback(() => {
     setIsModelDropdownOpen(!isModelDropdownOpen);
   }, [isModelDropdownOpen]);
@@ -50,7 +61,7 @@ const FollowUpChatInput = ({
         {/* Upload Button */}
         <button
           className="followup-upload-button"
-          onClick={onUploadClick}
+          onClick={handleUploadClick}
           disabled={isProcessing}
           title="Upload image"
         >
@@ -125,6 +136,16 @@ const FollowUpChatInput = ({
           )}
         </button>
       </div>
+
+      {/* Hidden file input */}
+      <input
+        id="followup-file-input"
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        disabled={isProcessing}
+      />
     </div>
   );
 };

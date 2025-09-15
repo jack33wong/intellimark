@@ -37,19 +37,19 @@
   min-height: 32px;
   min-width: 32px;
   padding: 6px;
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
+  background: #6b7280;
+  border: 1px solid #4b5563;
   border-radius: 50%;
-  color: #6b7280;
+  color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .followup-upload-button:hover:not(:disabled) {
-  background: #e5e7eb;
-  border-color: #9ca3af;
-  color: #374151;
+  background: #4b5563;
+  border-color: #374151;
+  color: #ffffff;
 }
 
 .followup-upload-button:disabled {
