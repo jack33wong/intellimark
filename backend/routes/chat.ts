@@ -8,7 +8,7 @@ import { FirestoreService } from '../services/firestoreService';
 import { AIMarkingService } from '../services/aiMarkingService';
 import ChatSessionManager from '../services/chatSessionManager';
 import { ImageStorageService } from '../services/imageStorageService';
-import { optionalAuth } from '../middleware/auth';
+import { optionalAuth, requireAuth } from '../middleware/auth';
 import SubscriptionDelayService from '../services/subscriptionDelayService';
 
 const router = express.Router();
@@ -72,16 +72,15 @@ async function prepareImageDataForAI(imageData: any): Promise<string> {
 
 /**
  * POST /chat
- * Create a new chat session or send a message to existing session
+ * Create a new chat session or send a message to existing session - REQUIRES AUTHENTICATION
  */
-router.post('/', optionalAuth, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   
   try {
     const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode, examMetadata, favorite, rating } = req.body;
     
-    // Use authenticated user ID if available, otherwise use provided userId or anonymous
-    const currentUserId = req.user?.uid || userId || 'anonymous';
-    const isAuthenticated = !!req.user?.uid;
+    // Use authenticated user ID
+    const currentUserId = req.user.uid;
     
 
     // Validate request
@@ -97,7 +96,6 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // Create or use existing session
     if (!currentSessionId) {
-      
       // Determine session title and message type based on mode
       let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
       let messageType: 'Marking' | 'Question' | 'Chat' = 'Chat';
@@ -110,49 +108,40 @@ router.post('/', optionalAuth, async (req, res) => {
         messageType = 'Marking';
       }
       
-      if (isAuthenticated) {
-        // Only save to database for authenticated users
+      // Create session in database for authenticated users
+      currentSessionId = await sessionManager.createSession({
+        title: sessionTitle,
+        messages: [],
+        userId: currentUserId,
+        messageType: messageType,
+        favorite: favorite || false,
+        rating: rating || 0
+      });
+    } else {
+      // Verify session exists
+      const existingSession = await sessionManager.getSession(currentSessionId);
+      if (!existingSession) {
+        // Determine session title and message type based on mode
+        let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
+        let messageType = 'Chat';
+        
+        if (mode === 'question') {
+          sessionTitle = 'Question - ' + new Date().toLocaleDateString();
+          messageType = 'Question';
+        } else if (mode === 'marking') {
+          sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
+          messageType = 'Marking';
+        }
+        
         currentSessionId = await sessionManager.createSession({
           title: sessionTitle,
           messages: [],
           userId: currentUserId,
-          messageType: messageType,
+          messageType: messageType as 'Marking' | 'Question' | 'Chat',
           favorite: favorite || false,
           rating: rating || 0
         });
-      } else {
-        // For unauthenticated users, create temporary session ID (not saved to database)
-        currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
-    } else {
-      // Verify session exists (only for authenticated users)
-      if (isAuthenticated) {
-        const existingSession = await sessionManager.getSession(currentSessionId);
-        if (!existingSession) {
-          
-          // Determine session title and message type based on mode
-          let sessionTitle = imageData ? 'Image-based Chat' : 'Text Chat';
-          let messageType = 'Chat';
-          
-          if (mode === 'question') {
-            sessionTitle = 'Question - ' + new Date().toLocaleDateString();
-            messageType = 'Question';
-          } else if (mode === 'marking') {
-            sessionTitle = 'Marking - ' + new Date().toLocaleDateString();
-            messageType = 'Marking';
-          }
-          
-          currentSessionId = await sessionManager.createSession({
-            title: sessionTitle,
-            messages: [],
-            userId: currentUserId,
-            messageType: messageType as 'Marking' | 'Question' | 'Chat',
-            favorite: favorite || false,
-            rating: rating || 0
-          });
-        }
-      }
-      // For unauthenticated users, use the provided sessionId as-is (temporary)
     }
 
     // Get chat history for context
@@ -177,10 +166,8 @@ router.post('/', optionalAuth, async (req, res) => {
       };
     }
     
-    // Only save messages to database for authenticated users
-    if (isAuthenticated) {
-      await sessionManager.addMessage(currentSessionId, userMessage);
-    }
+    // Save messages to database for authenticated users
+    await sessionManager.addMessage(currentSessionId, userMessage);
 
     // Generate context summary if needed (for conversations with multiple messages)
     let contextSummary: string | null = null;
@@ -233,15 +220,13 @@ router.post('/', optionalAuth, async (req, res) => {
         aiResponse = 'I apologize, but I encountered an error processing your request. Please try again.';
       }
 
-      // Add AI response to session (only for authenticated users)
-      if (isAuthenticated) {
-        await sessionManager.addMessage(currentSessionId, {
-          id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'assistant',
-          content: aiResponse,
-          type: undefined // Don't set marking_annotated type here since we don't have the annotated image
-        });
-      }
+      // Add AI response to session
+      await sessionManager.addMessage(currentSessionId, {
+        id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'assistant',
+        content: aiResponse,
+        type: undefined // Don't set marking_annotated type here since we don't have the annotated image
+      });
     }
 
     // Get full session data for response
@@ -517,20 +502,12 @@ router.get('/status', (_req, res) => {
 
 /**
  * POST /chat/restore/:sessionId
- * Restore session context from database (requires authentication)
+ * Restore session context from database - REQUIRES AUTHENTICATION
  */
-router.post('/restore/:sessionId', optionalAuth, async (req, res) => {
+router.post('/restore/:sessionId', requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    // Check if user is authenticated
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        message: 'Please log in to restore chat sessions'
-      });
-    }
 
     const sessionManager = ChatSessionManager.getInstance();
     const session = await sessionManager.restoreSession(sessionId);

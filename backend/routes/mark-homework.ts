@@ -5,7 +5,7 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { optionalAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
 import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer';
 
@@ -46,13 +46,13 @@ const router = express.Router();
  * POST /mark-homework
  * Returns full session data with all messages and metadata
  */
-router.post('/', optionalAuth, async (req: Request, res: Response) => {
-  const { imageData, model = 'chatgpt-4o', userId: requestUserId } = req.body;
+router.post('/', requireAuth, async (req: Request, res: Response) => {
+  const { imageData, model = 'chatgpt-4o' } = req.body;
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
 
   try {
-    const userId = (req as any)?.user?.uid || requestUserId || 'anonymous';
+    const userId = (req as any).user.uid;
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
 
     // Delegate to orchestrator (see docs/markanswer.md)
