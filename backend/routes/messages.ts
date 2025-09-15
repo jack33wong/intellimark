@@ -11,6 +11,9 @@ import type { UnifiedMessage } from '../types';
 
 const router = express.Router();
 
+// In-memory storage for anonymous user sessions
+const anonymousSessions = new Map<string, any>();
+
 /**
  * POST /messages/chat
  * Unified chat endpoint - handles conversational flow with session management
@@ -18,7 +21,7 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, mode, previousMessages } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, mode } = req.body;
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -203,7 +206,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
       }
     } else {
-      // For anonymous users, maintain conversation history in memory using sessionId
+      // For anonymous users, return only new messages (frontend maintains history)
       const userMessage = {
         messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'user' as const,
@@ -225,51 +228,59 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
       };
 
-      // Use previous messages from frontend to maintain conversation history
-      let existingMessages = [];
-      if (previousMessages && Array.isArray(previousMessages)) {
-        // Convert frontend messages to backend format
-        existingMessages = previousMessages.map(msg => ({
-          messageId: msg.messageId || msg.id,
-          role: msg.role,
-          content: msg.content,
-          type: msg.type || 'chat_user',
-          timestamp: msg.timestamp,
-          imageLink: msg.imageLink || msg.imageData,
-          detectedQuestion: msg.detectedQuestion,
-          metadata: msg.metadata
-        }));
-        console.log(`ℹ️ Anonymous user - maintaining ${existingMessages.length} previous messages`);
-      }
-      
+      // For anonymous users, return only new messages for frontend to append
       sessionData = {
         id: currentSessionId,
         title: sessionTitle,
         userId: userId,
         messageType: 'Chat',
-        messages: [...existingMessages, userMessage, aiMessage],
+        messages: [userMessage, aiMessage], // Only new messages
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isPastPaper: false
       };
+      
+      console.log(`ℹ️ Anonymous user - returning ${sessionData.messages.length} new messages for frontend to append`);
     }
     
-    res.json({
-      success: true,
-      session: sessionData,
-      sessionId: currentSessionId,
-      sessionTitle: sessionTitle,
-      response: aiResponse,
-      apiUsed: apiUsed,
-      context: {
+    // Return appropriate response format based on user type
+    if (isAuthenticated) {
+      // Authenticated users get complete session
+      res.json({
+        success: true,
+        session: sessionData,
         sessionId: currentSessionId,
-        messageCount: 2,
-        hasImage: !!imageData,
-        hasContext: false,
-        usingSummary: false,
-        summaryLength: 0
-      }
-    });
+        sessionTitle: sessionTitle,
+        response: aiResponse,
+        apiUsed: apiUsed,
+        context: {
+          sessionId: currentSessionId,
+          messageCount: 2,
+          hasImage: !!imageData,
+          hasContext: false,
+          usingSummary: false,
+          summaryLength: 0
+        }
+      });
+    } else {
+      // Anonymous users get only new messages for frontend to append
+      res.json({
+        success: true,
+        newMessages: sessionData.messages, // Only new messages
+        sessionId: currentSessionId,
+        sessionTitle: sessionTitle,
+        response: aiResponse,
+        apiUsed: apiUsed,
+        context: {
+          sessionId: currentSessionId,
+          messageCount: 2,
+          hasImage: !!imageData,
+          hasContext: false,
+          usingSummary: false,
+          summaryLength: 0
+        }
+      });
+    }
 
   } catch (error) {
     console.error('❌ Chat endpoint error:', error);
