@@ -16,6 +16,7 @@ const FollowUpChatInput = ({
   setSelectedModel,
   isProcessing,
   onSendMessage,
+  onAnalyzeImage,
   onKeyPress,
   onUploadClick
 }) => {
@@ -58,14 +59,21 @@ const FollowUpChatInput = ({
   }, [previewImage]);
 
   const handleSendClick = useCallback(() => {
-    onSendMessage();
+    // If there's an image preview, call analyze image API (same as main chat input)
+    if (previewImage) {
+      onAnalyzeImage();
+    } else {
+      // If no image, call regular send message API
+      onSendMessage();
+    }
+    
     // Collapse the div after sending
     setIsExpanded(false);
     if (previewImage) {
       URL.revokeObjectURL(previewImage);
       setPreviewImage(null);
     }
-  }, [onSendMessage, previewImage]);
+  }, [onSendMessage, onAnalyzeImage, previewImage]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

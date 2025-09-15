@@ -477,6 +477,7 @@ const MarkHomeworkPageRefactored = ({
             setSelectedModel={handleModelSelect}
             isProcessing={isProcessing}
             onSendMessage={handleSendMessage}
+            onAnalyzeImage={handleAnalyzeImage}
             onKeyPress={handleKeyPress}
             onUploadClick={handleFileSelect}
           />
