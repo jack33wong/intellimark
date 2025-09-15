@@ -352,42 +352,23 @@ const MarkHomeworkPageRefactored = ({
   const handleAnalyzeImage = useCallback(async () => {
     if (!selectedFile) return;
     
-    // First, show the image immediately in chat content
+    // Process image to base64
     const imageData = await processImage(selectedFile);
-    const userMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content: '', // Empty content, just show the image
-      imageData: imageData,
-      timestamp: new Date().toISOString()
-    };
     
-    // Add user message to chat immediately
-    setChatMessages(prev => [...prev, userMessage]);
-    
-    // Switch to chat mode immediately to show the image
-    setPageMode('chat');
-    
-    // Clear file selection immediately after showing image
+    // Clear file selection immediately
     clearFile();
     
-    // Then process the image in the background
+    // Process the image and wait for Response 1
     try {
       const result = await analyzeImage(imageData, selectedModel);
       
       // Check if this is the new 2-response format (authenticated users)
       if (result.responseType === 'original_image') {
-        // Response 1: Original image from database
-        const dbUserMessage = {
-          ...result.userMessage,
-          // Use imageLink from database, not imageData from memory
-          imageData: undefined // Remove imageData, use imageLink only
-        };
+        // Response 1: Original image from database - show this immediately
+        setChatMessages(prev => [...prev, result.userMessage]);
         
-        // Replace our temporary message with the database version
-        setChatMessages(prev => prev.map(msg => 
-          msg.id === userMessage.id ? dbUserMessage : msg
-        ));
+        // Switch to chat mode to show the image from database
+        setPageMode('chat');
         
         // Update session data
         loadSessionData({
@@ -416,7 +397,7 @@ const MarkHomeworkPageRefactored = ({
         }, 1000); // Small delay to show processing indicator
         
       } else {
-        // Legacy format (unauthenticated users)
+        // Legacy format (unauthenticated users) - wait for complete response
         if (result.isQuestionOnly) {
           // Question-only sessions
           if (result.session && result.session.messages) {
@@ -432,6 +413,9 @@ const MarkHomeworkPageRefactored = ({
               title: result.session.title,
               messages: result.session.messages
             });
+            
+            // Switch to chat mode after loading messages
+            setPageMode('chat');
             
             // Notify sidebar to refresh when new session is created
             EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
@@ -464,6 +448,9 @@ const MarkHomeworkPageRefactored = ({
               title: result.session.title,
               messages: result.session.messages
             });
+            
+            // Switch to chat mode after loading messages
+            setPageMode('chat');
             
             // Notify sidebar to refresh when new session is created
             EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
