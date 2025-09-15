@@ -255,11 +255,27 @@ const MarkHomeworkPageRefactored = ({
               title: result.session.title
             });
             
-            // Load messages in useChat hook  
+            // Merge backend messages with our temporary user message (preserve imageData)
+            const backendMessages = result.session.messages;
+            const mergedMessages = backendMessages.map((msg, index) => {
+              if (msg.role === 'user' && index === 0) {
+                // For the first user message, preserve our imageData from memory
+                const currentMessages = chatMessages;
+                const tempUserMessage = currentMessages.find(m => m.role === 'user' && m.imageData);
+                return {
+                  ...msg,
+                  imageData: tempUserMessage?.imageData || msg.imageData, // Preserve imageData from memory
+                  imageLink: msg.imageLink // Keep imageLink for any images
+                };
+              }
+              return msg;
+            });
+            
+            // Load merged messages in useChat hook  
             loadMessages({
               id: result.session.id,
               title: result.session.title,
-              messages: result.session.messages
+              messages: mergedMessages
             });
             
             // Notify sidebar to refresh when new session is created
@@ -279,7 +295,7 @@ const MarkHomeworkPageRefactored = ({
             ocrMethod: result.ocrMethod
           });
           
-          // Load messages from backend response (contains proper imageLink)
+          // Load messages from backend response (contains proper imageLink for annotated image)
           if (result.session && result.session.messages) {
             // Update session data in useSession hook
             loadSessionData({
@@ -287,11 +303,27 @@ const MarkHomeworkPageRefactored = ({
               title: result.session.title
             });
             
-            // Load messages in useChat hook
+            // Merge backend messages with our temporary user message (preserve imageData)
+            const backendMessages = result.session.messages;
+            const mergedMessages = backendMessages.map((msg, index) => {
+              if (msg.role === 'user' && index === 0) {
+                // For the first user message, preserve our imageData from memory
+                const currentMessages = chatMessages;
+                const tempUserMessage = currentMessages.find(m => m.role === 'user' && m.imageData);
+                return {
+                  ...msg,
+                  imageData: tempUserMessage?.imageData || msg.imageData, // Preserve imageData from memory
+                  imageLink: msg.imageLink // Keep imageLink for annotated images
+                };
+              }
+              return msg;
+            });
+            
+            // Load merged messages in useChat hook
             loadMessages({
               id: result.session.id,
               title: result.session.title,
-              messages: result.session.messages
+              messages: mergedMessages
             });
             
             // Notify sidebar to refresh when new session is created

@@ -68,31 +68,14 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const sessionId = result.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sessionTitle = result.sessionTitle || 'Marking Session';
     
-    // Upload original image to Firebase Storage
-    const { ImageStorageService } = await import('../services/imageStorageService');
-    let originalImageLink;
-    try {
-      console.log('⬆️ Uploading original image to Firebase Storage...');
-      originalImageLink = await ImageStorageService.uploadImage(
-        imageData,
-        userId || 'anonymous', 
-        sessionId,
-        'original'
-      );
-      console.log('✅ Original image uploaded:', originalImageLink);
-    } catch (error) {
-      console.error('❌ Failed to upload original image:', error);
-      originalImageLink = null;
-    }
-    
-    // Create user message
+    // Create user message (no imageLink - frontend will use imageData from memory)
     const userMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'user',
       content: 'I have a question about this image. Can you help me understand it?',
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_original' : 'marking_original',
-      imageLink: originalImageLink,
+      // No imageLink - frontend will display image from memory (imageData)
       fileName: 'uploaded-image.png',
       // Add simplified detectedQuestion data 
       detectedQuestion: result.questionDetection?.found ? {
