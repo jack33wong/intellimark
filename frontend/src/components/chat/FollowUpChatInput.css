@@ -243,6 +243,14 @@
   flex: 1;
 }
 
+/* Mobile responsive text input */
+@media (max-width: 768px) {
+  .followup-text-input {
+    font-size: 14px;
+    min-height: 28px;
+  }
+}
+
 .followup-text-input::placeholder {
   color: #9ca3af;
 }
@@ -331,11 +339,6 @@
     font-size: 11px;
     min-height: 28px;
     height: 28px;
-  }
-  
-  .followup-text-input {
-    font-size: 14px;
-    min-height: 28px;
   }
   
   .followup-send-button {
