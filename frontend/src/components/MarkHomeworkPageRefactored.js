@@ -17,11 +17,15 @@ import { useChat } from '../hooks/useChat';
 import { useMarkHomework } from '../hooks/useMarkHomework';
 import { useSession } from '../hooks/useSession';
 import { useSubscriptionDelay } from '../hooks/useSubscriptionDelay';
+import { usePageState } from '../hooks/usePageState';
 
 // Components
 import ImageUploadForm from './markHomework/ImageUploadForm';
 import SessionHeader from './markHomework/SessionHeader';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
+import FollowUpChatInput from './chat/FollowUpChatInput';
+import SendButton from './chat/SendButton';
+import ModelSelector from './chat/ModelSelector';
 
 // Utils
 import { ensureStringContent } from '../utils/contentUtils';
@@ -48,11 +52,17 @@ const MarkHomeworkPageRefactored = ({
   // CORE STATE
   // ============================================================================
   
-  const [pageMode, setPageMode] = useState('upload'); // 'upload' | 'chat'
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [showInfoDropdown, setShowInfoDropdown] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
-  const [isFollowupModelDropdownOpen, setIsFollowupModelDropdownOpen] = useState(false);
+  // Page state management
+  const {
+    pageMode,
+    showScrollButton,
+    showInfoDropdown,
+    selectedModel,
+    setPageMode,
+    setScrollButton,
+    toggleInfoDropdown,
+    setModel
+  } = usePageState();
   
   // ============================================================================
   // CUSTOM HOOKS
@@ -78,7 +88,8 @@ const MarkHomeworkPageRefactored = ({
     sendMessage,
     loadMessages,
     chatContainerRef,
-    scrollToBottom
+    scrollToBottom,
+    handleImageLoad
   } = useChat();
   
   // Mark homework functionality
@@ -156,18 +167,10 @@ const MarkHomeworkPageRefactored = ({
 
 
 
-  // Handle scroll events
-  const handleScroll = useCallback(() => {
-    if (chatContainerRef.current) {
-      const container = chatContainerRef.current;
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-      const isAtBottom = distanceFromBottom <= 10;
-      const shouldShowButton = !isAtBottom && chatMessages.length > 0;
-      setShowScrollButton(shouldShowButton);
-    }
-  }, [chatMessages.length, chatContainerRef]);
+  // Handle scroll events using centralized logic
+  const handleScrollChange = useCallback((isNearBottom) => {
+    setScrollButton(!isNearBottom && chatMessages.length > 0);
+  }, [chatMessages.length, setScrollButton]);
 
   // Show/hide scroll button based on scroll position and content
   useEffect(() => {
@@ -175,20 +178,27 @@ const MarkHomeworkPageRefactored = ({
       const container = chatContainerRef.current;
       if (container) {
         const isScrollable = container.scrollHeight > container.clientHeight;
-        setShowScrollButton(isScrollable);
+        setScrollButton(isScrollable);
       }
     } else {
-      setShowScrollButton(false);
+      setScrollButton(false);
     }
 
-    // Add scroll event listener
+    // Add scroll event listener using centralized handler
     const container = chatContainerRef.current;
     if (container) {
-      container.addEventListener('scroll', handleScroll);
-      handleScroll(); // Check initial state
-      return () => container.removeEventListener('scroll', handleScroll);
+      const scrollHandler = () => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        const isNearBottom = distanceFromBottom <= 10;
+        handleScrollChange(isNearBottom);
+      };
+      
+      container.addEventListener('scroll', scrollHandler);
+      scrollHandler(); // Check initial state
+      return () => container.removeEventListener('scroll', scrollHandler);
     }
-  }, [handleScroll, chatContainerRef, chatMessages.length]);
+  }, [handleScrollChange, chatContainerRef, chatMessages.length]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -308,29 +318,10 @@ const MarkHomeworkPageRefactored = ({
     }
   }, [handleSendMessage]);
   
-  // Handle follow-up model selector
-  const handleFollowupModelToggle = useCallback(() => {
-    setIsFollowupModelDropdownOpen(!isFollowupModelDropdownOpen);
-  }, [isFollowupModelDropdownOpen]);
-
-  const handleFollowupModelSelect = useCallback((model) => {
-    setSelectedModel(model);
-    setIsFollowupModelDropdownOpen(false);
-  }, []);
-
-  // Close follow-up model dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (isFollowupModelDropdownOpen && !event.target.closest('.followup-ai-model-dropdown')) {
-        setIsFollowupModelDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isFollowupModelDropdownOpen]);
+  // Handle model selection
+  const handleModelSelect = useCallback((model) => {
+    setModel(model);
+  }, [setModel]);
   
   // Handle clear result - removed as not used in current implementation
   
@@ -410,14 +401,7 @@ const MarkHomeworkPageRefactored = ({
                                 src={getImageSrc(message.imageLink)}
                                 alt="Marked homework"
                                 className="annotated-image"
-                                onLoad={() => {
-                                  // Trigger scroll after image loads
-                                  setTimeout(() => {
-                                    if (chatContainerRef.current) {
-                                      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-                                    }
-                                  }, 50);
-                                }}
+                                onLoad={handleImageLoad}
                                 onError={(e) => {
                                   console.warn('Failed to load image:', message.imageLink);
                                   e.target.style.display = 'none';
@@ -435,14 +419,7 @@ const MarkHomeworkPageRefactored = ({
                                 src={getImageSrc(message.imageLink)}
                                 alt="Uploaded"
                                 className="content-image"
-                                onLoad={() => {
-                                  // Trigger scroll after image loads
-                                  setTimeout(() => {
-                                    if (chatContainerRef.current) {
-                                      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-                                    }
-                                  }, 50);
-                                }}
+                                onLoad={handleImageLoad}
                                 onError={(e) => {
                                   console.warn('Failed to load user image:', message.imageLink);
                                   e.target.style.display = 'none';
@@ -492,72 +469,16 @@ const MarkHomeworkPageRefactored = ({
             </div>
           </div>
           
-          {/* Follow-up Chat Input Bar - Single Line Design */}
-          <div className="followup-chat-input-bar">
-            <div className="followup-single-line-container">
-              {/* Model Dropdown */}
-              <div className="followup-model-dropdown">
-                <button 
-                  className="followup-model-button" 
-                  onClick={handleFollowupModelToggle}
-                  disabled={isProcessing}
-                >
-                  <Bot size={16} />
-                  <span>{selectedModel === 'chatgpt-4o' ? 'GPT-4o' : selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}</span>
-                  <ChevronDown size={14} className={isFollowupModelDropdownOpen ? 'rotated' : ''} />
-                </button>
-                
-                {isFollowupModelDropdownOpen && (
-                  <div className="followup-model-dropdown-menu">
-                    <button 
-                      className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                      onClick={() => handleFollowupModelSelect('chatgpt-4o')}
-                    >
-                      GPT-4o
-                    </button>
-                    <button 
-                      className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                      onClick={() => handleFollowupModelSelect('gemini-2.5-pro')}
-                    >
-                      Gemini 2.5 Pro
-                    </button>
-                    <button 
-                      className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                      onClick={() => handleFollowupModelSelect('chatgpt-5')}
-                    >
-                      GPT-5
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Text Input */}
-              <textarea
-                placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={isProcessing}
-                className="followup-text-input"
-              />
-              
-              {/* Send Button */}
-              <button 
-                className={`followup-send-button ${chatInput.trim() ? 'analyze-mode' : ''}`}
-                disabled={isProcessing || !chatInput.trim()}
-                onClick={handleSendMessage}
-              >
-                {isProcessing ? (
-                  <div className="followup-send-spinner"></div>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
+          {/* Follow-up Chat Input Bar */}
+          <FollowUpChatInput
+            chatInput={chatInput}
+            setChatInput={setChatInput}
+            selectedModel={selectedModel}
+            setSelectedModel={handleModelSelect}
+            isProcessing={isProcessing}
+            onSendMessage={handleSendMessage}
+            onKeyPress={handleKeyPress}
+          />
         </div>
       )}
     </>

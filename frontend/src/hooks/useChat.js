@@ -3,11 +3,12 @@
  * Handles message sending, receiving, and state management
  */
 
-import { useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureStringContent } from '../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
-import API_CONFIG from '../config/api';
+import { useAutoScroll } from './useAutoScroll';
+import ApiClient from '../services/apiClient';
 
 export const useChat = () => {
   const { getAuthToken } = useAuth();
@@ -18,8 +19,8 @@ export const useChat = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentSessionData, setCurrentSessionData] = useState(null);
   
-  // Refs
-  const chatContainerRef = useRef(null);
+  // Auto-scroll functionality
+  const { containerRef: chatContainerRef, scrollToBottom, handleImageLoad } = useAutoScroll(chatMessages);
   
   // Helper function to deduplicate messages by ID
   const deduplicateMessages = useCallback((messages) => {
@@ -32,21 +33,6 @@ export const useChat = () => {
       return true;
     });
   }, []);
-
-  // Auto-scroll to bottom function
-  const scrollToBottom = useCallback(() => {
-    if (chatContainerRef.current) {
-      const container = chatContainerRef.current;
-      container.scrollTop = container.scrollHeight;
-    }
-  }, []);
-
-  // Auto-scroll when messages change (works for both new messages AND history loading)
-  useLayoutEffect(() => {
-    if (chatMessages.length > 0) {
-      scrollToBottom();
-    }
-  }, [chatMessages, scrollToBottom]); // Depend on full chatMessages array, not just length
 
   // Send message to chat API
   const sendMessage = useCallback(async (message, options = {}) => {
@@ -75,28 +61,16 @@ export const useChat = () => {
 
     try {
       const authToken = await getAuthToken();
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/messages/chat`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          message: message.trim(),
-          imageData: imageData,
-          model: model,
-          sessionId: sessionId,
-          mode: mode,
-          favorite: false,
-          rating: 0
-        }),
-      });
-
-      const data = await response.json();
+      
+      const data = await ApiClient.post('/api/messages/chat', {
+        message: message.trim(),
+        imageData: imageData,
+        model: model,
+        sessionId: sessionId,
+        mode: mode,
+        favorite: false,
+        rating: 0
+      }, authToken);
 
       if (data.success) {
         // Session ID and title will be handled by useSession hook
@@ -198,8 +172,9 @@ export const useChat = () => {
     loadMessages,
     clearChat,
     
-    // Refs
+    // Refs and scroll functions
     chatContainerRef,
-    scrollToBottom
+    scrollToBottom,
+    handleImageLoad
   };
 };

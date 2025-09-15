@@ -3,9 +3,7 @@
  * Handles communication with backend chat API endpoints
  */
 
-import API_CONFIG from '../config/api';
-
-const API_BASE_URL = API_CONFIG.BASE_URL;
+import ApiClient from './apiClient';
 
 export class FirestoreService {
   /**
@@ -15,11 +13,7 @@ export class FirestoreService {
    */
   static async getChatSessions(userId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/sessions/${userId || 'anonymous'}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await ApiClient.get(`/chat/sessions/${userId || 'anonymous'}`);
       return data.success ? data.sessions : [];
     } catch (error) {
       console.error('Failed to get chat sessions:', error);
@@ -34,16 +28,12 @@ export class FirestoreService {
    */
   static async getChatSession(sessionId) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/session/${sessionId}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await ApiClient.get(`/chat/session/${sessionId}`);
       return data.success ? data.session : null;
     } catch (error) {
+      if (error.message.includes('404')) {
+        return null;
+      }
       console.error('Failed to get chat session:', error);
       return null;
     }
@@ -56,25 +46,14 @@ export class FirestoreService {
    */
   static async createChatSession(sessionData) {
     try {
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: 'New chat session',
-          imageData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', // 1x1 transparent PNG
-          model: 'chatgpt-4o',
-          userId: sessionData.userId,
-          imageName: 'new-session.png'
-        }),
+      const data = await ApiClient.post('/chat', {
+        message: 'New chat session',
+        imageData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', // 1x1 transparent PNG
+        model: 'chatgpt-4o',
+        userId: sessionData.userId,
+        imageName: 'new-session.png'
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       if (!data.success) {
         throw new Error(data.error || 'Failed to create chat session');
       }
@@ -95,26 +74,7 @@ export class FirestoreService {
    */
   static async updateChatSession(sessionId, updates, authToken = null) {
     try {
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-
-      // Add authorization header if token is provided
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/messages/session/${sessionId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await ApiClient.put(`/api/messages/session/${sessionId}`, updates, authToken);
       return data.success;
     } catch (error) {
       console.error('Failed to update chat session:', error);

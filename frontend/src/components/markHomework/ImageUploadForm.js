@@ -3,8 +3,9 @@
  * Handles file selection, preview, and upload initiation
  */
 
-import React, { useState } from 'react';
-import { Upload, Bot, ChevronDown } from 'lucide-react';
+import React from 'react';
+import { Upload } from 'lucide-react';
+import ModelSelector from '../chat/ModelSelector';
 
 const ImageUploadForm = ({
   selectedFile,
@@ -19,22 +20,11 @@ const ImageUploadForm = ({
   loadingProgress = 0,
   showExpandedThinking = false
 }) => {
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
       onFileSelect(file);
     }
-  };
-
-  const handleModelToggle = () => {
-    setIsModelDropdownOpen(!isModelDropdownOpen);
-  };
-
-  const handleModelSelect = (model) => {
-    onModelChange(model);
-    setIsModelDropdownOpen(false);
   };
 
   return (
@@ -93,40 +83,12 @@ const ImageUploadForm = ({
           {/* Model Selector with Send Button */}
           <div className="model-selector">
             <div className="left-controls">
-              <div className="ai-model-dropdown">
-                <button 
-                  className="ai-model-button" 
-                  onClick={handleModelToggle}
-                  disabled={isProcessing}
-                >
-                  <Bot size={16} />
-                  <span>ai model</span>
-                  <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
-                </button>
-                
-                {isModelDropdownOpen && (
-                  <div className="ai-model-dropdown-menu">
-                    <button 
-                      className={`ai-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                      onClick={() => handleModelSelect('chatgpt-4o')}
-                    >
-                      GPT-4o
-                    </button>
-                    <button 
-                      className={`ai-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                      onClick={() => handleModelSelect('gemini-2.5-pro')}
-                    >
-                      Gemini 2.5 Pro
-                    </button>
-                    <button 
-                      className={`ai-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                      onClick={() => handleModelSelect('chatgpt-5')}
-                    >
-                      GPT-5
-                    </button>
-                  </div>
-                )}
-              </div>
+              <ModelSelector
+                selectedModel={selectedModel}
+                onModelSelect={onModelChange}
+                isProcessing={isProcessing}
+                size="main"
+              />
             </div>
             <button 
               className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
