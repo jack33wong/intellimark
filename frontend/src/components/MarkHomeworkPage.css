@@ -761,7 +761,6 @@
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--primary-bg);
-  padding-bottom: 100px; /* Space for fixed input bar + extra margin */
   height: 90vh; /* Use 90% of viewport height for larger size */
   min-height: 0; /* Allow flex item to shrink below content size */
 }
@@ -1150,7 +1149,7 @@
 /* Scroll to Bottom Button - Centered within input bar width */
 .scroll-to-bottom-container {
   position: fixed; /* Must be fixed to float */
-  bottom: 182px; /* Middle of chat input bar height */
+  bottom: 100px; /* Middle of chat input bar height */
   left: 280px; /* Start after sidebar, same as input bar */
   right: 0; /* Extend to right edge, same as input bar */
   display: flex;
@@ -2165,25 +2164,36 @@
     left: 0; /* Full width on mobile */
   }
   
-  /* Mobile adjustments for follow-up chat input */
+  /* Mobile adjustments for follow-up chat input - Single Line Design */
   .followup-chat-input-bar {
     left: 0; /* Full width on mobile */
-    padding: 6px 12px;
+    padding: 8px 12px;
   }
   
-  .followup-upload-input {
-    width: 90vw;
+  .followup-single-line-container {
+    width: 95vw;
+    gap: 8px;
+    padding: 6px 8px;
   }
   
-  .followup-chat-input {
-    min-height: 38px;
-    max-height: 38px;
-    padding: 7px 12px;
+  .followup-model-button {
+    padding: 6px 8px;
+    font-size: 11px;
+    min-height: 28px;
   }
   
-  .followup-send-btn {
-    padding: 5px 8px;
-    min-height: 30px;
+  .followup-text-input {
+    min-height: 28px;
+    max-height: 60px;
+    padding: 8px 8px;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+  
+  .followup-send-button {
+    padding: 6px 8px;
+    min-height: 28px;
+    min-width: 36px;
     font-size: 12px;
   }
   
@@ -2402,7 +2412,7 @@
 
 /* Follow-up Chat Input - Completely Isolated Compact Styling */
 
-/* Follow-up Chat Input Bar Container */
+/* Follow-up Chat Input Bar Container - Single Line Design */
 .followup-chat-input-bar {
   position: fixed;
   bottom: 0;
@@ -2410,9 +2420,164 @@
   right: 0;
   background: var(--primary-bg);
   border-radius: 0;
-  padding: 8px 16px;
+  padding: 12px 16px;
   z-index: 1000;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Single Line Container */
+.followup-single-line-container {
+  max-width: 1000px;
+  width: 85vw;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--secondary-bg);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Model Dropdown */
+.followup-model-dropdown {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.followup-model-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 32px;
+  white-space: nowrap;
+}
+
+.followup-model-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.followup-model-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.followup-model-dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  min-width: 140px;
+  margin-bottom: 4px;
+}
+
+.followup-model-option {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-radius: 4px;
+  margin: 2px;
+}
+
+.followup-model-option:hover {
+  background: var(--hover-bg);
+}
+
+.followup-model-option.selected {
+  background: var(--accent-color);
+  color: white;
+}
+
+/* Text Input */
+.followup-text-input {
+  flex: 1;
+  min-height: 32px;
+  max-height: 80px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.2;
+  resize: none;
+  background: var(--input-bg);
+  color: var(--primary-text);
+  font-family: inherit;
+  transition: all 0.2s ease;
+  vertical-align: middle;
+}
+
+.followup-text-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+}
+
+.followup-text-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Send Button */
+.followup-send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 32px;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+
+.followup-send-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.followup-send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.followup-send-button.analyze-mode {
+  background: var(--success-color);
+}
+
+.followup-send-button.analyze-mode:hover:not(:disabled) {
+  background: var(--success-hover);
+}
+
+.followup-send-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 /* Follow-up Upload Input Container */
@@ -3216,7 +3381,6 @@
   background: transparent;
   border-radius: 0;
   border: none;
-  display: flex;
   flex-direction: column; /* Stack header and image vertically */
   align-items: flex-end; /* Align to right side */
   width: 100%; /* Allow full width */
@@ -3224,7 +3388,7 @@
 
 .homework-annotated-image .annotated-image {
   width: 100%;
-  max-width: 400px; /* Smaller max width */
+  max-width: 300px; /* Smaller max width */
   height: auto; /* Maintain aspect ratio */
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -3238,13 +3402,13 @@
 
 /* When exam meta header is present, make image more compact */
 .homework-annotated-image:has(.question-header) .annotated-image {
-  max-width: 350px; /* Smaller max width when header is present */
+  max-width: 250px; /* Smaller max width when header is present */
   margin: 0 auto; /* Center the image */
 }
 
 /* Fallback for browsers that don't support :has() */
 .homework-annotated-image.with-header .annotated-image {
-  max-width: 350px;
+  max-width: 250px;
   margin: 0 auto;
 }
 
@@ -4016,6 +4180,19 @@
   height: auto;
   border-radius: 8px;
   border: 1px solid var(--border-color);
+}
+
+/* Make images smaller specifically in chat messages */
+.chat-message .content-image {
+  max-width: 400px;
+}
+
+.chat-message .homework-annotated-image .annotated-image {
+  max-width: 400px;
+}
+
+.chat-message .homework-annotated-image .base-image {
+  max-width: 400px;
 }
 
 .message-metadata {

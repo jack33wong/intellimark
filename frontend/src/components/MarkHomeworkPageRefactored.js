@@ -70,7 +70,6 @@ const MarkHomeworkPageRefactored = ({
   // Chat functionality
   const {
     chatMessages,
-    setChatMessages,
     chatInput,
     setChatInput,
     isProcessing: isChatProcessing,
@@ -132,8 +131,6 @@ const MarkHomeworkPageRefactored = ({
   // Handle selected marking result from sidebar
   useEffect(() => {
     if (selectedMarkingResult) {
-      console.log('📖 Loading session from history:', selectedMarkingResult.id);
-      
       // Load session data first
       loadSessionData(selectedMarkingResult);
       
@@ -154,7 +151,7 @@ const MarkHomeworkPageRefactored = ({
     if (pageMode === 'chat' && selectedMarkingResult?.messages?.length > 0) {
       loadMessages(selectedMarkingResult);
     }
-  }, [pageMode, selectedMarkingResult]);
+  }, [pageMode, selectedMarkingResult, loadMessages]);
 
 
 
@@ -273,7 +270,7 @@ const MarkHomeworkPageRefactored = ({
     } catch (error) {
       console.error('Error analyzing image:', error);
     }
-  }, [selectedFile, selectedModel, processImage, analyzeImage, sendMessage, setMarkingResult, loadMessages, clearFile]);
+  }, [selectedFile, selectedModel, processImage, analyzeImage, setMarkingResult, loadMessages, clearFile, loadSessionData]);
   
   // Handle sending chat message
   const handleSendMessage = useCallback(async () => {
@@ -492,74 +489,70 @@ const MarkHomeworkPageRefactored = ({
             </div>
           </div>
           
-          {/* Follow-up Chat Input Bar */}
+          {/* Follow-up Chat Input Bar - Single Line Design */}
           <div className="followup-chat-input-bar">
-            <div className="followup-upload-input">
-              {/* Follow-up Input Area */}
-              <div className="followup-input-container">
-                <textarea
-                  placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
+            <div className="followup-single-line-container">
+              {/* Model Dropdown */}
+              <div className="followup-model-dropdown">
+                <button 
+                  className="followup-model-button" 
+                  onClick={handleFollowupModelToggle}
                   disabled={isProcessing}
-                  className="followup-chat-input"
-                />
+                >
+                  <Bot size={16} />
+                  <span>{selectedModel === 'chatgpt-4o' ? 'GPT-4o' : selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}</span>
+                  <ChevronDown size={14} className={isFollowupModelDropdownOpen ? 'rotated' : ''} />
+                </button>
+                
+                {isFollowupModelDropdownOpen && (
+                  <div className="followup-model-dropdown-menu">
+                    <button 
+                      className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                      onClick={() => handleFollowupModelSelect('chatgpt-4o')}
+                    >
+                      GPT-4o
+                    </button>
+                    <button 
+                      className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
+                      onClick={() => handleFollowupModelSelect('gemini-2.5-pro')}
+                    >
+                      Gemini 2.5 Pro
+                    </button>
+                    <button 
+                      className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
+                      onClick={() => handleFollowupModelSelect('chatgpt-5')}
+                    >
+                      GPT-5
+                    </button>
+                  </div>
+                )}
               </div>
               
-              {/* Model Selector with Send Button */}
-              <div className="followup-model-selector">
-                <div className="followup-left-controls">
-                  <div className="followup-ai-model-dropdown">
-                    <button 
-                      className="followup-ai-model-button" 
-                      onClick={handleFollowupModelToggle}
-                      disabled={isProcessing}
-                    >
-                      <Bot size={16} />
-                      <span>{selectedModel === 'chatgpt-4o' ? 'GPT-4o' : selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}</span>
-                      <ChevronDown size={14} className={isFollowupModelDropdownOpen ? 'rotated' : ''} />
-                    </button>
-                    
-                    {isFollowupModelDropdownOpen && (
-                      <div className="followup-ai-model-dropdown-menu">
-                        <button 
-                          className={`followup-ai-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                          onClick={() => handleFollowupModelSelect('chatgpt-4o')}
-                        >
-                          GPT-4o
-                        </button>
-                        <button 
-                          className={`followup-ai-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                          onClick={() => handleFollowupModelSelect('gemini-2.5-pro')}
-                        >
-                          Gemini 2.5 Pro
-                        </button>
-                        <button 
-                          className={`followup-ai-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                          onClick={() => handleFollowupModelSelect('chatgpt-5')}
-                        >
-                          GPT-5
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button 
-                  className={`followup-send-btn ${chatInput.trim() ? 'analyze-mode' : ''}`}
-                  disabled={isProcessing || !chatInput.trim()}
-                  onClick={handleSendMessage}
-                >
-                  {isProcessing ? (
-                    <div className="followup-send-spinner"></div>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="22" y1="2" x2="11" y2="13"></line>
-                      <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
-                    </svg>
-                  )}
-                </button>
-              </div>
+              {/* Text Input */}
+              <textarea
+                placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isProcessing}
+                className="followup-text-input"
+              />
+              
+              {/* Send Button */}
+              <button 
+                className={`followup-send-button ${chatInput.trim() ? 'analyze-mode' : ''}`}
+                disabled={isProcessing || !chatInput.trim()}
+                onClick={handleSendMessage}
+              >
+                {isProcessing ? (
+                  <div className="followup-send-spinner"></div>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
         </div>

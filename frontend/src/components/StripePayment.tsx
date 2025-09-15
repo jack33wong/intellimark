@@ -4,8 +4,6 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { useAuth } from '../contexts/AuthContext';
 import { 
   PaymentFormProps, 
-  PaymentIntent, 
-  PaymentError, 
   PaymentState, 
   SubscriptionResponse,
   StripeCardElementOptions,
