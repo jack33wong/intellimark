@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Search
 } from 'lucide-react';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 import './AdminPage.css';
 
 // Utility functions
@@ -330,7 +331,7 @@ function AdminPage() {
               setTimeout(() => setError(null), 5000);
               
               // Dispatch custom event to notify sidebar to refresh
-              window.dispatchEvent(new CustomEvent('sessionsCleared'));
+              EventManager.dispatch(EVENT_TYPES.SESSIONS_CLEARED);
               
               // Navigate to mark homework page after clearing all sessions
               window.location.href = '/mark-homework';

@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureStringContent } from '../utils/contentUtils';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 import API_CONFIG from '../config/api';
 
 export const useChat = () => {
@@ -122,9 +123,10 @@ export const useChat = () => {
           
           // Notify sidebar to refresh when session is created or updated
           if (data.session?.id) {
-            window.dispatchEvent(new CustomEvent('sessionUpdated', { 
-              detail: { sessionId: data.session.id, type: 'chat' } 
-            }));
+            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+              sessionId: data.session.id, 
+              type: 'chat' 
+            });
           }
         } else {
           // Fallback to old response format

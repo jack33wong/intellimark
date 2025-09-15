@@ -400,13 +400,19 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       });
     }
 
-    // Get all sessions
-    const sessionsSnapshot = await db.collection('sessions').get();
+    // Get all sessions from both collections
+    const [sessionsSnapshot, unifiedSessionsSnapshot] = await Promise.all([
+      db.collection('sessions').get(),
+      db.collection('unifiedSessions').get()
+    ]);
+    
     const sessionIds = sessionsSnapshot.docs.map(doc => doc.id);
+    const unifiedSessionIds = unifiedSessionsSnapshot.docs.map(doc => doc.id);
     
-    console.log(`🗑️ Found ${sessionIds.length} sessions to delete`);
+    const totalSessions = sessionIds.length + unifiedSessionIds.length;
+    console.log(`🗑️ Found ${sessionIds.length} old sessions and ${unifiedSessionIds.length} unified sessions to delete (total: ${totalSessions})`);
     
-    if (sessionIds.length === 0) {
+    if (totalSessions === 0) {
       return res.json({
         success: true,
         message: 'No sessions found to delete',
@@ -418,6 +424,7 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
     const batchSize = 500; // Firestore batch limit
     let deletedCount = 0;
     
+    // Delete old sessions collection
     for (let i = 0; i < sessionIds.length; i += batchSize) {
       const batch = db.batch();
       const batchIds = sessionIds.slice(i, i + batchSize);
@@ -429,7 +436,22 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       
       await batch.commit();
       deletedCount += batchIds.length;
-      console.log(`🗑️ Deleted batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${sessionIds.length} sessions`);
+      console.log(`🗑️ Deleted old sessions batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${sessionIds.length} old sessions`);
+    }
+    
+    // Delete unified sessions collection
+    for (let i = 0; i < unifiedSessionIds.length; i += batchSize) {
+      const batch = db.batch();
+      const batchIds = unifiedSessionIds.slice(i, i + batchSize);
+      
+      batchIds.forEach(sessionId => {
+        const sessionRef = db.collection('unifiedSessions').doc(sessionId);
+        batch.delete(sessionRef);
+      });
+      
+      await batch.commit();
+      deletedCount += batchIds.length;
+      console.log(`🗑️ Deleted unified sessions batch ${Math.floor(i / batchSize) + 1}, ${deletedCount - sessionIds.length}/${unifiedSessionIds.length} unified sessions`);
     }
 
     console.log(`✅ Successfully deleted ${deletedCount} sessions`);
@@ -441,8 +463,10 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      message: `Successfully cleared ${deletedCount} chat sessions`,
-      deletedCount: deletedCount
+      message: `Successfully cleared ${deletedCount} chat sessions (${sessionIds.length} old sessions + ${unifiedSessionIds.length} unified sessions)`,
+      deletedCount: deletedCount,
+      oldSessionsDeleted: sessionIds.length,
+      unifiedSessionsDeleted: unifiedSessionIds.length
     });
     
   } catch (error) {

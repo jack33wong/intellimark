@@ -25,6 +25,7 @@ import MarkdownMathRenderer from './MarkdownMathRenderer';
 
 // Utils
 import { ensureStringContent } from '../utils/contentUtils';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 
 // Icons
 import { Bot, ChevronDown, Brain } from 'lucide-react';
@@ -223,9 +224,10 @@ const MarkHomeworkPageRefactored = ({
           });
           
           // Notify sidebar to refresh when new session is created
-          window.dispatchEvent(new CustomEvent('sessionUpdated', { 
-            detail: { sessionId: result.session.id, type: 'question' } 
-          }));
+          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+            sessionId: result.session.id, 
+            type: 'question' 
+          });
         }
         
         // Switch to chat mode
@@ -257,9 +259,10 @@ const MarkHomeworkPageRefactored = ({
           });
           
           // Notify sidebar to refresh when new session is created
-          window.dispatchEvent(new CustomEvent('sessionUpdated', { 
-            detail: { sessionId: result.session.id, type: 'marking' } 
-          }));
+          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+            sessionId: result.session.id, 
+            type: 'marking' 
+          });
         }
         setPageMode('chat');
       }

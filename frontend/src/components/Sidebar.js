@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import MarkingHistoryService from '../services/markingHistoryService';
 import { ensureStringContent } from '../utils/contentUtils';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 import './Sidebar.css';
 
 /**
@@ -92,21 +93,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
   // Listen for custom events to refresh sessions
   useEffect(() => {
-    const handleSessionsCleared = () => {
-      refreshChatSessions();
-    };
-
-    const handleSessionUpdated = () => {
-      refreshChatSessions();
-    };
-
-    window.addEventListener('sessionsCleared', handleSessionsCleared);
-    window.addEventListener('sessionUpdated', handleSessionUpdated);
+    const cleanup = EventManager.listenToMultiple({
+      [EVENT_TYPES.SESSIONS_CLEARED]: refreshChatSessions,
+      [EVENT_TYPES.SESSION_UPDATED]: refreshChatSessions
+    });
     
-    return () => {
-      window.removeEventListener('sessionsCleared', handleSessionsCleared);
-      window.removeEventListener('sessionUpdated', handleSessionUpdated);
-    };
+    return cleanup;
   }, [refreshChatSessions]);
 
   const handleSessionClick = (session) => {
@@ -142,7 +134,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       );
       
       // Dispatch custom event to notify other components
-      window.dispatchEvent(new CustomEvent('sessionDeleted', { detail: { sessionId } }));
+      EventManager.dispatch(EVENT_TYPES.SESSION_DELETED, { sessionId });
       
       // Navigate to mark homework page after successful deletion
       navigate('/mark-homework');

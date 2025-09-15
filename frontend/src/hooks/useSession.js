@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { FirestoreService } from '../services/firestoreService';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 
 export const useSession = () => {
   const { getAuthToken, user } = useAuth();
@@ -45,9 +46,11 @@ export const useSession = () => {
       }, authToken);
       
       // Notify sidebar to refresh
-      window.dispatchEvent(new CustomEvent('sessionUpdated', { 
-        detail: { sessionId: currentSessionId, field: 'favorite', value: newFavoriteState } 
-      }));
+      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+        sessionId: currentSessionId, 
+        field: 'favorite', 
+        value: newFavoriteState 
+      });
     } catch (error) {
       console.error('Failed to update favorite status:', error);
       // Revert on error
@@ -70,9 +73,11 @@ export const useSession = () => {
       }, authToken);
       
       // Notify sidebar to refresh
-      window.dispatchEvent(new CustomEvent('sessionUpdated', { 
-        detail: { sessionId: currentSessionId, field: 'rating', value: numericRating } 
-      }));
+      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+        sessionId: currentSessionId, 
+        field: 'rating', 
+        value: numericRating 
+      });
     } catch (error) {
       console.error('Failed to update rating:', error);
       // Revert on error
