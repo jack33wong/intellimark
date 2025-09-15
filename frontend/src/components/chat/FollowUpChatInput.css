@@ -28,6 +28,7 @@
 .followup-single-line-container.with-preview {
   align-items: flex-start;
   padding: 12px;
+  min-height: 80px;
 }
 
 .followup-single-line-container:focus-within {
@@ -138,6 +139,16 @@
   align-items: center;
   min-height: 32px;
   position: relative;
+}
+
+.followup-single-line-container.with-preview .followup-text-wrapper {
+  align-items: flex-start;
+  min-height: 60px;
+  padding-top: 8px;
+}
+
+.followup-single-line-container.with-preview .followup-text-input {
+  margin-top: 8px;
 }
 
 /* Image Preview */
