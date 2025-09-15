@@ -106,7 +106,6 @@ export class ImageStorageService {
         expires: '03-01-2500' // Far future date
       }).then(urls => urls[0]);
       
-      console.log(`✅ ${imageType} image uploaded to Firebase Storage:`, downloadURL);
       console.log(`📊 Final size: ${getFileSizeMB(processedBuffer).toFixed(2)}MB`);
       
       return downloadURL;
