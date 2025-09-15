@@ -215,37 +215,15 @@ const MarkHomeworkPageRefactored = ({
       const imageData = await processImage(file);
       
       if (isFollowUp) {
-        // For follow-up: Add user message with image immediately to chat
-        const userMessage = {
-          id: `temp-${Date.now()}`,
-          role: 'user',
-          content: chatInput.trim() || '', // Empty content, just show the image
+        // For follow-up: Use sendMessage to add to existing session
+        await sendMessage('', {
           imageData: imageData,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Add user message to chat immediately
-        setChatMessages(prev => [...prev, userMessage]);
-        
-        // Clear input
-        setChatInput('');
-      }
-      
-      // Send to backend for processing
-      const result = await analyzeImage(imageData, selectedModel);
-      
-      if (isFollowUp) {
-        // For follow-up: Add AI response to existing chat
-        if (result.session && result.session.messages) {
-          // Find the new AI message (last message in the session)
-          const newMessages = result.session.messages;
-          const aiMessage = newMessages[newMessages.length - 1];
-          
-          if (aiMessage) {
-            setChatMessages(prev => [...prev, aiMessage]);
-          }
-        }
+          model: selectedModel,
+          sessionId: currentSessionId
+        });
       } else {
+        // Send to backend for processing (creates new session)
+        const result = await analyzeImage(imageData, selectedModel);
         // For main upload: Handle session creation (image already shown, chat mode already switched)
         if (result.isQuestionOnly) {
           // Question-only sessions
@@ -346,7 +324,7 @@ const MarkHomeworkPageRefactored = ({
     } catch (error) {
       console.error('Error processing image:', error);
     }
-  }, [selectedModel, processImage, analyzeImage, setChatMessages, setChatInput, loadSessionData, loadMessages, setMarkingResult, clearFile, chatInput]);
+  }, [selectedModel, processImage, analyzeImage, sendMessage, currentSessionId, loadSessionData, loadMessages, setMarkingResult, clearFile]);
 
   // Handle main image analysis
   const handleAnalyzeImage = useCallback(async () => {
