@@ -20,14 +20,13 @@
   align-items: center;
   gap: 12px;
   background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  border: none;
   border-radius: 12px;
   padding: 8px 12px;
   transition: all 0.2s ease;
 }
 
 .followup-single-line-container:focus-within {
-  border-color: #8b5cf6;
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
 }
 
@@ -132,7 +131,7 @@
   min-height: 32px;
   min-width: 40px;
   padding: 8px 12px;
-  background: #8b5cf6;
+  background: #059669;
   border: none;
   border-radius: 6px;
   color: #ffffff;
@@ -142,7 +141,7 @@
 }
 
 .followup-send-button:hover:not(:disabled) {
-  background: #7c3aed;
+  background: #047857;
   transform: translateY(-1px);
 }
 
