@@ -27,8 +27,6 @@ export const useChat = () => {
   
   // Auto-scroll functionality
   const { containerRef: chatContainerRef, scrollToBottom, handleImageLoad } = useAutoScroll(chatMessages);
-  
-  // Helper function to deduplicate messages by ID (moved to messageUtils)
 
   // Send message to chat API
   const sendMessage = useCallback(async (message, options = {}) => {

@@ -11,9 +11,6 @@ import type { UnifiedMessage } from '../types';
 
 const router = express.Router();
 
-// In-memory storage for anonymous user sessions
-const anonymousSessions = new Map<string, any>();
-
 /**
  * POST /messages/chat
  * Unified chat endpoint - handles conversational flow with session management
@@ -37,7 +34,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
-
 
     // Session management - only for authenticated users
     if (!currentSessionId) {
