@@ -73,14 +73,12 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     if (isAuthenticated) {
       const { ImageStorageService } = await import('../services/imageStorageService');
       try {
-        console.log('⬆️ Uploading original image to Firebase Storage...');
         originalImageLink = await ImageStorageService.uploadImage(
           imageData,
-          userId || 'anonymous', 
+          userId || 'anonymous',
           sessionId,
           'original'
         );
-        console.log('✅ Original image uploaded:', originalImageLink);
       } catch (error) {
         console.error('❌ Failed to upload original image:', error);
         originalImageLink = null;
@@ -221,7 +219,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
           title: sessionTitle,
           userId: userId,
           messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-          messages: [userMessage, aiMessage],
+          messages: [userMessage], // Only user message for authenticated users
           isPastPaper: result.isPastPaper || false,
           sessionMetadata: {
             totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
@@ -229,18 +227,15 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
             averageConfidence: result.metadata?.confidence || 0,
             lastApiUsed: result.apiUsed || 'Complete AI Marking System',
             lastModelUsed: model,
-            totalMessages: 2
+            totalMessages: 1 // Only user message
           }
         });
         
         sessionSaved = true;
-        console.log(`✅ UnifiedSession ${finalSessionId} created with ${result.isQuestionOnly ? 'Question' : 'Marking'} messages`);
       } catch (error) {
         console.error('❌ Failed to create UnifiedSession:', error);
         // Continue with response even if session creation fails
       }
-    } else {
-      console.log('ℹ️ Anonymous user - session not saved to database');
     }
 
     // Get the properly formatted session from our UnifiedSession API
@@ -342,14 +337,12 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
       const { ImageStorageService } = await import('../services/imageStorageService');
       try {
-        console.log('⬆️ Uploading annotated image to Firebase Storage...');
         annotatedImageLink = await ImageStorageService.uploadImage(
           result.annotatedImage,
-          userId || 'anonymous', 
+          userId || 'anonymous',
           sessionId,
           'annotated'
         );
-        console.log('✅ Annotated image uploaded:', annotatedImageLink);
       } catch (error) {
         console.error('❌ Failed to upload annotated image:', error);
         annotatedImageLink = null;
@@ -380,7 +373,6 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       const { FirestoreService } = await import('../services/firestoreService');
       try {
         await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage);
-        console.log('✅ AI message saved to database');
       } catch (error) {
         console.error('❌ Failed to save AI message:', error);
       }
