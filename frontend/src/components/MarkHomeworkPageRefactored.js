@@ -101,6 +101,7 @@ const MarkHomeworkPageRefactored = ({
     error: markError,
     loadingProgress,
     analyzeImage,
+    processAIResponse,
     getImageSrc,
     setMarkingResult
   } = useMarkHomework();
@@ -370,69 +371,111 @@ const MarkHomeworkPageRefactored = ({
     // Clear file selection immediately after showing image
     clearFile();
     
-    // Then process the image in the background (without showing it again)
+    // Then process the image in the background
     try {
       const result = await analyzeImage(imageData, selectedModel);
       
-      if (result.isQuestionOnly) {
-        // Question-only sessions
-        if (result.session && result.session.messages) {
-          // Update session data in useSession hook
-          loadSessionData({
-            id: result.session.id,
-            title: result.session.title
-          });
-          
-          // Load messages in useChat hook  
-          loadMessages({
-            id: result.session.id,
-            title: result.session.title,
-            messages: result.session.messages
-          });
-          
-          // Notify sidebar to refresh when new session is created
-          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-            sessionId: result.session.id, 
-            type: 'question' 
-          });
-        }
-      } else {
-        // Marking result - set marking data
-        setMarkingResult({
-          instructions: result.instructions,
-          annotatedImage: result.annotatedImage,
-          classification: result.classification,
-          metadata: result.metadata,
-          apiUsed: result.apiUsed,
-          ocrMethod: result.ocrMethod
+      // Check if this is the new 2-response format (authenticated users)
+      if (result.responseType === 'original_image') {
+        // Response 1: Original image from database
+        const dbUserMessage = {
+          ...result.userMessage,
+          imageData: imageData // Keep our imageData for immediate display
+        };
+        
+        // Replace our temporary message with the database version
+        setChatMessages(prev => prev.map(msg => 
+          msg.id === userMessage.id ? dbUserMessage : msg
+        ));
+        
+        // Update session data
+        loadSessionData({
+          id: result.sessionId,
+          title: result.sessionTitle
         });
         
-        // Load messages from backend response (contains proper imageLink)
-        if (result.session && result.session.messages) {
-          // Update session data in useSession hook
-          loadSessionData({
-            id: result.session.id,
-            title: result.session.title
+        // Process AI response in background
+        setTimeout(async () => {
+          try {
+            const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
+            
+            if (aiResult.responseType === 'ai_response') {
+              // Response 2: AI response
+              setChatMessages(prev => [...prev, aiResult.aiMessage]);
+              
+              // Notify sidebar to refresh
+              EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+                sessionId: result.sessionId, 
+                type: aiResult.isQuestionOnly ? 'question' : 'marking' 
+              });
+            }
+          } catch (error) {
+            console.error('Error processing AI response:', error);
+          }
+        }, 1000); // Small delay to show processing indicator
+        
+      } else {
+        // Legacy format (unauthenticated users)
+        if (result.isQuestionOnly) {
+          // Question-only sessions
+          if (result.session && result.session.messages) {
+            // Update session data in useSession hook
+            loadSessionData({
+              id: result.session.id,
+              title: result.session.title
+            });
+            
+            // Load messages in useChat hook  
+            loadMessages({
+              id: result.session.id,
+              title: result.session.title,
+              messages: result.session.messages
+            });
+            
+            // Notify sidebar to refresh when new session is created
+            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+              sessionId: result.session.id, 
+              type: 'question' 
+            });
+          }
+        } else {
+          // Marking result - set marking data
+          setMarkingResult({
+            instructions: result.instructions,
+            annotatedImage: result.annotatedImage,
+            classification: result.classification,
+            metadata: result.metadata,
+            apiUsed: result.apiUsed,
+            ocrMethod: result.ocrMethod
           });
           
-          // Load messages in useChat hook
-          loadMessages({
-            id: result.session.id,
-            title: result.session.title,
-            messages: result.session.messages
-          });
-          
-          // Notify sidebar to refresh when new session is created
-          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-            sessionId: result.session.id, 
-            type: 'marking' 
-          });
+          // Load messages from backend response (contains proper imageLink)
+          if (result.session && result.session.messages) {
+            // Update session data in useSession hook
+            loadSessionData({
+              id: result.session.id,
+              title: result.session.title
+            });
+            
+            // Load messages in useChat hook
+            loadMessages({
+              id: result.session.id,
+              title: result.session.title,
+              messages: result.session.messages
+            });
+            
+            // Notify sidebar to refresh when new session is created
+            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+              sessionId: result.session.id, 
+              type: 'marking' 
+            });
+          }
         }
       }
     } catch (error) {
       console.error('Error processing image:', error);
     }
-  }, [selectedFile, processImage, setChatMessages, setPageMode, clearFile, analyzeImage, selectedModel, loadSessionData, loadMessages, setMarkingResult]);
+  }, [selectedFile, processImage, setChatMessages, setPageMode, clearFile, analyzeImage, processAIResponse, selectedModel, loadSessionData, loadMessages, setMarkingResult]);
 
   // Handle follow-up image analysis (for existing chat sessions)
   const handleFollowUpImage = useCallback(async (file) => {

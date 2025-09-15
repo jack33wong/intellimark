@@ -68,14 +68,34 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const sessionId = result.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sessionTitle = result.sessionTitle || 'Marking Session';
     
-    // Create user message (no imageLink - frontend will use imageData from memory)
+    // Upload original image to Firebase Storage for authenticated users
+    let originalImageLink;
+    if (isAuthenticated) {
+      const { ImageStorageService } = await import('../services/imageStorageService');
+      try {
+        console.log('⬆️ Uploading original image to Firebase Storage...');
+        originalImageLink = await ImageStorageService.uploadImage(
+          imageData,
+          userId || 'anonymous', 
+          sessionId,
+          'original'
+        );
+        console.log('✅ Original image uploaded:', originalImageLink);
+      } catch (error) {
+        console.error('❌ Failed to upload original image:', error);
+        originalImageLink = null;
+      }
+    }
+
+    // Create user message
     const userMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'user',
       content: 'I have a question about this image. Can you help me understand it?',
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_original' : 'marking_original',
-      // No imageLink - frontend will display image from memory (imageData)
+      imageLink: originalImageLink, // For authenticated users
+      imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
       fileName: 'uploaded-image.png',
       // Add simplified detectedQuestion data 
       detectedQuestion: result.questionDetection?.found ? {
@@ -239,19 +259,130 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       metadata: result.metadata
     };
 
-    return res.json({
-      success: true,
-      session: finalSession,
-      sessionSaved: sessionSaved,
-      warning: sessionSaved ? undefined : 'Session not saved - please sign in to persist your work',
-      // Keep original result for backward compatibility (without markingData)
-      ...cleanResult
-    });
+    // For authenticated users, return user message immediately (Response 1)
+    if (isAuthenticated) {
+      return res.json({
+        success: true,
+        responseType: 'original_image',
+        userMessage: userMessage,
+        processing: true,
+        sessionId: finalSessionId,
+        sessionTitle: sessionTitle
+      });
+    } else {
+      // For unauthenticated users, return complete session (legacy behavior)
+      return res.json({
+        success: true,
+        session: finalSession,
+        sessionSaved: sessionSaved,
+        warning: sessionSaved ? undefined : 'Session not saved - please sign in to persist your work',
+        // Keep original result for backward compatibility (without markingData)
+        ...cleanResult
+      });
+    }
   } catch (error) {
     console.error('Error in complete mark question:', error);
     return res.status(500).json({ 
       success: false, 
       error: 'Internal server error in mark question system', 
+      details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' 
+    });
+  }
+});
+
+/**
+ * POST /mark-homework/process
+ * Complete AI processing and return AI response (Response 2)
+ */
+router.post('/process', optionalAuth, async (req: Request, res: Response) => {
+  const { imageData, model = 'chatgpt-4o', sessionId } = req.body;
+  if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
+  if (!sessionId) return res.status(400).json({ success: false, error: 'Session ID is required' });
+  if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
+
+  try {
+    const userId = (req as any)?.user?.uid || 'anonymous';
+    const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+    const isAuthenticated = !!(req as any)?.user?.uid;
+
+    // Process the image for AI response
+    const result = await MarkHomeworkWithAnswer.run({
+      imageData,
+      model,
+      userId,
+      userEmail
+    });
+
+    // Upload annotated image to Firebase Storage if it's a marking result
+    let annotatedImageLink;
+    if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
+      const { ImageStorageService } = await import('../services/imageStorageService');
+      try {
+        console.log('⬆️ Uploading annotated image to Firebase Storage...');
+        annotatedImageLink = await ImageStorageService.uploadImage(
+          result.annotatedImage,
+          userId || 'anonymous', 
+          sessionId,
+          'annotated'
+        );
+        console.log('✅ Annotated image uploaded:', annotatedImageLink);
+      } catch (error) {
+        console.error('❌ Failed to upload annotated image:', error);
+        annotatedImageLink = null;
+      }
+    }
+
+    // Create AI response message
+    const aiMessage = {
+      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'assistant',
+      content: result.message || 'Processing complete',
+      timestamp: new Date().toISOString(),
+      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
+      imageLink: annotatedImageLink, // For authenticated users
+      imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
+      fileName: 'annotated-image.png',
+      metadata: {
+        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+        confidence: result.metadata?.confidence || 0,
+        modelUsed: result.metadata?.modelUsed || model,
+        apiUsed: result.apiUsed,
+        ocrMethod: result.ocrMethod
+      }
+    };
+
+    // Save AI message to database if authenticated
+    if (isAuthenticated) {
+      const { FirestoreService } = await import('../services/firestoreService');
+      try {
+        await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage);
+        console.log('✅ AI message saved to database');
+      } catch (error) {
+        console.error('❌ Failed to save AI message:', error);
+      }
+    }
+
+    return res.json({
+      success: true,
+      responseType: 'ai_response',
+      aiMessage: aiMessage,
+      processing: false,
+      sessionId: sessionId,
+      isQuestionOnly: result.isQuestionOnly,
+      markingResult: isAuthenticated ? {
+        instructions: result.instructions,
+        classification: result.classification,
+        metadata: result.metadata,
+        apiUsed: result.apiUsed,
+        ocrMethod: result.ocrMethod
+      } : null
+    });
+
+  } catch (error) {
+    console.error('Error in AI processing:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error in AI processing', 
       details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' 
     });
   }

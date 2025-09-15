@@ -38,7 +38,7 @@ export const useMarkHomework = () => {
     };
   }, [isProcessing]);
 
-  // Analyze image through mark homework API
+  // Analyze image through mark homework API (Response 1: Original Image)
   const analyzeImage = useCallback(async (imageData, model = 'chatgpt-4o') => {
     if (!imageData) return null;
     
@@ -82,32 +82,39 @@ export const useMarkHomework = () => {
 
       const result = await response.json();
 
-      // Process result based on type
-      if (result.isQuestionOnly) {
-        // Question-only image
-        setClassificationResult({
-          isQuestionOnly: true,
-          reasoning: result.reasoning,
-          apiUsed: result.apiUsed,
-          questionDetection: result.questionDetection
-        });
-        
-        setMarkingResult(null);
+      // Check if this is the new 2-response format
+      if (result.responseType === 'original_image') {
+        // Response 1: Original image (authenticated users)
+        return {
+          responseType: 'original_image',
+          userMessage: result.userMessage,
+          sessionId: result.sessionId,
+          sessionTitle: result.sessionTitle,
+          processing: result.processing
+        };
       } else {
-        // Marking result
-        setMarkingResult({
-          instructions: result.instructions,
-          annotatedImage: result.annotatedImage,
-          classification: result.classification,
-          metadata: result.metadata,
-          apiUsed: result.apiUsed,
-          ocrMethod: result.ocrMethod
-        });
-        
-        setClassificationResult(null);
+        // Legacy format (unauthenticated users)
+        if (result.isQuestionOnly) {
+          setClassificationResult({
+            isQuestionOnly: true,
+            reasoning: result.reasoning,
+            apiUsed: result.apiUsed,
+            questionDetection: result.questionDetection
+          });
+          setMarkingResult(null);
+        } else {
+          setMarkingResult({
+            instructions: result.instructions,
+            annotatedImage: result.annotatedImage,
+            classification: result.classification,
+            metadata: result.metadata,
+            apiUsed: result.apiUsed,
+            ocrMethod: result.ocrMethod
+          });
+          setClassificationResult(null);
+        }
+        return result;
       }
-
-      return result;
 
     } catch (error) {
       console.error('Error analyzing image:', error);
@@ -115,6 +122,86 @@ export const useMarkHomework = () => {
       throw error;
     } finally {
       setIsProcessing(false);
+    }
+  }, [getAuthToken]);
+
+  // Process AI response (Response 2: AI Processing)
+  const processAIResponse = useCallback(async (imageData, model = 'chatgpt-4o', sessionId) => {
+    if (!imageData || !sessionId) return null;
+    
+    try {
+      const payload = {
+        imageData: imageData,
+        model: model,
+        sessionId: sessionId
+      };
+
+      const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK + '/process';
+
+      // Get authentication token
+      const authToken = await getAuthToken();
+      
+      // Prepare headers
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header if token is available
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      // Make API call
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ AI Processing Error:', errorText);
+        throw new Error(`AI processing failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.responseType === 'ai_response') {
+        // Process marking result if available
+        if (result.markingResult) {
+          setMarkingResult({
+            instructions: result.markingResult.instructions,
+            annotatedImage: result.markingResult.annotatedImage,
+            classification: result.markingResult.classification,
+            metadata: result.markingResult.metadata,
+            apiUsed: result.markingResult.apiUsed,
+            ocrMethod: result.markingResult.ocrMethod
+          });
+        }
+
+        if (result.isQuestionOnly) {
+          setClassificationResult({
+            isQuestionOnly: true,
+            apiUsed: result.aiMessage.metadata?.apiUsed,
+            questionDetection: result.questionDetection
+          });
+        }
+
+        return {
+          responseType: 'ai_response',
+          aiMessage: result.aiMessage,
+          sessionId: result.sessionId,
+          isQuestionOnly: result.isQuestionOnly,
+          markingResult: result.markingResult
+        };
+      }
+
+      return result;
+
+    } catch (error) {
+      console.error('Error processing AI response:', error);
+      setError(error.message);
+      return null;
     }
   }, [getAuthToken]);
 
@@ -151,6 +238,7 @@ export const useMarkHomework = () => {
     
     // Actions
     analyzeImage,
+    processAIResponse,
     clearResults,
     getImageSrc,
     
