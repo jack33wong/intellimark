@@ -12,7 +12,8 @@ import ApiClient from '../services/apiClient';
 import { 
   appendFollowUpMessages, 
   replaceWithCompleteSession, 
-  parseResponse 
+  parseResponse,
+  deduplicateMessages
 } from '../utils/messageUtils';
 
 export const useChat = () => {
@@ -111,7 +112,7 @@ export const useChat = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [getAuthToken, deduplicateMessages, scrollToBottom]);
+  }, [getAuthToken, scrollToBottom]);
 
   // Load messages from session data
   const loadMessages = useCallback((sessionData) => {
