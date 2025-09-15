@@ -284,6 +284,48 @@ const MarkHomeworkPageRefactored = ({
       console.error('Error analyzing image:', error);
     }
   }, [selectedFile, selectedModel, processImage, analyzeImage, setMarkingResult, loadMessages, clearFile, loadSessionData]);
+
+  // Handle follow-up image analysis (for existing chat sessions)
+  const handleFollowUpImage = useCallback(async (file) => {
+    if (!file) return;
+    
+    try {
+      // Convert image to base64
+      const imageData = await processImage(file);
+      
+      // Add user message with image immediately to chat
+      const userMessage = {
+        id: `temp-${Date.now()}`,
+        role: 'user',
+        content: chatInput.trim() || 'Image uploaded',
+        imageData: imageData,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add user message to chat immediately
+      setChatMessages(prev => [...prev, userMessage]);
+      
+      // Clear input
+      setChatInput('');
+      
+      // Send to backend for processing
+      const result = await analyzeImage(imageData, selectedModel);
+      
+      // Add AI response to chat
+      if (result.session && result.session.messages) {
+        // Find the new AI message (last message in the session)
+        const newMessages = result.session.messages;
+        const aiMessage = newMessages[newMessages.length - 1];
+        
+        if (aiMessage) {
+          setChatMessages(prev => [...prev, aiMessage]);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error processing follow-up image:', error);
+    }
+  }, [chatInput, selectedModel, processImage, analyzeImage, setChatMessages, setChatInput]);
   
   // Handle sending chat message
   const handleSendMessage = useCallback(async () => {
@@ -478,6 +520,7 @@ const MarkHomeworkPageRefactored = ({
             isProcessing={isProcessing}
             onSendMessage={handleSendMessage}
             onAnalyzeImage={handleAnalyzeImage}
+            onFollowUpImage={handleFollowUpImage}
             onKeyPress={handleKeyPress}
             onUploadClick={handleFileSelect}
           />

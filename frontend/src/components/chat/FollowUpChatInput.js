@@ -17,6 +17,7 @@ const FollowUpChatInput = ({
   isProcessing,
   onSendMessage,
   onAnalyzeImage,
+  onFollowUpImage,
   onKeyPress,
   onUploadClick
 }) => {
@@ -59,9 +60,14 @@ const FollowUpChatInput = ({
   }, [previewImage]);
 
   const handleSendClick = useCallback(() => {
-    // If there's an image preview, call analyze image API (same as main chat input)
+    // If there's an image preview, call follow-up image handler
     if (previewImage) {
-      onAnalyzeImage();
+      // Get the file from the file input
+      const fileInput = document.getElementById('followup-file-input');
+      const file = fileInput?.files?.[0];
+      if (file) {
+        onFollowUpImage(file);
+      }
     } else {
       // If no image, call regular send message API
       onSendMessage();
@@ -73,7 +79,7 @@ const FollowUpChatInput = ({
       URL.revokeObjectURL(previewImage);
       setPreviewImage(null);
     }
-  }, [onSendMessage, onAnalyzeImage, previewImage]);
+  }, [onSendMessage, onFollowUpImage, previewImage]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
