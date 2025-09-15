@@ -43,26 +43,20 @@ export const useChat = () => {
 
     if (!message.trim()) return;
 
+    // Always add user message immediately for better UX
+    const userMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: ensureStringContent(message),
+      timestamp: new Date().toISOString(),
+      imageData: imageData // Include image data if present
+    };
+
+    setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
     setIsProcessing(true);
 
     try {
       const authToken = await getAuthToken();
-      
-      // For authenticated users, add user message optimistically for better UX
-      // For anonymous users, wait for backend response to avoid duplication
-      const isAuthenticated = !!authToken;
-      
-      if (isAuthenticated) {
-        const userMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
-          content: ensureStringContent(message),
-          timestamp: new Date().toISOString(),
-          imageData: imageData // Include image data if present
-        };
-
-        setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
-      }
       
       const data = await ApiClient.post('/api/messages/chat', {
         message: message.trim(),
@@ -77,6 +71,7 @@ export const useChat = () => {
       if (data.success) {
         // Parse response to determine type and handle accordingly
         const responseData = parseResponse(data);
+        const isAuthenticated = !!authToken;
         
         switch (responseData.type) {
           case 'complete_session':
@@ -86,7 +81,14 @@ export const useChat = () => {
             
           case 'follow_up':
             // Follow-up question - append new messages to existing
-            setChatMessages(prev => appendFollowUpMessages(prev, responseData.messages));
+            if (isAuthenticated) {
+              // For authenticated users, append all new messages
+              setChatMessages(prev => appendFollowUpMessages(prev, responseData.messages));
+            } else {
+              // For anonymous users, filter out user message to avoid duplication
+              const aiMessages = responseData.messages.filter(msg => msg.role === 'assistant');
+              setChatMessages(prev => appendFollowUpMessages(prev, aiMessages));
+            }
             break;
             
           case 'single_response':
