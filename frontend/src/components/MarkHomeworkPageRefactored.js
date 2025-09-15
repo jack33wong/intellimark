@@ -51,6 +51,7 @@ const MarkHomeworkPageRefactored = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
+  const [isFollowupModelDropdownOpen, setIsFollowupModelDropdownOpen] = useState(false);
   
   // ============================================================================
   // CUSTOM HOOKS
@@ -131,21 +132,31 @@ const MarkHomeworkPageRefactored = ({
   // Handle selected marking result from sidebar
   useEffect(() => {
     if (selectedMarkingResult) {
-      // Load session data
-      loadSessionData(selectedMarkingResult);
+      console.log('📖 Loading session from history:', selectedMarkingResult.id);
       
-      // Load messages if available
-      if (selectedMarkingResult.messages && selectedMarkingResult.messages.length > 0) {
-        loadMessages(selectedMarkingResult);
-        setPageMode('chat');
-      }
+      // Load session data first
+      loadSessionData(selectedMarkingResult);
       
       // Set marking result for display
       if (selectedMarkingResult.instructions || selectedMarkingResult.annotatedImage) {
         setMarkingResult(selectedMarkingResult);
       }
+      
+      // Load messages if available
+      if (selectedMarkingResult.messages && selectedMarkingResult.messages.length > 0) {
+        setPageMode('chat'); // This will trigger the next useEffect
+      }
     }
-  }, [selectedMarkingResult, loadSessionData, loadMessages, setMarkingResult]);
+  }, [selectedMarkingResult, loadSessionData, setMarkingResult]);
+
+  // Load messages when page mode changes to chat
+  useEffect(() => {
+    if (pageMode === 'chat' && selectedMarkingResult?.messages?.length > 0) {
+      loadMessages(selectedMarkingResult);
+    }
+  }, [pageMode, selectedMarkingResult]);
+
+
 
   // Handle scroll events
   const handleScroll = useCallback(() => {
@@ -201,11 +212,23 @@ const MarkHomeworkPageRefactored = ({
         // Question-only sessions are now handled entirely by the mark-homework API
         // Load messages from the backend response instead of calling chat API
         if (result.session && result.session.messages) {
+          // Update session data in useSession hook
+          loadSessionData({
+            id: result.session.id,
+            title: result.session.title
+          });
+          
+          // Load messages in useChat hook  
           loadMessages({
             id: result.session.id,
             title: result.session.title,
             messages: result.session.messages
           });
+          
+          // Notify sidebar to refresh when new session is created
+          window.dispatchEvent(new CustomEvent('sessionUpdated', { 
+            detail: { sessionId: result.session.id, type: 'question' } 
+          }));
         }
         
         // Switch to chat mode
@@ -223,11 +246,23 @@ const MarkHomeworkPageRefactored = ({
         
         // Load messages from backend response (contains proper imageLink)
         if (result.session && result.session.messages) {
+          // Update session data in useSession hook
+          loadSessionData({
+            id: result.session.id,
+            title: result.session.title
+          });
+          
+          // Load messages in useChat hook
           loadMessages({
             id: result.session.id,
             title: result.session.title,
             messages: result.session.messages
           });
+          
+          // Notify sidebar to refresh when new session is created
+          window.dispatchEvent(new CustomEvent('sessionUpdated', { 
+            detail: { sessionId: result.session.id, type: 'marking' } 
+          }));
         }
         setPageMode('chat');
       }
@@ -246,18 +281,24 @@ const MarkHomeworkPageRefactored = ({
     
     updateLastRequestTime();
     
+    // Store the message text before clearing
+    const messageText = chatInput.trim();
+    
+    // Clear input immediately after sending
+    setChatInput('');
+    
     // Determine if this is the first message
     const isFirstMessage = chatMessages.length === 0;
     const imageData = isFirstMessage && selectedFile ? await processImage(selectedFile) : null;
     const mode = isFirstMessage ? (classificationResult?.isQuestionOnly ? 'question' : 'qa') : undefined;
     
-    await sendMessage(chatInput.trim(), {
+    await sendMessage(messageText, {
       imageData: imageData,
       model: selectedModel,
       sessionId: currentSessionId,
       mode: mode
     });
-  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel, currentSessionId]);
+  }, [chatInput, canMakeRequest, updateLastRequestTime, chatMessages.length, selectedFile, processImage, classificationResult, sendMessage, selectedModel, currentSessionId, setChatInput]);
   
   // Handle key press in chat input
   const handleKeyPress = useCallback((e) => {
@@ -266,6 +307,30 @@ const MarkHomeworkPageRefactored = ({
       handleSendMessage();
     }
   }, [handleSendMessage]);
+  
+  // Handle follow-up model selector
+  const handleFollowupModelToggle = useCallback(() => {
+    setIsFollowupModelDropdownOpen(!isFollowupModelDropdownOpen);
+  }, [isFollowupModelDropdownOpen]);
+
+  const handleFollowupModelSelect = useCallback((model) => {
+    setSelectedModel(model);
+    setIsFollowupModelDropdownOpen(false);
+  }, []);
+
+  // Close follow-up model dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isFollowupModelDropdownOpen && !event.target.closest('.followup-ai-model-dropdown')) {
+        setIsFollowupModelDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isFollowupModelDropdownOpen]);
   
   // Handle clear result - removed as not used in current implementation
   
@@ -315,85 +380,104 @@ const MarkHomeworkPageRefactored = ({
             />
             
             <div className="chat-messages">
-            {chatMessages.map((message, index) => (
-              <div 
-                key={`${message.id}-${index}`} 
-                className={`chat-message ${message.role}`}
-              >
-                <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated' || message.type === 'question_original') ? 'marking-message' : ''}`}>
-                  {message.role === 'assistant' ? (
-                    <div>
-                      <div className="assistant-header">
-                        <Brain size={20} className="assistant-brain-icon" />
-                      </div>
-                      
-                      {/* Only show content for regular chat messages, not marking messages */}
-                      {message.type !== 'marking_annotated' && message.type !== 'marking_original' && 
-                       message.content && 
-                       ensureStringContent(message.content).trim() !== '' && (
-                        <MarkdownMathRenderer 
-                          content={ensureStringContent(message.content)}
-                          className="chat-message-renderer"
-                        />
-                      )}
-                      
-                      {/* Handle marking messages with annotated images */}
-                      {message.type === 'marking_annotated' && message.imageLink && (
-                        <div className="homework-annotated-image">
-                          <h4>✅ Marked Homework Image</h4>
-                          <img 
-                            src={getImageSrc(message.imageLink)}
-                            alt="Marked homework"
-                            className="annotated-image"
-                            onError={(e) => {
-                              console.warn('Failed to load image:', message.imageLink);
-                              e.target.style.display = 'none';
-                            }}
-                          />
+              {chatMessages.map((message, index) => (
+                <div 
+                  key={`${message.id}-${index}`} 
+                  className={`chat-message ${message.role}`}
+                >
+                    <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated' || message.type === 'question_original') ? 'marking-message' : ''}`}>
+                      {message.role === 'assistant' ? (
+                        <div>
+                          <div className="assistant-header">
+                            <Brain size={20} className="assistant-brain-icon" />
+                          </div>
+                          
+                          {/* Only show content for regular chat messages, not marking messages */}
+                          {message.type !== 'marking_annotated' && message.type !== 'marking_original' && 
+                           message.content && 
+                           ensureStringContent(message.content).trim() !== '' && (
+                            <MarkdownMathRenderer 
+                              content={ensureStringContent(message.content)}
+                              className="chat-message-renderer"
+                            />
+                          )}
+                          
+                          {/* Handle marking messages with annotated images */}
+                          {message.type === 'marking_annotated' && message.imageLink && (
+                            <div className="homework-annotated-image">
+                              <h4>✅ Marked Homework Image</h4>
+                              <img 
+                                src={getImageSrc(message.imageLink)}
+                                alt="Marked homework"
+                                className="annotated-image"
+                                onLoad={() => {
+                                  // Trigger scroll after image loads
+                                  setTimeout(() => {
+                                    if (chatContainerRef.current) {
+                                      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                                    }
+                                  }, 50);
+                                }}
+                                onError={(e) => {
+                                  console.warn('Failed to load image:', message.imageLink);
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          {/* User message content */}
+                          {message.imageLink && (
+                            <div className="message-image">
+                              <img 
+                                src={getImageSrc(message.imageLink)}
+                                alt="Uploaded"
+                                className="content-image"
+                                onLoad={() => {
+                                  // Trigger scroll after image loads
+                                  setTimeout(() => {
+                                    if (chatContainerRef.current) {
+                                      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                                    }
+                                  }, 50);
+                                }}
+                                onError={(e) => {
+                                  console.warn('Failed to load user image:', message.imageLink);
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          
+                          <div className="message-text">
+                            {typeof message.content === 'string' ? message.content : String(message.content || '')}
+                          </div>
                         </div>
                       )}
-                      
+                  </div>
+                </div>
+              ))}
+              
+              {/* Processing indicator */}
+              {isProcessing && (
+                <div className="chat-message assistant">
+                  <div className="message-bubble">
+                    <div className="assistant-header">
+                      <Brain size={20} className="assistant-brain-icon" />
                     </div>
-                  ) : (
-                    <div>
-                      {/* User message content */}
-                      {message.imageLink && (
-                        <div className="message-image">
-                          <img 
-                            src={getImageSrc(message.imageLink)}
-                            alt="Uploaded"
-                            className="content-image"
-                          />
-                        </div>
-                      )}
-                      
-                      <div className="message-text">
-                        {typeof message.content === 'string' ? message.content : String(message.content || '')}
+                    <div className="thinking-animation">
+                      <div className="thinking-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
                       </div>
+                      <span className="thinking-text">AI is thinking...</span>
                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            
-            {/* Processing indicator */}
-            {isProcessing && (
-              <div className="chat-message assistant">
-                <div className="message-bubble">
-                  <div className="assistant-header">
-                    <Brain size={20} className="assistant-brain-icon" />
-                  </div>
-                  <div className="thinking-animation">
-                    <div className="thinking-dots">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                    <span className="thinking-text">AI is thinking...</span>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
             
             {/* Scroll to Bottom Button */}
@@ -408,42 +492,66 @@ const MarkHomeworkPageRefactored = ({
             </div>
           </div>
           
-          {/* Bottom Chat Input Bar */}
-          <div className="main-upload-input-bar">
-            <div className="main-upload-input">
-              {/* Main Input Area */}
-              <div className="input-container">
+          {/* Follow-up Chat Input Bar */}
+          <div className="followup-chat-input-bar">
+            <div className="followup-upload-input">
+              {/* Follow-up Input Area */}
+              <div className="followup-input-container">
                 <textarea
                   placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   disabled={isProcessing}
-                  className="chat-history-input"
+                  className="followup-chat-input"
                 />
               </div>
               
               {/* Model Selector with Send Button */}
-              <div className="model-selector">
-                <div className="left-controls">
-                  <div className="ai-model-dropdown">
+              <div className="followup-model-selector">
+                <div className="followup-left-controls">
+                  <div className="followup-ai-model-dropdown">
                     <button 
-                      className="ai-model-button" 
+                      className="followup-ai-model-button" 
+                      onClick={handleFollowupModelToggle}
                       disabled={isProcessing}
                     >
                       <Bot size={16} />
-                      <span>ai model</span>
-                      <ChevronDown size={14} />
+                      <span>{selectedModel === 'chatgpt-4o' ? 'GPT-4o' : selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}</span>
+                      <ChevronDown size={14} className={isFollowupModelDropdownOpen ? 'rotated' : ''} />
                     </button>
+                    
+                    {isFollowupModelDropdownOpen && (
+                      <div className="followup-ai-model-dropdown-menu">
+                        <button 
+                          className={`followup-ai-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                          onClick={() => handleFollowupModelSelect('chatgpt-4o')}
+                        >
+                          GPT-4o
+                        </button>
+                        <button 
+                          className={`followup-ai-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
+                          onClick={() => handleFollowupModelSelect('gemini-2.5-pro')}
+                        >
+                          Gemini 2.5 Pro
+                        </button>
+                        <button 
+                          className={`followup-ai-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
+                          onClick={() => handleFollowupModelSelect('chatgpt-5')}
+                        >
+                          GPT-5
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button 
-                  className={`send-btn ${chatInput.trim() ? 'analyze-mode' : ''}`}
+                  className={`followup-send-btn ${chatInput.trim() ? 'analyze-mode' : ''}`}
                   disabled={isProcessing || !chatInput.trim()}
                   onClick={handleSendMessage}
                 >
                   {isProcessing ? (
-                    <div className="send-spinner"></div>
+                    <div className="followup-send-spinner"></div>
                   ) : (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="22" y1="2" x2="11" y2="13"></line>

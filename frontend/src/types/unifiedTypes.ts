@@ -74,6 +74,9 @@ export interface UnifiedSession {
   favorite?: boolean;
   rating?: number;
   
+  // Question classification
+  isPastPaper?: boolean;
+  
   // Context
   contextSummary?: string;
   lastSummaryUpdate?: string;

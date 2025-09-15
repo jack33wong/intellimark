@@ -3,7 +3,7 @@
  * Handles message sending, receiving, and state management
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureStringContent } from '../utils/contentUtils';
 import API_CONFIG from '../config/api';
@@ -40,12 +40,12 @@ export const useChat = () => {
     }
   }, []);
 
-  // Auto-scroll when new messages are added
-  useEffect(() => {
+  // Auto-scroll when messages change (works for both new messages AND history loading)
+  useLayoutEffect(() => {
     if (chatMessages.length > 0) {
       scrollToBottom();
     }
-  }, [chatMessages.length, scrollToBottom]);
+  }, [chatMessages, scrollToBottom]); // Depend on full chatMessages array, not just length
 
   // Send message to chat API
   const sendMessage = useCallback(async (message, options = {}) => {
@@ -60,17 +60,16 @@ export const useChat = () => {
 
     if (!message.trim()) return;
 
-    // Add user message immediately for better UX (only for new conversations, not follow-ups)
-    if (!sessionId) {
-      const userMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
-        content: ensureStringContent(message),
-        timestamp: new Date().toISOString()
-      };
+    // Add user message immediately for better UX (optimistic update)
+    const userMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: ensureStringContent(message),
+      timestamp: new Date().toISOString(),
+      imageData: imageData // Include image data if present
+    };
 
-      setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
-    }
+    setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
     setIsProcessing(true);
 
     try {
@@ -120,6 +119,13 @@ export const useChat = () => {
           // Replace all messages with the complete session data from backend
           // The backend returns the full session with all messages (old + new)
           setChatMessages(deduplicateMessages(formattedMessages));
+          
+          // Notify sidebar to refresh when session is created or updated
+          if (data.session?.id) {
+            window.dispatchEvent(new CustomEvent('sessionUpdated', { 
+              detail: { sessionId: data.session.id, type: 'chat' } 
+            }));
+          }
         } else {
           // Fallback to old response format
           const aiResponse = {
@@ -154,7 +160,6 @@ export const useChat = () => {
         messageId: msg.messageId, // Preserve backend messageId
         role: msg.role || 'user',
         content: ensureStringContent(msg.content),
-        rawContent: ensureStringContent(msg.rawContent || msg.content),
         timestamp: msg.timestamp || new Date().toISOString(),
         type: msg.type,
         imageData: msg.imageData, // Legacy support
@@ -162,14 +167,13 @@ export const useChat = () => {
         fileName: msg.fileName,
         detectedQuestion: msg.detectedQuestion,
         metadata: msg.metadata,
-        apiUsed: msg.apiUsed || msg.metadata?.apiUsed,
-        showRaw: false
+        apiUsed: msg.apiUsed || msg.metadata?.apiUsed
       }));
       
       setChatMessages(formattedMessages);
       setCurrentSessionData(sessionData); // Store the full session data
     }
-  }, []);
+  }, []); // No dependencies needed - function only uses its parameters
 
   // Clear chat
   const clearChat = useCallback(() => {

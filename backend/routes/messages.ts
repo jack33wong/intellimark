@@ -34,6 +34,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
 
+
     // Session management
     if (!currentSessionId) {
       if (isAuthenticated) {
@@ -166,6 +167,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
         } catch (error) {
           console.error(`❌ Failed to add messages to session ${currentSessionId}:`, error);
+          // This is a critical error - the session should exist but doesn't
+          throw error; // Re-throw to prevent silent failures
         }
       }
     }
@@ -178,6 +181,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
       try {
         sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
       } catch (error) {
+        console.error(`❌ Failed to load session ${currentSessionId}:`, error);
         sessionData = null;
       }
     }

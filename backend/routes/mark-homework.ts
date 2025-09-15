@@ -193,6 +193,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         userId: userId,
         messageType: result.isQuestionOnly ? 'Question' : 'Marking',
         messages: [userMessage, aiMessage],
+        isPastPaper: result.isPastPaper || false,
         sessionMetadata: {
           totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
           totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,

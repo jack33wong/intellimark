@@ -11,6 +11,7 @@ import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
+import SimpleChatTest from './components/SimpleChatTest';
 import './App.css';
 
 /**
@@ -116,6 +117,9 @@ function AppContent() {
                 </div>
               </ProtectedRoute>
             } />
+
+            {/* Simple Chat Test Route */}
+            <Route path="/chat-test" element={<SimpleChatTest />} />
             
             <Route path="/mark-homework" element={
               <OptionalAuthRoute>

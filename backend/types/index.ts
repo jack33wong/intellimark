@@ -301,6 +301,7 @@ export interface MarkHomeworkResponse {
   questionDetection?: QuestionDetectionResult;
   sessionId?: string;
   sessionTitle?: string;
+  isPastPaper?: boolean;
   metadata?: {
     totalProcessingTimeMs?: number;
     tokens?: number[];

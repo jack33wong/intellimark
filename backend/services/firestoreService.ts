@@ -459,6 +459,7 @@ export class FirestoreService {
     messageType: 'Marking' | 'Question' | 'Chat';
     messages: any[];
     sessionMetadata?: any;
+    isPastPaper?: boolean;
   }): Promise<string> {
     try {
       const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
@@ -523,6 +524,7 @@ export class FirestoreService {
         updatedAt: new Date().toISOString(),
         favorite: false,
         rating: 0,
+        isPastPaper: sessionData.isPastPaper || false,
         sessionMetadata: sessionMetadata || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };

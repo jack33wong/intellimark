@@ -16,6 +16,20 @@ import type {
   QuestionDetectionResult
 } from '../../types/index';
 
+// Common function to generate session titles for non-past-paper images
+function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
+  if (extractedQuestionText && extractedQuestionText.trim()) {
+    const questionText = extractedQuestionText.trim();
+    const truncatedText = questionText.length > 20 
+      ? questionText.substring(0, 20) + '...' 
+      : questionText;
+    return `${mode} ${truncatedText}`;
+  } else {
+    // Fallback when no question text is extracted
+    return `${mode} ${new Date().toLocaleDateString()}`;
+  }
+}
+
 /**
  * Lightweight adapter around existing services to centralize the flow.
  * Mirrors backend/routes/mark-homework.ts behavior.
@@ -201,7 +215,8 @@ export class MarkHomeworkWithAnswer {
 
     // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
-      let sessionTitle = `Question - ${new Date().toLocaleDateString()}`;
+      let sessionTitle = `Question ${new Date().toLocaleDateString()}`;
+      let isPastPaper = false;
       
       // Generate session title based on question detection
       if (questionDetection?.found && (questionDetection as any).match) {
@@ -212,13 +227,11 @@ export class MarkHomeworkWithAnswer {
         const paperCode = match.paperCode || 'Unknown';
         const year = match.year || 'Unknown';
         sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber} (${year})`;
-      } else if (imageClassification.extractedQuestionText) {
-        // For non-exam paper questions, use first 20 characters of question text
-        const questionText = imageClassification.extractedQuestionText.trim();
-        const truncatedText = questionText.length > 20 
-          ? questionText.substring(0, 20) + '...' 
-          : questionText;
-        sessionTitle = `Question: ${truncatedText}`;
+        isPastPaper = true; // This is a recognized past paper question
+      } else {
+        // For non-past-paper questions, use common title generation
+        sessionTitle = generateNonPastPaperTitle(imageClassification.extractedQuestionText, 'Question');
+        isPastPaper = false; // Not a recognized past paper
       }
 
       // Calculate processing time for question-only mode
@@ -252,6 +265,7 @@ export class MarkHomeworkWithAnswer {
         questionDetection,
         sessionId: null, // Will be set by route
         sessionTitle: sessionTitle,
+        isPastPaper: isPastPaper,
         timestamp: new Date().toISOString(),
         metadata: {
           resultId: `question-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -298,7 +312,8 @@ export class MarkHomeworkWithAnswer {
 
     // Step 6: Create session for marking
     let sessionId: string | undefined;
-    let sessionTitle = `Marking - ${new Date().toLocaleDateString()}`;
+    let sessionTitle: string;
+    let isPastPaper = false;
     
     // Generate session title but don't create session yet
     if (questionDetection?.found && (questionDetection as any).match) {
@@ -309,6 +324,11 @@ export class MarkHomeworkWithAnswer {
       const paperCode = examDetails.paperCode || 'Unknown';
       const questionNumber = match.questionNumber || 'Unknown';
       sessionTitle = `${board} ${qualification} ${paperCode} - Q${questionNumber}`;
+      isPastPaper = true; // This is a recognized past paper
+    } else {
+      // For non-past-paper marking, use common title generation
+      sessionTitle = generateNonPastPaperTitle(imageClassification.extractedQuestionText, 'Marking');
+      isPastPaper = false; // Not a recognized past paper
     }
     
     // Session will be created by the route with complete data
@@ -326,7 +346,8 @@ export class MarkHomeworkWithAnswer {
       classification: imageClassification,
       questionDetection,
       sessionId,
-      sessionTitle: sessionTitle
+      sessionTitle: sessionTitle,
+      isPastPaper: isPastPaper
     } as unknown as MarkHomeworkResponse;
 
     return {

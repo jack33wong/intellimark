@@ -78,14 +78,15 @@ const ImageUploadForm = ({
         />
       </div>
 
-      {/* Bottom Chat Input Bar */}
-      <div className="main-upload-input-bar">
+      {/* Main Chat Input Bar */}
+      <div className="main-upload-input-bar main-chat-input-bar">
         <div className="main-upload-input">
           {/* Main Input Area */}
           <div className="input-container">
             <textarea
               placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
               disabled={isProcessing}
+              className="main-chat-input"
             />
           </div>
           
