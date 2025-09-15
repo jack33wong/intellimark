@@ -21,6 +21,7 @@ const FollowUpChatInput = ({
 }) => {
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleUploadClick = useCallback(() => {
     document.getElementById('followup-file-input')?.click();
@@ -32,6 +33,7 @@ const FollowUpChatInput = ({
       // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       setPreviewImage(previewUrl);
+      setIsExpanded(true);
       
       // Call the parent handler
       onUploadClick(file);
@@ -51,8 +53,19 @@ const FollowUpChatInput = ({
     if (previewImage) {
       URL.revokeObjectURL(previewImage);
       setPreviewImage(null);
+      setIsExpanded(false);
     }
   }, [previewImage]);
+
+  const handleSendClick = useCallback(() => {
+    onSendMessage();
+    // Collapse the div after sending
+    setIsExpanded(false);
+    if (previewImage) {
+      URL.revokeObjectURL(previewImage);
+      setPreviewImage(null);
+    }
+  }, [onSendMessage, previewImage]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -69,62 +82,11 @@ const FollowUpChatInput = ({
   }, [isModelDropdownOpen]);
 
   return (
-    <div className="followup-chat-input-bar">
-      <div className={`followup-single-line-container ${previewImage ? 'with-preview' : ''}`}>
-        {/* Upload Button */}
-        <button
-          className="followup-upload-button"
-          onClick={handleUploadClick}
-          disabled={isProcessing}
-          title="Upload image"
-        >
-          <Plus size={16} />
-        </button>
-
-        {/* Model Dropdown */}
-        <div className="followup-model-dropdown">
-          <button
-            className="followup-model-button"
-            onClick={handleModelToggle}
-            disabled={isProcessing}
-          >
-            <Bot size={16} />
-            <span>
-              {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
-               selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
-               selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
-            </span>
-            <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
-          </button>
-
-          {isModelDropdownOpen && (
-            <div className="followup-model-dropdown-menu">
-              <button
-                className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                onClick={() => handleModelSelect('chatgpt-4o')}
-              >
-                GPT-4o
-              </button>
-              <button
-                className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                onClick={() => handleModelSelect('gemini-2.5-pro')}
-              >
-                Gemini 2.5 Pro
-              </button>
-              <button
-                className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                onClick={() => handleModelSelect('chatgpt-5')}
-              >
-                GPT-5
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Text Input */}
-        <div className="followup-text-wrapper">
-          {/* Image Preview */}
-          {previewImage && (
+    <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''}`}>
+      <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''}`}>
+        {/* Image Preview - Above controls when expanded */}
+        {isExpanded && previewImage && (
+          <div className="followup-preview-section">
             <div className="followup-image-preview">
               <img
                 src={previewImage}
@@ -139,23 +101,79 @@ const FollowUpChatInput = ({
                 ×
               </button>
             </div>
-          )}
-          
-          <textarea
-            placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyPress={onKeyPress}
+          </div>
+        )}
+
+        {/* Controls Row */}
+        <div className="followup-controls-row">
+          {/* Upload Button */}
+          <button
+            className="followup-upload-button"
+            onClick={handleUploadClick}
             disabled={isProcessing}
-            className="followup-text-input"
-          />
+            title="Upload image"
+          >
+            <Plus size={16} />
+          </button>
+
+          {/* Model Dropdown */}
+          <div className="followup-model-dropdown">
+            <button
+              className="followup-model-button"
+              onClick={handleModelToggle}
+              disabled={isProcessing}
+            >
+              <Bot size={16} />
+              <span>
+                {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
+                 selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
+                 selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
+              </span>
+              <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+            </button>
+
+            {isModelDropdownOpen && (
+              <div className="followup-model-dropdown-menu">
+                <button
+                  className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                  onClick={() => handleModelSelect('chatgpt-4o')}
+                >
+                  GPT-4o
+                </button>
+                <button
+                  className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
+                  onClick={() => handleModelSelect('gemini-2.5-pro')}
+                >
+                  Gemini 2.5 Pro
+                </button>
+                <button
+                  className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
+                  onClick={() => handleModelSelect('chatgpt-5')}
+                >
+                  GPT-5
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Text Input */}
+          <div className="followup-text-wrapper">
+            <textarea
+              placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyPress={onKeyPress}
+              disabled={isProcessing}
+              className="followup-text-input"
+            />
+          </div>
         </div>
 
         {/* Send Button */}
         <button
           className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
           disabled={isProcessing || (!chatInput.trim() && !previewImage)}
-          onClick={onSendMessage}
+          onClick={handleSendClick}
         >
           {isProcessing ? (
             <div className="followup-send-spinner"></div>

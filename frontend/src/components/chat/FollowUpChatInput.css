@@ -14,6 +14,10 @@
   z-index: 100;
 }
 
+.followup-chat-input-bar.expanded {
+  z-index: 1000;
+}
+
 .followup-single-line-container {
   display: flex;
   align-items: stretch;
@@ -25,10 +29,29 @@
   transition: all 0.2s ease;
 }
 
-.followup-single-line-container.with-preview {
-  align-items: flex-start;
-  padding: 12px;
-  min-height: 80px;
+.followup-single-line-container.expanded {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px;
+  min-height: 180px;
+  margin-top: -80px;
+  z-index: 1000;
+  position: relative;
+}
+
+/* Preview Section - Above controls when expanded */
+.followup-preview-section {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+/* Controls Row - Upload, Model, Text, Send */
+.followup-controls-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .followup-single-line-container:focus-within {
@@ -153,10 +176,7 @@
 
 /* Image Preview */
 .followup-image-preview {
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  z-index: 10;
+  position: relative;
   background: #ffffff;
   border: 2px solid #e5e7eb;
   border-radius: 8px;
