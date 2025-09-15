@@ -175,6 +175,14 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
+ * Require authentication middleware (alias for authenticateUser)
+ * @param req - Express request object
+ * @param res - Express response object
+ * @param next - Express next function
+ */
+export const requireAuth = authenticateUser;
+
+/**
  * Admin-only middleware (temporary)
  * @param req - Express request object
  * @param res - Express response object
