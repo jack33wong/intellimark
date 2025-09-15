@@ -131,7 +131,7 @@
   min-height: 32px;
   min-width: 40px;
   padding: 8px 12px;
-  background: #059669;
+  background: #8b5cf6;
   border: none;
   border-radius: 6px;
   color: #ffffff;
@@ -141,7 +141,7 @@
 }
 
 .followup-send-button:hover:not(:disabled) {
-  background: #047857;
+  background: #7c3aed;
   transform: translateY(-1px);
 }
 
@@ -152,11 +152,11 @@
 }
 
 .followup-send-button.analyze-mode {
-  background: #059669;
+  background: #8b5cf6;
 }
 
 .followup-send-button.analyze-mode:hover:not(:disabled) {
-  background: #047857;
+  background: #7c3aed;
 }
 
 .followup-send-spinner {
