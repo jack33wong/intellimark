@@ -13,14 +13,16 @@ const router = express.Router();
 
 /**
  * POST /messages/chat
- * Unified chat endpoint - handles conversational flow with session management - REQUIRES AUTHENTICATION
+ * Unified chat endpoint - handles conversational flow with session management
+ * Supports both authenticated and anonymous users
  */
-router.post('/chat', requireAuth, async (req, res) => {
+router.post('/chat', optionalAuth, async (req, res) => {
   try {
     const { message, imageData, model = 'chatgpt-4o', sessionId, mode } = req.body;
     
-    // Use authenticated user ID
-    const userId = req.user.uid;
+    // Use authenticated user ID or anonymous
+    const userId = req.user?.uid || 'anonymous';
+    const isAuthenticated = !!req.user?.uid;
     
     // Validate required fields
     if (!message || typeof message !== 'string') {
@@ -36,7 +38,7 @@ router.post('/chat', requireAuth, async (req, res) => {
 
     // Session management - only for authenticated users
     if (!currentSessionId) {
-      // Create a real session in unifiedSessions for authenticated users
+      // Create a real session in unifiedSessions for authenticated users only
       const userMessage = {
         messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'user',
@@ -58,14 +60,21 @@ router.post('/chat', requireAuth, async (req, res) => {
         }
       };
 
-      const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
-        sessionId: newSessionId,
-        title: sessionTitle,
-        userId: userId,
-        messageType: 'Chat',
-        messages: [userMessage]
-      });
+      if (isAuthenticated) {
+        const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+          sessionId: newSessionId,
+          title: sessionTitle,
+          userId: userId,
+          messageType: 'Chat',
+          messages: [userMessage]
+        });
+        console.log(`✅ Created new chat session for authenticated user: ${currentSessionId}`);
+      } else {
+        // For anonymous users, create a temporary session ID but don't save to database
+        currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log(`ℹ️ Anonymous user - created temporary session: ${currentSessionId}`);
+      }
     }
 
     // Generate AI response using real AI service
@@ -126,12 +135,13 @@ router.post('/chat', requireAuth, async (req, res) => {
       }
     };
 
-    // Handle session creation and message storage
-    if (!sessionId) {
-      // Creating new session - add AI message
-      await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
-    } else {
-      // Adding to existing session - always save if session exists
+    // Handle session creation and message storage - only for authenticated users
+    if (isAuthenticated) {
+      if (!sessionId) {
+        // Creating new session - add AI message
+        await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
+      } else {
+        // Adding to existing session - always save if session exists
         const userMessage = {
           messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user' as const,
@@ -161,32 +171,70 @@ router.post('/chat', requireAuth, async (req, res) => {
           // This is a critical error - the session should exist but doesn't
           throw error; // Re-throw to prevent silent failures
         }
+      }
+    } else {
+      console.log('ℹ️ Anonymous user - messages not saved to database');
     }
 
     // Get session data for response
     let sessionData;
     
-    // Try to load existing session if sessionId was provided
-    if (sessionId) {
-      try {
-        sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
-      } catch (error) {
-        console.error(`❌ Failed to load session ${currentSessionId}:`, error);
-        sessionData = null;
+    if (isAuthenticated) {
+      // Try to load existing session if sessionId was provided
+      if (sessionId) {
+        try {
+          sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
+        } catch (error) {
+          console.error(`❌ Failed to load session ${currentSessionId}:`, error);
+          sessionData = null;
+        }
       }
-    }
-    
-    // Load session data for response
-    if (!sessionData) {
-      try {
-        sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
-      } catch (error) {
-        console.error(`❌ Failed to load session ${currentSessionId}:`, error);
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to load session data'
-        });
+      
+      // Load session data for response
+      if (!sessionData) {
+        try {
+          sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
+        } catch (error) {
+          console.error(`❌ Failed to load session ${currentSessionId}:`, error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to load session data'
+          });
+        }
       }
+    } else {
+      // For anonymous users, create session data in memory
+      const userMessage = {
+        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user' as const,
+        content: message,
+        type: 'chat_user' as const,
+        timestamp: new Date().toISOString(),
+        imageLink: imageData || undefined,
+        detectedQuestion: { found: false, message: 'Chat message' },
+        metadata: {
+          resultId: `chat-${Date.now()}`,
+          processingTime: new Date().toISOString(),
+          totalProcessingTimeMs: 0,
+          modelUsed: model,
+          totalAnnotations: 0,
+          imageSize: imageData ? imageData.length : 0,
+          confidence: 0,
+          tokens: [0, 0],
+          ocrMethod: 'Chat'
+        }
+      };
+
+      sessionData = {
+        id: currentSessionId,
+        title: sessionTitle,
+        userId: userId,
+        messageType: 'Chat',
+        messages: [userMessage, aiMessage],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isPastPaper: false
+      };
     }
     
     res.json({
@@ -220,12 +268,13 @@ router.post('/chat', requireAuth, async (req, res) => {
  * POST /messages
  * Create a new message (low-level API) - REQUIRES AUTHENTICATION
  */
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', optionalAuth, async (req, res) => {
   try {
     const messageData = req.body;
     
-    // Use authenticated user ID
-    const userId = req.user.uid;
+    // Use authenticated user ID or anonymous
+    const userId = req.user?.uid || 'anonymous';
+    const isAuthenticated = !!req.user?.uid;
     
     // Validate required fields
     if (!messageData.id || !messageData.sessionId || !messageData.role || !messageData.content) {
@@ -238,19 +287,27 @@ router.post('/', requireAuth, async (req, res) => {
     // For individual message creation, we'll create a single-message session
     const sessionId = messageData.sessionId || `single-msg-${Date.now()}`;
     
-    const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
-      sessionId: sessionId,
-      title: `Single Message - ${new Date().toLocaleDateString()}`,
-      userId: userId,
-      messageType: 'Chat',
-      messages: [messageData]
-    });
+    if (isAuthenticated) {
+      const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
+        sessionId: sessionId,
+        title: `Single Message - ${new Date().toLocaleDateString()}`,
+        userId: userId,
+        messageType: 'Chat',
+        messages: [messageData]
+      });
 
-    return res.json({
-      success: true,
-      sessionId: sessionId_result,
-      message: 'Message saved successfully'
-    });
+      return res.json({
+        success: true,
+        sessionId: sessionId_result,
+        message: 'Message saved successfully'
+      });
+    } else {
+      return res.json({
+        success: true,
+        sessionId: sessionId,
+        message: 'Message processed (not saved - anonymous user)'
+      });
+    }
   } catch (error) {
     console.error('Failed to save message:', error);
     return res.status(500).json({
@@ -264,7 +321,7 @@ router.post('/', requireAuth, async (req, res) => {
  * GET /messages/session/:sessionId
  * Get UnifiedSession with all messages (parent-child structure) - REQUIRES AUTHENTICATION
  */
-router.get('/session/:sessionId', requireAuth, async (req, res) => {
+router.get('/session/:sessionId', optionalAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
 
@@ -332,7 +389,7 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
  * POST /messages/batch
  * Save multiple messages at once (for session creation) - REQUIRES AUTHENTICATION
  */
-router.post('/batch', requireAuth, async (req, res) => {
+router.post('/batch', optionalAuth, async (req, res) => {
   try {
     const { messages } = req.body;
     
@@ -343,26 +400,36 @@ router.post('/batch', requireAuth, async (req, res) => {
       });
     }
 
-    // Use authenticated user ID
-    const userId = req.user.uid;
+    // Use authenticated user ID or anonymous
+    const userId = req.user?.uid || 'anonymous';
+    const isAuthenticated = !!req.user?.uid;
     
     // Create session with all messages using batch creation
     const sessionId = messages[0]?.sessionId || `batch-session-${Date.now()}`;
     
-    const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
-      sessionId: sessionId,
-      title: `Batch Session - ${new Date().toLocaleDateString()}`,
-      userId: userId,
-      messageType: 'Chat',
-      messages: messages
-    });
+    if (isAuthenticated) {
+      const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
+        sessionId: sessionId,
+        title: `Batch Session - ${new Date().toLocaleDateString()}`,
+        userId: userId,
+        messageType: 'Chat',
+        messages: messages
+      });
 
-    return res.json({
-      success: true,
-      sessionId: sessionId_result,
-      count: messages.length,
-      savedSessionId: sessionId_result
-    });
+      return res.json({
+        success: true,
+        sessionId: sessionId_result,
+        count: messages.length,
+        savedSessionId: sessionId_result
+      });
+    } else {
+      return res.json({
+        success: true,
+        sessionId: sessionId,
+        count: messages.length,
+        message: 'Messages processed (not saved - anonymous user)'
+      });
+    }
   } catch (error) {
     console.error('Failed to save message batch:', error);
     return res.status(500).json({
