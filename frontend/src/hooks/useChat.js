@@ -43,20 +43,26 @@ export const useChat = () => {
 
     if (!message.trim()) return;
 
-    // Add user message immediately for better UX (optimistic update)
-    const userMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'user',
-      content: ensureStringContent(message),
-      timestamp: new Date().toISOString(),
-      imageData: imageData // Include image data if present
-    };
-
-    setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
     setIsProcessing(true);
 
     try {
       const authToken = await getAuthToken();
+      
+      // For authenticated users, add user message optimistically for better UX
+      // For anonymous users, wait for backend response to avoid duplication
+      const isAuthenticated = !!authToken;
+      
+      if (isAuthenticated) {
+        const userMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'user',
+          content: ensureStringContent(message),
+          timestamp: new Date().toISOString(),
+          imageData: imageData // Include image data if present
+        };
+
+        setChatMessages(prev => deduplicateMessages([...prev, userMessage]));
+      }
       
       const data = await ApiClient.post('/api/messages/chat', {
         message: message.trim(),
