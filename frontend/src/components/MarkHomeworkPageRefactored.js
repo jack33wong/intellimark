@@ -380,7 +380,8 @@ const MarkHomeworkPageRefactored = ({
         // Response 1: Original image from database
         const dbUserMessage = {
           ...result.userMessage,
-          imageData: imageData // Keep our imageData for immediate display
+          // Use imageLink from database, not imageData from memory
+          imageData: undefined // Remove imageData, use imageLink only
         };
         
         // Replace our temporary message with the database version
@@ -613,7 +614,7 @@ const MarkHomeworkPageRefactored = ({
                           {(message.imageLink || message.imageData) && (
                             <div className="message-image">
                               <img 
-                                src={message.imageData || getImageSrc(message.imageLink)}
+                                src={message.imageLink || message.imageData}
                                 alt="Uploaded"
                                 className="content-image"
                                 onLoad={handleImageLoad}
