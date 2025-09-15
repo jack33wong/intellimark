@@ -18,7 +18,7 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, mode } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, mode, previousMessages } = req.body;
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -203,7 +203,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
       }
     } else {
-      // For anonymous users, create session data in memory
+      // For anonymous users, maintain conversation history in memory using sessionId
       const userMessage = {
         messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'user' as const,
@@ -225,12 +225,29 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
       };
 
+      // Use previous messages from frontend to maintain conversation history
+      let existingMessages = [];
+      if (previousMessages && Array.isArray(previousMessages)) {
+        // Convert frontend messages to backend format
+        existingMessages = previousMessages.map(msg => ({
+          messageId: msg.messageId || msg.id,
+          role: msg.role,
+          content: msg.content,
+          type: msg.type || 'chat_user',
+          timestamp: msg.timestamp,
+          imageLink: msg.imageLink || msg.imageData,
+          detectedQuestion: msg.detectedQuestion,
+          metadata: msg.metadata
+        }));
+        console.log(`ℹ️ Anonymous user - maintaining ${existingMessages.length} previous messages`);
+      }
+      
       sessionData = {
         id: currentSessionId,
         title: sessionTitle,
         userId: userId,
         messageType: 'Chat',
-        messages: [userMessage, aiMessage],
+        messages: [...existingMessages, userMessage, aiMessage],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isPastPaper: false

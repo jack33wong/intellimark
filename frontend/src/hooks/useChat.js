@@ -9,6 +9,11 @@ import { ensureStringContent } from '../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 import { useAutoScroll } from './useAutoScroll';
 import ApiClient from '../services/apiClient';
+import { 
+  appendFollowUpMessages, 
+  replaceWithCompleteSession, 
+  parseResponse 
+} from '../utils/messageUtils';
 
 export const useChat = () => {
   const { getAuthToken } = useAuth();
@@ -22,17 +27,7 @@ export const useChat = () => {
   // Auto-scroll functionality
   const { containerRef: chatContainerRef, scrollToBottom, handleImageLoad } = useAutoScroll(chatMessages);
   
-  // Helper function to deduplicate messages by ID
-  const deduplicateMessages = useCallback((messages) => {
-    const seen = new Set();
-    return messages.filter(message => {
-      if (seen.has(message.id)) {
-        return false;
-      }
-      seen.add(message.id);
-      return true;
-    });
-  }, []);
+  // Helper function to deduplicate messages by ID (moved to messageUtils)
 
   // Send message to chat API
   const sendMessage = useCallback(async (message, options = {}) => {
@@ -73,46 +68,36 @@ export const useChat = () => {
       }, authToken);
 
       if (data.success) {
-        // Session ID and title will be handled by useSession hook
+        // Parse response to determine type and handle accordingly
+        const responseData = parseResponse(data);
         
-        // Handle unified session response
-        const sessionMessages = data.session?.unifiedMessages || data.session?.messages || [];
-        if (data.session && sessionMessages.length > 0) {
-          // Convert unified messages to chat format
-          const formattedMessages = sessionMessages.map(msg => ({
-            id: msg.messageId || msg.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            role: msg.role,
-            content: ensureStringContent(msg.content),
-            timestamp: msg.timestamp,
-            type: msg.type,
-            detectedQuestion: msg.detectedQuestion,
-            metadata: msg.metadata,
-            apiUsed: msg.metadata?.apiUsed || data.apiUsed,
-            imageLink: msg.imageLink // Include image link for display
-          }));
-          
-          // Replace all messages with the complete session data from backend
-          // The backend returns the full session with all messages (old + new)
-          setChatMessages(deduplicateMessages(formattedMessages));
-          
-          // Notify sidebar to refresh when session is created or updated
-          if (data.session?.id) {
-            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-              sessionId: data.session.id, 
-              type: 'chat' 
-            });
-          }
-        } else {
-          // Fallback to old response format
-          const aiResponse = {
-            id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            role: 'assistant',
-            content: ensureStringContent(data.response),
-            timestamp: new Date().toISOString(),
-            apiUsed: data.apiUsed
-          };
-          
-          setChatMessages(prev => deduplicateMessages([...prev, aiResponse]));
+        switch (responseData.type) {
+          case 'complete_session':
+            // First time load or history click - replace all messages
+            setChatMessages(replaceWithCompleteSession(responseData.messages, data.apiUsed));
+            break;
+            
+          case 'follow_up':
+            // Follow-up question - append new messages to existing
+            setChatMessages(prev => appendFollowUpMessages(prev, responseData.messages));
+            break;
+            
+          case 'single_response':
+            // Fallback to old format - append single AI response
+            setChatMessages(prev => appendFollowUpMessages(prev, responseData.messages));
+            break;
+            
+          default:
+            console.warn('Unknown response type:', responseData.type);
+            break;
+        }
+        
+        // Notify sidebar to refresh when session is created or updated
+        if (responseData.session?.id) {
+          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+            sessionId: responseData.session.id, 
+            type: 'chat' 
+          });
         }
         
         scrollToBottom();
