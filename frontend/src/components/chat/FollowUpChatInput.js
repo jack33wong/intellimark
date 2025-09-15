@@ -153,8 +153,8 @@ const FollowUpChatInput = ({
 
         {/* Send Button */}
         <button
-          className={`followup-send-button ${chatInput.trim() ? 'analyze-mode' : ''}`}
-          disabled={isProcessing || !chatInput.trim()}
+          className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
+          disabled={isProcessing || (!chatInput.trim() && !previewImage)}
           onClick={onSendMessage}
         >
           {isProcessing ? (
