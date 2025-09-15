@@ -5,7 +5,7 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { requireAuth } from '../middleware/auth';
+import { optionalAuth } from '../middleware/auth';
 import admin from 'firebase-admin';
 import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer';
 
@@ -46,14 +46,15 @@ const router = express.Router();
  * POST /mark-homework
  * Returns full session data with all messages and metadata
  */
-router.post('/', requireAuth, async (req: Request, res: Response) => {
+router.post('/', optionalAuth, async (req: Request, res: Response) => {
   const { imageData, model = 'chatgpt-4o' } = req.body;
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
 
   try {
-    const userId = (req as any).user.uid;
+    const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+    const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Delegate to orchestrator (see docs/markanswer.md)
     const result = await MarkHomeworkWithAnswer.run({
@@ -179,37 +180,40 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       }
     };
 
-    // Create UnifiedSession with Messages (parent-child structure)
+    // Create UnifiedSession with Messages (parent-child structure) - only for authenticated users
     let finalSessionId = sessionId;
     let sessionSaved = false;
     
-    try {
-      const { FirestoreService } = await import('../services/firestoreService');
-      
-      // Create complete session with messages using parent-child structure
-      finalSessionId = await FirestoreService.createUnifiedSessionWithMessages({
-        sessionId: finalSessionId,
-        title: sessionTitle,
-        userId: userId,
-        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-        messages: [userMessage, aiMessage],
-        isPastPaper: result.isPastPaper || false,
-        sessionMetadata: {
-          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-          averageConfidence: result.metadata?.confidence || 0,
-          lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-          lastModelUsed: model,
-          totalMessages: 2
-        }
-      });
-      
-      sessionSaved = true;
-      console.log(`✅ UnifiedSession ${finalSessionId} created with ${result.isQuestionOnly ? 'Question' : 'Marking'} messages`);
-    } catch (firestoreError) {
-      console.error('⚠️ Failed to save UnifiedSession to Firestore:', firestoreError);
-      // Fallback: Create temporary session ID for anonymous users
-      finalSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    if (isAuthenticated) {
+      try {
+        const { FirestoreService } = await import('../services/firestoreService');
+        
+        // Create complete session with messages using parent-child structure
+        finalSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+          sessionId: finalSessionId,
+          title: sessionTitle,
+          userId: userId,
+          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+          messages: [userMessage, aiMessage],
+          isPastPaper: result.isPastPaper || false,
+          sessionMetadata: {
+            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+            totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+            averageConfidence: result.metadata?.confidence || 0,
+            lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+            lastModelUsed: model,
+            totalMessages: 2
+          }
+        });
+        
+        sessionSaved = true;
+        console.log(`✅ UnifiedSession ${finalSessionId} created with ${result.isQuestionOnly ? 'Question' : 'Marking'} messages`);
+      } catch (error) {
+        console.error('❌ Failed to create UnifiedSession:', error);
+        // Continue with response even if session creation fails
+      }
+    } else {
+      console.log('ℹ️ Anonymous user - session not saved to database');
     }
 
     // Get the properly formatted session from our UnifiedSession API
