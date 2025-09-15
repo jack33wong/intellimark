@@ -353,10 +353,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
               <div className="placeholder-item">
                 <BookOpen size={16} />
                 <span>
-                  {!user?.uid 
-                    ? "Login to save chat history" 
-                    : `No ${activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet`
-                  }
+                  {`No ${activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet`}
                 </span>
               </div>
             </div>
@@ -413,37 +410,22 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
               ))}
             </div>
           )}
-          
-          {/* Show login prompt for anonymous users */}
-          {!user?.uid && (
-            <div className="mark-history-login-prompt">
-              <div className="placeholder-item">
-                <BookOpen size={16} />
-                <span>Login to save sessions permanently</span>
-                <button 
-                  className="login-prompt-btn"
-                  onClick={() => navigate('/login')}
-                >
-                  Login
-                </button>
-              </div>
-            </div>
-          )}
           </div>
         </div>
       </div>
 
       {user?.uid && (
         <div className="admin-section">
-        <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
-          <Code size={16} />
-          Markdown Demo
+          <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
+            <Code size={16} />
+            Markdown Demo
+          </div>
+          <div className="admin-link" onClick={() => navigate('/admin')}>
+            <Settings size={16} />
+            Admin
+          </div>
         </div>
-        <div className="admin-link" onClick={() => navigate('/admin')}>
-          <Settings size={16} />
-          Admin
-        </div>
-      </div>
+      )}
     </div>
   );
 }
