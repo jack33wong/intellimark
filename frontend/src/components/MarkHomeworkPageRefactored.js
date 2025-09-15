@@ -257,14 +257,16 @@ const MarkHomeworkPageRefactored = ({
             
             // Merge backend messages with our temporary user message (preserve imageData)
             const backendMessages = result.session.messages;
+            // Store the imageData from our temporary user message before it gets lost
+            const tempUserMessage = chatMessages.find(m => m.role === 'user' && m.imageData);
+            const preservedImageData = tempUserMessage?.imageData;
+            
             const mergedMessages = backendMessages.map((msg, index) => {
               if (msg.role === 'user' && index === 0) {
                 // For the first user message, preserve our imageData from memory
-                const currentMessages = chatMessages;
-                const tempUserMessage = currentMessages.find(m => m.role === 'user' && m.imageData);
                 return {
                   ...msg,
-                  imageData: tempUserMessage?.imageData || msg.imageData, // Preserve imageData from memory
+                  imageData: preservedImageData || msg.imageData, // Preserve imageData from memory
                   imageLink: msg.imageLink // Keep imageLink for any images
                 };
               }
@@ -305,14 +307,16 @@ const MarkHomeworkPageRefactored = ({
             
             // Merge backend messages with our temporary user message (preserve imageData)
             const backendMessages = result.session.messages;
+            // Store the imageData from our temporary user message before it gets lost
+            const tempUserMessage = chatMessages.find(m => m.role === 'user' && m.imageData);
+            const preservedImageData = tempUserMessage?.imageData;
+            
             const mergedMessages = backendMessages.map((msg, index) => {
               if (msg.role === 'user' && index === 0) {
                 // For the first user message, preserve our imageData from memory
-                const currentMessages = chatMessages;
-                const tempUserMessage = currentMessages.find(m => m.role === 'user' && m.imageData);
                 return {
                   ...msg,
-                  imageData: tempUserMessage?.imageData || msg.imageData, // Preserve imageData from memory
+                  imageData: preservedImageData || msg.imageData, // Preserve imageData from memory
                   imageLink: msg.imageLink // Keep imageLink for annotated images
                 };
               }
