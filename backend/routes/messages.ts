@@ -161,7 +161,6 @@ router.post('/chat', requireAuth, async (req, res) => {
           // This is a critical error - the session should exist but doesn't
           throw error; // Re-throw to prevent silent failures
         }
-      }
     }
 
     // Get session data for response
