@@ -52,6 +52,7 @@
   display: flex;
   align-items: stretch;
   gap: 12px;
+  width: 100%;
 }
 
 .followup-single-line-container:focus-within {
@@ -162,6 +163,7 @@
   align-items: center;
   min-height: 32px;
   position: relative;
+  width: 100%;
 }
 
 .followup-single-line-container.with-preview .followup-text-wrapper {
@@ -232,6 +234,7 @@
   resize: none;
   box-sizing: border-box;
   font-family: inherit;
+  flex: 1;
 }
 
 .followup-text-input::placeholder {
