@@ -132,56 +132,80 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // Create AI response message
-    const aiMessage = {
-      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'assistant',
-      content: result.message || 'Question marked successfully with burned annotations',
-      timestamp: new Date().toISOString(),
-      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
-      model: model,
-      apiUsed: result.apiUsed || 'Complete AI Marking System',
-      // Add imageLink for annotated images (uploaded to Firebase Storage)
-      imageLink: annotatedImageLink,
-      detectedQuestion: result.questionDetection?.found ? {
-        found: true,
-        questionText: result.classification?.extractedQuestionText || '',
-        message: result.questionDetection?.message || 'Question detected'
-      } : {
-        found: false,
-        message: result.questionDetection?.message || 'No question detected'
-      },
-      metadata: {
-        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        tokens: result.metadata?.tokens || [0, 0],
-        confidence: result.metadata?.confidence || 0,
-        totalAnnotations: result.metadata?.totalAnnotations || 0,
-        imageSize: result.metadata?.imageSize || 0,
-        ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
-        classificationResult: result.classification ? sanitizeForFirestore(result.classification) : null
-      }
-    };
+    // For authenticated users, only create user message (AI message will be created in /process endpoint)
+    let session;
+    if (isAuthenticated) {
+      // Create session with only user message for authenticated users
+      session = {
+        id: sessionId,
+        title: sessionTitle,
+        messages: [userMessage], // Only user message
+        userId: userId,
+        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0,
+        sessionMetadata: {
+          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+          averageConfidence: result.metadata?.confidence || 0,
+          lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+          lastModelUsed: model,
+          totalMessages: 1 // Only user message
+        }
+      };
+    } else {
+      // For unauthenticated users, create complete session with both messages (legacy behavior)
+      const aiMessage = {
+        id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'assistant',
+        content: result.message || 'Question marked successfully with burned annotations',
+        timestamp: new Date().toISOString(),
+        type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
+        model: model,
+        apiUsed: result.apiUsed || 'Complete AI Marking System',
+        // Add imageLink for annotated images (uploaded to Firebase Storage)
+        imageLink: annotatedImageLink,
+        detectedQuestion: result.questionDetection?.found ? {
+          found: true,
+          questionText: result.classification?.extractedQuestionText || '',
+          message: result.questionDetection?.message || 'Question detected'
+        } : {
+          found: false,
+          message: result.questionDetection?.message || 'No question detected'
+        },
+        metadata: {
+          processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          tokens: result.metadata?.tokens || [0, 0],
+          confidence: result.metadata?.confidence || 0,
+          totalAnnotations: result.metadata?.totalAnnotations || 0,
+          imageSize: result.metadata?.imageSize || 0,
+          ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
+          classificationResult: result.classification ? sanitizeForFirestore(result.classification) : null
+        }
+      };
 
-    // Create full session
-    const session = {
-      id: sessionId,
-      title: sessionTitle,
-      messages: [userMessage, aiMessage],
-      userId: userId,
-      messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      favorite: false,
-      rating: 0,
-      sessionMetadata: {
-        totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-        averageConfidence: result.metadata?.confidence || 0,
-        lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-        lastModelUsed: model,
-        totalMessages: 2
-      }
-    };
+      session = {
+        id: sessionId,
+        title: sessionTitle,
+        messages: [userMessage, aiMessage], // Both messages for unauthenticated users
+        userId: userId,
+        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0,
+        sessionMetadata: {
+          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+          averageConfidence: result.metadata?.confidence || 0,
+          lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+          lastModelUsed: model,
+          totalMessages: 2
+        }
+      };
+    }
 
     // Create UnifiedSession with Messages (parent-child structure) - only for authenticated users
     let finalSessionId = sessionId;
