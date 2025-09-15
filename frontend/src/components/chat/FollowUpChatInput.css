@@ -60,13 +60,13 @@
 }
 
 /* Upload Button */
-.followup-upload-button {
+.followup-chat-input-bar .followup-upload-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  min-width: 32px;
-  padding: 8px;
+  height: 32px;
+  width: 32px;
+  padding: 0;
   background: #6b7280;
   border: none;
   border-radius: 50%;
@@ -74,14 +74,15 @@
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.followup-upload-button:hover:not(:disabled) {
+.followup-chat-input-bar .followup-upload-button:hover:not(:disabled) {
   background: #4b5563;
   color: #ffffff;
 }
 
-.followup-upload-button:disabled {
+.followup-chat-input-bar .followup-upload-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -251,13 +252,13 @@
 }
 
 /* Send Button */
-.followup-send-button {
+.followup-chat-input-bar .followup-send-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  min-width: 32px;
-  padding: 8px;
+  height: 32px;
+  width: 32px;
+  padding: 0;
   background: #8b5cf6;
   border: none;
   border-radius: 50%;
@@ -265,24 +266,25 @@
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.followup-send-button:hover:not(:disabled) {
+.followup-chat-input-bar .followup-send-button:hover:not(:disabled) {
   background: #7c3aed;
   transform: translateY(-1px);
 }
 
-.followup-send-button:disabled {
+.followup-chat-input-bar .followup-send-button:disabled {
   background: #d1d5db;
   cursor: not-allowed;
   transform: none;
 }
 
-.followup-send-button.analyze-mode {
+.followup-chat-input-bar .followup-send-button.analyze-mode {
   background: #8b5cf6;
 }
 
-.followup-send-button.analyze-mode:hover:not(:disabled) {
+.followup-chat-input-bar .followup-send-button.analyze-mode:hover:not(:disabled) {
   background: #7c3aed;
 }
 

@@ -113,7 +113,7 @@ const FollowUpChatInput = ({
             disabled={isProcessing}
             title="Upload image"
           >
-            <Plus size={16} />
+            <Plus size={14} />
           </button>
 
           {/* Model Dropdown */}
@@ -167,23 +167,23 @@ const FollowUpChatInput = ({
               className="followup-text-input"
             />
           </div>
-        </div>
 
-        {/* Send Button */}
-        <button
-          className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
-          disabled={isProcessing || (!chatInput.trim() && !previewImage)}
-          onClick={handleSendClick}
-        >
+          {/* Send Button */}
+          <button
+            className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
+            disabled={isProcessing || (!chatInput.trim() && !previewImage)}
+            onClick={handleSendClick}
+          >
           {isProcessing ? (
             <div className="followup-send-spinner"></div>
           ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
             </svg>
           )}
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Hidden file input */}
