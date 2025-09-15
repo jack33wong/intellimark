@@ -38,6 +38,14 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
   // Function to refresh chat sessions with debouncing
   const refreshChatSessions = useCallback(async () => {
+    // Only load sessions for authenticated users
+    if (!user?.uid) {
+      setChatSessions([]);
+      setSessionsError(null);
+      setIsLoadingSessions(false);
+      return;
+    }
+
     const now = Date.now();
     const timeSinceLastFetch = now - lastFetchTime;
     
@@ -53,8 +61,8 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       // Get authentication token
       const authToken = await getAuthToken();
       
-      // Load sessions for all users (authenticated and anonymous)
-      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user?.uid || 'anonymous', 20, authToken);
+      // Load sessions only for authenticated users
+      const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 20, authToken);
       
       if (response.success) {
         const sessions = response.sessions || [];
@@ -71,11 +79,10 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch chat sessions for both authenticated and anonymous users
+  // Fetch chat sessions for authenticated users only
   useEffect(() => {
-    // Fetch sessions for both authenticated users and anonymous users
     refreshChatSessions();
-  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.uid, refreshChatSessions]);
 
   // Expose refresh function to parent component
   useEffect(() => {
@@ -346,7 +353,10 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
               <div className="placeholder-item">
                 <BookOpen size={16} />
                 <span>
-                  {`No ${activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet`}
+                  {!user?.uid 
+                    ? "Login to save chat history" 
+                    : `No ${activeTab === 'all' ? '' : activeTab === 'favorite' ? 'favorite ' : activeTab + ' '}sessions yet`
+                  }
                 </span>
               </div>
             </div>
@@ -384,28 +394,47 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                     </div>
                     
                     {/* Delete Button */}
-                    <button
-                      className="mark-history-delete-btn"
-                      onClick={(e) => handleDeleteSession(session.id, e)}
-                      disabled={deletingSessionId === session.id}
-                      title="Delete session"
-                    >
-                      {deletingSessionId === session.id ? (
-                        <Clock size={16} />
-                      ) : (
-                        <Trash2 size={16} />
-                      )}
-                    </button>
+                    {user?.uid && (
+                      <button
+                        className="mark-history-delete-btn"
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        disabled={deletingSessionId === session.id}
+                        title="Delete session"
+                      >
+                        {deletingSessionId === session.id ? (
+                          <Clock size={16} />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+          
+          {/* Show login prompt for anonymous users */}
+          {!user?.uid && (
+            <div className="mark-history-login-prompt">
+              <div className="placeholder-item">
+                <BookOpen size={16} />
+                <span>Login to save sessions permanently</span>
+                <button 
+                  className="login-prompt-btn"
+                  onClick={() => navigate('/login')}
+                >
+                  Login
+                </button>
+              </div>
             </div>
           )}
           </div>
         </div>
       </div>
 
-      <div className="admin-section">
+      {user?.uid && (
+        <div className="admin-section">
         <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
           <Code size={16} />
           Markdown Demo

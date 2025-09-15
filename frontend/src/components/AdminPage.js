@@ -1088,7 +1088,7 @@ function AdminPage() {
                   <div className="query-description">
                     <p><strong>Warning:</strong> This action will permanently delete all chat sessions and conversation history from the database. This includes:</p>
                     <ul>
-                      <li>All user chat sessions (authenticated and anonymous)</li>
+                      <li>All user chat sessions</li>
                       <li>All conversation messages and AI responses</li>
                       <li>All uploaded images and annotations</li>
                       <li>All session metadata and timestamps</li>

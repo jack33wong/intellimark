@@ -13,7 +13,10 @@ export class FirestoreService {
    */
   static async getChatSessions(userId) {
     try {
-      const data = await ApiClient.get(`/chat/sessions/${userId || 'anonymous'}`);
+      if (!userId) {
+        return []; // No sessions for unauthenticated users
+      }
+      const data = await ApiClient.get(`/chat/sessions/${userId}`);
       return data.success ? data.sessions : [];
     } catch (error) {
       console.error('Failed to get chat sessions:', error);

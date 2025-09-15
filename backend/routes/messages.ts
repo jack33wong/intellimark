@@ -5,7 +5,7 @@
 
 import express from 'express';
 import { FirestoreService } from '../services/firestoreService';
-import { optionalAuth } from '../middleware/auth';
+import { optionalAuth, requireAuth } from '../middleware/auth';
 import { AIMarkingService } from '../services/aiMarkingService';
 import type { UnifiedMessage } from '../types';
 
@@ -13,15 +13,14 @@ const router = express.Router();
 
 /**
  * POST /messages/chat
- * Unified chat endpoint - handles conversational flow with session management
+ * Unified chat endpoint - handles conversational flow with session management - REQUIRES AUTHENTICATION
  */
-router.post('/chat', optionalAuth, async (req, res) => {
+router.post('/chat', requireAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, userId: requestUserId, mode } = req.body;
+    const { message, imageData, model = 'chatgpt-4o', sessionId, mode } = req.body;
     
-    // Use authenticated user ID if available, otherwise use provided userId or anonymous
-    const userId = req.user?.uid || requestUserId || 'anonymous';
-    const isAuthenticated = !!req.user?.uid;
+    // Use authenticated user ID
+    const userId = req.user.uid;
     
     // Validate required fields
     if (!message || typeof message !== 'string') {
@@ -35,43 +34,38 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let sessionTitle = 'Chat Session';
 
 
-    // Session management
+    // Session management - only for authenticated users
     if (!currentSessionId) {
-      if (isAuthenticated) {
-        // For authenticated users, create a real session in unifiedSessions
-        const userMessage = {
-          messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
-          content: message,
-          type: 'chat_user',
-          timestamp: new Date().toISOString(),
-          imageLink: imageData || undefined,
-          detectedQuestion: { found: false, message: 'Chat message' },
-          metadata: {
-            resultId: `chat-${Date.now()}`,
-            processingTime: new Date().toISOString(),
-            totalProcessingTimeMs: 0,
-            modelUsed: model,
-            totalAnnotations: 0,
-            imageSize: 0,
-            confidence: 0,
-            tokens: [0, 0],
-            ocrMethod: 'Chat'
-          }
-        };
+      // Create a real session in unifiedSessions for authenticated users
+      const userMessage = {
+        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'user',
+        content: message,
+        type: 'chat_user',
+        timestamp: new Date().toISOString(),
+        imageLink: imageData || undefined,
+        detectedQuestion: { found: false, message: 'Chat message' },
+        metadata: {
+          resultId: `chat-${Date.now()}`,
+          processingTime: new Date().toISOString(),
+          totalProcessingTimeMs: 0,
+          modelUsed: model,
+          totalAnnotations: 0,
+          imageSize: 0,
+          confidence: 0,
+          tokens: [0, 0],
+          ocrMethod: 'Chat'
+        }
+      };
 
-        const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: newSessionId,
-          title: sessionTitle,
-          userId: userId,
-          messageType: 'Chat',
-          messages: [userMessage]
-        });
-      } else {
-        // For unauthenticated users, create temporary session ID (not saved to database)
-        currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      }
+      const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+        sessionId: newSessionId,
+        title: sessionTitle,
+        userId: userId,
+        messageType: 'Chat',
+        messages: [userMessage]
+      });
     }
 
     // Generate AI response using real AI service
@@ -88,7 +82,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // For text-only messages, use contextual response
         // First get existing session messages for context
         let chatHistory: any[] = [];
-        if (isAuthenticated && currentSessionId && !currentSessionId.startsWith('temp-')) {
+        if (currentSessionId) {
           try {
             const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
             if (existingSession?.messages) {
@@ -133,14 +127,11 @@ router.post('/chat', optionalAuth, async (req, res) => {
     };
 
     // Handle session creation and message storage
-    if (!currentSessionId.startsWith('temp-')) {
-      if (!sessionId) {
-        // Creating new session - only save if authenticated
-        if (isAuthenticated) {
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
-        }
-      } else {
-        // Adding to existing session - always save if session exists, regardless of auth
+    if (!sessionId) {
+      // Creating new session - add AI message
+      await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
+    } else {
+      // Adding to existing session - always save if session exists
         const userMessage = {
           messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user' as const,
@@ -176,8 +167,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Get session data for response
     let sessionData;
     
-    // Try to load existing session if sessionId was provided and it's not a temp session
-    if (sessionId && !currentSessionId.startsWith('temp-')) {
+    // Try to load existing session if sessionId was provided
+    if (sessionId) {
       try {
         sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
       } catch (error) {
@@ -186,35 +177,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
       }
     }
     
-    // Fallback to temporary session data if no existing session loaded
+    // Load session data for response
     if (!sessionData) {
-      // For temporary sessions, create minimal session data with messages
-      const tempUserMessage = {
-        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
-        content: message,
-        type: 'chat_user',
-        timestamp: new Date().toISOString(),
-        imageLink: imageData || undefined
-      };
-
-      // For temporary sessions, we can only return the current exchange
-      // (In a production system, you might want to implement session caching)
-      sessionData = {
-        id: currentSessionId,
-        title: sessionTitle,
-        messages: [tempUserMessage, aiMessage],
-        userId: userId,
-        messageType: 'Chat',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        sessionMetadata: {
-          totalMessages: 2, // Only current exchange for temp sessions
-          hasImage: !!imageData,
-          lastApiUsed: apiUsed,
-          lastModelUsed: model
-        }
-      };
+      try {
+        sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
+      } catch (error) {
+        console.error(`❌ Failed to load session ${currentSessionId}:`, error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to load session data'
+        });
+      }
     }
     
     res.json({
@@ -246,14 +219,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
 /**
  * POST /messages
- * Create a new message (low-level API)
+ * Create a new message (low-level API) - REQUIRES AUTHENTICATION
  */
-router.post('/', optionalAuth, async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const messageData = req.body;
     
-    // Use authenticated user ID if available
-    const userId = req.user?.uid || messageData.userId || 'anonymous';
+    // Use authenticated user ID
+    const userId = req.user.uid;
     
     // Validate required fields
     if (!messageData.id || !messageData.sessionId || !messageData.role || !messageData.content) {
@@ -290,9 +263,9 @@ router.post('/', optionalAuth, async (req, res) => {
 
 /**
  * GET /messages/session/:sessionId
- * Get UnifiedSession with all messages (parent-child structure)
+ * Get UnifiedSession with all messages (parent-child structure) - REQUIRES AUTHENTICATION
  */
-router.get('/session/:sessionId', optionalAuth, async (req, res) => {
+router.get('/session/:sessionId', requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
 
@@ -324,15 +297,15 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
 
 /**
  * GET /messages/sessions/:userId
- * Get user's UnifiedSessions (lightweight list)
+ * Get user's UnifiedSessions (lightweight list) - REQUIRES AUTHENTICATION
  */
-router.get('/sessions/:userId', optionalAuth, async (req, res) => {
+router.get('/sessions/:userId', requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;
 
-    // Only return sessions for authenticated users or if they match the requested userId
-    if (req.user && req.user.uid !== userId) {
+    // Only return sessions for authenticated users who match the requested userId
+    if (req.user.uid !== userId) {
       return res.status(403).json({
         success: false,
         error: 'Access denied - can only access your own sessions'
@@ -358,9 +331,9 @@ router.get('/sessions/:userId', optionalAuth, async (req, res) => {
 
 /**
  * POST /messages/batch
- * Save multiple messages at once (for session creation)
+ * Save multiple messages at once (for session creation) - REQUIRES AUTHENTICATION
  */
-router.post('/batch', optionalAuth, async (req, res) => {
+router.post('/batch', requireAuth, async (req, res) => {
   try {
     const { messages } = req.body;
     
@@ -371,8 +344,8 @@ router.post('/batch', optionalAuth, async (req, res) => {
       });
     }
 
-    // Use authenticated user ID if available
-    const userId = req.user?.uid || messages[0]?.userId || 'anonymous';
+    // Use authenticated user ID
+    const userId = req.user.uid;
     
     // Create session with all messages using batch creation
     const sessionId = messages[0]?.sessionId || `batch-session-${Date.now()}`;
@@ -402,20 +375,12 @@ router.post('/batch', optionalAuth, async (req, res) => {
 
 /**
  * DELETE /messages/session/:sessionId
- * Delete a UnifiedSession (requires authentication)
+ * Delete a UnifiedSession - REQUIRES AUTHENTICATION
  */
-router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
+router.delete('/session/:sessionId', requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    // Check if user is authenticated
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required',
-        message: 'Please log in to delete sessions'
-      });
-    }
 
     // Verify session exists and get ownership info
     const session = await FirestoreService.getUnifiedSession(sessionId);
@@ -454,9 +419,9 @@ router.delete('/session/:sessionId', optionalAuth, async (req, res) => {
 
 /**
  * PUT /messages/session/:sessionId
- * Update session metadata (favorite, rating, title)
+ * Update session metadata (favorite, rating, title) - REQUIRES AUTHENTICATION
  */
-router.put('/session/:sessionId', optionalAuth, async (req, res) => {
+router.put('/session/:sessionId', requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const updates = req.body;

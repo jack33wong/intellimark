@@ -112,7 +112,7 @@ class LocalSessionService implements SessionManagerActions {
         body: JSON.stringify({
           message: 'New chat session',
           model: 'chatgpt-4o',
-          userId: sessionData.userId || 'anonymous',
+          userId: sessionData.userId,
           mode: sessionData.messageType?.toLowerCase() || 'chat'
         })
       });
@@ -208,8 +208,17 @@ class LocalSessionService implements SessionManagerActions {
     this.setState({ isLoading: true, error: null });
 
     try {
-      // Get user ID from current session or use anonymous
-      const userId = this.state.currentSession?.userId || 'anonymous';
+      // Get user ID from current session - require authentication
+      const userId = this.state.currentSession?.userId;
+      
+      if (!userId) {
+        // No authenticated user, clear sessions
+        this.setState({ 
+          sidebarSessions: [],
+          isLoading: false 
+        });
+        return;
+      }
       
       // Use new messages API to get sessions
       const response = await fetch(`/api/messages/sessions/${userId}`, {
@@ -264,7 +273,7 @@ class LocalSessionService implements SessionManagerActions {
       const request: MarkHomeworkRequest = {
         imageData,
         model,
-        userId: this.state.currentSession?.userId || 'anonymous'
+        userId: this.state.currentSession?.userId
       };
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework`, {
@@ -410,7 +419,7 @@ class LocalSessionService implements SessionManagerActions {
         id: sessionId,
         title: 'Empty Session',
         messages: [],
-        userId: 'anonymous',
+        userId: this.state.currentSession?.userId || 'temp',
         messageType: 'Chat',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -436,7 +445,7 @@ class LocalSessionService implements SessionManagerActions {
       id: sessionId,
       title,
       messages: unifiedMessages,
-      userId: firstMessage.userId || 'anonymous',
+      userId: firstMessage.userId,
       messageType,
       createdAt: firstMessage.timestamp || new Date().toISOString(),
       updatedAt: lastMessage.timestamp || new Date().toISOString(),
