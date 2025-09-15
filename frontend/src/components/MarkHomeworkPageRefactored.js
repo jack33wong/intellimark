@@ -205,128 +205,140 @@ const MarkHomeworkPageRefactored = ({
   // EVENT HANDLERS
   // ============================================================================
   
-  // Handle image analysis
-  const handleAnalyzeImage = useCallback(async () => {
-    if (!selectedFile) return;
-    
-    try {
-      // Convert image to base64
-      const imageData = await processImage(selectedFile);
-      
-      // Analyze image
-      const result = await analyzeImage(imageData, selectedModel);
-      
-      // Handle question-only case
-      if (result.isQuestionOnly) {
-        // Question-only sessions are now handled entirely by the mark-homework API
-        // Load messages from the backend response instead of calling chat API
-        if (result.session && result.session.messages) {
-          // Update session data in useSession hook
-          loadSessionData({
-            id: result.session.id,
-            title: result.session.title
-          });
-          
-          // Load messages in useChat hook  
-          loadMessages({
-            id: result.session.id,
-            title: result.session.title,
-            messages: result.session.messages
-          });
-          
-          // Notify sidebar to refresh when new session is created
-          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-            sessionId: result.session.id, 
-            type: 'question' 
-          });
-        }
-        
-        // Switch to chat mode
-        setPageMode('chat');
-      } else {
-        // Marking result - set marking data and switch to chat
-        setMarkingResult({
-          instructions: result.instructions,
-          annotatedImage: result.annotatedImage,
-          classification: result.classification,
-          metadata: result.metadata,
-          apiUsed: result.apiUsed,
-          ocrMethod: result.ocrMethod
-        });
-        
-        // Load messages from backend response (contains proper imageLink)
-        if (result.session && result.session.messages) {
-          // Update session data in useSession hook
-          loadSessionData({
-            id: result.session.id,
-            title: result.session.title
-          });
-          
-          // Load messages in useChat hook
-          loadMessages({
-            id: result.session.id,
-            title: result.session.title,
-            messages: result.session.messages
-          });
-          
-          // Notify sidebar to refresh when new session is created
-          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-            sessionId: result.session.id, 
-            type: 'marking' 
-          });
-        }
-        setPageMode('chat');
-      }
-      
-      // Clear file selection
-      clearFile();
-      
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-    }
-  }, [selectedFile, selectedModel, processImage, analyzeImage, setMarkingResult, loadMessages, clearFile, loadSessionData]);
-
-  // Handle follow-up image analysis (for existing chat sessions)
-  const handleFollowUpImage = useCallback(async (file) => {
+  // Common function to handle image processing and display
+  const processImageWithImmediateDisplay = useCallback(async (file, isFollowUp = false) => {
     if (!file) return;
     
     try {
       // Convert image to base64
       const imageData = await processImage(file);
       
-      // Add user message with image immediately to chat
-      const userMessage = {
-        id: `temp-${Date.now()}`,
-        role: 'user',
-        content: chatInput.trim() || 'Image uploaded',
-        imageData: imageData,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Add user message to chat immediately
-      setChatMessages(prev => [...prev, userMessage]);
-      
-      // Clear input
-      setChatInput('');
+      if (isFollowUp) {
+        // For follow-up: Add user message with image immediately to chat
+        const userMessage = {
+          id: `temp-${Date.now()}`,
+          role: 'user',
+          content: chatInput.trim() || '', // Empty content, just show the image
+          imageData: imageData,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Add user message to chat immediately
+        setChatMessages(prev => [...prev, userMessage]);
+        
+        // Clear input
+        setChatInput('');
+      }
       
       // Send to backend for processing
       const result = await analyzeImage(imageData, selectedModel);
       
-      // Add AI response to chat
-      if (result.session && result.session.messages) {
-        // Find the new AI message (last message in the session)
-        const newMessages = result.session.messages;
-        const aiMessage = newMessages[newMessages.length - 1];
-        
-        if (aiMessage) {
-          setChatMessages(prev => [...prev, aiMessage]);
+      if (isFollowUp) {
+        // For follow-up: Add AI response to existing chat
+        if (result.session && result.session.messages) {
+          // Find the new AI message (last message in the session)
+          const newMessages = result.session.messages;
+          const aiMessage = newMessages[newMessages.length - 1];
+          
+          if (aiMessage) {
+            setChatMessages(prev => [...prev, aiMessage]);
+          }
         }
+      } else {
+        // For main upload: Handle session creation (image already shown, chat mode already switched)
+        if (result.isQuestionOnly) {
+          // Question-only sessions
+          if (result.session && result.session.messages) {
+            // Update session data in useSession hook
+            loadSessionData({
+              id: result.session.id,
+              title: result.session.title
+            });
+            
+            // Load messages in useChat hook  
+            loadMessages({
+              id: result.session.id,
+              title: result.session.title,
+              messages: result.session.messages
+            });
+            
+            // Notify sidebar to refresh when new session is created
+            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+              sessionId: result.session.id, 
+              type: 'question' 
+            });
+          }
+        } else {
+          // Marking result - set marking data
+          setMarkingResult({
+            instructions: result.instructions,
+            annotatedImage: result.annotatedImage,
+            classification: result.classification,
+            metadata: result.metadata,
+            apiUsed: result.apiUsed,
+            ocrMethod: result.ocrMethod
+          });
+          
+          // Load messages from backend response (contains proper imageLink)
+          if (result.session && result.session.messages) {
+            // Update session data in useSession hook
+            loadSessionData({
+              id: result.session.id,
+              title: result.session.title
+            });
+            
+            // Load messages in useChat hook
+            loadMessages({
+              id: result.session.id,
+              title: result.session.title,
+              messages: result.session.messages
+            });
+            
+            // Notify sidebar to refresh when new session is created
+            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+              sessionId: result.session.id, 
+              type: 'marking' 
+            });
+          }
+        }
+        
+        // Clear file selection for main upload
+        clearFile();
       }
       
     } catch (error) {
-      console.error('Error processing follow-up image:', error);
+      console.error('Error processing image:', error);
     }
-  }, [chatInput, selectedModel, processImage, analyzeImage, setChatMessages, setChatInput]);
+  }, [selectedModel, processImage, analyzeImage, setChatMessages, setChatInput, loadSessionData, loadMessages, setMarkingResult, clearFile, chatInput]);
+
+  // Handle main image analysis
+  const handleAnalyzeImage = useCallback(async () => {
+    if (!selectedFile) return;
+    
+    // First, show the image immediately in chat content
+    const imageData = await processImage(selectedFile);
+    const userMessage = {
+      id: `temp-${Date.now()}`,
+      role: 'user',
+      content: '', // Empty content, just show the image
+      imageData: imageData,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add user message to chat immediately
+    setChatMessages(prev => [...prev, userMessage]);
+    
+    // Switch to chat mode immediately to show the image
+    setPageMode('chat');
+    
+    // Then process the image in the background
+    await processImageWithImmediateDisplay(selectedFile, false);
+  }, [selectedFile, processImage, setChatMessages, setPageMode, processImageWithImmediateDisplay]);
+
+  // Handle follow-up image analysis (for existing chat sessions)
+  const handleFollowUpImage = useCallback(async (file) => {
+    await processImageWithImmediateDisplay(file, true);
+  }, [processImageWithImmediateDisplay]);
   
   // Handle sending chat message
   const handleSendMessage = useCallback(async () => {
