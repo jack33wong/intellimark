@@ -331,9 +331,72 @@ const MarkHomeworkPageRefactored = ({
     // Switch to chat mode immediately to show the image
     setPageMode('chat');
     
-    // Then process the image in the background
-    await processImageWithImmediateDisplay(selectedFile, false);
-  }, [selectedFile, processImage, setChatMessages, setPageMode, processImageWithImmediateDisplay]);
+    // Clear file selection immediately after showing image
+    clearFile();
+    
+    // Then process the image in the background (without showing it again)
+    try {
+      const result = await analyzeImage(imageData, selectedModel);
+      
+      if (result.isQuestionOnly) {
+        // Question-only sessions
+        if (result.session && result.session.messages) {
+          // Update session data in useSession hook
+          loadSessionData({
+            id: result.session.id,
+            title: result.session.title
+          });
+          
+          // Load messages in useChat hook  
+          loadMessages({
+            id: result.session.id,
+            title: result.session.title,
+            messages: result.session.messages
+          });
+          
+          // Notify sidebar to refresh when new session is created
+          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+            sessionId: result.session.id, 
+            type: 'question' 
+          });
+        }
+      } else {
+        // Marking result - set marking data
+        setMarkingResult({
+          instructions: result.instructions,
+          annotatedImage: result.annotatedImage,
+          classification: result.classification,
+          metadata: result.metadata,
+          apiUsed: result.apiUsed,
+          ocrMethod: result.ocrMethod
+        });
+        
+        // Load messages from backend response (contains proper imageLink)
+        if (result.session && result.session.messages) {
+          // Update session data in useSession hook
+          loadSessionData({
+            id: result.session.id,
+            title: result.session.title
+          });
+          
+          // Load messages in useChat hook
+          loadMessages({
+            id: result.session.id,
+            title: result.session.title,
+            messages: result.session.messages
+          });
+          
+          // Notify sidebar to refresh when new session is created
+          EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+            sessionId: result.session.id, 
+            type: 'marking' 
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error processing image:', error);
+    }
+  }, [selectedFile, processImage, setChatMessages, setPageMode, clearFile, analyzeImage, selectedModel, loadSessionData, loadMessages, setMarkingResult]);
 
   // Handle follow-up image analysis (for existing chat sessions)
   const handleFollowUpImage = useCallback(async (file) => {
