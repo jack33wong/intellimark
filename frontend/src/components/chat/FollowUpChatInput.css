@@ -39,7 +39,7 @@
   padding: 6px;
   background: #ffffff;
   border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border-radius: 50%;
   color: #6b7280;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -165,11 +165,11 @@
   align-items: center;
   justify-content: center;
   min-height: 32px;
-  min-width: 40px;
-  padding: 8px 12px;
+  min-width: 32px;
+  padding: 8px;
   background: #8b5cf6;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   color: #ffffff;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -225,6 +225,7 @@
     min-height: 28px;
     min-width: 28px;
     padding: 4px;
+    border-radius: 50%;
   }
   
   .followup-model-button {
@@ -240,7 +241,8 @@
   
   .followup-send-button {
     min-height: 28px;
-    min-width: 36px;
-    padding: 6px 10px;
+    min-width: 28px;
+    padding: 6px;
+    border-radius: 50%;
   }
 }
