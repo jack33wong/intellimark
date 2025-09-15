@@ -24,12 +24,29 @@ router.post('/chat', optionalAuth, async (req, res) => {
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
     
-    // Validate required fields
-    if (!message || typeof message !== 'string') {
+    // Validate required fields - allow empty message if imageData is provided
+    if ((!message || typeof message !== 'string') && !imageData) {
       return res.status(400).json({
         success: false,
-        error: 'Message is required'
+        error: 'Message or image data is required'
       });
+    }
+
+    // Upload image to Firebase Storage if imageData is provided
+    let imageLink = null;
+    if (imageData && isAuthenticated) {
+      try {
+        const { ImageStorageService } = await import('../services/imageStorageService');
+        imageLink = await ImageStorageService.uploadImage(
+          imageData,
+          userId,
+          sessionId || `temp-${Date.now()}`,
+          'followup'
+        );
+      } catch (error) {
+        console.error('❌ Failed to upload follow-up image:', error);
+        // Continue without imageLink for unauthenticated users
+      }
     }
 
     let currentSessionId = sessionId;
@@ -41,10 +58,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
       const userMessage = {
         messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         role: 'user',
-        content: message,
+        content: message || (imageData ? 'Image uploaded' : ''),
         type: 'chat_user',
         timestamp: new Date().toISOString(),
-        imageLink: imageData || undefined,
+        imageLink: imageLink || (isAuthenticated ? undefined : imageData),
         detectedQuestion: { found: false, message: 'Chat message' },
         metadata: {
           resultId: `chat-${Date.now()}`,
@@ -144,10 +161,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
         const userMessage = {
           messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user' as const,
-          content: message,
+          content: message || (imageData ? 'Image uploaded' : ''),
           type: 'chat_user' as const,
           timestamp: new Date().toISOString(),
-          imageLink: imageData || undefined,
+          imageLink: imageLink || (isAuthenticated ? undefined : imageData),
           detectedQuestion: { found: false, message: 'Chat message' },
           metadata: {
             resultId: `chat-${Date.now()}`,
@@ -209,7 +226,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         content: message,
         type: 'chat_user' as const,
         timestamp: new Date().toISOString(),
-        imageLink: imageData || undefined,
+        imageLink: imageLink || (isAuthenticated ? undefined : imageData),
         detectedQuestion: { found: false, message: 'Chat message' },
         metadata: {
           resultId: `chat-${Date.now()}`,

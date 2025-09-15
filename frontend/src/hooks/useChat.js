@@ -39,7 +39,7 @@ export const useChat = () => {
       onError = () => {}
     } = options;
 
-    if (!message.trim()) return;
+    if (!message.trim() && !imageData) return;
 
     // Always add user message immediately for better UX
     const userMessage = {

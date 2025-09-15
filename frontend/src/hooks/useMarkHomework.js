@@ -39,7 +39,7 @@ export const useMarkHomework = () => {
   }, [isProcessing]);
 
   // Analyze image through mark homework API (Response 1: Original Image)
-  const analyzeImage = useCallback(async (imageData, model = 'chatgpt-4o') => {
+  const analyzeImage = useCallback(async (imageData, model = 'chatgpt-4o', sessionId = null) => {
     if (!imageData) return null;
     
     setIsProcessing(true);
@@ -49,7 +49,8 @@ export const useMarkHomework = () => {
       // Prepare request payload
       const payload = {
         imageData: imageData,
-        model: model
+        model: model,
+        ...(sessionId && { sessionId: sessionId }) // Include sessionId if provided
       };
 
       const apiUrl = API_CONFIG.BASE_URL + API_CONFIG.ENDPOINTS.MARK_HOMEWORK;
@@ -81,6 +82,12 @@ export const useMarkHomework = () => {
       }
 
       const result = await response.json();
+      console.log('🔍 DEBUG: analyzeImage API response', { 
+        responseType: result.responseType, 
+        success: result.success,
+        hasUserMessage: !!result.userMessage,
+        sessionId: result.sessionId
+      });
 
       // Check if this is the new 2-response format
       if (result.responseType === 'original_image') {
@@ -127,7 +134,12 @@ export const useMarkHomework = () => {
 
   // Process AI response (Response 2: AI Processing)
   const processAIResponse = useCallback(async (imageData, model = 'chatgpt-4o', sessionId) => {
-    if (!imageData || !sessionId) return null;
+    console.log('🔍 DEBUG: processAIResponse called', { imageData: !!imageData, sessionId, model });
+    
+    if (!imageData || !sessionId) {
+      console.log('❌ DEBUG: processAIResponse missing parameters', { imageData: !!imageData, sessionId });
+      return null;
+    }
     
     try {
       const payload = {
@@ -165,6 +177,11 @@ export const useMarkHomework = () => {
       }
 
       const result = await response.json();
+      console.log('🔍 DEBUG: processAIResponse API response', { 
+        responseType: result.responseType, 
+        success: result.success,
+        hasAiMessage: !!result.aiMessage
+      });
 
       if (result.responseType === 'ai_response') {
         // Process marking result if available
@@ -187,15 +204,18 @@ export const useMarkHomework = () => {
           });
         }
 
-        return {
+        const returnValue = {
           responseType: 'ai_response',
           aiMessage: result.aiMessage,
           sessionId: result.sessionId,
           isQuestionOnly: result.isQuestionOnly,
           markingResult: result.markingResult
         };
+        console.log('🔍 DEBUG: processAIResponse returning', returnValue);
+        return returnValue;
       }
 
+      console.log('🔍 DEBUG: processAIResponse returning result', result);
       return result;
 
     } catch (error) {

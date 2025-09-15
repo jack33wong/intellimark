@@ -47,7 +47,7 @@ const router = express.Router();
  * Returns full session data with all messages and metadata
  */
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
-  const { imageData, model = 'chatgpt-4o' } = req.body;
+  const { imageData, model = 'chatgpt-4o', sessionId: providedSessionId } = req.body;
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
 
@@ -65,7 +65,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     });
 
     // Create full session data with messages
-    const sessionId = result.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Use provided sessionId for follow-up images, or create new one
+    const sessionId = providedSessionId || result.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const sessionTitle = result.sessionTitle || 'Marking Session';
     
     // Upload original image to Firebase Storage for authenticated users
@@ -123,7 +124,6 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
           sessionId,
           'annotated'
         );
-        console.log('✅ Annotated image uploaded:', annotatedImageLink);
       } catch (error) {
         console.error('❌ Failed to upload annotated image:', error);
         annotatedImageLink = null;
@@ -213,27 +213,34 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       try {
         const { FirestoreService } = await import('../services/firestoreService');
         
-        // Create complete session with messages using parent-child structure
-        finalSessionId = await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: finalSessionId,
-          title: sessionTitle,
-          userId: userId,
-          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-          messages: [userMessage], // Only user message for authenticated users
-          isPastPaper: result.isPastPaper || false,
-          sessionMetadata: {
-            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-            averageConfidence: result.metadata?.confidence || 0,
-            lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-            lastModelUsed: model,
-            totalMessages: 1 // Only user message
-          }
-        });
-        
-        sessionSaved = true;
+        if (providedSessionId) {
+          // Follow-up image: Add message to existing session
+          await FirestoreService.addMessageToUnifiedSession(providedSessionId, userMessage);
+          finalSessionId = providedSessionId;
+          sessionSaved = true;
+        } else {
+          // New session: Create complete session with messages using parent-child structure
+          finalSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+            sessionId: finalSessionId,
+            title: sessionTitle,
+            userId: userId,
+            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messages: [userMessage], // Only user message for authenticated users
+            isPastPaper: result.isPastPaper || false,
+            sessionMetadata: {
+              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+              averageConfidence: result.metadata?.confidence || 0,
+              lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+              lastModelUsed: model,
+              totalMessages: 1 // Only user message
+            }
+          });
+          
+          sessionSaved = true;
+        }
       } catch (error) {
-        console.error('❌ Failed to create UnifiedSession:', error);
+        console.error('❌ Failed to create/add to UnifiedSession:', error);
         // Continue with response even if session creation fails
       }
     }
@@ -278,27 +285,15 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       metadata: result.metadata
     };
 
-    // For authenticated users, return user message immediately (Response 1)
-    if (isAuthenticated) {
-      return res.json({
-        success: true,
-        responseType: 'original_image',
-        userMessage: userMessage,
-        processing: true,
-        sessionId: finalSessionId,
-        sessionTitle: sessionTitle
-      });
-    } else {
-      // For unauthenticated users, return complete session (legacy behavior)
-      return res.json({
-        success: true,
-        session: finalSession,
-        sessionSaved: sessionSaved,
-        warning: sessionSaved ? undefined : 'Session not saved - please sign in to persist your work',
-        // Keep original result for backward compatibility (without markingData)
-        ...cleanResult
-      });
-    }
+    // For both authenticated and unauthenticated users, return user message immediately (Response 1)
+    return res.json({
+      success: true,
+      responseType: 'original_image',
+      userMessage: userMessage,
+      processing: true,
+      sessionId: finalSessionId,
+      sessionTitle: sessionTitle
+    });
   } catch (error) {
     console.error('Error in complete mark question:', error);
     return res.status(500).json({ 
@@ -323,6 +318,14 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
+    
+    console.log('🔍 DEBUG: /process endpoint called', { 
+      sessionId, 
+      isAuthenticated, 
+      userId,
+      imageDataLength: imageData?.length 
+    });
+    
 
     // Process the image for AI response
     const result = await MarkHomeworkWithAnswer.run({
@@ -377,6 +380,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         console.error('❌ Failed to save AI message:', error);
       }
     }
+
 
     return res.json({
       success: true,

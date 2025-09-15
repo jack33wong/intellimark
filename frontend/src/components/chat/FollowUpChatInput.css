@@ -243,9 +243,7 @@
 /* Text Input */
 .followup-text-input {
   width: 100%;
-  min-height: 32px;
-  max-height: 80px;
-  padding: 6px;
+  padding: 6px 6px 0px 6px;
   background: transparent;
   border: none;
   outline: none;

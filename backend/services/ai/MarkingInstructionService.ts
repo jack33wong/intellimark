@@ -89,8 +89,6 @@ export class MarkingInstructionService {
       - You MUST include the correct step_id for each annotation by matching the text to the provided steps.`;
     }
 
-    console.log('🔍 SYSTEM PROMPT:', systemPrompt);
-    console.log('🔍 USER PROMPT:', userPrompt);
     
     // Force model to gemini for consistency
     const actualModel = 'gemini-2.5-pro';

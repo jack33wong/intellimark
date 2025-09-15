@@ -144,8 +144,6 @@ export class LLMOrchestrator {
       console.log(cleanupResult.cleanedText);
       console.log('─'.repeat(80));*/
       
-      // Re-opened: print raw AI response from marking LLM
-      console.log('🔍 Raw annotation data from MarkingInstructionService:', annotationData);
 
       // Step 2: Map annotations to coordinates using pre-built unified lookup table
       const { AnnotationMapper } = await import('./AnnotationMapper');

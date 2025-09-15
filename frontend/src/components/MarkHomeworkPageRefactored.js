@@ -24,15 +24,13 @@ import ImageUploadForm from './markHomework/ImageUploadForm';
 import SessionHeader from './markHomework/SessionHeader';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import FollowUpChatInput from './chat/FollowUpChatInput';
-import SendButton from './chat/SendButton';
-import ModelSelector from './chat/ModelSelector';
 
 // Utils
 import { ensureStringContent } from '../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 
 // Icons
-import { Bot, ChevronDown, Brain } from 'lucide-react';
+import { ChevronDown, Brain } from 'lucide-react';
 
 // Services
 // import MarkHomeworkService from '../services/markHomeworkService';
@@ -106,6 +104,9 @@ const MarkHomeworkPageRefactored = ({
     setMarkingResult
   } = useMarkHomework();
   
+  // State for waiting for 2nd AI response
+  const [isWaitingForAI, setIsWaitingForAI] = useState(false);
+  
   // Session management
   const {
     currentSessionId,
@@ -158,14 +159,14 @@ const MarkHomeworkPageRefactored = ({
         setPageMode('chat'); // This will trigger the next useEffect
       }
     }
-  }, [selectedMarkingResult, loadSessionData, setMarkingResult]);
+  }, [selectedMarkingResult, loadSessionData, setMarkingResult, setPageMode]);
 
   // Load messages when page mode changes to chat
   useEffect(() => {
     if (pageMode === 'chat' && selectedMarkingResult?.messages?.length > 0) {
       loadMessages(selectedMarkingResult);
     }
-  }, [pageMode, selectedMarkingResult, loadMessages]);
+  }, [pageMode, selectedMarkingResult, loadMessages, setPageMode]);
 
 
 
@@ -200,7 +201,7 @@ const MarkHomeworkPageRefactored = ({
       scrollHandler(); // Check initial state
       return () => container.removeEventListener('scroll', scrollHandler);
     }
-  }, [handleScrollChange, chatContainerRef, chatMessages.length]);
+  }, [handleScrollChange, chatContainerRef, chatMessages.length, setScrollButton]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -208,6 +209,7 @@ const MarkHomeworkPageRefactored = ({
   
   // Common function to handle image processing and display
   const processImageWithImmediateDisplay = useCallback(async (file, isFollowUp = false) => {
+    console.log('🔍 DEBUG: processImageWithImmediateDisplay called', { isFollowUp });
     if (!file) return;
     
     try {
@@ -215,106 +217,127 @@ const MarkHomeworkPageRefactored = ({
       const imageData = await processImage(file);
       
       if (isFollowUp) {
-        // For follow-up: Use sendMessage to add to existing session
-        await sendMessage('', {
-          imageData: imageData,
-          model: selectedModel,
-          sessionId: currentSessionId
-        });
+        // For follow-up: Use the same mark-homework API but with existing sessionId
+        const result = await analyzeImage(imageData, selectedModel, currentSessionId);
+        
+        if (result.responseType === 'original_image') {
+          // Response 1: Original image from database - add to existing chat
+          setChatMessages(prev => [...prev, result.userMessage]);
+          
+          // Process AI response in background
+          setTimeout(async () => {
+            try {
+              // Show AI thinking animation
+              setIsWaitingForAI(true);
+              
+              const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
+              
+              if (aiResult.responseType === 'ai_response') {
+                // Response 2: AI response
+                setChatMessages(prev => [...prev, aiResult.aiMessage]);
+                
+                // Notify sidebar to refresh
+                EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+                  sessionId: result.sessionId, 
+                  type: aiResult.isQuestionOnly ? 'question' : 'marking' 
+                });
+              }
+            } catch (error) {
+              console.error('Error processing AI response:', error);
+            } finally {
+              // Hide AI thinking animation
+              setIsWaitingForAI(false);
+            }
+          }, 1000); // Small delay to show processing indicator
+          
+        } else {
+          // Legacy format - handle as before
+          console.warn('Unexpected response format for follow-up image');
+        }
       } else {
         // Send to backend for processing (creates new session)
         const result = await analyzeImage(imageData, selectedModel);
-        // For main upload: Handle session creation (image already shown, chat mode already switched)
-        if (result.isQuestionOnly) {
-          // Question-only sessions
-          if (result.session && result.session.messages) {
-            // Update session data in useSession hook
-            loadSessionData({
-              id: result.session.id,
-              title: result.session.title
-            });
-            
-            // Merge backend messages with our temporary user message (preserve imageData)
-            const backendMessages = result.session.messages;
-            // Store the imageData from our temporary user message before it gets lost
-            const tempUserMessage = chatMessages.find(m => m.role === 'user' && m.imageData);
-            const preservedImageData = tempUserMessage?.imageData;
-            
-            const mergedMessages = backendMessages.map((msg, index) => {
-              if (msg.role === 'user' && index === 0) {
-                // For the first user message, preserve our imageData from memory
-                return {
-                  ...msg,
-                  imageData: preservedImageData || msg.imageData, // Preserve imageData from memory
-                  imageLink: msg.imageLink // Keep imageLink for any images
-                };
-              }
-              return msg;
-            });
-            
-            // Load merged messages in useChat hook  
-            loadMessages({
-              id: result.session.id,
-              title: result.session.title,
-              messages: mergedMessages
-            });
-            
-            // Notify sidebar to refresh when new session is created
-            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-              sessionId: result.session.id, 
-              type: 'question' 
-            });
-          }
-        } else {
-          // Marking result - set marking data
-          setMarkingResult({
-            instructions: result.instructions,
-            annotatedImage: result.annotatedImage,
-            classification: result.classification,
-            metadata: result.metadata,
-            apiUsed: result.apiUsed,
-            ocrMethod: result.ocrMethod
+        
+        console.log('🔍 DEBUG: analyzeImage result', { 
+          responseType: result.responseType, 
+          hasUserMessage: !!result.userMessage,
+          sessionId: result.sessionId,
+          isAuthenticated: !!user?.uid
+        });
+        
+        console.log('🔍 DEBUG: Checking responseType condition', { 
+          responseType: result.responseType,
+          isOriginalImage: result.responseType === 'original_image'
+        });
+        
+        // Check if this is the new 2-response format (both authenticated and unauthenticated users)
+        if (result.responseType === 'original_image') {
+          console.log('🔍 DEBUG: Entering original_image branch');
+          // Response 1: Original image from database - show this immediately
+          setChatMessages(prev => [...prev, result.userMessage]);
+          
+          // Switch to chat mode to show the image from database
+          setPageMode('chat');
+          
+          // Update session data
+          loadSessionData({
+            id: result.sessionId,
+            title: result.sessionTitle
           });
           
-          // Load messages from backend response (contains proper imageLink for annotated image)
-          if (result.session && result.session.messages) {
-            // Update session data in useSession hook
-            loadSessionData({
-              id: result.session.id,
-              title: result.session.title
-            });
+          // Process AI response in background
+          console.log('🔍 DEBUG: Starting AI processing immediately');
+          (async () => {
+            try {
+              // Show AI thinking animation
+              setIsWaitingForAI(true);
+              
+              console.log('🔍 DEBUG: About to call processAIResponse for main upload', { 
+                sessionId: result.sessionId, 
+                hasImageData: !!imageData,
+                isAuthenticated: !!user?.uid 
+              });
+              
+              const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
+              
+              console.log('🔍 DEBUG: processAIResponse completed in component', { 
+                hasResult: !!aiResult,
+                responseType: aiResult?.responseType
+              });
             
-            // Merge backend messages with our temporary user message (preserve imageData)
-            const backendMessages = result.session.messages;
-            // Store the imageData from our temporary user message before it gets lost
-            const tempUserMessage = chatMessages.find(m => m.role === 'user' && m.imageData);
-            const preservedImageData = tempUserMessage?.imageData;
-            
-            const mergedMessages = backendMessages.map((msg, index) => {
-              if (msg.role === 'user' && index === 0) {
-                // For the first user message, preserve our imageData from memory
-                return {
-                  ...msg,
-                  imageData: preservedImageData || msg.imageData, // Preserve imageData from memory
-                  imageLink: msg.imageLink // Keep imageLink for annotated images
-                };
+              console.log('🔍 DEBUG: processAIResponse result for main upload', { 
+                hasResult: !!aiResult,
+                responseType: aiResult?.responseType,
+                hasAiMessage: !!aiResult?.aiMessage,
+                aiMessage: aiResult?.aiMessage
+              });
+              
+              if (aiResult && aiResult.responseType === 'ai_response') {
+                console.log('🔍 DEBUG: Adding AI message to chat', { aiMessage: aiResult.aiMessage });
+                // Response 2: AI response
+                setChatMessages(prev => {
+                  const newMessages = [...prev, aiResult.aiMessage];
+                  console.log('🔍 DEBUG: Updated chat messages', { count: newMessages.length, lastMessage: newMessages[newMessages.length - 1] });
+                  return newMessages;
+                });
+                
+                // Notify sidebar to refresh
+                EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
+                  sessionId: result.sessionId, 
+                  type: aiResult.isQuestionOnly ? 'question' : 'marking' 
+                });
               }
-              return msg;
-            });
-            
-            // Load merged messages in useChat hook
-            loadMessages({
-              id: result.session.id,
-              title: result.session.title,
-              messages: mergedMessages
-            });
-            
-            // Notify sidebar to refresh when new session is created
-            EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
-              sessionId: result.session.id, 
-              type: 'marking' 
-            });
-          }
+            } catch (error) {
+              console.error('Error processing AI response:', error);
+            } finally {
+              // Hide AI thinking animation
+              setIsWaitingForAI(false);
+            }
+          })();
+          
+        } else {
+          // Legacy format fallback (should not happen with new implementation)
+          console.warn('Unexpected response format for main upload');
         }
         
         // Clear file selection for main upload
@@ -324,10 +347,11 @@ const MarkHomeworkPageRefactored = ({
     } catch (error) {
       console.error('Error processing image:', error);
     }
-  }, [selectedModel, processImage, analyzeImage, sendMessage, currentSessionId, loadSessionData, loadMessages, setMarkingResult, clearFile]);
+  }, [selectedModel, processImage, analyzeImage, currentSessionId, loadSessionData, clearFile, setChatMessages, processAIResponse, setPageMode, setIsWaitingForAI]);
 
   // Handle main image analysis
   const handleAnalyzeImage = useCallback(async () => {
+    console.log('🔍 DEBUG: handleAnalyzeImage called');
     if (!selectedFile) return;
     
     // Process image to base64
@@ -340,7 +364,7 @@ const MarkHomeworkPageRefactored = ({
     try {
       const result = await analyzeImage(imageData, selectedModel);
       
-      // Check if this is the new 2-response format (authenticated users)
+      // Check if this is the new 2-response format (both authenticated and unauthenticated users)
       if (result.responseType === 'original_image') {
         // Response 1: Original image from database - show this immediately
         setChatMessages(prev => [...prev, result.userMessage]);
@@ -355,22 +379,46 @@ const MarkHomeworkPageRefactored = ({
         });
         
         // Process AI response in background
+        console.log('🔍 DEBUG: Starting setTimeout for AI processing');
         setTimeout(async () => {
           try {
+            console.log('🔍 DEBUG: setTimeout callback executing');
+            // Show AI thinking animation
+            setIsWaitingForAI(true);
+            
+            console.log('🔍 DEBUG: About to call processAIResponse from setTimeout');
             const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
             
+            console.log('🔍 DEBUG: processAIResponse result in setTimeout', { 
+              hasResult: !!aiResult, 
+              responseType: aiResult?.responseType 
+            });
+            
             if (aiResult.responseType === 'ai_response') {
+              console.log('🔍 DEBUG: Adding AI message to chat', { aiMessage: aiResult.aiMessage });
               // Response 2: AI response
-              setChatMessages(prev => [...prev, aiResult.aiMessage]);
+              setChatMessages(prev => {
+                const newMessages = [...prev, aiResult.aiMessage];
+                console.log('🔍 DEBUG: Updated chat messages', { 
+                  totalMessages: newMessages.length, 
+                  lastMessage: newMessages[newMessages.length - 1] 
+                });
+                return newMessages;
+              });
               
               // Notify sidebar to refresh
               EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { 
                 sessionId: result.sessionId, 
                 type: aiResult.isQuestionOnly ? 'question' : 'marking' 
               });
+            } else {
+              console.log('🔍 DEBUG: AI result is not ai_response', { responseType: aiResult?.responseType });
             }
           } catch (error) {
             console.error('Error processing AI response:', error);
+          } finally {
+            // Hide AI thinking animation
+            setIsWaitingForAI(false);
           }
         }, 1000); // Small delay to show processing indicator
         
@@ -441,7 +489,7 @@ const MarkHomeworkPageRefactored = ({
     } catch (error) {
       console.error('Error processing image:', error);
     }
-  }, [selectedFile, processImage, setChatMessages, setPageMode, clearFile, analyzeImage, processAIResponse, selectedModel, loadSessionData, loadMessages, setMarkingResult]);
+  }, [selectedFile, processImage, setChatMessages, setPageMode, clearFile, analyzeImage, processAIResponse, selectedModel, loadSessionData, loadMessages, setMarkingResult, setIsWaitingForAI]);
 
   // Handle follow-up image analysis (for existing chat sessions)
   const handleFollowUpImage = useCallback(async (file) => {
@@ -534,6 +582,18 @@ const MarkHomeworkPageRefactored = ({
             />
             
             <div className="chat-messages">
+              {console.log('🔍 DEBUG: Rendering chat messages', { 
+                totalMessages: chatMessages.length, 
+                messages: chatMessages.map(m => ({ 
+                  id: m.id, 
+                  role: m.role, 
+                  type: m.type, 
+                  content: m.content,
+                  hasImage: !!(m.imageLink || m.imageData),
+                  imageLink: m.imageLink,
+                  imageData: m.imageData ? 'base64 data present' : 'no base64 data'
+                }))
+              })}
               {chatMessages.map((message, index) => (
                 <div 
                   key={`${message.id}-${index}`} 
@@ -546,8 +606,8 @@ const MarkHomeworkPageRefactored = ({
                             <Brain size={20} className="assistant-brain-icon" />
                           </div>
                           
-                          {/* Only show content for regular chat messages, not marking messages */}
-                          {message.type !== 'marking_annotated' && message.type !== 'marking_original' && 
+                          {/* Show content for regular chat messages and AI responses */}
+                          {message.type !== 'marking_original' && 
                            message.content && 
                            ensureStringContent(message.content).trim() !== '' && (
                             <MarkdownMathRenderer 
@@ -557,16 +617,16 @@ const MarkHomeworkPageRefactored = ({
                           )}
                           
                           {/* Handle marking messages with annotated images */}
-                          {message.type === 'marking_annotated' && message.imageLink && (
+                          {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
                             <div className="homework-annotated-image">
                               <h4>✅ Marked Homework Image</h4>
                               <img 
-                                src={getImageSrc(message.imageLink)}
+                                src={getImageSrc(message.imageLink || message.imageData)}
                                 alt="Marked homework"
                                 className="annotated-image"
                                 onLoad={handleImageLoad}
                                 onError={(e) => {
-                                  console.warn('Failed to load image:', message.imageLink);
+                                  console.warn('Failed to load image:', message.imageLink || message.imageData);
                                   e.target.style.display = 'none';
                                 }}
                               />
@@ -601,19 +661,21 @@ const MarkHomeworkPageRefactored = ({
               ))}
               
               {/* Processing indicator */}
-              {isProcessing && (
+              {(isProcessing || isWaitingForAI) && (
                 <div className="chat-message assistant">
                   <div className="message-bubble">
                     <div className="assistant-header">
                       <Brain size={20} className="assistant-brain-icon" />
                     </div>
-                    <div className="thinking-animation">
+                    <div className="thinking-indicator">
                       <div className="thinking-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
                       </div>
-                      <span className="thinking-text">AI is thinking...</span>
+                      <div className="thinking-text">
+                        {isWaitingForAI ? 'AI is processing your image...' : 'AI is thinking...'}
+                      </div>
                     </div>
                   </div>
                 </div>

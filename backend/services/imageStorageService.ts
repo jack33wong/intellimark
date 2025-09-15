@@ -48,7 +48,6 @@ export class ImageStorageService {
         throw new Error(`Image too large: ${sizeMB.toFixed(2)}MB (max: ${config.maxFileSizeMB}MB)`);
       }
       
-      console.log(`📊 Original image size: ${getFileSizeMB(originalBuffer).toFixed(2)}MB`);
       
       // Process image (compress and resize if enabled)
       let processedBuffer: Buffer = originalBuffer;
