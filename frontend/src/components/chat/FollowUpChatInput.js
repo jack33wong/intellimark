@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bot, ChevronDown } from 'lucide-react';
+import { Bot, ChevronDown, Plus } from 'lucide-react';
 import './FollowUpChatInput.css';
 
 const FollowUpChatInput = ({
@@ -16,7 +16,8 @@ const FollowUpChatInput = ({
   setSelectedModel,
   isProcessing,
   onSendMessage,
-  onKeyPress
+  onKeyPress,
+  onUploadClick
 }) => {
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
 
@@ -46,6 +47,16 @@ const FollowUpChatInput = ({
   return (
     <div className="followup-chat-input-bar">
       <div className="followup-single-line-container">
+        {/* Upload Button */}
+        <button
+          className="followup-upload-button"
+          onClick={onUploadClick}
+          disabled={isProcessing}
+          title="Upload image"
+        >
+          <Plus size={16} />
+        </button>
+
         {/* Model Dropdown */}
         <div className="followup-model-dropdown">
           <button

@@ -478,6 +478,7 @@ const MarkHomeworkPageRefactored = ({
             isProcessing={isProcessing}
             onSendMessage={handleSendMessage}
             onKeyPress={handleKeyPress}
+            onUploadClick={handleFileSelect}
           />
         </div>
       )}
