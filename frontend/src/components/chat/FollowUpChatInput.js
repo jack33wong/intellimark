@@ -128,57 +128,60 @@ const FollowUpChatInput = ({
 
           {/* Buttons Row - Upload, Model, Send */}
           <div className="followup-buttons-row">
-            {/* Upload Button */}
-            <button
-              className="followup-upload-button"
-              onClick={handleUploadClick}
-              disabled={isProcessing}
-              title="Upload image"
-            >
-              <Plus size={14} />
-            </button>
-
-            {/* Model Dropdown */}
-            <div className="followup-model-dropdown">
+            {/* Left Side - Upload and Model */}
+            <div className="followup-left-buttons">
+              {/* Upload Button */}
               <button
-                className="followup-model-button"
-                onClick={handleModelToggle}
+                className="followup-upload-button"
+                onClick={handleUploadClick}
                 disabled={isProcessing}
+                title="Upload image"
               >
-                <Bot size={16} />
-                <span>
-                  {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
-                   selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
-                   selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
-                </span>
-                <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+                <Plus size={14} />
               </button>
 
-              {isModelDropdownOpen && (
-                <div className="followup-model-dropdown-menu">
-                  <button
-                    className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
-                    onClick={() => handleModelSelect('chatgpt-4o')}
-                  >
-                    GPT-4o
-                  </button>
-                  <button
-                    className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
-                    onClick={() => handleModelSelect('gemini-2.5-pro')}
-                  >
-                    Gemini 2.5 Pro
-                  </button>
-                  <button
-                    className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
-                    onClick={() => handleModelSelect('chatgpt-5')}
-                  >
-                    GPT-5
-                  </button>
-                </div>
-              )}
+              {/* Model Dropdown */}
+              <div className="followup-model-dropdown">
+                <button
+                  className="followup-model-button"
+                  onClick={handleModelToggle}
+                  disabled={isProcessing}
+                >
+                  <Bot size={16} />
+                  <span>
+                    {selectedModel === 'chatgpt-4o' ? 'GPT-4o' : 
+                     selectedModel === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 
+                     selectedModel === 'chatgpt-5' ? 'GPT-5' : 'AI Model'}
+                  </span>
+                  <ChevronDown size={14} className={isModelDropdownOpen ? 'rotated' : ''} />
+                </button>
+
+                {isModelDropdownOpen && (
+                  <div className="followup-model-dropdown-menu">
+                    <button
+                      className={`followup-model-option ${selectedModel === 'chatgpt-4o' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('chatgpt-4o')}
+                    >
+                      GPT-4o
+                    </button>
+                    <button
+                      className={`followup-model-option ${selectedModel === 'gemini-2.5-pro' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('gemini-2.5-pro')}
+                    >
+                      Gemini 2.5 Pro
+                    </button>
+                    <button
+                      className={`followup-model-option ${selectedModel === 'chatgpt-5' ? 'selected' : ''}`}
+                      onClick={() => handleModelSelect('chatgpt-5')}
+                    >
+                      GPT-5
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Send Button */}
+            {/* Right Side - Send Button */}
             <button
               className={`followup-send-button ${(chatInput.trim() || previewImage) ? 'analyze-mode' : ''}`}
               disabled={isProcessing || (!chatInput.trim() && !previewImage)}
