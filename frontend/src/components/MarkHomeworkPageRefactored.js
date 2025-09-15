@@ -531,15 +531,15 @@ const MarkHomeworkPageRefactored = ({
                       ) : (
                         <div>
                           {/* User message content */}
-                          {message.imageLink && (
+                          {(message.imageLink || message.imageData) && (
                             <div className="message-image">
                               <img 
-                                src={getImageSrc(message.imageLink)}
+                                src={message.imageData || getImageSrc(message.imageLink)}
                                 alt="Uploaded"
                                 className="content-image"
                                 onLoad={handleImageLoad}
                                 onError={(e) => {
-                                  console.warn('Failed to load user image:', message.imageLink);
+                                  console.warn('Failed to load user image:', message.imageLink || message.imageData);
                                   e.target.style.display = 'none';
                                 }}
                               />
