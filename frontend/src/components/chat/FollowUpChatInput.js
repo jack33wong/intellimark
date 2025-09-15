@@ -87,14 +87,16 @@ const FollowUpChatInput = ({
         </div>
 
         {/* Text Input */}
-        <textarea
-          placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          onKeyPress={onKeyPress}
-          disabled={isProcessing}
-          className="followup-text-input"
-        />
+        <div className="followup-text-wrapper">
+          <textarea
+            placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyPress={onKeyPress}
+            disabled={isProcessing}
+            className="followup-text-input"
+          />
+        </div>
 
         {/* Send Button */}
         <button
