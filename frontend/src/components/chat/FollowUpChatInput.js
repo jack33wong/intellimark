@@ -20,6 +20,7 @@ const FollowUpChatInput = ({
   onUploadClick
 }) => {
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
 
   const handleUploadClick = useCallback(() => {
     document.getElementById('followup-file-input')?.click();
@@ -28,6 +29,11 @@ const FollowUpChatInput = ({
   const handleFileChange = useCallback((e) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setPreviewImage(previewUrl);
+      
+      // Call the parent handler
       onUploadClick(file);
     }
   }, [onUploadClick]);
@@ -40,6 +46,13 @@ const FollowUpChatInput = ({
     setSelectedModel(model);
     setIsModelDropdownOpen(false);
   }, [setSelectedModel]);
+
+  const removePreview = useCallback(() => {
+    if (previewImage) {
+      URL.revokeObjectURL(previewImage);
+      setPreviewImage(null);
+    }
+  }, [previewImage]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -57,7 +70,7 @@ const FollowUpChatInput = ({
 
   return (
     <div className="followup-chat-input-bar">
-      <div className="followup-single-line-container">
+      <div className={`followup-single-line-container ${previewImage ? 'with-preview' : ''}`}>
         {/* Upload Button */}
         <button
           className="followup-upload-button"
@@ -110,6 +123,24 @@ const FollowUpChatInput = ({
 
         {/* Text Input */}
         <div className="followup-text-wrapper">
+          {/* Image Preview */}
+          {previewImage && (
+            <div className="followup-image-preview">
+              <img
+                src={previewImage}
+                alt="Preview"
+                className="followup-preview-image"
+              />
+              <button
+                className="followup-remove-preview"
+                onClick={removePreview}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+          )}
+          
           <textarea
             placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
             value={chatInput}
