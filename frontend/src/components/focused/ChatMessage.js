@@ -27,14 +27,6 @@ const ChatMessage = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
-  // Handle image click
-  const handleImageClick = useCallback(() => {
-    if (!hasImage(message)) return;
-    
-    if (onImageClick) {
-      onImageClick(message);
-    }
-  }, [message, onImageClick]);
 
   // Handle image load error
   const handleImageError = useCallback(() => {

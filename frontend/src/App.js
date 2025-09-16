@@ -9,12 +9,7 @@ import AdminPage from './components/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
-import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
-import SimpleChatTest from './components/SimpleChatTest';
-import UnifiedTestPage from './components/UnifiedTestPage';
-import FocusedComponentsTest from './components/FocusedComponentsTest';
-import LayoutTest from './components/LayoutTest';
 import './App.css';
 
 /**
@@ -121,13 +116,6 @@ function AppContent() {
               </ProtectedRoute>
             } />
 
-            {/* Simple Chat Test Route */}
-            <Route path="/chat-test" element={<SimpleChatTest />} />
-            
-            {/* Unified Test Route */}
-            <Route path="/unified-test" element={<UnifiedTestPage />} />
-            <Route path="/focused-test" element={<FocusedComponentsTest />} />
-            <Route path="/layout-test" element={<LayoutTest />} />
             
             <Route path="/mark-homework" element={
               <OptionalAuthRoute>
@@ -184,29 +172,6 @@ function AppContent() {
               </ProtectedRoute>
             } />
             
-            {/* Add the new MarkdownMathDemo route */}
-            <Route path="/markdown-demo" element={
-              <ProtectedRoute>
-                <div className="app-container">
-                  <div className="app-body">
-                    <Sidebar 
-                      isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
-                      onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode={currentPageMode}
-                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                    />
-                    <div className="right-side">
-                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                      <div className="main-content">
-                        <MarkdownMathDemo />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
             
             {/* Main page route - handles subscription success */}
             <Route path="/" element={
