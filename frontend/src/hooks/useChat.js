@@ -3,7 +3,7 @@
  * Handles message sending, receiving, and state management
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ensureStringContent } from '../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
@@ -24,9 +24,43 @@ export const useChat = () => {
   const [chatInput, setChatInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentSessionData, setCurrentSessionData] = useState(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   
   // Auto-scroll functionality
   const { containerRef: chatContainerRef, scrollToBottom, handleImageLoad } = useAutoScroll(chatMessages);
+
+  // Handle scroll button visibility
+  const handleScrollChange = useCallback((isNearBottom) => {
+    setShowScrollButton(!isNearBottom && chatMessages.length > 0);
+  }, [chatMessages.length]);
+
+  // Set up scroll event listener
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      const container = chatContainerRef.current;
+      if (container) {
+        const isScrollable = container.scrollHeight > container.clientHeight;
+        setShowScrollButton(isScrollable);
+      }
+    } else {
+      setShowScrollButton(false);
+    }
+
+    // Add scroll event listener
+    const container = chatContainerRef.current;
+    if (container) {
+      const scrollHandler = () => {
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        const isNearBottom = distanceFromBottom <= 10;
+        handleScrollChange(isNearBottom);
+      };
+      
+      container.addEventListener('scroll', scrollHandler);
+      scrollHandler(); // Check initial state
+      return () => container.removeEventListener('scroll', scrollHandler);
+    }
+  }, [handleScrollChange, chatContainerRef, chatMessages.length]);
 
   // Send message to chat API
   const sendMessage = useCallback(async (message, options = {}) => {
@@ -158,6 +192,7 @@ export const useChat = () => {
     setChatInput,
     isProcessing,
     currentSessionData,
+    showScrollButton,
     
     // Actions
     sendMessage,

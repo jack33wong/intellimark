@@ -14,6 +14,7 @@ import SubscriptionPage from './components/SubscriptionPage.tsx';
 import SimpleChatTest from './components/SimpleChatTest';
 import UnifiedTestPage from './components/UnifiedTestPage';
 import FocusedComponentsTest from './components/FocusedComponentsTest';
+import LayoutTest from './components/LayoutTest';
 import './App.css';
 
 /**
@@ -126,6 +127,7 @@ function AppContent() {
             {/* Unified Test Route */}
             <Route path="/unified-test" element={<UnifiedTestPage />} />
             <Route path="/focused-test" element={<FocusedComponentsTest />} />
+            <Route path="/layout-test" element={<LayoutTest />} />
             
             <Route path="/mark-homework" element={
               <OptionalAuthRoute>

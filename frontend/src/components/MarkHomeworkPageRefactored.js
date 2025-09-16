@@ -20,18 +20,10 @@ import { useSubscriptionDelay } from '../hooks/useSubscriptionDelay';
 import { usePageState } from '../hooks/usePageState';
 
 // Components
-import ImageUploadForm from './markHomework/ImageUploadForm';
-import SessionHeader from './markHomework/SessionHeader';
-import MarkdownMathRenderer from './MarkdownMathRenderer';
-import FollowUpChatInput from './chat/FollowUpChatInput';
-import { ChatMessage } from './focused';
+import MainLayout from './markHomework/MainLayout';
 
 // Utils
-import { ensureStringContent } from '../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../utils/eventManager';
-
-// Icons
-import { ChevronDown, Brain } from 'lucide-react';
 
 // Services
 // import MarkHomeworkService from '../services/markHomeworkService';
@@ -54,11 +46,9 @@ const MarkHomeworkPageRefactored = ({
   // Page state management
   const {
     pageMode,
-    showScrollButton,
     showInfoDropdown,
     selectedModel,
     setPageMode,
-    setScrollButton,
     setInfoDropdown,
     setModel
   } = usePageState();
@@ -85,6 +75,7 @@ const MarkHomeworkPageRefactored = ({
     setChatInput,
     isProcessing: isChatProcessing,
     currentSessionData,
+    showScrollButton,
     sendMessage,
     loadMessages,
     chatContainerRef,
@@ -171,38 +162,8 @@ const MarkHomeworkPageRefactored = ({
 
 
 
-  // Handle scroll events using centralized logic
-  const handleScrollChange = useCallback((isNearBottom) => {
-    setScrollButton(!isNearBottom && chatMessages.length > 0);
-  }, [chatMessages.length, setScrollButton]);
-
-  // Show/hide scroll button based on scroll position and content
-  useEffect(() => {
-    if (chatMessages.length > 0) {
-      const container = chatContainerRef.current;
-      if (container) {
-        const isScrollable = container.scrollHeight > container.clientHeight;
-        setScrollButton(isScrollable);
-      }
-    } else {
-      setScrollButton(false);
-    }
-
-    // Add scroll event listener using centralized handler
-    const container = chatContainerRef.current;
-    if (container) {
-      const scrollHandler = () => {
-        const { scrollTop, scrollHeight, clientHeight } = container;
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        const isNearBottom = distanceFromBottom <= 10;
-        handleScrollChange(isNearBottom);
-      };
-      
-      container.addEventListener('scroll', scrollHandler);
-      scrollHandler(); // Check initial state
-      return () => container.removeEventListener('scroll', scrollHandler);
-    }
-  }, [handleScrollChange, chatContainerRef, chatMessages.length, setScrollButton]);
+  // Auto-scroll is handled by useAutoScroll hook in useChat
+  // No need for duplicate scroll logic here
 
   // ============================================================================
   // EVENT HANDLERS
@@ -480,10 +441,7 @@ const MarkHomeworkPageRefactored = ({
     }
   }, [handleSendMessage]);
   
-  // Handle model selection
-  const handleModelSelect = useCallback((model) => {
-    setModel(model);
-  }, [setModel]);
+  // Handle model selection - now handled directly by setModel
   
   // Handle clear result - removed as not used in current implementation
   
@@ -492,108 +450,54 @@ const MarkHomeworkPageRefactored = ({
   // ============================================================================
   
   return (
-    <>
-      {pageMode === 'upload' ? (
-        <div className="mark-homework-page upload-mode">
-          <ImageUploadForm
-            selectedFile={selectedFile}
-            previewUrl={previewUrl}
-            isProcessing={isProcessing}
-            onFileSelect={handleFileSelect}
-            onAnalyzeImage={handleAnalyzeImage}
-            onClearFile={clearFile}
-            selectedModel={selectedModel}
-            onModelChange={setModel}
-            loadingProgress={loadingProgress}
-            showExpandedThinking={isProcessing}
-          />
-          
-          {markError && (
-            <div className="error-message">
-              <p>{markError}</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="mark-homework-page chat-mode">
-          <div className="chat-container" ref={chatContainerRef}>
-            <SessionHeader
-              sessionTitle={sessionTitle}
-              isFavorite={isFavorite}
-              onFavoriteToggle={handleFavoriteToggle}
-              rating={rating}
-              onRatingChange={handleRatingChange}
-              hoveredRating={hoveredRating}
-              onRatingHover={setHoveredRating}
-              user={user}
-              markingResult={markingResult}
-              sessionData={currentSessionData}
-              showInfoDropdown={showInfoDropdown}
-              onToggleInfoDropdown={() => setInfoDropdown(!showInfoDropdown)}
-            />
-            
-            <div className="chat-messages">
-              {chatMessages.map((message, index) => (
-                <ChatMessage
-                  key={`${message.id}-${index}`}
-                  message={message}
-                  onImageLoad={handleImageLoad}
-                  getImageSrc={getImageSrc}
-                  MarkdownMathRenderer={MarkdownMathRenderer}
-                  ensureStringContent={ensureStringContent}
-                />
-              ))}
-              
-              {/* Processing indicator */}
-              {(isProcessing || isWaitingForAI) && (
-                <div className="chat-message assistant">
-                  <div className="message-bubble">
-                    <div className="assistant-header">
-                      <Brain size={20} className="assistant-brain-icon" />
-                    </div>
-                    <div className="thinking-indicator">
-                      <div className="thinking-dots">
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                      </div>
-                      <div className="thinking-text">
-                        {isWaitingForAI ? 'AI is processing your image...' : 'AI is thinking...'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Scroll to Bottom Button */}
-            <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
-              <button 
-                className="scroll-to-bottom-btn"
-                onClick={scrollToBottom}
-                title="Scroll to bottom"
-              >
-                <ChevronDown size={20} />
-              </button>
-            </div>
-          </div>
-          
-          {/* Follow-up Chat Input Bar */}
-          <FollowUpChatInput
-            chatInput={chatInput}
-            setChatInput={setChatInput}
-            selectedModel={selectedModel}
-            setSelectedModel={handleModelSelect}
-            isProcessing={isProcessing}
-            onSendMessage={handleSendMessage}
-            onAnalyzeImage={handleAnalyzeImage}
-            onFollowUpImage={handleFollowUpImage}
-            onKeyPress={handleKeyPress}
-            onUploadClick={handleFileSelect}
-          />
-        </div>
-      )}
-    </>
+    <MainLayout
+      // Page mode
+      pageMode={pageMode}
+      
+      // Image upload props
+      selectedFile={selectedFile}
+      previewUrl={previewUrl}
+      isProcessing={isProcessing}
+      onFileSelect={handleFileSelect}
+      onAnalyzeImage={handleAnalyzeImage}
+      onClearFile={clearFile}
+      selectedModel={selectedModel}
+      onModelChange={setModel}
+      loadingProgress={loadingProgress}
+      showExpandedThinking={isProcessing}
+      markError={markError}
+      
+      // Chat props
+      chatMessages={chatMessages}
+      chatContainerRef={chatContainerRef}
+      showScrollButton={showScrollButton}
+      scrollToBottom={scrollToBottom}
+      handleImageLoad={handleImageLoad}
+      getImageSrc={getImageSrc}
+      isWaitingForAI={isWaitingForAI}
+      
+      // Session props
+      sessionTitle={sessionTitle}
+      isFavorite={isFavorite}
+      onFavoriteToggle={handleFavoriteToggle}
+      rating={rating}
+      onRatingChange={handleRatingChange}
+      hoveredRating={hoveredRating}
+      onRatingHover={setHoveredRating}
+      user={user}
+      markingResult={markingResult}
+      sessionData={currentSessionData}
+      showInfoDropdown={showInfoDropdown}
+      onToggleInfoDropdown={() => setInfoDropdown(!showInfoDropdown)}
+      
+      // Follow-up chat props
+      chatInput={chatInput}
+      setChatInput={setChatInput}
+      onSendMessage={handleSendMessage}
+      onFollowUpImage={handleFollowUpImage}
+      onKeyPress={handleKeyPress}
+      onUploadClick={handleFileSelect}
+    />
   );
 };
 
