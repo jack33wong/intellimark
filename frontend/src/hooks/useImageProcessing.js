@@ -6,6 +6,7 @@
 
 import React, { useReducer, useCallback } from 'react';
 import ImageProcessingService from '../services/imageProcessingService';
+import { validateFile, validateProcessingOptions, validateMessage } from '../utils/validation';
 
 // Initial state
 const initialState = {
@@ -92,10 +93,14 @@ export const useImageProcessing = () => {
    * @param {Object} options - Processing options
    */
   const processImage = useCallback(async (file, options = {}) => {
-    if (!file) {
+    try {
+      // Fail fast on invalid inputs
+      validateFile(file);
+      validateProcessingOptions(options);
+    } catch (error) {
       dispatch({
         type: ACTION_TYPES.PROCESSING_ERROR,
-        payload: { error: 'No file provided' }
+        payload: { error: error.message }
       });
       return;
     }
@@ -107,8 +112,22 @@ export const useImageProcessing = () => {
       // Process image
       const result = await ImageProcessingService.processImage(file, options);
 
+      // Fail fast on invalid result structure
+      if (!result || typeof result !== 'object') {
+        throw new Error('Invalid processing result: expected object');
+      }
+
+      if (!result.responseType) {
+        throw new Error('Invalid processing result: missing responseType');
+      }
+
       // Handle response based on result type
       if (result.responseType === 'original_image') {
+        // Validate user message structure
+        if (!result.userMessage) {
+          throw new Error('Original image response missing userMessage');
+        }
+        validateMessage(result.userMessage);
         // Response 1: Original image
         dispatch({
           type: ACTION_TYPES.USER_MESSAGE_RECEIVED,
@@ -128,13 +147,18 @@ export const useImageProcessing = () => {
             );
 
             if (aiResult.responseType === 'ai_response') {
+              // Validate AI message structure
+              if (!aiResult.aiMessage) {
+                throw new Error('AI response missing aiMessage');
+              }
+              validateMessage(aiResult.aiMessage);
+
               dispatch({
                 type: ACTION_TYPES.AI_MESSAGE_RECEIVED,
                 payload: {
                   aiMessage: aiResult.aiMessage
                 }
               });
-            } else {
             }
           } catch (error) {
             console.error('❌ AI processing error:', error);
@@ -147,6 +171,11 @@ export const useImageProcessing = () => {
 
       } else if (result.responseType === 'complete') {
         // Legacy single-response format
+        if (!result.userMessage) {
+          throw new Error('Complete response missing userMessage');
+        }
+        validateMessage(result.userMessage);
+
         dispatch({
           type: ACTION_TYPES.USER_MESSAGE_RECEIVED,
           payload: {
@@ -156,6 +185,7 @@ export const useImageProcessing = () => {
         });
 
         if (result.aiMessage) {
+          validateMessage(result.aiMessage);
           dispatch({
             type: ACTION_TYPES.AI_MESSAGE_RECEIVED,
             payload: {
@@ -163,6 +193,10 @@ export const useImageProcessing = () => {
             }
           });
         }
+
+        dispatch({ type: ACTION_TYPES.PROCESSING_COMPLETE });
+      } else {
+        throw new Error(`Unknown response type: ${result.responseType}`);
       }
 
     } catch (error) {

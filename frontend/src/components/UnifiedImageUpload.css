@@ -103,13 +103,42 @@
   to { transform: rotate(360deg); }
 }
 
+/* Error Message with Fail-Fast Design */
 .error-message {
-  padding: 12px 16px;
-  background: #fee2e2;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
   color: #dc2626;
-  border: 1px solid #fecaca;
+  padding: 16px;
   border-radius: 8px;
+  margin: 16px 0;
+  font-size: 14px;
   font-weight: 500;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1);
+}
+
+.error-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.error-content {
+  flex: 1;
+}
+
+.error-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.error-details {
+  font-size: 13px;
+  opacity: 0.9;
+  line-height: 1.4;
 }
 
 .ai-thinking {

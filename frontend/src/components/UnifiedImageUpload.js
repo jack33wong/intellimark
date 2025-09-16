@@ -8,6 +8,7 @@ import React, { useState, useCallback } from 'react';
 import { useImageProcessing } from '../hooks/useImageProcessing';
 import { useAuth } from '../contexts/AuthContext';
 import { Brain, Upload, Send } from 'lucide-react';
+import { validateFile, validateModel } from '../utils/validation';
 import './UnifiedImageUpload.css';
 
 const UnifiedImageUpload = ({ onImageProcessed, onMessagesUpdate }) => {
@@ -16,34 +17,64 @@ const UnifiedImageUpload = ({ onImageProcessed, onMessagesUpdate }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedModel, setSelectedModel] = useState('chatgpt-4o');
 
-  // Handle file selection
+  // Handle file selection with fail-fast validation
   const handleFileSelect = useCallback((event) => {
     const file = event.target.files[0];
-    if (file) {
+    
+    if (!file) {
+      return; // No file selected, this is normal
+    }
+
+    try {
+      // Fail fast on invalid file
+      validateFile(file);
       setSelectedFile(file);
       reset(); // Reset processing state
+    } catch (error) {
+      // Show error to user immediately
+      console.error('❌ File validation failed:', error.message);
+      // Reset file input
+      event.target.value = '';
+      // Could dispatch error state here if needed
     }
   }, [reset]);
 
-  // Handle image processing
+  // Handle image processing with fail-fast validation
   const handleProcessImage = useCallback(async () => {
-    if (!selectedFile) return;
+    // Fail fast on missing file
+    if (!selectedFile) {
+      console.error('❌ No file selected for processing');
+      return;
+    }
 
     try {
+      // Validate inputs before processing
+      validateFile(selectedFile);
+      validateModel(selectedModel);
+
       await processImage(selectedFile, {
         model: selectedModel,
         isFollowUp: false
       });
     } catch (error) {
       console.error('❌ Image processing failed:', error);
+      // Error is already handled by the hook's error state
     }
   }, [selectedFile, selectedModel, processImage]);
 
-  // Handle follow-up image processing
+  // Handle follow-up image processing with fail-fast validation
   const handleFollowUpImage = useCallback(async (file) => {
-    if (!file) return;
+    // Fail fast on missing file
+    if (!file) {
+      console.error('❌ No file provided for follow-up processing');
+      return;
+    }
 
     try {
+      // Validate inputs before processing
+      validateFile(file);
+      validateModel(selectedModel);
+
       await processImage(file, {
         model: selectedModel,
         sessionId: sessionId,
@@ -51,6 +82,7 @@ const UnifiedImageUpload = ({ onImageProcessed, onMessagesUpdate }) => {
       });
     } catch (error) {
       console.error('❌ Follow-up image processing failed:', error);
+      // Error is already handled by the hook's error state
     }
   }, [selectedModel, sessionId, processImage]);
 
@@ -116,10 +148,14 @@ const UnifiedImageUpload = ({ onImageProcessed, onMessagesUpdate }) => {
         </button>
       </div>
 
-      {/* Status Display */}
+      {/* Error Display with Fail-Fast Feedback */}
       {status === 'error' && (
-        <div className="error-message">
-          ❌ {error}
+        <div className="error-message" role="alert" aria-live="polite">
+          <div className="error-icon">❌</div>
+          <div className="error-content">
+            <div className="error-title">Processing Error</div>
+            <div className="error-details">{error}</div>
+          </div>
         </div>
       )}
 

@@ -6,6 +6,13 @@
  */
 
 import ApiClient from './apiClient';
+import { 
+  validateFile, 
+  validateModel, 
+  validateApiResponse, 
+  validateProcessingOptions,
+  validateSessionId
+} from '../utils/validation';
 
 class ImageProcessingService {
   /**
@@ -15,6 +22,10 @@ class ImageProcessingService {
    * @returns {Promise<ProcessingResult>} - Consistent result structure
    */
   static async processImage(file, options = {}) {
+    // Fail fast on invalid inputs
+    validateFile(file);
+    validateProcessingOptions(options);
+    
     const { model = 'chatgpt-4o', sessionId = null, isFollowUp = false } = options;
     
     try {
@@ -56,6 +67,13 @@ class ImageProcessingService {
    * @returns {Promise<ProcessingResult>} - Processing result
    */
   static async processImageData(imageData, options = {}) {
+    // Fail fast on invalid inputs
+    if (!imageData || typeof imageData !== 'string') {
+      throw new Error('Invalid image data: must be a non-empty string');
+    }
+    
+    validateProcessingOptions(options);
+    
     const { model, sessionId, isFollowUp } = options;
     
     try {
@@ -67,9 +85,8 @@ class ImageProcessingService {
         isFollowUp
       });
 
-      if (!response.success) {
-        throw new Error(response.error || 'Image processing failed');
-      }
+      // Validate API response structure
+      validateApiResponse(response);
 
       return response.data;
     } catch (error) {
@@ -86,6 +103,14 @@ class ImageProcessingService {
    * @returns {Promise<ProcessingResult>} - AI response result
    */
   static async processAIResponse(imageData, sessionId, model = 'chatgpt-4o') {
+    // Fail fast on invalid inputs
+    if (!imageData || typeof imageData !== 'string') {
+      throw new Error('Invalid image data: must be a non-empty string');
+    }
+    
+    validateSessionId(sessionId);
+    validateModel(model);
+    
     try {
       const response = await ApiClient.post('/api/process/ai', {
         imageData,
@@ -93,9 +118,8 @@ class ImageProcessingService {
         model
       });
 
-      if (!response.success) {
-        throw new Error(response.error || 'AI processing failed');
-      }
+      // Validate API response structure
+      validateApiResponse(response, 'ai_response');
 
       return response.data;
     } catch (error) {
