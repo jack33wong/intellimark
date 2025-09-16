@@ -131,7 +131,7 @@ const ImageUpload = ({
 
   return (
     <div 
-      className={`image-upload ${className} ${isDragOver ? 'drag-over' : ''} ${disabled ? 'disabled' : ''}`}
+      className={`upload-button-base image-upload ${className} ${isDragOver ? 'drag-over' : ''} ${disabled ? 'disabled' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

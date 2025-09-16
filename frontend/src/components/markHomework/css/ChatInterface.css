@@ -1,3 +1,82 @@
+/* Mark Homework Page Base Styles */
+.mark-homework-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: visible;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+}
+
+/* Upload Mode Styles for Refactored Components */
+.mark-homework-page.upload-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  overflow: visible;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  position: relative;
+}
+
+/* Chat Mode Styles for Refactored Components */
+.mark-homework-page.chat-mode {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-top: 0;
+  height: 100vh; /* Full height for proper layout */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Prevent page scrolling */
+}
+
+.mark-homework-page.chat-mode .session-header {
+  background: var(--secondary-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 20px;
+  margin-bottom: 0;
+}
+
+.mark-homework-page.chat-mode .chat-interface {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Header Section */
+.mark-homework-header {
+  text-align: center;
+  margin-bottom: 40px;
+  padding: 20px 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.mark-homework-header h1 {
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-color), #9f7aea);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.mark-homework-header p {
+  font-size: 16px;
+  color: var(--secondary-text);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
 /* Chat Mode Styles */
 .chat-mode {
   background: transparent;

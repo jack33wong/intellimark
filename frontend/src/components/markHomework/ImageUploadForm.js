@@ -40,7 +40,7 @@ const ImageUploadForm = ({
             disabled={isProcessing}
             showPreview={true}
             placeholder="Upload Homework"
-            className="title-upload-btn"
+            className="upload-button-base title-upload-btn"
           />
         </div>
       </div>

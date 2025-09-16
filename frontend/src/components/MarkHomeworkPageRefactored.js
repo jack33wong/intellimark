@@ -28,8 +28,7 @@ import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 // Services
 // import MarkHomeworkService from '../services/markHomeworkService';
 
-// Styles
-import './MarkHomeworkPage.css';
+// Styles - MarkHomeworkPage styles moved to ChatInterface.css
 
 const MarkHomeworkPageRefactored = ({ 
   selectedMarkingResult, 
