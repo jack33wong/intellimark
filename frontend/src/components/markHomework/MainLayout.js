@@ -11,6 +11,8 @@ import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
 import MarkdownMathRenderer from '../MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
+import './css/MainLayout.css';
+import './css/ChatInterface.css';
 
 const MainLayout = ({
   // Page mode

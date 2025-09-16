@@ -1,0 +1,814 @@
+/* Main Content Layout */
+.mark-homework-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+
+
+/* Upload Section */
+.upload-section {
+  background: #363537;
+  border: 2px solid var(--border-color);
+  border-radius: 24px;
+  padding: 32px;
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s ease;
+  text-align: center;
+  width: 100%;
+  height: fit-content;
+}
+
+/* Bottom Upload Section */
+.upload-section.bottom-upload {
+  margin-top: 40px;
+  border-top: 2px solid var(--accent-color);
+  background: linear-gradient(135deg, var(--secondary-bg), var(--tertiary-bg));
+}
+
+/* Historical Marking Data Styles */
+.historical-marking-data {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--tertiary-bg);
+  border: 1px solid #111827;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.historical-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.historical-header h4 {
+  margin: 0 0 8px 0;
+  color: var(--primary-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.historical-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--muted-text);
+}
+
+.historical-meta span {
+  background: #363537;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #111827;
+}
+
+.marking-annotations {
+  margin-bottom: 16px;
+}
+
+.marking-annotations h5 {
+  margin: 0 0 8px 0;
+  color: var(--primary-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.marking-annotations ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.marking-annotations li {
+  margin-bottom: 8px;
+  color: var(--secondary-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.marking-annotations strong {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.bbox-info {
+  font-size: 11px;
+  color: var(--muted-text);
+  font-style: italic;
+  margin-left: 8px;
+}
+
+
+
+
+.upload-section:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(127, 0, 255, 0.15);
+}
+
+/* Image Preview Container */
+.image-preview-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--tertiary-bg);
+  border: 2px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.image-preview-container:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+
+.preview-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 20px;
+  color: white;
+}
+
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: white;
+  word-break: break-word;
+}
+
+.file-size {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 8px;
+  border-radius: 6px;
+  backdrop-filter: blur(10px);
+}
+
+.change-image-btn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.change-image-btn:hover {
+  background: var(--accent-light);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+
+/* Upload Area */
+.upload-area {
+  border: 3px dashed var(--border-color);
+  border-radius: 20px;
+  padding: 60px 32px;
+  text-align: center;
+  background: var(--tertiary-bg);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-area:hover {
+  border-color: var(--accent-color);
+  background: rgba(127, 0, 255, 0.05);
+  transform: scale(1.02);
+}
+
+.upload-area.dragover {
+  border-color: var(--accent-color);
+  background: rgba(127, 0, 255, 0.1);
+  transform: scale(1.02);
+}
+
+.upload-icon {
+  font-size: 64px;
+  color: var(--accent-color);
+  margin-bottom: 20px;
+  opacity: 0.9;
+  transition: all 0.3s ease;
+}
+
+.upload-area:hover .upload-icon {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.upload-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--primary-text);
+  margin-bottom: 10px;
+}
+
+.upload-subtext {
+  font-size: 14px;
+  color: var(--secondary-text);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.upload-hint {
+  font-size: 14px;
+  color: var(--secondary-text);
+  opacity: 0.7;
+  margin-top: 16px;
+}
+
+/* Upload Button */
+.upload-actions {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.upload-homework-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 32px;
+  background: linear-gradient(135deg, var(--accent-color), #9f7aea);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 24px rgba(127, 0, 255, 0.3);
+}
+
+.upload-homework-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(127, 0, 255, 0.4);
+}
+
+.upload-homework-btn:active {
+  transform: translateY(0);
+}
+
+.upload-homework-btn:disabled {
+  background: var(--muted-text) !important;
+  color: var(--secondary-text);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  border: 1px solid #111827;
+}
+
+.upload-homework-btn .upload-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: uploadSpin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes uploadSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Loading Progress Bar */
+.loading-progress-container {
+  margin-top: 24px;
+  width: 100%;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.loading-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--tertiary-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #111827;
+  position: relative;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color), #9f7aea);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.loading-progress-container {
+  margin-top: 20px;
+  width: 100%;
+}
+
+.loading-progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.loading-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.loading-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.loading-progress-text {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--secondary-text);
+  text-align: center;
+  font-weight: 500;
+  min-height: 20px;
+}
+
+/* Annotated image styles are defined in ChatInterface.css */
+
+/* Image with overlay styles */
+.image-with-overlay {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.base-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #111827;
+  display: block;
+}
+
+.svg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.svg-overlay svg {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Annotations list styles */
+.annotations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.annotation-item {
+  background: #363537;
+  border: 1px solid #111827;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.annotation-item:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.annotation-action {
+  margin-bottom: 8px;
+}
+
+.action-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.action-tick {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.action-cross {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.action-circle {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.action-underline {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.action-comment {
+  background: rgba(168, 85, 247, 0.1);
+  color: #9333ea;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.annotation-comment {
+  font-weight: 500;
+  color: var(--primary-text);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.annotation-text {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--accent-color);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  font-style: italic;
+  color: var(--secondary-text);
+}
+
+.annotation-position {
+  font-size: 12px;
+  color: var(--secondary-text);
+  font-family: 'Courier New', monospace;
+  background: var(--primary-bg);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #111827;
+}
+
+/* Upload Main Content Styles */
+.upload-main-content {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.upload-title-section {
+  text-align: left;
+  max-width: 1000px;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  position: relative;
+  margin: 0 auto;
+}
+
+.title-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.upload-title-section h1 {
+  font-size: 48px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 16px 0;
+  line-height: 1.2;
+}
+
+.upload-title-section p {
+  font-size: 18px;
+  color: var(--secondary-text);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Title Upload Button Styles */
+.title-upload-btn {
+  background: #363537;
+  color: var(--primary-text);
+  border: 2px solid var(--accent-color);
+  padding: 20px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 0;
+  height: 100%;
+  min-height: 120px;
+  position: relative;
+  transform: translateX(0);
+}
+
+.title-upload-btn svg {
+  width: 32px;
+  height: 32px;
+}
+
+.title-upload-btn:hover {
+  background: var(--tertiary-bg);
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 2px rgba(127, 0, 255, 0.2);
+}
+
+.title-upload-btn.has-image {
+  position: relative;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background-size: 40%;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+
+.title-upload-btn.has-image::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5%;
+  right: -5%;
+  bottom: 0;
+  width: 110%;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.title-upload-btn.has-image .change-image-text {
+  position: relative;
+  z-index: 2;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.title-upload-btn.has-image:hover::before {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Main Upload Input Bar Styles */
+.main-upload-input-bar {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 0;
+  z-index: 100;
+  box-shadow: none;
+  margin-top: 40px;
+  width: 100%;
+}
+
+/* Chat Input Bar for Chat Mode - Position at Bottom, Respecting Sidebar */
+.chat-mode .main-upload-input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 280px; /* Start after sidebar width */
+  right: 0;
+  top: auto;
+  transform: none;
+  background: var(--primary-bg);
+  border-radius: 0;
+  padding: 16px 20px;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile responsive - input bar takes full width when sidebar is hidden */
+@media (max-width: 768px) {
+  .chat-mode .main-upload-input-bar {
+    left: 0; /* Full width on mobile */
+  }
+}
+
+.main-upload-input {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  background: #363537;
+  border: 1px solid #111827;
+  border-radius: 12px;
+  padding: 8px 8px 0px 8px;
+  position: relative;
+}
+
+/* Model selector and send button row */
+.main-upload-input .model-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 16px 12px;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.main-upload-input .model-selector .left-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-upload-input .input-container {
+  width: 100%;
+  position: relative;
+}
+
+/* Main Chat Input Styles */
+.main-chat-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--primary-text);
+  font-size: 16px;
+  padding: 12px 16px;
+  resize: none;
+  outline: none;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-sizing: border-box;
+  min-height: 48px;
+  max-height: 120px;
+  line-height: 1.5;
+  transition: all 0.2s ease;
+  text-align: left;
+  direction: ltr;
+  margin: 0;
+}
+
+.main-chat-input::placeholder {
+  color: var(--secondary-text);
+  font-size: 16px;
+}
+
+.main-chat-input:focus {
+  outline: none;
+}
+
+/* Upload Loading Bar - Below input bar */
+.upload-loading-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+  width: 100%;
+  margin-top: 20px;
+}
+
+/* When the loading bar is rendered just below the input bar block */
+.upload-loading-bar.inside-input {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.upload-loading-bar .loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.upload-loading-bar .loading-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--primary-text);
+  text-align: center;
+}
+
+.upload-loading-bar .progress-bar {
+  width: 300px;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.upload-loading-bar .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color), #9f7aea);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-loading-bar .progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Results Section */

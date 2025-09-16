@@ -70,7 +70,6 @@ const ChatMessage = ({
           {/* Handle marking messages with annotated images */}
           {!isUser && message?.type === 'marking_annotated' && hasImage(message) && imageSrc && !imageError && (
             <div className="homework-annotated-image">
-              <h4>✅ Marked Homework Image</h4>
               <img 
                 src={imageSrc}
                 alt="Marked homework"

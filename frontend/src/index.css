@@ -388,11 +388,7 @@ code {
   border-color: var(--warning-color);
 }
 
-.message-text {
-  font-size: 14px;
-  line-height: 1.6;
-  margin-bottom: 12px;
-}
+/* Message text styles are defined in ChatInterface.css */
 
 .message-meta {
   font-size: 12px;

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import ImageUploadForm from './ImageUploadForm';
+import './css/ImageUploadInterface.css';
 
 const ImageUploadInterface = ({
   selectedFile,

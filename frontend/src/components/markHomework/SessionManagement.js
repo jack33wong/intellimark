@@ -5,6 +5,7 @@
 
 import React from 'react';
 import SessionHeader from './SessionHeader';
+import './css/SessionManagement.css';
 
 const SessionManagement = ({
   sessionTitle,
