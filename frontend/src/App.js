@@ -12,6 +12,7 @@ import Login from './components/Login';
 import MarkdownMathDemo from './components/MarkdownMathDemo';
 import SubscriptionPage from './components/SubscriptionPage.tsx';
 import SimpleChatTest from './components/SimpleChatTest';
+import UnifiedTestPage from './components/UnifiedTestPage';
 import './App.css';
 
 /**
@@ -120,6 +121,9 @@ function AppContent() {
 
             {/* Simple Chat Test Route */}
             <Route path="/chat-test" element={<SimpleChatTest />} />
+            
+            {/* Unified Test Route */}
+            <Route path="/unified-test" element={<UnifiedTestPage />} />
             
             <Route path="/mark-homework" element={
               <OptionalAuthRoute>
