@@ -8,7 +8,6 @@ const SimpleChatTest = () => {
 
   // Simulate loading data with delay (like API call)
   React.useEffect(() => {
-    console.log('📥 Simulating API call delay...');
     
     // Sample data - more messages to ensure overflow
     const sampleMessages = [
@@ -41,7 +40,6 @@ const SimpleChatTest = () => {
     ];
     
     const timer = setTimeout(() => {
-      console.log('📦 Loading messages after delay...');
       setMessages(sampleMessages);
       setIsLoading(false);
     }, 1000); // 1 second delay
@@ -53,18 +51,7 @@ const SimpleChatTest = () => {
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       const container = chatContainerRef.current;
-      console.log('📐 Simple scroll:', {
-        scrollHeight: container.scrollHeight,
-        clientHeight: container.clientHeight,
-        scrollTop_before: container.scrollTop,
-        canScroll: container.scrollHeight > container.clientHeight,
-        viewportHeight: window.innerHeight,
-        containerStyle: container.style.maxHeight
-      });
       container.scrollTop = container.scrollHeight;
-      console.log('📐 After scroll:', {
-        scrollTop_after: container.scrollTop
-      });
     }
   };
 
@@ -93,13 +80,11 @@ const SimpleChatTest = () => {
       { id: 10, text: 'Message 10: Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.' }
     ];
     
-    console.log('📥 Loading sample messages...');
     setMessages(sampleMessages);
   };
 
   // Clear messages
   const clearMessages = () => {
-    console.log('🗑️ Clearing messages...');
     setMessages([]);
   };
 
@@ -109,7 +94,6 @@ const SimpleChatTest = () => {
       id: Date.now(),
       text: `New message ${messages.length + 1} at ${new Date().toLocaleTimeString()}`
     };
-    console.log('➕ Adding new message...');
     setMessages(prev => [...prev, newMessage]);
   };
 
@@ -198,17 +182,15 @@ const SimpleChatTest = () => {
                       backgroundColor: '#f0f0f0' // Show background while loading
                     }}
                     onLoad={() => {
-                      console.log(`🖼️ Image loaded for message ${message.id} - triggering scroll`);
                       // Trigger scroll after image loads (this is the key!)
                       setTimeout(() => {
                         if (chatContainerRef.current) {
-                          console.log(`📐 Re-scrolling after image ${message.id} loaded`);
                           chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
                         }
                       }, 50);
                     }}
                     onError={() => {
-                      console.log(`❌ Image failed to load for message ${message.id}`);
+                      // Image failed to load
                     }}
                   />
                 </div>

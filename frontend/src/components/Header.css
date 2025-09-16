@@ -691,12 +691,6 @@
   }
 }
 
-/* Dark mode specific adjustments */
-@media (prefers-color-scheme: dark) {
-  .header {
-    background: var(--primary-bg);
-  }
-}
 
 /* Focus states for accessibility */
 .nav-item:focus,

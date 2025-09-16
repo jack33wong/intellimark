@@ -501,12 +501,6 @@ body.login-page .auth-container {
   }
 }
 
-/* Dark mode specific adjustments */
-@media (prefers-color-scheme: dark) {
-  .auth-container {
-    background: var(--primary-bg);
-  }
-}
 
 /* Focus states for accessibility */
 .auth-button:focus,

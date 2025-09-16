@@ -243,13 +243,6 @@
   box-shadow: var(--shadow-md);
 }
 
-
-
-/* Model Selector */
-.model-selector {
-  margin-bottom: 40px;
-}
-
 .model-selector label {
   display: block;
   font-size: 18px;
@@ -744,7 +737,7 @@
   border: none;
   padding: 0;
   margin-top: 0;
-  height: 100vh;
+  height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -761,7 +754,7 @@
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--primary-bg);
-  height: 90vh; /* Use 90% of viewport height for larger size */
+  flex: 1; /* Take up remaining space in chat-mode */
   min-height: 0; /* Allow flex item to shrink below content size */
 }
 
@@ -1234,11 +1227,11 @@
 .chat-message.assistant .message-bubble {
   max-width: 100%;
   width: 100%;
-  background: transparent;
   border: none;
-  box-shadow: none;
-  padding: 0;
-  border-radius: 0;
+  box-shadow: var(--shadow-sm);
+  padding: 16px 20px;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
 }
 
 /* Remove background from message bubbles containing annotated images */
@@ -1277,12 +1270,12 @@
 }
 
 .chat-message.assistant .message-bubble {
-  background: transparent;
   color: var(--primary-text);
   border: none;
-  border-radius: 0;
-  box-shadow: none;
-  transition: none;
+  border-radius: 18px;
+  border-bottom-left-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
   font-size: 1.1em;
 }
 
@@ -1741,8 +1734,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 44px;
-  margin-top: -24px;
 }
 
 .left-controls {
@@ -3272,7 +3263,7 @@
 /* Homework Annotated Image in Chat Mode - Styled as User Message */
 .homework-annotated-image {
   margin: 24px 0;
-  padding: 0;
+  padding-left: 25px;
   background: transparent;
   border-radius: 0;
   border: none;
@@ -3684,7 +3675,7 @@
   border: none;
   padding: 0;
   margin-top: 0;
-  min-height: 100vh;
+  min-height: 85vh;
   display: flex;
   flex-direction: column;
 }
@@ -4255,3 +4246,5 @@
     padding: 12px 16px;
   }
 }
+
+

@@ -1,0 +1,138 @@
+/**
+ * Focused ModelSelector Component Styles
+ * Matches existing design system colors and styles
+ */
+
+.model-selector {
+  position: relative;
+  display: inline-block;
+  min-width: 150px;
+}
+
+.model-selector.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.model-selector-button {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.model-selector-button:hover:not(:disabled) {
+  background: var(--secondary-bg);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.model-selector-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.model-selector-button:disabled {
+  cursor: not-allowed;
+  background: var(--quaternary-bg);
+}
+
+.model-selector-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.model-selector-label {
+  font-weight: 500;
+  color: var(--primary-text);
+}
+
+.model-selector-arrow {
+  color: var(--secondary-text);
+  font-size: 12px;
+  transition: transform 0.3s ease;
+}
+
+.model-selector-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-bottom: 8px;
+  background: var(--secondary-bg);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.model-selector-option {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: none;
+  color: var(--primary-text);
+}
+
+.model-selector-option:last-child {
+  border-bottom: none;
+}
+
+.model-selector-option:hover {
+  background: var(--tertiary-bg);
+}
+
+.model-selector-option.selected {
+  background: var(--accent-color);
+  color: white;
+}
+
+.model-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.model-option-label {
+  font-weight: 500;
+  color: inherit;
+}
+
+.model-option-description {
+  font-size: 12px;
+  color: var(--secondary-text);
+  opacity: 0.8;
+}
+
+/* Size variants */
+.model-selector.small .model-selector-button {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.model-selector.large .model-selector-button {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+}
+
+.model-selector.small .model-selector-option {
+  padding: 0.5rem;
+}
+
+.model-selector.large .model-selector-option {
+  padding: 1rem;
+}

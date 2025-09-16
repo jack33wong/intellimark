@@ -24,6 +24,7 @@ import ImageUploadForm from './markHomework/ImageUploadForm';
 import SessionHeader from './markHomework/SessionHeader';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import FollowUpChatInput from './chat/FollowUpChatInput';
+import { ChatMessage } from './focused';
 
 // Utils
 import { ensureStringContent } from '../utils/contentUtils';
@@ -209,7 +210,6 @@ const MarkHomeworkPageRefactored = ({
   
   // Common function to handle image processing and display
   const processImageWithImmediateDisplay = useCallback(async (file, isFollowUp = false) => {
-    console.log('🔍 DEBUG: processImageWithImmediateDisplay called', { isFollowUp });
     if (!file) return;
     
     try {
@@ -258,21 +258,9 @@ const MarkHomeworkPageRefactored = ({
         // Send to backend for processing (creates new session)
         const result = await analyzeImage(imageData, selectedModel);
         
-        console.log('🔍 DEBUG: analyzeImage result', { 
-          responseType: result.responseType, 
-          hasUserMessage: !!result.userMessage,
-          sessionId: result.sessionId,
-          isAuthenticated: !!user?.uid
-        });
-        
-        console.log('🔍 DEBUG: Checking responseType condition', { 
-          responseType: result.responseType,
-          isOriginalImage: result.responseType === 'original_image'
-        });
         
         // Check if this is the new 2-response format (both authenticated and unauthenticated users)
         if (result.responseType === 'original_image') {
-          console.log('🔍 DEBUG: Entering original_image branch');
           // Response 1: Original image from database - show this immediately
           setChatMessages(prev => [...prev, result.userMessage]);
           
@@ -286,38 +274,17 @@ const MarkHomeworkPageRefactored = ({
           });
           
           // Process AI response in background
-          console.log('🔍 DEBUG: Starting AI processing immediately');
           (async () => {
             try {
               // Show AI thinking animation
               setIsWaitingForAI(true);
               
-              console.log('🔍 DEBUG: About to call processAIResponse for main upload', { 
-                sessionId: result.sessionId, 
-                hasImageData: !!imageData,
-                isAuthenticated: !!user?.uid 
-              });
-              
               const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
               
-              console.log('🔍 DEBUG: processAIResponse completed in component', { 
-                hasResult: !!aiResult,
-                responseType: aiResult?.responseType
-              });
-            
-              console.log('🔍 DEBUG: processAIResponse result for main upload', { 
-                hasResult: !!aiResult,
-                responseType: aiResult?.responseType,
-                hasAiMessage: !!aiResult?.aiMessage,
-                aiMessage: aiResult?.aiMessage
-              });
-              
               if (aiResult && aiResult.responseType === 'ai_response') {
-                console.log('🔍 DEBUG: Adding AI message to chat', { aiMessage: aiResult.aiMessage });
                 // Response 2: AI response
                 setChatMessages(prev => {
                   const newMessages = [...prev, aiResult.aiMessage];
-                  console.log('🔍 DEBUG: Updated chat messages', { count: newMessages.length, lastMessage: newMessages[newMessages.length - 1] });
                   return newMessages;
                 });
                 
@@ -351,7 +318,6 @@ const MarkHomeworkPageRefactored = ({
 
   // Handle main image analysis
   const handleAnalyzeImage = useCallback(async () => {
-    console.log('🔍 DEBUG: handleAnalyzeImage called');
     if (!selectedFile) return;
     
     // Process image to base64
@@ -379,30 +345,17 @@ const MarkHomeworkPageRefactored = ({
         });
         
         // Process AI response in background
-        console.log('🔍 DEBUG: Starting setTimeout for AI processing');
         setTimeout(async () => {
           try {
-            console.log('🔍 DEBUG: setTimeout callback executing');
             // Show AI thinking animation
             setIsWaitingForAI(true);
             
-            console.log('🔍 DEBUG: About to call processAIResponse from setTimeout');
             const aiResult = await processAIResponse(imageData, selectedModel, result.sessionId);
             
-            console.log('🔍 DEBUG: processAIResponse result in setTimeout', { 
-              hasResult: !!aiResult, 
-              responseType: aiResult?.responseType 
-            });
-            
             if (aiResult.responseType === 'ai_response') {
-              console.log('🔍 DEBUG: Adding AI message to chat', { aiMessage: aiResult.aiMessage });
               // Response 2: AI response
               setChatMessages(prev => {
                 const newMessages = [...prev, aiResult.aiMessage];
-                console.log('🔍 DEBUG: Updated chat messages', { 
-                  totalMessages: newMessages.length, 
-                  lastMessage: newMessages[newMessages.length - 1] 
-                });
                 return newMessages;
               });
               
@@ -411,8 +364,6 @@ const MarkHomeworkPageRefactored = ({
                 sessionId: result.sessionId, 
                 type: aiResult.isQuestionOnly ? 'question' : 'marking' 
               });
-            } else {
-              console.log('🔍 DEBUG: AI result is not ai_response', { responseType: aiResult?.responseType });
             }
           } catch (error) {
             console.error('Error processing AI response:', error);
@@ -582,82 +533,15 @@ const MarkHomeworkPageRefactored = ({
             />
             
             <div className="chat-messages">
-              {console.log('🔍 DEBUG: Rendering chat messages', { 
-                totalMessages: chatMessages.length, 
-                messages: chatMessages.map(m => ({ 
-                  id: m.id, 
-                  role: m.role, 
-                  type: m.type, 
-                  content: m.content,
-                  hasImage: !!(m.imageLink || m.imageData),
-                  imageLink: m.imageLink,
-                  imageData: m.imageData ? 'base64 data present' : 'no base64 data'
-                }))
-              })}
               {chatMessages.map((message, index) => (
-                <div 
-                  key={`${message.id}-${index}`} 
-                  className={`chat-message ${message.role}`}
-                >
-                    <div className={`message-bubble ${(message.type === 'marking_original' || message.type === 'marking_annotated' || message.type === 'question_original') ? 'marking-message' : ''}`}>
-                      {message.role === 'assistant' ? (
-                        <div>
-                          <div className="assistant-header">
-                            <Brain size={20} className="assistant-brain-icon" />
-                          </div>
-                          
-                          {/* Show content for regular chat messages and AI responses */}
-                          {message.type !== 'marking_original' && 
-                           message.content && 
-                           ensureStringContent(message.content).trim() !== '' && (
-                            <MarkdownMathRenderer 
-                              content={ensureStringContent(message.content)}
-                              className="chat-message-renderer"
-                            />
-                          )}
-                          
-                          {/* Handle marking messages with annotated images */}
-                          {message.type === 'marking_annotated' && (message.imageLink || message.imageData) && (
-                            <div className="homework-annotated-image">
-                              <h4>✅ Marked Homework Image</h4>
-                              <img 
-                                src={getImageSrc(message.imageLink || message.imageData)}
-                                alt="Marked homework"
-                                className="annotated-image"
-                                onLoad={handleImageLoad}
-                                onError={(e) => {
-                                  console.warn('Failed to load image:', message.imageLink || message.imageData);
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          {/* User message content */}
-                          {(message.imageLink || message.imageData) && (
-                            <div className="message-image">
-                              <img 
-                                src={message.imageLink || message.imageData}
-                                alt="Uploaded"
-                                className="content-image"
-                                onLoad={handleImageLoad}
-                                onError={(e) => {
-                                  console.warn('Failed to load user image:', message.imageLink || message.imageData);
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          )}
-                          
-                          <div className="message-text">
-                            {typeof message.content === 'string' ? message.content : String(message.content || '')}
-                          </div>
-                        </div>
-                      )}
-                  </div>
-                </div>
+                <ChatMessage
+                  key={`${message.id}-${index}`}
+                  message={message}
+                  onImageLoad={handleImageLoad}
+                  getImageSrc={getImageSrc}
+                  MarkdownMathRenderer={MarkdownMathRenderer}
+                  ensureStringContent={ensureStringContent}
+                />
               ))}
               
               {/* Processing indicator */}

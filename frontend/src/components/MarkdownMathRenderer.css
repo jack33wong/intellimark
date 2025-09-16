@@ -193,36 +193,3 @@
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .markdown-math-renderer {
-    color: var(--primary-text, #e1e4e8);
-  }
-  
-  .markdown-math-renderer .markdown-inline-code,
-  .markdown-math-renderer .markdown-code {
-    background: var(--tertiary-bg, #2d3748);
-    border-color: var(--border-color, #4a5568);
-    color: var(--code-text, #fbb6ce);
-  }
-  
-  .markdown-math-renderer .markdown-pre {
-    background: var(--tertiary-bg, #2d3748);
-    border-color: var(--border-color, #4a5568);
-  }
-  
-  .markdown-math-renderer .markdown-blockquote {
-    background: var(--tertiary-bg, #2d3748);
-    border-color: var(--border-color, #4a5568);
-    color: var(--secondary-text, #a0aec0);
-  }
-  
-  .markdown-math-renderer .markdown-th,
-  .markdown-math-renderer .markdown-td {
-    border-color: var(--border-color, #4a5568);
-  }
-  
-  .markdown-math-renderer .markdown-th {
-    background: var(--tertiary-bg, #2d3748);
-  }
-}

@@ -1,0 +1,140 @@
+/**
+ * Focused SendButton Component Styles
+ * Matches existing design system colors and styles
+ */
+
+.send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+.send-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.send-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.send-button.loading {
+  cursor: not-allowed;
+}
+
+/* Size variants */
+.send-button.small {
+  padding: 8px 16px;
+  font-size: 12px;
+  min-height: 36px;
+}
+
+.send-button.medium {
+  padding: 12px 24px;
+  font-size: 14px;
+  min-height: 44px;
+}
+
+.send-button.large {
+  padding: 16px 32px;
+  font-size: 16px;
+  min-height: 52px;
+}
+
+/* Variant styles */
+.send-button.primary {
+  background: var(--accent-color);
+  color: white;
+}
+
+.send-button.primary:hover:not(:disabled) {
+  background: #7a00e6;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.send-button.secondary {
+  background: var(--secondary-accent);
+  color: white;
+}
+
+.send-button.secondary:hover:not(:disabled) {
+  background: var(--accent-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.send-button.success {
+  background: var(--accent-color);
+  color: white;
+}
+
+.send-button.success:hover:not(:disabled) {
+  background: #7a00e6;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Content styles */
+.send-button-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.send-button-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.send-button-icon {
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+.send-button-text {
+  line-height: 1;
+}
+
+/* Spinner animation */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Hover effects */
+.send-button:not(:disabled):not(.loading):hover {
+  transform: translateY(-1px);
+}
+
+.send-button:not(:disabled):not(.loading):active {
+  transform: translateY(0);
+}
+
+/* Focus ring */
+.send-button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}

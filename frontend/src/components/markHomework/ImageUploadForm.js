@@ -4,8 +4,7 @@
  */
 
 import React from 'react';
-import { Upload } from 'lucide-react';
-import ModelSelector from '../chat/ModelSelector';
+import { ImageUpload, ModelSelector, SendButton } from '../focused';
 
 const ImageUploadForm = ({
   selectedFile,
@@ -20,10 +19,9 @@ const ImageUploadForm = ({
   loadingProgress = 0,
   showExpandedThinking = false
 }) => {
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      onFileSelect(file);
+  const handleImageSelect = (imageData) => {
+    if (imageData && imageData.file) {
+      onFileSelect(imageData.file);
     }
   };
 
@@ -36,36 +34,15 @@ const ImageUploadForm = ({
             <h1>intellimark</h1>
             <p>Upload your homework images and get instant AI-powered feedback, explanations, and corrections</p>
           </div>
-          <button 
-            className={`title-upload-btn ${selectedFile && previewUrl ? 'has-image' : ''}`}
-            onClick={() => document.getElementById('image-upload').click()}
-            style={selectedFile && previewUrl ? {
-              backgroundImage: `url(${previewUrl})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat'
-            } : {}}
-          >
-            {selectedFile && previewUrl ? (
-              <span className="change-image-text">Change Image</span>
-            ) : (
-              <>
-                <Upload size={20} />
-                Upload Homework
-              </>
-            )}
-          </button>
+          <ImageUpload
+            onImageSelect={handleImageSelect}
+            onError={(error) => console.error('Image upload error:', error)}
+            disabled={isProcessing}
+            showPreview={true}
+            placeholder="Upload Homework"
+            className="title-upload-btn"
+          />
         </div>
-
-        {/* Hidden file input for top button */}
-        <input
-          id="image-upload"
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          style={{ display: 'none' }}
-          disabled={isProcessing}
-        />
       </div>
 
       {/* Main Chat Input Bar */}
@@ -90,22 +67,15 @@ const ImageUploadForm = ({
                 size="main"
               />
             </div>
-            <button 
-              className={`send-btn ${selectedFile ? 'analyze-mode' : ''}`}
-              disabled={isProcessing || !selectedFile}
+            <SendButton
               onClick={onAnalyzeImage}
+              disabled={isProcessing || !selectedFile}
+              loading={isProcessing}
+              variant={selectedFile ? 'success' : 'primary'}
+              size="main"
             >
-              {isProcessing ? (
-                <div className="send-spinner"></div>
-              ) : selectedFile ? (
-                <span className="btn-text">Analyze</span>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13"></line>
-                  <polygon points="22,2 15,22 11,13 2,9 22,2"></polygon>
-                </svg>
-              )}
-            </button>
+              {selectedFile ? 'Analyze' : 'Send'}
+            </SendButton>
           </div>
         </div>
         {isProcessing && (

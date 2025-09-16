@@ -24,17 +24,21 @@ const SessionHeader = ({
   // Helper function to get token data from either markingResult or sessionData
   const getTokenData = () => {
     // First try to get from markingResult (for current sessions)
-    if (markingResult?.metadata?.tokens) {
+    if (markingResult?.metadata?.tokens && Array.isArray(markingResult.metadata.tokens)) {
       return markingResult.metadata.tokens;
     }
     
-    // Fallback: try to get from session messages metadata (for historical sessions)
-    if (sessionData?.messages) {
-      const aiMessage = sessionData.messages.find(msg => 
-        msg.role === 'assistant' && msg.metadata?.tokens
-      );
-      if (aiMessage?.metadata?.tokens) {
-        return aiMessage.metadata.tokens;
+    // For historical sessions: check unifiedSession.sessionMetadata
+    if (sessionData?.sessionMetadata) {
+      // Check if tokens are stored as array
+      if (sessionData.sessionMetadata.tokens && Array.isArray(sessionData.sessionMetadata.tokens)) {
+        return sessionData.sessionMetadata.tokens;
+      }
+      
+      // Check if tokens are stored as totalTokens (for LLM tokens)
+      if (sessionData.sessionMetadata.totalTokens !== undefined) {
+        // For now, we only have totalTokens, so use it for LLM tokens and 0 for Mathpix calls
+        return [sessionData.sessionMetadata.totalTokens, 0];
       }
     }
     
@@ -55,17 +59,14 @@ const SessionHeader = ({
       return markingResult.model;
     }
     
-    // Fallback: try to get from session messages metadata
-    if (sessionData?.messages) {
-      const aiMessage = sessionData.messages.find(msg => 
-        msg.role === 'assistant' && (msg.metadata?.modelUsed || msg.model)
-      );
-      if (aiMessage?.metadata?.modelUsed) {
-        return aiMessage.metadata.modelUsed;
-      }
-      if (aiMessage?.model) {
-        return aiMessage.model;
-      }
+    // For historical sessions: check unifiedSession.sessionMetadata
+    if (sessionData?.sessionMetadata?.modelUsed) {
+      return sessionData.sessionMetadata.modelUsed;
+    }
+    
+    // Also check lastModelUsed for historical sessions
+    if (sessionData?.sessionMetadata?.lastModelUsed) {
+      return sessionData.sessionMetadata.lastModelUsed;
     }
     
     // Default model based on common usage
@@ -165,9 +166,8 @@ const SessionHeader = ({
                           // Try different sources for processing time
                           const timeMs = markingResult?.metadata?.totalProcessingTimeMs ||
                                         markingResult?.metadata?.processingTimeMs ||
-                                        (sessionData?.messages?.find(msg => 
-                                          msg.role === 'assistant' && msg.metadata?.processingTimeMs
-                                        )?.metadata?.processingTimeMs);
+                                        sessionData?.sessionMetadata?.totalProcessingTimeMs ||
+                                        sessionData?.sessionMetadata?.processingTimeMs;
                           
                           return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
                         })()}
@@ -191,11 +191,21 @@ const SessionHeader = ({
                   <div className="dropdown-footer">
                     <div className="token-count">
                       <span className="label">LLM Tokens:</span>
-                      <span className="value">{tokens?.[0]?.toLocaleString() || 'N/A'}</span>
+                      <span className="value">
+                        {tokens && Array.isArray(tokens) && tokens.length > 0 
+                          ? tokens[0]?.toLocaleString() || 'N/A'
+                          : 'N/A'
+                        }
+                      </span>
                     </div>
                     <div className="mathpix-count">
                       <span className="label">Mathpix Calls:</span>
-                      <span className="value">{tokens?.[1] || 'N/A'}</span>
+                      <span className="value">
+                        {tokens && Array.isArray(tokens) && tokens.length > 1 
+                          ? tokens[1] || 'N/A'
+                          : 'N/A'
+                        }
+                      </span>
                     </div>
                     <div className="last-update">
                       <span className="label">Last Update:</span>
