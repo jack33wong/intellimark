@@ -6,7 +6,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-bg);
+  background: var(--background-white-main);
   padding: 20px;
   position: relative;
   overflow: hidden;
@@ -27,20 +27,20 @@ body.login-page .auth-container {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 20% 80%, var(--accent-color) 0%, transparent 50%),
-              radial-gradient(circle at 80% 20%, var(--accent-light) 0%, transparent 50%);
+  background: radial-gradient(circle at 20% 80%, var(--text-blue) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, var(--text-brand) 0%, transparent 50%);
   opacity: 0.1;
   z-index: 0;
 }
 
 .auth-card {
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   border-radius: 20px;
   padding: 60px;
   width: 100%;
   max-width: 520px;
   box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-main);
   position: relative;
   z-index: 1;
   backdrop-filter: blur(10px);
@@ -61,23 +61,28 @@ body.login-page .auth-container {
 
 .logo-icon {
   font-size: 40px;
-  color: var(--accent-color);
+  color: var(--text-blue);
   filter: drop-shadow(0 2px 4px rgba(127, 0, 255, 0.3));
 }
 
 .auth-logo h1 {
-  color: var(--primary-text);
+  color: var(--text-blue);
   font-size: 36px;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+  background: linear-gradient(135deg, var(--text-blue), var(--text-brand));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* Fallback for browsers that don't support background-clip: text */
+  @supports not (-webkit-background-clip: text) {
+    color: var(--text-blue);
+    background: none;
+  }
 }
 
 .auth-subtitle {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 18px;
   margin: 0;
 }
@@ -96,7 +101,7 @@ body.login-page .auth-container {
 
 .social-login-text {
   text-align: center;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 16px;
   margin: 0;
 }
@@ -113,9 +118,9 @@ body.login-page .auth-container {
   gap: 8px;
   padding: 12px 16px;
   background: rgba(248, 113, 113, 0.1);
-  border: 1px solid var(--error-color);
+  border: 1px solid var(--function-error);
   border-radius: 8px;
-  color: var(--error-color);
+  color: var(--function-error);
   font-size: 14px;
   animation: shake 0.5s ease-in-out;
 }
@@ -150,44 +155,40 @@ body.login-page .auth-container {
   }
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+/* Form group styles are defined in ProfilePage.css */
 
 .form-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
 }
 
 .form-input {
   padding: 12px 16px;
-  border: 2px solid var(--border-color);
+  border: 2px solid var(--border-main);
   border-radius: 8px;
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   font-size: 16px;
   transition: all 0.2s ease;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--text-blue);
   box-shadow: 0 0 0 3px var(--focus-ring);
-  background: var(--quaternary-bg);
+  background: var(--background-gray-main);
 }
 
 .form-input::placeholder {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .form-input.error {
-  border-color: var(--error-color);
+  border-color: var(--function-error);
   background: rgba(248, 113, 113, 0.05);
 }
 
@@ -197,7 +198,7 @@ body.login-page .auth-container {
 }
 
 .form-error {
-  color: var(--error-color);
+  color: var(--function-error);
   font-size: 12px;
   margin-top: 4px;
   display: flex;
@@ -217,7 +218,7 @@ body.login-page .auth-container {
 .auth-button {
   width: 100%;
   padding: 14px 20px;
-  background: var(--accent-color);
+  background: var(--text-blue);
   border: none;
   border-radius: 8px;
   color: white;
@@ -230,7 +231,7 @@ body.login-page .auth-container {
 }
 
 .auth-button:hover {
-  background: var(--accent-hover);
+  background: var(--text-blue);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -240,7 +241,7 @@ body.login-page .auth-container {
 }
 
 .auth-button:disabled {
-  background: var(--muted-text);
+  background: var(--text-tertiary);
   cursor: not-allowed;
   transform: none;
 }
@@ -273,7 +274,7 @@ body.login-page .auth-container {
   align-items: center;
   gap: 16px;
   margin: 24px 0;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   font-size: 14px;
 }
 
@@ -282,7 +283,7 @@ body.login-page .auth-container {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-color);
+  background: var(--border-main);
 }
 
 .social-auth {
@@ -297,10 +298,10 @@ body.login-page .auth-container {
   justify-content: center;
   gap: 16px;
   padding: 16px 24px;
-  background: var(--tertiary-bg);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-main);
   border-radius: 12px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -309,37 +310,13 @@ body.login-page .auth-container {
 }
 
 .social-button:hover {
-  background: var(--quaternary-bg);
-  border-color: var(--accent-color);
+  background: var(--background-gray-main);
+  border-color: var(--text-blue);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
-.social-button.google {
-  background: #34a853;
-  border-color: #34a853;
-  color: white;
-}
 
-.social-button.google:hover {
-  background: #2d8f47;
-  border-color: #2d8f47;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.social-button.facebook {
-  background: #1877f2;
-  border-color: #1877f2;
-  color: white;
-}
-
-.social-button.facebook:hover {
-  background: #166fe5;
-  border-color: #166fe5;
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
 
 .social-icon {
   width: 20px;
@@ -349,32 +326,32 @@ body.login-page .auth-container {
 .auth-footer {
   text-align: center;
   margin-top: 40px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .auth-link {
-  color: var(--accent-color);
+  color: var(--text-blue);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
 }
 
 .auth-link:hover {
-  color: var(--accent-hover);
+  color: var(--text-blue);
   text-decoration: underline;
 }
 
 .auth-switch {
   margin-top: 16px;
   padding: 16px;
-  background: var(--tertiary-bg);
+  background: var(--background-menu-gray);
   border-radius: 8px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-main);
 }
 
 .auth-switch-text {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 8px;
 }
@@ -382,7 +359,7 @@ body.login-page .auth-container {
 .auth-switch-button {
   background: none;
   border: none;
-  color: var(--accent-color);
+  color: var(--text-blue);
   cursor: pointer;
   font-weight: 500;
   text-decoration: underline;
@@ -390,7 +367,7 @@ body.login-page .auth-container {
 }
 
 .auth-switch-button:hover {
-  color: var(--accent-hover);
+  color: var(--text-blue);
 }
 
 /* Password strength indicator */
@@ -400,7 +377,7 @@ body.login-page .auth-container {
 
 .strength-bar {
   height: 4px;
-  background: var(--border-color);
+  background: var(--border-main);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 4px;
@@ -413,7 +390,7 @@ body.login-page .auth-container {
 }
 
 .strength-fill.weak {
-  background: var(--error-color);
+  background: var(--function-error);
   width: 25%;
 }
 
@@ -434,7 +411,7 @@ body.login-page .auth-container {
 
 .strength-text {
   font-size: 12px;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 /* Remember me checkbox */
@@ -448,11 +425,11 @@ body.login-page .auth-container {
 .remember-me input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent-color);
+  accent-color: var(--text-blue);
 }
 
 .remember-me label {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
 }
@@ -464,14 +441,14 @@ body.login-page .auth-container {
 }
 
 .forgot-password a {
-  color: var(--accent-color);
+  color: var(--text-blue);
   text-decoration: none;
   font-size: 14px;
   transition: color 0.2s ease;
 }
 
 .forgot-password a:hover {
-  color: var(--accent-hover);
+  color: var(--text-blue);
   text-decoration: underline;
 }
 
@@ -506,7 +483,7 @@ body.login-page .auth-container {
 .auth-button:focus,
 .form-input:focus,
 .social-button:focus {
-  outline: 2px solid var(--accent-color);
+  outline: 2px solid var(--text-blue);
   outline-offset: 2px;
 }
 

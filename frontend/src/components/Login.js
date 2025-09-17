@@ -142,7 +142,6 @@ const Login = () => {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
-            <div className="logo-icon">🎯</div>
             <h1>Intellimark</h1>
           </div>
           <p className="auth-subtitle">Sign in to your account</p>

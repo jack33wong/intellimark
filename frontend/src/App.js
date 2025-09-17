@@ -7,7 +7,6 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AdminPage from './components/admin/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
-import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage.tsx';
 import './App.css';
@@ -149,28 +148,6 @@ function AppContent() {
             } />
             
             
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <div className="app-container">
-                  <div className="app-body">
-                    <Sidebar 
-                      isOpen={isSidebarOpen} 
-                      onMarkingHistoryClick={handleMarkingHistoryClick}
-                      onMarkHomeworkClick={handleMarkHomeworkClick}
-                      onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode={currentPageMode}
-                      onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-                    />
-                    <div className="right-side">
-                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                      <div className="main-content">
-                        <ProfilePage />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </ProtectedRoute>
-            } />
             
             
             {/* Main page route - handles subscription success */}

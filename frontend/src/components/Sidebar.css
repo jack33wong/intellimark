@@ -1,5 +1,46 @@
 /* Sidebar Styles - Clean and minimal design */
 
+/* Main Sidebar Container */
+.sidebar {
+  width: 280px;
+  min-width: 280px;
+  max-width: 280px;
+  background: var(--background-nav);
+  color: var(--text-primary);
+  padding: 0;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+  height: 100vh; /* Full viewport height */
+  position: relative;
+  z-index: 200; /* Higher than chat-input-bar to ensure sidebar appears above it */
+}
+
+.sidebar.collapsed {
+  transform: translateX(-100%);
+}
+
+/* Responsive sidebar */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0; /* Full height from top */
+    left: 0;
+    height: 100vh; /* Full viewport height */
+    transform: translateX(-100%);
+    z-index: 1000;
+  }
+  
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .sidebar.open {
+    left: 0;
+  }
+}
+
 .sidebar-content {
   padding: 0;
   height: 100vh;
@@ -163,7 +204,7 @@
   padding: 16px 20px 12px 20px;
   position: sticky;
   top: 0;
-  background: var(--secondary-bg);
+  background: var(--background-nav);
   z-index: 10;
   justify-content: flex-start;
 }
@@ -206,21 +247,28 @@
 }
 
 .mark-history-item {
-  padding: 6px 20px;
-  border-radius: 0;
+  padding: 8px 20px;
+  margin: 2px 8px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  background: transparent !important;
+  background: transparent;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
+  width: calc(100% - 16px);
 }
 
 .mark-history-item:hover {
-  background: transparent;
+  background: var(--background-menu-gray);
   color: var(--text-blue);
+}
+
+.mark-history-item.active {
+  background: var(--fill-gray);
+  color: var(--text-blue);
+  border-left: 3px solid var(--text-blue);
 }
 
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import SettingsModal from './SettingsModal';
 import { 
   User, 
   LogOut, 
@@ -21,6 +22,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -403,7 +405,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     <button 
                       className="profile-action"
                       onClick={() => {
-                        navigate('/profile');
+                        setIsSettingsModalOpen(true);
                         handleProfileClose();
                       }}
                     >
@@ -441,6 +443,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         </div>
       </div>
 
+      {/* Settings Modal */}
+      <SettingsModal 
+        isOpen={isSettingsModalOpen} 
+        onClose={() => setIsSettingsModalOpen(false)} 
+      />
     </header>
   );
 };

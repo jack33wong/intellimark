@@ -1,7 +1,7 @@
 /* Header Component Styles */
 .header {
-  background: var(--primary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: relative;
   z-index: 9998;
@@ -35,9 +35,9 @@
 }
 
 .nav-item {
-  background: var(--tertiary-bg);
+  background: var(--background-menu-gray);
   border: 1px solid #111827;
-  color: var(--primary-text);
+  color: var(--text-primary);
   padding: 10px 16px;
   border-radius: 8px;
   font-size: 14px;
@@ -53,16 +53,16 @@
 }
 
 .nav-item:hover {
-  background: var(--quaternary-bg);
+  background: var(--background-gray-main);
   border-color: #111827;
   transform: none;
   box-shadow: none;
 }
 
 .nav-item.active {
-  background: var(--accent-color);
+  background: var(--text-blue);
   color: white;
-  border-color: var(--accent-color);
+  border-color: var(--text-blue);
   box-shadow: var(--shadow-md);
 }
 
@@ -82,7 +82,7 @@
 
 .nav-item.upgrade-nav {
   background: transparent;
-  color: var(--primary-text);
+  color: var(--text-primary);
   border-color: #111827;
   box-shadow: none;
   display: flex;
@@ -92,7 +92,7 @@
 
 .nav-item.upgrade-nav:hover {
   background: rgba(0, 0, 0, 0.05);
-  color: var(--primary-text);
+  color: var(--text-primary);
   border-color: #111827;
 }
 
@@ -102,8 +102,8 @@
 
 /* Login Button */
 .login-button {
-  background: var(--accent-color);
-  border: 1px solid var(--accent-color);
+  background: var(--text-blue);
+  border: 1px solid var(--text-blue);
   color: white;
   padding: 10px 16px;
   border-radius: 8px;
@@ -122,8 +122,8 @@
 }
 
 .login-button:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--text-blue);
+  border-color: var(--text-blue);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
   color: white;
@@ -134,7 +134,7 @@
 }
 
 .login-button:focus {
-  outline: 2px solid var(--accent-color);
+  outline: 2px solid var(--text-blue);
   outline-offset: 2px;
 }
 
@@ -165,7 +165,7 @@
   background: transparent;
   border: 1px solid #111827;
   border-radius: 20px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -191,7 +191,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-color);
+  background: var(--text-blue);
   flex-shrink: 0;
 }
 
@@ -209,13 +209,13 @@
 
 .profile-name {
   font-weight: 500;
-  color: var(--primary-text);
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .chevron {
   transition: transform 0.2s ease;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .chevron.rotated {
@@ -288,7 +288,7 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: var(--primary-bg);
+  background: var(--background-white-main);
   border: none;
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
@@ -310,7 +310,7 @@
 
 .profile-info {
   padding: 20px;
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   border-bottom: none;
   display: flex;
   align-items: center;
@@ -331,18 +331,18 @@
 .profile-name-large {
   font-size: 16px;
   font-weight: 600;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .profile-email {
   font-size: 14px;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .admin-badge {
   display: inline-block;
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -352,7 +352,7 @@
 
 .profile-divider {
   height: 1px;
-  background: var(--border-color);
+  background: var(--border-main);
   margin: 0;
 }
 
@@ -371,7 +371,7 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -381,18 +381,18 @@
 }
 
 .profile-action:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   transform: translateX(2px);
 }
 
 .profile-action.logout {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
 }
 
 .profile-action.logout:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
 }
 
 .user-profile {
@@ -420,7 +420,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--accent-color);
+  background: var(--text-blue);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -438,13 +438,13 @@
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--primary-text);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .user-email {
   font-size: 12px;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   margin: 0;
 }
 
@@ -455,7 +455,7 @@
 .user-menu-toggle {
   background: none;
   border: none;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 8px;
   border-radius: 6px;
@@ -463,8 +463,8 @@
 }
 
 .user-menu-toggle:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
 }
 
 .user-dropdown {
@@ -472,8 +472,8 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   min-width: 200px;
@@ -509,7 +509,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   text-decoration: none;
   transition: all 0.2s ease;
   border-bottom: none;
@@ -520,19 +520,19 @@
 }
 
 .dropdown-item:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   transform: translateX(2px);
   transition: all 0.2s ease;
 }
 
 .dropdown-item.danger {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
 }
 
 .dropdown-item.danger:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   transform: translateX(2px);
   transition: all 0.2s ease;
 }
@@ -551,9 +551,9 @@
 }
 
 .action-btn {
-  background: var(--tertiary-bg);
-  border: 1px solid var(--border-color);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
   padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
@@ -566,27 +566,27 @@
 }
 
 .action-btn:hover {
-  background: var(--quaternary-bg);
-  border-color: var(--accent-color);
+  background: var(--background-gray-main);
+  border-color: var(--text-blue);
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 
 .action-btn.primary {
-  background: var(--accent-color);
+  background: var(--text-blue);
   color: white;
-  border-color: var(--accent-color);
+  border-color: var(--text-blue);
 }
 
 .action-btn.primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--text-blue);
+  border-color: var(--text-blue);
 }
 
 .action-btn.danger {
-  background: var(--error-color);
+  background: var(--function-error);
   color: white;
-  border-color: var(--error-color);
+  border-color: var(--function-error);
 }
 
 .action-btn.danger:hover {
@@ -603,7 +603,7 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  background: var(--error-color);
+  background: var(--function-error);
   color: white;
   border-radius: 50%;
   width: 18px;
@@ -626,22 +626,22 @@
 .search-input {
   width: 100%;
   padding: 10px 16px 10px 40px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
 
 .search-input:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--text-blue);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .search-input::placeholder {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .search-icon {
@@ -649,7 +649,7 @@
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   width: 16px;
   height: 16px;
 }
@@ -711,7 +711,7 @@
 .action-btn:focus,
 .user-profile:focus,
 .search-input:focus {
-  outline: 2px solid var(--accent-color);
+  outline: 2px solid var(--text-blue);
   outline-offset: 2px;
 }
 
@@ -728,7 +728,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--accent-color), var(--accent-hover));
+  background: linear-gradient(90deg, var(--text-blue), var(--text-blue));
   animation: loadingBar 2s infinite;
 }
 
@@ -743,7 +743,7 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: var(--primary-bg);
+  background: var(--background-white-main);
   border: none;
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
@@ -766,7 +766,7 @@
 .subscription-dropdown-header {
   padding: 20px;
   border-bottom: none;
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -780,13 +780,13 @@
 }
 
 .subscription-title svg {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .subscription-title span {
   font-size: 18px;
   font-weight: 600;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .subscription-status {
@@ -796,7 +796,7 @@
 }
 
 .subscription-status svg {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
 }
 
 .subscription-status .status {
@@ -808,18 +808,18 @@
 }
 
 .subscription-status .status.active {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
 }
 
 .subscription-status .status.canceled {
-  background: var(--tertiary-bg);
-  color: var(--secondary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-secondary);
 }
 
 .subscription-status .status.past_due {
-  background: var(--tertiary-bg);
-  color: var(--secondary-text);
+  background: var(--background-menu-gray);
+  color: var(--text-secondary);
 }
 
 .subscription-details {
@@ -837,7 +837,7 @@
 }
 
 .subscription-detail-item svg {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   margin-top: 0;
   flex-shrink: 0;
 }
@@ -854,7 +854,7 @@
 .detail-label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -863,14 +863,14 @@
 .detail-value {
   font-size: 14px;
   font-weight: 500;
-  color: var(--primary-text);
+  color: var(--text-primary);
   white-space: nowrap;
   text-align: right;
   margin-left: auto;
 }
 
 .detail-value .billing-cycle {
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   font-weight: 400;
   margin-left: 4px;
 }
@@ -878,7 +878,7 @@
 .subscription-actions {
   padding: 16px 20px 20px;
   border-top: none;
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -888,7 +888,7 @@
 .subscription-action {
   flex: 1;
   padding: 12px 16px;
-  background: var(--accent-color);
+  background: var(--text-blue);
   color: white;
   border: none;
   border-radius: 8px;
@@ -903,33 +903,33 @@
 }
 
 .subscription-action:hover {
-  background: var(--accent-hover);
+  background: var(--text-blue);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 .subscription-action.manage {
-  background: var(--secondary-bg);
-  color: var(--primary-text);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+  border: 1px solid var(--border-main);
 }
 
 .subscription-action.manage:hover {
-  background: var(--tertiary-bg);
-  border-color: var(--border-color);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  border-color: var(--border-main);
+  color: var(--text-primary);
 }
 
 .subscription-action.cancel {
-  background: var(--secondary-bg);
-  color: var(--secondary-text);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-main);
 }
 
 .subscription-action.cancel:hover {
-  background: var(--tertiary-bg);
-  border-color: var(--border-color);
-  color: var(--primary-text);
+  background: var(--background-menu-gray);
+  border-color: var(--border-main);
+  color: var(--text-primary);
 }
 
 /* Mobile Navigation */
@@ -938,8 +938,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   z-index: 10000 !important;
@@ -953,12 +953,12 @@
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-main);
   width: 100%;
   background: none;
   border-left: none;
@@ -973,8 +973,8 @@
 }
 
 .mobile-nav-item:hover {
-  background: var(--tertiary-bg);
-  color: var(--accent-color);
+  background: var(--background-menu-gray);
+  color: var(--text-blue);
 }
 
 .mobile-nav-item.upgrade-nav {
@@ -1023,8 +1023,8 @@
 }
 
 .profile-popup {
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  border: 1px solid var(--border-main);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   max-width: 500px;
@@ -1043,8 +1043,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--tertiary-bg);
+  border-bottom: 1px solid var(--border-main);
+  background: var(--background-menu-gray);
   border-radius: 12px 12px 0 0;
 }
 
@@ -1052,13 +1052,13 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .profile-popup-close {
   background: none;
   border: none;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -1069,8 +1069,8 @@
 }
 
 .profile-popup-close:hover {
-  background: var(--quaternary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
 }
 
 .profile-popup-content {
@@ -1089,7 +1089,7 @@
   margin: 0 0 16px 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .profile-popup-field {
@@ -1105,29 +1105,29 @@
   margin-bottom: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
 }
 
 .profile-popup-input {
   width: 100%;
   padding: 12px 16px;
-  background: var(--tertiary-bg);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-main);
   border-radius: 8px;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-size: 14px;
   transition: all 0.2s ease;
 }
 
 .profile-popup-input:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--text-blue);
   box-shadow: 0 0 0 3px rgba(127, 0, 255, 0.1);
 }
 
 .profile-popup-input:read-only {
-  background: var(--quaternary-bg);
-  color: var(--muted-text);
+  background: var(--background-gray-main);
+  color: var(--text-tertiary);
   cursor: not-allowed;
 }
 
@@ -1151,27 +1151,27 @@
 }
 
 .profile-popup-btn.primary {
-  background: var(--secondary-bg);
-  color: var(--primary-text);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-white);
+  color: var(--text-primary);
+  border: 1px solid var(--border-main);
 }
 
 .profile-popup-btn.primary:hover {
-  background: var(--tertiary-bg);
+  background: var(--background-menu-gray);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
 .profile-popup-btn.secondary {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
-  border: 1px solid var(--border-color);
+  background: var(--background-menu-gray);
+  color: var(--text-primary);
+  border: 1px solid var(--border-main);
 }
 
 .profile-popup-btn.secondary:hover {
-  background: var(--quaternary-bg);
-  border-color: var(--border-color);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  border-color: var(--border-main);
+  color: var(--text-primary);
 }
 
 @keyframes popupSlideIn {

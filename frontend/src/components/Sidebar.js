@@ -29,6 +29,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  
+  // Clear selected session when switching tabs
+  useEffect(() => {
+    setSelectedSessionId(null);
+  }, [activeTab]);
   
   // Debug props and route
 
@@ -102,6 +108,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   }, [refreshChatSessions]);
 
   const handleSessionClick = (session) => {
+    setSelectedSessionId(session.id);
     if (onMarkingHistoryClick && typeof onMarkingHistoryClick === 'function') {
       onMarkingHistoryClick(session);
     } else {
@@ -292,6 +299,9 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
         <button 
           className="mark-homework-main-btn" 
           onClick={() => {
+            // Reset selected session when navigating
+            setSelectedSessionId(null);
+            
             if (currentPageMode === 'chat') {
               // In chat mode, this acts as a back button
               // We need to trigger the back functionality
@@ -369,7 +379,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
               {getFilteredSessions().map((session) => (
                 <div
                   key={session.id}
-                  className="mark-history-item"
+                  className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`}
                   onClick={() => handleSessionClick(session)}
                 >
                   {/* Message Type Icon */}

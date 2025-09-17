@@ -19,8 +19,8 @@
   padding: 12px 16px;
   border: none;
   border-radius: 12px;
-  background: var(--primary-bg);
-  color: var(--primary-text);
+  background: var(--background-white-main);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
   font-size: 14px;
@@ -28,7 +28,7 @@
 }
 
 .model-selector-button:hover:not(:disabled) {
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -40,7 +40,7 @@
 
 .model-selector-button:disabled {
   cursor: not-allowed;
-  background: var(--quaternary-bg);
+  background: var(--background-gray-main);
 }
 
 .model-selector-content {
@@ -52,11 +52,11 @@
 
 .model-selector-label {
   font-weight: 500;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .model-selector-arrow {
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 12px;
   transition: transform 0.3s ease;
 }
@@ -68,7 +68,7 @@
   right: 0;
   z-index: 50;
   margin-bottom: 8px;
-  background: var(--secondary-bg);
+  background: var(--background-menu-white);
   border: none;
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
@@ -85,7 +85,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   border-bottom: none;
-  color: var(--primary-text);
+  color: var(--text-primary);
 }
 
 .model-selector-option:last-child {
@@ -93,11 +93,11 @@
 }
 
 .model-selector-option:hover {
-  background: var(--tertiary-bg);
+  background: var(--background-menu-gray);
 }
 
 .model-selector-option.selected {
-  background: var(--accent-color);
+  background: var(--text-blue);
   color: white;
 }
 
@@ -114,7 +114,7 @@
 
 .model-option-description {
   font-size: 12px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   opacity: 0.8;
 }
 
