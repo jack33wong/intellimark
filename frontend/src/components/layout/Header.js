@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import SettingsModal from './SettingsModal';
+import { useAuth } from '../../contexts/AuthContext';
+import SettingsModal from '../SettingsModal';
 import { 
   User, 
   LogOut, 
@@ -12,8 +12,8 @@ import {
   CreditCard,
   CheckCircle
 } from 'lucide-react';
-import SubscriptionService from '../services/subscriptionService.ts';
-import API_CONFIG from '../config/api';
+import SubscriptionService from '../../services/subscriptionService.ts';
+import API_CONFIG from '../../config/api';
 import './Header.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {

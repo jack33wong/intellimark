@@ -3,8 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
+import { Sidebar, Header } from './components/layout';
 import AdminPage from './components/admin/AdminPage';
 import MarkHomeworkPage from './components/markHomework/MarkHomeworkPageRefactored';
 import Login from './components/auth/Login';

@@ -9,10 +9,10 @@ import {
   X,
   Star
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import MarkingHistoryService from '../services/markingHistoryService';
-import { ensureStringContent } from '../utils/contentUtils';
-import EventManager, { EVENT_TYPES } from '../utils/eventManager';
+import { useAuth } from '../../contexts/AuthContext';
+import MarkingHistoryService from '../../services/markingHistoryService';
+import { ensureStringContent } from '../../utils/contentUtils';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import './Sidebar.css';
 
 /**
