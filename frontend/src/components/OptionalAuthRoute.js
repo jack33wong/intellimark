@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import './OptionalAuthRoute.css';
 
 const OptionalAuthRoute = ({ children, requireAuth = false }) => {
   const { user, loading } = useAuth();

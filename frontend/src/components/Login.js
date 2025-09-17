@@ -10,6 +10,7 @@ import { AlertCircle, Chrome, Facebook } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../config/firebase';
 import './Login.css';
+import './common/LoadingSpinner.css';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
