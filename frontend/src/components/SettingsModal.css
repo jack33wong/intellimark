@@ -222,7 +222,7 @@
 
 .settings-form-group input:focus {
   outline: none;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
@@ -298,7 +298,7 @@
 
 /* Edit Button */
 .settings-edit-button {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
   border: none;
   padding: 6px 12px;
@@ -313,7 +313,7 @@
 }
 
 .settings-edit-button:hover {
-  background: var(--text-blue);
+  background: var(--text-brand);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -357,7 +357,7 @@
   padding: 8px 12px;
   background: var(--background-menu-gray);
   border-radius: 6px;
-  border-left: 3px solid var(--text-blue);
+  border-left: 3px solid var(--text-brand);
 }
 
 .settings-status-badge {

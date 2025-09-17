@@ -60,9 +60,9 @@
 }
 
 .nav-item.active {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: var(--shadow-md);
 }
 
@@ -102,8 +102,8 @@
 
 /* Login Button */
 .login-button {
-  background: var(--text-blue);
-  border: 1px solid var(--text-blue);
+  background: var(--text-brand);
+  border: 1px solid var(--text-brand);
   color: white;
   padding: 10px 16px;
   border-radius: 8px;
@@ -122,8 +122,8 @@
 }
 
 .login-button:hover {
-  background: var(--text-blue);
-  border-color: var(--text-blue);
+  background: var(--text-brand);
+  border-color: var(--text-brand);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
   color: white;
@@ -134,7 +134,7 @@
 }
 
 .login-button:focus {
-  outline: 2px solid var(--text-blue);
+  outline: 2px solid var(--text-brand);
   outline-offset: 2px;
 }
 
@@ -191,7 +191,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--text-blue);
+  background: var(--text-brand);
   flex-shrink: 0;
 }
 
@@ -420,7 +420,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--text-blue);
+  background: var(--text-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -567,20 +567,20 @@
 
 .action-btn:hover {
   background: var(--background-gray-main);
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
 }
 
 .action-btn.primary {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
 }
 
 .action-btn.primary:hover {
-  background: var(--text-blue);
-  border-color: var(--text-blue);
+  background: var(--text-brand);
+  border-color: var(--text-brand);
 }
 
 .action-btn.danger {
@@ -636,7 +636,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
@@ -711,7 +711,7 @@
 .action-btn:focus,
 .user-profile:focus,
 .search-input:focus {
-  outline: 2px solid var(--text-blue);
+  outline: 2px solid var(--text-brand);
   outline-offset: 2px;
 }
 
@@ -728,7 +728,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--text-blue), var(--text-blue));
+  background: linear-gradient(90deg, var(--text-brand), var(--text-brand));
   animation: loadingBar 2s infinite;
 }
 
@@ -888,7 +888,7 @@
 .subscription-action {
   flex: 1;
   padding: 12px 16px;
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
   border: none;
   border-radius: 8px;
@@ -903,7 +903,7 @@
 }
 
 .subscription-action:hover {
-  background: var(--text-blue);
+  background: var(--text-brand);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -974,7 +974,7 @@
 
 .mobile-nav-item:hover {
   background: var(--background-menu-gray);
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .mobile-nav-item.upgrade-nav {
@@ -1121,7 +1121,7 @@
 
 .profile-popup-input:focus {
   outline: none;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 0 0 3px rgba(127, 0, 255, 0.1);
 }
 

@@ -39,15 +39,15 @@
 }
 
 .chat-message.user .chat-message-avatar {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
 }
 
 .chat-message.assistant .chat-message-avatar {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
 }
 
 .chat-message-content {
@@ -76,7 +76,7 @@
 }
 
 .chat-message.user .chat-message-bubble {
-  background: linear-gradient(135deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(135deg, var(--text-brand), #9f7aea);
   color: white;
   border-bottom-right-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);

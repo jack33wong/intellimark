@@ -134,7 +134,7 @@
 .signin-btn {
   background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--text-blue);
+  border: 1px solid var(--text-brand);
   padding: 16px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -172,7 +172,7 @@
 
 .mark-homework-main-btn svg {
   color: var(--text-white);
-  background: var(--text-blue);
+  background: var(--text-brand);
   border-radius: 50%;
   padding: 5px;
   width: 25px;
@@ -231,7 +231,7 @@
 }
 
 .mark-history-tab.active {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: var(--text-white);
 }
 
@@ -264,13 +264,13 @@
 
 .mark-history-item:hover {
   background: var(--background-menu-gray);
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .mark-history-item.active {
   background: var(--fill-gray);
-  color: var(--text-blue);
-  border-left: 3px solid var(--text-blue);
+  color: var(--text-brand);
+  border-left: 3px solid var(--text-brand);
 }
 
 
@@ -415,7 +415,7 @@
 }
 
 .login-prompt-btn {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: var(--text-white);
   border: none;
   padding: 6px 12px;

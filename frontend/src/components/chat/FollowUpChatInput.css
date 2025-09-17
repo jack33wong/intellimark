@@ -178,7 +178,7 @@
 }
 
 .followup-chat-input-bar .model-selector-option.selected {
-  background: var(--text-blue) !important;
+  background: var(--text-brand) !important;
   color: white !important;
   font-weight: 500;
 }

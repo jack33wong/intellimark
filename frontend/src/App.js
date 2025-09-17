@@ -6,7 +6,7 @@ import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AdminPage from './components/admin/AdminPage';
-import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
+import MarkHomeworkPage from './components/markHomework/MarkHomeworkPageRefactored';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage.tsx';
 import './App.css';

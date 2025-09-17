@@ -6,7 +6,7 @@
 /* Base upload button styles are defined in ImageUploadInterface.css */
 
 .image-upload {
-  border: 2px dashed var(--text-blue);
+  border: 2px dashed var(--text-brand);
   border-radius: 24px;
   padding: 32px;
   text-align: center;
@@ -17,14 +17,14 @@
 }
 
 .image-upload:hover:not(.disabled) {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   background: var(--background-menu-gray);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
 
 .image-upload.drag-over {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   background: var(--background-menu-gray);
   transform: scale(1.02);
   box-shadow: var(--shadow-lg);
@@ -47,7 +47,7 @@
 .image-upload-icon {
   font-size: 3rem;
   margin-bottom: 0.5rem;
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .image-upload-processing {
@@ -55,14 +55,14 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .spinner {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border-main);
-  border-top: 3px solid var(--text-blue);
+  border-top: 3px solid var(--text-brand);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

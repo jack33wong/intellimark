@@ -72,8 +72,8 @@
   border: none;
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .model-selector-option {
@@ -97,7 +97,7 @@
 }
 
 .model-selector-option.selected {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
 }
 

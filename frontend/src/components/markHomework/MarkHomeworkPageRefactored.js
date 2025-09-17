@@ -9,21 +9,21 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Custom hooks
-import { useImageUpload } from '../hooks/useImageUpload';
-import { useChat } from '../hooks/useChat';
-import { useMarkHomework } from '../hooks/useMarkHomework';
-import { useSession } from '../hooks/useSession';
-import { useSubscriptionDelay } from '../hooks/useSubscriptionDelay';
-import { usePageState } from '../hooks/usePageState';
+import { useImageUpload } from '../../hooks/useImageUpload';
+import { useChat } from '../../hooks/useChat';
+import { useMarkHomework } from '../../hooks/useMarkHomework';
+import { useSession } from '../../hooks/useSession';
+import { useSubscriptionDelay } from '../../hooks/useSubscriptionDelay';
+import { usePageState } from '../../hooks/usePageState';
 
 // Components
-import MainLayout from './markHomework/MainLayout';
+import MainLayout from './MainLayout';
 
 // Utils
-import EventManager, { EVENT_TYPES } from '../utils/eventManager';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 
 // Services
 // import MarkHomeworkService from '../services/markHomeworkService';

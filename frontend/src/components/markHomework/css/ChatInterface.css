@@ -61,7 +61,7 @@
 .mark-homework-header h1 {
   font-size: 36px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(135deg, var(--text-brand), #9f7aea);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -168,8 +168,8 @@
 /* First header-btn definition removed - using the more complete definition below */
 
 .favorite-btn.active {
-  background: var(--text-blue);
-  border-color: var(--text-blue);
+  background: var(--text-brand);
+  border-color: var(--text-brand);
   color: white;
 }
 
@@ -189,7 +189,7 @@
   background: rgba(127, 0, 255, 0.1);
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid var(--text-blue);
+  border: 1px solid var(--text-brand);
 }
 
 .raw-toggle-btn,
@@ -206,7 +206,7 @@
 
 .raw-toggle-btn:hover,
 .switch-mode-btn:hover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   background: rgba(127, 0, 255, 0.1);
 }
 
@@ -226,7 +226,7 @@
 
 .header-btn:hover {
   background: rgba(127, 0, 255, 0.1);
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .header-btn.info-btn,
@@ -451,7 +451,7 @@
 .back-btn {
   padding: 0;
   background: none;
-  color: var(--text-blue);
+  color: var(--text-brand);
   border: none;
   border-radius: 0px;
   font-size: 16px;
@@ -669,7 +669,7 @@
 }
 
 .assistant-brain-icon {
-  color: var(--text-blue);
+  color: var(--text-brand);
   flex-shrink: 0;
   width: 20px;
   height: 20px;
@@ -709,7 +709,7 @@
 .thinking-dot {
   width: 8px;
   height: 8px;
-  background: var(--text-blue);
+  background: var(--text-brand);
   border-radius: 50%;
   animation: thinkingPulse 1.4s ease-in-out infinite both;
 }
@@ -759,7 +759,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(90deg, var(--text-brand), #9f7aea);
 }
 
 /* Upload Loading Bar - Below input bar */
@@ -802,7 +802,7 @@
 
 .upload-loading-bar .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(90deg, var(--text-brand), #9f7aea);
   border-radius: 4px;
   transition: width 0.3s ease;
   position: relative;

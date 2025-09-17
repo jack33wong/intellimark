@@ -9,7 +9,7 @@ import ImageUploadInterface from './ImageUploadInterface';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
-import MarkdownMathRenderer from '../MarkdownMathRenderer';
+import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
 import './css/ChatInterface.css';
 

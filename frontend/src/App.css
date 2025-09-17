@@ -87,7 +87,7 @@
 .welcome-message h1 {
   font-size: 2.5rem;
   margin-bottom: 1rem;
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 .welcome-message p {
@@ -155,7 +155,7 @@
   height: 64px;
   margin-bottom: 24px;
   opacity: 0.5;
-  color: var(--text-blue);
+  color: var(--text-brand);
 }
 
 /* Error state */
@@ -251,7 +251,7 @@
 
 .form-input:focus {
   outline: none;
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
@@ -399,7 +399,7 @@
 }
 
 .badge-primary {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
 }
 
@@ -492,7 +492,7 @@
 }
 
 .login-prompt-btn {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -505,7 +505,7 @@
 }
 
 .login-prompt-btn:hover {
-  background: var(--text-blue);
+  background: var(--text-brand);
   transform: translateY(-1px);
 }
 

@@ -30,7 +30,7 @@
 /* Bottom Upload Section */
 .upload-section.bottom-upload {
   margin-top: 40px;
-  border-top: 2px solid var(--text-blue);
+  border-top: 2px solid var(--text-brand);
   background: linear-gradient(135deg, var(--background-menu-white), var(--background-menu-gray));
 }
 
@@ -96,7 +96,7 @@
 }
 
 .marking-annotations strong {
-  color: var(--text-blue);
+  color: var(--text-brand);
   font-weight: 600;
 }
 
@@ -111,7 +111,7 @@
 
 
 .upload-section:hover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   transform: translateY(-4px);
   box-shadow: 0 20px 40px rgba(127, 0, 255, 0.15);
 }
@@ -129,7 +129,7 @@
 }
 
 .image-preview-container:hover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
@@ -169,7 +169,7 @@
 }
 
 .change-image-btn {
-  background: var(--text-blue);
+  background: var(--text-brand);
   color: white;
   border: none;
   padding: 8px 16px;
@@ -206,20 +206,20 @@
 }
 
 .upload-area:hover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   background: rgba(127, 0, 255, 0.05);
   transform: scale(1.02);
 }
 
 .upload-area.dragover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   background: rgba(127, 0, 255, 0.1);
   transform: scale(1.02);
 }
 
 .upload-icon {
   font-size: 64px;
-  color: var(--text-blue);
+  color: var(--text-brand);
   margin-bottom: 20px;
   opacity: 0.9;
   transition: all 0.3s ease;
@@ -262,7 +262,7 @@
   align-items: center;
   gap: 12px;
   padding: 16px 32px;
-  background: linear-gradient(135deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(135deg, var(--text-brand), #9f7aea);
   color: white;
   border: none;
   border-radius: 16px;
@@ -332,7 +332,7 @@
 
 .loading-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(90deg, var(--text-brand), #9f7aea);
   border-radius: 4px;
   transition: width 0.3s ease;
   position: relative;
@@ -371,7 +371,7 @@
 
 .loading-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary-color), var(--text-blue));
+  background: linear-gradient(90deg, var(--primary-color), var(--text-brand));
   border-radius: 4px;
   transition: width 0.3s ease;
   position: relative;
@@ -454,7 +454,7 @@
 }
 
 .annotation-item:hover {
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -511,7 +511,7 @@
 
 .annotation-text {
   background: rgba(59, 130, 246, 0.05);
-  border-left: 3px solid var(--text-blue);
+  border-left: 3px solid var(--text-brand);
   padding: 8px 12px;
   margin-bottom: 8px;
   border-radius: 4px;
@@ -588,7 +588,7 @@
 .title-upload-btn {
   background: #363537;
   color: var(--text-primary);
-  border: 2px solid var(--text-blue);
+  border: 2px solid var(--text-brand);
   padding: 20px 16px;
   border-radius: 8px;
   font-size: 12px;
@@ -608,7 +608,7 @@
 
 .title-upload-btn:hover {
   background: var(--background-menu-gray);
-  border-color: var(--text-blue);
+  border-color: var(--text-brand);
   box-shadow: 0 0 0 2px rgba(127, 0, 255, 0.2);
 }
 
@@ -792,7 +792,7 @@
 
 .upload-loading-bar .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--text-blue), #9f7aea);
+  background: linear-gradient(90deg, var(--text-brand), #9f7aea);
   border-radius: 4px;
   transition: width 0.3s ease;
   position: relative;
