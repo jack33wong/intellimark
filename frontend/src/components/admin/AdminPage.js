@@ -6,7 +6,7 @@ import {
   ClipboardList,
   Search
 } from 'lucide-react';
-import EventManager, { EVENT_TYPES } from '../utils/eventManager';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import './AdminPage.css';
 
 // Utility functions
@@ -435,23 +435,23 @@ function AdminPage() {
         )}
 
         {/* Tab Navigation */}
-        <div className="tab-navigation">
+        <div className="admin-tabs">
           <button
-            className={`tab-button ${activeTab === 'json' ? 'active' : ''}`}
+            className={`admin-tab ${activeTab === 'json' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('json')}
           >
             <Database size={16} />
             Exam JSON
           </button>
           <button
-            className={`tab-button ${activeTab === 'marking-scheme' ? 'active' : ''}`}
+            className={`admin-tab ${activeTab === 'marking-scheme' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('marking-scheme')}
           >
             <ClipboardList size={16} />
             Marking Scheme
           </button>
           <button
-            className={`tab-button ${activeTab === 'query' ? 'active' : ''}`}
+            className={`admin-tab ${activeTab === 'query' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('query')}
           >
             <Search size={16} />
@@ -461,31 +461,29 @@ function AdminPage() {
 
         {/* Exam JSON Tab */}
         {activeTab === 'json' && (
-          <div className="tab-content">
-            <div className="section-header">
-              <h2>Full Exam Papers</h2>
+          <div className="admin-tab-content">
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Full Exam Papers</h2>
               <p>Manage AI model training data for exam papers</p>
             </div>
             
             {/* JSON Upload Form */}
-            <div className="upload-section">
-              <h3>Upload Exam JSON</h3>
-              <div className="upload-form">
-              <div className="form-group">
-                  <label htmlFor="jsonData">Exam JSON:</label>
+            <div className="admin-upload-section">
+                <div className="upload-form">
+              <div className="admin-form-group">
                   <textarea
                     id="jsonData"
                     value={jsonForm.jsonData}
                     onChange={(e) => handleJsonInputChange('jsonData', e.target.value)}
                     placeholder="Paste your JSON data here..."
                     rows={8}
-                    className="form-control"
+                    className="admin-form-control"
                   />
               </div>
-                <div className="form-actions">
+                <div className="admin-form-actions">
                 <button 
                     type="button"
-                    className="btn btn-primary"
+                    className="admin-btn admin-btn--primary"
                     onClick={uploadJsonData}
                     disabled={loading || !isJsonFormValid()}
                   >
@@ -494,7 +492,7 @@ function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="admin-btn admin-btn--secondary"
                     onClick={resetJsonForm}
                   >
                     Clear Form
@@ -504,12 +502,12 @@ function AdminPage() {
         </div>
 
             {/* Exam JSON List */}
-            <div className="data-section">
-              <div className="section-header">
-                <h3>Full Exam Papers ({jsonEntries.length})</h3>
+            <div className="admin-data-section">
+              <div className="admin-data-section__header">
+                <h3 className="admin-data-section__title">Full Exam Papers ({jsonEntries.length})</h3>
                 {jsonEntries.length > 0 && (
               <button
-                    className="btn btn-danger"
+                    className="admin-btn admin-btn--danger"
                     onClick={deleteAllJsonEntries}
                     disabled={isDeletingAll}
                   >
@@ -525,20 +523,20 @@ function AdminPage() {
                   <p>Upload JSON data to get started</p>
             </div>
           ) : (
-                <div className="data-table-container">
-                  <table className="data-table">
+                <div className="admin-table-container">
+                  <table className="admin-table">
                 <thead>
                   <tr>
-                        <th>Exam Paper</th>
-                        <th>Board</th>
-                    <th>Year</th>
-                        <th>Session</th>
-                        <th>Tier</th>
-                    <th>Paper</th>
-                        <th>Code</th>
-                    <th>Questions</th>
-                    <th>Uploaded</th>
-                    <th>Actions</th>
+                        <th className="admin-table__header">Exam Paper</th>
+                        <th className="admin-table__header">Board</th>
+                    <th className="admin-table__header">Year</th>
+                        <th className="admin-table__header">Session</th>
+                        <th className="admin-table__header">Tier</th>
+                    <th className="admin-table__header">Paper</th>
+                        <th className="admin-table__header">Code</th>
+                    <th className="admin-table__header">Questions</th>
+                    <th className="admin-table__header">Uploaded</th>
+                    <th className="admin-table__header">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -562,8 +560,8 @@ function AdminPage() {
 
                         return (
                           <React.Fragment key={entry.id}>
-                            <tr className="data-row">
-                              <td className="exam-paper-link">
+                            <tr className="admin-table__row">
+                              <td className="admin-table__cell exam-paper-link">
                                 <div
                                   className="clickable-exam-paper"
                                   onClick={() => {
@@ -577,7 +575,6 @@ function AdminPage() {
                                   }}
                                   title="Click to view exam paper content"
                                 >
-                                  <FileText size={16} />
                                   <span className="exam-paper-name">
                                     {board !== 'N/A' ? 
                                       `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
@@ -589,13 +586,13 @@ function AdminPage() {
                             </span>
                           </div>
                         </td>
-                              <td>{board}</td>
-                              <td>{year}</td>
-                              <td>{session}</td>
-                              <td>{tier}</td>
-                              <td>{paper}</td>
-                              <td>{code}</td>
-                              <td>
+                              <td className="admin-table__cell">{board}</td>
+                              <td className="admin-table__cell">{year}</td>
+                              <td className="admin-table__cell">{session}</td>
+                              <td className="admin-table__cell">{tier}</td>
+                              <td className="admin-table__cell">{paper}</td>
+                              <td className="admin-table__cell">{code}</td>
+                              <td className="admin-table__cell">
                                 {questionCount ? (
                             <span className="question-count">
                                     {questionCount} Q{subQuestionCount ? ` (${subQuestionCount} sub)` : ''}
@@ -604,17 +601,17 @@ function AdminPage() {
                             <span className="no-questions">No questions</span>
                           )}
                         </td>
-                              <td>{formatDate(entry.uploadedAt)}</td>
-                        <td className="actions-cell">
+                              <td className="admin-table__cell">{formatDate(entry.uploadedAt)}</td>
+                        <td className="admin-table__cell actions-cell">
                           <button
-                            className="btn-icon"
+                            className="admin-btn admin-btn--icon"
                                   onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
                                   title="View"
                             >
                               <FileText size={16} />
                             </button>
                           <button
-                                  className="btn-icon btn-danger"
+                                  className="admin-btn admin-btn--icon btn-danger"
                                   onClick={() => deleteJsonEntry(entry.id)}
                             title="Delete"
                           >
@@ -624,19 +621,19 @@ function AdminPage() {
                       </tr>
                       
                             {expandedJsonId === entry.id && (
-                        <tr className="expanded-content-row">
+                        <tr className="admin-expanded-row">
                                 <td colSpan="10">
-                            <div className="expanded-content">
-                                                          <div className="content-header">
-                                      <h4>Exam Paper Content: {
+                            <div className="admin-expanded-content">
+                                                          <div className="admin-content-header">
+                                      <h4 className="admin-content-header__title">Exam Paper Content: {
                                         board !== 'N/A' ? 
                                           `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
                                           examData.originalName || examData.filename || entry.id
                                       }</h4>
-                              <div className="content-info">
-                                <span className="info-text">Questions are displayed in numerical order</span>
+                              <div className="admin-content-info">
+                                 <span className="admin-content-info__text">Questions are displayed in numerical order</span>
                                 <button 
-                                  className="btn-icon close-btn"
+                                  className="admin-close-btn"
                                           onClick={() => setExpandedJsonId(null)}
                                   title="Close"
                                 >
@@ -646,18 +643,18 @@ function AdminPage() {
                             </div>
                               
                                     {examData.questions && examData.questions.length > 0 ? (
-                                <div className="questions-content">
-                                  <div className="questions-summary">
-                                    <span className="summary-item">
+                                <div className="admin-questions-content">
+                                  <div className="admin-questions-summary">
+                                    <span className="admin-summary-item">
                                             <strong>Year:</strong> {year}
                                     </span>
-                                    <span className="summary-item">
+                                    <span className="admin-summary-item">
                                             <strong>Total Questions:</strong> {questionCount}
-                                    </span>
-                                    <span className="summary-item">
+                                          </span>
+                                          <span className="admin-summary-item">
                                             <strong>Sub-questions:</strong> {subQuestionCount}
                                           </span>
-                                          <span className="summary-item">
+                                          <span className="admin-summary-item">
                                             <strong>Total Marks:</strong> {examData.questions.reduce((total, q) => {
                                               const questionMarks = q.marks || 0;
                                               const subQuestionMarks = (q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).reduce((subTotal, subQ) => subTotal + (subQ.marks || 0), 0) : 0;
@@ -666,28 +663,30 @@ function AdminPage() {
                                     </span>
                                   </div>
                                   
-                                  <div className="questions-list">
+                                  <div className="admin-questions-list">
                                           {examData.questions.map((question, qIndex) => (
-                                      <div key={qIndex} className="question-item">
-                                        <div className="question-header">
-                                                <span className="question-number">Question {question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
-                                          {question.marks && (
-                                            <span className="question-marks">[{question.marks} marks]</span>
-                                          )}
+                                      <div key={qIndex} className="admin-question-item">
+                                        <div className="admin-question-header">
+                                          <div className="admin-question-main">
+                                                  <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
+                                                <span className="admin-question-text">{question.text || question.question_text}</span>
+                                          </div>
+                                            {question.marks && (
+                                              <span className="admin-question-marks">[{question.marks} marks]</span>
+                                            )}
                                         </div>
-                                              <div className="question-text">{question.text || question.question_text}</div>
                                         
                                               {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
-                                          <div className="sub-questions">
+                                          <div className="admin-sub-questions">
                                                   {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
-                                              <div key={sIndex} className="sub-question-item">
-                                                <div className="sub-question-header">
-                                                        <span className="sub-question-number">({subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)})</span>
+                                              <div key={sIndex} className="admin-sub-question-item">
+                                                        <div className="admin-sub-question-content">
+                                                          <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
+                                                          <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
+                                                        </div>
                                                   {subQ.marks && (
-                                                    <span className="sub-question-marks">[{subQ.marks} marks]</span>
+                                                    <span className="admin-sub-question-marks">[{subQ.marks} marks]</span>
                                                   )}
-                                                </div>
-                                                      <div className="sub-question-text">{subQ.text || subQ.question_text}</div>
                                               </div>
                                             ))}
                                           </div>
@@ -724,33 +723,31 @@ function AdminPage() {
 
         {/* Marking Scheme Tab */}
         {activeTab === 'marking-scheme' && (
-          <div className="tab-content">
-            <div className="section-header">
-              <h2>Marking Schemes</h2>
+          <div className="admin-tab-content">
+             <div className="admin-section-header">
+                <h2 className="admin-section-header__title">Marking Schemes</h2>
               <p>Manage marking scheme data for exam papers</p>
             </div>
 
             {/* Marking Scheme Upload Form */}
-            <div className="upload-section">
-              <h3>Upload Marking Scheme</h3>
+            <div className="admin-upload-section">
               <div className="upload-form">
-                <div className="form-group">
-                  <label htmlFor="markingSchemeData">Marking Scheme Data:</label>
+                <div className="admin-form-group">
                   <textarea
                     id="markingSchemeData"
                     value={markingSchemeForm.markingSchemeData}
                     onChange={(e) => handleMarkingSchemeInputChange('markingSchemeData', e.target.value)}
                     placeholder="Paste your marking scheme data here..."
                     rows={8}
-                    className="form-control"
+                    className="admin-form-control"
                   />
                 </div>
-                <div className="form-actions">
+                <div className="admin-form-actions">
                   <button
                     type="button"
                     onClick={uploadMarkingSchemeData}
                     disabled={!isMarkingSchemeFormValid()}
-                    className="btn btn-primary"
+                    className="admin-btn admin-btn--primary"
                   >
                     <FileText size={16} />
                     Upload Marking Scheme
@@ -758,7 +755,7 @@ function AdminPage() {
                   <button
                     type="button"
                     onClick={resetMarkingSchemeForm}
-                    className="btn btn-secondary"
+                    className="admin-btn admin-btn--secondary"
                   >
                     Clear
                   </button>
@@ -767,13 +764,13 @@ function AdminPage() {
             </div>
 
             {/* Marking Scheme List */}
-            <div className="data-section">
-              <div className="section-header">
-                <h3>Marking Schemes ({markingSchemeEntries.length})</h3>
+             <div className="admin-data-section">
+               <div className="admin-data-section__header">
+                  <h3 className="admin-data-section__title">Marking Schemes ({markingSchemeEntries.length})</h3>
                 {markingSchemeEntries.length > 0 && (
                   <button
                     onClick={deleteAllMarkingSchemeEntries}
-                    className="btn btn-danger"
+                    className="admin-btn admin-btn--danger"
                     disabled={isDeletingAll}
                   >
                     <Trash2 size={16} />
@@ -787,20 +784,20 @@ function AdminPage() {
                   <p>No marking schemes uploaded yet.</p>
                 </div>
               ) : (
-                <div className="data-table-container">
-                  <table className="data-table">
+                <div className="admin-table-container">
+                  <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Marking Scheme</th>
-                        <th>Board</th>
-                        <th>Qualification</th>
-                        <th>Paper Code</th>
-                        <th>Tier</th>
-                        <th>Date</th>
-                        <th>Questions</th>
-                        <th>Marks</th>
-                        <th>Uploaded</th>
-                        <th>Actions</th>
+                        <th className="admin-table__header">Marking Scheme</th>
+                        <th className="admin-table__header">Board</th>
+                        <th className="admin-table__header">Qualification</th>
+                        <th className="admin-table__header">Paper Code</th>
+                        <th className="admin-table__header">Tier</th>
+                        <th className="admin-table__header">Date</th>
+                        <th className="admin-table__header">Questions</th>
+                        <th className="admin-table__header">Marks</th>
+                        <th className="admin-table__header">Uploaded</th>
+                        <th className="admin-table__header">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -832,8 +829,8 @@ function AdminPage() {
 
                         return (
                           <React.Fragment key={entry.id}>
-                            <tr className="data-row">
-                              <td className="exam-paper-link">
+                            <tr className="admin-table__row">
+                              <td className="admin-table__cell exam-paper-link">
                                 <div
                                   className="clickable-exam-paper"
                                   onClick={() => {
@@ -842,7 +839,6 @@ function AdminPage() {
                                   }}
                                   title="Click to view marking scheme content"
                                 >
-                                  <ClipboardList size={16} />
                                   <span className="exam-paper-name">
                                     {board !== 'N/A' ? 
                                       `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
@@ -854,12 +850,12 @@ function AdminPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td>{board}</td>
-                              <td>{qualification}</td>
-                              <td>{paperCode}</td>
-                              <td>{tier}</td>
-                              <td>{date}</td>
-                              <td>
+                              <td className="admin-table__cell">{board}</td>
+                              <td className="admin-table__cell">{qualification}</td>
+                              <td className="admin-table__cell">{paperCode}</td>
+                              <td className="admin-table__cell">{tier}</td>
+                              <td className="admin-table__cell">{date}</td>
+                              <td className="admin-table__cell">
                                 {questionCount ? (
                                   <span className="question-count">
                                     {questionCount} Q
@@ -868,7 +864,7 @@ function AdminPage() {
                                   <span className="no-questions">No questions</span>
                                 )}
                               </td>
-                              <td>
+                              <td className="admin-table__cell">
                                 {markCount ? (
                                   <span className="mark-count">
                                     {markCount} marks
@@ -877,17 +873,17 @@ function AdminPage() {
                                   <span className="no-marks">No marks</span>
                                 )}
                               </td>
-                              <td>{formatDate(entry.createdAt || entry.uploadedAt)}</td>
-                              <td className="actions-cell">
+                              <td className="admin-table__cell">{formatDate(entry.createdAt || entry.uploadedAt)}</td>
+                              <td className="admin-table__cell actions-cell">
                                 <button
-                                  className="btn-icon"
+                                  className="admin-btn admin-btn--icon"
                                   onClick={() => setExpandedMarkingSchemeId(expandedMarkingSchemeId === entry.id ? null : entry.id)}
                                   title="View"
                                 >
                                   <ClipboardList size={16} />
                                 </button>
                                 <button
-                                  className="btn-icon btn-danger"
+                                  className="admin-btn admin-btn--icon btn-danger"
                                   onClick={() => deleteMarkingSchemeEntry(entry.id)}
                                   title="Delete"
                                 >
@@ -898,51 +894,60 @@ function AdminPage() {
                             
                             {/* Expanded content row */}
                             {expandedMarkingSchemeId === entry.id && (
-                              <tr className="expanded-row">
-                                <td colSpan="10" className="expanded-cell">
-                                  <div className="data-content">
-                                    <div className="marking-scheme-details">
-                                      <h5>Marking Scheme Details</h5>
+                              <tr className="admin-expanded-row">
+                                <td colSpan="10" className="admin-expanded-cell">
+                                  <div className="admin-expanded-content">
+                                    <div className="admin-content-header">
+                                      <h4 className="admin-content-header__title">Marking Scheme Details: {
+                                        board !== 'N/A' ? 
+                                          `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
+                                          `Marking Scheme ${entry.id}`
+                                      }</h4>
+                                      <div className="admin-content-info">
+                                        <span className="admin-content-info__text">Questions are displayed in numerical order</span>
+                                        <button 
+                                          className="admin-close-btn"
+                                          onClick={() => setExpandedMarkingSchemeId(null)}
+                                          title="Close"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </div>
                             
                             {/* Exam Details */}
                             {(entry.examDetails || (entry.markingSchemeData && entry.markingSchemeData.examDetails)) && (
-                              <div className="exam-details-section">
-                                <h6>Exam Information</h6>
-                                <div className="exam-details-grid">
-                                  <div className="detail-item">
-                                    <span className="detail-label">Board:</span>
-                                    <span className="detail-value">{entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || 'Unknown'}</span>
-        </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Qualification:</span>
-                                    <span className="detail-value">{entry.examDetails?.qualification || entry.markingSchemeData?.examDetails?.qualification || 'Unknown'}</span>
-      </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Paper Code:</span>
-                                    <span className="detail-value">{entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}</span>
-    </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Tier:</span>
-                                    <span className="detail-value">{entry.examDetails?.tier || entry.markingSchemeData?.examDetails?.tier || 'Unknown'}</span>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Paper:</span>
-                                    <span className="detail-value">{entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}</span>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Date:</span>
-                                    <span className="detail-value">{entry.examDetails?.date || entry.markingSchemeData?.examDetails?.date || 'Unknown'}</span>
-                                  </div>
+                              <div className="admin-questions-content">
+                                <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                <div className="admin-questions-summary">
+                                  <span className="admin-summary-item">
+                                    <strong>Board:</strong> {entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || 'Unknown'}
+                                  </span>
+                                  <span className="admin-summary-item">
+                                    <strong>Qualification:</strong> {entry.examDetails?.qualification || entry.markingSchemeData?.examDetails?.qualification || 'Unknown'}
+                                  </span>
+                                  <span className="admin-summary-item">
+                                    <strong>Paper Code:</strong> {entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}
+                                  </span>
+                                  <span className="admin-summary-item">
+                                    <strong>Tier:</strong> {entry.examDetails?.tier || entry.markingSchemeData?.examDetails?.tier || 'Unknown'}
+                                  </span>
+                                  <span className="admin-summary-item">
+                                    <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
+                                  </span>
+                                  <span className="admin-summary-item">
+                                    <strong>Date:</strong> {entry.examDetails?.date || entry.markingSchemeData?.examDetails?.date || 'Unknown'}
+                                  </span>
                                 </div>
                               </div>
                             )}
 
                             {/* Summary Stats */}
-                            <div className="summary-stats">
-                              <div className="stat-item">
-                                <span className="stat-label">Total Questions:</span>
-                                <span className="stat-value">
-                                  {entry.totalQuestions || 
+                            <div className="admin-questions-content">
+                              <h6 className="admin-questions-summary__title">Summary Statistics</h6>
+                              <div className="admin-questions-summary">
+                                <span className="admin-summary-item">
+                                  <strong>Total Questions:</strong> {entry.totalQuestions || 
                                    (entry.markingSchemeData && entry.markingSchemeData.questions ? 
                                      Object.keys(entry.markingSchemeData.questions).sort((a, b) => {
                                        const numA = parseInt(a);
@@ -953,11 +958,8 @@ function AdminPage() {
                                        return a.localeCompare(b);
                                      }).length : 'N/A')}
                                 </span>
-                              </div>
-                              <div className="stat-item">
-                                <span className="stat-label">Total Marks:</span>
-                                <span className="stat-value">
-                                  {entry.totalMarks || 
+                                <span className="admin-summary-item">
+                                  <strong>Total Marks:</strong> {entry.totalMarks || 
                                    (entry.markingSchemeData && entry.markingSchemeData.questions ? 
                                      Object.values(entry.markingSchemeData.questions).reduce((total, question) => {
                                        return total + (question.marks ? question.marks.length : 0);
@@ -968,9 +970,9 @@ function AdminPage() {
 
                             {/* Questions List */}
                             {entry.markingSchemeData && entry.markingSchemeData.questions && (
-                              <div className="questions-section">
-                                <h6>Questions ({Object.keys(entry.markingSchemeData.questions).length})</h6>
-                                <div className="questions-list">
+                              <div className="admin-questions-content">
+                                <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.markingSchemeData.questions).length})</h6>
+                                <div className="admin-questions-list">
                                   {Object.entries(entry.markingSchemeData.questions)
                                     .sort(([a], [b]) => {
                                       // Sort numerically if both are numbers, otherwise alphabetically
@@ -982,29 +984,28 @@ function AdminPage() {
                                       return a.localeCompare(b);
                                     })
                                     .map(([questionNum, question]) => (
-                                    <div key={questionNum} className="question-item">
-                                      <div className="question-header">
-                                        <span className="question-number">Question {questionNum}</span>
-                                        {question.answer && (
-                                          <span className="question-answer">Answer: {question.answer}</span>
-                                        )}
+                                    <div key={questionNum} className="admin-question-item">
+                                      <div className="admin-question-main">
+                                        <span className="admin-question-number">{questionNum}</span>
+                                        <span className="admin-question-text">
+                                          {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
+                                        </span>
                                       </div>
                                       
                                       {/* Marks */}
                                       {question.marks && question.marks.length > 0 && (
-                                        <div className="marks-section">
-                                          <h7>Marks ({question.marks.length})</h7>
+                                        <div className="admin-sub-questions">
+                                          <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
                                           {question.marks.map((mark, markIndex) => (
-                                            <div key={markIndex} className="mark-item">
-                                              <div className="mark-header">
-                                                <span className="mark-type">{mark.mark}</span>
-                                                {mark.answer && (
-                                                  <span className="mark-answer">{mark.answer}</span>
-                                                )}
+                                            <div key={markIndex} className="admin-sub-question-item">
+                                              <div className="admin-sub-question-content">
+                                                <span className="admin-sub-question-number">{markIndex + 1}</span>
+                                                <span className="admin-sub-question-text">
+                                                  <strong>{mark.mark}</strong>
+                                                  {mark.answer && ` - ${mark.answer}`}
+                                                  {mark.comments && ` (${mark.comments})`}
+                                                </span>
                                               </div>
-                                              {mark.comments && (
-                                                <div className="mark-comments">{mark.comments}</div>
-                                              )}
                                             </div>
                                           ))}
                                         </div>
@@ -1012,18 +1013,17 @@ function AdminPage() {
 
                                       {/* Guidance */}
                                       {question.guidance && question.guidance.length > 0 && (
-                                        <div className="guidance-section">
-                                          <h7>Guidance ({question.guidance.length})</h7>
+                                        <div className="admin-sub-questions">
+                                          <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
                                           {question.guidance.map((guidance, guidanceIndex) => (
-                                            <div key={guidanceIndex} className="guidance-item">
-                                              <div className="guidance-scenario">
-                                                <strong>Scenario:</strong> {guidance.scenario}
+                                            <div key={guidanceIndex} className="admin-sub-question-item">
+                                              <div className="admin-sub-question-content">
+                                                <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
+                                                <span className="admin-sub-question-text">
+                                                  <strong>Scenario:</strong> {guidance.scenario}
+                                                  {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
+                                                </span>
                                               </div>
-                                              {guidance.outcome && (
-                                                <div className="guidance-outcome">
-                                                  <strong>Outcome:</strong> {guidance.outcome}
-                                                </div>
-                                              )}
                                             </div>
                                           ))}
                                         </div>
@@ -1035,7 +1035,7 @@ function AdminPage() {
                             )}
 
                             {/* Metadata */}
-                            <div className="metadata-section">
+                             <div className="admin-metadata-section">
                               <h6>Metadata</h6>
                               <div className="metadata-info">
                                 <p><strong>ID:</strong> {entry.id}</p>
@@ -1052,8 +1052,7 @@ function AdminPage() {
                                 {JSON.stringify(entry, null, 2)}
                               </pre>
                             </details>
-          </div>
-          </div>
+                                  </div>
                                 </td>
                               </tr>
                             )}
@@ -1070,76 +1069,92 @@ function AdminPage() {
 
         {/* Query Tab */}
         {activeTab === 'query' && (
-          <div className="tab-content">
-            <div className="section-header">
-              <h2>Database Queries</h2>
+          <div className="admin-tab-content">
+             <div className="admin-section-header">
+                <h2 className="admin-section-header__title">Database Queries</h2>
               <p>Execute database operations and manage system data</p>
             </div>
             
             {/* Clear Sessions Panel */}
-            <div className="query-section">
-              <div className="query-panel">
-                <div className="query-panel-header">
-                  <h3>Clear All Sessions</h3>
-                  <p>Remove all chat session data from the database</p>
+            <div className="admin-query-section">
+              <div className="admin-query-header">
+                <h3 className="admin-query-title">Clear All Sessions</h3>
+                <p className="admin-query-description">Remove all chat session data from the database</p>
+              </div>
+              
+              <div className="admin-query-content">
+                <div className="admin-query-warning">
+                  <div className="admin-query-warning-icon">⚠️</div>
+                  <div className="admin-query-warning-text">
+                    <strong>Warning:</strong> This action will permanently delete all chat sessions and conversation history from the database.
+                  </div>
                 </div>
                 
-                <div className="query-panel-content">
-                  <div className="query-description">
-                    <p><strong>Warning:</strong> This action will permanently delete all chat sessions and conversation history from the database. This includes:</p>
-                    <ul>
-                      <li>All user chat sessions</li>
-                      <li>All conversation messages and AI responses</li>
-                      <li>All uploaded images and annotations</li>
-                      <li>All session metadata and timestamps</li>
-                    </ul>
-                    <p><strong>This action cannot be undone.</strong></p>
-                  </div>
-                  
-                  <div className="query-actions">
-                    <button
-                      className="btn btn-danger"
-                      onClick={clearAllSessions}
-                      disabled={isClearingSessions}
-                    >
-                      <Trash2 size={16} />
-                      {isClearingSessions ? 'Clearing Sessions...' : 'Clear All Sessions'}
-                    </button>
-                  </div>
+                <div className="admin-query-details">
+                  <h4 className="admin-query-details-title">This includes:</h4>
+                  <ul className="admin-query-list">
+                    <li>All user chat sessions</li>
+                    <li>All conversation messages and AI responses</li>
+                    <li>All uploaded images and annotations</li>
+                    <li>All session metadata and timestamps</li>
+                  </ul>
+                </div>
+                
+                <div className="admin-query-danger">
+                  <strong>This action cannot be undone.</strong>
+                </div>
+                
+                <div className="admin-query-actions">
+                  <button
+                    className="admin-btn admin-btn--danger"
+                    onClick={clearAllSessions}
+                    disabled={isClearingSessions}
+                  >
+                    <Trash2 size={16} />
+                    {isClearingSessions ? 'Clearing Sessions...' : 'Clear All Sessions'}
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Clear Marking Results Panel */}
-            <div className="query-section">
-              <div className="query-panel">
-                <div className="query-panel-header">
-                  <h3>Clear All Marking Results</h3>
-                  <p>Remove all homework marking results from the database</p>
+            <div className="admin-query-section">
+              <div className="admin-query-header">
+                <h3 className="admin-query-title">Clear All Marking Results</h3>
+                <p className="admin-query-description">Remove all homework marking results from the database</p>
+              </div>
+              
+              <div className="admin-query-content">
+                <div className="admin-query-warning">
+                  <div className="admin-query-warning-icon">⚠️</div>
+                  <div className="admin-query-warning-text">
+                    <strong>Warning:</strong> This action will permanently delete all marking results data from the database.
+                  </div>
                 </div>
                 
-                <div className="query-panel-content">
-                  <div className="query-description">
-                    <p><strong>Warning:</strong> This action will permanently delete all marking results data from the database. This includes:</p>
-                    <ul>
-                      <li>All homework marking results and annotations</li>
-                      <li>All AI-generated feedback and corrections</li>
-                      <li>All uploaded homework images and processed data</li>
-                      <li>All marking metadata and timestamps</li>
-                    </ul>
-                    <p><strong>This action cannot be undone.</strong></p>
-                  </div>
-                  
-                  <div className="query-actions">
-                    <button
-                      className="btn btn-danger"
-                      onClick={clearAllMarkingResults}
-                      disabled={isClearingMarkingResults}
-                    >
-                      <Trash2 size={16} />
-                      {isClearingMarkingResults ? 'Clearing Marking Results...' : 'Clear All Marking Results'}
-                    </button>
-                  </div>
+                <div className="admin-query-details">
+                  <h4 className="admin-query-details-title">This includes:</h4>
+                  <ul className="admin-query-list">
+                    <li>All homework marking results and annotations</li>
+                    <li>All AI-generated feedback and corrections</li>
+                    <li>All uploaded homework images and processed data</li>
+                    <li>All marking metadata and timestamps</li>
+                  </ul>
+                </div>
+                
+                <div className="admin-query-danger">
+                  <strong>This action cannot be undone.</strong>
+                </div>
+                
+                <div className="admin-query-actions">
+                  <button
+                    className="admin-btn admin-btn--danger"
+                    onClick={clearAllMarkingResults}
+                    disabled={isClearingMarkingResults}
+                  >
+                    <Trash2 size={16} />
+                    {isClearingMarkingResults ? 'Clearing Marking Results...' : 'Clear All Marking Results'}
+                  </button>
                 </div>
               </div>
             </div>

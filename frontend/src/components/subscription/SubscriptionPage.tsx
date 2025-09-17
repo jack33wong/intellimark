@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Zap, Users, Building2 } from 'lucide-react';
-import { Plan, BillingCycle } from '../types/payment';
-import { useAuth } from '../contexts/AuthContext';
-import API_CONFIG from '../config/api';
+import { X, Check, Zap, Users, Building2 } from 'lucide-react';
+import { Plan, BillingCycle } from '../../types/payment';
+import { useAuth } from '../../contexts/AuthContext';
+import API_CONFIG from '../../config/api';
 import './SubscriptionPage.css';
 
 const SubscriptionPage: React.FC = () => {
@@ -114,70 +114,76 @@ const SubscriptionPage: React.FC = () => {
 
 
   return (
-    <div className="subscription-page">
-      <div className="subscription-container">
+    <div className="upgrade-page">
+      {/* Close Button - Top Right */}
+      <button 
+        className="upgrade-page-close-button"
+        onClick={() => navigate(-1)}
+      >
+        <X size={24} />
+      </button>
+      
+      <div className="upgrade-page-container">
         {/* Header */}
-        <div className="subscription-header">
-          <button 
-            className="back-button"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft size={20} />
-            Back
-          </button>
+        <div className="upgrade-page-header">
           <h1>Choose Your Plan</h1>
           <p>Unlock the full potential of AI-powered homework assistance</p>
         </div>
 
         {/* Billing Toggle */}
-        <div className="billing-toggle">
+        <div className="upgrade-billing-toggle">
           <span className={billingCycle === 'monthly' ? 'active' : ''}>Monthly</span>
           <button
-            className={`toggle-switch ${billingCycle === 'yearly' ? 'yearly' : ''}`}
+            className={`upgrade-billing-toggle-switch ${billingCycle === 'yearly' ? 'yearly' : ''}`}
             onClick={() => setBillingCycle(billingCycle === 'monthly' ? 'yearly' : 'monthly')}
           >
-            <div className="toggle-slider"></div>
+            <div className="upgrade-billing-toggle-slider"></div>
           </button>
           <span className={billingCycle === 'yearly' ? 'active' : ''}>
             Yearly
-            <span className="save-badge">Save 20%</span>
+            <span className="upgrade-billing-save-badge">Save 20%</span>
           </span>
         </div>
 
         {/* Plans Grid */}
-        <div className="plans-grid">
+        <div className="upgrade-plans-grid">
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''}`}
+              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''}`}
               onClick={() => handlePlanSelect(plan.id)}
             >
-              {plan.popular && <div className="popular-badge">Most Popular</div>}
+              {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
               
-              <div className="plan-header">
-                <div className="plan-icon">{plan.icon}</div>
+              <div className="upgrade-plan-header">
+                <div className="upgrade-plan-icon">{plan.icon}</div>
                 <h3>{plan.name}</h3>
                 <p>{plan.description}</p>
               </div>
 
-              <div className="plan-pricing">
-                <div className="price">
+              <div className="upgrade-plan-pricing">
+                <div className="upgrade-plan-price">
                   ${plan.price}
-                  <span className="period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
+                  <span className="upgrade-plan-period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
                 </div>
               </div>
 
               <button
-                className={`subscribe-button ${plan.id === 'free' ? 'free' : ''}`}
+                className={`upgrade-plan-subscribe-button ${plan.id === 'free' ? 'free' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleSubscribe(plan.id);
                 }}
               >
-                {plan.id === 'free' ? 'Current Plan' : 'Subscribe Now'}
+                {plan.id === 'free' 
+                  ? 'Current Plan' 
+                  : plan.id === 'pro' 
+                    ? 'Upgrade to Pro' 
+                    : 'Upgrade to Enterprise'
+                }
               </button>
 
-              <ul className="plan-features">
+              <ul className="upgrade-plan-features">
                 {plan.features.map((feature, index) => (
                   <li key={index}>
                     <Check size={16} />
@@ -189,31 +195,9 @@ const SubscriptionPage: React.FC = () => {
           ))}
         </div>
 
-        {/* FAQ Section */}
-        <div className="faq-section">
-          <h2>Frequently Asked Questions</h2>
-          <div className="faq-grid">
-            <div className="faq-item">
-              <h3>Can I change my plan anytime?</h3>
-              <p>Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately.</p>
-            </div>
-            <div className="faq-item">
-              <h3>What payment methods do you accept?</h3>
-              <p>We accept all major credit cards through our secure Stripe payment system.</p>
-            </div>
-            <div className="faq-item">
-              <h3>Is there a free trial?</h3>
-              <p>Yes! Start with our free plan and upgrade when you're ready for more features.</p>
-            </div>
-            <div className="faq-item">
-              <h3>Can I cancel anytime?</h3>
-              <p>Absolutely. Cancel your subscription anytime with no cancellation fees.</p>
-            </div>
-          </div>
-        </div>
 
         {/* Footer */}
-        <div className="subscription-footer">
+        <div className="upgrade-page-footer">
           <p>Questions? Contact us at <a href="mailto:support@intellimark.com">support@intellimark.com</a></p>
         </div>
       </div>

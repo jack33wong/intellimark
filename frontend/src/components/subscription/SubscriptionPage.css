@@ -1,0 +1,471 @@
+/* Upgrade Page Styles - Dark Mode */
+/* Color variables are now defined in index.css */
+
+.upgrade-page {
+  min-height: 100vh;
+  background: var(--background-white-main);
+  color: var(--text-primary);
+  padding: 60px 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100vw;
+  margin: 0;
+}
+
+.upgrade-page-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 20px;
+}
+
+/* Close Button - Top Right */
+.upgrade-page-close-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+  padding: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-S);
+  width: 48px;
+  height: 48px;
+}
+
+.upgrade-page-close-button:hover {
+  background: var(--background-gray-main);
+  border-color: var(--text-blue);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-M);
+}
+
+/* Upgrade Page Header - Dark Mode */
+.upgrade-page-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+
+.upgrade-page-header h1 {
+  font-size: 56px;
+  font-weight: 800;
+  margin: 0 0 20px 0;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.upgrade-page-header p {
+  font-size: 20px;
+  color: var(--text-secondary);
+  margin: 0 auto;
+  max-width: 600px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+/* Billing Cycle Toggle - Dark Mode */
+.upgrade-billing-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 0 auto 64px auto;
+  padding: 6px;
+  background: var(--background-card);
+  border-radius: 12px;
+  max-width: 320px;
+  box-shadow: var(--shadow-S);
+}
+
+.upgrade-billing-toggle span {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.upgrade-billing-toggle span.active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.upgrade-billing-toggle-switch {
+  position: relative;
+  width: 56px;
+  height: 28px;
+  background: var(--background-gray-main);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.upgrade-billing-toggle-switch:hover {
+  background: var(--fill-gray);
+}
+
+.upgrade-billing-toggle-switch.yearly {
+  background: var(--text-blue);
+}
+
+.upgrade-billing-toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 24px;
+  height: 24px;
+  background: var(--text-white);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: var(--shadow-S);
+}
+
+.upgrade-billing-toggle-switch.yearly .upgrade-billing-toggle-slider {
+  transform: translateX(28px);
+}
+
+.upgrade-billing-toggle .upgrade-billing-save-badge {
+  background: none;
+  color: var(--text-blue) !important;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Upgrade Plans Grid - Dark Mode */
+.upgrade-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 24px;
+  margin-bottom: 80px;
+  align-items: start;
+}
+
+.upgrade-plan-card {
+  background: var(--background-card);
+  border: none;
+  border-radius: 16px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: var(--shadow-S);
+}
+
+.upgrade-plan-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-M);
+}
+
+.upgrade-plan-card.popular {
+  background: var(--background-card);
+  box-shadow: var(--shadow-M);
+}
+
+.upgrade-plan-card.popular:hover {
+  background: var(--background-gray-main);
+  box-shadow: var(--shadow-L);
+}
+
+.upgrade-plan-card.selected {
+  background: var(--background-card);
+  box-shadow: var(--shadow-M);
+}
+
+.upgrade-plan-card.selected.popular {
+  background: var(--background-card);
+  box-shadow: var(--shadow-M);
+}
+
+.upgrade-plan-popular-badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--text-blue), var(--shadows-highlight-2));
+  color: var(--text-white);
+  padding: 6px 20px;
+  border-radius: 0 0 8px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.upgrade-plan-header {
+  margin-bottom: 32px;
+}
+
+.upgrade-plan-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: var(--background-gray-main);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  color: var(--text-blue);
+}
+
+.upgrade-plan-header h3 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.upgrade-plan-header p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.upgrade-plan-pricing {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.upgrade-plan-price {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+}
+
+.upgrade-plan-period {
+  font-size: 16px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.upgrade-plan-subscribe-button {
+  width: 100%;
+  background: var(--Button-primary-black);
+  color: var(--text-onblack);
+  border: none;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 32px;
+  margin-top: 0;
+  letter-spacing: 0.025em;
+}
+
+.upgrade-plan-subscribe-button:hover {
+  background: var(--shadows-highlight-2);
+  color: var(--text-white);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-M);
+}
+
+.upgrade-plan-subscribe-button.free {
+  background: var(--background-gray-main);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-main);
+  cursor: not-allowed;
+}
+
+.upgrade-plan-subscribe-button.free:hover {
+  background: var(--fill-gray);
+  transform: none;
+  box-shadow: none;
+}
+
+.upgrade-plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 32px 0;
+  text-align: left;
+  flex-grow: 1;
+}
+
+.upgrade-plan-features li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.upgrade-plan-features li svg {
+  color: var(--function-success);
+  flex-shrink: 0;
+}
+
+.upgrade-plan-card.enterprise .upgrade-plan-features li {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+
+/* Upgrade Page Footer - Dark Mode */
+.upgrade-page-footer {
+  text-align: center;
+  padding-top: 40px;
+}
+
+.upgrade-page-footer p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.upgrade-page-footer a {
+  color: var(--text-blue);
+  text-decoration: none;
+  transition: color 0.2s ease;
+  font-weight: 500;
+}
+
+.upgrade-page-footer a:hover {
+  color: var(--shadows-highlight-2);
+}
+
+/* Large screens - Dark Mode */
+@media (min-width: 1200px) {
+  .upgrade-page {
+    padding: 80px 40px;
+  }
+  
+  .upgrade-plans-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+  }
+  
+  .upgrade-plan-card {
+    padding: 40px;
+  }
+}
+
+/* Responsive Design - Dark Mode */
+@media (max-width: 768px) {
+  .upgrade-page {
+    padding: 40px 0;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  
+  .upgrade-page-container {
+    padding: 0 20px;
+  }
+  
+  .upgrade-page-close-button {
+    top: 15px;
+    right: 15px;
+    padding: 10px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .upgrade-page-header h1 {
+    font-size: 42px;
+  }
+
+  .upgrade-page-header p {
+    font-size: 18px;
+  }
+
+  .upgrade-plans-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .upgrade-plan-card {
+    padding: 28px;
+  }
+
+  .upgrade-plan-price {
+    font-size: 40px;
+  }
+
+  .upgrade-billing-toggle {
+    max-width: 300px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .upgrade-billing-toggle span {
+    font-size: 14px;
+  }
+
+  .upgrade-billing-save-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .upgrade-page {
+    padding: 32px 0;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  
+  .upgrade-page-container {
+    padding: 0 16px;
+  }
+  
+  .upgrade-page-close-button {
+    top: 10px;
+    right: 10px;
+    padding: 8px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .upgrade-page-header h1 {
+    font-size: 32px;
+  }
+
+  .upgrade-page-header p {
+    font-size: 16px;
+  }
+
+  .upgrade-plan-card {
+    padding: 24px;
+  }
+
+  .upgrade-plan-price {
+    font-size: 36px;
+  }
+
+  .upgrade-billing-toggle {
+    max-width: 280px;
+    padding: 4px;
+  }
+}

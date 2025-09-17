@@ -5,11 +5,11 @@ import ProtectedRoute from './components/ProtectedRoute';
 import OptionalAuthRoute from './components/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
-import AdminPage from './components/AdminPage';
+import AdminPage from './components/admin/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
 import ProfilePage from './components/ProfilePage';
 import Login from './components/Login';
-import SubscriptionPage from './components/SubscriptionPage.tsx';
+import SubscriptionPage from './components/subscription/SubscriptionPage.tsx';
 import './App.css';
 
 /**

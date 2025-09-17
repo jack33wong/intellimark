@@ -196,8 +196,8 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
   const formatDate = (timestamp) => {
     return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
+      year: '2-digit',
+      month: 'short',
       day: 'numeric'
     });
   };
@@ -289,7 +289,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                 {/* Subscription Details Dropdown */}
                 {isSubscriptionDetailsOpen && userSubscription && (
                   <div className={`subscription-dropdown ${isSubscriptionDetailsClosing ? 'closing' : ''}`}>
-                    <div className="subscription-header">
+                    <div className="subscription-dropdown-header">
                       <div className="subscription-title">
                         <Crown size={20} />
                         <span>{SubscriptionService.getPlanDisplayName(userSubscription.planId)} Plan</span>
@@ -370,7 +370,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                   )}
                 </div>
                 <span className="profile-name">
-                  {user.displayName || user.email?.split('@')[0] || 'User'}
+                  {user.displayName || user.email?.split('@')[0] || ''}
                 </span>
                 <ChevronDown size={16} className={`chevron ${isProfileMenuOpen ? 'rotated' : ''}`} />
               </button>
@@ -388,7 +388,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     </div>
                     <div className="profile-details">
                       <div className="profile-name-large">
-                        {user.displayName || 'User'}
+                        {user.displayName || ''}
                       </div>
                       <div className="profile-email">
                         {user.email}

@@ -818,43 +818,7 @@
   background: rgba(127, 0, 255, 0.1);
 }
 
-/* Header Buttons */
-.header-btn {
-  background: none;
-  border: none;
-  color: var(--primary-text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  padding: 8px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-btn:hover {
-  background: rgba(127, 0, 255, 0.1);
-  color: var(--accent-color);
-}
-
-.header-btn.info-btn,
-.header-btn.favorite-btn {
-  background: none;
-}
-
-.header-btn.info-btn:hover,
-.header-btn.favorite-btn:hover {
-  background: rgba(127, 0, 255, 0.1);
-}
-
-.header-btn.favorite-btn.favorited {
-  color: #ffc107; /* Gold color for favorited state */
-}
-
-.header-btn.favorite-btn.favorited:hover {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ffc107;
-}
+/* .header-btn styles are defined in ChatInterface.css */
 
 /* Info Dropdown Container - Position relative for dropdown positioning */
 .info-dropdown-container {
@@ -1156,14 +1120,7 @@
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
-.chat-message {
-  margin-bottom: 16px; /* Reduced from 24px to 16px */
-  padding: 0;
-  background: transparent;
-  border-radius: 0;
-  border: none;
-  display: flex;
-}
+/* .chat-message styles are defined in ChatInterface.css */
 
 /* Ensure last message is fully visible */
 .chat-message:last-child {
@@ -1249,12 +1206,7 @@
   transform: none;
 }
 
-.message-text {
-  font-size: 16px;
-  line-height: 1.6;
-  margin: 0;
-  word-wrap: break-word;
-}
+/* .message-text styles are defined in ChatInterface.css */
 
 .message-timestamp {
   font-size: 11px;
@@ -2863,10 +2815,7 @@
   color: var(--secondary-text);
 }
 
-.detail-value {
-  font-weight: 600;
-  color: var(--primary-text);
-}
+/* .detail-value styles are defined in Header.css */
 
 .summary-stats {
   display: flex;
@@ -3826,16 +3775,7 @@
   font-weight: 600;
 }
 
-.header-btn {
-  background: var(--tertiary-bg);
-  border-radius: 6px;
-  padding: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* .header-btn styles are defined in ChatInterface.css */
 
 .header-btn:hover:not(.disabled) {
   background: var(--accent-color);
@@ -3865,11 +3805,7 @@
   gap: 16px;
 }
 
-.chat-message {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 16px;
-}
+/* .chat-message styles are defined in ChatInterface.css */
 
 .chat-message.user {
   align-items: flex-end;
@@ -3877,10 +3813,7 @@
 
 /* Removed duplicate CSS rules - using main definitions above */
 
-.message-text {
-  line-height: 1.5;
-  word-wrap: break-word;
-}
+/* .message-text styles are defined in ChatInterface.css */
 
 .message-image {
   margin-bottom: 8px;

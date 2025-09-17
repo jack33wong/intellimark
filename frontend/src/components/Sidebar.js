@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Settings, 
   BookOpen,
-  Code,
   Clock,
   Trash2,
   Menu,
@@ -243,18 +242,26 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     
     const sessionDate = new Date(date);
     const now = new Date();
-    const diffMs = now - sessionDate;
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 0) {
-      // Show time instead of "Today" for today's sessions
-      return sessionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return `${diffDays} days ago`;
+    // Check if the session date is the same day as today
+    const isSameDay = sessionDate.getDate() === now.getDate() &&
+                     sessionDate.getMonth() === now.getMonth() &&
+                     sessionDate.getFullYear() === now.getFullYear();
+    
+    if (isSameDay) {
+      // Show time for today's sessions
+      return sessionDate.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false // Use 24-hour format
+      });
     } else {
-      return sessionDate.toLocaleDateString();
+      // Show date for other days
+      return sessionDate.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        year: sessionDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
     }
   };
 
@@ -416,10 +423,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
 
       {user?.uid && (
         <div className="admin-section">
-          <div className="admin-link" onClick={() => navigate('/markdown-demo')}>
-            <Code size={16} />
-            Markdown Demo
-          </div>
           <div className="admin-link" onClick={() => navigate('/admin')}>
             <Settings size={16} />
             Admin

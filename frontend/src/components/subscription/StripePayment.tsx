@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   PaymentFormProps, 
   PaymentState, 
   SubscriptionResponse,
   StripeCardElementOptions,
   StripePaymentProps
-} from '../types/payment';
+} from '../../types/payment';
 import { ArrowLeft, CreditCard, Lock } from 'lucide-react';
-import API_CONFIG from '../config/api';
+import API_CONFIG from '../../config/api';
 import './StripePayment.css';
 
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || '');

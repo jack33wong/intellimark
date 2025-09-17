@@ -22,7 +22,7 @@
   display: flex;
   background: none;
   border: none;
-  color: var(--primary-text);
+  color: var(--text-primary);
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;
@@ -34,7 +34,7 @@
 }
 
 .sidebar-menu-toggle:hover {
-  background-color: var(--tertiary-bg);
+  background-color: var(--background-gray-main);
   transform: scale(1.05);
 }
 
@@ -46,14 +46,14 @@
 .sidebar-logo-text {
   font-size: 20px;
   font-weight: 700;
-  color: var(--primary-text);
+  color: var(--text-primary);
   margin: 0;
   line-height: 1.2;
 }
 
 .sidebar-logo-subtitle {
   font-size: 10px;
-  color: var(--muted-text);
+  color: var(--text-tertiary);
   margin: 0;
   line-height: 1;
   font-weight: 400;
@@ -71,8 +71,8 @@
 
 .upgrade-btn {
   background: transparent;
-  color: var(--secondary-text);
-  border: 1px solid #22c55e;
+  color: var(--text-secondary);
+  border: 1px solid var(--function-success);
   padding: 16px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -84,14 +84,14 @@
 }
 
 .upgrade-btn:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
 }
 
 .signin-btn {
   background: transparent;
-  color: var(--secondary-text);
-  border: 1px solid #7f00ff;
+  color: var(--text-secondary);
+  border: 1px solid var(--text-blue);
   padding: 16px 20px;
   border-radius: 8px;
   font-size: 14px;
@@ -103,14 +103,14 @@
 }
 
 .signin-btn:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
 }
 
 /* Main Mark Homework Button */
 .mark-homework-main-btn {
-  background: var(--primary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
   border: none;
   padding: 10px 15px;
   border-radius: 10px;
@@ -123,13 +123,13 @@
   justify-content: flex-start;
   gap: 10px;
   margin-bottom: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-S);
   margin: 0 10px;
 }
 
 .mark-homework-main-btn svg {
-  color: white;
-  background: var(--accent-color);
+  color: var(--text-white);
+  background: var(--text-blue);
   border-radius: 50%;
   padding: 5px;
   width: 25px;
@@ -141,9 +141,9 @@
 }
 
 .mark-homework-main-btn:hover {
-  background: var(--tertiary-bg);
+  background: var(--background-card);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-M);
 }
 
 /* Sidebar Section */
@@ -173,8 +173,8 @@
   padding: 6px 10px;
   border-radius: 20px;
   border: none;
-  background: var(--tertiary-bg);
-  color: var(--secondary-text);
+  background: var(--background-card);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -183,13 +183,13 @@
 }
 
 .mark-history-tab:hover {
-  background: var(--quaternary-bg);
-  color: var(--primary-text);
+  background: var(--fill-gray);
+  color: var(--text-primary);
 }
 
 .mark-history-tab.active {
-  background: var(--accent-color);
-  color: white;
+  background: var(--text-blue);
+  color: var(--text-white);
 }
 
 .mark-history-scrollable {
@@ -220,7 +220,7 @@
 
 .mark-history-item:hover {
   background: transparent;
-  color: var(--accent-color);
+  color: var(--text-blue);
 }
 
 
@@ -232,9 +232,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--quaternary-bg);
+  background: var(--fill-gray);
   border-radius: 50%;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   opacity: 0.9;
 }
 
@@ -255,7 +255,7 @@
 /* Chat Item Title */
 .mark-history-item-title {
   font-size: 12px !important;
-  color: var(--primary-text);
+  color: var(--text-primary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -271,7 +271,7 @@
 /* Last Message */
 .mark-history-last-message {
   font-size: 11px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -294,15 +294,15 @@
 /* Update Time */
 .mark-history-time {
   font-size: 12px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   text-align: center;
   opacity: 0.5;
 }
 
 /* Inline Favorite Star */
 .favorite-star-inline {
-  color: #ffc107; /* Gold color for favorited sessions */
-  fill: #ffc107;
+  color: var(--function-warning);
+  fill: var(--function-warning);
   margin-right: 6px;
   display: inline-block;
   vertical-align: middle;
@@ -311,7 +311,7 @@
 .mark-history-delete-btn {
   background: transparent;
   border: none;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   padding: 2px;
   border-radius: 3px;
   cursor: pointer;
@@ -330,8 +330,8 @@
 }
 
 .mark-history-delete-btn:hover {
-  background: var(--error-color);
-  color: white;
+  background: var(--function-error);
+  color: var(--text-white);
 }
 
 /* Loading and Error States */
@@ -347,7 +347,7 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -365,8 +365,8 @@
 }
 
 .login-prompt-btn {
-  background: var(--accent-color);
-  color: white;
+  background: var(--text-blue);
+  color: var(--text-white);
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
@@ -378,14 +378,14 @@
 }
 
 .login-prompt-btn:hover {
-  background: #6b00cc;
+  background: var(--shadows-highlight-2);
 }
 
 /* Admin Section */
 .admin-section {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid #1a1a1a;
+  border-top: 1px solid var(--background-card);
 }
 
 .admin-link {
@@ -393,7 +393,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  color: var(--secondary-text);
+  color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
   border-radius: 4px;
@@ -401,8 +401,8 @@
 }
 
 .admin-link:hover {
-  background: var(--tertiary-bg);
-  color: var(--primary-text);
+  background: var(--background-gray-main);
+  color: var(--text-primary);
 }
 
 

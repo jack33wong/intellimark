@@ -660,7 +660,7 @@
   z-index: 100;
   box-shadow: none;
   margin-top: 40px;
-  width: 100%;
+  width: 80%;
 }
 
 /* Chat Input Bar for Chat Mode - Position at Bottom, Respecting Sidebar */
