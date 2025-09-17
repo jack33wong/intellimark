@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import OptionalAuthRoute from './components/OptionalAuthRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AdminPage from './components/admin/AdminPage';
 import MarkHomeworkPage from './components/MarkHomeworkPageRefactored';
-import Login from './components/Login';
+import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage.tsx';
 import './App.css';
 

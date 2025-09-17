@@ -5,12 +5,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { AlertCircle, Chrome, Facebook } from 'lucide-react';
 import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider, facebookProvider } from '../config/firebase';
+import { auth, googleProvider, facebookProvider } from '../../config/firebase';
 import './Login.css';
-import './common/LoadingSpinner.css';
+import '../common/LoadingSpinner.css';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
