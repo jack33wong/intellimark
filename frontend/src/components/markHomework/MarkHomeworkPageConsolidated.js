@@ -12,6 +12,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { useMarkHomework } from '../../hooks/useMarkHomework';
 import { useSubscriptionDelay } from '../../hooks/useSubscriptionDelay';
+import { useAutoScroll } from '../../hooks/useAutoScroll';
 import MainLayout from './MainLayout';
 import { ensureStringContent } from '../../utils/contentUtils';
 
@@ -67,6 +68,17 @@ const MarkHomeworkPageConsolidated = ({
     loadSession
   } = useMarkHomework();
 
+  // Auto scroll functionality
+  const {
+    containerRef: chatContainerRef,
+    scrollToBottom,
+    handleImageLoad,
+    handleScroll
+  } = useAutoScroll(chatMessages);
+
+  // Scroll button state
+  const [showScrollButton, setShowScrollButton] = useState(false);
+
   // ============================================================================
   // EFFECTS
   // ============================================================================
@@ -97,6 +109,25 @@ const MarkHomeworkPageConsolidated = ({
       }
     }
   }, [selectedMarkingResult, loadSession, setPageMode, clearSession, onPageModeChange]);
+
+  // Handle scroll events to show/hide scroll button
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (container) {
+      const handleScrollEvent = () => {
+        handleScroll(setShowScrollButton);
+      };
+      
+      container.addEventListener('scroll', handleScrollEvent);
+      
+      // Initial check to set scroll button visibility
+      handleScrollEvent();
+      
+      return () => {
+        container.removeEventListener('scroll', handleScrollEvent);
+      };
+    }
+  }, [chatContainerRef, handleScroll]);
   
   // Subscription delay state
   const {
@@ -123,7 +154,6 @@ const MarkHomeworkPageConsolidated = ({
 
   // Handle image analysis - PHASE-SEPARATED VERSION
   const handleImageAnalysis = useCallback(async (file = null) => {
-    
     try {
       const targetFile = file || selectedFile;
       if (!targetFile) {
@@ -147,6 +177,7 @@ const MarkHomeworkPageConsolidated = ({
       const isInitialUpload = !file; // If no file parameter, it's initial upload
       
       // 5. Show user message immediately ONLY for initial uploads
+      // For follow-up messages, the backend will handle user message creation
       if (isInitialUpload) {
         const userMessage = {
           id: `user-${Date.now()}`,
@@ -158,7 +189,7 @@ const MarkHomeworkPageConsolidated = ({
           fileName: targetFile.name
         };
         
-        addMessage(userMessage);
+        await addMessage(userMessage);
       }
       
       // ========================================
@@ -232,6 +263,30 @@ const MarkHomeworkPageConsolidated = ({
       isLoading={false}
       isProcessing={isProcessing}
       isAIThinking={isProcessing} // Simplified: AI thinking is same as processing
+      
+      // Chat scroll props
+      chatContainerRef={chatContainerRef}
+      showScrollButton={showScrollButton}
+      scrollToBottom={scrollToBottom}
+      handleImageLoad={handleImageLoad}
+      getImageSrc={(message) => {
+        // Handle different image source formats
+        if (message?.imageLink) {
+          return message.imageLink; // Firebase Storage URL
+        }
+        if (message?.imageData) {
+          // If imageData is already a data URL, return it directly
+          if (typeof message.imageData === 'string' && message.imageData.startsWith('data:')) {
+            return message.imageData;
+          }
+          // If imageData is a base64 string without data URL prefix, add it
+          if (typeof message.imageData === 'string' && !message.imageData.startsWith('data:')) {
+            return `data:image/png;base64,${message.imageData}`;
+          }
+          return message.imageData;
+        }
+        return null;
+      }}
       
       // Follow-up chat props
       chatInput={''}

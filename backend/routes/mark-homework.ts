@@ -406,7 +406,8 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       try {
         const { FirestoreService } = await import('../services/firestoreService');
         
-        // Create or get session
+        // Determine if this is a follow-up message (existing session) or new session
+        const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
         let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         // Create timestamps to ensure proper order
@@ -420,7 +421,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           role: 'user',
           content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
           timestamp: userTimestamp,
-          type: 'marking_original',
+          type: isFollowUp ? 'follow_up' : 'marking_original',
           imageData: imageData, // Store original image data
           fileName: 'uploaded-image.png',
           metadata: {
@@ -438,22 +439,47 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           timestamp: aiTimestamp
         };
 
-        // Create session with both user and AI messages
-        await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: sessionId,
-          title: 'Marking Session',
-          userId: userId,
-          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-          messages: [dbUserMessage, dbAiMessage],
-          isPastPaper: result.isPastPaper || false,
-          sessionMetadata: {
-            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            lastModelUsed: model,
-            lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+        if (isFollowUp) {
+          // Try to add messages to existing session, create new session if it doesn't exist
+          try {
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
+            console.log(`✅ [SINGLE-PHASE] Added follow-up messages to existing session ${sessionId} for user ${userId}`);
+          } catch (error) {
+            console.log(`⚠️ [SINGLE-PHASE] Session ${sessionId} not found, creating new session instead`);
+            // Create new session with both user and AI messages
+            await FirestoreService.createUnifiedSessionWithMessages({
+              sessionId: sessionId,
+              title: 'Marking Session',
+              userId: userId,
+              messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+              messages: [dbUserMessage, dbAiMessage],
+              isPastPaper: result.isPastPaper || false,
+              sessionMetadata: {
+                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+                lastModelUsed: model,
+                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+              }
+            });
+            console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
           }
-        });
-
-        console.log(`✅ [SINGLE-PHASE] Session ${sessionId} saved to database for user ${userId}`);
+        } else {
+          // Create new session with both user and AI messages
+          await FirestoreService.createUnifiedSessionWithMessages({
+            sessionId: sessionId,
+            title: 'Marking Session',
+            userId: userId,
+            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messages: [dbUserMessage, dbAiMessage],
+            isPastPaper: result.isPastPaper || false,
+            sessionMetadata: {
+              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+              lastModelUsed: model,
+              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+            }
+          });
+          console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
+        }
         
       } catch (error) {
         console.error('❌ [SINGLE-PHASE] Failed to persist to database:', error);
