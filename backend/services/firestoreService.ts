@@ -512,7 +512,7 @@ export class FirestoreService {
           id: message.id,
           role: message.role,
           content: message.content,
-          timestamp: new Date().toISOString(),
+          timestamp: message.timestamp || new Date().toISOString(), // Use original timestamp if provided
           type: message.type || 'chat',
           imageLink: processedImageLink,
           fileName: message.fileName || null,
@@ -520,7 +520,6 @@ export class FirestoreService {
           apiUsed: message.apiUsed || null,
           detectedQuestion: message.detectedQuestion || null,
           metadata: message.metadata || null,
-          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
 
@@ -615,8 +614,8 @@ export class FirestoreService {
       
       // Sort messages by timestamp in JavaScript
       unifiedMessages.sort((a: any, b: any) => {
-        const timeA = new Date(a.timestamp || a.createdAt || 0).getTime();
-        const timeB = new Date(b.timestamp || b.createdAt || 0).getTime();
+        const timeA = new Date(a.timestamp || 0).getTime();
+        const timeB = new Date(b.timestamp || 0).getTime();
         return timeA - timeB;
       });
 

@@ -196,6 +196,34 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                   totalMessages: 1 // Only user message
                 }
               });
+            
+            // CRITICAL: Wait for session to be fully created and verify it exists
+            console.log(`🔍 [PHASE1] Waiting for session ${finalSessionId} to be created...`);
+            let sessionVerified = false;
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            while (!sessionVerified && attempts < maxAttempts) {
+              attempts++;
+              try {
+                const verifySession = await FirestoreService.getUnifiedSession(finalSessionId);
+                if (verifySession && verifySession.id) {
+                  sessionVerified = true;
+                  console.log(`✅ [PHASE1] Session ${finalSessionId} verified after ${attempts} attempts`);
+                } else {
+                  console.log(`⏳ [PHASE1] Session ${finalSessionId} not ready, attempt ${attempts}/${maxAttempts}`);
+                  await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+                }
+              } catch (error) {
+                console.log(`⏳ [PHASE1] Session verification failed, attempt ${attempts}/${maxAttempts}:`, error.message);
+                await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+              }
+            }
+            
+            if (!sessionVerified) {
+              throw new Error(`Session ${finalSessionId} could not be verified after ${maxAttempts} attempts`);
+            }
+            
             sessionSaved = true;
           } catch (createError) {
             console.error(`❌ [${new Date().toISOString()}] /upload endpoint: createUnifiedSessionWithMessages failed:`, createError);
@@ -301,6 +329,149 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       success: false, 
       error: 'Internal server error in mark question system', 
       details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' 
+    });
+  }
+});
+
+/**
+ * POST /mark-homework/process-single
+ * Single-phase: Upload + Classification + AI Processing
+ * Returns just the AI message structure
+ */
+router.post('/process-single', optionalAuth, async (req: Request, res: Response) => {
+  let { imageData, model = 'gemini-2.5-pro', userMessage } = req.body;
+
+  if (!imageData) {
+    return res.status(400).json({ success: false, error: 'Image data is required' });
+  }
+
+  // Convert 'auto' to default model
+  if (model === 'auto') {
+    model = 'gemini-2.5-pro';
+  }
+
+  if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
+
+  try {
+    const userId = (req as any)?.user?.uid || 'anonymous';
+    const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+    const isAuthenticated = !!(req as any)?.user?.uid;
+
+    // Process the image for AI response (includes classification + marking)
+    const result = await MarkHomeworkWithAnswer.run({
+      imageData,
+      model,
+      userId,
+      userEmail
+    }) as any;
+
+    // Upload annotated image to Firebase Storage if it's a marking result
+    let annotatedImageLink;
+    if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
+      const { ImageStorageService } = await import('../services/imageStorageService');
+      try {
+        annotatedImageLink = await ImageStorageService.uploadImage(
+          result.annotatedImage,
+          userId || 'anonymous',
+          `single-${Date.now()}`,
+          'annotated'
+        );
+      } catch (error) {
+        console.error('❌ Failed to upload annotated image:', error);
+        annotatedImageLink = null;
+      }
+    }
+
+    // Create AI response message (common for both authenticated and unauthenticated users)
+    const aiMessage = {
+      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'assistant',
+      content: result.message || 'Processing complete',
+      timestamp: new Date().toISOString(),
+      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
+      imageLink: annotatedImageLink, // For authenticated users
+      imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
+      fileName: 'annotated-image.png',
+      metadata: {
+        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+        confidence: result.metadata?.confidence || 0,
+        modelUsed: result.metadata?.modelUsed || model,
+        apiUsed: result.apiUsed,
+        ocrMethod: result.ocrMethod
+      }
+    };
+
+    // For authenticated users, persist to database
+    if (isAuthenticated) {
+      try {
+        const { FirestoreService } = await import('../services/firestoreService');
+        
+        // Create or get session
+        let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Create timestamps to ensure proper order
+        const baseTime = Date.now();
+        const userTimestamp = new Date(baseTime - 2000).toISOString(); // 2 seconds earlier
+        const aiTimestamp = new Date(baseTime).toISOString(); // Current time
+        
+        // Create user message for database (earlier timestamp)
+        const dbUserMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'user',
+          content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
+          timestamp: userTimestamp,
+          type: 'marking_original',
+          imageData: imageData, // Store original image data
+          fileName: 'uploaded-image.png',
+          metadata: {
+            processingTimeMs: 0,
+            confidence: 0,
+            modelUsed: model,
+            apiUsed: 'Single-Phase Upload',
+            ocrMethod: 'User Upload'
+          }
+        };
+
+        // Update AI message timestamp for database (later timestamp)
+        const dbAiMessage = {
+          ...aiMessage,
+          timestamp: aiTimestamp
+        };
+
+        // Create session with both user and AI messages
+        await FirestoreService.createUnifiedSessionWithMessages({
+          sessionId: sessionId,
+          title: 'Marking Session',
+          userId: userId,
+          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+          messages: [dbUserMessage, dbAiMessage],
+          isPastPaper: result.isPastPaper || false,
+          sessionMetadata: {
+            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+            lastModelUsed: model,
+            lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+          }
+        });
+
+        console.log(`✅ [SINGLE-PHASE] Session ${sessionId} saved to database for user ${userId}`);
+        
+      } catch (error) {
+        console.error('❌ [SINGLE-PHASE] Failed to persist to database:', error);
+        // Continue without throwing - user still gets response
+      }
+    }
+
+    // Return just the AI message structure
+    res.json({
+      success: true,
+      aiMessage: aiMessage
+    });
+
+  } catch (error) {
+    console.error('❌ Single-phase processing failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Single-phase processing failed'
     });
   }
 });

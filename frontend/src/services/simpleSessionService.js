@@ -195,6 +195,7 @@ class SimpleSessionService {
   // ============================================================================
 
   async processImage(imageData, model = 'auto', mode = 'marking') {
+    console.log(`🔍 [${new Date().toISOString()}] Starting single-phase image processing with model: ${model}, mode: ${mode}`);
     
     this.setState({ error: null });
 
@@ -224,12 +225,23 @@ class SimpleSessionService {
       if (model && model !== 'auto') {
         requestBody.model = model;
       }
+
+      // For authenticated users, pass user message for database persistence
+      if (this.state.currentSession?.userId) {
+        const userMessage = {
+          content: 'I have a question about this image. Can you help me understand it?',
+          sessionId: this.state.currentSession?.id,
+          imageData: imageData
+        };
+        requestBody.userMessage = userMessage;
+      }
       
       // ========================================
-      // PHASE 1: Upload & Classification
+      // SINGLE-PHASE: Upload + Classification + AI Processing
       // ========================================
+      console.log(`🚀 [${new Date().toISOString()}] Single-phase: Processing image...`);
       
-      const phase1Response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/upload`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
@@ -238,127 +250,135 @@ class SimpleSessionService {
       
       clearTimeout(timeoutId);
 
-      if (!phase1Response.ok) {
-        const errorText = await phase1Response.text();
-        console.error('Phase 1: Error response:', errorText);
-        const error = new Error(`Failed to process image: ${phase1Response.status} - ${errorText}`);
-        error.statusCode = phase1Response.status;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Single-phase: Error response:', errorText);
+        const error = new Error(`Failed to process image: ${response.status} - ${errorText}`);
+        error.statusCode = response.status;
         error.responseText = errorText;
         throw error;
       }
 
-      const phase1Data = await phase1Response.json();
+      const data = await response.json();
       
-      if (!phase1Data.success) {
-        throw new Error(phase1Data.error || 'Failed to process image');
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process image');
       }
 
-      if (!phase1Data.unifiedSession) {
-        throw new Error('Backend did not return unifiedSession data');
+      if (!data.aiMessage) {
+        throw new Error('Backend did not return AI message data');
       }
 
-      const phase1Session = this.convertToUnifiedSession(phase1Data.unifiedSession);
-      
       // ========================================
-      // PHASE 2: AI Processing & Marking
+      // COMPLETE: Add AI message to chat
       // ========================================
-      
-      // AI thinking animation shows (handled by isProcessing state)
-      let finalSession = phase1Session;
-      if (phase1Session.id) {
-          // Backend processes image and creates session
-          // Backend generates marking instructions
-          // Creates annotated image
-          // AI response appears in chat
-          
-          // Add timeout to prevent hanging
-          const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 30000); // 30 second timeout
-          
-          // Get user message from Phase 1 session
-          const userMessage = phase1Session.messages.find(msg => msg.role === 'user');
-          
-          const phase2Response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              imageData,
-              model,
-              sessionId: phase1Session.id,
-              userMessage: userMessage
-            }),
-            signal: controller2.signal
-          });
-          
-          clearTimeout(timeoutId2);
+      console.log(`🎉 [${new Date().toISOString()}] Single-phase processing complete!`);
 
-          if (!phase2Response.ok) {
-            const errorText = await phase2Response.text();
-            console.error('Phase 2: Error response:', errorText);
-            const error = new Error(`Failed to process AI response: ${phase2Response.status} - ${errorText}`);
-            error.statusCode = phase2Response.status;
-            error.responseText = errorText;
-            throw error;
-          }
-
-          const phase2Data = await phase2Response.json();
-          
-          if (!phase2Data.success) {
-            throw new Error(phase2Data.error || 'Failed to process AI response');
-          }
-
-          if (!phase2Data.unifiedSession) {
-            throw new Error('Backend did not return unifiedSession data for AI response');
-          }
-
-          const phase2Session = this.convertToUnifiedSession(phase2Data.unifiedSession);
-          
-          // Both phases return single messages: Phase 1 = user, Phase 2 = AI
-          // Get existing messages (includes our local user message for immediate display)
-          const existingMessages = this.state.currentSession?.messages || [];
-          const phase1Messages = phase1Session.messages || [];
-          const phase2Messages = phase2Session.messages || [];
-          
-          // Debug: Log what we're getting from each phase
-          
-          // Filter out duplicate user messages from backend (keep local user message)
-          const filteredPhase1Messages = phase1Messages.filter(msg => msg.role !== 'user');
-          const filteredPhase2Messages = phase2Messages.filter(msg => msg.role !== 'user');
-          
-          // Combine: existing messages (local user) + filtered backend messages (AI only)
-          finalSession = {
-            ...phase1Session,
-            messages: [...existingMessages, ...filteredPhase1Messages, ...filteredPhase2Messages]
-          };
-          
-        }
-
-      const newSession = finalSession;
+      // Get existing messages (includes our local user message for immediate display)
+      const existingMessages = this.state.currentSession?.messages || [];
       
-      // Replace session with complete session from API (contains both user and AI messages)
+      // Add the AI message from the response
+      const aiMessage = data.aiMessage;
       
-      // Replace session with complete session from API
-      const mergedSession = newSession;
+      // Create new session with combined messages
+      const newSession = {
+        ...this.state.currentSession,
+        messages: [...existingMessages, aiMessage]
+      };
       
-      
-      // ========================================
-      // PHASE 3: Complete
-      // ========================================
-      
-      // Update current session with merged data
-      // Ready for next interaction, Send button enable, chat input stay bottom
+      // Update state with new session
       this.setState({ 
-        currentSession: mergedSession,
+        currentSession: newSession,
       });
-      this.updateSidebarSession(mergedSession);
+      this.updateSidebarSession(newSession);
 
-      return mergedSession;
+      return newSession;
 
     } catch (error) {
       this.setState({ 
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
+    }
+  }
+
+  // Load chat history from database for authenticated users
+  async loadChatHistory() {
+    try {
+      if (!this.state.currentSession?.userId) {
+        console.log('No authenticated user, skipping chat history load');
+        return null;
+      }
+
+      const authToken = await this.getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/sessions`, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load chat history: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.sessions) {
+        console.log(`✅ Loaded ${data.sessions.length} chat sessions from database`);
+        return data.sessions;
+      }
+
+      return [];
+    } catch (error) {
+      console.error('❌ Failed to load chat history:', error);
+      return [];
+    }
+  }
+
+  // Load specific session from database
+  async loadSession(sessionId) {
+    try {
+      if (!this.state.currentSession?.userId) {
+        console.log('No authenticated user, skipping session load');
+        return null;
+      }
+
+      const authToken = await this.getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/sessions/${sessionId}`, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load session: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.session) {
+        console.log(`✅ Loaded session ${sessionId} from database`);
+        return this.convertToUnifiedSession(data.session);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load session:', error);
+      return null;
     }
   }
 

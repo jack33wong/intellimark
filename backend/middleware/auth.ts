@@ -159,6 +159,17 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
       const token = authHeader.split('Bearer ')[1];
       
       if (token) {
+        // Handle test token for development
+        if (token === 'test-token') {
+          req.user = {
+            uid: 'test-user-id',
+            email: 'test@example.com',
+            emailVerified: true,
+            name: 'Test User',
+            role: 'user'
+          };
+          return next();
+        }
         // Check if Firebase is available
         if (isFirebaseAvailable()) {
           const firebaseAuth = getFirebaseAuth();
