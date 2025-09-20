@@ -148,7 +148,7 @@
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │ 1. Determine session type (Question/Marking/Chat)          │ │
 │  │ 2. Generate descriptive title with metadata                │ │
-│  │ 3. Create session in ChatSessionManager                    │ │
+│  │ 3. Create session in FirestoreService                      │ │
 │  │ 4. Store in Firestore database                             │ │
 │  │ 5. Cache in memory for fast access                         │ │
 │  └─────────────────────────────────────────────────────────────┘ │
@@ -245,10 +245,10 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                      STORAGE LAYERS                             │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ 1. In-Memory Cache (ChatSessionManager)                    │ │
-│  │    • Fast access to active sessions                        │ │
+│  │ 1. Simple Session Service (simpleSessionService)           │ │
+│  │    • Direct Firestore integration                          │ │
 │  │    • Immediate UI updates                                  │ │
-│  │    • Batch persistence to Firestore                        │ │
+│  │    • Real-time persistence                                 │ │
 │  │                                                             │ │
 │  │ 2. Firestore Database                                      │ │
 │  │    • Persistent session storage                            │ │

@@ -29,7 +29,7 @@ frontend/src/
 │   ├── useLocalStorage.js
 │   ├── useDebounce.js
 │   ├── useAsync.js
-│   ├── useFirestoreChat.js
+│   ├── useMarkHomework.js
 │   └── index.js
 ├── utils/                # Utility functions
 │   ├── constants.js
@@ -56,7 +56,7 @@ frontend/src/
 - **useLocalStorage**: Manage localStorage with React state
 - **useDebounce**: Debounce values and callbacks
 - **useAsync**: Handle async operations with loading/error states
-- **useFirestoreChat**: Existing chat management hook
+- **useMarkHomework**: Current homework marking hook
 
 ### 3. Utility Functions
 - **constants.js**: Centralized application constants
