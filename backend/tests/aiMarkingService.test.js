@@ -4,7 +4,6 @@ const path = require('path');
 
 // Mock environment variables
 process.env['OPENAI_API_KEY'] = 'test-openai-key';
-process.env['GEMINI_API_KEY'] = 'test-gemini-key';
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -281,10 +280,8 @@ describe('AIMarkingService.classifyImage', () => {
     test('handles missing API keys gracefully', async () => {
       // Temporarily remove API keys
       const originalOpenAIKey = process.env['OPENAI_API_KEY'];
-      const originalGeminiKey = process.env['GEMINI_API_KEY'];
       
       delete process.env['OPENAI_API_KEY'];
-      delete process.env['GEMINI_API_KEY'];
 
       // Test that the service returns fallback response when API keys are missing
       const result1 = await AIMarkingService.classifyImage(questionImageData, 'chatgpt-4o');
@@ -303,7 +300,6 @@ describe('AIMarkingService.classifyImage', () => {
 
       // Restore API keys
       process.env['OPENAI_API_KEY'] = originalOpenAIKey;
-      process.env['GEMINI_API_KEY'] = originalGeminiKey;
     });
 
     test('handles network timeouts gracefully', async () => {

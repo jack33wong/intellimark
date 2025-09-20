@@ -28,9 +28,6 @@ export class MaskGenerationService {
     padding: number = 10
   ): Promise<MaskGenerationResult> {
     try {
-      console.log('🎭 Generating mask for DALL·E Edit API...');
-      console.log(`📐 Image dimensions: ${originalImageDimensions.width}x${originalImageDimensions.height}`);
-      console.log(`📝 Annotations count: ${annotations.length}`);
 
       // Create a canvas to draw the mask
       const { createCanvas } = await import('canvas');
@@ -59,7 +56,6 @@ export class MaskGenerationService {
         // Double the height of the mask rectangle for better DALL·E editing
         const doubledHeight = Math.min(originalImageDimensions.height - paddedY, paddedHeight * 2);
         
-        console.log(`🎯 Drawing mask for annotation: [${paddedX}, ${paddedY}, ${paddedWidth}, ${doubledHeight}] (height doubled)`);
       
         // Draw WHITE rectangles for editable areas
         ctx.fillRect(paddedX, paddedY, paddedWidth, doubledHeight);
@@ -67,7 +63,6 @@ export class MaskGenerationService {
         // Debug: Log the actual pixel values
         const imageData = ctx.getImageData(paddedX, paddedY, Math.min(10, paddedWidth), Math.min(10, doubledHeight));
         const pixelValues = Array.from(imageData.data.slice(0, 40)); // First 10 pixels
-        console.log(`🔍 Sample mask pixels at [${paddedX}, ${paddedY}]:`, pixelValues);
       }
 
       // Convert canvas to PNG buffer
@@ -76,7 +71,6 @@ export class MaskGenerationService {
       // Create data URL
       const maskDataUrl = `data:image/png;base64,${maskBuffer.toString('base64')}`;
 
-      console.log(`✅ Mask generated successfully: ${maskBuffer.length} bytes`);
       
       // Debug: Check if mask has transparent areas
       const imageData = ctx.getImageData(0, 0, originalImageDimensions.width, originalImageDimensions.height);
@@ -97,8 +91,6 @@ export class MaskGenerationService {
         }
       }
       
-      console.log(`🔍 Mask analysis: ${transparentPixels} transparent pixels, ${blackPixels} black pixels`);
-      console.log(`🔍 Transparent areas: ${transparentPixels > 0 ? '✅ Found' : '❌ None - mask will not work!'}`);
 
       return {
         maskDataUrl,
@@ -122,7 +114,6 @@ export class MaskGenerationService {
     padding: number = 10
   ): Promise<MaskGenerationResult> {
     try {
-      console.log('🎭 Generating transparent mask for DALL·E Edit API...');
       
       const { createCanvas } = await import('canvas');
       const canvas = createCanvas(originalImageDimensions.width, originalImageDimensions.height);
@@ -152,7 +143,6 @@ export class MaskGenerationService {
       const maskBuffer = canvas.toBuffer('image/png');
       const maskDataUrl = `data:image/png;base64,${maskBuffer.toString('base64')}`;
 
-      console.log(`✅ Transparent mask generated successfully: ${maskBuffer.length} bytes`);
 
       return {
         maskDataUrl,

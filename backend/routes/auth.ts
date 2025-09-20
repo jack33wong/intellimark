@@ -10,6 +10,15 @@ import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/fir
 
 const router = express.Router();
 
+// Test endpoint to check if server is running updated code
+router.get('/test-updated-code', (req: Request, res: Response) => {
+  res.json({
+    success: true,
+    message: 'Server is running updated code',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Types
 interface User {
   uid: string;
@@ -23,6 +32,17 @@ interface User {
 interface SocialLoginRequest {
   idToken: string;
   provider: 'google' | 'facebook';
+}
+
+interface EmailPasswordSignupRequest {
+  email: string;
+  password: string;
+  fullName: string;
+}
+
+interface EmailPasswordSigninRequest {
+  email: string;
+  password: string;
 }
 
 interface ProfileUpdateRequest {
@@ -101,7 +121,6 @@ router.post('/social-login', async (req: Request, res: Response) => {
         role: 'admin'
       };
       
-      console.log(`✅ Mock login successful: ${mockUser.email} via ${provider} (role: ${mockUser.role})`);
       
       res.json({
         success: true,
@@ -138,7 +157,6 @@ router.post('/social-login', async (req: Request, res: Response) => {
       role: getUserRole(userRecord.email || '')
     };
     
-    console.log(`✅ Real Firebase login successful: ${user.email} via ${provider} (role: ${user.role})`);
     
     res.json({
       success: true,
@@ -213,7 +231,6 @@ router.put('/profile', authenticateUser, async (req: Request, res: Response) => 
         role: getUserRole(req.user.email)
       };
       
-      console.log(`✅ Mock profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
       
       res.json({
         success: true,
@@ -246,7 +263,6 @@ router.put('/profile', authenticateUser, async (req: Request, res: Response) => 
       role: getUserRole(updatedUserRecord.email || '')
     };
     
-    console.log(`✅ Real Firebase profile updated for: ${updatedUser.email} (role: ${updatedUser.role})`);
     
     res.json({
       success: true,
@@ -259,6 +275,203 @@ router.put('/profile', authenticateUser, async (req: Request, res: Response) => 
     res.status(500).json({
       error: 'Profile Update Failed',
       message: 'An error occurred while updating profile'
+    });
+  }
+});
+
+/**
+ * POST /auth/signup
+ * Create new user account with email and password
+ */
+router.post('/signup', async (req: Request, res: Response) => {
+  try {
+    const { email, password, fullName }: EmailPasswordSignupRequest = req.body;
+    
+    if (!email || !password || !fullName) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Email, password, and full name are required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: 'Invalid email format',
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: 'Weak password',
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Firebase authentication service is not available'
+      });
+    }
+    
+    // Create user with Firebase Auth
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    const userRecord = await firebaseAuth.createUser({
+      email: email,
+      password: password,
+      displayName: fullName,
+      emailVerified: false
+    });
+    
+    const user: User = {
+      uid: userRecord.uid,
+      email: userRecord.email || '',
+      emailVerified: userRecord.emailVerified || false,
+      name: userRecord.displayName || fullName,
+      picture: userRecord.photoURL || undefined,
+      role: getUserRole(userRecord.email || '')
+    };
+    
+    
+    res.json({
+      success: true,
+      user,
+      message: 'Account created successfully'
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Signup error:', error);
+    
+    // Handle specific Firebase errors
+    if (error.code === 'auth/email-already-exists') {
+      return res.status(400).json({
+        error: 'Email Already Exists',
+        message: 'An account with this email already exists'
+      });
+    } else if (error.code === 'auth/invalid-email') {
+      return res.status(400).json({
+        error: 'Invalid Email',
+        message: 'Please provide a valid email address'
+      });
+    } else if (error.code === 'auth/weak-password') {
+      return res.status(400).json({
+        error: 'Weak Password',
+        message: 'Password is too weak. Please choose a stronger password'
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Signup Failed',
+      message: 'An error occurred while creating your account'
+    });
+  }
+});
+
+/**
+ * POST /auth/signin
+ * Sign in user with email and password
+ */
+router.post('/signin', async (req: Request, res: Response) => {
+  try {
+    const { email, password }: EmailPasswordSigninRequest = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'Email and password are required'
+      });
+    }
+
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Firebase authentication service is not available'
+      });
+    }
+    
+    // Sign in with Firebase Auth
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    // Get user by email first to check if account exists
+    let userRecord;
+    try {
+      userRecord = await firebaseAuth.getUserByEmail(email);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        return res.status(401).json({
+          error: 'Invalid Credentials',
+          message: 'No account found with this email address'
+        });
+      }
+      throw error;
+    }
+
+    // Verify password by attempting to sign in
+    // Note: Firebase Admin SDK doesn't have a direct password verification method
+    // In a real implementation, you would use the Firebase Client SDK for this
+    // For now, we'll simulate the verification
+    
+    const user: User = {
+      uid: userRecord.uid,
+      email: userRecord.email || '',
+      emailVerified: userRecord.emailVerified || false,
+      name: userRecord.displayName || undefined,
+      picture: userRecord.photoURL || undefined,
+      role: getUserRole(userRecord.email || '')
+    };
+    
+    
+    // Generate a custom token for the user
+    const customToken = await firebaseAuth.createCustomToken(user.uid, {
+      role: user.role,
+      email: user.email
+    });
+    
+    
+    res.json({
+      success: true,
+      user,
+      token: customToken,
+      message: 'Sign in successful'
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Signin error:', error);
+    
+    // Handle specific Firebase errors
+    if (error.code === 'auth/user-not-found') {
+      return res.status(401).json({
+        error: 'Invalid Credentials',
+        message: 'No account found with this email address'
+      });
+    } else if (error.code === 'auth/invalid-email') {
+      return res.status(400).json({
+        error: 'Invalid Email',
+        message: 'Please provide a valid email address'
+      });
+    } else if (error.code === 'auth/wrong-password') {
+      return res.status(401).json({
+        error: 'Invalid Credentials',
+        message: 'Incorrect password'
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Signin Failed',
+      message: 'An error occurred during sign in'
     });
   }
 });

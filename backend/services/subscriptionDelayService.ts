@@ -55,11 +55,6 @@ export class SubscriptionDelayService {
       delayMs: defaultDelay
     });
 
-    console.log('📊 Subscription Delay Service initialized:');
-    console.log(`  - Free: ${freeDelay}ms`);
-    console.log(`  - Pro: ${proDelay}ms`);
-    console.log(`  - Enterprise: ${enterpriseDelay}ms`);
-    console.log(`  - Default: ${defaultDelay}ms`);
   }
 
   /**
@@ -100,7 +95,6 @@ export class SubscriptionDelayService {
     const delayMs = this.getDelay(subscriptionType);
     
     if (delayMs > 0) {
-      console.log(`⏱️ Applying ${delayMs}ms delay for ${subscriptionType} subscription`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }

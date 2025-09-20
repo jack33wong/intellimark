@@ -53,6 +53,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  background-color: var(--background-gray-main);
   /* Remove height constraint - let content grow naturally */
   width: 100%;
   margin-left: 0; /* No margin needed with flexbox layout */

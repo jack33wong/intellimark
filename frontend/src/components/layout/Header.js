@@ -10,7 +10,8 @@ import {
   Crown,
   Calendar,
   CreditCard,
-  CheckCircle
+  CheckCircle,
+  Bug
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -24,6 +25,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [userSubscription, setUserSubscription] = useState(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [debugMode, setDebugMode] = useState(localStorage.getItem('debugMode') === 'true');
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const profileRef = useRef(null);
@@ -55,12 +57,10 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     
     
     if (subscriptionSuccess === 'success' && user?.uid && sessionId) {
-      console.log('✅ Subscription success detected, creating subscription record...');
       
       // Create subscription record after successful payment
       const createSubscriptionRecord = async () => {
         try {
-          console.log('📞 Calling create-subscription-after-payment with:', { sessionId, userId: user.uid });
           
           const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-subscription-after-payment`, {
             method: 'POST',
@@ -73,7 +73,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             }),
           });
           
-          console.log('📡 Response status:', response.status);
           
           if (!response.ok) {
             const errorText = await response.text();
@@ -82,12 +81,10 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           }
           
           const result = await response.json();
-          console.log('✅ Subscription record created:', result);
           
           // Refresh subscription data to get the latest
           const subscriptionResponse = await SubscriptionService.getUserSubscription(user.uid);
           setUserSubscription(subscriptionResponse.subscription);
-          console.log('🔄 Subscription data refreshed:', subscriptionResponse.subscription);
           
         } catch (error) {
           console.error('❌ Error creating subscription record:', error);
@@ -95,7 +92,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           try {
             const response = await SubscriptionService.getUserSubscription(user.uid);
             setUserSubscription(response.subscription);
-            console.log('🔄 Fallback refresh successful:', response.subscription);
           } catch (refreshError) {
             console.error('❌ Error refreshing subscription data:', refreshError);
           }
@@ -107,12 +103,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       // Clean up URL parameters
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
-      console.log('🧹 URL cleaned up');
     } else if (subscriptionSuccess === 'success') {
-      console.log('⚠️ Subscription success detected but missing sessionId or userId:', { 
-        sessionId, 
-        userId: user?.uid 
-      });
     }
   }, [user?.uid]);
 
@@ -165,6 +156,24 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       setIsSubscriptionDetailsOpen(false);
       setIsSubscriptionDetailsClosing(false);
     }, 300);
+  };
+
+  const handleDebugModeToggle = () => {
+    const newDebugMode = !debugMode;
+    setDebugMode(newDebugMode);
+    localStorage.setItem('debugMode', newDebugMode.toString());
+    
+    // Send debug mode to backend
+    fetch(`${API_CONFIG.BASE_URL}/api/debug/toggle`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      },
+      body: JSON.stringify({ debugMode: newDebugMode })
+    }).catch(error => {
+      console.error('Failed to update debug mode on backend:', error);
+    });
   };
 
 
@@ -273,6 +282,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               Admin
             </button>
           )}
+          
+          {/* Debug Mode Toggle */}
+          <button 
+            className={`nav-item debug-nav ${debugMode ? 'active' : ''}`}
+            onClick={handleDebugModeToggle}
+            title={debugMode ? 'Debug Mode ON - External APIs disabled' : 'Debug Mode OFF - External APIs enabled'}
+          >
+            <Bug size={16} />
+            Debug {debugMode ? 'ON' : 'OFF'}
+          </button>
         </nav>
 
         {/* Right side - Profile */}

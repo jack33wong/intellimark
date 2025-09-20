@@ -5,7 +5,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
 import { Sidebar, Header } from './components/layout';
 import AdminPage from './components/admin/AdminPage';
-import MarkHomeworkPage from './components/markHomework/MarkHomeworkPageRefactored';
+import MarkHomeworkPage from './components/markHomework/MarkHomeworkPageConsolidated';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage.tsx';
 import './App.css';

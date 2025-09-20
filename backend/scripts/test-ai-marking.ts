@@ -10,7 +10,6 @@ dotenv.config({ path: '.env.local' });
 import { LLMOrchestrator } from '../services/ai/LLMOrchestrator.ts';
 
 async function testAIMarking() {
-  console.log('🧪 Testing AI Marking with Gemini 2.5 Pro...\n');
 
   // The OCR text from the user's input
   const ocrText = `   \\text { Question } 3
@@ -51,11 +50,6 @@ m=0.5
 =\\frac{28}{5}=5.6 \\mathrm{~ms}^{-1}`;
 
   try {
-    console.log('📝 Input OCR Text:');
-    console.log('─'.repeat(80));
-    console.log(ocrText);
-    console.log('─'.repeat(80));
-    console.log('\n🤖 Testing new flow with OCR cleanup...\n');
 
     // Test the full flow - OCR cleanup will be called automatically by LLMOrchestrator
     const mockImageData = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=';
@@ -90,17 +84,9 @@ m=0.5
       questionDetection: undefined
     });
 
-    console.log('✅ AI Marking Response:');
-    console.log('═'.repeat(80));
-    console.log(`📊 Generated ${result.annotations?.length || 0} annotations`);
-    console.log('═'.repeat(80));
 
     // Show formatted annotations
     if (result.annotations?.length > 0) {
-      console.log('\n📋 Annotations:');
-      console.log('─'.repeat(80));
-      console.log(JSON.stringify(result.annotations, null, 2));
-      console.log('─'.repeat(80));
     }
 
   } catch (error) {
@@ -112,7 +98,6 @@ m=0.5
 // Run the test
 testAIMarking()
   .then(() => {
-    console.log('\n✅ Test completed successfully!');
     process.exit(0);
   })
   .catch((error) => {

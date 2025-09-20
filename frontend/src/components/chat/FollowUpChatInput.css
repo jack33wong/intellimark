@@ -18,10 +18,16 @@
   z-index: 1000;
 }
 
-.followup-single-line-container {
+.followup-input-wrapper {
   max-width: 1000px;
-  width: 60vw;
+  width: 100%;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.followup-single-line-container {
+  width: 100%;
   display: flex;
   align-items: stretch;
   gap: 12px;

@@ -102,7 +102,6 @@ export class QuestionDetectionService {
         };
       }
 
-      console.log('❌ No suitable exam paper match found');
       return {
         found: false,
         message: 'No matching exam paper found'
@@ -123,7 +122,6 @@ export class QuestionDetectionService {
   private async getAllExamPapers(): Promise<any[]> {
     try {
       if (!this.db) {
-        console.log('⚠️ Firestore not available, using empty array');
         return [];
       }
 

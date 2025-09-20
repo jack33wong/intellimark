@@ -29,12 +29,7 @@ export class LLMOrchestrator {
 
     // Log full raw OCR text (math block) prior to cleanup
     try {
-      /*console.log('🧾 RAW OCR TEXT (pre-clean):');
-      console.log('─'.repeat(80));
-      console.log(processedImage.ocrText || '');
-      console.log('─'.repeat(80));
       const boxes = processedImage.boundingBoxes || [];
-      console.log(`🧮 OCR bounding boxes: ${boxes.length}`);*/
       // OCR math blocks log removed for cleaner output
     } catch {}
 
@@ -66,11 +61,9 @@ export class LLMOrchestrator {
       try {
         // Use JsonUtils for robust JSON cleaning and parsing
         const { JsonUtils } = await import('./JsonUtils');
-        //console.log('🔍 Raw AI Result:', cleanupResult.cleanedText);
         
         cleanedData = JsonUtils.cleanAndValidateJSON(cleanupResult.cleanedText, 'steps');
         
-        //console.log('✅ Successfully parsed cleaned OCR JSON with', cleanedData.steps.length, 'steps');
         
       } catch (error) {
         console.error('❌ Failed to parse cleaned OCR JSON with JsonUtils:', error);
@@ -89,7 +82,6 @@ export class LLMOrchestrator {
             jsonText = jsonMatch[0];
           }
           
-          console.log('🔍 Attempting manual JSON parse (first 500 chars):', jsonText.substring(0, 500));
           
           cleanedData = JSON.parse(jsonText);
           
@@ -98,7 +90,6 @@ export class LLMOrchestrator {
             throw new Error('Invalid data structure: missing or invalid steps array');
           }
           
-          console.log('✅ Successfully parsed cleaned OCR JSON manually with', cleanedData.steps.length, 'steps');
           
         } catch (manualError) {
           console.error('❌ Manual JSON parsing also failed:', manualError);
@@ -114,7 +105,6 @@ export class LLMOrchestrator {
             }] 
           };
           
-          console.log('⚠️ Using final fallback data structure');
         }
       }
 
@@ -139,10 +129,6 @@ export class LLMOrchestrator {
       totalTokens += annotationData.usageTokens || 0;
 
       // Print raw cleaned OCR text from cleanup service
-      /*console.log('🧹 CLEANED OCR TEXT:');
-      console.log('─'.repeat(80));
-      console.log(cleanupResult.cleanedText);
-      console.log('─'.repeat(80));*/
       
 
       // Step 2: Map annotations to coordinates using pre-built unified lookup table

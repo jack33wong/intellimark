@@ -30,7 +30,6 @@ export class AnnotationMapper {
       return parsed.annotations || [];
     } catch (error) {
       console.error('[AnnotationMapper] Failed to parse annotations:', error);
-      console.log('[AnnotationMapper] Raw annotation data:', raw.substring(0, 500) + '...');
       return [];
     }
   }
@@ -54,7 +53,6 @@ export class AnnotationMapper {
     if (unifiedLookupTable) {
       // Use the pre-built lookup table from OCR cleanup
       unifiedStepLookup = unifiedLookupTable;
-      //console.log('✅ Using pre-built unified lookup table from OCR cleanup');
     } else {
       // Build unified step lookup table from separate inputs
       
@@ -167,7 +165,6 @@ export class AnnotationMapper {
           bbox: [unifiedBox.x, unifiedBox.y, unifiedBox.width, unifiedBox.height],
           cleanedText: unifiedCleanedText || ''
         };
-        console.log(`[AnnotationMapper] Added computed unified step to lookup: ${unifiedId} -> bbox=[${unifiedBox.x},${unifiedBox.y},${unifiedBox.width},${unifiedBox.height}] text="${unifiedCleanedText}"`);
       }
 
       return { 
@@ -207,7 +204,6 @@ export class AnnotationMapper {
       const h = Math.min(Math.max(0, line.height), Math.max(0, heightLimit - y));
 
       // Log unified step mapping
-      console.log(`[AnnotationMapper] matched step_id=${stepId || 'n/a'} unified_step_id=${unifiedId || 'n/a'} textMatch=${JSON.stringify(textMatch)} -> bbox=[${x},${y},${w},${h}]`);
 
       results.push({
         bbox: [x + (usage.endsWith('#2') ? 6 : 0), y, Math.max(1, w), Math.max(1, h)],
@@ -223,16 +219,11 @@ export class AnnotationMapper {
     }
 
     if (unmatched > 0) {
-      console.log(`[AnnotationMapper] ${unmatched} annotation(s) could not be matched to any bbox`);
     }
 
     // Print the final unified step lookup table (after any dynamic additions)
-    console.log('📋 Final Unified Step Lookup Table:');
-    console.log('=' .repeat(80));
     for (const [stepId, data] of Object.entries(unifiedStepLookup)) {
-      console.log(`${stepId}: bbox=[${data.bbox.join(',')}] text="${data.cleanedText}"`);
     }
-    console.log('=' .repeat(80));
 
     return results;
   }

@@ -70,7 +70,6 @@ export class LaTeXConfigService {
     },
     startup: {
       pageReady: () => {
-        console.log('MathJax is ready');
       }
     }
   };

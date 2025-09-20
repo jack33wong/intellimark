@@ -234,11 +234,9 @@ export class ImageAnnotationService {
     imageDimensions: ImageDimensions
   ): Promise<ImageAnnotationResult> {
     try {
-      console.log('🔥 Generating annotation result with burned overlays...');
 
       // Early exit if there are no annotations to render
       if (!annotations || annotations.length === 0) {
-        console.log('ℹ️ No annotations to burn; returning original image');
         return {
           originalImage,
           annotatedImage: originalImage,
@@ -250,14 +248,12 @@ export class ImageAnnotationService {
       // Log concise mapping details for each annotation
       annotations.forEach((ann, index) => {
         const anyAnn = ann as unknown as { action?: string; text?: string; reasoning?: string; step_id?: string; comment?: string; textMatch?: string };
-        console.log(
-          `[Overlay] #${index} bbox=[${ann.bbox.join(',')}]` +
+        const overlayInfo = `[Overlay] #${index} bbox=[${ann.bbox.join(',')}]` +
           ` action=${anyAnn.action || 'n/a'}` +
           ` step_id=${anyAnn.step_id || 'n/a'}` +
           ` text=${anyAnn.text || 'n/a'}` +
           ` comment=${anyAnn.comment || 'n/a'}` +
-          ` textMatch=${anyAnn.textMatch || 'n/a'}`
-        );
+          ` textMatch=${anyAnn.textMatch || 'n/a'}`;
       });
       
       // Create SVG overlay for reference
@@ -284,7 +280,6 @@ export class ImageAnnotationService {
         }
       }));
 
-      console.log('✅ Successfully generated annotation result with burned image');
       
       return {
         originalImage,

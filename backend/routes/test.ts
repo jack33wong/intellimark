@@ -1,65 +1,46 @@
+/**
+ * Test Routes
+ * Test endpoints for debugging
+ */
+
 import express from 'express';
 import { FirestoreService } from '../services/firestoreService';
+import { authenticateUser } from '../middleware/auth';
 
 const router = express.Router();
 
-// Test endpoint to check Firestore session creation and retrieval
-router.post('/firestore-session', async (req, res) => {
+/**
+ * POST /test/add-message
+ * Test addMessageToUnifiedSession function
+ */
+router.post('/add-message', authenticateUser, async (req, res) => {
   try {
-    console.log('🧪 Testing Firestore session creation...');
+    const { sessionId, message } = req.body;
     
-    // Create a test session
-    const sessionData = {
-      title: 'Test Session - ' + new Date().toISOString(),
-      messages: [],
-      userId: 'test-user',
-      messageType: 'Chat' as const
-    };
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'Session ID is required' });
+    }
     
-    console.log('🧪 Creating session with data:', sessionData);
-    const sessionId = await FirestoreService.createChatSession(sessionData);
-    console.log('🧪 Session created:', sessionId);
+    if (!message) {
+      return res.status(400).json({ success: false, error: 'Message is required' });
+    }
     
-    // Try to retrieve the session
-    console.log('🧪 Retrieving sessions for test-user...');
-    const sessions = await FirestoreService.getChatSessions('test-user');
-    console.log('🧪 Found sessions:', sessions.length);
+    // Test addMessageToUnifiedSession
+    await FirestoreService.addMessageToUnifiedSession(sessionId, message);
+    
     
     res.json({
       success: true,
-      sessionId: sessionId,
-      sessionsFound: sessions.length,
-      sessions: sessions
+      message: 'Message added successfully',
+      sessionId
     });
     
-  } catch (error) {
-    console.error('🧪 Test failed:', error);
+  } catch (error: any) {
+    console.error(`❌ [${new Date().toISOString()}] Test addMessageToUnifiedSession failed:`, error);
     res.status(500).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Test endpoint to check if anonymous sessions exist
-router.get('/anonymous-sessions', async (req, res) => {
-  try {
-    console.log('🧪 Testing anonymous session retrieval...');
-    
-    const sessions = await FirestoreService.getChatSessions('anonymous');
-    console.log('🧪 Found anonymous sessions:', sessions.length);
-    
-    res.json({
-      success: true,
-      sessionsFound: sessions.length,
-      sessions: sessions
-    });
-    
-  } catch (error) {
-    console.error('🧪 Anonymous test failed:', error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to add message',
+      details: error.message
     });
   }
 });

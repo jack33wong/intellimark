@@ -24,12 +24,13 @@ const ImageUpload = ({
   accept = 'image/*',
   maxSize = FILE_CONSTRAINTS.MAX_SIZE,
   showPreview = true,
-  placeholder = 'Click to upload image or drag and drop'
+  placeholder = 'Click to upload image or drag and drop',
+  isProcessing: externalIsProcessing = false
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef(null);
+
 
   // Handle file selection
   const handleFileSelect = useCallback(async (file) => {
@@ -51,8 +52,6 @@ const ImageUpload = ({
     }
 
     try {
-      setIsProcessing(true);
-      
       // Convert to base64
       const base64 = await convertFileToBase64(file);
       
@@ -75,8 +74,6 @@ const ImageUpload = ({
     } catch (error) {
       const fileError = createFileError('Failed to process image file', { originalError: error });
       onError?.(fileError);
-    } finally {
-      setIsProcessing(false);
     }
   }, [onImageSelect, onError, maxSize, showPreview]);
 
@@ -146,7 +143,7 @@ const ImageUpload = ({
         style={{ display: 'none' }}
       />
       
-      {isProcessing ? (
+      {externalIsProcessing ? (
         <div className="image-upload-processing">
           <div className="spinner" />
           <span>Processing image...</span>
@@ -154,9 +151,17 @@ const ImageUpload = ({
       ) : previewUrl ? (
         <div className="image-upload-preview">
           <img src={previewUrl} alt="Preview" />
-          <div className="image-upload-overlay">
-            <span>Click to change image</span>
-          </div>
+          {externalIsProcessing && (
+            <div className="image-upload-spinner-overlay">
+              <div className="spinner" />
+              <span>Processing image...</span>
+            </div>
+          )}
+          {!externalIsProcessing && (
+            <div className="image-upload-overlay">
+              <span>Click to change image</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="image-upload-placeholder">

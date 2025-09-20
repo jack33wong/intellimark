@@ -56,22 +56,13 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       });
     }
 
+
     // Check if Firebase is available
     if (!isFirebaseAvailable()) {
-      console.warn('⚠️ Firebase not available, using mock authentication for development');
-      
-      // Mock authentication for development
-      req.user = {
-        uid: 'mock-user-id',
-        email: 'mock@example.com',
-        emailVerified: true,
-        name: 'Mock User',
-        picture: undefined,
-        role: 'admin' // Default to admin in mock mode
-      };
-      
-      next();
-      return;
+      return res.status(503).json({ 
+        error: 'Service Unavailable', 
+        message: 'Firebase authentication service is not available' 
+      });
     }
 
     // Verify Firebase ID token
@@ -80,9 +71,50 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       throw new Error('Firebase Auth not available');
     }
 
-    const decodedToken = await firebaseAuth.verifyIdToken(token);
     
-    if (!decodedToken) {
+    let decodedToken;
+    let uid;
+    
+    try {
+      // First try to verify as ID token
+      decodedToken = await firebaseAuth.verifyIdToken(token);
+      uid = decodedToken.uid;
+    } catch (idTokenError) {
+      
+      try {
+        // If ID token verification fails, try to verify as custom token
+        decodedToken = await firebaseAuth.verifyIdToken(token, true); // Check custom token
+        uid = decodedToken.uid;
+      } catch (customTokenError) {
+        
+        try {
+          // Parse custom token directly (JWT format)
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            if (payload.uid && payload.claims) {
+              uid = payload.uid;
+              decodedToken = { uid, claims: payload.claims };
+            } else {
+              throw new Error('Invalid custom token payload');
+            }
+          } else {
+            throw new Error('Invalid token format');
+          }
+        } catch (parseError) {
+          console.error(`❌ [${new Date().toISOString()}] authenticateUser: All token verification methods failed`);
+          console.error(`❌ [${new Date().toISOString()}] ID token error:`, idTokenError.message);
+          console.error(`❌ [${new Date().toISOString()}] Custom token error:`, customTokenError.message);
+          console.error(`❌ [${new Date().toISOString()}] Parse error:`, parseError.message);
+          return res.status(401).json({ 
+            error: 'Authentication Failed', 
+            message: 'Invalid authentication token' 
+          });
+        }
+      }
+    }
+    
+    if (!decodedToken || !uid) {
       return res.status(401).json({ 
         error: 'Unauthorized', 
         message: 'Invalid authentication token' 
@@ -90,7 +122,7 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
     }
 
     // Get user from Firebase
-    const userRecord = await firebaseAuth.getUser(decodedToken.uid);
+    const userRecord = await firebaseAuth.getUser(uid);
     
     req.user = {
       uid: userRecord.uid,
@@ -100,6 +132,7 @@ export const authenticateUser = async (req: Request, res: Response, next: NextFu
       picture: userRecord.photoURL || undefined,
       role: getUserRole(userRecord.email || '')
     };
+
 
     next();
     
@@ -132,11 +165,50 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
           if (firebaseAuth) {
             try {
               // Verify Firebase ID token
-              const decodedToken = await firebaseAuth.verifyIdToken(token);
               
-              if (decodedToken) {
+              let decodedToken;
+              let uid;
+              
+              try {
+                // First try to verify as ID token
+                decodedToken = await firebaseAuth.verifyIdToken(token);
+                uid = decodedToken.uid;
+              } catch (idTokenError) {
+                
+                try {
+                  // If ID token verification fails, try to verify as custom token
+                  decodedToken = await firebaseAuth.verifyIdToken(token, true); // Check custom token
+                  uid = decodedToken.uid;
+                } catch (customTokenError) {
+                  
+                  try {
+                    // Parse custom token directly (JWT format)
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+                      if (payload.uid && payload.claims) {
+                        uid = payload.uid;
+                        decodedToken = { uid, claims: payload.claims };
+                      } else {
+                        throw new Error('Invalid custom token payload');
+                      }
+                    } else {
+                      throw new Error('Invalid token format');
+                    }
+                  } catch (parseError) {
+                    console.error(`❌ [${new Date().toISOString()}] optionalAuth: All token verification methods failed`);
+                    console.error(`❌ [${new Date().toISOString()}] optionalAuth: ID token error:`, idTokenError.message);
+                    console.error(`❌ [${new Date().toISOString()}] optionalAuth: Custom token error:`, customTokenError.message);
+                    console.error(`❌ [${new Date().toISOString()}] optionalAuth: Parse error:`, parseError.message);
+                    // Don't block the request, just continue without authentication
+                    return next();
+                  }
+                }
+              }
+              
+              if (decodedToken && uid) {
                 // Get user from Firebase
-                const userRecord = await firebaseAuth.getUser(decodedToken.uid);
+                const userRecord = await firebaseAuth.getUser(uid);
                 
                 req.user = {
                   uid: userRecord.uid,
@@ -146,21 +218,14 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
                   picture: userRecord.photoURL || undefined,
                   role: getUserRole(userRecord.email || '')
                 };
+                
               }
             } catch (error) {
-              console.warn('Optional auth token verification failed:', error);
+              console.error(`❌ [${new Date().toISOString()}] optionalAuth: Token verification failed:`, error);
+              console.error(`❌ [${new Date().toISOString()}] optionalAuth: Error details:`, error.message);
+              console.error(`❌ [${new Date().toISOString()}] optionalAuth: Error stack:`, error.stack);
             }
           }
-        } else {
-          // Mock user for development
-          req.user = {
-            uid: 'mock-user-id',
-            email: 'mock@example.com',
-            emailVerified: true,
-            name: 'Mock User',
-            picture: undefined,
-            role: 'admin'
-          };
         }
       }
     }

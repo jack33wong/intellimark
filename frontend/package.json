@@ -49,6 +49,12 @@
     ]
   },
   "proxy": "http://localhost:5001",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
   "devDependencies": {
     "@types/node": "^24.3.0",
     "@types/react": "^18.3.24",

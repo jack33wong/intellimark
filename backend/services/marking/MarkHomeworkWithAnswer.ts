@@ -6,6 +6,7 @@
 
 import { questionDetectionService } from '../../services/questionDetectionService';
 import { ImageAnnotationService } from '../../services/imageAnnotationService';
+import { getDebugMode } from '../../config/aiModels';
 
 import type {
   MarkHomeworkResponse,
@@ -16,17 +17,33 @@ import type {
   QuestionDetectionResult
 } from '../../types/index';
 
+// Debug mode helper function
+async function simulateApiDelay(operation: string): Promise<void> {
+  const debugMode = getDebugMode();
+  if (debugMode.enabled) {
+    await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+  }
+}
+
 // Common function to generate session titles for non-past-paper images
 function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
     const questionText = extractedQuestionText.trim();
+    
+    // Handle cases where extraction failed
+    if (questionText.toLowerCase().includes('unable to extract') || 
+        questionText.toLowerCase().includes('no text detected') ||
+        questionText.toLowerCase().includes('extraction failed')) {
+      return `${mode} - ${new Date().toLocaleDateString()}`;
+    }
+    
     const truncatedText = questionText.length > 20 
       ? questionText.substring(0, 20) + '...' 
       : questionText;
-    return `${mode} ${truncatedText}`;
+    return `${mode} - ${truncatedText}`;
   } else {
     // Fallback when no question text is extracted
-    return `${mode} ${new Date().toLocaleDateString()}`;
+    return `${mode} - ${new Date().toLocaleDateString()}`;
   }
 }
 
@@ -195,9 +212,52 @@ export class MarkHomeworkWithAnswer {
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
+    // Debug mode: Return mock response
+    const debugMode = getDebugMode();
+    if (debugMode.enabled) {
+      await simulateApiDelay('Classification');
+      await simulateApiDelay('Question Detection');
+      await simulateApiDelay('Image Annotation');
+      
+      return {
+        success: true,
+        isQuestionOnly: false,
+        isPastPaper: false,
+        classification: {
+          isQuestionOnly: false,
+          reasoning: 'Debug mode: Mock classification reasoning',
+          apiUsed: 'Debug Mode - Mock Response',
+          extractedQuestionText: 'Debug mode: Mock question text',
+          usageTokens: 100
+        },
+        questionDetection: {
+          found: true,
+          message: 'Debug mode: Question detected',
+          questionText: 'Debug mode: Mock question text'
+        },
+        instructions: {
+          annotations: []
+        },
+        annotatedImage: debugMode.returnOriginalImage ? imageData : imageData, // Return original image
+        metadata: {
+          totalProcessingTimeMs: Date.now() - startTime,
+          confidence: 0.95,
+          imageSize: imageData.length,
+          tokens: [100, 50, 200]
+        },
+        apiUsed: 'Debug Mode - Mock Response',
+        ocrMethod: 'Debug Mode - Mock OCR'
+      };
+    }
+
     // Step 1: Classification
     const imageClassification = await this.classifyImageWithAI(imageData, model);
     const classificationTokens = imageClassification.usageTokens || 0;
+    
+    // Debug: Show classification result
+    console.log(`🔍 [CLASSIFICATION] isQuestionOnly: ${imageClassification.isQuestionOnly}, reasoning: ${imageClassification.reasoning?.substring(0, 100)}...`);
+    console.log(`🔍 [CLASSIFICATION] Full reasoning: ${imageClassification.reasoning}`);
+    console.log(`🔍 [CLASSIFICATION] Extracted text: ${imageClassification.extractedQuestionText?.substring(0, 200)}...`);
 
     // Step 1.5: Question detection
     let questionDetection: QuestionDetectionResult | undefined;
@@ -263,9 +323,11 @@ export class MarkHomeworkWithAnswer {
         model,
         reasoning: imageClassification.reasoning,
         questionDetection,
+        classification: imageClassification,
         sessionId: null, // Will be set by route
         sessionTitle: sessionTitle,
         isPastPaper: isPastPaper,
+        ocrMethod: 'Question-Only Mode - No OCR Required',
         timestamp: new Date().toISOString(),
         metadata: {
           resultId: `question-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

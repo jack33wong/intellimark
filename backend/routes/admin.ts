@@ -178,7 +178,6 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
     if (db) {
       try {
         await db.collection('markingSchemes').doc(newEntry.id).set(newEntry);
-        console.log(`Marking scheme saved to Firestore collection: markingSchemes`);
       } catch (firestoreError) {
         console.error('Firestore save error:', firestoreError);
         // Continue with mock data even if Firestore fails
@@ -230,7 +229,6 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
     if (db) {
       try {
         await db.collection(collectionName).doc(newEntry.id).set(newEntry);
-        console.log(`Entry saved to Firestore collection: ${collectionName}`);
       } catch (firestoreError) {
         console.error('Firestore save error:', firestoreError);
         // Continue with mock data even if Firestore fails
@@ -267,7 +265,6 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
     if (db) {
       try {
         await db.collection(collectionName).doc(entryId).delete();
-        console.log(`Entry ${entryId} deleted from Firestore collection: ${collectionName}`);
       } catch (firestoreError) {
         console.error('Firestore delete error:', firestoreError);
         // Continue with mock data even if Firestore fails
@@ -279,7 +276,6 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
       const index = mockData[collectionName].findIndex(entry => entry.id === entryId);
       if (index !== -1) {
         mockData[collectionName].splice(index, 1);
-        console.log(`Entry ${entryId} deleted from mock data collection: ${collectionName}`);
       }
     }
     
@@ -314,7 +310,6 @@ router.delete('/json/collections/:collectionName/clear-all', async (req: Request
         });
         
         await Promise.all(deletePromises);
-        console.log(`All entries deleted from Firestore collection: ${collectionName}`);
       } catch (firestoreError) {
         console.error('Firestore delete error:', firestoreError);
         // Continue with mock data even if Firestore fails
@@ -361,7 +356,6 @@ router.post('/json/upload', async (req: Request, res: Response) => {
     if (db) {
       try {
         await db.collection('fullExamPapers').doc(newEntry.id).set(newEntry);
-        console.log(`Entry saved to Firestore collection: fullExamPapers`);
       } catch (firestoreError) {
         console.error('Firestore save error:', firestoreError);
         // Continue with mock data even if Firestore fails
@@ -390,7 +384,6 @@ router.post('/json/upload', async (req: Request, res: Response) => {
  */
 router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
   try {
-    console.log('🗑️ Admin clearing all sessions...');
     
     const db = getFirestore();
     if (!db) {
@@ -410,7 +403,6 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
     const unifiedSessionIds = unifiedSessionsSnapshot.docs.map(doc => doc.id);
     
     const totalSessions = sessionIds.length + unifiedSessionIds.length;
-    console.log(`🗑️ Found ${sessionIds.length} old sessions and ${unifiedSessionIds.length} unified sessions to delete (total: ${totalSessions})`);
     
     if (totalSessions === 0) {
       return res.json({
@@ -436,7 +428,6 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       
       await batch.commit();
       deletedCount += batchIds.length;
-      console.log(`🗑️ Deleted old sessions batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${sessionIds.length} old sessions`);
     }
     
     // Delete unified sessions collection
@@ -451,10 +442,8 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
       
       await batch.commit();
       deletedCount += batchIds.length;
-      console.log(`🗑️ Deleted unified sessions batch ${Math.floor(i / batchSize) + 1}, ${deletedCount - sessionIds.length}/${unifiedSessionIds.length} unified sessions`);
     }
 
-    console.log(`✅ Successfully deleted ${deletedCount} sessions`);
     
     // Clear all sessions from in-memory cache
     const { ChatSessionManager } = await import('../services/chatSessionManager');
@@ -484,7 +473,6 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
  */
 router.delete('/clear-all-marking-results', async (req: Request, res: Response) => {
   try {
-    console.log('🗑️ Admin clearing all marking results...');
     
     const db = getFirestore();
     if (!db) {
@@ -498,7 +486,6 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
     const markingResultsSnapshot = await db.collection('markingResults').get();
     const markingResultIds = markingResultsSnapshot.docs.map(doc => doc.id);
     
-    console.log(`🗑️ Found ${markingResultIds.length} marking results to delete`);
     
     if (markingResultIds.length === 0) {
       return res.json({
@@ -523,7 +510,6 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
       
       await batch.commit();
       deletedCount += batchIds.length;
-      console.log(`🗑️ Deleted batch ${Math.floor(i / batchSize) + 1}, ${deletedCount}/${markingResultIds.length} marking results`);
       
       // Small delay between batches to prevent overwhelming the database
       if (i + batchSize < markingResultIds.length) {
@@ -531,7 +517,6 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
       }
     }
 
-    console.log(`✅ Successfully deleted ${deletedCount} marking results`);
     
     res.json({
       success: true,

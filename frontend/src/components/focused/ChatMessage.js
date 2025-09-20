@@ -11,6 +11,10 @@ import {
   getMessageDisplayText,
   getMessageTimestamp 
 } from '../../utils/messageUtils';
+import { 
+  isMarkingMessage, 
+  isAnnotatedImageMessage
+} from '../../utils/sessionUtils';
 import './ChatMessage.css';
 
 const ChatMessage = ({ 
@@ -41,15 +45,16 @@ const ChatMessage = ({
   const timestamp = getMessageTimestamp(message);
 
   // Get image source using passed function or fallback
-  const imageSrc = getImageSrc ? getImageSrc(message?.imageLink || message?.imageData) : (message?.imageLink || message?.imageData);
+  const imageSrc = getImageSrc ? getImageSrc(message) : (message?.imageLink || message?.imageData);
 
-  // Check if this is a marking message
-  const isMarkingMessage = message?.type === 'marking_original' || message?.type === 'marking_annotated' || message?.type === 'question_original';
+
+  // Check if this is a marking message using utility function
+  const isMarking = isMarkingMessage(message);
 
   return (
     <div className={`chat-message ${className} ${isUser ? 'user' : 'assistant'} ${compact ? 'compact' : ''}`}>
       <div className="chat-message-content">
-        <div className={`chat-message-bubble ${isMarkingMessage ? 'marking-message' : ''}`}>
+        <div className={`chat-message-bubble ${isMarking ? 'marking-message' : ''}`}>
           {/* Assistant header with Brain icon */}
           {!isUser && (
             <div className="assistant-header">
@@ -58,9 +63,11 @@ const ChatMessage = ({
           )}
           
           {/* Show content for regular chat messages and AI responses */}
-          {!isUser && message?.type !== 'marking_original' && 
+          {!isUser && !isMarkingMessage(message) && 
            content && 
-           ensureStringContent && ensureStringContent(content).trim() !== '' && (
+           ensureStringContent && 
+           ensureStringContent(content) && 
+           ensureStringContent(content).trim() !== '' && (
             <MarkdownMathRenderer 
               content={ensureStringContent(content)}
               className="chat-message-renderer"
@@ -68,7 +75,7 @@ const ChatMessage = ({
           )}
           
           {/* Handle marking messages with annotated images */}
-          {!isUser && message?.type === 'marking_annotated' && hasImage(message) && imageSrc && !imageError && (
+          {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
             <div className="homework-annotated-image">
               <img 
                 src={imageSrc}
@@ -82,7 +89,7 @@ const ChatMessage = ({
           
           {/* Regular image display for user messages and other cases */}
           {isUser && hasImage(message) && imageSrc && !imageError && (
-            <div className="message-image">
+            <div className="chat-message-image">
               <img 
                 src={imageSrc}
                 alt="Uploaded"
@@ -92,6 +99,7 @@ const ChatMessage = ({
               />
             </div>
           )}
+          
           
           {/* Image error fallback */}
           {hasImage(message) && imageError && (

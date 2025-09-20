@@ -6,6 +6,7 @@
 import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getFirestore } from '../config/firebase';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,7 +44,21 @@ if (!admin.apps || admin.apps.length === 0) {
 }
 
 // Get Firestore instance
-const db = admin.firestore();
+// Use the properly initialized Firestore instance
+const db = getFirestore();
+
+if (!db) {
+  console.error('❌ Firestore database not available - check Firebase configuration');
+  console.error('❌ This means sessions will not be saved to the database');
+} else {
+}
+
+// Helper function to check if database is available
+function ensureDbAvailable(): void {
+  if (!db) {
+    throw new Error('Firestore database not available - check Firebase configuration');
+  }
+}
 
 // Collection names
 const COLLECTIONS = {
@@ -373,7 +388,6 @@ export class FirestoreService {
   static async updateChatSession(sessionId: string, updates: any): Promise<void> {
     // REDIRECTED: In unified architecture, sessions are immutable after creation
     // Updates should create new messages rather than modifying existing sessions
-    console.log(`📝 updateChatSession called for ${sessionId} - skipped (using unified architecture)`);
     return; // No-op - unified sessions are immutable
   }
 
@@ -462,20 +476,24 @@ export class FirestoreService {
     isPastPaper?: boolean;
   }): Promise<string> {
     try {
+      ensureDbAvailable();
       const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
       
       // Import ImageStorageService
       const { ImageStorageService } = await import('./imageStorageService');
       
       // Prepare messages array with proper formatting  
-      const unifiedMessages = await Promise.all(messages.map(async (message, index) => {
+      
+      let unifiedMessages = [];
+      try {
+        unifiedMessages = await Promise.all(messages.map(async (message, index) => {
+        
         let processedImageLink = message.imageLink;
 
         // All images should already be uploaded to Firebase Storage and have imageLink
         if (!message.imageLink && message.imageData) {
           // Legacy fallback - upload to Firebase Storage if imageData exists
           try {
-            console.log(`⬆️ Legacy: Uploading image to Firebase Storage (${(message.imageData.length / 1024).toFixed(1)}KB)...`);
             const imageUrl = await ImageStorageService.uploadImage(
               message.imageData,
               userId,
@@ -483,7 +501,6 @@ export class FirestoreService {
               message.type === 'marking_original' ? 'original' : 'annotated'
             );
             processedImageLink = imageUrl;
-            console.log(`✅ Legacy image uploaded to Firebase Storage: ${imageUrl}`);
           } catch (error) {
             console.error(`❌ Legacy image upload failed:`, error);
             processedImageLink = null;
@@ -508,10 +525,20 @@ export class FirestoreService {
         };
 
         // Remove null values
-        return Object.fromEntries(
+        const finalMessage = Object.fromEntries(
           Object.entries(messageDoc).filter(([_, value]) => value !== null && value !== undefined)
         );
-      }));
+        
+        return finalMessage;
+        }));
+        
+        
+      } catch (messageProcessingError) {
+        console.error(`❌ Message processing failed:`, messageProcessingError);
+        console.error(`❌ Error details:`, messageProcessingError.message);
+        console.error(`❌ Error stack:`, messageProcessingError.stack);
+        throw new Error(`Message processing failed: ${messageProcessingError.message}`);
+      }
 
       // Create single session document with nested messages
       const sessionDoc = {
@@ -530,8 +557,36 @@ export class FirestoreService {
       };
 
       // Save complete session document to unifiedSessions collection
-      await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
-      console.log(`✅ UnifiedSession ${sessionId} created with ${messages.length} nested messages`);
+      
+      
+      
+      
+      
+      if (!db) {
+        throw new Error('Database instance is null - Firestore not properly initialized');
+      }
+      
+      try {
+        console.log(`🔍 [SESSION_CREATE] Creating session ${sessionId} for user ${userId}`);
+        await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
+        console.log(`✅ [SESSION_CREATE] Session ${sessionId} saved to Firestore`);
+        
+        // Verify the session was saved
+        const verifyDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
+        if (verifyDoc.exists) {
+          console.log(`✅ [SESSION_CREATE] Session ${sessionId} verified in Firestore`);
+        } else {
+          throw new Error(`Session verification failed - document not found after save`);
+        }
+      } catch (firestoreError) {
+        console.error(`❌ Firestore operation failed:`, firestoreError);
+        console.error(`❌ Error type: ${firestoreError.constructor.name}`);
+        console.error(`❌ Error message: ${firestoreError.message}`);
+        if (firestoreError.stack) {
+          console.error(`❌ Error stack: ${firestoreError.stack}`);
+        }
+        throw firestoreError;
+      }
 
       return sessionId;
     } catch (error) {
@@ -545,22 +600,18 @@ export class FirestoreService {
    */
   static async getUnifiedSession(sessionId: string): Promise<any | null> {
     try {
-      console.log(`🔍 Getting UnifiedSession: ${sessionId}`);
       
       // Get session document with nested messages
       const sessionDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
       
       if (!sessionDoc.exists) {
-        console.log(`❌ Session ${sessionId} does not exist in unifiedSessions collection`);
         return null;
       }
 
       const sessionData = sessionDoc.data();
-      console.log(`✅ Found session data:`, { id: sessionId, messageType: sessionData?.messageType });
       
       // Extract nested messages
       const unifiedMessages = sessionData?.unifiedMessages || [];
-      console.log(`📊 Found ${unifiedMessages.length} nested messages`);
       
       // Sort messages by timestamp in JavaScript
       unifiedMessages.sort((a: any, b: any) => {
@@ -591,7 +642,6 @@ export class FirestoreService {
         messages: mappedMessages  // Use mapped messages with id field
       };
       
-      console.log(`✅ Returning session with ${unifiedMessages.length} nested messages`);
       return result;
     } catch (error) {
       console.error('❌ Failed to get UnifiedSession:', error);
@@ -604,14 +654,12 @@ export class FirestoreService {
    */
   static async getUserUnifiedSessions(userId: string, limit: number = 50): Promise<any[]> {
     try {
-      console.log(`🔍 Getting UnifiedSessions for user: ${userId}`);
       
       const sessionsRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
         .where('userId', '==', userId)
         .limit(limit);
       
       const snapshot = await sessionsRef.get();
-      console.log(`📊 Found ${snapshot.size} sessions for user ${userId}`);
       
       if (snapshot.empty) {
         return [];
@@ -650,6 +698,7 @@ export class FirestoreService {
           updatedAt: sessionData.updatedAt,
           favorite: sessionData.favorite || false,
           rating: sessionData.rating || 0,
+          messages: unifiedMessages, // Include the actual messages array
           lastMessage: lastMessage ? {
             content: lastMessage.content,
             role: lastMessage.role,
@@ -668,7 +717,6 @@ export class FirestoreService {
         return timeB - timeA; // Descending order
       });
       
-      console.log(`✅ Returning ${sessions.length} sessions`);
       return sessions;
     } catch (error) {
       console.error('❌ Failed to get user UnifiedSessions:', error);
@@ -931,12 +979,10 @@ export class FirestoreService {
    */
   static async deleteUnifiedSession(sessionId: string, userId: string): Promise<void> {
     try {
-      console.log(`🗑️ Deleting UnifiedSession: ${sessionId} for user: ${userId}`);
       
       // Delete the session document (which contains nested messages)
       await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).delete();
       
-      console.log(`✅ UnifiedSession deleted successfully: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to delete UnifiedSession:', error);
       throw error;
@@ -947,17 +993,29 @@ export class FirestoreService {
    * Add a message to an existing UnifiedSession
    * For chat functionality that requires incremental message addition
    */
-  static async addMessageToUnifiedSession(sessionId: string, message: UnifiedMessage): Promise<void> {
-    try {
-      console.log(`📝 Adding message to UnifiedSession: ${sessionId}`);
-      
-      // First, get the existing session
-      const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
-      const sessionDoc = await sessionRef.get();
-      
-      if (!sessionDoc.exists) {
-        throw new Error(`Session ${sessionId} not found`);
-      }
+  static async addMessageToUnifiedSession(sessionId: string, message: any): Promise<void> {
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // First, get the existing session
+        const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
+        const sessionDoc = await sessionRef.get();
+        
+        console.log(`🔍 [SESSION_RETRY] Attempt ${attempt}/${maxRetries}: Looking for session ${sessionId}`);
+        console.log(`🔍 [SESSION_RETRY] Session exists: ${sessionDoc.exists}`);
+        
+        if (!sessionDoc.exists) {
+          if (attempt === maxRetries) {
+            console.log(`❌ [SESSION_RETRY] Session ${sessionId} not found after ${maxRetries} attempts`);
+            throw new Error(`Session ${sessionId} not found after ${maxRetries} attempts`);
+          }
+          // Wait and retry for eventual consistency
+          console.log(`⏳ Session ${sessionId} not found, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          continue;
+        }
       
       const sessionData = sessionDoc.data();
       const existingMessages = sessionData?.unifiedMessages || [];
@@ -978,12 +1036,19 @@ export class FirestoreService {
         'sessionMetadata.lastModelUsed': message.metadata?.modelUsed || 'Unknown'
       };
       
-      await sessionRef.update(updateData);
-      
-      console.log(`✅ Message added to UnifiedSession: ${sessionId}`);
-    } catch (error) {
-      console.error('❌ Failed to add message to UnifiedSession:', error);
-      throw error;
+        await sessionRef.update(updateData);
+        
+        // Success - break out of retry loop
+        return;
+        
+      } catch (error) {
+        if (attempt === maxRetries) {
+          console.error('❌ Failed to add message to UnifiedSession after all retries:', error);
+          throw error;
+        }
+        console.log(`⏳ Error adding message to session ${sessionId}, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries}):`, error.message);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
     }
   }
 
@@ -992,7 +1057,6 @@ export class FirestoreService {
    */
   static async updateUnifiedSession(sessionId: string, updates: any): Promise<void> {
     try {
-      console.log(`📝 Updating UnifiedSession: ${sessionId}`);
       
       const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
       const sessionDoc = await sessionRef.get();
@@ -1009,7 +1073,6 @@ export class FirestoreService {
       
       await sessionRef.update(sanitizedUpdates);
       
-      console.log(`✅ UnifiedSession updated: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to update UnifiedSession:', error);
       throw error;

@@ -487,6 +487,109 @@ body.login-page .auth-container {
   outline-offset: 2px;
 }
 
+/* Email/Password Form Styles */
+.email-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.password-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.auth-submit-button {
+  width: 100%;
+  padding: 16px 24px;
+  background: var(--text-brand);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-submit-button:hover {
+  background: var(--text-brand);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-submit-button:active {
+  transform: translateY(0);
+}
+
+.auth-submit-button:disabled {
+  background: var(--text-tertiary);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  color: var(--text-brand);
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+  font-size: inherit;
+}
+
+.auth-link:hover {
+  color: var(--text-brand);
+  text-decoration: underline;
+}
+
+.auth-info {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.auth-warning {
+  color: var(--warning-color);
+  font-size: 12px;
+  margin: 8px 0 0 0;
+}
+
 /* Loading state overlay */
 .auth-loading {
   position: relative;

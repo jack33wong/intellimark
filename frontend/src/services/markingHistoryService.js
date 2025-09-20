@@ -19,6 +19,7 @@ class MarkingHistoryService {
       // Use new messages API instead of old chat API
       const url = `${API_BASE}/api/messages/sessions/${userId}`;
       
+      
       const headers = {
         'Content-Type': 'application/json',
       };

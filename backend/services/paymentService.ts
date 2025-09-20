@@ -50,7 +50,6 @@ export class PaymentService {
     // Check if priceId is valid (starts with 'price_')
     if (!priceConfig.priceId || !priceConfig.priceId.startsWith('price_')) {
       // Create a price dynamically for testing
-      console.log(`Creating dynamic price for ${planId} ${billingCycle} - $${priceConfig.amount / 100}`);
       
       const price = await stripe.prices.create({
         unit_amount: priceConfig.amount,

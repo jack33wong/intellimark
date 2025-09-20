@@ -20,7 +20,6 @@ if (!admin.apps || admin.apps.length === 0) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccountPath)
     });
-    console.log('✅ Firebase Admin initialized successfully');
   } catch (error) {
     console.error('❌ Firebase Admin initialization failed:', error);
     process.exit(1);
@@ -31,18 +30,15 @@ if (!admin.apps || admin.apps.length === 0) {
 const db = admin.firestore();
 
 async function cleanupOldMarkingResults() {
-  console.log('🧹 Starting cleanup of old marking results collection...');
   
   try {
     // Get all documents in markingResults collection
     const markingResults = await db.collection('markingResults').get();
     
     if (markingResults.empty) {
-      console.log('ℹ️ No documents found in markingResults collection');
       return;
     }
     
-    console.log(`📊 Found ${markingResults.size} documents to delete`);
     
     // Delete documents in batches (Firestore batch limit is 500)
     const batchSize = 500;
@@ -57,11 +53,8 @@ async function cleanupOldMarkingResults() {
       });
       
       await batch.commit();
-      console.log(`✅ Deleted batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(docs.length / batchSize)} (${batchDocs.length} documents)`);
     }
     
-    console.log('🎉 Old marking results collection cleanup completed!');
-    console.log(`📊 Total documents deleted: ${docs.length}`);
     
   } catch (error) {
     console.error('❌ Cleanup failed:', error);
@@ -72,7 +65,6 @@ async function cleanupOldMarkingResults() {
 // Run the cleanup
 cleanupOldMarkingResults()
   .then(() => {
-    console.log('✅ Cleanup script completed successfully');
     process.exit(0);
   })
   .catch((error) => {

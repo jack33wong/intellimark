@@ -7,4 +7,3 @@ export const ADMIN_EMAILS = [
 ];
 
 // Debug logging for admin emails
-console.log('🔐 Admin emails loaded from config:', ADMIN_EMAILS);

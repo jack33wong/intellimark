@@ -65,7 +65,6 @@ export class SubscriptionService {
           (existingSubscription as any).id, // Use the actual document ID from the existing subscription
           subscriptionData
         );
-        console.log(`Updated existing subscription for user ${data.userId} with document ID: ${(existingSubscription as any).id}`);
       } else {
         // This is a new subscription - cancel any existing active subscriptions first
         await this.cancelAllActiveSubscriptions(data.userId);
@@ -76,7 +75,6 @@ export class SubscriptionService {
           null, // Let Firestore generate the document ID
           subscriptionData
         );
-        console.log(`Created new subscription for user ${data.userId} with ID: ${docRef.id}`);
       }
 
       return subscriptionData;
@@ -151,7 +149,6 @@ export class SubscriptionService {
           updatedAt: Date.now(),
         }
       );
-      console.log(`Updated subscription status for ${stripeSubscriptionId} to ${status}`);
     } catch (error) {
       console.error('Error updating subscription status:', error);
       throw new Error('Failed to update subscription status');
@@ -193,7 +190,6 @@ export class SubscriptionService {
             updatedAt: Date.now(),
           }
         );
-        console.log(`Canceled subscription ${subscription.id} for user ${userId}`);
       }
     } catch (error) {
       console.error('Error canceling all active subscriptions:', error);
@@ -213,8 +209,6 @@ export class SubscriptionService {
         stripeSubscriptionId
       );
       
-      console.log('📊 Found subscriptions:', subscriptions.length);
-      console.log('📋 Subscription data:', subscriptions);
       
       return subscriptions.length > 0 ? subscriptions[0] as UserSubscription : null;
     } catch (error) {

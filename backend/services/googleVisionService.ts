@@ -1,5 +1,6 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import type { protos } from '@google-cloud/vision';
+import { getDebugMode } from '../config/aiModels';
 import type { ProcessedVisionResult, BoundingBox, ImageDimensions } from '../types/index';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
@@ -29,11 +30,9 @@ export class GoogleVisionService {
       try {
         // Try automatic credential discovery first
         this.staticClient = new ImageAnnotatorClient();
-        console.log('🔐 Using automatic Google Cloud credentials discovery');
       } catch (error) {
         // Fall back to explicit file if automatic discovery fails
         const serviceAccountPath = join(process.cwd(), 'intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json');
-        console.log('🔐 Using explicit credentials file:', serviceAccountPath);
         this.staticClient = new ImageAnnotatorClient({
           keyFilename: serviceAccountPath
         });
@@ -46,6 +45,22 @@ export class GoogleVisionService {
    * Static entry used by HybridOCRService
    */
   static async processImage(imageData: string, _enablePreprocessing: boolean = true): Promise<ProcessedVisionResult> {
+    // Check debug mode - return mock response if enabled
+    const debugMode = getDebugMode();
+    if (debugMode.enabled) {
+      
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+      
+      return {
+        text: 'Debug mode: Mock Google Vision text recognition',
+        boundingBoxes: [],
+        confidence: 0.95,
+        dimensions: { width: 800, height: 600 },
+        symbols: []
+      };
+    }
+
     const client = this.ensureClient();
 
     const image = (() => {
@@ -147,7 +162,6 @@ export class GoogleVisionService {
    */
   async recognizeHandwriting(filePath: string): Promise<string | null> {
     try {
-      console.log(`Analyzing file: ${filePath}`);
 
       // Use documentTextDetection for dense text or handwriting
       const [result] = await this.client.documentTextDetection(filePath);
@@ -156,14 +170,9 @@ export class GoogleVisionService {
       const fullTextAnnotation = result.fullTextAnnotation;
 
       if (fullTextAnnotation && fullTextAnnotation.text) {
-        console.log('✅ Recognition successful!');
-        console.log('--- Full Detected Text ---');
         const detectedText = fullTextAnnotation.text.trim();
-        console.log(detectedText);
-        console.log('--------------------------');
         return detectedText;
       } else {
-        console.log('⚠️ No text detected in the image.');
         return null;
       }
     } catch (error) {
@@ -179,7 +188,6 @@ export class GoogleVisionService {
    */
   async recognizeText(filePath: string): Promise<string | null> {
     try {
-      console.log(`Analyzing file for text: ${filePath}`);
 
       // Use textDetection for general text recognition
       const [result] = await this.client.textDetection(filePath);
@@ -188,15 +196,10 @@ export class GoogleVisionService {
       const detections = result.textAnnotations;
 
       if (detections && detections.length > 0) {
-        console.log('✅ Text recognition successful!');
-        console.log('--- Detected Text ---');
         const first: any = detections[0] as any;
         const detectedText = (first?.description ?? '').trim();
-        console.log(detectedText);
-        console.log('---------------------');
         return detectedText;
       } else {
-        console.log('⚠️ No text detected in the image.');
         return null;
       }
     } catch (error) {
@@ -212,7 +215,6 @@ export class GoogleVisionService {
    */
   async getDetailedTextAnnotations(filePath: string): Promise<any> {
     try {
-      console.log(`Getting detailed annotations for: ${filePath}`);
 
       const [result] = await this.client.documentTextDetection(filePath);
       
@@ -220,7 +222,6 @@ export class GoogleVisionService {
       const fullTextAnnotation = result.fullTextAnnotation;
 
       if (fullTextAnnotation) {
-        console.log('✅ Detailed annotations retrieved successfully!');
         
         const detailedResult = {
           fullText: fullTextAnnotation.text?.trim() || '',
@@ -233,7 +234,6 @@ export class GoogleVisionService {
 
         return detailedResult;
       } else {
-        console.log('⚠️ No detailed annotations found.');
         return null;
       }
     } catch (error) {

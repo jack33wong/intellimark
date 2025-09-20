@@ -77,7 +77,7 @@ async function prepareImageDataForAI(imageData: any): Promise<string> {
 router.post('/', requireAuth, async (req, res) => {
   
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, userId, mode, examMetadata, favorite, rating } = req.body;
+    const { message, imageData, model = 'gemini-2.5-pro', sessionId, userId, mode, examMetadata, favorite, rating } = req.body;
     
     // Use authenticated user ID
     const currentUserId = req.user.uid;

@@ -177,7 +177,6 @@ backend/
 
 ### Required API Keys
 - `OPENAI_API_KEY`: OpenAI API key for GPT models
-- `GEMINI_API_KEY`: Google Gemini API key
 - `MATHPIX_APP_ID`: Mathpix OCR service credentials
 - `MATHPIX_APP_KEY`: Mathpix OCR service credentials
 

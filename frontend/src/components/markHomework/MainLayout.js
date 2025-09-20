@@ -3,7 +3,7 @@
  * Orchestrates all the focused components for the mark homework page
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Brain, ChevronDown } from 'lucide-react';
 import ImageUploadInterface from './ImageUploadInterface';
 import SessionManagement from './SessionManagement';
@@ -21,6 +21,7 @@ const MainLayout = ({
   selectedFile,
   previewUrl,
   isProcessing,
+  isAIThinking,
   onFileSelect,
   onAnalyzeImage,
   onClearFile,
@@ -37,9 +38,9 @@ const MainLayout = ({
   scrollToBottom,
   handleImageLoad,
   getImageSrc,
-  isWaitingForAI,
   
   // Session props
+  currentSession,
   sessionTitle,
   isFavorite,
   onFavoriteToggle,
@@ -59,25 +60,9 @@ const MainLayout = ({
   onSendMessage,
   onFollowUpImage,
   onKeyPress,
-  onUploadClick
+  onUploadClick,
+  onClearPreview
 }) => {
-  if (pageMode === 'upload') {
-    return (
-      <ImageUploadInterface
-        selectedFile={selectedFile}
-        previewUrl={previewUrl}
-        isProcessing={isProcessing}
-        onFileSelect={onFileSelect}
-        onAnalyzeImage={onAnalyzeImage}
-        onClearFile={onClearFile}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
-        loadingProgress={loadingProgress}
-        showExpandedThinking={showExpandedThinking}
-        markError={markError}
-      />
-    );
-  }
 
   return (
     <div className="mark-homework-page chat-mode">
@@ -110,7 +95,7 @@ const MainLayout = ({
           ))}
           
           {/* AI Thinking Indicator */}
-          {(isProcessing || isWaitingForAI) && (
+          {isAIThinking && (
             <div className="chat-message assistant">
               <div className="message-bubble">
                 <div className="assistant-header">
@@ -123,7 +108,7 @@ const MainLayout = ({
                     <div className="thinking-dot"></div>
                   </div>
                   <div className="thinking-text">
-                    {isWaitingForAI ? 'AI is processing your image...' : 'AI is thinking...'}
+                    AI is thinking...
                   </div>
                 </div>
               </div>
@@ -143,19 +128,23 @@ const MainLayout = ({
         </div>
       </div>
       
-      {/* Follow-up Chat Input Bar */}
-      <FollowUpChatInput
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        selectedModel={selectedModel}
-        setSelectedModel={onModelChange}
-        isProcessing={isProcessing}
-        onSendMessage={onSendMessage}
-        onAnalyzeImage={onAnalyzeImage}
-        onFollowUpImage={onFollowUpImage}
-        onKeyPress={onKeyPress}
-        onUploadClick={onUploadClick}
-      />
+      {/* Follow-up Chat Input Bar - Positioned in middle */}
+      <div className={`follow-up-chat-input-container ${pageMode === 'upload' ? 'follow-up-center' : 'follow-up-bottom'}`}>
+        <FollowUpChatInput
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          selectedModel={selectedModel}
+          setSelectedModel={onModelChange}
+          isProcessing={isProcessing}
+          onSendMessage={onSendMessage}
+          onAnalyzeImage={onAnalyzeImage}
+          onFollowUpImage={onFollowUpImage}
+          onKeyPress={onKeyPress}
+          onUploadClick={onUploadClick}
+          currentSession={currentSession}
+          clearPreview={onClearPreview}
+        />
+      </div>
     </div>
   );
 };

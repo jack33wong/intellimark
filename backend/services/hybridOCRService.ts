@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
 import { MathDetectionService, MathBlock } from './mathDetectionService';
 import { MathpixService } from './mathpixService';
+import { getDebugMode } from '../config/aiModels';
 import type { ProcessedVisionResult } from '../types/index';
 
 // Type aliases for robust recognition
@@ -202,7 +203,7 @@ export class HybridOCRService {
    * Process a FullTextAnnotation into DetectedBlock[] using line-aware parsing with fallback.
    */
   private static processTextAnnotation(
-    fullTextAnnotation: protos.google.cloud.vision.v1.IFullTextAnnotation | null | undefined,
+    fullTextAnnotation: any,
     source: string,
     scale: number = 1
   ): DetectedBlock[] {
@@ -214,7 +215,7 @@ export class HybridOCRService {
         block.paragraphs?.forEach((paragraph, paragraphIndex) => {
           // Prefer Vision API detected lines if available
           const paragraphAny: any = paragraph as any;
-          const lines = paragraphAny?.lines as protos.google.cloud.vision.v1.ILine[] | undefined;
+          const lines = paragraphAny?.lines as any[] | undefined;
           if (lines && lines.length > 0) {
             lines.forEach(line => {
               const lineText = line.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ');
@@ -298,16 +299,13 @@ export class HybridOCRService {
     const allBlocks: DetectedBlock[] = [];
 
     // Pass A: Clean Scan for Completeness
-    console.log('🔍 Pass A: Clean scan...');
     try {
       const [resultA] = await client.textDetection(imageBuffer);
       allBlocks.push(...this.processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan'));
     } catch (error) {
-      console.log('⚠️ Pass A failed:', error instanceof Error ? error.message : 'Unknown error');
     }
 
     // Pass B: Enhanced Scan for Accuracy
-    console.log('🔍 Pass B: Enhanced scan...');
     try {
       const originalMetadata = await sharp(imageBuffer).metadata();
       const preprocessedBufferB = await sharp(imageBuffer)
@@ -318,11 +316,9 @@ export class HybridOCRService {
       const [resultB] = await client.textDetection(preprocessedBufferB);
       allBlocks.push(...this.processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', this.RESIZE_FACTOR));
     } catch (error) {
-      console.log('⚠️ Pass B failed:', error instanceof Error ? error.message : 'Unknown error');
     }
 
     // Pass C: Aggressive Scan for Edge Cases
-    console.log('🔍 Pass C: Aggressive scan...');
     try {
       const originalMetadata = await sharp(imageBuffer).metadata();
       const preprocessedBufferC = await sharp(imageBuffer)
@@ -333,14 +329,12 @@ export class HybridOCRService {
       const [resultC] = await client.textDetection(preprocessedBufferC);
       allBlocks.push(...this.processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', this.RESIZE_FACTOR));
     } catch (error) {
-      console.log('⚠️ Pass C failed:', error instanceof Error ? error.message : 'Unknown error');
     }
 
     // Keep a copy of raw detected blocks prior to clustering for visualization/debugging
     const preClusterBlocks: DetectedBlock[] = allBlocks.slice();
 
     // Cluster results using DBSCAN (center-point clustering)
-    console.log('🔄 Clustering Vision blocks with DBSCAN...');
     const { DBSCAN } = await import('density-clustering') as unknown as { DBSCAN: new () => any };
     const algo: any = new (DBSCAN as any)();
 
@@ -401,11 +395,9 @@ export class HybridOCRService {
     });
 
     finalBlocks.forEach((block, index) => block.blockIndex = index + 1);
-    console.log(`✅ DBSCAN clustering complete: ${finalBlocks.length} blocks (${clusters.length} clusters, ${noise.length} noise)`);
 
     // Post-process: merge overlapping cluster boxes for cleaner regions
     const mergedClusters = this.mergeOverlappingBlocks(finalBlocks);
-    console.log(`🔗 Overlap-merge complete: ${mergedClusters.length} blocks after merging`);
 
     return { finalBlocks: mergedClusters, preClusterBlocks };
   }
@@ -422,12 +414,30 @@ export class HybridOCRService {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
+    // Check debug mode - return mock response if enabled
+    const debugMode = getDebugMode();
+    if (debugMode.enabled) {
+      
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+      
+      return {
+        text: 'Debug mode: Mock OCR text recognition',
+        boundingBoxes: [],
+        confidence: 0.95,
+        dimensions: { width: 800, height: 600 },
+        symbols: [],
+        mathBlocks: [],
+        processingTime: Date.now() - startTime,
+        rawResponse: null
+      };
+    }
+
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
     // Step 1: Perform robust three-pass Google Vision recognition
-    console.log('📡 Running robust three-pass Google Vision recognition...');
     let detectedBlocks: DetectedBlock[] = [];
     let mathBlocks: MathBlock[] = [];
     let preClusterBlocks: DetectedBlock[] = [];
@@ -452,26 +462,22 @@ export class HybridOCRService {
         dimensions: { width: 0, height: 0 }, // Will be updated from image metadata
         symbols: detectedBlocks.map(block => ({
           text: block.text || '',
-          boundingBox: [
-            block.geometry.minX,
-            block.geometry.minY,
-            block.geometry.width,
-            block.geometry.height
-          ],
+          boundingBox: {
+            x: block.geometry.minX,
+            y: block.geometry.minY,
+            width: block.geometry.width,
+            height: block.geometry.height,
+            text: block.text || ''
+          },
           confidence: block.confidence || 0
         }))
       };
 
       // Debug logging for hybrid OCR results
-      /*console.log('🔍 DEBUG: Hybrid OCR detected blocks count:', detectedBlocks.length);
-      console.log('🔍 DEBUG: Hybrid OCR visionResult.boundingBoxes count:', visionResult.boundingBoxes.length);
       if (visionResult.boundingBoxes.length > 0) {
-        //console.log('🔍 DEBUG: First bounding box from hybrid OCR:', visionResult.boundingBoxes[0]);
-      }*/
+      }
       
       // Debug: Print raw JSON from Google Vision before Mathpix processing
-      // console.log('🔍 DEBUG: Raw Google Vision JSON before Mathpix processing:');
-      // console.log(JSON.stringify({
       //   detectedBlocks: detectedBlocks.map(block => ({
       //     source: block.source,
       //     text: block.text,
@@ -491,24 +497,21 @@ export class HybridOCRService {
       visionResult.dimensions = { width: metadata.width || 0, height: metadata.height || 0 };
 
       // Step 2: Detect math blocks from robust recognition results
-      console.log('🔍 Detecting math blocks from robust recognition...');
       mathBlocks = MathDetectionService.detectMathBlocks(visionResult);
       
     } catch (error) {
-      console.log('⚠️ Robust recognition failed, trying Mathpix only approach...');
-      console.log('   Error:', error instanceof Error ? error.message : 'Unknown error');
       
       // Fallback to Mathpix-only processing
       if (MathpixService.isAvailable()) {
-        console.log('🔢 Attempting Mathpix-only processing...');
         try {
-          const mathpixResult = await MathpixService.processImage(imageData);
-          if (mathpixResult.text) {
+          const imageBuffer = Buffer.from(imageData.split(',')[1], 'base64');
+          const mathpixResult = await MathpixService.processImage(imageBuffer);
+          if (mathpixResult.latex_styled) {
             const metadata = await sharp(imageBuffer).metadata();
             
             // Create a minimal result structure for Mathpix-only processing
             const visionResult: ProcessedVisionResult = {
-              text: mathpixResult.text,
+              text: mathpixResult.latex_styled || '',
               boundingBoxes: [],
               confidence: mathpixResult.confidence || 0.5,
               dimensions: { width: metadata.width || 0, height: metadata.height || 0 },
@@ -517,19 +520,15 @@ export class HybridOCRService {
             
             // Create a single math block for the entire image
             mathBlocks = [{
-              googleVisionText: mathpixResult.text,
+              googleVisionText: mathpixResult.latex_styled || '',
               mathpixLatex: mathpixResult.latex_styled,
               confidence: mathpixResult.confidence || 0.5,
               mathLikenessScore: 1.0,
               coordinates: { x: 0, y: 0, width: 100, height: 100 }
             } as MathBlock];
             
-            console.log('✅ Mathpix-only processing successful!');
-            console.log(`   Text: "${mathpixResult.text}"`);
-            console.log(`   LaTeX: "${mathpixResult.latex_styled || 'N/A'}"`);
           }
         } catch (mathpixError) {
-          console.log('❌ Mathpix also failed:', mathpixError instanceof Error ? mathpixError.message : 'Unknown error');
         }
       }
     }
@@ -539,7 +538,6 @@ export class HybridOCRService {
     
     let mathpixCalls = 0;
     if (mathBlocks.length > 0 && MathpixService.isAvailable()) {
-      console.log(`🔢 Processing ${mathBlocks.length} math blocks with Mathpix...`);
       
       try {
         // Dedupe by bbox signature and prioritize suspicious or high-score blocks
@@ -580,7 +578,6 @@ export class HybridOCRService {
             if (mathpixResult.latex_styled && !mathpixResult.error) {
               mathBlock.mathpixLatex = mathpixResult.latex_styled;
               mathBlock.confidence = mathpixResult.confidence;
-              //console.log(`✅ Math block ${i + 1} processed: ${mathpixResult.latex_styled.substring(0, 50)}...`);
             } else {
               //console.warn(`⚠️ Math block ${i + 1} failed: ${mathpixResult.error || 'Unknown error'}`);
             }
@@ -599,17 +596,13 @@ export class HybridOCRService {
         
       } catch (error) {
         console.error('❌ Mathpix processing failed:', error);
-        console.log('📝 Continuing with robust recognition results only...');
       }
     } else if (mathBlocks.length > 0) {
-      console.log('⚠️ Math blocks detected but Mathpix not available, using robust recognition results');
     }
 
     // Step 4: Combine results
     const processingTime = Date.now() - startTime;
     
-    console.log(`✅ Robust hybrid OCR completed in ${processingTime}ms`);
-    console.log(`📊 Results: ${detectedBlocks.length} blocks, ${processedMathBlocks.length} math blocks`);
 
     // Create final result from detected blocks
     const finalText = detectedBlocks.map(block => block.text || '').join('\n');
@@ -623,9 +616,7 @@ export class HybridOCRService {
     }));
 
     // Debug final result
-    // console.log('🔍 DEBUG: Final hybrid OCR result - boundingBoxes count:', finalBoundingBoxes.length);
     // if (finalBoundingBoxes.length > 0) {
-    //   console.log('🔍 DEBUG: First final bounding box:', finalBoundingBoxes);
     // }
     const finalConfidence = detectedBlocks.reduce((sum, block) => sum + (block.confidence || 0), 0) / detectedBlocks.length || 0;
     const finalSymbols = detectedBlocks.map(block => ({

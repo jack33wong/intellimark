@@ -7,12 +7,11 @@ import React, { useState, useCallback } from 'react';
 import { createValidationError } from '../../utils/errorUtils';
 import './ModelSelector.css';
 
-// Available AI models
+// Available AI models - must match backend ModelType values
 const AVAILABLE_MODELS = [
-  { value: 'chatgpt-4o', label: 'GPT-4o', description: 'Latest GPT-4 model' },
-  { value: 'chatgpt-4o-mini', label: 'GPT-4o Mini', description: 'Faster, cheaper GPT-4' },
-  { value: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', description: 'Anthropic Claude' },
-  { value: 'claude-3-haiku', label: 'Claude 3 Haiku', description: 'Fast Claude model' }
+  { value: 'auto', label: 'Auto', description: 'Use system default (Gemini 2.5 Pro)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Google Gemini 2.5 Pro' },
+  { value: 'chatgpt-4o', label: 'ChatGPT 4o', description: 'OpenAI GPT-4 Omni' }
 ];
 
 const ModelSelector = ({ 

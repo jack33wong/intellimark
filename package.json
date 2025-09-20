@@ -28,6 +28,8 @@
   },
   "dependencies": {
     "katex": "^0.16.22",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^24.22.0",
     "react-katex": "^3.1.0"
   }
 }

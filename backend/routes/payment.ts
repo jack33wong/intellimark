@@ -16,15 +16,12 @@ router.get('/config', (req, res) => {
 // Create Stripe Checkout Session
 router.post('/create-checkout-session', async (req, res) => {
   try {
-    console.log('Creating checkout session with data:', req.body);
     const { planId, billingCycle, successUrl, cancelUrl, userId } = req.body;
 
     if (!planId || !billingCycle || !successUrl || !cancelUrl || !userId) {
-      console.log('Missing required fields:', { planId, billingCycle, successUrl, cancelUrl, userId });
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    console.log('Calling paymentService.createCheckoutSession...');
     const checkoutSession = await paymentService.createCheckoutSession({
       planId,
       billingCycle,
@@ -33,7 +30,6 @@ router.post('/create-checkout-session', async (req, res) => {
       userId,
     });
 
-    console.log('Checkout session created successfully:', checkoutSession.id);
     res.json({ url: checkoutSession.url });
   } catch (error) {
     console.error('Error creating checkout session:', error);
@@ -130,7 +126,6 @@ router.get('/subscription/:id', async (req, res) => {
 router.delete('/cancel-subscription/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Canceling subscription:', id);
     
     // Check if this is a test subscription (starts with 'sub_test_' or 'sub_debug_')
     const isTestSubscription = id.startsWith('sub_test_') || id.startsWith('sub_debug_');
@@ -138,38 +133,29 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
     let subscription;
     if (isTestSubscription) {
       // For test subscriptions, just update Firestore status
-      console.log('✅ Test subscription detected, updating Firestore only');
       subscription = { id, status: 'canceled' };
     } else {
       // Cancel subscription in Stripe for real subscriptions
-      console.log('💳 Real subscription detected, canceling in Stripe...');
       subscription = await paymentService.cancelSubscription(id);
-      console.log('Stripe subscription canceled:', subscription.id);
     }
     
     // Update subscription status in Firestore
     
     try {
       const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(id);
-      console.log('📊 Existing subscription found:', existingSubscription);
       
       if (existingSubscription) {
-        console.log('✅ Subscription found, canceling...');
         await SubscriptionService.cancelSubscription(id);
-        console.log('Firestore subscription status updated to canceled for subscription:', id);
       } else {
-        console.log('❌ No existing subscription found in Firestore for ID:', id);
         // Try to find it using direct Firestore query as fallback
         const { FirestoreService } = await import('../services/firestoreService.js');
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
         
         if (directQuery.length > 0) {
-          console.log('✅ Found subscription via direct query, updating status...');
           await FirestoreService.updateDocument('userSubscriptions', directQuery[0].id, {
             status: 'canceled',
             updatedAt: Date.now()
           });
-          console.log('✅ Subscription status updated via direct query');
         }
       }
     } catch (error) {
@@ -180,12 +166,10 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
         
         if (directQuery.length > 0) {
-          console.log('✅ Found subscription via fallback query, updating status...');
           await FirestoreService.updateDocument('userSubscriptions', directQuery[0].id, {
             status: 'canceled',
             updatedAt: Date.now()
           });
-          console.log('✅ Subscription status updated via fallback query');
         }
       } catch (fallbackError) {
         console.error('❌ Fallback query also failed:', fallbackError);
@@ -214,12 +198,9 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
 // Handle subscription creation after successful payment (bypass webhook for localhost)
 router.post('/create-subscription-after-payment', async (req, res) => {
   try {
-    console.log('💳 Creating subscription after successful payment');
-    console.log('Request body:', req.body);
     const { sessionId, userId } = req.body;
     
     if (!sessionId || !userId) {
-      console.log('❌ Missing sessionId or userId');
       return res.status(400).json({ error: 'Missing sessionId or userId' });
     }
     
@@ -233,15 +214,8 @@ router.post('/create-subscription-after-payment', async (req, res) => {
         expand: ['subscription', 'customer']
       });
       
-      console.log('✅ Retrieved session:', session.id);
-      console.log('📋 Session metadata:', session.metadata);
-      console.log('💳 Session subscription:', session.subscription);
-      console.log('👤 Session customer:', session.customer);
-      console.log('💰 Session payment status:', session.payment_status);
-      console.log('📊 Session status:', session.status);
       
       if (!session.subscription) {
-        console.log('❌ No subscription found in session');
         return res.status(400).json({
           error: 'No subscription found in session',
           sessionDetails: {
@@ -270,7 +244,6 @@ router.post('/create-subscription-after-payment', async (req, res) => {
     const { planId, billingCycle } = session.metadata || {};
     
     if (!planId || !billingCycle) {
-      console.log('❌ Missing planId or billingCycle in session metadata');
       return res.status(400).json({ error: 'Missing planId or billingCycle in session metadata' });
     }
     
@@ -292,11 +265,9 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       updatedAt: now,
     };
     
-    console.log('📝 Creating subscription with data:', subscriptionData);
     
     const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
     
-    console.log('✅ Subscription created successfully:', result);
     
     res.json({ 
       success: true, 
@@ -343,7 +314,6 @@ router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
     const { FirestoreService } = await import('../services/firestoreService.js');
     const subscriptions = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', stripeId);
     
-    console.log('📊 Query result:', subscriptions);
     
     res.json({ 
       message: 'Subscription lookup test',
@@ -363,7 +333,6 @@ router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
 // Debug endpoint to create subscription for any user ID
 router.post('/debug/create-subscription-for-user', async (req, res) => {
   try {
-    console.log('🔧 Debug: Creating subscription for specific user');
     const { userId, planId = 'pro', billingCycle = 'monthly', email } = req.body;
     
     if (!userId) {
@@ -384,7 +353,6 @@ router.post('/debug/create-subscription-for-user', async (req, res) => {
       currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
     };
     
-    console.log('Creating debug subscription:', testData);
     
     const result = await SubscriptionService.createOrUpdateSubscription(testData);
     
@@ -405,7 +373,6 @@ router.post('/debug/create-subscription-for-user', async (req, res) => {
 // Debug endpoint to simulate subscription success flow
 router.post('/debug/simulate-subscription-success', async (req, res) => {
   try {
-    console.log('🎯 Debug: Simulating subscription success flow');
     const { userId } = req.body;
     
     if (!userId) {
@@ -458,7 +425,6 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
       }
     });
     
-    console.log('Test session created:', testSession.id);
     
     // Now simulate the subscription creation process
     const subscriptionData = {
@@ -497,7 +463,6 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
 // Test endpoint to manually trigger subscription creation (for debugging)
 router.post('/test-create-subscription', async (req, res) => {
   try {
-    console.log('🧪 Test endpoint: Creating test subscription');
     
     const testData = {
       userId: req.body.userId || 'test_user_' + Date.now(),
@@ -513,7 +478,6 @@ router.post('/test-create-subscription', async (req, res) => {
       currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
     };
     
-    console.log('Test subscription data:', testData);
     
     const result = await SubscriptionService.createOrUpdateSubscription(testData);
     
@@ -534,13 +498,9 @@ router.post('/test-create-subscription', async (req, res) => {
 // Stripe webhook endpoint
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    console.log('🔔 Webhook received!');
-    console.log('Headers:', req.headers);
-    console.log('Body length:', req.body.length);
     
     const sig = req.headers['stripe-signature'];
     if (!sig) {
-      console.log('❌ Missing stripe-signature header');
       return res.status(400).json({ error: 'Missing stripe-signature header' });
     }
 
@@ -549,29 +509,22 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     // For now, just parse the body
     const event = JSON.parse(req.body.toString());
-    console.log('✅ Received webhook event:', event.type);
-    console.log('Event data:', JSON.stringify(event.data, null, 2));
 
     // Handle the event
     switch (event.type) {
       case 'checkout.session.completed':
-        console.log('Checkout session completed:', event.data.object);
         await handleCheckoutSessionCompleted(event.data.object);
         break;
       case 'customer.subscription.created':
-        console.log('Subscription created:', event.data.object);
         await handleSubscriptionCreated(event.data.object);
         break;
       case 'customer.subscription.updated':
-        console.log('Subscription updated:', event.data.object);
         await handleSubscriptionUpdated(event.data.object);
         break;
       case 'customer.subscription.deleted':
-        console.log('Subscription deleted:', event.data.object);
         await handleSubscriptionDeleted(event.data.object);
         break;
       default:
-        console.log(`Unhandled event type: ${event.type}`);
     }
 
     res.json({ received: true });
@@ -584,15 +537,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // Handle successful checkout session
 async function handleCheckoutSessionCompleted(session: any) {
   try {
-    console.log('🔄 Processing checkout session completion:', session.id);
-    console.log('Session data:', JSON.stringify(session, null, 2));
     
     // Extract subscription data from session metadata
     const { planId, billingCycle, userId } = session.metadata || {};
     const customerId = session.customer;
     const subscriptionId = session.subscription;
     
-    console.log('Extracted data:', { planId, billingCycle, userId, customerId, subscriptionId });
     
     if (!planId || !billingCycle || !customerId || !subscriptionId) {
       console.error('❌ Missing required data in checkout session:', { planId, billingCycle, customerId, subscriptionId });
@@ -608,7 +558,6 @@ async function handleCheckoutSessionCompleted(session: any) {
     
     // Save subscription to Firestore
     const finalUserId = (customer as any).metadata?.userId || session.metadata?.userId || customerId;
-    console.log('💾 Saving subscription to Firestore with userId:', finalUserId);
     
     const subscriptionData = {
       userId: finalUserId,
@@ -624,11 +573,9 @@ async function handleCheckoutSessionCompleted(session: any) {
       currentPeriodEnd: (subscription as any).current_period_end,
     };
     
-    console.log('Subscription data to save:', JSON.stringify(subscriptionData, null, 2));
     
     await SubscriptionService.createOrUpdateSubscription(subscriptionData);
     
-    console.log(`✅ Successfully saved subscription for user ${finalUserId}`);
   } catch (error) {
     console.error('Error handling checkout session completion:', error);
   }
@@ -637,7 +584,6 @@ async function handleCheckoutSessionCompleted(session: any) {
 // Handle subscription created
 async function handleSubscriptionCreated(subscription: any) {
   try {
-    console.log('Processing subscription creation:', subscription.id);
     // Additional logic for subscription creation if needed
   } catch (error) {
     console.error('Error handling subscription creation:', error);
@@ -647,7 +593,6 @@ async function handleSubscriptionCreated(subscription: any) {
 // Handle subscription updated
 async function handleSubscriptionUpdated(subscription: any) {
   try {
-    console.log('Processing subscription update:', subscription.id);
     
     // Update subscription status in Firestore
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
@@ -665,7 +610,6 @@ async function handleSubscriptionUpdated(subscription: any) {
 // Handle subscription deleted
 async function handleSubscriptionDeleted(subscription: any) {
   try {
-    console.log('Processing subscription deletion:', subscription.id);
     
     // Update subscription status to canceled
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);

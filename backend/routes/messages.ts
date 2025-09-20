@@ -18,7 +18,7 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'chatgpt-4o', sessionId, mode } = req.body;
+    const { message, imageData, model = 'gemini-2.5-pro', sessionId, mode } = req.body;
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -41,7 +41,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
           imageData,
           userId,
           sessionId || `temp-${Date.now()}`,
-          'followup'
+          'original'
         );
       } catch (error) {
         console.error('❌ Failed to upload follow-up image:', error);
@@ -85,11 +85,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
           messageType: 'Chat',
           messages: [userMessage]
         });
-        console.log(`✅ Created new chat session for authenticated user: ${currentSessionId}`);
       } else {
         // For anonymous users, create a temporary session ID but don't save to database
         currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        console.log(`ℹ️ Anonymous user - created temporary session: ${currentSessionId}`);
       }
     }
 
@@ -117,7 +115,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
               }));
             }
           } catch (error) {
-            console.log('No existing session found for context, proceeding with empty history');
           }
         }
 
@@ -189,7 +186,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
       }
     } else {
-      console.log('ℹ️ Anonymous user - messages not saved to database');
     }
 
     // Get session data for response
@@ -253,7 +249,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
         isPastPaper: false
       };
       
-      console.log(`ℹ️ Anonymous user - returning ${sessionData.messages.length} new messages for frontend to append`);
     }
     
     // Return appropriate response format based on user type
@@ -401,11 +396,13 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit as string) || 50;
 
+
     // Only return sessions for authenticated users who match the requested userId
     if (req.user.uid !== userId) {
       return res.status(403).json({
         success: false,
-        error: 'Access denied - can only access your own sessions'
+        error: 'Access denied - can only access your own sessions',
+        details: `Requested: ${userId}, Authenticated: ${req.user.uid}`
       });
     }
 

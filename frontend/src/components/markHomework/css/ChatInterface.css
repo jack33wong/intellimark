@@ -8,17 +8,64 @@
   color: var(--text-primary);
 }
 
-/* Upload Mode Styles for Refactored Components */
-.mark-homework-page.upload-mode {
+
+/* Follow-up Chat Input Container - Center position (initial) */
+.follow-up-chat-input-container.follow-up-center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100vw - 280px); /* Full width minus sidebar */
+  max-width: 1000px;
+  z-index: 1000;
+  transition: all 0.3s ease-in-out;
+}
+
+/* Mobile responsive - when sidebar is collapsed */
+@media (max-width: 768px) {
+  .follow-up-chat-input-container.follow-up-center {
+    left: 50%;
+    width: 100vw; /* Full width on mobile */
+  }
+}
+
+/* Follow-up Chat Input Container - Bottom position (after transition) */
+.follow-up-chat-input-container.follow-up-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100vw - 280px); /* Full width minus sidebar */
+  max-width: 1000px;
+  z-index: 1000;
+  transition: all 0.3s ease-in-out;
+}
+
+/* Mobile responsive - when sidebar is collapsed */
+@media (max-width: 768px) {
+  .follow-up-chat-input-container.follow-up-bottom {
+    left: 50%;
+    width: 100vw; /* Full width on mobile */
+  }
+}
+
+/* Chat Container - Adjust for center input */
+.mark-homework-page.chat-mode .chat-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  overflow: visible;
-  background: var(--background-gray-main);
-  color: var(--text-primary);
-  position: relative;
+  min-height: 0;
+  padding-bottom: 80px; /* Space for bottom input when transitioned */
+}
+
+
+/* Smooth transition animation */
+.upload-bottom.entering {
+  transform: translateY(100%);
+}
+
+.upload-bottom.entered {
+  transform: translateY(0);
 }
 
 /* Chat Mode Styles for Refactored Components */
@@ -109,7 +156,7 @@
 .chat-header {
   position: sticky !important;
   top: 0 !important;
-  z-index: 9999 !important; /* Above main header (9998) */
+  z-index: 100 !important; /* Above main header (9998) */
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;

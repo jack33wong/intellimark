@@ -38,14 +38,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import routes
-import authRoutes from './routes/auth.js';
-import markHomeworkRoutes from './routes/mark-homework.js';
-import adminRoutes from './routes/admin.js';
-import chatRoutes from './routes/chat.js';
-import paymentRoutes from './routes/payment.js';
-import testRoutes from './routes/test.js';
-import messagesRoutes from './routes/messages.js';
-import unifiedProcessingRoutes from './routes/unified-processing.js';
+import authRoutes from './routes/auth';
+import markHomeworkRoutes from './routes/mark-homework';
+import adminRoutes from './routes/admin';
+import chatRoutes from './routes/chat';
+import paymentRoutes from './routes/payment';
+import testRoutes from './routes/test';
+import messagesRoutes from './routes/messages';
+import unifiedProcessingRoutes from './routes/unified-processing';
+import debugRoutes from './routes/debug';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -70,6 +71,10 @@ app.use('/api/payment', paymentRoutes);
 
 // Enable test routes
 app.use('/api/test', testRoutes);
+
+// Enable debug routes
+app.use('/api/debug', debugRoutes);
+
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -98,9 +103,6 @@ app.use('*', (_req, res) => {
  */
 function startServer(port: number) {
   const server = app.listen(port, () => {
-    console.log(`✅ Server running at http://localhost:${port}`);
-    console.log(`Environment: ${process.env['NODE_ENV'] || 'development'}`);
-    console.log(`📊 Health check: http://localhost:${port}/health`);
   });
 
   server.on('error', (err: any) => {

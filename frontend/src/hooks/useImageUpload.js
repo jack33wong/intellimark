@@ -8,7 +8,6 @@ import { useState, useCallback } from 'react';
 export const useImageUpload = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // Convert file to base64
   const fileToBase64 = useCallback((file) => {
@@ -42,26 +41,23 @@ export const useImageUpload = () => {
     }
   }, [previewUrl]);
 
+
   // Process image (convert to base64)
   const processImage = useCallback(async (file) => {
     if (!file) return null;
     
-    setIsProcessing(true);
     try {
       const imageData = await fileToBase64(file);
       return imageData;
     } catch (error) {
       console.error('Error processing image:', error);
       throw error;
-    } finally {
-      setIsProcessing(false);
     }
   }, [fileToBase64]);
 
   return {
     selectedFile,
     previewUrl,
-    isProcessing,
     handleFileSelect,
     clearFile,
     processImage,

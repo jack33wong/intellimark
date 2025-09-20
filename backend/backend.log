@@ -1,0 +1,13 @@
+
+> intellimark-chat-backend@1.0.0 dev
+> cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
+
+[33m[nodemon] 3.1.10[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: json,json[39m
+[32m[nodemon] starting `tsx --tsconfig tsconfig.dev.json server.ts`[39m
+🔍 [CLASSIFICATION] isQuestionOnly: true, reasoning: The image contains a physics problem with given information and a question to solve. There is no stu...
+🔍 [CLASSIFICATION] Full reasoning: The image contains a physics problem with given information and a question to solve. There is no student work or answers present.
+🔍 [CLASSIFICATION] Extracted text: Given that the particle is passing through A with a speed of 10 ms^{-1}, use work and energy considerations to find the speed of the particle as it passes through B....
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

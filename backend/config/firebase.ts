@@ -26,14 +26,12 @@ const initializeFirebase = (): boolean => {
   try {
     // Check if already initialized
     if (isInitialized && firebaseAdmin) {
-      console.log('✅ Firebase Admin already initialized');
       return true;
     }
 
     // Check if any Firebase app exists
     if (admin.apps.length > 0) {
       firebaseAdmin = admin.apps[0];
-      console.log('✅ Using existing Firebase Admin app');
     } else {
       // Try multiple possible paths for the service account file
       const possiblePaths = [
@@ -51,13 +49,11 @@ const initializeFirebase = (): boolean => {
       }
       
       try {
-        console.log('✅ Service account file found, initializing Firebase...');
         
         firebaseAdmin = admin.initializeApp({
           credential: admin.credential.cert(serviceAccountPath),
           storageBucket: 'intellimark-6649e.appspot.com'
         });
-        console.log('✅ Firebase Admin initialized successfully with service account');
         isInitialized = true;
       } catch (error) {
         console.warn('⚠️ Firebase Admin initialization failed with service account');
@@ -77,9 +73,12 @@ const initializeFirebase = (): boolean => {
     if (firebaseAdmin) {
       try {
         firestoreDb = admin.firestore(firebaseAdmin);
+        // Configure Firestore to ignore undefined properties
+        firestoreDb.settings({
+          ignoreUndefinedProperties: true
+        });
         firebaseAuth = admin.auth(firebaseAdmin);
         isInitialized = true;
-        console.log('✅ Firebase services initialized successfully');
       } catch (error) {
         console.error('❌ Firebase services initialization failed:', error);
         firebaseAdmin = null;

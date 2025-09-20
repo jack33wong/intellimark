@@ -13,6 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
 import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
+import { isOriginalImageMessage, isAnnotatedImageMessage } from '../../utils/sessionUtils';
 import './Sidebar.css';
 
 /**
@@ -230,7 +231,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
         const contentStr = ensureStringContent(lastMsg.content);
         const truncated = contentStr.length > 20 ? contentStr.substring(0, 20) + '...' : contentStr;
         
-        const hasImage = lastMsg.hasImage || lastMsg.type === 'marking_original' || lastMsg.type === 'question_original' || lastMsg.type === 'marking_annotated';
+        const hasImage = lastMsg.hasImage || isOriginalImageMessage(lastMsg) || isAnnotatedImageMessage(lastMsg);
         if (hasImage) {
           return `📷 ${truncated}`;
         }

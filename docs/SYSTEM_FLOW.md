@@ -44,45 +44,50 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### **3. Homework Marking Flow**
+### **3. Consolidated Homework Marking Flow**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    HOMEWORK MARKING FLOW                        │
+│                CONSOLIDATED HOMEWORK MARKING FLOW              │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      UPLOAD MODE                                │
+│                    PHASE 1: UPLOAD & USER MESSAGE               │
 │  ┌─────────────────────────────────────────────────────────────┐ │
 │  │ 1. User selects image file                                  │ │
-│  │ 2. Preview image displayed                                  │ │
-│  │ 3. Select AI model (GPT-4, GPT-5, Gemini)                  │ │
-│  │ 4. Click "Analyze" button                                   │ │
+│  │ 2. Image preview displayed immediately (base64)             │ │
+│  │ 3. User clicks send button                                  │ │
+│  │ 4. State set to PROCESSING (send button disabled)          │ │
+│  │ 5. Switch to chat mode (input bar moves to bottom)         │ │
+│  │ 6. User message displayed with image                        │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    BACKEND PROCESSING                           │
+│                    PHASE 2: AI PROCESSING                       │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ 1. Image Classification (Question vs Q&A)                   │ │
-│  │ 2. OCR Processing (Google Vision + Mathpix)                │ │
-│  │ 3. Question Detection (Exam metadata extraction)           │ │
-│  │ 4. AI Marking Instructions Generation                       │ │
-│  │ 5. SVG Annotation Overlay Creation                         │ │
-│  │ 6. Session Creation & Message Storage                      │ │
+│  │ 1. AI thinking animation displayed                          │ │
+│  │ 2. Backend API Phase 1: /mark-homework/upload              │ │
+│  │    • Image Classification (Question vs Q&A)                │ │
+│  │    • OCR Processing (Google Vision + Mathpix)              │ │
+│  │    • Question Detection (Exam metadata extraction)         │ │
+│  │ 3. Backend API Phase 2: /mark-homework/process             │ │
+│  │    • AI Marking Instructions Generation                    │ │
+│  │    • SVG Annotation Overlay Creation                       │ │
+│  │    • Session Creation & Message Storage                    │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      CHAT MODE                                  │
+│                    PHASE 3: COMPLETE                           │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ 1. Display original image with metadata                    │ │
-│  │ 2. Display annotated image with feedback                   │ │
-│  │ 3. Enable follow-up chat functionality                     │ │
-│  │ 4. Save session to chat history                            │ │
+│  │ 1. AI response displayed with annotated image              │ │
+│  │ 2. State reset to IDLE (send button re-enabled)           │ │
+│  │ 3. Session saved to chat history                           │ │
+│  │ 4. Ready for follow-up questions or new upload             │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -203,10 +208,19 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                      API ENDPOINTS                              │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │ /api/mark-homework (POST)                                  │ │
-│  │   • Image upload and processing                            │ │
+│  │ /api/mark-homework/upload (POST)                           │ │
+│  │   • Phase 1: Image upload and initial processing           │ │
 │  │   • AI classification and OCR                              │ │
-│  │   • Session creation                                       │ │
+│  │   • Returns user message with imageData                    │ │
+│  │                                                             │ │
+│  │ /api/mark-homework/process (POST)                          │ │
+│  │   • Phase 2: AI processing and response generation         │ │
+│  │   • Marking instructions and annotations                   │ │
+│  │   • Returns AI message with annotated image                │ │
+│  │                                                             │ │
+│  │ /api/messages/session/:sessionId (GET)                     │ │
+│  │   • Get specific session data                              │ │
+│  │   • Include full message history                           │ │
 │  │                                                             │ │
 │  │ /api/chat/ (POST)                                          │ │
 │  │   • Send messages to sessions                              │ │
@@ -216,10 +230,6 @@
 │  │ /api/chat/sessions/:userId (GET)                           │ │
 │  │   • Retrieve user sessions                                 │ │
 │  │   • Support anonymous users                                │ │
-│  │                                                             │ │
-│  │ /api/chat/session/:sessionId (GET)                         │ │
-│  │   • Get specific session data                              │ │
-│  │   • Include full message history                           │ │
 │  └─────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -328,16 +338,21 @@
 ### **Frontend Components:**
 - **React Router**: Navigation and routing
 - **AuthContext**: Authentication state management
-- **MarkHomeworkPage**: Main upload and chat interface
+- **MarkHomeworkPageConsolidated**: Main upload and chat interface
+- **useMarkHomework**: Consolidated state management hook
+- **FollowUpChatInput**: Dynamic chat input component
+- **MainLayout**: Layout orchestrator
 - **Sidebar**: Navigation and chat history
 - **ProtectedRoute**: Authentication guards
 
 ### **Backend Services:**
-- **ChatSessionManager**: Session lifecycle management
+- **MarkHomeworkWithAnswer**: Core homework processing service
+- **ClassificationService**: Image classification
+- **QuestionDetectionService**: Exam metadata extraction
+- **HybridOCRService**: OCR processing
+- **ImageAnnotationService**: SVG overlay generation
+- **LLMOrchestrator**: AI model coordination
 - **FirestoreService**: Database operations
-- **AIMarkingService**: AI integration
-- **ImageStorageService**: File handling
-- **SVGOverlayService**: Annotation generation
 
 ### **External Integrations:**
 - **Firebase**: Authentication and database
@@ -346,4 +361,25 @@
 - **Mathpix**: Mathematical OCR
 - **Stripe**: Payment processing
 
-This flow diagram represents the current working state of the IntelliMark application after the recent fixes.
+This flow diagram represents the current consolidated state of the IntelliMark application after significant refactoring to eliminate over-engineering and state management complexity. The system now follows a clean, single-source-of-truth architecture with unified handlers and simplified state flow.
+
+## 🎯 **Key Architectural Improvements:**
+
+### **✅ Consolidated Design:**
+- **Single Source of Truth**: All state managed by `useMarkHomework` hook
+- **Unified Image Handler**: Single `handleImageAnalysis` function for all uploads
+- **Simplified State Flow**: 4-state system (`idle`, `processing`, `complete`, `error`)
+- **Fail-Fast Error Handling**: No silent failures, immediate error reporting
+- **Consistent User Experience**: Identical behavior for authenticated and unauthenticated users
+
+### **🔄 Data Flow:**
+1. **Upload** → **Process** → **Display** → **Chat** → **Persist**
+2. **Anonymous/Authenticated** → **Session Creation** → **Message Handling** → **AI Response**
+3. **In-Memory Cache** → **Batch Persistence** → **Firestore Storage**
+
+### **📋 Technical Architecture:**
+- **Frontend**: React 18 with consolidated hooks and components
+- **Backend**: Node.js/TypeScript with microservice architecture
+- **State Management**: Single `useMarkHomework` hook
+- **API Design**: RESTful endpoints with clear separation of concerns
+- **Error Handling**: Fail-fast principles with user-friendly messages

@@ -19,7 +19,7 @@ const router = Router();
  */
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { imageData, model = 'chatgpt-4o', sessionId = null, isFollowUp = false } = req.body;
+    const { imageData, model = 'gemini-2.5-pro', sessionId = null, isFollowUp = false } = req.body;
     
     if (!imageData) {
       return res.status(400).json({
@@ -32,12 +32,6 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
 
-    console.log('🔍 Unified processing request:', {
-      userId,
-      isAuthenticated,
-      isFollowUp,
-      hasSessionId: !!sessionId
-    });
 
     // Process image for AI analysis
     const result = await MarkHomeworkWithAnswer.run({
@@ -100,16 +94,14 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         } else {
           // Create new session
           await FirestoreService.createUnifiedSessionWithMessages({
-            id: finalSessionId,
+            sessionId: finalSessionId,
             title: result.isPastPaper 
-              ? result.title 
+              ? `Past Paper - ${result.classification?.extractedQuestionText?.substring(0, 20) || 'Question'}`
               : `${result.isQuestionOnly ? 'Question' : 'Marking'} ${result.classification?.extractedQuestionText?.substring(0, 20) || new Date().toLocaleDateString()}`,
             userId,
-            userEmail,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isPastPaper: result.isPastPaper || false,
-            messages: [userMessage]
+            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messages: [userMessage],
+            isPastPaper: result.isPastPaper || false
           });
         }
       } catch (error) {
@@ -145,7 +137,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
  */
 router.post('/ai', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { imageData, sessionId, model = 'chatgpt-4o' } = req.body;
+    const { imageData, sessionId, model = 'gemini-2.5-pro' } = req.body;
     
     if (!imageData || !sessionId) {
       return res.status(400).json({
@@ -195,7 +187,6 @@ router.post('/ai', optionalAuth, async (req: Request, res: Response) => {
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
-        modelUsed: result.metadata?.modelUsed || model,
         apiUsed: result.apiUsed,
         ocrMethod: result.ocrMethod
       }

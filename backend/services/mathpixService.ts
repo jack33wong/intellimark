@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import { getDebugMode } from '../config/aiModels';
 
 export interface MathpixResult {
   latex_styled?: string;
@@ -89,6 +90,19 @@ export class MathpixService {
   ): Promise<MathpixResult> {
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     
+    // Check debug mode - return mock response if enabled
+    const debugMode = getDebugMode();
+    if (debugMode.enabled) {
+      
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+      
+      return {
+        latex_styled: 'Debug mode: Mock LaTeX expression',
+        confidence: 0.95
+      };
+    }
+    
     if (!this.isAvailable()) {
       return {
         error: 'Mathpix service not available. Please configure credentials.'
@@ -115,7 +129,6 @@ export class MathpixService {
 
     try {
       const data = await this.postWithBackoff(body, headers);
-      //console.log('✅ Mathpix API response received');
       return data;
     } catch (error: any) {
       console.error('❌ Mathpix API Error:', error.response?.data || error.message);

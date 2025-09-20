@@ -555,7 +555,6 @@ export class ChatSessionManager {
    */
   removeSessionFromCache(sessionId: string): void {
     this.activeSessions.delete(sessionId);
-    console.log(`🗑️ ChatSessionManager: Removed session ${sessionId} from cache`);
   }
 
   /**
@@ -572,7 +571,6 @@ export class ChatSessionManager {
       this.activeSessions.delete(sessionId);
     });
     
-    console.log(`🗑️ ChatSessionManager: Cleared ${sessionsToRemove.length} sessions from cache for user ${userId}`);
   }
 
   /**
@@ -581,7 +579,6 @@ export class ChatSessionManager {
   clearAllSessionsFromCache(): void {
     const count = this.activeSessions.size;
     this.activeSessions.clear();
-    console.log(`🗑️ ChatSessionManager: Cleared all ${count} sessions from cache`);
   }
 
   /**

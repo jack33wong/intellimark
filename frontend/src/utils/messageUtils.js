@@ -144,7 +144,7 @@ export const getMessagePreview = (message, maxLength = 50) => {
     return 'No message content';
   }
 
-  const content = message.content.trim();
+  const content = (message.content || '').trim();
   if (content.length <= maxLength) {
     return content;
   }

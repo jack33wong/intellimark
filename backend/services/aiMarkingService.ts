@@ -3,6 +3,8 @@
  * Handles AI-powered homework marking with image classification and annotation generation
  */
 
+import * as path from 'path';
+
 // Define types inline to avoid import issues
 interface SimpleImageClassification {
   isQuestionOnly: boolean;
@@ -319,56 +321,91 @@ Summary:`;
     userPrompt: string
   ): Promise<{ response: string; apiUsed: string }> {
     try {
-      const apiKey = process.env['GEMINI_API_KEY'];
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
-      }
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: systemPrompt },
-              { text: userPrompt },
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: imageData.split(',')[1]
-                }
-              }
-            ]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000,
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
-      }
-
+      const accessToken = await this.getGeminiAccessToken();
+      const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt);
       const result = await response.json() as any;
-      const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      const content = this.extractGeminiChatContent(result);
       
-      if (!content) {
-        throw new Error('No content in Gemini response');
-      }
-
       return {
         response: content,
-        apiUsed: 'Google Gemini 2.0 Flash Exp'
+        apiUsed: 'Google Gemini 2.0 Flash Exp (Service Account)'
       };
-
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
       throw error;
     }
+  }
+
+  private static async getGeminiAccessToken(): Promise<string> {
+    const { GoogleAuth } = await import('google-auth-library');
+    
+    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
+    
+    const auth = new GoogleAuth({
+      keyFile,
+      scopes: [
+        'https://www.googleapis.com/auth/cloud-platform',
+        'https://www.googleapis.com/auth/generative-language.retriever'
+      ]
+    });
+    
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+    
+    if (!accessToken.token) {
+      throw new Error('Failed to get access token from service account');
+    }
+    
+    return accessToken.token;
+  }
+
+  private static async makeGeminiChatRequest(
+    accessToken: string,
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<Response> {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userPrompt },
+            {
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: imageData.split(',')[1]
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1000,
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response;
+  }
+
+  private static extractGeminiChatContent(result: any): string {
+    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!content) {
+      throw new Error('No content in Gemini response');
+    }
+
+    return content;
   }
 
   /**

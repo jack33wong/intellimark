@@ -67,8 +67,6 @@ export class ImageStorageService {
             .toBuffer();
           
           compressionApplied = true;
-          console.log(`📊 Compressed image size: ${getFileSizeMB(processedBuffer).toFixed(2)}MB`);
-          console.log(`📊 Compression ratio: ${((1 - processedBuffer.length / originalBuffer.length) * 100).toFixed(1)}%`);
         } catch (compressionError) {
           console.warn(`⚠️ Compression failed, using original image:`, compressionError);
           processedBuffer = originalBuffer;
@@ -105,7 +103,6 @@ export class ImageStorageService {
         expires: '03-01-2500' // Far future date
       }).then(urls => urls[0]);
       
-      console.log(`📊 Final size: ${getFileSizeMB(processedBuffer).toFixed(2)}MB`);
       
       return downloadURL;
     } catch (error) {
@@ -146,7 +143,6 @@ export class ImageStorageService {
                          'image/jpeg'; // default
       
       const dataURL = `data:${contentType};base64,${base64Data}`;
-      console.log('✅ Image downloaded and converted to base64 data URL');
       
       return dataURL;
     } catch (error) {
@@ -169,19 +165,16 @@ export class ImageStorageService {
       const [files] = await bucket.getFiles({ prefix });
       
       if (files.length === 0) {
-        console.log('ℹ️ No images found for session:', sessionId);
         return;
       }
       
       // Delete each file
       const deletePromises = files.map(file => {
-        console.log(`🗑️ Deleting image: ${file.name}`);
         return file.delete();
       });
       
       await Promise.all(deletePromises);
       
-      console.log(`✅ Deleted ${files.length} images for session:`, sessionId);
     } catch (error) {
       console.error('❌ Failed to delete session images:', error);
       // Don't throw - cleanup should not fail the main operation
@@ -202,19 +195,16 @@ export class ImageStorageService {
       const [files] = await bucket.getFiles({ prefix });
       
       if (files.length === 0) {
-        console.log('ℹ️ No images found for user:', userId);
         return;
       }
       
       // Delete each file
       const deletePromises = files.map(file => {
-        console.log(`🗑️ Deleting image: ${file.name}`);
         return file.delete();
       });
       
       await Promise.all(deletePromises);
       
-      console.log(`✅ Deleted ${files.length} images for user: ${userId}`);
     } catch (error) {
       console.error('❌ Failed to delete user images:', error);
     }

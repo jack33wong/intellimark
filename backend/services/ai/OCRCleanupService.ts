@@ -126,9 +126,6 @@ export class OCRCleanupService {
 
     Please provide the cleaned, structured version:`;
 
-    console.log('🧹 ===== OCR CLEANUP SERVICE =====');
-    console.log('🔍 SYSTEM PROMPT:', systemPrompt);
-    console.log('🔍 USER PROMPT:', userPrompt);
     
     let responseText: string;
     let usageTokens = 0;
@@ -145,7 +142,6 @@ export class OCRCleanupService {
       usageTokens = res.usageTokens;
     }
 
-    console.log('✅ OCR Cleanup Response:', responseText);
     return { cleanedText: responseText, usageTokens };
   }
 }

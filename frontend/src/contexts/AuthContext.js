@@ -4,6 +4,8 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../config/firebase';
 
 const AuthContext = createContext();
 
@@ -42,6 +44,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
         return;
       }
+
 
       // Verify token with backend
       const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
@@ -101,6 +104,96 @@ export const AuthProvider = ({ children }) => {
         throw new Error(data.message || 'Social login failed');
       }
     } catch (error) {
+      setError(error.message);
+      return { success: false, message: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Email and password signup
+   */
+  const emailPasswordSignup = async (email, password, fullName) => {
+    try {
+      setError(null);
+      setLoading(true);
+
+
+      // Use the correct backend API URL
+      const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+      
+      const response = await fetch(`${API_BASE}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password, fullName })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Use real Firebase authentication
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const idToken = await userCredential.user.getIdToken();
+        
+        localStorage.setItem('authToken', idToken);
+        
+        
+        // Set user data
+        setUser(data.user);
+        return { success: true, message: data.message };
+      } else {
+        throw new Error(data.message || 'Signup failed');
+      }
+    } catch (error) {
+      console.error(`🔍 [${new Date().toISOString()}] AuthContext: Signup failed:`, error);
+      setError(error.message);
+      return { success: false, message: error.message };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Email and password signin
+   */
+  const emailPasswordSignin = async (email, password) => {
+    try {
+      setError(null);
+      setLoading(true);
+
+
+      // Use the correct backend API URL
+      const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+      
+      const response = await fetch(`${API_BASE}/api/auth/signin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Use real Firebase authentication
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const idToken = await userCredential.user.getIdToken();
+        
+        localStorage.setItem('authToken', idToken);
+        
+        
+        // Set user data
+        setUser(data.user);
+        return { success: true, message: data.message };
+      } else {
+        throw new Error(data.message || 'Signin failed');
+      }
+    } catch (error) {
+      console.error(`🔍 [${new Date().toISOString()}] AuthContext: Signin failed:`, error);
       setError(error.message);
       return { success: false, message: error.message };
     } finally {
@@ -285,6 +378,8 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     socialLogin,
+    emailPasswordSignup,
+    emailPasswordSignin,
     getProviders,
     logout,
     updateProfile,

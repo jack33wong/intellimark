@@ -1,0 +1,29 @@
+{
+  "name": "intellimark-frontend-tests",
+  "version": "1.0.0",
+  "description": "Frontend test suite for IntelliMark application",
+  "main": "run-tests.js",
+  "scripts": {
+    "test": "node run-tests.js",
+    "test:auth": "node run-tests.js auth",
+    "test:core": "node run-tests.js core",
+    "test:database": "node run-tests.js database",
+    "test:session": "node run-tests.js session",
+    "test:debug": "node run-tests.js debug",
+    "test:page": "node run-tests.js page",
+    "test:state": "node run-tests.js state"
+  },
+  "dependencies": {
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "testing",
+    "puppeteer",
+    "frontend",
+    "intellimark"
+  ],
+  "author": "IntelliMark Team",
+  "license": "MIT"
+}
+
