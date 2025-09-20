@@ -24,6 +24,7 @@ export const useMarkHomework = () => {
   const [state, setState] = useState({
     // Processing state
     processingState: PROCESSING_STATE.IDLE,
+    isAIThinking: false,
     
     // Session data
     currentSession: null,
@@ -44,6 +45,7 @@ export const useMarkHomework = () => {
   const isProcessing = state.processingState === PROCESSING_STATE.PROCESSING;
   const isComplete = state.processingState === PROCESSING_STATE.COMPLETE;
   const isError = state.processingState === PROCESSING_STATE.ERROR;
+  const isAIThinking = state.isAIThinking;
   
 
   // Initialize session service
@@ -87,8 +89,18 @@ export const useMarkHomework = () => {
     setState(prev => ({
       ...prev,
       processingState: PROCESSING_STATE.IDLE,
+      isAIThinking: false,
       error: null
     }));
+  }, []);
+
+  // AI thinking state control
+  const startAIThinking = useCallback(() => {
+    setState(prev => ({ ...prev, isAIThinking: true }));
+  }, []);
+
+  const stopAIThinking = useCallback(() => {
+    setState(prev => ({ ...prev, isAIThinking: false }));
   }, []);
 
   const setPageMode = useCallback((mode) => {
@@ -141,6 +153,7 @@ export const useMarkHomework = () => {
     isProcessing,
     isComplete,
     isError,
+    isAIThinking,
     
     // Actions - simplified
     startProcessing,
@@ -148,6 +161,8 @@ export const useMarkHomework = () => {
     reset,
     setPageMode,
     handleError,
+    startAIThinking,
+    stopAIThinking,
     
     // Session management
     clearSession,

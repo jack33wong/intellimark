@@ -161,7 +161,35 @@
 
 /* Content image and annotated image styles are defined in ChatInterface.css */
 
-/* Annotated image styles are defined in ChatInterface.css */
+/* Homework annotated image styles */
+.homework-annotated-image {
+  margin: 8px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 500px;
+  max-height: 500px;
+}
+
+.homework-annotated-image img {
+  width: 100%;
+  height: auto;
+  max-width: 500px;
+  max-height: 500px;
+  display: block;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Align annotated images to the right for user messages */
+.chat-message.user .homework-annotated-image {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* Add left padding for assistant annotated images */
+.chat-message.assistant .homework-annotated-image {
+  padding-left: 25px;
+}
 
 .chat-message-image-error {
   padding: 12px;

@@ -11,18 +11,13 @@ import { ModelSelector, SendButton } from '../focused';
 import './FollowUpChatInput.css';
 
 const FollowUpChatInput = ({
-  chatInput,
-  setChatInput,
   selectedModel,
-  setSelectedModel,
   isProcessing,
-  onSendMessage,
   onAnalyzeImage,
   onFollowUpImage,
-  onKeyPress,
   onUploadClick,
   clearPreview,
-  currentSession // Add currentSession to detect if this is follow-up
+  currentSession
 }) => {
   const [previewImage, setPreviewImage] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -34,10 +29,13 @@ const FollowUpChatInput = ({
   const handleFileChange = useCallback((e) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      setPreviewImage(previewUrl);
-      setIsExpanded(true);
+      // Convert file to base64 data URL instead of blob URL
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPreviewImage(reader.result); // This is a data URL, not a blob URL
+        setIsExpanded(true);
+      };
+      reader.readAsDataURL(file);
       
       // Call the parent handler
       onUploadClick(file);
@@ -48,32 +46,28 @@ const FollowUpChatInput = ({
   }, [onUploadClick]);
 
   const handleModelSelect = useCallback((model) => {
-    setSelectedModel(model);
-  }, [setSelectedModel]);
+    // No-op since model is hardcoded to 'auto'
+  }, []);
 
   // Clear preview image
   const clearPreviewInternal = useCallback(() => {
-    if (previewImage) {
-      URL.revokeObjectURL(previewImage);
-      setPreviewImage(null);
-    }
+    setPreviewImage(null);
     setIsExpanded(false);
-  }, [previewImage]);
+  }, []);
 
   // Pass the clearPreview function to parent
   useEffect(() => {
     if (clearPreview) {
       clearPreview(clearPreviewInternal);
     }
-  }, [clearPreview]); // Only run when clearPreview prop changes
+  }, [clearPreview, clearPreviewInternal]); // Include clearPreviewInternal in dependencies
+
+  // No cleanup needed for data URLs
 
   const removePreview = useCallback(() => {
-    if (previewImage) {
-      URL.revokeObjectURL(previewImage);
-      setPreviewImage(null);
-      setIsExpanded(false);
-    }
-  }, [previewImage]);
+    setPreviewImage(null);
+    setIsExpanded(false);
+  }, []);
 
   const handleSendClick = useCallback(() => {
     // If there's an image preview, determine if this is initial or follow-up upload
@@ -103,9 +97,9 @@ const FollowUpChatInput = ({
         }
       }
     } else {
-      // If no image, call regular send message API
-      if (onSendMessage && chatInput.trim()) {
-        onSendMessage();
+      // If no image, call analyze image (which will show error for no file)
+      if (onAnalyzeImage) {
+        onAnalyzeImage();
       }
     }
     
@@ -115,7 +109,7 @@ const FollowUpChatInput = ({
       URL.revokeObjectURL(previewImage);
       setPreviewImage(null);
     }
-  }, [onSendMessage, onAnalyzeImage, onFollowUpImage, previewImage, currentSession]);
+  }, [onAnalyzeImage, onFollowUpImage, previewImage, currentSession]);
 
 
   
@@ -149,11 +143,9 @@ const FollowUpChatInput = ({
           <div className="followup-text-wrapper">
             <textarea
               placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={onKeyPress}
               disabled={isProcessing}
               className="followup-text-input"
+              readOnly
             />
           </div>
 
@@ -183,9 +175,9 @@ const FollowUpChatInput = ({
             {/* Right Side - Send Button */}
             <SendButton
               onClick={handleSendClick}
-              disabled={isProcessing || (!(chatInput || '').trim() && !previewImage)}
+              disabled={isProcessing || !previewImage}
               loading={isProcessing}
-              variant={((chatInput || '').trim() || previewImage) ? 'success' : 'primary'}
+              variant={previewImage ? 'success' : 'primary'}
               size="small"
             />
           </div>

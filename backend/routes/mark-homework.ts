@@ -358,12 +358,18 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Process the image for AI response (includes classification + marking)
-    const result = await MarkHomeworkWithAnswer.run({
-      imageData,
-      model,
-      userId,
-      userEmail
-    }) as any;
+    // Add timeout to prevent hanging
+    const result = await Promise.race([
+      MarkHomeworkWithAnswer.run({
+        imageData,
+        model,
+        userId,
+        userEmail
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
+      )
+    ]) as any;
 
     // Upload annotated image to Firebase Storage if it's a marking result
     let annotatedImageLink;
@@ -439,47 +445,21 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           timestamp: aiTimestamp
         };
 
-        if (isFollowUp) {
-          // Try to add messages to existing session, create new session if it doesn't exist
-          try {
-            await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
-            await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
-            console.log(`✅ [SINGLE-PHASE] Added follow-up messages to existing session ${sessionId} for user ${userId}`);
-          } catch (error) {
-            console.log(`⚠️ [SINGLE-PHASE] Session ${sessionId} not found, creating new session instead`);
-            // Create new session with both user and AI messages
-            await FirestoreService.createUnifiedSessionWithMessages({
-              sessionId: sessionId,
-              title: 'Marking Session',
-              userId: userId,
-              messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-              messages: [dbUserMessage, dbAiMessage],
-              isPastPaper: result.isPastPaper || false,
-              sessionMetadata: {
-                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-                lastModelUsed: model,
-                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
-              }
-            });
-            console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
+        // Single-phase: Always create new session immediately (no retry needed)
+        await FirestoreService.createUnifiedSessionWithMessages({
+          sessionId: sessionId,
+          title: 'Marking Session',
+          userId: userId,
+          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+          messages: [dbUserMessage, dbAiMessage],
+          isPastPaper: result.isPastPaper || false,
+          sessionMetadata: {
+            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+            lastModelUsed: model,
+            lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
           }
-        } else {
-          // Create new session with both user and AI messages
-          await FirestoreService.createUnifiedSessionWithMessages({
-            sessionId: sessionId,
-            title: 'Marking Session',
-            userId: userId,
-            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-            messages: [dbUserMessage, dbAiMessage],
-            isPastPaper: result.isPastPaper || false,
-            sessionMetadata: {
-              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastModelUsed: model,
-              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
-            }
-          });
-          console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
-        }
+        });
+        console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
         
       } catch (error) {
         console.error('❌ [SINGLE-PHASE] Failed to persist to database:', error);

@@ -11,10 +11,8 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { useMarkHomework } from '../../hooks/useMarkHomework';
-import { useSubscriptionDelay } from '../../hooks/useSubscriptionDelay';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import MainLayout from './MainLayout';
-import { ensureStringContent } from '../../utils/contentUtils';
 
 const MarkHomeworkPageConsolidated = ({
   selectedMarkingResult,
@@ -30,7 +28,6 @@ const MarkHomeworkPageConsolidated = ({
   // Image upload state
   const {
     selectedFile,
-    previewUrl,
     processImage,
     clearFile,
     handleFileSelect
@@ -49,15 +46,15 @@ const MarkHomeworkPageConsolidated = ({
     error,
     
     // Computed properties - simplified
-    isIdle,
     isProcessing,
-    isComplete,
-    isError,
+    isAIThinking,
     
     // Actions - simplified
     startProcessing,
     completeProcessing,
     reset,
+    startAIThinking,
+    stopAIThinking,
     setPageMode,
     handleError,
     
@@ -127,14 +124,7 @@ const MarkHomeworkPageConsolidated = ({
         container.removeEventListener('scroll', handleScrollEvent);
       };
     }
-  }, [chatContainerRef, handleScroll]);
-  
-  // Subscription delay state
-  const {
-    isDelayed,
-    delayRemaining,
-    checkSubscriptionDelay
-  } = useSubscriptionDelay();
+  }, [chatContainerRef, handleScroll, chatMessages.length]);
 
 
   // ============================================================================
@@ -167,10 +157,7 @@ const MarkHomeworkPageConsolidated = ({
       // 1. Set state to PROCESSING
       startProcessing();
       
-      // 2. Switch to chat mode (upload area moves to bottom)
-      setPageMode('chat');
-      
-      // 3. Convert image to base64 and show image immediately
+      // 2. Convert image to base64 and show image immediately
       const imageData = await processImage(targetFile);
       
       // 4. Determine if this is initial upload or follow-up
@@ -196,12 +183,21 @@ const MarkHomeworkPageConsolidated = ({
       // PHASE 2: AI Processing (??? ms)
       // ========================================
       
-      // 6. Call API (this will show AI thinking animation)
+      // 6. Switch to chat mode to show AI thinking animation
+      setPageMode('chat');
+      
+      // 7. Start AI thinking animation
+      startAIThinking();
+      
+      // 8. Call API (this will show AI thinking animation)
       // Backend processes image and creates session
       // Backend generates marking instructions
       // Creates annotated image
       // AI response appears in chat
       await processImageAPI(imageData, 'auto', 'marking');
+      
+      // 9. Stop AI thinking animation
+      stopAIThinking();
       
       // ========================================
       // PHASE 3: Complete
@@ -219,22 +215,13 @@ const MarkHomeworkPageConsolidated = ({
       
     } catch (error) {
       console.error('❌ Error in image analysis:', error);
+      stopAIThinking(); // Stop AI thinking on error
       handleError(error);
     }
-  }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, reset, handleError, handleClearPreview, setPageMode]);
+  }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, reset, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
 
   // Handle follow-up image (legacy compatibility)
   const handleFollowUpImage = useCallback((file) => handleImageAnalysis(file), [handleImageAnalysis]);
-
-  // Handle analyze image (legacy compatibility)
-  const handleAnalyzeImage = useCallback(() => {
-    return handleImageAnalysis();
-  }, [handleImageAnalysis, selectedFile]);
-
-  // Handle send message
-  const sendMessage = useCallback(async (message) => {
-    // For now, just log the message
-  }, []);
 
   // ============================================================================
   // RENDER
@@ -247,7 +234,6 @@ const MarkHomeworkPageConsolidated = ({
       
       // Image upload props
       selectedFile={selectedFile}
-      previewUrl={previewUrl}
       onFileSelect={handleFileSelect}
       onAnalyzeImage={handleImageAnalysis}
       onClearFile={clearFile}
@@ -259,10 +245,8 @@ const MarkHomeworkPageConsolidated = ({
       sessionTitle={sessionTitle}
       isFavorite={isFavorite}
       rating={rating}
-      sidebarSessions={[]}
-      isLoading={false}
       isProcessing={isProcessing}
-      isAIThinking={isProcessing} // Simplified: AI thinking is same as processing
+      isAIThinking={isAIThinking}
       
       // Chat scroll props
       chatContainerRef={chatContainerRef}
@@ -289,11 +273,7 @@ const MarkHomeworkPageConsolidated = ({
       }}
       
       // Follow-up chat props
-      chatInput={''}
-      setChatInput={() => {}}
-      onSendMessage={sendMessage}
       onFollowUpImage={handleFollowUpImage}
-      onKeyPress={() => {}}
       onUploadClick={handleFileSelect}
       onClearPreview={handleClearPreview}
     />

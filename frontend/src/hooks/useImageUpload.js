@@ -7,7 +7,6 @@ import { useState, useCallback } from 'react';
 
 export const useImageUpload = () => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
 
   // Convert file to base64
   const fileToBase64 = useCallback((file) => {
@@ -23,10 +22,6 @@ export const useImageUpload = () => {
   const handleFileSelect = useCallback((file) => {
     if (file && file.type.startsWith('image/')) {
       setSelectedFile(file);
-      
-      // Create preview URL
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
     } else {
       console.warn('Please select a valid image file');
     }
@@ -35,11 +30,7 @@ export const useImageUpload = () => {
   // Clear file selection
   const clearFile = useCallback(() => {
     setSelectedFile(null);
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-  }, [previewUrl]);
+  }, []);
 
 
   // Process image (convert to base64)
@@ -57,7 +48,6 @@ export const useImageUpload = () => {
 
   return {
     selectedFile,
-    previewUrl,
     handleFileSelect,
     clearFile,
     processImage,

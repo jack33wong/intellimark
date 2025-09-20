@@ -210,9 +210,12 @@ class SimpleSessionService {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
       
-      // Add timeout to prevent hanging
+      // Add timeout to prevent hanging - increased for AI processing
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log('⏰ Request timeout after 60 seconds');
+        controller.abort();
+      }, 60000); // 60 second timeout for AI processing
       
       // Prepare request body - only include model if it's not 'auto'
       const requestBody = {
@@ -295,6 +298,17 @@ class SimpleSessionService {
       return newSession;
 
     } catch (error) {
+      console.error('❌ Single-phase processing error:', error);
+      
+      // Handle specific error types
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('Request timed out. The AI processing is taking longer than expected. Please try again.');
+        this.setState({ 
+          error: timeoutError.message,
+        });
+        throw timeoutError;
+      }
+      
       this.setState({ 
         error: error instanceof Error ? error.message : 'Unknown error',
       });

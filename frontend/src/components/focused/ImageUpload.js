@@ -9,8 +9,6 @@ import {
   convertFileToBase64, 
   isImageFile, 
   formatFileSize, 
-  createFilePreviewUrl,
-  revokeFilePreviewUrl,
   FILE_CONSTRAINTS 
 } from '../../utils/fileUtils';
 import { createFileError, createValidationError } from '../../utils/errorUtils';
@@ -55,20 +53,19 @@ const ImageUpload = ({
       // Convert to base64
       const base64 = await convertFileToBase64(file);
       
-      // Create preview URL
+      // Create preview URL using base64 instead of blob URL
+      let previewUrl = null;
       if (showPreview) {
-        const newPreviewUrl = createFilePreviewUrl(file);
-        setPreviewUrl(prev => {
-          if (prev) revokeFilePreviewUrl(prev);
-          return newPreviewUrl;
-        });
+        // Use base64 data URL instead of blob URL to avoid ERR_FILE_NOT_FOUND
+        previewUrl = base64; // base64 is already a data URL from convertFileToBase64
+        setPreviewUrl(previewUrl);
       }
       
       // Notify parent
       onImageSelect?.({
         file,
         base64,
-        previewUrl: showPreview ? createFilePreviewUrl(file) : null
+        previewUrl: previewUrl
       });
       
     } catch (error) {
@@ -117,14 +114,7 @@ const ImageUpload = ({
     }
   }, [disabled]);
 
-  // Cleanup preview URL on unmount
-  React.useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        revokeFilePreviewUrl(previewUrl);
-      }
-    };
-  }, [previewUrl]);
+  // No cleanup needed for data URLs
 
   return (
     <div 

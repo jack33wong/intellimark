@@ -39,8 +39,12 @@ export const useAutoScroll = (messages = []) => {
     
     const container = containerRef.current;
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-    onScrollChange(isNearBottom);
-  }, []);
+    const hasMessages = messages.length > 0;
+    
+    // Show button only if there are messages AND user is not at the bottom
+    const shouldShowButton = hasMessages && !isNearBottom;
+    onScrollChange(shouldShowButton);
+  }, [messages.length]);
 
   return {
     containerRef,
