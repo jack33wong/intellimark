@@ -283,19 +283,43 @@ class SimpleSessionService {
       // Add the AI message from the response
       const aiMessage = data.aiMessage;
       
-      // Create new session with combined messages
-      const newSession = {
-        ...this.state.currentSession,
-        messages: [...existingMessages, aiMessage]
-      };
+      // Check if this is a follow-up message (has existing messages)
+      const isFollowUp = existingMessages.length > 0;
       
-      // Update state with new session
-      this.setState({ 
-        currentSession: newSession,
-      });
-      this.updateSidebarSession(newSession);
-
-      return newSession;
+      if (isFollowUp) {
+        // For follow-up messages, append to existing messages
+        console.log(`🔄 [${new Date().toISOString()}] Adding follow-up AI message to existing session`);
+        const updatedMessages = [...existingMessages, aiMessage];
+        
+        const updatedSession = {
+          ...this.state.currentSession,
+          messages: updatedMessages,
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Update state with updated session
+        this.setState({ 
+          currentSession: updatedSession,
+        });
+        this.updateSidebarSession(updatedSession);
+        
+        return updatedSession;
+      } else {
+        // For initial messages, create new session
+        console.log(`🆕 [${new Date().toISOString()}] Creating new session with AI message`);
+        const newSession = {
+          ...this.state.currentSession,
+          messages: [...existingMessages, aiMessage]
+        };
+        
+        // Update state with new session
+        this.setState({ 
+          currentSession: newSession,
+        });
+        this.updateSidebarSession(newSession);
+        
+        return newSession;
+      }
 
     } catch (error) {
       console.error('❌ Single-phase processing error:', error);
@@ -356,45 +380,6 @@ class SimpleSessionService {
     }
   }
 
-  // Load specific session from database
-  async loadSession(sessionId) {
-    try {
-      if (!this.state.currentSession?.userId) {
-        console.log('No authenticated user, skipping session load');
-        return null;
-      }
-
-      const authToken = await this.getAuthToken();
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/sessions/${sessionId}`, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load session: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.success && data.session) {
-        console.log(`✅ Loaded session ${sessionId} from database`);
-        return this.convertToUnifiedSession(data.session);
-      }
-
-      return null;
-    } catch (error) {
-      console.error('❌ Failed to load session:', error);
-      return null;
-    }
-  }
 
   // New method: Just get AI response without overwriting session
   async getAIResponse(imageData, model = 'auto') {

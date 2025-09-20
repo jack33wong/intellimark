@@ -407,14 +407,16 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       }
     };
 
+    // Determine session ID (needed for response)
+    const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
+    let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    console.log(`🔍 [SINGLE-PHASE] isFollowUp: ${isFollowUp}, sessionId: ${sessionId}`);
+    
     // For authenticated users, persist to database
     if (isAuthenticated) {
       try {
         const { FirestoreService } = await import('../services/firestoreService');
-        
-        // Determine if this is a follow-up message (existing session) or new session
-        const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
-        let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         // Create timestamps to ensure proper order
         const baseTime = Date.now();
@@ -445,21 +447,47 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           timestamp: aiTimestamp
         };
 
-        // Single-phase: Always create new session immediately (no retry needed)
-        await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: sessionId,
-          title: 'Marking Session',
-          userId: userId,
-          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-          messages: [dbUserMessage, dbAiMessage],
-          isPastPaper: result.isPastPaper || false,
-          sessionMetadata: {
-            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            lastModelUsed: model,
-            lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+        if (isFollowUp) {
+          // For follow-up messages, add to existing session
+          try {
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
+            console.log(`✅ [SINGLE-PHASE] Added follow-up messages to existing session ${sessionId} for user ${userId}`);
+          } catch (error) {
+            console.log(`⚠️ [SINGLE-PHASE] Session ${sessionId} not found, creating new session instead`);
+            // Create new session with both user and AI messages
+            await FirestoreService.createUnifiedSessionWithMessages({
+              sessionId: sessionId,
+              title: 'Marking Session',
+              userId: userId,
+              messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+              messages: [dbUserMessage, dbAiMessage],
+              isPastPaper: result.isPastPaper || false,
+              sessionMetadata: {
+                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+                lastModelUsed: model,
+                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+              }
+            });
+            console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
           }
-        });
-        console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
+        } else {
+          // For initial messages, create new session
+          await FirestoreService.createUnifiedSessionWithMessages({
+            sessionId: sessionId,
+            title: 'Marking Session',
+            userId: userId,
+            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messages: [dbUserMessage, dbAiMessage],
+            isPastPaper: result.isPastPaper || false,
+            sessionMetadata: {
+              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+              lastModelUsed: model,
+              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+            }
+          });
+          console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
+        }
         
       } catch (error) {
         console.error('❌ [SINGLE-PHASE] Failed to persist to database:', error);
@@ -467,10 +495,12 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       }
     }
 
-    // Return just the AI message structure
+    // Return the AI message structure with session ID for follow-up messages
+    console.log(`🔍 [SINGLE-PHASE] Returning response with sessionId: ${sessionId}`);
     res.json({
       success: true,
-      aiMessage: aiMessage
+      aiMessage: aiMessage,
+      sessionId: sessionId // Include session ID for follow-up messages
     });
 
   } catch (error) {

@@ -21,6 +21,9 @@
   --theme-text-quaternary: #7a7a7a;
   --logo-color: #dadada;
   --text-shining: #474747;
+
+  /* Chat bubble Background Colors */
+  --chat-user: #383739;
   
   /* Background Colors */
   --background-gray-main: #272728;

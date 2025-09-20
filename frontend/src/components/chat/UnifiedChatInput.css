@@ -1,0 +1,451 @@
+/**
+ * UnifiedChatInput Component Styles
+ * 
+ * Combines styles for both first-time and follow-up chat inputs
+ * Maintains exact same appearance through mode-specific classes
+ */
+
+/* ============================================================================
+   FIRST-TIME MODE STYLES (from ImageUploadInterface.css)
+   ============================================================================ */
+
+/* Upload Main Content Styles */
+.upload-main-content {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.upload-title-section {
+  text-align: left;
+  max-width: 1000px;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  position: relative;
+  margin: 0 auto;
+}
+
+.title-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.upload-title-section h1 {
+  font-size: 48px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 16px 0;
+  line-height: 1.2;
+}
+
+.upload-title-section p {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Base Upload Button Styles */
+.upload-button-base {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Title Upload Button Styles */
+.title-upload-btn {
+  background: #363537;
+  color: var(--text-primary);
+  border: 2px solid var(--text-brand);
+  padding: 20px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+  height: 100%;
+  min-height: 120px;
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.title-upload-btn:hover {
+  background: #404040;
+  border-color: var(--text-brand);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.title-upload-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.2);
+}
+
+/* Main Upload Input Bar Styles */
+.main-upload-input-bar {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  background: transparent;
+  padding: 0;
+  margin: 0 auto;
+  margin-top: 40px;
+  width: 80%;
+}
+
+/* Chat Input Bar for Chat Mode - Position at Bottom, Respecting Sidebar */
+.chat-mode .main-upload-input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 280px; /* Start after sidebar width */
+  right: 0;
+  top: auto;
+  background: var(--background-gray-main);
+  padding: 12px 16px;
+  margin: 0;
+  width: auto;
+  z-index: 100;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile responsive - input bar takes full width when sidebar is hidden */
+@media (max-width: 768px) {
+  .chat-mode .main-upload-input-bar {
+    left: 0; /* Full width on mobile */
+  }
+}
+
+.main-upload-input {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #363537;
+  border-radius: 12px;
+  padding: 8px 8px 0px 8px;
+  position: relative;
+}
+
+/* Model selector and send button row */
+.main-upload-input .model-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 16px 12px;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.main-upload-input .model-selector .left-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.main-upload-input .input-container {
+  width: 100%;
+  position: relative;
+}
+
+/* Main Chat Input Styles */
+.main-chat-input {
+  width: 100%;
+  min-height: 60px;
+  max-height: 120px;
+  padding: 16px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--background-white-main);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.main-chat-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.main-chat-input:focus {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.main-chat-input:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Loading Bar Styles */
+.upload-loading-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(90deg, #8b5cf6, #a855f7, #8b5cf6);
+  background-size: 200% 100%;
+  animation: loading-shimmer 2s infinite;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+.upload-loading-bar.inside-input {
+  position: relative;
+  margin-top: 8px;
+  border-radius: 8px;
+}
+
+.loading-content {
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loading-text {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: white;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+@keyframes loading-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ============================================================================
+   FOLLOW-UP MODE STYLES (from FollowUpChatInput.css)
+   ============================================================================ */
+
+.followup-chat-input-bar {
+  position: fixed;
+  bottom: 0;
+  left: 280px;
+  right: 0;
+  background: var(--background-gray-main);
+  padding: 12px 16px;
+  z-index: 100;
+}
+
+.followup-chat-input-bar.expanded {
+  z-index: 1000;
+}
+
+.followup-input-wrapper {
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.followup-single-line-container {
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  background: #363537;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}
+
+.followup-single-line-container.expanded {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px;
+  min-height: 180px;
+  margin-top: -80px;
+  z-index: 1000;
+  position: relative;
+}
+
+/* Preview Section - Above controls when expanded */
+.followup-preview-section {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+.followup-image-preview {
+  position: relative;
+  display: inline-block;
+}
+
+.followup-preview-image {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid var(--text-brand);
+}
+
+.followup-remove-preview {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.followup-remove-preview:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Controls Row - Text area on top, buttons below */
+.followup-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Buttons Row - Upload, Model, Send buttons under text area */
+.followup-buttons-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Left Side - Upload and Model buttons */
+.followup-left-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.followup-single-line-container:focus-within {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+/* Upload Button */
+.followup-chat-input-bar .followup-upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  background: #6b7280;
+  border: none;
+  border-radius: 50%;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.followup-chat-input-bar .followup-upload-button:hover:not(:disabled) {
+  background: #4b5563;
+  transform: scale(1.05);
+}
+
+.followup-chat-input-bar .followup-upload-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.followup-chat-input-bar .followup-upload-button:disabled {
+  background: #374151;
+  color: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Text Input */
+.followup-text-wrapper {
+  width: 100%;
+  position: relative;
+}
+
+.followup-text-input {
+  width: 100%;
+  min-height: 40px;
+  max-height: 100px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--background-white-main);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.followup-text-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.followup-text-input:focus {
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+}
+
+.followup-text-input:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Mobile responsive - follow-up input bar takes full width when sidebar is hidden */
+@media (max-width: 768px) {
+  .followup-chat-input-bar {
+    left: 0; /* Full width on mobile */
+  }
+}

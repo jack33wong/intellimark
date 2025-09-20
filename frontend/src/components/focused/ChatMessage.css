@@ -76,7 +76,7 @@
 }
 
 .chat-message.user .chat-message-bubble {
-  background: linear-gradient(135deg, var(--text-brand), #9f7aea);
+  background:  var(--chat-user) ;
   color: white;
   border-bottom-right-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);

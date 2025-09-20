@@ -164,7 +164,7 @@ const MarkHomeworkPageConsolidated = ({
       const isInitialUpload = !file; // If no file parameter, it's initial upload
       
       // 5. Show user message immediately ONLY for initial uploads
-      // For follow-up messages, the backend will handle user message creation
+      // For follow-up messages, the backend will handle user message creation to avoid duplicates
       if (isInitialUpload) {
         const userMessage = {
           id: `user-${Date.now()}`,
