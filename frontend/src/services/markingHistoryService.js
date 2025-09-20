@@ -110,14 +110,6 @@ class MarkingHistoryService {
     }
   }
 
-  /**
-   * Legacy method for backward compatibility - now uses sessions
-   * @deprecated Use getMarkingHistoryFromSessions instead
-   */
-  static async getUserMarkingHistory(userId, limit = 50, authToken = null) {
-    console.warn('getUserMarkingHistory is deprecated. Use getMarkingHistoryFromSessions instead.');
-    return this.getMarkingHistoryFromSessions(userId, limit, authToken);
-  }
 
   /**
    * Delete a chat session
@@ -164,15 +156,6 @@ class MarkingHistoryService {
     }
   }
 
-  /**
-   * Legacy method for backward compatibility - now uses sessions
-   * @deprecated Use getMarkingMessagesFromSession instead
-   */
-  static async getMarkingResult(resultId, authToken = null) {
-    console.warn('getMarkingResult is deprecated. Use getMarkingMessagesFromSession instead.');
-    // For backward compatibility, treat resultId as sessionId
-    return this.getMarkingMessagesFromSession(resultId, authToken);
-  }
 
   /**
    * Extract question text from marking message for display

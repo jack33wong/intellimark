@@ -360,7 +360,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       <button 
                         className="subscription-action manage"
                         onClick={() => {
-                          // TODO: Add manage subscription functionality
                           alert('Manage subscription feature coming soon!');
                           handleSubscriptionDetailsClose();
                         }}

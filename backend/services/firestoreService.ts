@@ -322,74 +322,6 @@ export class FirestoreService {
     }
   }
 
-  // Chat Session Methods
-  /**
-   * Create a new chat session (DEPRECATED - use createUnifiedSessionWithMessages)
-   */
-  static async createChatSession(sessionData: {
-    title: string;
-    messages: any[];
-    userId?: string;
-    messageType?: 'Marking' | 'Question' | 'Chat';
-    favorite?: boolean;
-    rating?: number;
-    sessionMetadata?: any;
-  }): Promise<string> {
-    throw new Error(`
-❌ DEPRECATED METHOD: createChatSession() is no longer supported.
-📋 Use createUnifiedSessionWithMessages() instead.
-💡 The old sessions collection has been removed. All data now uses unifiedSessions.
-🔧 Update your code to use the new unified architecture.
-    `);
-  }
-
-  /**
-   * Get a specific chat session (DEPRECATED - use getUnifiedSession)
-   */
-  static async getChatSession(sessionId: string): Promise<any | null> {
-    throw new Error(`
-❌ DEPRECATED METHOD: getChatSession() is no longer supported.
-📋 Use getUnifiedSession() instead.
-💡 The old sessions collection has been removed. All data now uses unifiedSessions.
-🔧 Update your code to use the new unified architecture.
-🆔 Session ID: ${sessionId}
-    `);
-  }
-
-  /**
-   * Get all chat sessions for a user (DEPRECATED - use getUserUnifiedSessions)
-   */
-  static async getChatSessions(userId: string): Promise<any[]> {
-    throw new Error(`
-❌ DEPRECATED METHOD: getChatSessions() is no longer supported.
-📋 Use getUserUnifiedSessions() instead.
-💡 The old sessions collection has been removed. All data now uses unifiedSessions.
-🔧 Update your code to use the new unified architecture.
-👤 User ID: ${userId}
-    `);
-  }
-
-  /**
-   * Add message to chat session (DEPRECATED - use createUnifiedSessionWithMessages)
-   */
-  static async addMessageToSession(sessionId: string, message: any): Promise<void> {
-    throw new Error(`
-❌ DEPRECATED METHOD: addMessageToSession() is no longer supported.
-📋 Use createUnifiedSessionWithMessages() to create complete sessions atomically.
-💡 The old sessions collection has been removed. All data now uses unifiedSessions.
-🔧 In the unified architecture, messages are created with sessions, not added individually.
-🆔 Session ID: ${sessionId}
-    `);
-  }
-
-  /**
-   * Update chat session (REDIRECTED - deprecated in unified architecture)
-   */
-  static async updateChatSession(sessionId: string, updates: any): Promise<void> {
-    // REDIRECTED: In unified architecture, sessions are immutable after creation
-    // Updates should create new messages rather than modifying existing sessions
-    return; // No-op - unified sessions are immutable
-  }
 
 
   // Generic document operations for subscriptions
@@ -822,9 +754,9 @@ export class FirestoreService {
         detectedQuestion: removeUndefinedValues(detectedQuestion)
       };
 
-      // Add both messages to the session
-      await this.addMessageToSession(sessionId, originalMessage);
-      await this.addMessageToSession(sessionId, annotatedMessage);
+      // Add both messages to the session using unified approach
+      await this.addMessageToUnifiedSession(sessionId, originalMessage);
+      await this.addMessageToUnifiedSession(sessionId, annotatedMessage);
 
     } catch (error) {
       console.error('❌ Failed to save marking results as session messages:', error);
@@ -894,8 +826,8 @@ export class FirestoreService {
         detectedQuestion: removeUndefinedValues(detectedQuestion)
       };
 
-      // Add message to the session
-      await this.addMessageToSession(sessionId, questionMessage);
+      // Add message to the session using unified approach
+      await this.addMessageToUnifiedSession(sessionId, questionMessage);
 
     } catch (error) {
       console.error('❌ Failed to save question-only data as session messages:', error);
@@ -929,28 +861,6 @@ export class FirestoreService {
     }
   }
 
-  /**
-   * Delete session with image cleanup
-   */
-  static async deleteChatSession(sessionId: string, userId?: string): Promise<void> {
-    try {
-      
-      // Import ImageStorageService dynamically to avoid circular dependencies
-      const { ImageStorageService } = await import('./imageStorageService');
-      
-      // Delete images from Firebase Storage (if userId provided)
-      if (userId) {
-        await ImageStorageService.deleteSessionImages(userId, sessionId);
-      }
-      
-      // Delete session from Firestore
-      await db.collection(COLLECTIONS.SESSIONS).doc(sessionId).delete();
-      
-    } catch (error) {
-      console.error('❌ Failed to delete chat session:', error);
-      throw error;
-    }
-  }
 
   /**
    * Delete user with image cleanup

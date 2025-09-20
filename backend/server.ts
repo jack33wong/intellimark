@@ -41,7 +41,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 import authRoutes from './routes/auth';
 import markHomeworkRoutes from './routes/mark-homework';
 import adminRoutes from './routes/admin';
-import chatRoutes from './routes/chat';
 import paymentRoutes from './routes/payment';
 import testRoutes from './routes/test';
 import messagesRoutes from './routes/messages';
@@ -57,8 +56,6 @@ app.use('/api/mark-homework', markHomeworkRoutes);
 // Enable admin routes
 app.use('/api/admin', adminRoutes);
 
-// Enable chat system
-app.use('/api/chat', chatRoutes);
 
 // Enable messages API (new UnifiedMessage system)
 app.use('/api/messages', messagesRoutes);

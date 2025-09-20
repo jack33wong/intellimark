@@ -203,7 +203,6 @@ const MarkHomeworkPageConsolidated = ({
   // Handle send message
   const sendMessage = useCallback(async (message) => {
     // For now, just log the message
-    // TODO: Implement follow-up message handling
   }, []);
 
   // ============================================================================

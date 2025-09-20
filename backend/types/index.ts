@@ -204,35 +204,6 @@ export interface UnifiedMessage {
   updatedAt?: string;
 }
 
-// Legacy ChatMessage (keep for backward compatibility during migration)
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'follow_up';
-  model?: ModelType;
-  imageData?: string;
-  imageLink?: string;
-  detectedQuestion?: {
-    found?: boolean;
-    questionText?: string;
-    message?: string;
-  };
-}
-
-export interface ChatSession {
-  id: string;
-  title: string;
-  messages: ChatMessage[];
-  timestamp: Date;
-  userId?: string;
-  contextSummary?: string;
-  lastSummaryUpdate?: Date;
-  messageType?: 'Marking' | 'Question' | 'Chat';
-  favorite?: boolean;
-  rating?: number;
-}
 
 // Subscription types
 export interface UserSubscription {
@@ -266,20 +237,6 @@ export interface CreateSubscriptionData {
   currentPeriodEnd: number;
 }
 
-export interface CreateChatSessionData {
-  title: string;
-  messages: ChatMessage[];
-  userId?: string;
-  messageType?: 'Marking' | 'Question' | 'Chat';
-  favorite?: boolean;
-  rating?: number;
-}
-
-export interface ChatHistory {
-  messages: ChatMessage[];
-  sessionId: string;
-  userId?: string;
-}
 
 // API request/response types
 export interface MarkHomeworkRequest {
@@ -316,12 +273,11 @@ export interface ChatRequest {
   model: ModelType;
   imageData?: string;
   sessionId?: string;
-  history?: ChatMessage[];
 }
 
 export interface ChatResponse {
   success: boolean;
-  message?: ChatMessage;
+  message?: any;
   error?: string;
 }
 

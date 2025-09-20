@@ -445,11 +445,6 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
     }
 
     
-    // Clear all sessions from in-memory cache
-    const { ChatSessionManager } = await import('../services/chatSessionManager');
-    const sessionManager = ChatSessionManager.getInstance();
-    sessionManager.clearAllSessionsFromCache();
-    
     res.json({
       success: true,
       message: `Successfully cleared ${deletedCount} chat sessions (${sessionIds.length} old sessions + ${unifiedSessionIds.length} unified sessions)`,
