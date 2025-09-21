@@ -97,9 +97,15 @@ const UnifiedChatInput = ({
   // Send click handler (90% shared with mode-specific logic)
   const handleSendClick = useCallback(() => {
     if (mode === 'first-time') {
-      // First-time mode: call onAnalyzeImage with selectedFile
+      // First-time mode: handle both file and text input
       if (selectedFile) {
         onAnalyzeImage?.(selectedFile);
+      } else if (chatInput && chatInput.trim()) {
+        // If no file but has text input, send text message
+        if (onSendMessage) {
+          onSendMessage(chatInput.trim());
+          setChatInput?.(''); // Clear input after sending
+        }
       } else {
         onAnalyzeImage?.();
       }
@@ -195,6 +201,9 @@ const UnifiedChatInput = ({
             {/* Main Input Area */}
             <div className="input-container">
               <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput?.(e.target.value)}
+                onKeyPress={onKeyPress}
                 placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
                 disabled={isProcessing}
                 className="main-chat-input"
