@@ -31,14 +31,12 @@ export const useMarkHomework = () => {
     simpleSessionService.setAuthContext({ getAuthToken });
   }, [getAuthToken]);
 
-  // Simple local state for session data - no subscription to prevent infinite re-renders
-  const [sessionData, setSessionData] = useState({
-    currentSession: null,
-    chatMessages: [],
-    sessionTitle: '',
-    isFavorite: false,
-    rating: 0
-  });
+  // Get session data directly from service - single source of truth
+  const { currentSession } = simpleSessionService.state;
+  const chatMessages = currentSession?.messages || [];
+  const sessionTitle = currentSession?.title || '';
+  const isFavorite = currentSession?.favorite || false;
+  const rating = currentSession?.rating || 0;
 
   // Actions - simplified
   const startProcessing = () => {
@@ -82,50 +80,22 @@ export const useMarkHomework = () => {
   // Session management - simplified
   const clearSession = () => {
     simpleSessionService.clearSession();
-    setSessionData({
-      currentSession: null,
-      chatMessages: [],
-      sessionTitle: '',
-      isFavorite: false,
-      rating: 0
-    });
   };
   
   const addMessage = async (message) => {
     await simpleSessionService.addMessage(message);
-    
-    // Update local state after service has completed
-    const { currentSession } = simpleSessionService.state;
-    setSessionData(prev => ({
-      ...prev,
-      currentSession,
-      chatMessages: currentSession?.messages || []
-    }));
+    // No manual state sync needed - service is single source of truth
   };
   
   const processImageAPI = async (imageData, model, mode) => {
     const result = await simpleSessionService.processImage(imageData, model, mode);
-    // Update local state
-    const { currentSession } = simpleSessionService.state;
-    setSessionData(prev => ({
-      ...prev,
-      currentSession,
-      chatMessages: currentSession?.messages || []
-    }));
+    // No manual state sync needed - service is single source of truth
     return result;
   };
 
   const loadSession = useCallback((session) => {
     // Set the session in the service
     simpleSessionService.setCurrentSession(session);
-    // Update local state
-    setSessionData({
-      currentSession: session,
-      chatMessages: session?.messages || [],
-      sessionTitle: session?.title || '',
-      isFavorite: session?.favorite || false,
-      rating: session?.rating || 0
-    });
     // Switch to chat mode when loading a session
     setPageMode('chat');
   }, [setPageMode]);
@@ -134,8 +104,12 @@ export const useMarkHomework = () => {
     // UI State
     ...uiState,
     
-    // Session data from service
-    ...sessionData,
+    // Session data from service - single source of truth
+    currentSession,
+    chatMessages,
+    sessionTitle,
+    isFavorite,
+    rating,
     
     // Computed properties - simplified
     isIdle: !uiState.isProcessing && !uiState.isAIThinking,
