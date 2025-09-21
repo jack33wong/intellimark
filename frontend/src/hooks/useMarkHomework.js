@@ -9,28 +9,15 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 
-// Processing states - simplified
-export const PROCESSING_STATE = {
-  IDLE: 'idle',
-  PROCESSING: 'processing',
-  ERROR: 'error'
-};
 
 export const useMarkHomework = () => {
   const { getAuthToken } = useAuth();
   
-  // Single state object
-  const [state, setState] = useState({
-    // Processing state
-    processingState: PROCESSING_STATE.IDLE,
+  // UI state only - session data comes from service
+  const [uiState, setUiState] = useState({
+    // Processing state - simplified
+    isProcessing: false,
     isAIThinking: false,
-    
-    // Session data
-    currentSession: null,
-    chatMessages: [],
-    sessionTitle: '',
-    isFavorite: false,
-    rating: 0,
     
     // UI state
     pageMode: 'upload', // 'upload' | 'chat'
@@ -39,51 +26,32 @@ export const useMarkHomework = () => {
     error: null
   });
 
-  // Computed properties - simplified
-  const isIdle = state.processingState === PROCESSING_STATE.IDLE;
-  const isProcessing = state.processingState === PROCESSING_STATE.PROCESSING;
-  const isError = state.processingState === PROCESSING_STATE.ERROR;
-  const isAIThinking = state.isAIThinking;
-  
-
   // Initialize session service
   useEffect(() => {
     simpleSessionService.setAuthContext({ getAuthToken });
-    
-    // Subscribe to session changes
-    const unsubscribe = simpleSessionService.subscribe((sessionState) => {
-      setState(prev => ({
-        ...prev,
-        currentSession: sessionState.currentSession,
-        chatMessages: sessionState.currentSession?.messages || [],
-        sessionTitle: sessionState.currentSession?.title || '',
-        isFavorite: sessionState.currentSession?.favorite || false,
-        rating: sessionState.currentSession?.rating || 0,
-        error: sessionState.error
-      }));
-    });
-    
-    return unsubscribe;
   }, [getAuthToken]);
 
-  // State transitions - simplified
-  const setProcessingState = useCallback((newState) => {
-    setState(prev => ({
-      ...prev,
-      processingState: newState
-    }));
-  }, []);
+  // Get session data directly from service (no subscription needed)
+  const sessionData = simpleSessionService.state;
+  const currentSession = sessionData.currentSession;
+  const chatMessages = currentSession?.messages || [];
+  const sessionTitle = currentSession?.title || '';
+  const isFavorite = currentSession?.favorite || false;
+  const rating = currentSession?.rating || 0;
 
   // Actions - simplified
   const startProcessing = useCallback(() => {
-    setProcessingState(PROCESSING_STATE.PROCESSING);
-  }, [setProcessingState]);
+    setUiState(prev => ({ ...prev, isProcessing: true }));
+  }, []);
 
+  const stopProcessing = useCallback(() => {
+    setUiState(prev => ({ ...prev, isProcessing: false }));
+  }, []);
 
   const reset = useCallback(() => {
-    setState(prev => ({
+    setUiState(prev => ({
       ...prev,
-      processingState: PROCESSING_STATE.IDLE,
+      isProcessing: false,
       isAIThinking: false,
       error: null
     }));
@@ -91,26 +59,26 @@ export const useMarkHomework = () => {
 
   // AI thinking state control
   const startAIThinking = useCallback(() => {
-    setState(prev => ({ ...prev, isAIThinking: true }));
+    setUiState(prev => ({ ...prev, isAIThinking: true }));
   }, []);
 
   const stopAIThinking = useCallback(() => {
-    setState(prev => ({ ...prev, isAIThinking: false }));
+    setUiState(prev => ({ ...prev, isAIThinking: false }));
   }, []);
 
   const setPageMode = useCallback((mode) => {
-    setState(prev => ({ ...prev, pageMode: mode }));
+    setUiState(prev => ({ ...prev, pageMode: mode }));
   }, []);
 
   const handleError = useCallback((error) => {
-    setProcessingState(PROCESSING_STATE.ERROR);
-    setState(prev => ({
+    setUiState(prev => ({
       ...prev,
+      isProcessing: false,
       error: error.message || 'Unknown error'
     }));
-  }, [setProcessingState]);
+  }, []);
 
-  // Session management
+  // Session management - simplified
   const clearSession = useCallback(() => {
     simpleSessionService.clearSession();
   }, []);
@@ -124,33 +92,32 @@ export const useMarkHomework = () => {
   }, []);
 
   const loadSession = useCallback((session) => {
-    // Set the session in the service
+    // Set the session in the service (no local state update needed)
     simpleSessionService.setCurrentSession(session);
-    
-    // Update local state
-    setState(prev => ({
-      ...prev,
-      currentSession: session,
-      chatMessages: session?.messages || [],
-      sessionTitle: session?.title || '',
-      isFavorite: session?.favorite || false,
-      rating: session?.rating || 0,
-      pageMode: 'chat' // Switch to chat mode when loading a session
-    }));
-  }, []);
+    // Switch to chat mode when loading a session
+    setPageMode('chat');
+  }, [setPageMode]);
 
   return {
-    // State
-    ...state,
+    // UI State
+    ...uiState,
+    
+    // Session data from service
+    currentSession,
+    chatMessages,
+    sessionTitle,
+    isFavorite,
+    rating,
     
     // Computed properties - simplified
-    isIdle,
-    isProcessing,
-    isError,
-    isAIThinking,
+    isIdle: !uiState.isProcessing && !uiState.isAIThinking,
+    isProcessing: uiState.isProcessing,
+    isError: !!uiState.error,
+    isAIThinking: uiState.isAIThinking,
     
     // Actions - simplified
     startProcessing,
+    stopProcessing,
     reset,
     setPageMode,
     handleError,

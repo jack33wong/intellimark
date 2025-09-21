@@ -34,22 +34,26 @@ const MarkHomeworkPageConsolidated = ({
 
   // Consolidated mark homework state - SINGLE SOURCE OF TRUTH
   const {
-    // State
+    // UI State
+    pageMode,
+    isProcessing,
+    isAIThinking,
+    error,
+    
+    // Session data from service
     currentSession,
     chatMessages,
     sessionTitle,
     isFavorite,
     rating,
-    pageMode,
-    processingState,
-    error,
     
     // Computed properties - simplified
-    isProcessing,
-    isAIThinking,
+    isIdle,
+    isError,
     
     // Actions - simplified
     startProcessing,
+    stopProcessing,
     reset,
     startAIThinking,
     stopAIThinking,
@@ -195,8 +199,8 @@ const MarkHomeworkPageConsolidated = ({
       // PHASE 3: Complete
       // ========================================
       
-      // 7. Reset state (ready for next interaction)
-      reset();
+      // 7. Stop processing (ready for next interaction)
+      stopProcessing();
       
       // 8. Clean up
       if (!file) {
@@ -210,7 +214,7 @@ const MarkHomeworkPageConsolidated = ({
       stopAIThinking(); // Stop AI thinking on error
       handleError(error);
     }
-  }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, reset, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
+  }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, stopProcessing, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
 
   // Handle follow-up image (legacy compatibility)
   const handleFollowUpImage = useCallback((file) => handleImageAnalysis(file), [handleImageAnalysis]);
