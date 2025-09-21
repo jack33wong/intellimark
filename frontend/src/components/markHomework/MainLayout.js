@@ -5,7 +5,6 @@
 
 import React, { useEffect } from 'react';
 import { Brain, ChevronDown } from 'lucide-react';
-import ImageUploadInterface from './ImageUploadInterface';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
