@@ -21,12 +21,8 @@ class SimpleSessionService {
   constructor() {
     this.state = {
       currentSession: null,
-      sidebarSessions: [],
-      isLoading: false,
-      error: null
+      sidebarSessions: []
     };
-    
-    this.listeners = new Set();
     this.MAX_SIDEBAR_SESSIONS = 50;
   }
 
@@ -65,21 +61,9 @@ class SimpleSessionService {
 
   setState(updates) {
     this.state = { ...this.state, ...updates };
-    this.notifyListeners();
   }
 
-  notifyListeners() {
-    this.listeners.forEach(listener => listener(this.state));
-  }
 
-  subscribe(listener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  getState() {
-    return { ...this.state };
-  }
 
   // ============================================================================
   // SESSION MANAGEMENT
@@ -180,9 +164,14 @@ class SimpleSessionService {
       await this.createSession();
     }
 
+    // Ensure we have a current session after creation
+    if (!this.state.currentSession) {
+      throw new Error('Failed to create session for message');
+    }
+
     const updatedSession = {
       ...this.state.currentSession,
-      messages: [...this.state.currentSession.messages, message],
+      messages: [...(this.state.currentSession.messages || []), message],
       updatedAt: new Date().toISOString()
     };
 
@@ -516,8 +505,7 @@ class SimpleSessionService {
   // Set current session (for loading selected sessions)
   setCurrentSession(session) {
     this.setState({ 
-      currentSession: session,
-      error: null
+      currentSession: session
     });
     
     // Update sidebar if not already present

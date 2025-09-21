@@ -93,8 +93,12 @@ const UnifiedChatInput = ({
   // Send click handler (90% shared with mode-specific logic)
   const handleSendClick = useCallback(() => {
     if (mode === 'first-time') {
-      // First-time mode: call onAnalyzeImage
-      onAnalyzeImage?.();
+      // First-time mode: call onAnalyzeImage with selectedFile
+      if (selectedFile) {
+        onAnalyzeImage?.(selectedFile);
+      } else {
+        onAnalyzeImage?.();
+      }
     } else {
       // Follow-up mode: determine if this is initial or follow-up upload
       if (previewImage) {

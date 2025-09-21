@@ -31,13 +31,14 @@ export const useMarkHomework = () => {
     simpleSessionService.setAuthContext({ getAuthToken });
   }, [getAuthToken]);
 
-  // Get session data directly from service (no subscription needed)
-  const sessionData = simpleSessionService.state;
-  const currentSession = sessionData.currentSession;
-  const chatMessages = currentSession?.messages || [];
-  const sessionTitle = currentSession?.title || '';
-  const isFavorite = currentSession?.favorite || false;
-  const rating = currentSession?.rating || 0;
+  // Simple local state for session data - no subscription to prevent infinite re-renders
+  const [sessionData, setSessionData] = useState({
+    currentSession: null,
+    chatMessages: [],
+    sessionTitle: '',
+    isFavorite: false,
+    rating: 0
+  });
 
   // Actions - simplified
   const startProcessing = useCallback(() => {
@@ -79,21 +80,52 @@ export const useMarkHomework = () => {
   }, []);
 
   // Session management - simplified
-  const clearSession = useCallback(() => {
+  const clearSession = () => {
     simpleSessionService.clearSession();
-  }, []);
-
-  const addMessage = useCallback((message) => {
-    simpleSessionService.addMessage(message);
-  }, []);
-
-  const processImageAPI = useCallback(async (imageData, model, mode) => {
-    return await simpleSessionService.processImage(imageData, model, mode);
-  }, []);
+    setSessionData({
+      currentSession: null,
+      chatMessages: [],
+      sessionTitle: '',
+      isFavorite: false,
+      rating: 0
+    });
+  };
+  
+  const addMessage = async (message) => {
+    await simpleSessionService.addMessage(message);
+    
+    // Update local state after service has completed
+    const { currentSession } = simpleSessionService.state;
+    setSessionData(prev => ({
+      ...prev,
+      currentSession,
+      chatMessages: currentSession?.messages || []
+    }));
+  };
+  
+  const processImageAPI = async (imageData, model, mode) => {
+    const result = await simpleSessionService.processImage(imageData, model, mode);
+    // Update local state
+    const { currentSession } = simpleSessionService.state;
+    setSessionData(prev => ({
+      ...prev,
+      currentSession,
+      chatMessages: currentSession?.messages || []
+    }));
+    return result;
+  };
 
   const loadSession = useCallback((session) => {
-    // Set the session in the service (no local state update needed)
+    // Set the session in the service
     simpleSessionService.setCurrentSession(session);
+    // Update local state
+    setSessionData({
+      currentSession: session,
+      chatMessages: session?.messages || [],
+      sessionTitle: session?.title || '',
+      isFavorite: session?.favorite || false,
+      rating: session?.rating || 0
+    });
     // Switch to chat mode when loading a session
     setPageMode('chat');
   }, [setPageMode]);
@@ -103,17 +135,11 @@ export const useMarkHomework = () => {
     ...uiState,
     
     // Session data from service
-    currentSession,
-    chatMessages,
-    sessionTitle,
-    isFavorite,
-    rating,
+    ...sessionData,
     
     // Computed properties - simplified
     isIdle: !uiState.isProcessing && !uiState.isAIThinking,
-    isProcessing: uiState.isProcessing,
     isError: !!uiState.error,
-    isAIThinking: uiState.isAIThinking,
     
     // Actions - simplified
     startProcessing,

@@ -101,7 +101,7 @@ const MarkHomeworkPageConsolidated = ({
       
       // Notify parent component about page mode change
     }
-  }, [selectedMarkingResult, loadSession, setPageMode, clearSession]);
+  }, [selectedMarkingResult]); // Remove function dependencies to prevent infinite re-renders
 
   // Handle scroll events to show/hide scroll button
   useEffect(() => {
