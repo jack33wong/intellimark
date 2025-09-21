@@ -20,7 +20,7 @@ import './Sidebar.css';
  * Sidebar component displaying navigation
  * @returns {JSX.Element} The sidebar component
  */
-function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, currentPageMode = 'upload', onMenuToggle }) {
+function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, onMarkHomeworkClick, onMenuToggle }) {
   const navigate = useNavigate();
   // const location = useLocation(); // Removed - not used
   const { user, getAuthToken } = useAuth();
@@ -303,24 +303,15 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
             // Reset selected session when navigating
             setSelectedSessionId(null);
             
-            if (currentPageMode === 'chat') {
-              // In chat mode, this acts as a back button
-              // We need to trigger the back functionality
-              // This will be handled by the MarkHomeworkPage component
-              if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
-                onMarkHomeworkClick();
-              }
-            } else {
-              // In upload mode, navigate to mark homework
-              if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
-                onMarkHomeworkClick();
-              }
-              navigate('/mark-homework');
+            // Reset to upload mode and navigate
+            if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
+              onMarkHomeworkClick();
             }
+            navigate('/mark-homework');
           }}
         >
           <BookOpen size={20} />
-          {currentPageMode === 'chat' ? 'Back to Upload' : 'Mark Homework'}
+          Mark Homework
         </button>
 
 

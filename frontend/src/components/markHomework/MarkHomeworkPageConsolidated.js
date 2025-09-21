@@ -17,8 +17,7 @@ import MainLayout from './MainLayout';
 const MarkHomeworkPageConsolidated = ({
   selectedMarkingResult,
   onClearSelectedResult,
-  onMarkingResultSaved,
-  onPageModeChange
+  onMarkingResultSaved
 }) => {
 
   // ============================================================================
@@ -51,7 +50,6 @@ const MarkHomeworkPageConsolidated = ({
     
     // Actions - simplified
     startProcessing,
-    completeProcessing,
     reset,
     startAIThinking,
     stopAIThinking,
@@ -92,20 +90,14 @@ const MarkHomeworkPageConsolidated = ({
       setPageMode('chat');
       
       // Notify parent component about page mode change
-      if (onPageModeChange) {
-        onPageModeChange('chat');
-      }
     } else {
       // Clear session and switch to upload mode
       clearSession();
       setPageMode('upload');
       
       // Notify parent component about page mode change
-      if (onPageModeChange) {
-        onPageModeChange('upload');
-      }
     }
-  }, [selectedMarkingResult, loadSession, setPageMode, clearSession, onPageModeChange]);
+  }, [selectedMarkingResult, loadSession, setPageMode, clearSession]);
 
   // Handle scroll events to show/hide scroll button
   useEffect(() => {

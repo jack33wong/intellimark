@@ -13,7 +13,6 @@ import { simpleSessionService } from '../services/simpleSessionService';
 export const PROCESSING_STATE = {
   IDLE: 'idle',
   PROCESSING: 'processing',
-  COMPLETE: 'complete',
   ERROR: 'error'
 };
 
@@ -43,7 +42,6 @@ export const useMarkHomework = () => {
   // Computed properties - simplified
   const isIdle = state.processingState === PROCESSING_STATE.IDLE;
   const isProcessing = state.processingState === PROCESSING_STATE.PROCESSING;
-  const isComplete = state.processingState === PROCESSING_STATE.COMPLETE;
   const isError = state.processingState === PROCESSING_STATE.ERROR;
   const isAIThinking = state.isAIThinking;
   
@@ -81,9 +79,6 @@ export const useMarkHomework = () => {
     setProcessingState(PROCESSING_STATE.PROCESSING);
   }, [setProcessingState]);
 
-  const completeProcessing = useCallback(() => {
-    setProcessingState(PROCESSING_STATE.COMPLETE);
-  }, [setProcessingState]);
 
   const reset = useCallback(() => {
     setState(prev => ({
@@ -151,13 +146,11 @@ export const useMarkHomework = () => {
     // Computed properties - simplified
     isIdle,
     isProcessing,
-    isComplete,
     isError,
     isAIThinking,
     
     // Actions - simplified
     startProcessing,
-    completeProcessing,
     reset,
     setPageMode,
     handleError,

@@ -19,7 +19,6 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [selectedMarkingResult, setSelectedMarkingResult] = useState(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState(0);
-  const [currentPageMode, setCurrentPageMode] = useState('upload');
 
 
   const handleMarkingHistoryClick = async (result) => {
@@ -51,20 +50,9 @@ function AppContent() {
   };
 
   const handleMarkHomeworkClick = () => {
-    if (currentPageMode === 'chat') {
-      // In chat mode, reset to upload mode
-      setCurrentPageMode('upload');
-      setSelectedMarkingResult(null);
-      setMarkHomeworkResetKey(prev => prev + 1);
-    } else {
-      // In upload mode, normal behavior
-      setSelectedMarkingResult(null);
-      setMarkHomeworkResetKey(prev => prev + 1);
-    }
-  };
-
-  const handlePageModeChange = (mode) => {
-    setCurrentPageMode(mode);
+    // Reset to upload mode
+    setSelectedMarkingResult(null);
+    setMarkHomeworkResetKey(prev => prev + 1);
   };
   
 
@@ -100,7 +88,6 @@ function AppContent() {
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
                       onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
                     <div className="right-side">
@@ -124,20 +111,16 @@ function AppContent() {
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
                       onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-                    <div className={`right-side ${currentPageMode === 'chat' ? 'chat-mode' : ''}`}>
-                      {currentPageMode !== 'chat' && (
-                        <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                      )}
+                    <div className="right-side">
+                      <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
                       <div className="mark-homework-main-content">
                         <MarkHomeworkPage 
                           key={markHomeworkResetKey}
                           selectedMarkingResult={selectedMarkingResult}
                           onClearSelectedResult={() => setSelectedMarkingResult(null)}
                           onMarkingResultSaved={handleMarkingResultSaved}
-                          onPageModeChange={handlePageModeChange}
                         />
                       </div>
                     </div>
@@ -159,7 +142,6 @@ function AppContent() {
                       onMarkingHistoryClick={handleMarkingHistoryClick}
                       onMarkHomeworkClick={handleMarkHomeworkClick}
                       onMarkingResultSaved={handleMarkingResultSaved}
-                      currentPageMode={currentPageMode}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
                     <div className="right-side">
