@@ -6,10 +6,10 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { optionalAuth } from '../middleware/auth';
-import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer';
-import { FirestoreService } from '../services/firestoreService';
-import { ImageStorageService } from '../services/imageStorageService';
+import { optionalAuth } from '../middleware/auth.js';
+import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
+import { FirestoreService } from '../services/firestoreService.js';
+import { ImageStorageService } from '../services/imageStorageService.js';
 
 const router = Router();
 

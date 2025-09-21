@@ -21,14 +21,6 @@ const SessionHeader = ({
 }) => {
   const dropdownRef = useRef(null);
 
-  // Debug: Log when component renders
-  console.log('🔍 SessionHeader rendered with:', {
-    sessionTitle,
-    isFavorite,
-    onFavoriteToggle: typeof onFavoriteToggle,
-    showInfoDropdown,
-    onToggleInfoDropdown: typeof onToggleInfoDropdown
-  });
 
   // Helper function to get token data from either markingResult or sessionData
   const getTokenData = () => {
@@ -144,11 +136,8 @@ const SessionHeader = ({
             <button 
               className="header-btn info-btn"
               onClick={() => {
-                console.log('🔍 Info dropdown button clicked!', { showInfoDropdown, onToggleInfoDropdown: typeof onToggleInfoDropdown });
                 if (onToggleInfoDropdown) {
                   onToggleInfoDropdown();
-                } else {
-                  console.warn('❌ onToggleInfoDropdown is not defined');
                 }
               }}
               title="Information"
@@ -271,11 +260,8 @@ const SessionHeader = ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('🔍 Favorite button clicked!', { isFavorite, onFavoriteToggle: typeof onFavoriteToggle });
               if (onFavoriteToggle) {
                 onFavoriteToggle();
-              } else {
-                console.warn('❌ onFavoriteToggle is not defined');
               }
             }}
             title={!user?.uid ? "Login required to save favorites" : (isFavorite ? "Remove from favorites" : "Add to favorites")}

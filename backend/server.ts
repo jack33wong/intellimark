@@ -41,14 +41,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import routes
-import authRoutes from './routes/auth';
-import markHomeworkRoutes from './routes/mark-homework';
-import adminRoutes from './routes/admin';
-import paymentRoutes from './routes/payment';
-import testRoutes from './routes/test';
-import messagesRoutes from './routes/messages';
-import unifiedProcessingRoutes from './routes/unified-processing';
-import debugRoutes from './routes/debug';
+import authRoutes from './routes/auth.js';
+import markHomeworkRoutes from './routes/mark-homework.js';
+import adminRoutes from './routes/admin.js';
+import paymentRoutes from './routes/payment.js';
+import testRoutes from './routes/test.js';
+import messagesRoutes from './routes/messages.js';
+import unifiedProcessingRoutes from './routes/unified-processing.js';
+import debugRoutes from './routes/debug.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);

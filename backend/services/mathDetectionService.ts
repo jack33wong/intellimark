@@ -3,7 +3,7 @@
  * Detects math-like text regions from Google Vision OCR output
  */
 
-import type { ProcessedVisionResult, BoundingBox } from "../types/index";
+import type { ProcessedVisionResult, BoundingBox } from "../types/index.js";
 
 export interface MathBlock {
   googleVisionText: string;

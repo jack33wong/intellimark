@@ -1,4 +1,4 @@
-import type { ModelType } from '../../types/index';
+import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
 
 export class ModelProvider {

@@ -4,9 +4,9 @@
  * Non-breaking: delegates to existing services and preserves response shape
  */
 
-import { questionDetectionService } from '../../services/questionDetectionService';
-import { ImageAnnotationService } from '../../services/imageAnnotationService';
-import { getDebugMode } from '../../config/aiModels';
+import { questionDetectionService } from '../../services/questionDetectionService.js';
+import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
+import { getDebugMode } from '../../config/aiModels.js';
 
 import type {
   MarkHomeworkResponse,
@@ -15,7 +15,7 @@ import type {
   MarkingInstructions,
   ModelType,
   QuestionDetectionResult
-} from '../../types/index';
+} from '../../types/index.js';
 
 // Debug mode helper function
 async function simulateApiDelay(operation: string): Promise<void> {
@@ -37,8 +37,16 @@ function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mo
       return `${mode} - ${new Date().toLocaleDateString()}`;
     }
     
-    const truncatedText = questionText.length > 20 
-      ? questionText.substring(0, 20) + '...' 
+    // Extract key mathematical terms or concepts for better titles
+    const mathTerms = questionText.match(/\b(derivative|integral|equation|solve|function|graph|algebra|geometry|trigonometry|calculus|statistics|probability)\b/gi);
+    const keyTerms = mathTerms ? mathTerms.slice(0, 2).join(' ') : '';
+    
+    if (keyTerms) {
+      return `${mode} - ${keyTerms}`;
+    }
+    
+    const truncatedText = questionText.length > 30 
+      ? questionText.substring(0, 30) + '...' 
       : questionText;
     return `${mode} - ${truncatedText}`;
   } else {
@@ -196,7 +204,6 @@ export class MarkHomeworkWithAnswer {
     }
   }
 
-
   /**
    * Execute the full marking flow.
    * Returns the same response shape currently produced by the route handler.
@@ -255,10 +262,6 @@ export class MarkHomeworkWithAnswer {
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Debug: Show classification result
-    console.log(`🔍 [CLASSIFICATION] isQuestionOnly: ${imageClassification.isQuestionOnly}, reasoning: ${imageClassification.reasoning?.substring(0, 100)}...`);
-    console.log(`🔍 [CLASSIFICATION] Full reasoning: ${imageClassification.reasoning}`);
-    console.log(`🔍 [CLASSIFICATION] Extracted text: ${imageClassification.extractedQuestionText?.substring(0, 200)}...`);
-
     // Step 1.5: Question detection
     let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
@@ -266,7 +269,7 @@ export class MarkHomeworkWithAnswer {
         questionDetection = await questionDetectionService.detectQuestion(
           imageClassification.extractedQuestionText
         );
-      } catch (_e) {
+      } catch (error) {
         questionDetection = { found: false, message: 'Question detection service failed' };
       }
     } else {
@@ -430,5 +433,4 @@ export class MarkHomeworkWithAnswer {
     } as unknown as MarkHomeworkResponse;
   }
 }
-
 

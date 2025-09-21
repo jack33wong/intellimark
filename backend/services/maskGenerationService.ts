@@ -3,7 +3,7 @@
  * Creates masks for DALL·E Edit API to specify which areas can be modified
  */
 
-import { Annotation } from '../types/index';
+import { Annotation } from '../types/index.js';
 
 export interface MaskGenerationResult {
   maskDataUrl: string;

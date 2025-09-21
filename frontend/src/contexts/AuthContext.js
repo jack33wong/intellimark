@@ -36,47 +36,40 @@ export const AuthProvider = ({ children }) => {
   /**
    * Check if user is currently authenticated
    */
-  const checkAuthStatus = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      console.log('🔍 AuthContext: Checking auth status, token exists:', !!token);
-      
-      if (!token) {
-        console.log('🔍 AuthContext: No token found, setting loading to false');
-        setLoading(false);
-        return;
-      }
-
-      // Verify token with backend
-      const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
-      console.log('🔍 AuthContext: Verifying token with backend:', `${API_BASE}/api/auth/profile`);
-      
-      const response = await fetch(`${API_BASE}/api/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+    const checkAuthStatus = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        
+        if (!token) {
+          setLoading(false);
+          return;
         }
-      });
 
-      console.log('🔍 AuthContext: Backend response status:', response.status);
+        // Verify token with backend
+        const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+        
+        const response = await fetch(`${API_BASE}/api/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('🔍 AuthContext: User data received:', data);
-        setUser(data.user);
-      } else {
-        console.log('🔍 AuthContext: Token invalid, removing from localStorage');
-        // Token is invalid, remove it
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        } else {
+          // Token is invalid, remove it
+          localStorage.removeItem('authToken');
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('AuthContext: Auth check failed:', error);
         localStorage.removeItem('authToken');
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('AuthContext: Auth check failed:', error);
-      localStorage.removeItem('authToken');
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   /**
    * Social media login
@@ -125,7 +118,6 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
 
-
       // Use the correct backend API URL
       const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
       
@@ -145,8 +137,7 @@ export const AuthProvider = ({ children }) => {
         const idToken = await userCredential.user.getIdToken();
         
         localStorage.setItem('authToken', idToken);
-        
-        
+
         // Set user data
         setUser(data.user);
         return { success: true, message: data.message };
@@ -170,7 +161,6 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
 
-
       // Use the correct backend API URL
       const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
       
@@ -190,8 +180,7 @@ export const AuthProvider = ({ children }) => {
         const idToken = await userCredential.user.getIdToken();
         
         localStorage.setItem('authToken', idToken);
-        
-        
+
         // Set user data
         setUser(data.user);
         return { success: true, message: data.message };

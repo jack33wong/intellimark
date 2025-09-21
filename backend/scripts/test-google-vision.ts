@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 
-import { GoogleVisionService } from '../services/googleVisionService';
+import { GoogleVisionService } from '../services/googleVisionService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 

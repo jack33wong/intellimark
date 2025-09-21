@@ -39,9 +39,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   
   // Debug props and route
 
-  
-
-
   // Function to refresh chat sessions with debouncing
   const refreshChatSessions = useCallback(async () => {
     // Only load sessions for authenticated users
@@ -76,7 +73,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       } else {
         setSessionsError('Failed to load chat sessions');
       }
-      
 
     } catch (error) {
       setSessionsError('Failed to load chat sessions');
@@ -273,10 +269,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   };
 
-
-
-
-
   return (
     <div className={`sidebar ${!isOpen ? 'collapsed' : ''}`}>
       <div className="sidebar-content">
@@ -313,7 +305,6 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
           <BookOpen size={20} />
           Mark Homework
         </button>
-
 
         <div className="sidebar-section">
           <div className="mark-history-tabs">

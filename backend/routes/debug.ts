@@ -4,7 +4,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { DEBUG_MODE, getDebugMode, setDebugMode } from '../config/aiModels';
+import { DEBUG_MODE, getDebugMode, setDebugMode } from '../config/aiModels.js';
 
 const router = Router();
 

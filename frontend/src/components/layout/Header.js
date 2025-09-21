@@ -54,14 +54,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     const urlParams = new URLSearchParams(window.location.search);
     const subscriptionSuccess = urlParams.get('subscription');
     const sessionId = urlParams.get('session_id');
-    
-    
+
     if (subscriptionSuccess === 'success' && user?.uid && sessionId) {
-      
       // Create subscription record after successful payment
       const createSubscriptionRecord = async () => {
         try {
-          
           const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-subscription-after-payment`, {
             method: 'POST',
             headers: {
@@ -72,8 +69,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               userId: user.uid,
             }),
           });
-          
-          
+
           if (!response.ok) {
             const errorText = await response.text();
             console.error('❌ Response error:', errorText);
@@ -175,8 +171,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       console.error('Failed to update debug mode on backend:', error);
     });
   };
-
-
 
   const getUpgradeButtonText = () => {
     if (subscriptionLoading) return 'Loading...';

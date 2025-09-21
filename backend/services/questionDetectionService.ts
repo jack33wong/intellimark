@@ -3,7 +3,7 @@
  * Matches extracted question text with exam papers in the database
  */
 
-import { getFirestore } from '../config/firebase';
+import { getFirestore } from '../config/firebase.js';
 
 export interface ExamPaperMatch {
   board: string;

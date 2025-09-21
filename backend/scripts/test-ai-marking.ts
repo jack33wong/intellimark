@@ -7,7 +7,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-import { LLMOrchestrator } from '../services/ai/LLMOrchestrator.ts';
+import { LLMOrchestrator } from '../services/ai/LLMOrchestrator.ts.js';
 
 async function testAIMarking() {
 

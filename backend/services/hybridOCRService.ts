@@ -6,10 +6,10 @@
 
 import sharp from 'sharp';
 import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
-import { MathDetectionService, MathBlock } from './mathDetectionService';
-import { MathpixService } from './mathpixService';
-import { getDebugMode } from '../config/aiModels';
-import type { ProcessedVisionResult } from '../types/index';
+import { MathDetectionService, MathBlock } from './mathDetectionService.js';
+import { MathpixService } from './mathpixService.js';
+import { getDebugMode } from '../config/aiModels.js';
+import type { ProcessedVisionResult } from '../types/index.js';
 
 // Type aliases for robust recognition
 type IBlock = protos.google.cloud.vision.v1.IBlock;

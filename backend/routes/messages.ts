@@ -4,10 +4,10 @@
  */
 
 import express from 'express';
-import { FirestoreService } from '../services/firestoreService';
-import { optionalAuth, requireAuth } from '../middleware/auth';
-import { AIMarkingService } from '../services/aiMarkingService';
-import type { UnifiedMessage } from '../types';
+import { FirestoreService } from '../services/firestoreService.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { AIMarkingService } from '../services/aiMarkingService.js';
+import type { UnifiedMessage } from '../types/index.js';
 
 const router = express.Router();
 

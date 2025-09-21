@@ -6,7 +6,7 @@
 import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { getFirestore } from '../config/firebase';
+import { getFirestore } from '../config/firebase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -149,13 +149,11 @@ function sanitizeFirestoreData(obj: any): any {
 }
 
 export class FirestoreService {
-
   /**
    * Retrieve marking results by ID
    */
   static async getMarkingResults(resultId: string): Promise<MarkingResultDocument | null> {
     try {
-      
       const docRef = await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).get();
       
       if (!docRef.exists) {
@@ -180,7 +178,6 @@ export class FirestoreService {
    */
   static async getUserMarkingResults(userId: string, limit: number = 50): Promise<MarkingResultDocument[]> {
     try {
-      
       // Use a simpler query to avoid index requirements
       const querySnapshot = await db.collection(COLLECTIONS.MARKING_RESULTS)
         .where('userId', '==', userId)
@@ -212,12 +209,10 @@ export class FirestoreService {
     updates: Partial<MarkingResultDocument>
   ): Promise<void> {
     try {
-      
       await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).update({
         ...updates,
         updatedAt: admin.firestore.Timestamp.now()
       });
-
 
     } catch (error) {
       console.error('❌ Failed to update marking results in Firestore:', error);
@@ -230,9 +225,7 @@ export class FirestoreService {
    */
   static async deleteMarkingResults(resultId: string): Promise<void> {
     try {
-      
       await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).delete();
-
 
     } catch (error) {
       console.error('❌ Failed to delete marking results from Firestore:', error);
@@ -245,12 +238,10 @@ export class FirestoreService {
    */
   static async saveUser(userData: Omit<UserDocument, 'createdAt' | 'updatedAt'>): Promise<void> {
     try {
-      
       await db.collection(COLLECTIONS.USERS).doc(userData.uid).set({
         ...userData,
         updatedAt: admin.firestore.Timestamp.now()
       }, { merge: true });
-
 
     } catch (error) {
       console.error('❌ Failed to save user in Firestore:', error);
@@ -263,7 +254,6 @@ export class FirestoreService {
    */
   static async getUser(uid: string): Promise<UserDocument | null> {
     try {
-      
       const docRef = await db.collection(COLLECTIONS.USERS).doc(uid).get();
       
       if (!docRef.exists) {
@@ -292,7 +282,6 @@ export class FirestoreService {
     recentActivity: number;
   }> {
     try {
-      
       const [resultsSnapshot, usersSnapshot] = await Promise.all([
         db.collection(COLLECTIONS.MARKING_RESULTS).count().get(),
         db.collection(COLLECTIONS.USERS).count().get()
@@ -321,8 +310,6 @@ export class FirestoreService {
       throw new Error(`Firestore stats retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
-
-
 
   // Generic document operations for subscriptions
   static async createDocument(collection: string, docId: string | null, data: any): Promise<any> {
@@ -419,7 +406,6 @@ export class FirestoreService {
       let unifiedMessages = [];
       try {
         unifiedMessages = await Promise.all(messages.map(async (message, index) => {
-        
         let processedImageLink = message.imageLink;
 
         // All images should already be uploaded to Firebase Storage and have imageLink
@@ -438,7 +424,6 @@ export class FirestoreService {
             processedImageLink = null;
           }
         }
-
 
         const messageDoc = {
           id: message.id,
@@ -462,8 +447,7 @@ export class FirestoreService {
         
         return finalMessage;
         }));
-        
-        
+
       } catch (messageProcessingError) {
         console.error(`❌ Message processing failed:`, messageProcessingError);
         console.error(`❌ Error details:`, messageProcessingError.message);
@@ -488,25 +472,17 @@ export class FirestoreService {
       };
 
       // Save complete session document to unifiedSessions collection
-      
-      
-      
-      
-      
+
       if (!db) {
         throw new Error('Database instance is null - Firestore not properly initialized');
       }
       
       try {
-        console.log(`🔍 [SESSION_CREATE] Creating session ${sessionId} for user ${userId}`);
         await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
-        console.log(`✅ [SESSION_CREATE] Session ${sessionId} saved to Firestore`);
-        
         // Verify the session was saved
         const verifyDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
         if (verifyDoc.exists) {
-          console.log(`✅ [SESSION_CREATE] Session ${sessionId} verified in Firestore`);
-        } else {
+          } else {
           throw new Error(`Session verification failed - document not found after save`);
         }
       } catch (firestoreError) {
@@ -531,7 +507,6 @@ export class FirestoreService {
    */
   static async getUnifiedSession(sessionId: string): Promise<any | null> {
     try {
-      
       // Get session document with nested messages
       const sessionDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
       
@@ -585,7 +560,6 @@ export class FirestoreService {
    */
   static async getUserUnifiedSessions(userId: string, limit: number = 50): Promise<any[]> {
     try {
-      
       const sessionsRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
         .where('userId', '==', userId)
         .limit(limit);
@@ -673,13 +647,11 @@ export class FirestoreService {
     questionDetection?: any
   ): Promise<void> {
     try {
-      
       // Upload images to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService');
       
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
       const annotatedImageUrl = await ImageStorageService.uploadImage(annotatedImage, userId, sessionId, 'annotated');
-      
 
       // Helper function to remove undefined values recursively
       const removeUndefinedValues = (obj: any): any => {
@@ -729,7 +701,6 @@ export class FirestoreService {
         found: false,
         message: questionDetection?.message || 'No question detected'
       };
-      
 
       // Create original image message
       const originalMessage = {
@@ -776,12 +747,10 @@ export class FirestoreService {
     questionDetection?: any
   ): Promise<void> {
     try {
-      
       // Upload image to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService');
       
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
-      
 
       // Helper function to remove undefined values recursively
       const removeUndefinedValues = (obj: any): any => {
@@ -813,7 +782,6 @@ export class FirestoreService {
         found: false,
         message: questionDetection?.message || 'No question detected'
       };
-      
 
       // Create question image message
       const questionMessage = {
@@ -861,13 +829,11 @@ export class FirestoreService {
     }
   }
 
-
   /**
    * Delete user with image cleanup
    */
   static async deleteUser(userId: string): Promise<void> {
     try {
-      
       // Import ImageStorageService dynamically to avoid circular dependencies
       const { ImageStorageService } = await import('./imageStorageService');
       
@@ -888,7 +854,6 @@ export class FirestoreService {
    */
   static async deleteUnifiedSession(sessionId: string, userId: string): Promise<void> {
     try {
-      
       // Delete the session document (which contains nested messages)
       await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).delete();
       
@@ -944,7 +909,6 @@ export class FirestoreService {
    */
   static async updateUnifiedSession(sessionId: string, updates: any): Promise<void> {
     try {
-      
       const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
       const sessionDoc = await sessionRef.get();
       

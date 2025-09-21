@@ -21,7 +21,6 @@ const MarkHomeworkPageConsolidated = ({
   onClearSelectedResult,
   onMarkingResultSaved
 }) => {
-
   // ============================================================================
   // HOOKS
   // ============================================================================
@@ -131,7 +130,6 @@ const MarkHomeworkPageConsolidated = ({
     }
   }, [chatContainerRef, handleScroll, chatMessages.length]);
 
-
   // ============================================================================
   // EVENT HANDLERS
   // ============================================================================
@@ -216,8 +214,7 @@ const MarkHomeworkPageConsolidated = ({
         clearFile();
       }
       handleClearPreview();
-      
-      
+
     } catch (error) {
       console.error('❌ Error in image analysis:', error);
       stopAIThinking(); // Stop AI thinking on error
@@ -231,7 +228,6 @@ const MarkHomeworkPageConsolidated = ({
   // ============================================================================
   // RENDER
   // ============================================================================
-
 
   return (
     <MainLayout
@@ -256,24 +252,16 @@ const MarkHomeworkPageConsolidated = ({
       
       // Session management props
       onFavoriteToggle={async () => {
-        console.log('🔍 Favorite toggle clicked - START');
-        console.log('🔍 Current session:', currentSession);
-        console.log('🔍 Current favorite status:', isFavorite);
-        console.log('🔍 User:', user);
-        
         if (currentSession) {
           // Toggle favorite status
           const newFavoriteStatus = !isFavorite;
-          console.log('🔍 Toggling favorite from', isFavorite, 'to', newFavoriteStatus);
           
           try {
-            console.log('🔍 Calling simpleSessionService.updateSession...');
             // Update in backend first
             await simpleSessionService.updateSession(currentSession.id, {
               favorite: newFavoriteStatus,
               updatedAt: new Date().toISOString()
             });
-            console.log('🔍 Backend update successful');
             
             // Update the session in the service (only after successful backend update)
             const updatedSession = {
@@ -281,7 +269,6 @@ const MarkHomeworkPageConsolidated = ({
               favorite: newFavoriteStatus,
               updatedAt: new Date().toISOString()
             };
-            console.log('🔍 Updated session:', updatedSession);
             
             // Update the service state
             simpleSessionService.setCurrentSession(updatedSession);
@@ -289,16 +276,10 @@ const MarkHomeworkPageConsolidated = ({
             
             // Trigger event for real-time updates
             simpleSessionService.triggerSessionUpdate(updatedSession);
-            
-            console.log('✅ Favorite status updated successfully');
           } catch (error) {
             console.error('❌ Failed to update favorite status:', error);
-            // Could show a user-friendly error message here
           }
-        } else {
-          console.log('❌ No current session found');
         }
-        console.log('🔍 Favorite toggle clicked - END');
       }}
       onRatingChange={(rating) => console.log('Rating changed:', rating)}
       onRatingHover={setHoveredRating}

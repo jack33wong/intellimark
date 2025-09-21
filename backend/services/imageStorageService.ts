@@ -1,6 +1,6 @@
 import { getStorage } from 'firebase-admin/storage';
-import { getFirebaseAdmin } from '../config/firebase';
-import { getImageStorageConfig, validateFileSize, getFileSizeMB } from '../config/imageStorage';
+import { getFirebaseAdmin } from '../config/firebase.js';
+import { getImageStorageConfig, validateFileSize, getFileSizeMB } from '../config/imageStorage.js';
 import sharp from 'sharp';
 
 /**

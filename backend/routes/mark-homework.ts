@@ -5,9 +5,9 @@
 
 import * as express from 'express';
 import type { Request, Response } from 'express';
-import { optionalAuth } from '../middleware/auth';
+import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
-import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer';
+import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
 
 // Get Firestore instance
 admin.firestore();
@@ -74,9 +74,6 @@ const router = express.Router();
  * });
  */
 router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
-  // Log usage for monitoring and documentation
-  console.log(`[USAGE] /api/mark-homework/upload called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
-  
   let { imageData, model = 'gemini-2.5-pro', sessionId: providedSessionId } = req.body;
   
   // Convert 'auto' to default model
@@ -106,7 +103,6 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 30 seconds')), 30000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
-    
 
     // Create full session data with messages
     // Use provided sessionId for follow-up images, or create new one
@@ -236,7 +232,6 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
               });
             
             // CRITICAL: Wait for session to be fully created and verify it exists
-            console.log(`🔍 [PHASE1] Waiting for session ${finalSessionId} to be created...`);
             let sessionVerified = false;
             let attempts = 0;
             const maxAttempts = 10;
@@ -247,13 +242,10 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                 const verifySession = await FirestoreService.getUnifiedSession(finalSessionId);
                 if (verifySession && verifySession.id) {
                   sessionVerified = true;
-                  console.log(`✅ [PHASE1] Session ${finalSessionId} verified after ${attempts} attempts`);
-                } else {
-                  console.log(`⏳ [PHASE1] Session ${finalSessionId} not ready, attempt ${attempts}/${maxAttempts}`);
+                  } else {
                   await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
                 }
               } catch (error) {
-                console.log(`⏳ [PHASE1] Session verification failed, attempt ${attempts}/${maxAttempts}:`, error.message);
                 await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
               }
             }
@@ -413,8 +405,6 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
  */
 router.post('/process-single', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  console.log(`[USAGE] /api/mark-homework/process-single called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
-  
   let { imageData, model = 'gemini-2.5-pro', userMessage } = req.body;
 
   if (!imageData) {
@@ -487,8 +477,6 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
     let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log(`🔍 [SINGLE-PHASE] isFollowUp: ${isFollowUp}, sessionId: ${sessionId}`);
-    
     // For authenticated users, persist to database
     if (isAuthenticated) {
       try {
@@ -528,9 +516,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           try {
             await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
             await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
-            console.log(`✅ [SINGLE-PHASE] Added follow-up messages to existing session ${sessionId} for user ${userId}`);
-          } catch (error) {
-            console.log(`⚠️ [SINGLE-PHASE] Session ${sessionId} not found, creating new session instead`);
+            } catch (error) {
             // Create new session with both user and AI messages
             await FirestoreService.createUnifiedSessionWithMessages({
               sessionId: sessionId,
@@ -551,8 +537,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
                 totalAnnotations: result.metadata?.totalAnnotations || 0
               }
             });
-            console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
-          }
+            }
         } else {
           // For initial messages, create new session
           await FirestoreService.createUnifiedSessionWithMessages({
@@ -574,8 +559,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
               totalAnnotations: result.metadata?.totalAnnotations || 0
             }
           });
-          console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
-        }
+          }
         
       } catch (error) {
         console.error('❌ [SINGLE-PHASE] Failed to persist to database:', error);
@@ -584,8 +568,6 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     }
 
     // Return the AI message structure with session ID for follow-up messages
-    console.log(`🔍 [SINGLE-PHASE] Returning response with sessionId: ${sessionId}`);
-    
     // Get the complete session with metadata for the response
     let completeSession;
     try {
@@ -603,7 +585,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
         title: 'Marking Session',
         userId: userId,
         messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-        messages: [dbUserMessage, dbAiMessage],
+        messages: [aiMessage], // Use aiMessage directly
         isPastPaper: result.isPastPaper || false,
         sessionMetadata: {
           totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
@@ -676,8 +658,6 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
  */
 router.post('/process', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  console.log(`[USAGE] /api/mark-homework/process called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
-  
   let { imageData, model = 'gemini-2.5-pro', sessionId, userMessage } = req.body;
   
   // Convert 'auto' to default model
@@ -693,7 +673,6 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
-    
 
     // Process the image for AI response
     const result = await MarkHomeworkWithAnswer.run({
@@ -746,10 +725,8 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       if (isAuthenticated) {
         try {
           // Try to add the AI message to the existing session
-          
-          
+
           try {
-            
             await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage);
           } catch (error: any) {
             console.error(`❌ [${new Date().toISOString()}] /process endpoint: addMessageToUnifiedSession failed:`, error);

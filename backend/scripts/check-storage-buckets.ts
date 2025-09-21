@@ -1,4 +1,4 @@
-import { getFirebaseAdmin } from '../config/firebase';
+import { getFirebaseAdmin } from '../config/firebase.js';
 import { getStorage } from 'firebase-admin/storage';
 
 /**

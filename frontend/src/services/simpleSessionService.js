@@ -71,7 +71,6 @@ class SimpleSessionService {
     getAuthTokenFromContext = authContext.getAuthToken;
   }
 
-
   // ============================================================================
   // STATE MANAGEMENT
   // ============================================================================
@@ -100,8 +99,6 @@ class SimpleSessionService {
       console.warn('Could not dispatch session update event:', error);
     });
   }
-
-
 
   // ============================================================================
   // SESSION MANAGEMENT
@@ -235,8 +232,6 @@ class SimpleSessionService {
   // ============================================================================
 
   async processImage(imageData, model = 'auto', mode = 'marking') {
-    console.log(`🔍 [${new Date().toISOString()}] Starting single-phase image processing with model: ${model}, mode: ${mode}`);
-    
     this.setState({ error: null });
 
     try {
@@ -288,15 +283,11 @@ class SimpleSessionService {
         requestBody.userMessage = userMessage;
         
         // Debug logging
-        console.log(`🔍 [FRONTEND] Current session ID: ${this.state.currentSession?.id}`);
-        console.log(`🔍 [FRONTEND] Is temp session: ${this.state.currentSession?.id?.startsWith('temp-')}`);
-        console.log(`🔍 [FRONTEND] Sending sessionId: ${userMessage.sessionId || 'none'}`);
-      }
+        }
       
       // ========================================
       // SINGLE-PHASE: Upload + Classification + AI Processing
       // ========================================
-      console.log(`🚀 [${new Date().toISOString()}] Single-phase: Processing image...`);
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single`, {
         method: 'POST',
@@ -329,14 +320,11 @@ class SimpleSessionService {
       // ========================================
       // COMPLETE: Add AI message to chat
       // ========================================
-      console.log(`🎉 [${new Date().toISOString()}] Single-phase processing complete!`);
-
       // Check if this is a follow-up message (has real session ID, not temp)
       const isFollowUp = this.state.currentSession?.id && !this.state.currentSession.id.startsWith('temp-');
       
       if (isFollowUp) {
         // For follow-up messages, append to existing messages
-        console.log(`🔄 [${new Date().toISOString()}] Adding follow-up AI message to existing session`);
         const existingMessages = this.state.currentSession?.messages || [];
         const updatedMessages = [...existingMessages, data.aiMessage];
         
@@ -358,10 +346,6 @@ class SimpleSessionService {
         return updatedSession;
       } else {
         // For initial messages, use the complete session data from backend
-        console.log(`🆕 [${new Date().toISOString()}] Creating new session with AI message`);
-        console.log(`🔍 [FRONTEND] Backend returned sessionId: ${data.sessionId}`);
-        console.log(`🔍 [FRONTEND] Backend returned unifiedSession:`, data.unifiedSession ? 'Yes' : 'No');
-        
         // Use the complete session data from backend if available, otherwise create basic session
         const newSession = data.unifiedSession || {
           id: data.sessionId || this.state.currentSession.id,
@@ -386,12 +370,6 @@ class SimpleSessionService {
             totalAnnotations: 0
           }
         };
-        
-        console.log(`🔍 [FRONTEND] New session ID after update: ${newSession.id}`);
-        console.log(`🔍 [FRONTEND] New session metadata:`, newSession.sessionMetadata);
-        console.log(`🔍 [FRONTEND] LLM Tokens:`, newSession.sessionMetadata?.llmTokens);
-        console.log(`🔍 [FRONTEND] Mathpix Calls:`, newSession.sessionMetadata?.mathpixCalls);
-        console.log(`🔍 [FRONTEND] Image Size:`, newSession.sessionMetadata?.imageSize);
         
         // Update state with new session (now has real session ID and metadata)
         this.setState({ 
@@ -453,7 +431,6 @@ class SimpleSessionService {
       const data = await response.json();
       
       if (data.success && data.sessions) {
-        console.log(`✅ Loaded ${data.sessions.length} chat sessions from database`);
         return data.sessions;
       }
 
@@ -464,10 +441,8 @@ class SimpleSessionService {
     }
   }
 
-
   // New method: Just get AI response without overwriting session
   async getAIResponse(imageData, model = 'auto') {
-    
     try {
       // Get auth token
       const authToken = await this.getAuthToken();
@@ -515,7 +490,6 @@ class SimpleSessionService {
       throw error;
     }
   }
-
 
   // ============================================================================
   // CONVERSION UTILITIES

@@ -4,7 +4,7 @@
  */
 
 import axios from 'axios';
-import { getDebugMode } from '../config/aiModels';
+import { getDebugMode } from '../config/aiModels.js';
 
 export interface MathpixResult {
   latex_styled?: string;

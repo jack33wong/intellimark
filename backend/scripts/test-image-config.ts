@@ -1,4 +1,4 @@
-import { getImageStorageConfig, validateFileSize, getFileSizeMB } from '../config/imageStorage';
+import { getImageStorageConfig, validateFileSize, getFileSizeMB } from '../config/imageStorage.js';
 
 /**
  * Test script for image storage configuration

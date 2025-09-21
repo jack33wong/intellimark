@@ -9,8 +9,8 @@ import {
   ImageAnnotationResult, 
   ImageDimensions, 
   BoundingBox 
-} from '../types/index';
-import { SVGOverlayService } from './svgOverlayService';
+} from '../types/index.js';
+import { SVGOverlayService } from './svgOverlayService.js';
 
 /**
  * Image Annotation Service class

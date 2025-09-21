@@ -27,7 +27,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 
-
 export const useMarkHomework = () => {
   const { getAuthToken } = useAuth();
   
@@ -55,20 +54,11 @@ export const useMarkHomework = () => {
   // Sync with service state when it changes
   useEffect(() => {
     const syncWithService = (serviceState) => {
-      console.log('🔍 useMarkHomework: Service state changed:', serviceState);
       const { currentSession } = serviceState;
       const chatMessages = currentSession?.messages || [];
       const sessionTitle = currentSession?.title || '';
       const isFavorite = currentSession?.favorite || false;
       const rating = currentSession?.rating || 0;
-
-      console.log('🔍 useMarkHomework: Extracted session data:', {
-        currentSession: !!currentSession,
-        sessionTitle,
-        isFavorite,
-        rating,
-        chatMessages: chatMessages.length
-      });
 
       setState(prev => ({
         ...prev,

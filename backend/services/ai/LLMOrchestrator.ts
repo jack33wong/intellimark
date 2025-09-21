@@ -9,7 +9,7 @@ import type {
   ModelType as SimpleModelType,
   ProcessedImageResult as SimpleProcessedImageResult,
   MarkingInstructions as SimpleMarkingInstructions
-} from '../../types/index';
+} from '../../types/index.js';
 
 export interface MarkingInputs {
   imageData: string;

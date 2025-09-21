@@ -1,4 +1,4 @@
-import type { ImageClassification, ModelType } from '../../types/index';
+import type { ImageClassification, ModelType } from '../../types/index.js';
 
 /**
  * ClassificationEngine

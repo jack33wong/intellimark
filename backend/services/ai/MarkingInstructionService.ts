@@ -1,4 +1,4 @@
-import type { ModelType } from '../../types/index';
+import type { ModelType } from '../../types/index.js';
 
 export class MarkingInstructionService {
   static async generateFromOCR(

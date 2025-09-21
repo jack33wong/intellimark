@@ -6,10 +6,10 @@
 import * as express from 'express';
 import type { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { requireAdmin } from '../middleware/auth';
+import { requireAdmin } from '../middleware/auth.js';
 
 // Import Firebase instances from centralized config
-import { getFirestore, getFirebaseAdmin } from '../config/firebase';
+import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
 
 const router = express.Router();
 

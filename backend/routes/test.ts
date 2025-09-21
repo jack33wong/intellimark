@@ -4,8 +4,8 @@
  */
 
 import express from 'express';
-import { FirestoreService } from '../services/firestoreService';
-import { authenticateUser } from '../middleware/auth';
+import { FirestoreService } from '../services/firestoreService.js';
+import { authenticateUser } from '../middleware/auth.js';
 
 const router = express.Router();
 

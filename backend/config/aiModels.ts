@@ -3,7 +3,7 @@
  * Centralized configuration for all supported AI models
  */
 
-import { ModelType, AIModelConfig } from '../types/index';
+import { ModelType, AIModelConfig } from '../types/index.js';
 
 /**
  * Debug Mode Configuration

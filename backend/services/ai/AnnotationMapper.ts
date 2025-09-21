@@ -1,4 +1,4 @@
-import type { Annotation } from '../../types/index';
+import type { Annotation } from '../../types/index.js';
 
 /**
  * AnnotationMapper

@@ -1,7 +1,7 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import type { protos } from '@google-cloud/vision';
-import { getDebugMode } from '../config/aiModels';
-import type { ProcessedVisionResult, BoundingBox, ImageDimensions } from '../types/index';
+import { getDebugMode } from '../config/aiModels.js';
+import type { ProcessedVisionResult, BoundingBox, ImageDimensions } from '../types/index.js';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 

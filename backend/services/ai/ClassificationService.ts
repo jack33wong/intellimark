@@ -1,4 +1,4 @@
-import type { ModelType } from '../../types/index';
+import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
 
 export interface ClassificationResult {
@@ -44,7 +44,6 @@ export class ClassificationService {
       console.error('❌ [CLASSIFICATION ERROR]', error);
       
       // Fallback: Try to classify based on image characteristics
-      console.log('🔄 [FALLBACK] Attempting local classification...');
       const fallbackResult = await this.fallbackClassification(imageData);
       
       return {
@@ -188,8 +187,6 @@ export class ClassificationService {
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new Error('No content in OpenAI response');
     
-    // Debug: Log the raw AI response
-    console.log('🔍 [AI RESPONSE] Raw OpenAI classification response:', content);
     
     const parsed = JSON.parse(content);
     const usageTokens = (result.usage?.total_tokens as number) || 0;

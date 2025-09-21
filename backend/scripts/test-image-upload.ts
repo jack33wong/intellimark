@@ -1,4 +1,4 @@
-import { ImageStorageService } from '../services/imageStorageService';
+import { ImageStorageService } from '../services/imageStorageService.js';
 
 /**
  * Test image upload to Firebase Storage

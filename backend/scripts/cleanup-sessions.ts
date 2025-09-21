@@ -1,4 +1,4 @@
-import { getFirestore } from '../config/firebase';
+import { getFirestore } from '../config/firebase.js';
 import admin from 'firebase-admin';
 
 // Initialize Firebase Admin if not already initialized
