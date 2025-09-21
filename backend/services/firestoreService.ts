@@ -903,28 +903,14 @@ export class FirestoreService {
    * For chat functionality that requires incremental message addition
    */
   static async addMessageToUnifiedSession(sessionId: string, message: any): Promise<void> {
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        // First, get the existing session
-        const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
-        const sessionDoc = await sessionRef.get();
-        
-        console.log(`🔍 [SESSION_RETRY] Attempt ${attempt}/${maxRetries}: Looking for session ${sessionId}`);
-        console.log(`🔍 [SESSION_RETRY] Session exists: ${sessionDoc.exists}`);
-        
-        if (!sessionDoc.exists) {
-          if (attempt === maxRetries) {
-            console.log(`❌ [SESSION_RETRY] Session ${sessionId} not found after ${maxRetries} attempts`);
-            throw new Error(`Session ${sessionId} not found after ${maxRetries} attempts`);
-          }
-          // Wait and retry for eventual consistency
-          console.log(`⏳ Session ${sessionId} not found, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-          continue;
-        }
+    try {
+      // Get the existing session
+      const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+      
+      if (!sessionDoc.exists) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
       
       const sessionData = sessionDoc.data();
       const existingMessages = sessionData?.unifiedMessages || [];
@@ -941,23 +927,15 @@ export class FirestoreService {
         updatedAt: new Date().toISOString(),
         'sessionMetadata.totalMessages': updatedMessages.length,
         'sessionMetadata.hasImage': updatedMessages.some((msg: any) => msg.imageLink),
-        'sessionMetadata.lastApiUsed': message.metadata?.apiUsed || 'Unknown',
-        'sessionMetadata.lastModelUsed': message.metadata?.modelUsed || 'Unknown'
+        'sessionMetadata.lastApiUsed': sanitizedMessage?.metadata?.apiUsed || 'Unknown',
+        'sessionMetadata.lastModelUsed': sanitizedMessage?.metadata?.modelUsed || 'Unknown'
       };
       
-        await sessionRef.update(updateData);
-        
-        // Success - break out of retry loop
-        return;
-        
-      } catch (error) {
-        if (attempt === maxRetries) {
-          console.error('❌ Failed to add message to UnifiedSession after all retries:', error);
-          throw error;
-        }
-        console.log(`⏳ Error adding message to session ${sessionId}, retrying in ${retryDelay}ms (attempt ${attempt}/${maxRetries}):`, error.message);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      }
+      await sessionRef.update(updateData);
+      
+    } catch (error) {
+      console.error('❌ Failed to add message to UnifiedSession:', error);
+      throw error;
     }
   }
 

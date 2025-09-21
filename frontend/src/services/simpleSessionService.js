@@ -159,16 +159,29 @@ class SimpleSessionService {
   // ============================================================================
 
   async addMessage(message) {
+    // Don't create local sessions - let backend handle session creation
+    // This prevents the retry problem where frontend creates temporary sessions
+    // that don't exist in the backend database
+    
     if (!this.state.currentSession) {
-      // Create a session if none exists
-      await this.createSession();
+      // For first message, create minimal local session for UI display only
+      // Backend will create the real session and return the actual sessionId
+      const tempSession = {
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: 'Processing...',
+        messages: [],
+        userId: message.userId || 'anonymous',
+        messageType: 'Marking',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0
+      };
+      
+      this.setState({ currentSession: tempSession });
     }
 
-    // Ensure we have a current session after creation
-    if (!this.state.currentSession) {
-      throw new Error('Failed to create session for message');
-    }
-
+    // Add message to current session for immediate UI display
     const updatedSession = {
       ...this.state.currentSession,
       messages: [...(this.state.currentSession.messages || []), message],
@@ -210,7 +223,12 @@ class SimpleSessionService {
       const requestBody = {
         imageData,
         userId: this.state.currentSession?.userId,
-        sessionId: this.state.currentSession?.id // Pass current session ID for follow-up uploads
+        // Only send sessionId for follow-up messages (when we have a real session ID from backend)
+        // For first message, let backend create the session
+        ...(this.state.currentSession?.id && 
+            !this.state.currentSession.id.startsWith('temp-') && { 
+          sessionId: this.state.currentSession?.id 
+        })
       };
       
       // Only include model if it's not 'auto' (let backend use default)
@@ -222,10 +240,19 @@ class SimpleSessionService {
       if (this.state.currentSession?.userId) {
         const userMessage = {
           content: 'I have a question about this image. Can you help me understand it?',
-          sessionId: this.state.currentSession?.id,
+          // Only send sessionId for follow-up messages (when we have a real session ID from backend)
+          ...(this.state.currentSession?.id && 
+              !this.state.currentSession.id.startsWith('temp-') && { 
+            sessionId: this.state.currentSession?.id 
+          }),
           imageData: imageData
         };
         requestBody.userMessage = userMessage;
+        
+        // Debug logging
+        console.log(`🔍 [FRONTEND] Current session ID: ${this.state.currentSession?.id}`);
+        console.log(`🔍 [FRONTEND] Is temp session: ${this.state.currentSession?.id?.startsWith('temp-')}`);
+        console.log(`🔍 [FRONTEND] Sending sessionId: ${userMessage.sessionId || 'none'}`);
       }
       
       // ========================================
@@ -272,8 +299,8 @@ class SimpleSessionService {
       // Add the AI message from the response
       const aiMessage = data.aiMessage;
       
-      // Check if this is a follow-up message (has existing messages)
-      const isFollowUp = existingMessages.length > 0;
+      // Check if this is a follow-up message (has real session ID, not temp)
+      const isFollowUp = this.state.currentSession?.id && !this.state.currentSession.id.startsWith('temp-');
       
       if (isFollowUp) {
         // For follow-up messages, append to existing messages
@@ -294,14 +321,21 @@ class SimpleSessionService {
         
         return updatedSession;
       } else {
-        // For initial messages, create new session
+        // For initial messages, use the real session ID returned by backend
         console.log(`🆕 [${new Date().toISOString()}] Creating new session with AI message`);
+        console.log(`🔍 [FRONTEND] Backend returned sessionId: ${data.sessionId}`);
+        console.log(`🔍 [FRONTEND] Current session ID before update: ${this.state.currentSession?.id}`);
+        
         const newSession = {
           ...this.state.currentSession,
-          messages: [...existingMessages, aiMessage]
+          id: data.sessionId || this.state.currentSession.id, // Use real session ID from backend
+          messages: [...existingMessages, aiMessage],
+          updatedAt: new Date().toISOString()
         };
         
-        // Update state with new session
+        console.log(`🔍 [FRONTEND] New session ID after update: ${newSession.id}`);
+        
+        // Update state with new session (now has real session ID)
         this.setState({ 
           currentSession: newSession,
         });
