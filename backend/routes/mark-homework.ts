@@ -187,10 +187,14 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       sessionMetadata: {
         totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+        llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+        mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
         averageConfidence: result.metadata?.confidence || 0,
         lastApiUsed: result.apiUsed || 'Complete AI Marking System',
         lastModelUsed: model,
-        totalMessages: 1 // Only user message
+        totalMessages: 1, // Only user message
+        imageSize: result.metadata?.imageSize || 0,
+        totalAnnotations: result.metadata?.totalAnnotations || 0
       }
     };
 
@@ -220,10 +224,14 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                 sessionMetadata: {
                   totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
                   totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+                  llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+                  mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
                   averageConfidence: result.metadata?.confidence || 0,
                   lastApiUsed: result.apiUsed || 'Complete AI Marking System',
                   lastModelUsed: model,
-                  totalMessages: 1 // Only user message
+                  totalMessages: 1, // Only user message
+                  imageSize: result.metadata?.imageSize || 0,
+                  totalAnnotations: result.metadata?.totalAnnotations || 0
                 }
               });
             
@@ -332,7 +340,13 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         totalMessages: 1,
         lastModelUsed: model,
         totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+        lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+        llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+        mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+        totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+        averageConfidence: result.metadata?.confidence || 0,
+        imageSize: result.metadata?.imageSize || 0,
+        totalAnnotations: result.metadata?.totalAnnotations || 0
       }
     };
 
@@ -528,7 +542,13 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
               sessionMetadata: {
                 totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
                 lastModelUsed: model,
-                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+                llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+                mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+                totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+                averageConfidence: result.metadata?.confidence || 0,
+                imageSize: result.metadata?.imageSize || 0,
+                totalAnnotations: result.metadata?.totalAnnotations || 0
               }
             });
             console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
@@ -545,7 +565,13 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
             sessionMetadata: {
               totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
               lastModelUsed: model,
-              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System'
+              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+              llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+              mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+              averageConfidence: result.metadata?.confidence || 0,
+              imageSize: result.metadata?.imageSize || 0,
+              totalAnnotations: result.metadata?.totalAnnotations || 0
             }
           });
           console.log(`✅ [SINGLE-PHASE] Created new session ${sessionId} for user ${userId}`);
@@ -559,10 +585,45 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
 
     // Return the AI message structure with session ID for follow-up messages
     console.log(`🔍 [SINGLE-PHASE] Returning response with sessionId: ${sessionId}`);
+    
+    // Get the complete session with metadata for the response
+    let completeSession;
+    try {
+      const { FirestoreService } = await import('../services/firestoreService');
+      completeSession = await FirestoreService.getUnifiedSession(sessionId);
+      // Ensure title is set
+      if (!completeSession.title) {
+        completeSession.title = 'Marking Session';
+      }
+    } catch (error) {
+      console.error('❌ Failed to get complete session:', error);
+      // Fallback to basic session structure
+      completeSession = {
+        id: sessionId,
+        title: 'Marking Session',
+        userId: userId,
+        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+        messages: [dbUserMessage, dbAiMessage],
+        isPastPaper: result.isPastPaper || false,
+        sessionMetadata: {
+          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          lastModelUsed: model,
+          lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+          llmTokens: result.metadata?.tokens?.[0] || 0,
+          mathpixCalls: result.metadata?.tokens?.[1] || 0,
+          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+          averageConfidence: result.metadata?.confidence || 0,
+          imageSize: result.metadata?.imageSize || 0,
+          totalAnnotations: result.metadata?.totalAnnotations || 0
+        }
+      };
+    }
+    
     res.json({
       success: true,
       aiMessage: aiMessage,
-      sessionId: sessionId // Include session ID for follow-up messages
+      sessionId: sessionId,
+      unifiedSession: completeSession // Include session with metadata
     });
 
   } catch (error) {
@@ -715,7 +776,13 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               sessionMetadata: {
                 totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
                 lastModelUsed: model,
-                lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+                lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+                llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+                mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+                totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+                averageConfidence: result.metadata?.confidence || 0,
+                imageSize: result.metadata?.imageSize || 0,
+                totalAnnotations: result.metadata?.totalAnnotations || 0
               }
             });
           }
@@ -739,7 +806,13 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               totalMessages: aiMessages.length,
               lastModelUsed: model,
               totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+              lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+              llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+              mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+              averageConfidence: result.metadata?.confidence || 0,
+              imageSize: result.metadata?.imageSize || 0,
+              totalAnnotations: result.metadata?.totalAnnotations || 0
             }
           };
         } catch (error) {
@@ -763,7 +836,13 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               totalMessages: 1,
               lastModelUsed: model,
               totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+              lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+              llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+              mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+              averageConfidence: result.metadata?.confidence || 0,
+              imageSize: result.metadata?.imageSize || 0,
+              totalAnnotations: result.metadata?.totalAnnotations || 0
             }
           };
         }
@@ -785,7 +864,13 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             totalMessages: 1,
             lastModelUsed: model,
             totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+            lastApiUsed: result.apiUsed || 'Complete AI Marking System',
+            llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
+            mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
+            totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+            averageConfidence: result.metadata?.confidence || 0,
+            imageSize: result.metadata?.imageSize || 0,
+            totalAnnotations: result.metadata?.totalAnnotations || 0
           }
         };
       }

@@ -31,17 +31,20 @@ import { simpleSessionService } from '../services/simpleSessionService';
 export const useMarkHomework = () => {
   const { getAuthToken } = useAuth();
   
-  // UI state only - session data comes from service
-  const [uiState, setUiState] = useState({
-    // Processing state - simplified
+  // Consolidated state management - single source of truth
+  const [state, setState] = useState({
+    // UI state
     isProcessing: false,
     isAIThinking: false,
-    
-    // UI state
     pageMode: 'upload', // 'upload' | 'chat'
+    error: null,
     
-    // Error state
-    error: null
+    // Session data (will be synced with service)
+    currentSession: null,
+    chatMessages: [],
+    sessionTitle: '',
+    isFavorite: false,
+    rating: 0
   });
 
   // Initialize session service
@@ -49,24 +52,51 @@ export const useMarkHomework = () => {
     simpleSessionService.setAuthContext({ getAuthToken });
   }, [getAuthToken]);
 
-  // Get session data directly from service - single source of truth
-  const { currentSession } = simpleSessionService.state;
-  const chatMessages = currentSession?.messages || [];
-  const sessionTitle = currentSession?.title || '';
-  const isFavorite = currentSession?.favorite || false;
-  const rating = currentSession?.rating || 0;
+  // Sync with service state when it changes
+  useEffect(() => {
+    const syncWithService = (serviceState) => {
+      console.log('🔍 useMarkHomework: Service state changed:', serviceState);
+      const { currentSession } = serviceState;
+      const chatMessages = currentSession?.messages || [];
+      const sessionTitle = currentSession?.title || '';
+      const isFavorite = currentSession?.favorite || false;
+      const rating = currentSession?.rating || 0;
+
+      console.log('🔍 useMarkHomework: Extracted session data:', {
+        currentSession: !!currentSession,
+        sessionTitle,
+        isFavorite,
+        rating,
+        chatMessages: chatMessages.length
+      });
+
+      setState(prev => ({
+        ...prev,
+        currentSession,
+        chatMessages,
+        sessionTitle,
+        isFavorite,
+        rating
+      }));
+    };
+
+    // Subscribe to service state changes
+    const unsubscribe = simpleSessionService.subscribe(syncWithService);
+
+    return unsubscribe;
+  }, []);
 
   // Actions - simplified
   const startProcessing = () => {
-    setUiState(prev => ({ ...prev, isProcessing: true }));
+    setState(prev => ({ ...prev, isProcessing: true }));
   };
 
   const stopProcessing = () => {
-    setUiState(prev => ({ ...prev, isProcessing: false }));
+    setState(prev => ({ ...prev, isProcessing: false }));
   };
 
   const reset = () => {
-    setUiState(prev => ({
+    setState(prev => ({
       ...prev,
       isProcessing: false,
       isAIThinking: false,
@@ -76,19 +106,19 @@ export const useMarkHomework = () => {
 
   // AI thinking state control
   const startAIThinking = () => {
-    setUiState(prev => ({ ...prev, isAIThinking: true }));
+    setState(prev => ({ ...prev, isAIThinking: true }));
   };
 
   const stopAIThinking = () => {
-    setUiState(prev => ({ ...prev, isAIThinking: false }));
+    setState(prev => ({ ...prev, isAIThinking: false }));
   };
 
   const setPageMode = (mode) => {
-    setUiState(prev => ({ ...prev, pageMode: mode }));
+    setState(prev => ({ ...prev, pageMode: mode }));
   };
 
   const handleError = (error) => {
-    setUiState(prev => ({
+    setState(prev => ({
       ...prev,
       isProcessing: false,
       error: error.message || 'Unknown error'
@@ -119,19 +149,12 @@ export const useMarkHomework = () => {
   }, [setPageMode]);
 
   return {
-    // UI State
-    ...uiState,
-    
-    // Session data from service - single source of truth
-    currentSession,
-    chatMessages,
-    sessionTitle,
-    isFavorite,
-    rating,
+    // Consolidated state - single source of truth
+    ...state,
     
     // Computed properties - simplified
-    isIdle: !uiState.isProcessing && !uiState.isAIThinking,
-    isError: !!uiState.error,
+    isIdle: !state.isProcessing && !state.isAIThinking,
+    isError: !!state.error,
     
     // Actions - simplified
     startProcessing,

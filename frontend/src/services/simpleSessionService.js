@@ -40,6 +40,7 @@ class SimpleSessionService {
       sidebarSessions: []
     };
     this.MAX_SIDEBAR_SESSIONS = 50;
+    this.listeners = new Set();
   }
 
   // ============================================================================
@@ -77,6 +78,27 @@ class SimpleSessionService {
 
   setState(updates) {
     this.state = { ...this.state, ...updates };
+    this.notifyListeners();
+  }
+
+  // Subscription methods
+  subscribe(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  notifyListeners() {
+    this.listeners.forEach(listener => listener(this.state));
+  }
+
+  // Trigger session update event for real-time UI updates
+  triggerSessionUpdate(session) {
+    // Import EventManager dynamically to avoid circular dependencies
+    import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+      EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session });
+    }).catch(error => {
+      console.warn('Could not dispatch session update event:', error);
+    });
   }
 
 
@@ -309,19 +331,14 @@ class SimpleSessionService {
       // ========================================
       console.log(`🎉 [${new Date().toISOString()}] Single-phase processing complete!`);
 
-      // Get existing messages (includes our local user message for immediate display)
-      const existingMessages = this.state.currentSession?.messages || [];
-      
-      // Add the AI message from the response
-      const aiMessage = data.aiMessage;
-      
       // Check if this is a follow-up message (has real session ID, not temp)
       const isFollowUp = this.state.currentSession?.id && !this.state.currentSession.id.startsWith('temp-');
       
       if (isFollowUp) {
         // For follow-up messages, append to existing messages
         console.log(`🔄 [${new Date().toISOString()}] Adding follow-up AI message to existing session`);
-        const updatedMessages = [...existingMessages, aiMessage];
+        const existingMessages = this.state.currentSession?.messages || [];
+        const updatedMessages = [...existingMessages, data.aiMessage];
         
         const updatedSession = {
           ...this.state.currentSession,
@@ -335,27 +352,55 @@ class SimpleSessionService {
         });
         this.updateSidebarSession(updatedSession);
         
+        // Trigger event for real-time updates
+        this.triggerSessionUpdate(updatedSession);
+        
         return updatedSession;
       } else {
-        // For initial messages, use the real session ID returned by backend
+        // For initial messages, use the complete session data from backend
         console.log(`🆕 [${new Date().toISOString()}] Creating new session with AI message`);
         console.log(`🔍 [FRONTEND] Backend returned sessionId: ${data.sessionId}`);
-        console.log(`🔍 [FRONTEND] Current session ID before update: ${this.state.currentSession?.id}`);
+        console.log(`🔍 [FRONTEND] Backend returned unifiedSession:`, data.unifiedSession ? 'Yes' : 'No');
         
-        const newSession = {
-          ...this.state.currentSession,
-          id: data.sessionId || this.state.currentSession.id, // Use real session ID from backend
-          messages: [...existingMessages, aiMessage],
-          updatedAt: new Date().toISOString()
+        // Use the complete session data from backend if available, otherwise create basic session
+        const newSession = data.unifiedSession || {
+          id: data.sessionId || this.state.currentSession.id,
+          title: 'Marking Session',
+          userId: this.state.currentSession?.userId || 'anonymous',
+          messageType: 'Marking',
+          messages: [...(this.state.currentSession?.messages || []), data.aiMessage],
+          isPastPaper: false,
+          favorite: false,
+          rating: 0,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          sessionMetadata: {
+            totalProcessingTimeMs: 0,
+            lastModelUsed: 'unknown',
+            lastApiUsed: 'Unknown',
+            llmTokens: 0,
+            mathpixCalls: 0,
+            totalTokens: 0,
+            averageConfidence: 0,
+            imageSize: 0,
+            totalAnnotations: 0
+          }
         };
         
         console.log(`🔍 [FRONTEND] New session ID after update: ${newSession.id}`);
+        console.log(`🔍 [FRONTEND] New session metadata:`, newSession.sessionMetadata);
+        console.log(`🔍 [FRONTEND] LLM Tokens:`, newSession.sessionMetadata?.llmTokens);
+        console.log(`🔍 [FRONTEND] Mathpix Calls:`, newSession.sessionMetadata?.mathpixCalls);
+        console.log(`🔍 [FRONTEND] Image Size:`, newSession.sessionMetadata?.imageSize);
         
-        // Update state with new session (now has real session ID)
+        // Update state with new session (now has real session ID and metadata)
         this.setState({ 
           currentSession: newSession,
         });
         this.updateSidebarSession(newSession);
+        
+        // Trigger event for real-time updates
+        this.triggerSessionUpdate(newSession);
         
         return newSession;
       }
@@ -560,6 +605,45 @@ class SimpleSessionService {
     
     // Update sidebar if not already present
     this.updateSidebarSession(session);
+  }
+
+  // ============================================================================
+  // SESSION UPDATES (PERSISTENCE)
+  // ============================================================================
+
+  /**
+   * Update session metadata in backend (favorite, rating, title, etc.)
+   * @param {string} sessionId - The session ID to update
+   * @param {object} updates - The updates to apply
+   */
+  async updateSession(sessionId, updates) {
+    try {
+      const token = await this.getAuthToken();
+      if (!token) {
+        throw new Error('Authentication required to update session');
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/messages/session/${sessionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Session updated successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to update session:', error);
+      throw error;
+    }
   }
 }
 

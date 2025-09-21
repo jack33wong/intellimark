@@ -34,7 +34,8 @@ const testCategories = {
   session: [
     'test-session-cache.js',
     'test-session-id-consistency.js',
-    'test-session-id-fix.js'
+    'test-session-id-fix.js',
+    'test-favorite-persistence.js'
   ],
   debug: [
     'test-debug-simple.js',

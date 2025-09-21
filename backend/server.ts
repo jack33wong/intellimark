@@ -11,6 +11,9 @@ dotenv.config({ path: '.env.local' });
 const app = express();
 const DEFAULT_PORT = parseInt(process.env['PORT'] || '5001');
 
+// Trust proxy for rate limiting (needed for X-Forwarded-For header)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 

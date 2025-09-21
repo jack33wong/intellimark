@@ -21,6 +21,15 @@ const SessionHeader = ({
 }) => {
   const dropdownRef = useRef(null);
 
+  // Debug: Log when component renders
+  console.log('🔍 SessionHeader rendered with:', {
+    sessionTitle,
+    isFavorite,
+    onFavoriteToggle: typeof onFavoriteToggle,
+    showInfoDropdown,
+    onToggleInfoDropdown: typeof onToggleInfoDropdown
+  });
+
   // Helper function to get token data from either markingResult or sessionData
   const getTokenData = () => {
     // First try to get from markingResult (for current sessions)
@@ -33,6 +42,14 @@ const SessionHeader = ({
       // Check if tokens are stored as array
       if (sessionData.sessionMetadata.tokens && Array.isArray(sessionData.sessionMetadata.tokens)) {
         return sessionData.sessionMetadata.tokens;
+      }
+      
+      // Use new individual fields if available
+      if (sessionData.sessionMetadata.llmTokens !== undefined || sessionData.sessionMetadata.mathpixCalls !== undefined) {
+        return [
+          sessionData.sessionMetadata.llmTokens || 0,
+          sessionData.sessionMetadata.mathpixCalls || 0
+        ];
       }
       
       // Check if tokens are stored as totalTokens (for LLM tokens)
@@ -126,7 +143,14 @@ const SessionHeader = ({
           <div className="info-dropdown-container" ref={dropdownRef}>
             <button 
               className="header-btn info-btn"
-              onClick={onToggleInfoDropdown}
+              onClick={() => {
+                console.log('🔍 Info dropdown button clicked!', { showInfoDropdown, onToggleInfoDropdown: typeof onToggleInfoDropdown });
+                if (onToggleInfoDropdown) {
+                  onToggleInfoDropdown();
+                } else {
+                  console.warn('❌ onToggleInfoDropdown is not defined');
+                }
+              }}
               title="Information"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -207,6 +231,30 @@ const SessionHeader = ({
                         }
                       </span>
                     </div>
+                    <div className="image-size">
+                      <span className="label">Image Size:</span>
+                      <span className="value">
+                        {sessionData?.sessionMetadata?.imageSize 
+                          ? `${(sessionData.sessionMetadata.imageSize / 1024).toFixed(1)} KB`
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="confidence">
+                      <span className="label">Confidence:</span>
+                      <span className="value">
+                        {sessionData?.sessionMetadata?.averageConfidence 
+                          ? `${(sessionData.sessionMetadata.averageConfidence * 100).toFixed(1)}%`
+                          : 'N/A'
+                        }
+                      </span>
+                    </div>
+                    <div className="annotations">
+                      <span className="label">Annotations:</span>
+                      <span className="value">
+                        {sessionData?.sessionMetadata?.totalAnnotations || 'N/A'}
+                      </span>
+                    </div>
                     <div className="last-update">
                       <span className="label">Last Update:</span>
                       <span className="value">{new Date().toLocaleString()}</span>
@@ -220,9 +268,23 @@ const SessionHeader = ({
           {/* Favorite button */}
           <button 
             className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''} ${!user?.uid ? 'disabled' : ''}`}
-            onClick={onFavoriteToggle}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('🔍 Favorite button clicked!', { isFavorite, onFavoriteToggle: typeof onFavoriteToggle });
+              if (onFavoriteToggle) {
+                onFavoriteToggle();
+              } else {
+                console.warn('❌ onFavoriteToggle is not defined');
+              }
+            }}
             title={!user?.uid ? "Login required to save favorites" : (isFavorite ? "Remove from favorites" : "Add to favorites")}
             disabled={!user?.uid}
+            style={{ 
+              pointerEvents: 'auto',
+              zIndex: 1000,
+              position: 'relative'
+            }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>

@@ -12,6 +12,8 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { useMarkHomework } from '../../hooks/useMarkHomework';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
+import { useAuth } from '../../contexts/AuthContext';
+import { simpleSessionService } from '../../services/simpleSessionService';
 import MainLayout from './MainLayout';
 
 const MarkHomeworkPageConsolidated = ({
@@ -23,6 +25,9 @@ const MarkHomeworkPageConsolidated = ({
   // ============================================================================
   // HOOKS
   // ============================================================================
+
+  // Authentication context
+  const { user } = useAuth();
 
   // Image upload state
   const {
@@ -77,6 +82,10 @@ const MarkHomeworkPageConsolidated = ({
 
   // Scroll button state
   const [showScrollButton, setShowScrollButton] = useState(false);
+  
+  // Session management state
+  const [showInfoDropdown, setShowInfoDropdown] = useState(false);
+  const [hoveredRating, setHoveredRating] = useState(0);
 
   // ============================================================================
   // EFFECTS
@@ -223,6 +232,7 @@ const MarkHomeworkPageConsolidated = ({
   // RENDER
   // ============================================================================
 
+
   return (
     <MainLayout
       // Page mode
@@ -243,6 +253,61 @@ const MarkHomeworkPageConsolidated = ({
       rating={rating}
       isProcessing={isProcessing}
       isAIThinking={isAIThinking}
+      
+      // Session management props
+      onFavoriteToggle={async () => {
+        console.log('🔍 Favorite toggle clicked - START');
+        console.log('🔍 Current session:', currentSession);
+        console.log('🔍 Current favorite status:', isFavorite);
+        console.log('🔍 User:', user);
+        
+        if (currentSession) {
+          // Toggle favorite status
+          const newFavoriteStatus = !isFavorite;
+          console.log('🔍 Toggling favorite from', isFavorite, 'to', newFavoriteStatus);
+          
+          try {
+            console.log('🔍 Calling simpleSessionService.updateSession...');
+            // Update in backend first
+            await simpleSessionService.updateSession(currentSession.id, {
+              favorite: newFavoriteStatus,
+              updatedAt: new Date().toISOString()
+            });
+            console.log('🔍 Backend update successful');
+            
+            // Update the session in the service (only after successful backend update)
+            const updatedSession = {
+              ...currentSession,
+              favorite: newFavoriteStatus,
+              updatedAt: new Date().toISOString()
+            };
+            console.log('🔍 Updated session:', updatedSession);
+            
+            // Update the service state
+            simpleSessionService.setCurrentSession(updatedSession);
+            simpleSessionService.updateSidebarSession(updatedSession);
+            
+            // Trigger event for real-time updates
+            simpleSessionService.triggerSessionUpdate(updatedSession);
+            
+            console.log('✅ Favorite status updated successfully');
+          } catch (error) {
+            console.error('❌ Failed to update favorite status:', error);
+            // Could show a user-friendly error message here
+          }
+        } else {
+          console.log('❌ No current session found');
+        }
+        console.log('🔍 Favorite toggle clicked - END');
+      }}
+      onRatingChange={(rating) => console.log('Rating changed:', rating)}
+      onRatingHover={setHoveredRating}
+      user={user}
+      markingResult={null} // TODO: Get from current session
+      sessionData={currentSession} // Pass current session as sessionData
+      showInfoDropdown={showInfoDropdown}
+      onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
+      hoveredRating={hoveredRating}
       
       // Chat scroll props
       chatContainerRef={chatContainerRef}
@@ -272,6 +337,16 @@ const MarkHomeworkPageConsolidated = ({
       onFollowUpImage={handleFollowUpImage}
       onUploadClick={handleFileSelect}
       onClearPreview={handleClearPreview}
+      
+      // Additional props
+      previewUrl={null}
+      loadingProgress={0}
+      showExpandedThinking={false}
+      markError={error}
+      chatInput={''}
+      setChatInput={() => {}}
+      onSendMessage={() => {}}
+      onKeyPress={() => {}}
     />
   );
 };
