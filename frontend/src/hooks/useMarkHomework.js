@@ -38,6 +38,9 @@ export const useMarkHomework = () => {
     pageMode: 'upload', // 'upload' | 'chat'
     error: null,
     
+    // Chat input state
+    chatInput: '',
+    
     // Session data (will be synced with service)
     currentSession: null,
     chatMessages: [],
@@ -138,6 +141,11 @@ export const useMarkHomework = () => {
     setPageMode('chat');
   }, [setPageMode]);
 
+  // Chat input management
+  const setChatInput = useCallback((value) => {
+    setState(prev => ({ ...prev, chatInput: value }));
+  }, []);
+
   return {
     // Consolidated state - single source of truth
     ...state,
@@ -154,6 +162,9 @@ export const useMarkHomework = () => {
     handleError,
     startAIThinking,
     stopAIThinking,
+    
+    // Chat input management
+    setChatInput,
     
     // Session management
     clearSession,
