@@ -11,7 +11,7 @@ export interface ClassificationResult {
 
 export class ClassificationService {
   static async classifyImage(imageData: string, model: ModelType): Promise<ClassificationResult> {
-    const { ImageUtils } = await import('./ImageUtils');
+    const { ImageUtils } = await import('./ImageUtils.js');
     const compressedImage = await ImageUtils.compressImage(imageData);
 
     const systemPrompt = `You are an AI assistant that classifies math images and extracts question text.
@@ -113,7 +113,7 @@ export class ClassificationService {
           parts: [
             { text: systemPrompt },
             { text: userPrompt },
-            { inline_data: { mime_type: 'image/jpeg', data: imageData.split(',')[1] } }
+            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
           ]
         }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
@@ -121,7 +121,10 @@ export class ClassificationService {
     });
     
     if (!response.ok) {
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ Gemini API Error:', response.status, response.statusText);
+      console.error('❌ Error Details:', errorText);
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
     
     return response;

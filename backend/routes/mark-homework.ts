@@ -112,7 +112,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     // Upload original image to Firebase Storage for authenticated users only
     let originalImageLink;
     if (isAuthenticated) {
-      const { ImageStorageService } = await import('../services/imageStorageService');
+      const { ImageStorageService } = await import('../services/imageStorageService.js');
       try {
         originalImageLink = await ImageStorageService.uploadImage(
           imageData,
@@ -155,7 +155,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     // Upload annotated image to Firebase Storage if it's a marking result
     let annotatedImageLink;
     if (!result.isQuestionOnly && result.annotatedImage) {
-      const { ImageStorageService } = await import('../services/imageStorageService');
+      const { ImageStorageService } = await import('../services/imageStorageService.js');
       try {
         annotatedImageLink = await ImageStorageService.uploadImage(
           result.annotatedImage,
@@ -200,7 +200,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     
     if (isAuthenticated) {
       try {
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         
         if (providedSessionId) {
           // Follow-up image: Add message to existing session
@@ -279,7 +279,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     let finalSession;
     try {
       if (sessionSaved) {
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         finalSession = await FirestoreService.getUnifiedSession(finalSessionId);
       } else {
         // Fallback for unsaved sessions
@@ -440,7 +440,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     // Upload annotated image to Firebase Storage if it's a marking result
     let annotatedImageLink;
     if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
-      const { ImageStorageService } = await import('../services/imageStorageService');
+      const { ImageStorageService } = await import('../services/imageStorageService.js');
       try {
         annotatedImageLink = await ImageStorageService.uploadImage(
           result.annotatedImage,
@@ -480,7 +480,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     // For authenticated users, persist to database
     if (isAuthenticated) {
       try {
-        const { FirestoreService } = await import('../services/firestoreService');
+        const { FirestoreService } = await import('../services/firestoreService.js');
         
         // Create timestamps to ensure proper order
         const baseTime = Date.now();
@@ -520,7 +520,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
             // Create new session with both user and AI messages
             await FirestoreService.createUnifiedSessionWithMessages({
               sessionId: sessionId,
-              title: 'Marking Session',
+              title: result.sessionTitle || 'Marking Session',
               userId: userId,
               messageType: result.isQuestionOnly ? 'Question' : 'Marking',
               messages: [dbUserMessage, dbAiMessage],
@@ -542,7 +542,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           // For initial messages, create new session
           await FirestoreService.createUnifiedSessionWithMessages({
             sessionId: sessionId,
-            title: 'Marking Session',
+            title: result.sessionTitle || 'Marking Session',
             userId: userId,
             messageType: result.isQuestionOnly ? 'Question' : 'Marking',
             messages: [dbUserMessage, dbAiMessage],
@@ -571,18 +571,18 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     // Get the complete session with metadata for the response
     let completeSession;
     try {
-      const { FirestoreService } = await import('../services/firestoreService');
+      const { FirestoreService } = await import('../services/firestoreService.js');
       completeSession = await FirestoreService.getUnifiedSession(sessionId);
-      // Ensure title is set
+      // Ensure title is set - use the generated title from the service
       if (!completeSession.title) {
-        completeSession.title = 'Marking Session';
+        completeSession.title = result.sessionTitle || 'Marking Session';
       }
     } catch (error) {
       console.error('❌ Failed to get complete session:', error);
       // Fallback to basic session structure
       completeSession = {
         id: sessionId,
-        title: 'Marking Session',
+        title: result.sessionTitle || 'Marking Session',
         userId: userId,
         messageType: result.isQuestionOnly ? 'Question' : 'Marking',
         messages: [aiMessage], // Use aiMessage directly
@@ -685,7 +685,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     // Upload annotated image to Firebase Storage if it's a marking result
     let annotatedImageLink;
     if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
-      const { ImageStorageService } = await import('../services/imageStorageService');
+      const { ImageStorageService } = await import('../services/imageStorageService.js');
       try {
         annotatedImageLink = await ImageStorageService.uploadImage(
           result.annotatedImage,
@@ -721,7 +721,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     // Always create session with only AI message
     let aiSession;
     try {
-      const { FirestoreService } = await import('../services/firestoreService');
+      const { FirestoreService } = await import('../services/firestoreService.js');
       if (isAuthenticated) {
         try {
           // Try to add the AI message to the existing session
@@ -745,7 +745,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             
             await FirestoreService.createUnifiedSessionWithMessages({
               sessionId: sessionId,
-              title: 'Marking Session',
+              title: result.sessionTitle || 'Marking Session',
               userId: userId,
               messageType: result.isQuestionOnly ? 'Question' : 'Marking',
               messages: messages,
@@ -898,7 +898,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
  */
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
-    const { FirestoreService } = await import('../services/firestoreService');
+    const { FirestoreService } = await import('../services/firestoreService.js');
     const stats = await FirestoreService.getSystemStats();
     return res.json({
       success: true,

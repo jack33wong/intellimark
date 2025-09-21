@@ -349,7 +349,7 @@ class SimpleSessionService {
         // Use the complete session data from backend if available, otherwise create basic session
         const newSession = data.unifiedSession || {
           id: data.sessionId || this.state.currentSession.id,
-          title: 'Marking Session',
+          title: data.sessionTitle || 'Marking Session',
           userId: this.state.currentSession?.userId || 'anonymous',
           messageType: 'Marking',
           messages: [...(this.state.currentSession?.messages || []), data.aiMessage],
