@@ -43,10 +43,40 @@ function validateModelConfig(modelType: string): boolean {
 const router = express.Router();
 
 /**
- * POST /mark-homework/upload
- * Returns user message only (AI message will be created in /process endpoint)
+ * POST /api/mark-homework/upload
+ * 
+ * PURPOSE: Admin and test image uploads without AI processing
+ * USED BY: Admin panel, test files, bulk upload scenarios
+ * DIFFERENCE FROM /process-single: No AI processing, just image storage
+ * 
+ * USAGE STATS:
+ * - Called by: AdminPage.js, test-question-only-node.js
+ * - Frequency: Low (admin/test use cases only)
+ * - Authentication: Optional (works for both auth and anonymous)
+ * 
+ * FRONTEND USAGE:
+ * - AdminPanel: Bulk image uploads
+ * - TestFiles: Image validation testing
+ * - SpecialCases: Non-AI image processing
+ * 
+ * @param {Object} req - Express request
+ * @param {string} req.body.imageData - Base64 encoded image
+ * @param {string} req.body.model - AI model (default: gemini-2.5-pro)
+ * @param {string} req.body.sessionId - Optional session ID for follow-up
+ * 
+ * @returns {Object} Response with sessionId and user message (no AI response)
+ * 
+ * @example
+ * // Admin panel usage
+ * const response = await fetch('/api/mark-homework/upload', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ imageData, model: 'gemini-2.5-pro' })
+ * });
  */
 router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
+  // Log usage for monitoring and documentation
+  console.log(`[USAGE] /api/mark-homework/upload called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+  
   let { imageData, model = 'gemini-2.5-pro', sessionId: providedSessionId } = req.body;
   
   // Convert 'auto' to default model
@@ -334,11 +364,43 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
 });
 
 /**
- * POST /mark-homework/process-single
- * Single-phase: Upload + Classification + AI Processing
- * Returns just the AI message structure
+ * POST /api/mark-homework/process-single
+ * 
+ * PURPOSE: Main endpoint for initial image uploads and AI processing
+ * USED BY: Frontend first-time image uploads, main user workflow
+ * DIFFERENCE FROM /process: No sessionId required, creates new session
+ * DIFFERENCE FROM /upload: Includes full AI processing and response
+ * 
+ * USAGE STATS:
+ * - Called by: simpleSessionService.js:263 (main frontend flow)
+ * - Frequency: High (primary user interaction)
+ * - Authentication: Optional (works for both auth and anonymous)
+ * 
+ * FRONTEND USAGE:
+ * - MarkHomeworkPageConsolidated.js:193 (main workflow)
+ * - simpleSessionService.js:263 (initial image processing)
+ * - UnifiedChatInput.js:45 (first-time image uploads)
+ * 
+ * FLOW: User uploads image → This endpoint → AI response + new session created
+ * 
+ * @param {Object} req - Express request
+ * @param {string} req.body.imageData - Base64 encoded image
+ * @param {string} req.body.model - AI model (default: gemini-2.5-pro)
+ * @param {Object} req.body.userMessage - Optional user message
+ * 
+ * @returns {Object} Response with sessionId, AI response, and annotated image
+ * 
+ * @example
+ * // Frontend usage in simpleSessionService.js:263
+ * const response = await fetch('/api/mark-homework/process-single', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ imageData, model: 'auto' })
+ * });
  */
 router.post('/process-single', optionalAuth, async (req: Request, res: Response) => {
+  // Log usage for monitoring and documentation
+  console.log(`[USAGE] /api/mark-homework/process-single called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+  
   let { imageData, model = 'gemini-2.5-pro', userMessage } = req.body;
 
   if (!imageData) {
@@ -513,10 +575,48 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
 });
 
 /**
- * POST /mark-homework/process
- * Complete AI processing and return AI response (Response 2)
+ * POST /api/mark-homework/process
+ * 
+ * PURPOSE: Follow-up text messages and image uploads in existing sessions
+ * USED BY: Frontend chat input for follow-up questions and image uploads
+ * DIFFERENCE FROM /process-single: Requires sessionId, adds to existing session
+ * DIFFERENCE FROM /upload: Includes full AI processing and response
+ * 
+ * USAGE STATS:
+ * - Called by: simpleSessionService.js:423 (follow-up messages)
+ * - Frequency: Medium (follow-up interactions)
+ * - Authentication: Optional (works for both auth and anonymous)
+ * 
+ * FRONTEND USAGE:
+ * - simpleSessionService.js:423 (follow-up text messages)
+ * - FollowUpChatInput.js:67 (chat input follow-ups)
+ * - UnifiedChatInput.js:89 (follow-up image uploads)
+ * 
+ * FLOW: User sends follow-up → This endpoint → AI response added to existing session
+ * 
+ * @param {Object} req - Express request
+ * @param {string} req.body.imageData - Base64 encoded image (optional)
+ * @param {string} req.body.model - AI model (default: gemini-2.5-pro)
+ * @param {string} req.body.sessionId - REQUIRED: Existing session ID
+ * @param {Object} req.body.userMessage - User's follow-up message
+ * 
+ * @returns {Object} Response with AI response added to existing session
+ * 
+ * @example
+ * // Frontend usage in simpleSessionService.js:423
+ * const response = await fetch('/api/mark-homework/process', {
+ *   method: 'POST',
+ *   body: JSON.stringify({ 
+ *     imageData, 
+ *     model: 'auto', 
+ *     sessionId: 'session-123' 
+ *   })
+ * });
  */
 router.post('/process', optionalAuth, async (req: Request, res: Response) => {
+  // Log usage for monitoring and documentation
+  console.log(`[USAGE] /api/mark-homework/process called by: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+  
   let { imageData, model = 'gemini-2.5-pro', sessionId, userMessage } = req.body;
   
   // Convert 'auto' to default model

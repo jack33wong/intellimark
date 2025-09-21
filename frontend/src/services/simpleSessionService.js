@@ -1,15 +1,31 @@
 /**
  * Simple Session Service
  * 
- * Handles two-phase processing with simple state management
- * - Phase 1: Upload and show user message immediately
- * - Phase 2: AI processing in background
+ * PURPOSE: Single source of truth for session data and API communication
+ * REPLACES: Multiple services (sessionService, chatService, apiService)
  * 
- * Design Principles:
+ * WHY NOT SIMPLER:
+ * - Manages complex session lifecycle (create → update → persist → load)
+ * - Handles different API endpoints for different use cases
+ * - Coordinates between frontend state and backend persistence
+ * - Provides consistent interface for multiple components
+ * 
+ * USAGE PATTERNS:
+ * - useMarkHomework.js:35 (session data retrieval)
+ * - MarkHomeworkPageConsolidated.js:67 (session management)
+ * - Sidebar.js:45 (session history)
+ * 
+ * API INTEGRATION:
+ * - /api/mark-homework/process-single (initial uploads - line 263)
+ * - /api/mark-homework/process (follow-up messages - line 423)
+ * - /api/messages/sessions (session management)
+ * 
+ * DESIGN PRINCIPLES:
  * - Simple and maintainable
  * - Fail fast error handling
  * - Real implementation (no mocks)
  * - Consistent logic
+ * - Single source of truth for session data
  */
 
 import API_CONFIG from '../config/api';

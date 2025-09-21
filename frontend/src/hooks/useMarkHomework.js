@@ -1,8 +1,26 @@
 /**
- * Consolidated Mark Homework Hook
+ * useMarkHomework Hook
  * 
- * Single source of truth for all mark homework functionality
- * Replaces multiple hooks with one clean interface
+ * PURPOSE: Single source of truth for mark homework UI state and actions
+ * REPLACES: Multiple hooks (useProcessing, useSession, useError, usePageMode)
+ * 
+ * WHY NOT SIMPLER:
+ * - Manages complex state transitions (upload → chat → error → reset)
+ * - Handles session persistence across page refreshes
+ * - Provides consistent API for multiple components
+ * - Coordinates with simpleSessionService for data persistence
+ * 
+ * USAGE PATTERNS:
+ * - MarkHomeworkPageConsolidated.js:36 (main component - 20+ props)
+ * - MainLayout.js:17 (layout component - 15+ props)
+ * - Sidebar.js:45 (session management)
+ * 
+ * STATE MANAGEMENT:
+ * - UI State: Local useState for component-specific state
+ * - Session Data: Retrieved from simpleSessionService (single source of truth)
+ * - Actions: Delegated to simpleSessionService for persistence
+ * 
+ * @returns {Object} Hook interface with state and actions
  */
 
 import { useState, useCallback, useEffect } from 'react';
