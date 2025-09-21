@@ -15,7 +15,11 @@ const FollowUpChatInput = ({
   onFollowUpImage,
   onUploadClick,
   clearPreview,
-  currentSession
+  currentSession,
+  chatInput,
+  setChatInput,
+  onSendMessage,
+  onKeyPress
 }) => {
   return (
     <UnifiedChatInput
@@ -27,6 +31,10 @@ const FollowUpChatInput = ({
       onUploadClick={onUploadClick}
       clearPreview={clearPreview}
       currentSession={currentSession}
+      chatInput={chatInput}
+      setChatInput={setChatInput}
+      onSendMessage={onSendMessage}
+      onKeyPress={onKeyPress}
     />
   );
 };

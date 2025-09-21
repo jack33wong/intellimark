@@ -35,7 +35,11 @@ const UnifiedChatInput = ({
   showExpandedThinking = false,
   
   // Follow-up specific props
-  onClearPreview
+  onClearPreview,
+  chatInput = '',
+  setChatInput,
+  onSendMessage,
+  onKeyPress
 }) => {
   // Common state management
   const [previewImage, setPreviewImage] = useState(null);
@@ -123,8 +127,14 @@ const UnifiedChatInput = ({
             }
           }
         }
+      } else if (chatInput && chatInput.trim()) {
+        // If no image but has text input, send text message
+        if (onSendMessage) {
+          onSendMessage(chatInput.trim());
+          setChatInput?.(''); // Clear input after sending
+        }
       } else {
-        // If no image, call analyze image (which will show error for no file)
+        // If no image and no text, call analyze image (which will show error for no file)
         if (onAnalyzeImage) {
           onAnalyzeImage();
         }
@@ -138,7 +148,7 @@ const UnifiedChatInput = ({
         setPreviewImage(null);
       }
     }
-  }, [mode, previewImage, currentSession, onAnalyzeImage, onFollowUpImage]);
+  }, [mode, previewImage, currentSession, onAnalyzeImage, onFollowUpImage, chatInput, onSendMessage, setChatInput]);
 
   // Clear preview function for parent (follow-up mode only)
   const clearPreviewInternal = useCallback(() => {
@@ -270,10 +280,12 @@ const UnifiedChatInput = ({
             {/* Text Input */}
             <div className="followup-text-wrapper">
               <textarea
+                value={chatInput}
+                onChange={(e) => setChatInput?.(e.target.value)}
+                onKeyPress={onKeyPress}
                 placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
                 disabled={isProcessing}
                 className="followup-text-input"
-                readOnly
               />
             </div>
 
