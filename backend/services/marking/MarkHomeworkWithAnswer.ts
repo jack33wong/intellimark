@@ -27,17 +27,13 @@ async function simulateApiDelay(operation: string): Promise<void> {
 
 // Common function to generate session titles for non-past-paper images
 function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
-  console.log('🔍 [generateNonPastPaperTitle] Input:', { extractedQuestionText, mode });
-  
   if (extractedQuestionText && extractedQuestionText.trim()) {
     const questionText = extractedQuestionText.trim();
-    console.log('🔍 [generateNonPastPaperTitle] questionText:', questionText);
     
     // Handle cases where extraction failed
     if (questionText.toLowerCase().includes('unable to extract') || 
         questionText.toLowerCase().includes('no text detected') ||
         questionText.toLowerCase().includes('extraction failed')) {
-      console.log('🔍 [generateNonPastPaperTitle] Extraction failed, using date fallback');
       return `${mode} - ${new Date().toLocaleDateString()}`;
     }
     
@@ -46,12 +42,10 @@ function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mo
       ? questionText.substring(0, 30) + '...' 
       : questionText;
     const result = `${mode} - ${truncatedText}`;
-    console.log('🔍 [generateNonPastPaperTitle] returning truncated result:', result);
     return result;
   } else {
     // Fallback when no question text is extracted
     const result = `${mode} - ${new Date().toLocaleDateString()}`;
-    console.log('🔍 [generateNonPastPaperTitle] returning date fallback:', result);
     return result;
   }
 }
@@ -393,10 +387,7 @@ export class MarkHomeworkWithAnswer {
       isPastPaper = true; // This is a recognized past paper
     } else {
       // For non-past-paper marking, use common title generation
-      console.log('🔍 [TITLE DEBUG] extractedQuestionText:', imageClassification.extractedQuestionText);
-      console.log('🔍 [TITLE DEBUG] calling generateNonPastPaperTitle with:', imageClassification.extractedQuestionText, 'Marking');
       sessionTitle = generateNonPastPaperTitle(imageClassification.extractedQuestionText, 'Marking');
-      console.log('🔍 [TITLE DEBUG] generateNonPastPaperTitle returned:', sessionTitle);
       isPastPaper = false; // Not a recognized past paper
     }
     
