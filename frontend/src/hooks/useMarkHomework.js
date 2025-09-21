@@ -41,43 +41,43 @@ export const useMarkHomework = () => {
   });
 
   // Actions - simplified
-  const startProcessing = useCallback(() => {
+  const startProcessing = () => {
     setUiState(prev => ({ ...prev, isProcessing: true }));
-  }, []);
+  };
 
-  const stopProcessing = useCallback(() => {
+  const stopProcessing = () => {
     setUiState(prev => ({ ...prev, isProcessing: false }));
-  }, []);
+  };
 
-  const reset = useCallback(() => {
+  const reset = () => {
     setUiState(prev => ({
       ...prev,
       isProcessing: false,
       isAIThinking: false,
       error: null
     }));
-  }, []);
+  };
 
   // AI thinking state control
-  const startAIThinking = useCallback(() => {
+  const startAIThinking = () => {
     setUiState(prev => ({ ...prev, isAIThinking: true }));
-  }, []);
+  };
 
-  const stopAIThinking = useCallback(() => {
+  const stopAIThinking = () => {
     setUiState(prev => ({ ...prev, isAIThinking: false }));
-  }, []);
+  };
 
-  const setPageMode = useCallback((mode) => {
+  const setPageMode = (mode) => {
     setUiState(prev => ({ ...prev, pageMode: mode }));
-  }, []);
+  };
 
-  const handleError = useCallback((error) => {
+  const handleError = (error) => {
     setUiState(prev => ({
       ...prev,
       isProcessing: false,
       error: error.message || 'Unknown error'
     }));
-  }, []);
+  };
 
   // Session management - simplified
   const clearSession = () => {
