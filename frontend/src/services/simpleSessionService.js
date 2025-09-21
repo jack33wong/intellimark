@@ -345,14 +345,19 @@ class SimpleSessionService {
         
         return updatedSession;
       } else {
-        // For initial messages, use the complete session data from backend
-        // Use the complete session data from backend if available, otherwise create basic session
-        const newSession = data.unifiedSession || {
+        // For initial messages, preserve existing user messages and add AI response
+        const existingMessages = this.state.currentSession?.messages || [];
+        const newMessages = [...existingMessages, data.aiMessage];
+        
+        const newSession = data.unifiedSession ? {
+          ...data.unifiedSession,
+          messages: newMessages
+        } : {
           id: data.sessionId || this.state.currentSession.id,
           title: data.sessionTitle || 'Marking Session',
           userId: this.state.currentSession?.userId || 'anonymous',
           messageType: 'Marking',
-          messages: [...(this.state.currentSession?.messages || []), data.aiMessage],
+          messages: newMessages,
           isPastPaper: false,
           favorite: false,
           rating: 0,

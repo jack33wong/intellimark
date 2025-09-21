@@ -51,6 +51,9 @@ const MarkHomeworkPageConsolidated = ({
     isFavorite,
     rating,
     
+    // Chat input state
+    chatInput,
+    
     // Computed properties - simplified
     isIdle,
     isError,
@@ -63,6 +66,11 @@ const MarkHomeworkPageConsolidated = ({
     stopAIThinking,
     setPageMode,
     handleError,
+    
+    // Chat input management
+    setChatInput,
+    onSendMessage,
+    onKeyPress,
     
     // Session management
     clearSession,
@@ -146,7 +154,7 @@ const MarkHomeworkPageConsolidated = ({
   // ============================================================================
 
   // Handle image analysis - PHASE-SEPARATED VERSION
-  const handleImageAnalysis = useCallback(async (file = null) => {
+  const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     try {
       const targetFile = file || selectedFile;
       if (!targetFile) {
@@ -172,7 +180,7 @@ const MarkHomeworkPageConsolidated = ({
         const userMessage = {
           id: `user-${Date.now()}`,
           role: 'user',
-          content: 'I have a question about this image. Can you help me understand it?',
+          content: customText || 'I have a question about this image. Can you help me understand it?',
           timestamp: new Date().toISOString(),
           type: 'marking_original',
           imageData: imageData,
@@ -223,7 +231,7 @@ const MarkHomeworkPageConsolidated = ({
   }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, stopProcessing, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
 
   // Handle follow-up image (legacy compatibility)
-  const handleFollowUpImage = useCallback((file) => handleImageAnalysis(file), [handleImageAnalysis]);
+  const handleFollowUpImage = useCallback((file, customText = null) => handleImageAnalysis(file, customText), [handleImageAnalysis]);
 
   // ============================================================================
   // RENDER
@@ -324,10 +332,10 @@ const MarkHomeworkPageConsolidated = ({
       loadingProgress={0}
       showExpandedThinking={false}
       markError={error}
-      chatInput={''}
-      setChatInput={() => {}}
-      onSendMessage={() => {}}
-      onKeyPress={() => {}}
+      chatInput={chatInput}
+      setChatInput={setChatInput}
+      onSendMessage={onSendMessage}
+      onKeyPress={onKeyPress}
     />
   );
 };

@@ -69,7 +69,9 @@ export const useMarkHomework = () => {
         chatMessages,
         sessionTitle,
         isFavorite,
-        rating
+        rating,
+        // If there's a current session, switch to chat mode
+        pageMode: currentSession ? 'chat' : prev.pageMode
       }));
     };
 
@@ -77,7 +79,7 @@ export const useMarkHomework = () => {
     const unsubscribe = simpleSessionService.subscribe(syncWithService);
 
     return unsubscribe;
-  }, []);
+  }, [state.pageMode]);
 
   // Actions - simplified
   const startProcessing = () => {
@@ -146,6 +148,37 @@ export const useMarkHomework = () => {
     setState(prev => ({ ...prev, chatInput: value }));
   }, []);
 
+  // Send text message handler
+  const onSendMessage = useCallback(async (text) => {
+    if (!text || !text.trim()) return;
+    
+    try {
+      const userMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: text.trim(),
+        timestamp: new Date().toISOString(),
+        type: 'text'
+      };
+      
+      await addMessage(userMessage);
+      
+      // Clear the input after sending
+      setChatInput('');
+    } catch (error) {
+      console.error('❌ Error sending text message:', error);
+      handleError(error);
+    }
+  }, [addMessage, setChatInput, handleError]);
+
+  // Key press handler for Enter key
+  const onKeyPress = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSendMessage(state.chatInput);
+    }
+  }, [onSendMessage, state.chatInput]);
+
   return {
     // Consolidated state - single source of truth
     ...state,
@@ -165,6 +198,8 @@ export const useMarkHomework = () => {
     
     // Chat input management
     setChatInput,
+    onSendMessage,
+    onKeyPress,
     
     // Session management
     clearSession,

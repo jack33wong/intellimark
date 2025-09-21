@@ -99,7 +99,15 @@ const UnifiedChatInput = ({
     if (mode === 'first-time') {
       // First-time mode: handle both file and text input
       if (selectedFile) {
-        onAnalyzeImage?.(selectedFile);
+        // If there's a file, process it with custom text if provided
+        if (chatInput && chatInput.trim()) {
+          // Pass the user's text along with the image
+          onAnalyzeImage?.(selectedFile, chatInput.trim());
+          setChatInput?.(''); // Clear input after sending
+        } else {
+          // No custom text, use default behavior
+          onAnalyzeImage?.(selectedFile);
+        }
       } else if (chatInput && chatInput.trim()) {
         // If no file but has text input, send text message
         if (onSendMessage) {
@@ -110,8 +118,9 @@ const UnifiedChatInput = ({
         onAnalyzeImage?.();
       }
     } else {
-      // Follow-up mode: determine if this is initial or follow-up upload
+      // Follow-up mode: handle both image and text input
       if (previewImage) {
+        // If there's an image, process it with custom text if provided
         const isFollowUp = !!currentSession;
         
         if (isFollowUp) {
@@ -119,7 +128,14 @@ const UnifiedChatInput = ({
             try {
               const fileInput = document.getElementById('followup-file-input');
               const file = fileInput?.files?.[0];
-              onFollowUpImage(file);
+              if (chatInput && chatInput.trim()) {
+                // Pass the user's text along with the image
+                onFollowUpImage(file, chatInput.trim());
+                setChatInput?.(''); // Clear input after sending
+              } else {
+                // No custom text, use default behavior
+                onFollowUpImage(file);
+              }
             } catch (error) {
               console.error('UnifiedChatInput: ERROR calling onFollowUpImage:', error);
             }
@@ -127,7 +143,14 @@ const UnifiedChatInput = ({
         } else {
           if (onAnalyzeImage) {
             try {
-              onAnalyzeImage();
+              if (chatInput && chatInput.trim()) {
+                // Pass the user's text along with the image
+                onAnalyzeImage(undefined, chatInput.trim());
+                setChatInput?.(''); // Clear input after sending
+              } else {
+                // No custom text, use default behavior
+                onAnalyzeImage();
+              }
             } catch (error) {
               console.error('UnifiedChatInput: ERROR calling onAnalyzeImage:', error);
             }
@@ -324,7 +347,7 @@ const UnifiedChatInput = ({
               {/* Right Side - Send Button */}
               <SendButton
                 onClick={handleSendClick}
-                disabled={isProcessing || !previewImage}
+                disabled={isProcessing || (!previewImage && !chatInput?.trim())}
                 loading={isProcessing}
                 variant={previewImage ? 'success' : 'primary'}
                 size="small"

@@ -88,12 +88,15 @@ function AdminPage() {
       if (response.ok) {
         const data = await response.json();
         setJsonEntries(Array.isArray(data.entries) ? data.entries : []);
+        setLoading(false); // Set loading to false when data is loaded (even if empty)
       } else {
         setError(`Failed to load JSON entries (HTTP ${response.status})`);
+        setLoading(false); // Set loading to false on error
         setTimeout(() => setError(null), 4000);
       }
     } catch (e) {
       setError(`Failed to load JSON entries: ${e.message}`);
+      setLoading(false); // Set loading to false on error
       setTimeout(() => setError(null), 4000);
     }
   }, [API_BASE]);
@@ -398,12 +401,7 @@ function AdminPage() {
     loadMarkingSchemeEntries();
   }, [loadJsonEntries, loadMarkingSchemeEntries]);
 
-  // Set loading to false after data is loaded
-  useEffect(() => {
-    if (jsonEntries.length > 0 || error) {
-      setLoading(false);
-    }
-  }, [jsonEntries, error]);
+  // Loading state is now managed in the individual load functions
 
   // Render loading state
   if (loading) {
