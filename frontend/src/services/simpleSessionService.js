@@ -76,7 +76,14 @@ class SimpleSessionService {
   // ============================================================================
 
   setState(updates) {
-    this.state = { ...this.state, ...updates };
+    if (typeof updates === 'function') {
+      // Handle function updates like React's setState
+      const newState = updates(this.state);
+      this.state = { ...this.state, ...newState };
+    } else {
+      // Handle object updates
+      this.state = { ...this.state, ...updates };
+    }
     this.notifyListeners();
   }
 
@@ -199,21 +206,11 @@ class SimpleSessionService {
     // that don't exist in the backend database
     
     if (!this.state.currentSession) {
-      // For first message, create minimal local session for UI display only
+      // For first message, don't create any session yet
+      // Just store the message locally for UI display
       // Backend will create the real session and return the actual sessionId
-      const tempSession = {
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        title: 'Processing...',
-        messages: [],
-        userId: message.userId || 'anonymous',
-        messageType: 'Marking',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        favorite: false,
-        rating: 0
-      };
-      
-      this.setState({ currentSession: tempSession });
+      console.log('No current session - message will be handled by backend');
+      return;
     }
 
     // Add message to current session for immediate UI display
@@ -628,4 +625,10 @@ class SimpleSessionService {
 
 // Export singleton instance
 export const simpleSessionService = new SimpleSessionService();
+
+// Expose to window for debugging
+if (typeof window !== 'undefined') {
+  window.simpleSessionService = simpleSessionService;
+}
+
 export default simpleSessionService;

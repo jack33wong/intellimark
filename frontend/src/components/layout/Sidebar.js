@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
+import { simpleSessionService } from '../../services/simpleSessionService';
 import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { isOriginalImageMessage, isAnnotatedImageMessage } from '../../utils/sessionUtils';
@@ -32,12 +33,40 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const [activeTab, setActiveTab] = useState('all');
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   
+  // Subscribe to simpleSessionService for real-time updates
+  useEffect(() => {
+    const syncWithService = (serviceState) => {
+      const { sidebarSessions } = serviceState;
+      // Merge new sessions with existing ones instead of replacing
+      if (sidebarSessions && sidebarSessions.length > 0) {
+        setChatSessions(prevSessions => {
+          // Create a map of existing sessions by ID
+          const existingSessionsMap = new Map(prevSessions.map(s => [s.id, s]));
+          
+          // Add or update sessions from service
+          sidebarSessions.forEach(serviceSession => {
+            existingSessionsMap.set(serviceSession.id, serviceSession);
+          });
+          
+          // Convert back to array and sort by updatedAt
+          const mergedSessions = Array.from(existingSessionsMap.values())
+            .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+          
+          return mergedSessions;
+        });
+      }
+    };
+    
+    // Subscribe to service state changes
+    const unsubscribe = simpleSessionService.subscribe(syncWithService);
+    
+    return unsubscribe;
+  }, []);
+
   // Clear selected session when switching tabs
   useEffect(() => {
     setSelectedSessionId(null);
   }, [activeTab]);
-  
-  // Debug props and route
 
   // Function to refresh chat sessions with debouncing
   const refreshChatSessions = useCallback(async () => {
@@ -81,10 +110,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     }
   }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch chat sessions for authenticated users only
+  // Fetch chat sessions for authenticated users only (only on initial load)
   useEffect(() => {
-    refreshChatSessions();
-  }, [user?.uid, refreshChatSessions]);
+    if (user?.uid) {
+      refreshChatSessions();
+    }
+  }, [user?.uid]); // Only run when user changes, not on every refresh
 
   // Expose refresh function to parent component
   useEffect(() => {

@@ -153,6 +153,10 @@ export const useMarkHomework = () => {
     if (!text || !text.trim()) return;
     
     try {
+      // Start AI thinking state
+      startAIThinking();
+      
+      // Add user message immediately to show in UI
       const userMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
@@ -161,15 +165,107 @@ export const useMarkHomework = () => {
         type: 'text'
       };
       
-      await addMessage(userMessage);
+      // For first message, create a temporary session for immediate UI display
+      if (!state.currentSession) {
+        // Create a temporary session with the user message for immediate display
+        const tempSession = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title: 'Processing...',
+          messages: [userMessage],
+          userId: 'anonymous',
+          messageType: 'Chat',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          favorite: false,
+          rating: 0
+        };
+        
+        // Set the temporary session in both local state and service for immediate UI display
+        setState(prev => ({
+          ...prev,
+          currentSession: tempSession
+        }));
+        
+        // Also set in service so the sync effect picks it up
+        simpleSessionService.setState({ currentSession: tempSession });
+      } else {
+        // Add user message immediately for instant UI feedback
+        await addMessage(userMessage);
+      }
       
       // Clear the input after sending
       setChatInput('');
+      
+      // Call the backend API to get AI response
+      const response = await fetch('/api/messages/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await getAuthToken()}`
+        },
+        body: JSON.stringify({
+          message: text.trim(),
+          model: 'gemini-2.5-pro',
+          sessionId: state.currentSession?.id || null
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update the session with the response from backend
+        if (data.session) {
+          // Backend returned complete session data - convert it to proper format
+          const convertedSession = simpleSessionService.convertToUnifiedSession(data.session);
+          simpleSessionService.setCurrentSession(convertedSession);
+          
+          // Update local state with the real session
+          setState(prev => ({
+            ...prev,
+            currentSession: convertedSession
+          }));
+        } else if (data.newMessages) {
+          // Backend returned only new messages (for anonymous users)
+          // Create a proper session for anonymous users
+          const sessionId = data.sessionId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const sessionTitle = data.sessionTitle || 'Chat Session';
+          
+          const anonymousSession = {
+            id: sessionId,
+            title: sessionTitle,
+            messages: data.newMessages,
+            userId: 'anonymous',
+            messageType: 'Chat',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            favorite: false,
+            rating: 0
+          };
+          
+          // Set the session in the service (this will update the sidebar)
+          simpleSessionService.setCurrentSession(anonymousSession);
+          
+          // Update local state with the real session
+          setState(prev => ({
+            ...prev,
+            currentSession: anonymousSession
+          }));
+        }
+      } else {
+        throw new Error(data.error || 'Failed to get AI response');
+      }
     } catch (error) {
       console.error('❌ Error sending text message:', error);
       handleError(error);
+    } finally {
+      // Stop AI thinking state
+      stopAIThinking();
     }
-  }, [addMessage, setChatInput, handleError]);
+  }, [getAuthToken, state.currentSession?.id, addMessage, setChatInput, handleError, startAIThinking, stopAIThinking]);
 
   // Key press handler for Enter key
   const onKeyPress = useCallback((e) => {

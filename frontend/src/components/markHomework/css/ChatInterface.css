@@ -546,7 +546,7 @@
 /* Scroll to Bottom Button - Centered within input bar width */
 .scroll-to-bottom-container {
   position: fixed; /* Must be fixed to float */
-  bottom: 100px; /* Middle of chat input bar height */
+  bottom: 150px; /* Middle of chat input bar height */
   left: 280px; /* Start after sidebar, same as input bar */
   right: 0; /* Extend to right edge, same as input bar */
   display: flex;
