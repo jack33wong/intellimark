@@ -573,9 +573,28 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     try {
       const { FirestoreService } = await import('../services/firestoreService.js');
       completeSession = await FirestoreService.getUnifiedSession(sessionId);
-      // Ensure title is set - use the generated title from the service
-      if (!completeSession.title) {
-        completeSession.title = result.sessionTitle || 'Marking Session';
+      
+      // Check if session was found
+      if (!completeSession) {
+        console.error(`❌ Session ${sessionId} not found in database`);
+        // Fallback to basic session structure
+        completeSession = {
+          id: sessionId,
+          title: result.sessionTitle || 'Marking Session',
+          userId: userId || 'anonymous',
+          messageType: 'Marking',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          favorite: false,
+          rating: 0,
+          messages: [userMessage, aiMessage],
+          sessionMetadata: result.sessionMetadata || {}
+        };
+      } else {
+        // Ensure title is set - use the generated title from the service
+        if (!completeSession.title) {
+          completeSession.title = result.sessionTitle || 'Marking Session';
+        }
       }
     } catch (error) {
       console.error('❌ Failed to get complete session:', error);

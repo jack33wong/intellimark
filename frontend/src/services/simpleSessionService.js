@@ -12,7 +12,7 @@
  * 
  * USAGE PATTERNS:
  * - useMarkHomework.js:35 (session data retrieval)
- * - MarkHomeworkPageConsolidated.js:67 (session management)
+ * - markhomeworkpageconsolidated.js:67 (session management)
  * - Sidebar.js:45 (session history)
  * 
  * API INTEGRATION:
@@ -201,15 +201,23 @@ class SimpleSessionService {
   // ============================================================================
 
   async addMessage(message) {
-    // Don't create local sessions - let backend handle session creation
-    // This prevents the retry problem where frontend creates temporary sessions
-    // that don't exist in the backend database
-    
+    // For first message, create a minimal session for immediate UI display
+    // This follows the existing architecture pattern
     if (!this.state.currentSession) {
-      // For first message, don't create any session yet
-      // Just store the message locally for UI display
-      // Backend will create the real session and return the actual sessionId
-      console.log('No current session - message will be handled by backend');
+      const tempSession = {
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: 'Processing...',
+        messages: [message],
+        userId: message.userId || 'anonymous',
+        messageType: 'Marking',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        favorite: false,
+        rating: 0
+      };
+      
+      this.setState({ currentSession: tempSession });
+      // Don't add temporary sessions to sidebar - they will be replaced by real sessions
       return;
     }
 
@@ -228,7 +236,7 @@ class SimpleSessionService {
   // TWO-PHASE PROCESSING
   // ============================================================================
 
-  async processImage(imageData, model = 'auto', mode = 'marking') {
+  async processImage(imageData, model = 'auto', mode = 'marking', customText = null) {
     this.setState({ error: null });
 
     try {
@@ -269,7 +277,7 @@ class SimpleSessionService {
       // For authenticated users, pass user message for database persistence
       if (this.state.currentSession?.userId) {
         const userMessage = {
-          content: 'I have a question about this image. Can you help me understand it?',
+          content: customText || 'I have a question about this image. Can you help me understand it?',
           // Only send sessionId for follow-up messages (when we have a real session ID from backend)
           ...(this.state.currentSession?.id && 
               !this.state.currentSession.id.startsWith('temp-') && { 
@@ -530,6 +538,12 @@ class SimpleSessionService {
   }
 
   updateSidebarSession(session) {
+    // Only add sessions to sidebar for authenticated users
+    // Unauthenticated users should have empty sidebar (no persistence)
+    if (session.userId === 'anonymous') {
+      return;
+    }
+
     const lightweightSession = {
       id: session.id,
       title: session.title,

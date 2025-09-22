@@ -11,7 +11,7 @@
  * - Coordinates with simpleSessionService for data persistence
  * 
  * USAGE PATTERNS:
- * - MarkHomeworkPageConsolidated.js:36 (main component - 20+ props)
+ * - markhomeworkpageconsolidated.js:36 (main component - 20+ props)
  * - MainLayout.js:17 (layout component - 15+ props)
  * - Sidebar.js:45 (session management)
  * 
@@ -28,7 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 
 export const useMarkHomework = () => {
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, user } = useAuth();
   
   // Consolidated state management - single source of truth
   const [state, setState] = useState({
@@ -58,7 +58,7 @@ export const useMarkHomework = () => {
   useEffect(() => {
     const syncWithService = (serviceState) => {
       const { currentSession } = serviceState;
-      const chatMessages = currentSession?.messages || [];
+      const sessionMessages = currentSession?.messages || [];
       const sessionTitle = currentSession?.title || '';
       const isFavorite = currentSession?.favorite || false;
       const rating = currentSession?.rating || 0;
@@ -66,7 +66,7 @@ export const useMarkHomework = () => {
       setState(prev => ({
         ...prev,
         currentSession,
-        chatMessages,
+        chatMessages: sessionMessages,
         sessionTitle,
         isFavorite,
         rating,
@@ -130,8 +130,8 @@ export const useMarkHomework = () => {
     // No manual state sync needed - service is single source of truth
   };
   
-  const processImageAPI = async (imageData, model, mode) => {
-    const result = await simpleSessionService.processImage(imageData, model, mode);
+  const processImageAPI = async (imageData, model, mode, customText = null) => {
+    const result = await simpleSessionService.processImage(imageData, model, mode, customText);
     // No manual state sync needed - service is single source of truth
     return result;
   };
@@ -165,44 +165,29 @@ export const useMarkHomework = () => {
         type: 'text'
       };
       
-      // For first message, create a temporary session for immediate UI display
-      if (!state.currentSession) {
-        // Create a temporary session with the user message for immediate display
-        const tempSession = {
-          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          title: 'Processing...',
-          messages: [userMessage],
-          userId: 'anonymous',
-          messageType: 'Chat',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          favorite: false,
-          rating: 0
-        };
-        
-        // Set the temporary session in both local state and service for immediate UI display
-        setState(prev => ({
-          ...prev,
-          currentSession: tempSession
-        }));
-        
-        // Also set in service so the sync effect picks it up
-        simpleSessionService.setState({ currentSession: tempSession });
-      } else {
-        // Add user message immediately for instant UI feedback
-        await addMessage(userMessage);
-      }
-      
       // Clear the input after sending
       setChatInput('');
       
+      // Add message immediately for instant UI feedback (both authenticated and unauthenticated)
+      // This ensures immediate display while backend handles persistence in background
+      await addMessage(userMessage);
+      
       // Call the backend API to get AI response
+      const authToken = await getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Only add Authorization header if we have a valid token
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      // Debug logging removed for production
+      
       const response = await fetch('/api/messages/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getAuthToken()}`
-        },
+        headers,
         body: JSON.stringify({
           message: text.trim(),
           model: 'gemini-2.5-pro',
@@ -217,43 +202,63 @@ export const useMarkHomework = () => {
       const data = await response.json();
       
       if (data.success) {
-        // Update the session with the response from backend
-        if (data.session) {
+        // Handle consistent response format from both APIs
+        if (data.unifiedSession) {
           // Backend returned complete session data - convert it to proper format
-          const convertedSession = simpleSessionService.convertToUnifiedSession(data.session);
-          simpleSessionService.setCurrentSession(convertedSession);
+          const convertedSession = simpleSessionService.convertToUnifiedSession(data.unifiedSession);
           
-          // Update local state with the real session
-          setState(prev => ({
-            ...prev,
-            currentSession: convertedSession
-          }));
+          // For follow-up messages, append new messages instead of replacing entire session
+          if (state.currentSession && state.currentSession.id === convertedSession.id) {
+            // This is a follow-up message - append only new messages
+            const existingMessages = state.currentSession.messages || [];
+            const newMessages = convertedSession.messages || [];
+            
+            // Find messages that are new (not in existing session)
+            const newMessagesToAdd = newMessages.filter(newMsg => 
+              !existingMessages.some(existingMsg => existingMsg.id === newMsg.id)
+            );
+            
+            // Append new messages to existing session
+            for (const message of newMessagesToAdd) {
+              await addMessage(message);
+            }
+            
+            // Update the session in the service to ensure persistence
+            simpleSessionService.setCurrentSession(convertedSession);
+          } else {
+            // This is a new session - replace completely
+            simpleSessionService.setCurrentSession(convertedSession);
+          }
         } else if (data.newMessages) {
           // Backend returned only new messages (for anonymous users)
-          // Create a proper session for anonymous users
-          const sessionId = data.sessionId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const sessionTitle = data.sessionTitle || 'Chat Session';
-          
-          const anonymousSession = {
-            id: sessionId,
-            title: sessionTitle,
-            messages: data.newMessages,
-            userId: 'anonymous',
-            messageType: 'Chat',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            favorite: false,
-            rating: 0
-          };
-          
-          // Set the session in the service (this will update the sidebar)
-          simpleSessionService.setCurrentSession(anonymousSession);
-          
-          // Update local state with the real session
-          setState(prev => ({
-            ...prev,
-            currentSession: anonymousSession
-          }));
+          // Append new messages to existing session instead of replacing
+          if (state.currentSession) {
+            // Filter out user message since it was already added locally
+            const aiMessages = data.newMessages.filter(msg => msg.role === 'assistant');
+            
+            // Append only AI messages using addMessage to preserve existing messages
+            for (const aiMessage of aiMessages) {
+              await addMessage(aiMessage);
+            }
+          } else {
+            // No existing session, create new one with the messages
+            const sessionId = data.sessionId;
+            const sessionTitle = data.sessionTitle || 'Chat Session';
+            
+            const anonymousSession = {
+              id: sessionId,
+              title: sessionTitle,
+              messages: data.newMessages,
+              userId: 'anonymous',
+              messageType: 'Chat',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              favorite: false,
+              rating: 0
+            };
+            
+            simpleSessionService.setCurrentSession(anonymousSession);
+          }
         }
       } else {
         throw new Error(data.error || 'Failed to get AI response');
@@ -271,7 +276,12 @@ export const useMarkHomework = () => {
   const onKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onSendMessage(state.chatInput);
+      
+      // For Enter key, we can only send text messages
+      // Image + text combination should be handled by the send button click
+      if (state.chatInput && state.chatInput.trim()) {
+        onSendMessage(state.chatInput);
+      }
     }
   }, [onSendMessage, state.chatInput]);
 

@@ -19,7 +19,8 @@ import MainLayout from './MainLayout';
 const MarkHomeworkPageConsolidated = ({
   selectedMarkingResult,
   onClearSelectedResult,
-  onMarkingResultSaved
+  onMarkingResultSaved,
+  onPageModeChange
 }) => {
   // ============================================================================
   // HOOKS
@@ -234,6 +235,17 @@ const MarkHomeworkPageConsolidated = ({
   const handleFollowUpImage = useCallback((file, customText = null) => handleImageAnalysis(file, customText), [handleImageAnalysis]);
 
   // ============================================================================
+  // EFFECTS
+  // ============================================================================
+  
+  // Notify parent component when page mode changes
+  useEffect(() => {
+    if (onPageModeChange) {
+      onPageModeChange(pageMode);
+    }
+  }, [pageMode, onPageModeChange]);
+
+  // ============================================================================
   // RENDER
   // ============================================================================
 
@@ -247,7 +259,7 @@ const MarkHomeworkPageConsolidated = ({
       onFileSelect={handleFileSelect}
       onAnalyzeImage={handleImageAnalysis}
       onClearFile={clearFile}
-      selectedModel={'auto'}
+      selectedModel={"auto"}
       
       // Session props
       currentSession={currentSession}
@@ -285,59 +297,38 @@ const MarkHomeworkPageConsolidated = ({
             // Trigger event for real-time updates
             simpleSessionService.triggerSessionUpdate(updatedSession);
           } catch (error) {
-            console.error('❌ Failed to update favorite status:', error);
+            console.error("❌ Failed to update favorite status:", error);
           }
         }
       }}
-      onRatingChange={(rating) => console.log('Rating changed:', rating)}
+      onRatingChange={(rating) => console.log("Rating changed:", rating)}
       onRatingHover={setHoveredRating}
       user={user}
-      markingResult={null} // TODO: Get from current session
-      sessionData={currentSession} // Pass current session as sessionData
-      showInfoDropdown={showInfoDropdown}
-      onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}
-      hoveredRating={hoveredRating}
+      markingResult={null}
+      sessionData={null}
+      showInfoDropdown={false}
+      onToggleInfoDropdown={() => {}}
       
-      // Chat scroll props
+      // Chat props
       chatContainerRef={chatContainerRef}
       showScrollButton={showScrollButton}
       scrollToBottom={scrollToBottom}
       handleImageLoad={handleImageLoad}
-      getImageSrc={(message) => {
-        // Handle different image source formats
-        if (message?.imageLink) {
-          return message.imageLink; // Firebase Storage URL
-        }
-        if (message?.imageData) {
-          // If imageData is already a data URL, return it directly
-          if (typeof message.imageData === 'string' && message.imageData.startsWith('data:')) {
-            return message.imageData;
-          }
-          // If imageData is a base64 string without data URL prefix, add it
-          if (typeof message.imageData === 'string' && !message.imageData.startsWith('data:')) {
-            return `data:image/png;base64,${message.imageData}`;
-          }
-          return message.imageData;
-        }
-        return null;
-      }}
+      getImageSrc={getImageSrc}
       
       // Follow-up chat props
-      onFollowUpImage={handleFollowUpImage}
-      onUploadClick={handleFileSelect}
-      onClearPreview={handleClearPreview}
-      
-      // Additional props
-      previewUrl={null}
-      loadingProgress={0}
-      showExpandedThinking={false}
-      markError={error}
       chatInput={chatInput}
       setChatInput={setChatInput}
       onSendMessage={onSendMessage}
+      onFollowUpImage={handleImageAnalysis}
       onKeyPress={onKeyPress}
+      
+      // Additional props
+      previewUrl={previewUrl}
+      loadingProgress={0}
+      showExpandedThinking={false}
+      markError={error}
     />
   );
-};
 
 export default MarkHomeworkPageConsolidated;

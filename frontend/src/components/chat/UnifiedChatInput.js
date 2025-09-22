@@ -98,15 +98,16 @@ const UnifiedChatInput = ({
   const handleSendClick = useCallback(() => {
     if (mode === 'first-time') {
       // First-time mode: handle both file and text input
-      if (selectedFile) {
-        // If there's a file, process it with custom text if provided
+      if (selectedFile || previewImage) {
+        // If there's a file or preview image, process it with custom text if provided
+        const fileToProcess = selectedFile || previewImage;
         if (chatInput && chatInput.trim()) {
           // Pass the user's text along with the image
-          onAnalyzeImage?.(selectedFile, chatInput.trim());
+          onAnalyzeImage?.(fileToProcess, chatInput.trim());
           setChatInput?.(''); // Clear input after sending
         } else {
           // No custom text, use default behavior
-          onAnalyzeImage?.(selectedFile);
+          onAnalyzeImage?.(fileToProcess);
         }
       } else if (chatInput && chatInput.trim()) {
         // If no file but has text input, send text message
@@ -143,13 +144,16 @@ const UnifiedChatInput = ({
         } else {
           if (onAnalyzeImage) {
             try {
+              // For first-time mode with image, get the file from the file input
+              const fileInput = document.getElementById('followup-file-input');
+              const file = fileInput?.files?.[0];
               if (chatInput && chatInput.trim()) {
                 // Pass the user's text along with the image
-                onAnalyzeImage(undefined, chatInput.trim());
+                onAnalyzeImage(file, chatInput.trim());
                 setChatInput?.(''); // Clear input after sending
               } else {
                 // No custom text, use default behavior
-                onAnalyzeImage();
+                onAnalyzeImage(file);
               }
             } catch (error) {
               console.error('UnifiedChatInput: ERROR calling onAnalyzeImage:', error);
@@ -178,6 +182,14 @@ const UnifiedChatInput = ({
       }
     }
   }, [mode, previewImage, currentSession, onAnalyzeImage, onFollowUpImage, chatInput, onSendMessage, setChatInput]);
+
+  // Key press handler for Enter key (same logic as send click)
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendClick();
+    }
+  }, [handleSendClick]);
 
   // Clear preview function for parent (follow-up mode only)
   const clearPreviewInternal = useCallback(() => {
@@ -226,7 +238,7 @@ const UnifiedChatInput = ({
               <textarea
                 value={chatInput}
                 onChange={(e) => setChatInput?.(e.target.value)}
-                onKeyPress={onKeyPress}
+                onKeyPress={handleKeyPress}
                 placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
                 disabled={isProcessing}
                 className="main-chat-input"
@@ -245,12 +257,12 @@ const UnifiedChatInput = ({
               </div>
               <SendButton
                 onClick={handleSendClick}
-                disabled={isProcessing || !selectedFile}
+                disabled={isProcessing || (!selectedFile && !previewImage && !chatInput?.trim())}
                 loading={isProcessing}
-                variant={selectedFile ? 'success' : 'primary'}
+                variant={selectedFile || previewImage ? 'success' : 'primary'}
                 size="main"
               >
-                {selectedFile ? 'Analyze' : 'Send'}
+                {selectedFile || previewImage ? 'Analyze' : 'Send'}
               </SendButton>
             </div>
           </div>
@@ -314,7 +326,7 @@ const UnifiedChatInput = ({
               <textarea
                 value={chatInput}
                 onChange={(e) => setChatInput?.(e.target.value)}
-                onKeyPress={onKeyPress}
+                onKeyPress={handleKeyPress}
                 placeholder={isProcessing ? "AI is processing your homework..." : "Ask me anything about your homework..."}
                 disabled={isProcessing}
                 className="followup-text-input"

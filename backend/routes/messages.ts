@@ -52,42 +52,45 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
 
-    // Session management - only for authenticated users
+    // Create user message (needed for both new and existing sessions)
+    const userMessage = {
+      messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: message || (imageData ? 'Image uploaded' : ''),
+      type: 'chat_user',
+      timestamp: new Date().toISOString(),
+      imageLink: imageLink || (isAuthenticated ? undefined : imageData),
+      detectedQuestion: { found: false, message: message || 'Chat message' },
+      metadata: {
+        resultId: `chat-${Date.now()}`,
+        processingTime: new Date().toISOString(),
+        totalProcessingTimeMs: 0,
+        modelUsed: model,
+        totalAnnotations: 0,
+        imageSize: imageData ? imageData.length : 0,
+        confidence: 0,
+        tokens: [0, 0],
+        ocrMethod: 'Chat'
+      }
+    };
+
+    // Session management - use provided sessionId or create new one
     if (!currentSessionId) {
       // Create a real session in unifiedSessions for authenticated users only
-      const userMessage = {
-        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
-        content: message || (imageData ? 'Image uploaded' : ''),
-        type: 'chat_user',
-        timestamp: new Date().toISOString(),
-        imageLink: imageLink || (isAuthenticated ? undefined : imageData),
-        detectedQuestion: { found: false, message: 'Chat message' },
-        metadata: {
-          resultId: `chat-${Date.now()}`,
-          processingTime: new Date().toISOString(),
-          totalProcessingTimeMs: 0,
-          modelUsed: model,
-          totalAnnotations: 0,
-          imageSize: 0,
-          confidence: 0,
-          tokens: [0, 0],
-          ocrMethod: 'Chat'
-        }
-      };
 
       if (isAuthenticated) {
         const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Create session with user message - both frontend and backend need it
         currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
           sessionId: newSessionId,
           title: sessionTitle,
           userId: userId,
           messageType: 'Chat',
-          messages: [userMessage]
+          messages: [userMessage] // Include user message in database
         });
       } else {
-        // For anonymous users, create a temporary session ID but don't save to database
-        currentSessionId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // For anonymous users, use provided sessionId or create a temporary one
+        currentSessionId = sessionId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
     }
 
@@ -150,32 +153,18 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     // Handle session creation and message storage - only for authenticated users
     if (isAuthenticated) {
-      if (!sessionId) {
-        // Creating new session - add AI message
-        await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
+      if (!sessionId || sessionId.startsWith('temp-')) {
+        // Creating new session - create session with both user and AI messages
+        await FirestoreService.createUnifiedSessionWithMessages({
+          sessionId: currentSessionId,
+          title: sessionTitle,
+          userId: userId,
+          messageType: 'Chat',
+          messages: [userMessage, aiMessage]
+        });
       } else {
-        // Adding to existing session - always save if session exists
-        const userMessage = {
-          messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user' as const,
-          content: message || (imageData ? 'Image uploaded' : ''),
-          type: 'chat_user' as const,
-          timestamp: new Date().toISOString(),
-          imageLink: imageLink || (isAuthenticated ? undefined : imageData),
-          detectedQuestion: { found: false, message: 'Chat message' },
-          metadata: {
-            resultId: `chat-${Date.now()}`,
-            processingTime: new Date().toISOString(),
-            totalProcessingTimeMs: 0,
-            modelUsed: model,
-            totalAnnotations: 0,
-            imageSize: imageData ? imageData.length : 0,
-            confidence: 0,
-            tokens: [0, 0],
-            ocrMethod: 'Chat'
-          }
-        };
-
+        // Adding to existing session - add both user and AI messages
+        // User message needs to be persisted for follow-up messages
         try {
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage);
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
@@ -185,7 +174,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
           throw error; // Re-throw to prevent silent failures
         }
       }
-    } else {
     }
 
     // Get session data for response
@@ -251,24 +239,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
       
     }
     
-    // Return appropriate response format based on user type
+    // Return consistent response format (same as process-single)
     if (isAuthenticated) {
-      // Authenticated users get complete session
+      // Authenticated users get complete session (user message already in database)
       res.json({
         success: true,
-        session: sessionData,
+        aiMessage: aiMessage,
         sessionId: currentSessionId,
-        sessionTitle: sessionTitle,
-        response: aiResponse,
-        apiUsed: apiUsed,
-        context: {
-          sessionId: currentSessionId,
-          messageCount: 2,
-          hasImage: !!imageData,
-          hasContext: false,
-          usingSummary: false,
-          summaryLength: 0
-        }
+        unifiedSession: sessionData
       });
     } else {
       // Anonymous users get only new messages for frontend to append
@@ -276,17 +254,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         success: true,
         newMessages: sessionData.messages, // Only new messages
         sessionId: currentSessionId,
-        sessionTitle: sessionTitle,
-        response: aiResponse,
-        apiUsed: apiUsed,
-        context: {
-          sessionId: currentSessionId,
-          messageCount: 2,
-          hasImage: !!imageData,
-          hasContext: false,
-          usingSummary: false,
-          summaryLength: 0
-        }
+        sessionTitle: sessionTitle
       });
     }
 
