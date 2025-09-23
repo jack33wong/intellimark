@@ -58,9 +58,7 @@ const Login = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        console.log('🔄 Fetching providers...');
         const providersData = await getProviders();
-        console.log('✅ Providers fetched:', providersData);
         setProviders(providersData);
       } catch (error) {
         console.error('❌ Error fetching providers:', error);

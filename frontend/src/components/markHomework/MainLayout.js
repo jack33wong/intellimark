@@ -68,23 +68,32 @@ const MainLayout = ({
 }) => {
 
 
+  // Determine if we're in follow-up mode (chat input bar at bottom)
+  const isFollowUpMode = (chatMessages || []).length > 0;
+  
   return (
-    <div className="mark-homework-page chat-mode">
-      <div className="chat-container" ref={chatContainerRef}>
-        <SessionManagement
-          sessionTitle={sessionTitle}
-          isFavorite={isFavorite}
-          onFavoriteToggle={onFavoriteToggle}
-          rating={rating}
-          onRatingChange={onRatingChange}
-          hoveredRating={hoveredRating}
-          onRatingHover={onRatingHover}
-          user={user}
-          markingResult={markingResult}
-          sessionData={sessionData}
-          showInfoDropdown={showInfoDropdown}
-          onToggleInfoDropdown={onToggleInfoDropdown}
-        />
+    <div className={`mark-homework-page chat-mode ${isFollowUpMode ? 'follow-up-mode' : 'initial-mode'}`}>
+      <div className="mark-homework-main-content">
+        <div className="chat-container" ref={chatContainerRef}>
+          {/* Show chat header when we have a session */}
+          {currentSession && (
+            <SessionManagement
+              sessionTitle={isProcessing ? 'Processing...' : sessionTitle}
+              isFavorite={isFavorite}
+              onFavoriteToggle={onFavoriteToggle}
+              rating={rating}
+              onRatingChange={onRatingChange}
+              hoveredRating={hoveredRating}
+              onRatingHover={onRatingHover}
+              user={user}
+              markingResult={markingResult}
+              sessionData={sessionData}
+              showInfoDropdown={showInfoDropdown}
+              onToggleInfoDropdown={onToggleInfoDropdown}
+              currentSession={currentSession}
+              isProcessing={isProcessing}
+            />
+          )}
         
         <div className="chat-messages">
             {(chatMessages || []).map((message, index) => (
@@ -131,6 +140,7 @@ const MainLayout = ({
             </button>
           </div>
         </div>
+      </div>
       
       {markError && (
         <div className="error-message">

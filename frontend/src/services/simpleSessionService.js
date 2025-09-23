@@ -84,6 +84,8 @@ class SimpleSessionService {
       // Handle object updates
       this.state = { ...this.state, ...updates };
     }
+    
+    
     this.notifyListeners();
   }
 
@@ -253,7 +255,6 @@ class SimpleSessionService {
       // Add timeout to prevent hanging - increased for AI processing
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log('⏰ Request timeout after 60 seconds');
         controller.abort();
       }, 60000); // 60 second timeout for AI processing
       
@@ -382,13 +383,16 @@ class SimpleSessionService {
         };
         
         // Update state with new session (now has real session ID and metadata)
+        // Force a new object reference to ensure React detects the change
+        const newSessionWithRef = { ...newSession, _updatedAt: Date.now() };
+        
         this.setState({ 
-          currentSession: newSession,
+          currentSession: newSessionWithRef,
         });
-        this.updateSidebarSession(newSession);
+        this.updateSidebarSession(newSessionWithRef);
         
         // Trigger event for real-time updates
-        this.triggerSessionUpdate(newSession);
+        this.triggerSessionUpdate(newSessionWithRef);
         
         return newSession;
       }
@@ -416,7 +420,6 @@ class SimpleSessionService {
   async loadChatHistory() {
     try {
       if (!this.state.currentSession?.userId) {
-        console.log('No authenticated user, skipping chat history load');
         return null;
       }
 
@@ -587,6 +590,15 @@ class SimpleSessionService {
     });
   }
 
+  // Clear all sessions (for logout)
+  clearAllSessions() {
+    this.setState({ 
+      currentSession: null,
+      sidebarSessions: [],
+      error: null
+    });
+  }
+
   // Set current session (for loading selected sessions)
   setCurrentSession(session) {
     this.setState({ 
@@ -628,7 +640,6 @@ class SimpleSessionService {
       }
 
       const result = await response.json();
-      console.log('✅ Session updated successfully:', result);
       return result;
     } catch (error) {
       console.error('❌ Failed to update session:', error);

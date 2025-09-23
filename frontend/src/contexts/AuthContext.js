@@ -229,6 +229,13 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('authToken');
     setUser(null);
     setError(null);
+    
+    // Dispatch logout event for other components to react
+    import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
+      EventManager.dispatch(EVENT_TYPES.USER_LOGGED_OUT, {});
+    }).catch(error => {
+      console.warn('Could not dispatch logout event:', error);
+    });
   };
 
   /**

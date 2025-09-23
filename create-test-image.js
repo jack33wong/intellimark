@@ -14,3 +14,4 @@ fs.writeFileSync('/Users/ytwong/github/intellimark/test-image.png', imageBuffer)
 console.log('✅ Test image created: test-image.png');
 console.log(`📊 Image size: ${imageBuffer.length} bytes`);
 
+

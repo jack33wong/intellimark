@@ -19,10 +19,14 @@ const SessionManagement = ({
   markingResult,
   sessionData,
   showInfoDropdown,
-  onToggleInfoDropdown
+  onToggleInfoDropdown,
+  currentSession,
+  isProcessing = false
 }) => {
+  
   return (
     <SessionHeader
+      key={currentSession?.id} // Force re-render when session ID changes
       sessionTitle={sessionTitle}
       isFavorite={isFavorite}
       onFavoriteToggle={onFavoriteToggle}
@@ -35,6 +39,8 @@ const SessionManagement = ({
       sessionData={sessionData}
       showInfoDropdown={showInfoDropdown}
       onToggleInfoDropdown={onToggleInfoDropdown}
+      currentSession={currentSession}
+      isProcessing={isProcessing}
     />
   );
 };

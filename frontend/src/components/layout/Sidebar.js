@@ -111,11 +111,20 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch chat sessions for authenticated users only (only on initial load)
+  // Also clear sessions when user logs out
   useEffect(() => {
     if (user?.uid) {
       refreshChatSessions();
+    } else {
+      // User logged out, clear chat sessions
+      setChatSessions([]);
+      setSessionsError(null);
+      setIsLoadingSessions(false);
+      
+      // Also clear all sessions in the service
+      simpleSessionService.clearAllSessions();
     }
-  }, [user?.uid]); // Only run when user changes, not on every refresh
+  }, [user?.uid, refreshChatSessions]); // Run when user changes (login/logout)
 
   // Expose refresh function to parent component
   useEffect(() => {
@@ -129,7 +138,14 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   useEffect(() => {
     const cleanup = EventManager.listenToMultiple({
       [EVENT_TYPES.SESSIONS_CLEARED]: refreshChatSessions,
-      [EVENT_TYPES.SESSION_UPDATED]: refreshChatSessions
+      [EVENT_TYPES.SESSION_UPDATED]: refreshChatSessions,
+      [EVENT_TYPES.SESSION_DELETED]: refreshChatSessions,
+      [EVENT_TYPES.USER_LOGGED_OUT]: () => {
+        setChatSessions([]);
+        setSessionsError(null);
+        setIsLoadingSessions(false);
+        simpleSessionService.clearAllSessions();
+      }
     });
     
     return cleanup;
@@ -159,16 +175,21 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       const authToken = await getAuthToken();
       await MarkingHistoryService.deleteSession(sessionId, authToken);
       
-      // Remove the session from the local state
+      // Remove the session from the local state (immediate UI update)
       setChatSessions(prevSessions => 
         prevSessions.filter(session => session.id !== sessionId)
       );
       
-      // Dispatch custom event to notify other components
+      // Dispatch custom event to notify other components (this will trigger refresh)
       EventManager.dispatch(EVENT_TYPES.SESSION_DELETED, { sessionId });
       
-      // Navigate to mark homework page after successful deletion
-      navigate('/mark-homework');
+      // Reset to upload mode and navigate to mark homework page
+      if (onMarkHomeworkClick && typeof onMarkHomeworkClick === 'function') {
+        onMarkHomeworkClick();
+      } else {
+        // Fallback: just navigate to mark homework page
+        navigate('/mark-homework');
+      }
       
     } catch (error) {
       console.error('❌ Error deleting session:', error);

@@ -79,7 +79,7 @@ export const useMarkHomework = () => {
     const unsubscribe = simpleSessionService.subscribe(syncWithService);
 
     return unsubscribe;
-  }, [state.pageMode]);
+  }, []); // Remove pageMode dependency to prevent unnecessary re-subscriptions
 
   // Actions - simplified
   const startProcessing = () => {

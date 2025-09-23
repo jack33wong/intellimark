@@ -17,9 +17,12 @@ const SessionHeader = ({
   markingResult = null,
   showInfoDropdown = false,
   onToggleInfoDropdown,
-  sessionData = null // Add sessionData prop to access unified session messages
+  sessionData = null, // Add sessionData prop to access unified session messages
+  currentSession = null, // Add currentSession prop to check if real title is ready
+  isProcessing = false // Add isProcessing prop to hide chat-header-right during processing
 }) => {
   const dropdownRef = useRef(null);
+
 
 
   // Helper function to get token data from either markingResult or sessionData
@@ -128,10 +131,26 @@ const SessionHeader = ({
       <div className="chat-header-content">
         <div className="chat-header-left">
           <h1>
-            {sessionTitle.length > 100 ? sessionTitle.substring(0, 100) + '...' : sessionTitle}
+            {(() => {
+              // For temporary sessions, always show "Processing..."
+              if (currentSession?.id && currentSession.id.startsWith('temp-')) {
+                return 'Processing...';
+              }
+              // For real sessions, show the actual title
+              return sessionTitle.length > 100 ? sessionTitle.substring(0, 100) + '...' : sessionTitle;
+            })()}
           </h1>
         </div>
-        <div className="chat-header-right">
+        {/* Only show chat-header-right when we have a real session (not temporary) */}
+        {/* Simple detection: real sessions have IDs that don't start with 'temp-' */}
+        {(() => {
+          const hasSession = !!currentSession?.id;
+          const isTemporarySession = hasSession && currentSession.id.startsWith('temp-');
+          const isRealSession = hasSession && !isTemporarySession;
+          
+          return isRealSession;
+        })() && (
+          <div className="chat-header-right">
           <div className="info-dropdown-container" ref={dropdownRef}>
             <button 
               className="header-btn info-btn"
@@ -277,6 +296,7 @@ const SessionHeader = ({
             </svg>
           </button>
         </div>
+        )}
       </div>
     </div>
   );

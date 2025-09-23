@@ -49,6 +49,11 @@
   height: 100vh;
 }
 
+/* Hide main header only when in follow-up mode (when chat input bar is at bottom) */
+.right-side.chat-mode:has(.mark-homework-page.follow-up-mode) .header {
+  display: none;
+}
+
 .main-content {
   flex: 1;
   display: flex;

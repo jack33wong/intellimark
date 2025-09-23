@@ -48,6 +48,7 @@ export const EVENT_TYPES = {
   SESSION_UPDATED: 'sessionUpdated',
   SESSION_DELETED: 'sessionDeleted',
   SESSIONS_CLEARED: 'sessionsCleared',
+  USER_LOGGED_OUT: 'userLoggedOut',
   PAGE_MODE_CHANGED: 'pageModeChanged',
   CHAT_MESSAGE_SENT: 'chatMessageSent',
   IMAGE_UPLOADED: 'imageUploaded',

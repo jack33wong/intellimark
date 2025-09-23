@@ -113,7 +113,7 @@ function AppContent() {
                       onMarkingResultSaved={handleMarkingResultSaved}
                       onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
                     />
-                    <div className="right-side">
+                    <div className="right-side chat-mode">
                       <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
                       <div className="mark-homework-main-content">
                         <MarkHomeworkPage 
