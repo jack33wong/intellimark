@@ -11,7 +11,9 @@ import './ModelSelector.css';
 const AVAILABLE_MODELS = [
   { value: 'auto', label: 'Auto', description: 'Use system default (Gemini 2.5 Pro)' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Google Gemini 2.5 Pro' },
-  { value: 'chatgpt-4o', label: 'ChatGPT 4o', description: 'OpenAI GPT-4 Omni' }
+  { value: 'chatgpt-4o', label: 'ChatGPT 4o', description: 'OpenAI GPT-4 Omni' },
+  { value: 'gemini-2.5-flash-image-preview', label: 'Gemini 2.5 Flash (Image)', description: 'Google Gemini 2.5 Flash Image Preview' },
+  { value: 'gemini-2.0-flash-preview-image-generation', label: 'Gemini 2.0 Flash (Image Gen)', description: 'Google Gemini 2.0 Flash Preview Image Generation' }
 ];
 
 const ModelSelector = ({ 

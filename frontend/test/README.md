@@ -2,6 +2,8 @@
 
 This folder contains automated tests for the IntelliMark frontend application using Puppeteer.
 
+> **Note**: This test suite has been cleaned up to remove obsolete debug and example tests. Only active, production-relevant tests remain.
+
 ## Test Account
 
 All tests use the following test account:
@@ -146,6 +148,11 @@ All tests use the following test account:
 - **What it tests**: API call with test image and classification verification
 - **Expected**: Returns messageType: "Question" for question-only images
 
+#### `test-question-only-node.js`
+- **Purpose**: Node.js test for question-only classification
+- **What it tests**: Direct API testing without browser
+- **Expected**: Returns messageType: "Question" for question-only images
+
 ## Running Tests
 
 ### Run All Tests
@@ -179,6 +186,7 @@ node test-authenticated-duplicate-fix.js
 # Question classification tests
 node test-question-only-upload.js
 node test-question-only-simple.js
+node test-question-only-node.js
 ```
 
 ## Test Environment Setup

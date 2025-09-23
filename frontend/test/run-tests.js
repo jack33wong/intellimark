@@ -49,6 +49,11 @@ const testCategories = {
   state: [
     'test-frontend-state-flow.js',
     'test-unified-session.js'
+  ],
+  classification: [
+    'test-question-only-upload.js',
+    'test-question-only-simple.js',
+    'test-question-only-node.js'
   ]
 };
 
