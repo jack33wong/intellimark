@@ -423,6 +423,11 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
 
+    // Debug mode logging at route level
+    const { getDebugMode } = await import('../config/aiModels.js');
+    const debugMode = getDebugMode();
+    console.log(`🔍 [DEBUG MODE] Route handler debug mode: ${JSON.stringify(debugMode)}`);
+
     // Process the image for AI response (includes classification + marking)
     // Add timeout to prevent hanging
     const result = await Promise.race([

@@ -216,6 +216,7 @@ export class MarkHomeworkWithAnswer {
 
     // Debug mode: Return mock response
     const debugMode = getDebugMode();
+    console.log(`🔍 [DEBUG MODE] MarkHomeworkWithAnswer debug mode: ${JSON.stringify(debugMode)}`);
     if (debugMode.enabled) {
       await simulateApiDelay('Classification');
       await simulateApiDelay('Question Detection');

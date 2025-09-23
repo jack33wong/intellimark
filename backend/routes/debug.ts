@@ -26,6 +26,8 @@ router.post('/toggle', async (req: Request, res: Response) => {
     // Update debug mode at runtime
     setDebugMode(debugMode);
     
+    console.log(`🔍 [DEBUG TOGGLE] Debug mode set to: ${debugMode}`);
+    
     res.json({
       success: true,
       debugMode: debugMode,

@@ -22,7 +22,7 @@ export const DEBUG_MODE = {
 let runtimeDebugMode = {
   enabled: false,
   fakeDelayMs: 1000,
-  returnOriginalImage: true
+  returnOriginalImage: false // Default: return AI-annotated images (normal operation)
 };
 
 /**
@@ -38,6 +38,9 @@ export function getDebugMode() {
  */
 export function setDebugMode(debugMode: boolean) {
   runtimeDebugMode.enabled = debugMode;
+  // When debug mode is ON, return original images (for testing)
+  // When debug mode is OFF, return AI-annotated images (normal operation)
+  runtimeDebugMode.returnOriginalImage = debugMode;
 }
 
 /**
@@ -46,7 +49,7 @@ export function setDebugMode(debugMode: boolean) {
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
   'gemini-2.5-pro': {
     name: 'Google Gemini 2.5 Pro',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     maxTokens: 8000,
     temperature: 0.1
   },
@@ -65,6 +68,18 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     maxTokens: 8000,
     temperature: 0.1,
     maxCompletionTokens: 8000
+  },
+  'gemini-2.5-flash-image-preview': {
+    name: 'Google Gemini 1.5 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    maxTokens: 8000,
+    temperature: 0.1
+  },
+  'gemini-2.0-flash-preview-image-generation': {
+    name: 'Google Gemini 1.5 Pro (Fallback)',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
+    maxTokens: 8000,
+    temperature: 0.1
   }
 };
 
@@ -150,6 +165,10 @@ export function getModelPromptTemplate(modelType: ModelType): string {
       return `${basePrompt} Provide comprehensive explanations with mathematical rigor.`;
     case 'chatgpt-4o':
       return `${basePrompt} Offer detailed analysis with practical examples.`;
+    case 'gemini-2.5-flash-image-preview':
+      return `${basePrompt} Use advanced image generation capabilities for visual mathematical explanations.`;
+    case 'gemini-2.0-flash-preview-image-generation':
+      return `${basePrompt} Use advanced image generation capabilities for visual mathematical explanations with enhanced fallback processing.`;
     default:
       return basePrompt;
   }
@@ -165,6 +184,8 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   
   switch (modelType) {
     case 'gemini-2.5-pro':
+    case 'gemini-2.5-flash-image-preview':
+    case 'gemini-2.0-flash-preview-image-generation':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

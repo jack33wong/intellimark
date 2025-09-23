@@ -1,5 +1,6 @@
 import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
+import { getModelConfig, getDebugMode } from '../../config/aiModels.js';
 
 export interface ClassificationResult {
   isQuestionOnly: boolean;
@@ -35,15 +36,123 @@ export class ClassificationService {
     const userPrompt = `Please classify this uploaded image and extract the question text.`;
 
     try {
+      // Debug mode logging
+      const debugMode = getDebugMode();
+      console.log(`🔍 [DEBUG MODE] Current debug mode: ${JSON.stringify(debugMode)}`);
+      
+      // Debug mode: Return mock response
+      if (debugMode.enabled) {
+        console.log('🔍 [DEBUG MODE] Returning mock classification response');
+        return {
+          isQuestionOnly: false,
+          reasoning: 'Debug mode: Mock classification reasoning',
+          apiUsed: 'Debug Mode - Mock Response',
+          extractedQuestionText: 'Debug mode: Mock question text',
+          usageTokens: 100
+        };
+      }
+      
+      console.log(`🔄 [CLASSIFICATION] Starting with model: ${model}`);
       if (model === 'gemini-2.5-pro') {
+        const modelConfig = getModelConfig('gemini-2.5-pro');
+        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
+      } else if (model === 'gemini-2.5-flash-image-preview') {
+        const modelConfig = getModelConfig('gemini-2.5-flash-image-preview');
+        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
+        return await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt);
+      } else if (model === 'gemini-2.0-flash-preview-image-generation') {
+        const modelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
+        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
+        try {
+          const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.0-flash-preview-image-generation');
+          console.log('✅ [GEMINI 2.0 SUCCESS] Gemini 2.0 Flash Preview Image Generation completed successfully');
+          return result;
+        } catch (gemini20DirectError) {
+          const isGemini20DirectRateLimit = gemini20DirectError instanceof Error && 
+            (gemini20DirectError.message.includes('429') || 
+             gemini20DirectError.message.includes('rate limit') || 
+             gemini20DirectError.message.includes('quota exceeded'));
+          
+          if (isGemini20DirectRateLimit) {
+            console.error('❌ [GEMINI 2.0 DIRECT - 429 ERROR] Gemini 2.0 Flash Preview Image Generation hit rate limit on direct selection:', gemini20DirectError);
+          } else {
+            console.error('❌ [GEMINI 2.0 DIRECT - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error on direct selection:', gemini20DirectError);
+          }
+          throw gemini20DirectError; // Re-throw for normal error handling
+        }
       } else {
+        console.log(`🔄 [CLASSIFICATION] Using: ${model} (OpenAI)`);
         return await this.callOpenAIForClassification(compressedImage, systemPrompt, userPrompt, model);
       }
     } catch (error) {
-      console.error('❌ [CLASSIFICATION ERROR]', error);
+      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${model}`, error);
       
-      // Fallback: Try to classify based on image characteristics
+      // Check if it's a 429 rate limit error
+      const isRateLimitError = error instanceof Error && 
+        (error.message.includes('429') || 
+         error.message.includes('rate limit') || 
+         error.message.includes('quota exceeded'));
+      
+      if (isRateLimitError) {
+        console.log(`🔄 [429 DETECTED] Rate limit detected for model: ${model}, implementing exponential backoff...`);
+      } else {
+        console.log(`🔄 [NON-429 ERROR] Non-rate-limit error for model: ${model}`);
+      }
+      
+      // Try fallback with image generation model if primary model failed
+      if (model !== 'gemini-2.5-flash-image-preview' && model !== 'gemini-2.0-flash-preview-image-generation') {
+        try {
+          if (isRateLimitError) {
+            // Implement exponential backoff before fallback
+            console.log('⏳ [429 BACKOFF] Starting exponential backoff (1s, 2s, 4s)...');
+            await this.exponentialBackoff(3); // 3 retries with backoff
+            
+            // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
+            const fallbackModelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
+            console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} (fallback for 429 errors)`);
+            try {
+              const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
+              console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully`);
+              return result;
+            } catch (gemini20Error) {
+              const isGemini20RateLimit = gemini20Error instanceof Error && 
+                (gemini20Error.message.includes('429') || 
+                 gemini20Error.message.includes('rate limit') || 
+                 gemini20Error.message.includes('quota exceeded'));
+              
+              if (isGemini20RateLimit) {
+                console.error('❌ [GEMINI 2.0 - 429 ERROR] Gemini 2.0 Flash Preview Image Generation also hit rate limit:', gemini20Error);
+                console.log('🔄 [CASCADING 429] Both primary and Gemini 2.0 models rate limited, trying Gemini 2.5...');
+              } else {
+                console.error('❌ [GEMINI 2.0 - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error:', gemini20Error);
+                console.log('🔄 [GEMINI 2.0 FAILED] Trying Gemini 2.5 as fallback...');
+              }
+              
+              // Try Gemini 2.5 as secondary fallback
+              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Flash Image Preview');
+              try {
+                const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
+                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully');
+                return result;
+              } catch (fallback429Error) {
+                console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
+                console.log('🔄 [FINAL FALLBACK] All AI models rate limited, using fallback classification...');
+                // Don't re-throw, let it fall through to the final fallback
+              }
+            }
+          } else {
+            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 2.5 Flash Image Preview');
+            const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
+            console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully');
+            return result;
+          }
+        } catch (fallbackError) {
+          console.error('❌ [FALLBACK ERROR] Image generation model also failed:', fallbackError);
+        }
+      }
+      
+      // Final fallback: Try to classify based on image characteristics
       const fallbackResult = await this.fallbackClassification(imageData);
       
       return {
@@ -67,7 +176,42 @@ export class ClassificationService {
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return this.parseGeminiResponse(cleanContent, result);
+      return this.parseGeminiResponse(cleanContent, result, 'gemini-2.5-pro');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  private static async callGemini15ProForClassification(
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<ClassificationResult> {
+    try {
+      const accessToken = await this.getGeminiAccessToken();
+      const response = await this.makeGemini15ProRequest(accessToken, imageData, systemPrompt, userPrompt);
+      const result = await response.json() as any;
+      const content = this.extractGeminiContent(result);
+      const cleanContent = this.cleanGeminiResponse(content);
+      return this.parseGeminiResponse(cleanContent, result, 'gemini-1.5-pro');
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  private static async callGeminiImageGenForClassification(
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string,
+    modelType: string = 'gemini-2.5-flash-image-preview'
+  ): Promise<ClassificationResult> {
+    try {
+      const accessToken = await this.getGeminiAccessToken();
+      const response = await this.makeGeminiImageGenRequest(accessToken, imageData, systemPrompt, userPrompt, modelType);
+      const result = await response.json() as any;
+      const content = this.extractGeminiContent(result);
+      const cleanContent = this.cleanGeminiResponse(content);
+      return this.parseGeminiResponse(cleanContent, result, modelType);
     } catch (error) {
       throw error;
     }
@@ -102,7 +246,7 @@ export class ClassificationService {
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -130,6 +274,80 @@ export class ClassificationService {
     return response;
   }
 
+  private static async makeGemini15ProRequest(
+    accessToken: string,
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<Response> {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userPrompt },
+            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Gemini 1.5 Pro API Error:', response.status, response.statusText);
+      console.error('❌ Error Details:', errorText);
+      throw new Error(`Gemini 1.5 Pro API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    return response;
+  }
+
+  private static async makeGeminiImageGenRequest(
+    accessToken: string,
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string,
+    modelType: string = 'gemini-2.5-flash-image-preview'
+  ): Promise<Response> {
+    // Use the correct Gemini 1.5 endpoint based on model type
+    const endpoint = modelType === 'gemini-2.0-flash-preview-image-generation' 
+      ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent'
+      : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userPrompt },
+            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Gemini Image Gen API Error:', response.status, response.statusText);
+      console.error('❌ Error Details:', errorText);
+      throw new Error(`Gemini Image Gen API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    return response;
+  }
+
   private static extractGeminiContent(result: any): string {
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
     
@@ -150,13 +368,20 @@ export class ClassificationService {
     return cleanContent;
   }
 
-  private static parseGeminiResponse(cleanContent: string, result: any): ClassificationResult {
+  private static parseGeminiResponse(cleanContent: string, result: any, modelType: string): ClassificationResult {
     const parsed = JSON.parse(cleanContent);
+    
+    let apiUsed = 'Google Gemini 2.5 Pro (Service Account)';
+    if (modelType === 'gemini-2.5-flash-image-preview') {
+      apiUsed = 'Google Gemini 2.5 Flash Image Preview (Service Account)';
+    } else if (modelType === 'gemini-2.0-flash-preview-image-generation') {
+      apiUsed = 'Google Gemini 2.0 Flash Preview Image Generation (Service Account)';
+    }
     
     return {
       isQuestionOnly: parsed.isQuestionOnly,
       reasoning: parsed.reasoning,
-      apiUsed: 'Google Gemini 2.5 Pro (Service Account)',
+      apiUsed,
       extractedQuestionText: parsed.extractedQuestionText,
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
@@ -201,6 +426,15 @@ export class ClassificationService {
       usageTokens
     };
   }
+
+  private static async exponentialBackoff(maxRetries: number): Promise<void> {
+    for (let i = 0; i < maxRetries; i++) {
+      const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, 8s...
+      console.log(`⏳ [BACKOFF] Waiting ${delay}ms before retry ${i + 1}/${maxRetries}...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
 
   private static async fallbackClassification(imageData: string): Promise<ClassificationResult> {
     try {
