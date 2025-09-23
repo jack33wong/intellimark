@@ -289,7 +289,33 @@ const MarkHomeworkPageConsolidated = ({
           }
         }
       }}
-      onRatingChange={(rating) => console.log('Rating changed:', rating)}
+      onRatingChange={async (rating) => {
+        if (currentSession) {
+          try {
+            // Update in backend first
+            await simpleSessionService.updateSession(currentSession.id, {
+              rating: rating,
+              updatedAt: new Date().toISOString()
+            });
+            
+            // Update the session in the service (only after successful backend update)
+            const updatedSession = {
+              ...currentSession,
+              rating: rating,
+              updatedAt: new Date().toISOString()
+            };
+            
+            // Update the service state
+            simpleSessionService.setCurrentSession(updatedSession);
+            simpleSessionService.updateSidebarSession(updatedSession);
+            
+            // Trigger event for real-time updates
+            simpleSessionService.triggerSessionUpdate(updatedSession);
+          } catch (error) {
+            console.error('❌ Failed to update rating:', error);
+          }
+        }
+      }}
       onRatingHover={setHoveredRating}
       user={user}
       markingResult={null} // TODO: Get from current session
