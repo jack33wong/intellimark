@@ -108,6 +108,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       
       // Assert that the user's content appeared correctly
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible();
+      
+      // Verify 1st user uploaded image has base64 source (from chat session memory)
+      await markHomeworkPage.verifyUserImagesHaveBase64Sources(1);
     });
 
     await test.step('Step 3: Verify First AI Response and UI Updates', async () => {
@@ -136,6 +139,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       
       // Verify follow-up user message
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible();
+      
+      // Verify 2nd user uploaded image has base64 source (from chat session memory)
+      await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
     });
 
     await test.step('Step 5: Verify Database and Final UI State', async () => {
@@ -148,6 +154,29 @@ test.describe('Authenticated User Marking Homework E2E', () => {
         // Expect 4 messages: 2 user messages + 2 AI responses (both initial and follow-up working!)
         expect(messageCount).toBe(4);
       }).toPass({ timeout: 15000 }); // Poll the DB until the condition is met
+    });
+
+    await test.step('Step 6: Test Chat History Navigation and Image Sources', async () => {
+      // Click on the chat history item to load the conversation from database
+      await sidebarPage.clickChatHistoryItem(0);
+      
+      // Wait for the chat to load from database and messages to be visible
+      await markHomeworkPage.waitForPageLoad();
+      
+      // Wait for user messages to be visible (they should load first)
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible({ timeout: 10000 });
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible({ timeout: 10000 });
+      
+      // Wait for AI messages to be visible
+      await expect(markHomeworkPage.aiMessages).toHaveCount(2, { timeout: 10000 });
+      
+      // Wait for all images to load
+      await markHomeworkPage.waitForImageToLoad();
+      
+      // Verify that images load from appropriate sources (AI from storage, user may be base64)
+      await markHomeworkPage.verifyAllImagesFromDatabaseStorage();
+      
+      console.log('✅ Chat history navigation verified - images load from appropriate sources');
     });
   });
 });

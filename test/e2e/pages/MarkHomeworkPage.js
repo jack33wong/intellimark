@@ -166,6 +166,88 @@ class MarkHomeworkPage {
   getUserImageLocator() {
     return this.userMessages.locator('img');
   }
+
+  /**
+   * Verifies that user uploaded images have base64 sources (from chat session memory).
+   * @param {number} expectedCount - Expected number of user images (default: 1)
+   */
+  async verifyUserImagesHaveBase64Sources(expectedCount = 1) {
+    const userImages = this.getUserImageLocator();
+    
+    // Wait for user images to be visible
+    await expect(userImages).toHaveCount(expectedCount, { timeout: 10000 });
+    
+    // Verify each user image has base64 source
+    for (let i = 0; i < expectedCount; i++) {
+      const userImage = userImages.nth(i);
+      await expect(userImage).toBeVisible();
+      
+      // Check that the image source starts with data:image (base64 format)
+      await expect(userImage).toHaveAttribute('src', /^data:image/);
+      
+      console.log(`✅ User image ${i + 1} verified to have base64 source`);
+    }
+  }
+
+  /**
+   * Verifies that AI images in the chat (when loaded from chat history) have database storage URLs.
+   * User images may still be base64 from session memory, but AI images should be from storage.
+   * This should be called after clicking on a chat history item.
+   */
+  async verifyAllImagesFromDatabaseStorage() {
+    // Wait for chat to load completely
+    await this.page.waitForLoadState('networkidle');
+    
+    // Get all images in the chat (both user and AI images)
+    const allImages = this.page.locator('.chat-container img, .messages-container img, .main-chat-container img');
+    
+    // Wait for at least one image to be present and visible
+    await expect(allImages.first()).toBeVisible({ timeout: 10000 });
+    
+    // Wait for all images to be loaded (have src attributes)
+    await this.page.waitForFunction(() => {
+      const images = document.querySelectorAll('.chat-container img, .messages-container img, .main-chat-container img');
+      return Array.from(images).every(img => img.src && img.src.length > 0);
+    }, { timeout: 10000 });
+    
+    const imageCount = await allImages.count();
+    console.log(`🔍 Found ${imageCount} images to verify`);
+    
+    // Verify each image - AI images should have storage URLs, user images may be base64
+    for (let i = 0; i < imageCount; i++) {
+      const image = allImages.nth(i);
+      await expect(image).toBeVisible();
+      
+      // Wait for this specific image to have a src attribute
+      await expect(image).toHaveAttribute('src', /.+/, { timeout: 5000 });
+      
+      const src = await image.getAttribute('src');
+      console.log(`🔍 Image ${i + 1} src: ${src ? src.substring(0, 50) + '...' : 'null'}`);
+      
+      // Check if this is an AI image (annotated image) - these should have storage URLs
+      const isAnnotatedImage = await image.locator('..').locator('..').locator('.homework-annotated-image').count() > 0;
+      
+      if (isAnnotatedImage) {
+        // AI images should have storage URLs
+        await expect(image).toHaveAttribute('src', /storage\.googleapis\.com/);
+        console.log(`✅ AI image ${i + 1} verified to have database storage URL`);
+      } else {
+        // User images may still be base64 from session memory
+        const hasStorageUrl = src && src.includes('storage.googleapis.com');
+        const hasBase64 = src && src.startsWith('data:image');
+        
+        if (hasStorageUrl) {
+          console.log(`✅ User image ${i + 1} verified to have database storage URL`);
+        } else if (hasBase64) {
+          console.log(`ℹ️ User image ${i + 1} still has base64 source (from session memory)`);
+        } else {
+          throw new Error(`User image ${i + 1} has unexpected source format: ${src}`);
+        }
+      }
+    }
+    
+    console.log(`✅ Image verification completed for ${imageCount} images`);
+  }
   
   /**
    * Returns a locator for all annotated images within AI responses.
