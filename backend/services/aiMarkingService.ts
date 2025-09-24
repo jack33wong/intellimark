@@ -190,14 +190,9 @@ export class AIMarkingService {
       If the image contains student work, base your feedback on their steps. Provide brief, actionable feedback and one or two targeted follow-up questions.`;
 
     try {
-      console.log(`🔄 [CHAT RESPONSE] Starting with model: ${model}`);
       if (model === 'auto' || model === 'gemini-2.5-pro') {
-        const modelConfig = getModelConfig('gemini-2.5-pro');
-        console.log(`🔄 [CHAT RESPONSE] Using: ${modelConfig.name}`);
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else if (model === 'gemini-1.5-pro') {
-        const modelConfig = getModelConfig('gemini-1.5-pro');
-        console.log(`🔄 [CHAT RESPONSE] Using: ${modelConfig.name}`);
         return await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);

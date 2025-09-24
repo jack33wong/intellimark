@@ -256,11 +256,12 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 1: Classification
+    console.log(`🔄 [STEP 1] Classification - ${model}`);
     const imageClassification = await this.classifyImageWithAI(imageData, model, debug);
     const classificationTokens = imageClassification.usageTokens || 0;
     
-    // Debug: Show classification result
     // Step 1.5: Question detection
+    console.log(`🔄 [STEP 1.5] Question Detection`);
     let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
       try {
@@ -345,9 +346,11 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 2: OCR
+    console.log(`🔄 [STEP 2] OCR Processing`);
     const processedImage = await this.processImageWithRealOCR(imageData, debug);
 
     // Step 3: Marking instructions
+    console.log(`🔄 [STEP 3] Marking Instructions - ${model}`);
     const markingInstructions = await this.generateMarkingInstructions(
       imageData,
       model,
@@ -356,6 +359,8 @@ export class MarkHomeworkWithAnswer {
     );
 
     // Step 4: Burn overlay
+    console.log(`🔄 [STEP 4] Burn Overlay`);
+    
     const annotations = markingInstructions.annotations.map(ann => ({
       bbox: ann.bbox,
       comment: (ann as any).text || '',
@@ -369,10 +374,31 @@ export class MarkHomeworkWithAnswer {
       processedImage.imageDimensions
     );
 
+    // Step 4.5: Generate AI response for marking mode
+    console.log(`🔄 [STEP 4.5] AI Response Generation - ${model}`);
+    let markingChatResponse;
+    try {
+      const { AIMarkingService } = await import('../aiMarkingService');
+      markingChatResponse = await AIMarkingService.generateChatResponse(
+        imageData,
+        'I have completed this work and would like feedback on my solution.',
+        model as any, // Convert to SimpleModelType
+        false, // isQuestionOnly = false for marking mode
+        debug
+      );
+    } catch (error) {
+      // Fallback response if AI service fails
+      markingChatResponse = {
+        response: 'I have reviewed your work and provided detailed feedback with annotations. Please review the marked areas and let me know if you have any questions about the feedback.',
+        apiUsed: 'Fallback'
+      };
+    }
+
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
     // Step 5: Data processed - session will be created by route
+    console.log(`🔄 [STEP 5] Data Processing Complete`);
 
     // Step 6: Create session for marking
     let sessionId: string | undefined;
@@ -404,8 +430,8 @@ export class MarkHomeworkWithAnswer {
       result: processedImage,
       annotatedImage: annotationResult.annotatedImage,
       instructions: markingInstructions,
-      message: 'Question marked successfully with burned annotations',
-      apiUsed: 'Complete AI Marking System with Burned Overlays',
+      message: markingChatResponse.response,
+      apiUsed: markingChatResponse.apiUsed,
       ocrMethod: 'Enhanced OCR Processing',
       classification: imageClassification,
       questionDetection,

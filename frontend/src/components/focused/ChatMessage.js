@@ -63,7 +63,7 @@ const ChatMessage = ({
           )}
           
           {/* Show content for regular chat messages and AI responses */}
-          {!isUser && !isMarkingMessage(message) && 
+          {!isUser && 
            content && 
            ensureStringContent && 
            ensureStringContent(content) && 
@@ -87,27 +87,6 @@ const ChatMessage = ({
             </div>
           )}
           
-          {/* Regular image display for user messages and other cases */}
-          {isUser && hasImage(message) && imageSrc && !imageError && (
-            <div className="chat-message-image">
-              <img 
-                src={imageSrc}
-                alt="Uploaded"
-                className="content-image"
-                onLoad={onImageLoad}
-                onError={handleImageError}
-              />
-            </div>
-          )}
-          
-          
-          {/* Image error fallback */}
-          {hasImage(message) && imageError && (
-            <div className="chat-message-image-error">
-              <span>📷 Image failed to load</span>
-            </div>
-          )}
-          
           {/* Text content for user messages */}
           {isUser && content && (
             <div className="message-text">
@@ -122,6 +101,26 @@ const ChatMessage = ({
             </div>
           )}
         </div>
+        
+        {/* User uploaded image - positioned above timestamp */}
+        {isUser && hasImage(message) && imageSrc && !imageError && (
+          <div className="chat-message-image">
+            <img 
+              src={imageSrc}
+              alt="Uploaded"
+              className="content-image"
+              onLoad={onImageLoad}
+              onError={handleImageError}
+            />
+          </div>
+        )}
+        
+        {/* Image error fallback */}
+        {hasImage(message) && imageError && (
+          <div className="chat-message-image-error">
+            <span>📷 Image failed to load</span>
+          </div>
+        )}
         
         {/* Timestamp */}
         {showTimestamp && timestamp && (

@@ -49,14 +49,9 @@ export class ClassificationService {
         };
       }
       
-      console.log(`🔄 [CLASSIFICATION] Starting with model: ${model}`);
       if (model === 'auto' || model === 'gemini-2.5-pro') {
-        const modelConfig = getModelConfig('gemini-2.5-pro');
-        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
       } else if (model === 'gemini-1.5-pro') {
-        const modelConfig = getModelConfig('gemini-1.5-pro');
-        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
         return await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
