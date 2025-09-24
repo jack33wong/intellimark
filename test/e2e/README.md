@@ -53,7 +53,7 @@ test/e2e/
    - AI thinking animation appears
    - AI response appended to chat
 7. **Header Verification**:
-   - Chat header title updated to "AQA GCSE Mathematics 8300/2H - Q19"
+   - Chat header title updated (length > 10, not "Processing")
    - Task details stats updated
 8. **Sidebar Verification**:
    - New chat message history added
@@ -182,7 +182,7 @@ npx playwright test --headed
 - ✅ User inputs display immediately
 - ✅ AI thinking animation appears
 - ✅ AI responses append correctly
-- ✅ Chat header title: "AQA GCSE Mathematics 8300/2H - Q19"
+- ✅ Chat header title: meaningful content (length > 10, not "Processing")
 - ✅ Task details stats updated
 - ✅ Sidebar shows 1 new chat history item
 
@@ -214,6 +214,15 @@ npx playwright test --headed
 ```bash
 npx playwright test --debug
 ```
+
+### Backend API Debug Mode
+The e2e tests automatically enable debug mode for the `/api/mark-homework/process-single` endpoint by setting `localStorage.setItem('debugMode', 'true')`. This enables additional debugging information in the backend API processing.
+
+**Debug Mode Features:**
+- Enhanced logging in backend API processing
+- Additional debugging information for AI processing
+- Better error reporting and diagnostics
+- Detailed request/response logging
 
 ### Screenshots
 Screenshots are automatically captured on failure in `test-results/`
