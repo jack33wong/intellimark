@@ -13,6 +13,11 @@ export function detectAndWrapMath(content) {
       return content;
     }
   
+    // Skip if content already contains LaTeX delimiters to avoid double-wrapping
+    if (content.includes('$') || content.includes('\\(') || content.includes('\\[')) {
+      return content;
+    }
+  
     // An array of regex patterns for specific, unambiguous math expressions.
     // This structure makes the patterns easier to read, maintain, and extend.
     const mathPatterns = [

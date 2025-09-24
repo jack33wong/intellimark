@@ -4,6 +4,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import './MarkdownMathRenderer.css';
+import { detectAndWrapMath } from '../../utils/simpleMathDetector';
 
 /**
  * Preprocesses LaTeX delimiters to standard delimiters
@@ -30,6 +31,7 @@ const preprocessLatexDelimiters = (content) => {
  * 
  * Features:
  * - Renders Markdown content with proper formatting
+ * - Automatically detects and wraps math expressions (e.g., "E = mc^2", "A = P(1 + r/n)^(nt)")
  * - Supports inline math with $...$ and \(...\) delimiters
  * - Supports block math with $$...$$ and \[...\] delimiters
  * - Automatically converts LaTeX delimiters to standard delimiters
@@ -66,8 +68,9 @@ const MarkdownMathRenderer = ({
     );
   }
 
-  // Preprocess the content to convert LaTeX delimiters
-  const preprocessedContent = preprocessLatexDelimiters(content);
+  // First, detect and wrap math expressions, then preprocess LaTeX delimiters
+  const contentWithMath = detectAndWrapMath(content);
+  const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
 
   return (
     <div className={`markdown-math-renderer ${className}`}>
