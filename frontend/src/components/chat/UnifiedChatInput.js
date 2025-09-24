@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { ModelSelector, SendButton, ImageUpload } from '../focused';
+import { useAuth } from '../../contexts/AuthContext';
 import './UnifiedChatInput.css';
 
 const UnifiedChatInput = ({
@@ -41,6 +42,9 @@ const UnifiedChatInput = ({
   onSendMessage,
   onKeyPress
 }) => {
+  // Get user information for personalized greeting
+  const { user } = useAuth();
+  
   // Common state management
   const [previewImage, setPreviewImage] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -226,6 +230,16 @@ const UnifiedChatInput = ({
           </div>
         </div>
 
+        {/* Chat Title */}
+        <div className={`chat-title-section ${mode === 'follow-up' ? 'chat-title-followup' : ''}`}>
+          <h2 className="chat-title-greeting">
+            {user ? `Hello ${user.displayName || user.email?.split('@')[0] || 'User'}!` : 'Hello!'}
+          </h2>
+          <p className="chat-title-subtitle">
+            What can I do for you?
+          </p>
+        </div>
+
         {/* Main Chat Input Bar */}
         <div className="main-upload-input-bar main-chat-input-bar">
           <div className="main-upload-input">
@@ -292,7 +306,18 @@ const UnifiedChatInput = ({
 
   // Follow-up mode: Render FollowUpChatInput UI
   return (
-    <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''}`}>
+    <>
+      {/* Chat Title for Follow-up Mode */}
+      <div className="chat-title-section chat-title-followup">
+        <h2 className="chat-title-greeting">
+          {user ? `Hello ${user.displayName || user.email?.split('@')[0] || 'User'}!` : 'Hello!'}
+        </h2>
+        <p className="chat-title-subtitle">
+          What can I do for you?
+        </p>
+      </div>
+
+      <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''}`}>
       <div className="followup-input-wrapper">
         <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''}`}>
           {/* Image Preview - Above controls when expanded */}
@@ -374,7 +399,8 @@ const UnifiedChatInput = ({
         style={{ display: 'none' }}
         disabled={isProcessing}
       />
-    </div>
+      </div>
+    </>
   );
 };
 

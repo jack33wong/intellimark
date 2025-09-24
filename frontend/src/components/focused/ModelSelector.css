@@ -19,7 +19,7 @@
   padding: 12px 16px;
   border: none;
   border-radius: 12px;
-  background: var(--background-white-main);
+  background: var(--background-nav);
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.3s ease;
@@ -28,7 +28,7 @@
 }
 
 .model-selector-button:hover:not(:disabled) {
-  background: var(--background-menu-white);
+  background: var(--background-menu-gray);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -69,11 +69,12 @@
   z-index: 50;
   margin-bottom: 8px;
   background: var(--background-menu-white);
-  border: none;
+  border: 1px solid var(--border-main);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);
   max-height: none;
   overflow: visible;
+ 
 }
 
 .model-selector-option {
@@ -99,6 +100,7 @@
 .model-selector-option.selected {
   background: var(--text-brand);
   color: white;
+  border-radius: 12px;
 }
 
 .model-option-content {

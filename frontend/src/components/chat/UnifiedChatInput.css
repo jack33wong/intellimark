@@ -94,6 +94,48 @@
   box-shadow: 0 2px 6px rgba(139, 92, 246, 0.2);
 }
 
+/* Chat Title Section */
+.chat-title-section {
+  text-align: center;
+  margin: 0 auto 32px auto;
+  max-width: 1000px;
+  width: 80%;
+}
+
+.chat-title-greeting {
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 8px 0;
+  line-height: 1.2;
+}
+
+.chat-title-subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Follow-up mode title positioning */
+.chat-title-followup {
+  position: fixed;
+  bottom: 200px; /* Position above the fixed input bar */
+  left: 280px; /* Match chat input box left position */
+  right: 0; /* Match chat input box right position */
+  max-width: 1000px; /* Match chat input box max width */
+  margin: 0 auto; /* Center the content within the available space */
+  text-align: left; /* Align text to left */
+  z-index: 50;
+  pointer-events: none; /* Allow clicks to pass through */
+  padding: 0 16px; /* Match chat input box padding */
+}
+
+/* Hide title when chat input is in bottom mode (chat mode) */
+.follow-up-chat-input-container.follow-up-bottom .chat-title-followup {
+  display: none;
+}
+
 /* Main Upload Input Bar Styles */
 .main-upload-input-bar {
   position: relative;
@@ -103,7 +145,7 @@
   background: transparent;
   padding: 0;
   margin: 0 auto;
-  margin-top: 40px;
+  margin-top: 0;
   width: 80%;
 }
 
@@ -124,6 +166,26 @@
 
 /* Mobile responsive - input bar takes full width when sidebar is hidden */
 @media (max-width: 768px) {
+  .chat-title-section {
+    width: 90%;
+    margin-bottom: 24px;
+  }
+  
+  .chat-title-followup {
+    left: 0; /* Full width on mobile (no sidebar) */
+    right: 0;
+    bottom: 100px; /* Adjust for mobile */
+    padding: 0 20px; /* More padding on mobile */
+  }
+  
+  .chat-title-greeting {
+    font-size: 28px;
+  }
+  
+  .chat-title-subtitle {
+    font-size: 16px;
+  }
+  
   .chat-mode .main-upload-input-bar {
     left: 0; /* Full width on mobile */
   }
@@ -379,10 +441,10 @@
   height: 32px;
   width: 32px;
   padding: 0;
-  background: #6b7280;
+  background: var(--fill-gray);
   border: none;
   border-radius: 50%;
-  color: #ffffff;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
