@@ -134,7 +134,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_original' : 'marking_original',
       imageLink: originalImageLink, // Only for authenticated users (null for unauthenticated)
-      imageData: imageData, // ALWAYS include imageData for immediate display
+      imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
       fileName: 'uploaded-image.png',
       // Add simplified detectedQuestion data 
       detectedQuestion: result.questionDetection?.found ? {
