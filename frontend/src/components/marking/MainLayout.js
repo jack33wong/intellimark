@@ -152,6 +152,7 @@ const MainLayout = ({
       <div className={`follow-up-chat-input-container ${(chatMessages || []).length === 0 ? 'follow-up-center' : 'follow-up-bottom'}`}>
         <FollowUpChatInput
           selectedModel={selectedModel}
+          onModelChange={onModelChange}
           isProcessing={isProcessing}
           onAnalyzeImage={onAnalyzeImage}
           onFollowUpImage={onFollowUpImage}

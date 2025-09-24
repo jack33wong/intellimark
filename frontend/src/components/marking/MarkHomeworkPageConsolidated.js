@@ -79,6 +79,14 @@ const MarkHomeworkPageConsolidated = ({
     loadSession
   } = useMarkHomework();
 
+  // Model selection state
+  const [selectedModel, setSelectedModel] = useState('auto');
+  
+  // Handle model change
+  const handleModelChange = useCallback((model) => {
+    setSelectedModel(model);
+  }, []);
+
   // Auto scroll functionality
   const {
     containerRef: chatContainerRef,
@@ -205,7 +213,7 @@ const MarkHomeworkPageConsolidated = ({
       // Backend generates marking instructions
       // Creates annotated image
       // AI response appears in chat
-      await processImageAPI(imageData, 'auto', 'marking', customText);
+      await processImageAPI(imageData, selectedModel, 'marking', customText);
       
       // 9. Stop AI thinking animation
       stopAIThinking();
@@ -247,7 +255,8 @@ const MarkHomeworkPageConsolidated = ({
       onFileSelect={handleFileSelect}
       onAnalyzeImage={handleImageAnalysis}
       onClearFile={clearFile}
-      selectedModel={'auto'}
+      selectedModel={selectedModel}
+      onModelChange={handleModelChange}
       
       // Session props
       currentSession={currentSession}

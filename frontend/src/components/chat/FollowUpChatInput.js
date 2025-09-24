@@ -22,9 +22,6 @@ const FollowUpChatInput = ({
   onKeyPress,
   onModelChange
 }) => {
-  console.log('🔍 FollowUpChatInput - received props:', { selectedModel, onModelChange: !!onModelChange });
-  console.log('🚨 FOLLOWUP CHAT INPUT IS LOADING - NEW CODE IS ACTIVE!');
-  console.log('🔍 FollowUpChatInput - onModelChange function:', onModelChange);
   return (
     <UnifiedChatInput
       mode="follow-up"

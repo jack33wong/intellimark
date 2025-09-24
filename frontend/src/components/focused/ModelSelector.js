@@ -35,8 +35,6 @@ const ModelSelector = ({
       return;
     }
     
-    console.log('🔍 ModelSelector - handleModelSelect called with:', model);
-    console.log('🔍 ModelSelector - calling onModelChange with:', model.value);
     onModelChange?.(model.value);
     setIsOpen(false);
   }, [disabled, onModelChange, onError]);
@@ -67,10 +65,6 @@ const ModelSelector = ({
   // Get selected model info
   const selectedModelInfo = AVAILABLE_MODELS.find(model => model.value === selectedModel) || AVAILABLE_MODELS[0];
   
-  // Debug logging
-  console.log('🔍 ModelSelector render - selectedModel:', selectedModel);
-  console.log('🔍 ModelSelector render - selectedModelInfo:', selectedModelInfo);
-  console.log('🚨 MODEL SELECTOR IS RENDERING - NEW CODE IS ACTIVE!');
 
   return (
     <div className={`model-selector ${className} ${size} ${disabled ? 'disabled' : ''}`}>
