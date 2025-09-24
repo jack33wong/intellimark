@@ -20,6 +20,39 @@ export interface MathpixOptions {
 }
 
 export class MathpixService {
+  // Log consolidation counters
+  private static startCallCount = 0;
+  private static completedCallCount = 0;
+  private static lastLogTime = Date.now();
+  private static readonly LOG_INTERVAL_MS = 5000; // Log every 5 seconds
+  private static readonly LOG_CALL_INTERVAL = 10; // Or every 10 calls
+
+  private static logConsolidatedStats(forceLog = false) {
+    const now = Date.now();
+    const timeSinceLastLog = now - this.lastLogTime;
+    
+    if (forceLog || 
+        this.startCallCount >= this.LOG_CALL_INTERVAL || 
+        timeSinceLastLog >= this.LOG_INTERVAL_MS) {
+      
+      if (this.startCallCount > 0) {
+        console.log(`📊 [MATHPIX] Stats - Started: ${this.startCallCount}, Completed: ${this.completedCallCount}, Success Rate: ${this.completedCallCount > 0 ? Math.round((this.completedCallCount / this.startCallCount) * 100) : 0}%`);
+      }
+      
+      // Reset counters
+      this.startCallCount = 0;
+      this.completedCallCount = 0;
+      this.lastLogTime = now;
+    }
+  }
+
+  /**
+   * Force log final consolidated stats (useful for end of processing)
+   */
+  static logFinalStats() {
+    this.logConsolidatedStats(true);
+  }
+
   private static async postWithBackoff(body: any, headers: any, attempt = 1): Promise<any> {
     try {
       const response = await axios.post(this.API_URL, body, { headers });
@@ -91,12 +124,16 @@ export class MathpixService {
   ): Promise<MathpixResult> {
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     
-    // Debug mode logging
-    console.log(`🔄 [MATHPIX] Starting Mathpix API - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
+    // Increment start counter and log consolidated stats
+    this.startCallCount++;
+    this.logConsolidatedStats();
     
     // Check debug mode - return mock response if enabled
     if (debug) {
-      console.log('🔍 [DEBUG MODE] Mathpix - returning mock response');
+      // In debug mode, still count as completed
+      this.completedCallCount++;
+      this.logConsolidatedStats();
+      
       // Simulate processing delay
       const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
@@ -133,9 +170,15 @@ export class MathpixService {
 
     try {
       const data = await this.postWithBackoff(body, headers);
-      console.log(`✅ [MATHPIX] Mathpix API completed - LaTeX: ${data.latex_styled ? 'Generated' : 'None'}`);
+      // Increment completed counter and log consolidated stats
+      this.completedCallCount++;
+      this.logConsolidatedStats();
       return data;
     } catch (error: any) {
+      // Still count as completed (even if failed) for accurate statistics
+      this.completedCallCount++;
+      this.logConsolidatedStats();
+      
       console.error('❌ Mathpix API Error:', error.response?.data || error.message);
       
       return {

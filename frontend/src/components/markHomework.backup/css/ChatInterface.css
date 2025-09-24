@@ -15,7 +15,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80vw; /* Match chat content width */
+  width: calc(100vw - 280px); /* Full width minus sidebar */
   max-width: 1000px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
@@ -35,63 +35,10 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 80vw; /* Match chat content width */
-  max-width: 1200px;
+  width: calc(100vw - 280px); /* Full width minus sidebar */
+  max-width: 1000px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
-}
-
-/* Compact styling for bottom input only */
-.follow-up-chat-input-container.follow-up-bottom .followup-chat-input-bar {
-  padding: 8px 12px; /* Reduced padding */
-}
-
-.follow-up-chat-input-container.follow-up-bottom .followup-single-line-container {
-  padding: 4px 8px; /* More reduced padding */
-  border-radius: 6px; /* Smaller border radius */
-  gap: 8px; /* Reduced gap between elements */
-}
-
-.follow-up-chat-input-container.follow-up-bottom .followup-text-input {
-  min-height: 24px; /* Match button height */
-  padding: 2px 6px; /* More reduced padding */
-  font-size: 13px; /* Smaller font */
-}
-
-.follow-up-chat-input-container.follow-up-bottom .followup-upload-button {
-  height: 24px; /* More compact button */
-  width: 24px;
-  font-size: 12px; /* Smaller icon */
-}
-
-.follow-up-chat-input-container.follow-up-bottom .send-button {
-  height: 24px !important; /* More compact button */
-  width: 24px !important;
-  min-height: 24px !important;
-  min-width: 24px !important;
-  padding: 4px !important; /* Reduced padding */
-  font-size: 12px; /* Smaller icon */
-}
-
-.follow-up-chat-input-container.follow-up-bottom .send-button.small {
-  height: 24px !important;
-  width: 24px !important;
-  min-height: 24px !important;
-  min-width: 24px !important;
-  padding: 4px !important;
-}
-
-/* Make send button icon smaller */
-.follow-up-chat-input-container.follow-up-bottom .send-button svg {
-  width: 14px !important;
-  height: 14px !important;
-}
-
-/* Model selector button in bottom input */
-.follow-up-chat-input-container.follow-up-bottom .model-selector-button {
-  height: 24px; /* More compact button */
-  padding: 4px 8px; /* Reduced padding */
-  font-size: 12px; /* Smaller text */
 }
 
 /* Mobile responsive - when sidebar is collapsed */
@@ -108,7 +55,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding-bottom: 60px; /* Reduced space for compact bottom input */
+  padding-bottom: 80px; /* Space for bottom input when transitioned */
 }
 
 
@@ -941,5 +888,149 @@
     transform: scale(1.2);
     opacity: 1;
   }
+}
+
+/* Message Renderer Styles */
+.chat-message-renderer {
+  padding-left: 25px;
+  width: 100%;
+}
+
+.chat-message-renderer .markdown-math-renderer {
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.chat-message-renderer .markdown-h1,
+.chat-message-renderer .markdown-h2,
+.chat-message-renderer .markdown-h3,
+.chat-message-renderer .markdown-h4,
+.chat-message-renderer .markdown-h5,
+.chat-message-renderer .markdown-h6 {
+  margin: 0 0 8px 0;
+  color: inherit;
+  font-weight: 600;
+}
+
+.chat-message-renderer .markdown-h1 { font-size: 1.2em; }
+.chat-message-renderer .markdown-h2 { font-size: 1.1em; }
+.chat-message-renderer .markdown-h3 { font-size: 1.05em; }
+.chat-message-renderer .markdown-h4,
+.chat-message-renderer .markdown-h5,
+.chat-message-renderer .markdown-h6 { font-size: 1em; }
+
+.chat-message-renderer .markdown-p {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+}
+
+.chat-message-renderer .markdown-p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-message-renderer .markdown-ul,
+.chat-message-renderer .markdown-ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.chat-message-renderer .markdown-li {
+  margin: 4px 0;
+}
+
+.chat-message-renderer .markdown-code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+.chat-message-renderer .markdown-inline-code {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+.chat-message-renderer .markdown-pre {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 1.3em;
+}
+
+.chat-message-renderer .markdown-blockquote {
+  border-left: 3px solid rgba(0, 0, 0, 0.2);
+  padding-left: 12px;
+  margin: 8px 0;
+  font-style: italic;
+  opacity: 0.9;
+  font-size: 1.3em;
+}
+
+.chat-message-renderer .markdown-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 1.3em;
+}
+
+.chat-message-renderer .markdown-th,
+.chat-message-renderer .markdown-td {
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.chat-message-renderer .markdown-th {
+  background: rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+.chat-message-renderer .markdown-link {
+  color: inherit;
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.chat-message-renderer .markdown-link:hover {
+  opacity: 1;
+}
+
+.chat-message-renderer .markdown-strong {
+  font-weight: 600;
+}
+
+.chat-message-renderer .markdown-em {
+  font-style: italic;
+}
+
+.chat-message-renderer .markdown-hr {
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.2);
+  margin: 12px 0;
+  font-size: 1.3em;
+}
+
+/* LaTeX styling within chat messages */
+.chat-message-renderer .katex {
+  font-size: 1em;
+}
+
+.chat-message-renderer .katex-display {
+  margin: 8px 0;
+}
+
+.chat-message-renderer .katex-error {
+  color: #cc0000;
+  background: rgba(204, 0, 0, 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
 }
 
