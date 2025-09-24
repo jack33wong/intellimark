@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Brain, ChevronDown } from 'lucide-react';
-import UnifiedChatInput from '../chat/UnifiedChatInput';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
@@ -66,7 +66,15 @@ const MainLayout = ({
   onSendMessage,
   onKeyPress
 }) => {
-
+  // Runtime validation for critical props
+  if (process.env.NODE_ENV === 'development') {
+    if (!onModelChange) {
+      console.error('MainLayout: onModelChange prop is required but was undefined');
+    }
+    if (!selectedModel) {
+      console.error('MainLayout: selectedModel prop is required but was undefined');
+    }
+  }
 
   // Determine if we're in follow-up mode (chat input bar at bottom)
   const isFollowUpMode = (chatMessages || []).length > 0;
@@ -167,6 +175,36 @@ const MainLayout = ({
       </div>
     </div>
   );
+};
+
+MainLayout.propTypes = {
+  pageMode: PropTypes.string.isRequired,
+  selectedFile: PropTypes.object,
+  onFileSelect: PropTypes.func,
+  onAnalyzeImage: PropTypes.func,
+  onClearFile: PropTypes.func,
+  selectedModel: PropTypes.string.isRequired,
+  onModelChange: PropTypes.func.isRequired,
+  currentSession: PropTypes.object,
+  chatMessages: PropTypes.array,
+  sessionTitle: PropTypes.string,
+  isFavorite: PropTypes.bool,
+  onFavoriteToggle: PropTypes.func,
+  rating: PropTypes.number,
+  onRatingChange: PropTypes.func,
+  isProcessing: PropTypes.bool,
+  isAIThinking: PropTypes.bool,
+  error: PropTypes.object,
+  onError: PropTypes.func,
+  onFollowUpImage: PropTypes.func,
+  onUploadClick: PropTypes.func,
+  onClearPreview: PropTypes.func,
+  chatInput: PropTypes.string,
+  setChatInput: PropTypes.func,
+  onSendMessage: PropTypes.func,
+  onKeyPress: PropTypes.func,
+  handleImageLoad: PropTypes.func,
+  getImageSrc: PropTypes.func
 };
 
 export default MainLayout;

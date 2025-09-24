@@ -82,7 +82,7 @@ const UnifiedChatInput = ({
   // Model selection handler (100% shared)
   const handleModelSelect = useCallback((model) => {
     onModelChange?.(model);
-  }, [onModelChange, mode]);
+  }, [onModelChange]);
 
   // Preview removal logic (100% shared)
   const removePreview = useCallback(() => {
@@ -177,7 +177,7 @@ const UnifiedChatInput = ({
         setPreviewImage(null);
       }
     }
-  }, [mode, previewImage, currentSession, onAnalyzeImage, onFollowUpImage, chatInput, onSendMessage, setChatInput]);
+  }, [mode, previewImage, currentSession, onAnalyzeImage, onFollowUpImage, chatInput, onSendMessage, setChatInput, selectedFile]);
 
   // Key press handler for Enter key (same logic as send click)
   const handleKeyPress = useCallback((e) => {

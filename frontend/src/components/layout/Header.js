@@ -78,7 +78,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           
-          const result = await response.json();
+          await response.json();
           
           // Refresh subscription data to get the latest
           const subscriptionResponse = await SubscriptionService.getUserSubscription(user.uid);

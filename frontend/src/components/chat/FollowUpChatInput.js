@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import UnifiedChatInput from './UnifiedChatInput';
 
 const FollowUpChatInput = ({
@@ -22,6 +23,16 @@ const FollowUpChatInput = ({
   onKeyPress,
   onModelChange
 }) => {
+  // Runtime validation for critical props
+  if (process.env.NODE_ENV === 'development') {
+    if (!onModelChange) {
+      console.error('FollowUpChatInput: onModelChange prop is required but was undefined');
+    }
+    if (!selectedModel) {
+      console.error('FollowUpChatInput: selectedModel prop is required but was undefined');
+    }
+  }
+
   return (
     <UnifiedChatInput
       mode="follow-up"
@@ -39,6 +50,21 @@ const FollowUpChatInput = ({
       onModelChange={onModelChange}
     />
   );
+};
+
+FollowUpChatInput.propTypes = {
+  selectedModel: PropTypes.string.isRequired,
+  onModelChange: PropTypes.func.isRequired,
+  isProcessing: PropTypes.bool,
+  onAnalyzeImage: PropTypes.func,
+  onFollowUpImage: PropTypes.func,
+  onUploadClick: PropTypes.func,
+  clearPreview: PropTypes.func,
+  currentSession: PropTypes.object,
+  chatInput: PropTypes.string,
+  setChatInput: PropTypes.func,
+  onSendMessage: PropTypes.func,
+  onKeyPress: PropTypes.func
 };
 
 export default FollowUpChatInput;

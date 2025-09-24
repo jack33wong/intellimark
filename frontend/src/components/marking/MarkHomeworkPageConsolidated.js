@@ -54,14 +54,9 @@ const MarkHomeworkPageConsolidated = ({
     // Chat input state
     chatInput,
     
-    // Computed properties - simplified
-    isIdle,
-    isError,
-    
     // Actions - simplified
     startProcessing,
     stopProcessing,
-    reset,
     startAIThinking,
     stopAIThinking,
     setPageMode,
@@ -125,7 +120,7 @@ const MarkHomeworkPageConsolidated = ({
       
       // Notify parent component about page mode change
     }
-  }, [selectedMarkingResult]); // Remove function dependencies to prevent infinite re-renders
+  }, [selectedMarkingResult, loadSession, clearSession, setPageMode]);
 
   // Handle scroll events to show/hide scroll button
   useEffect(() => {
@@ -236,7 +231,7 @@ const MarkHomeworkPageConsolidated = ({
       stopAIThinking(); // Stop AI thinking on error
       handleError(error);
     }
-  }, [selectedFile, processImage, processImageAPI, addMessage, clearFile, startProcessing, stopProcessing, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
+  }, [selectedFile, selectedModel, processImage, processImageAPI, addMessage, clearFile, startProcessing, stopProcessing, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
 
   // Handle follow-up image (legacy compatibility)
   const handleFollowUpImage = useCallback((file, customText = null) => handleImageAnalysis(file, customText), [handleImageAnalysis]);

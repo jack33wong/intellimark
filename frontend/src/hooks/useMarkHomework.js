@@ -28,7 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 
 export const useMarkHomework = () => {
-  const { getAuthToken, user } = useAuth();
+  const { getAuthToken } = useAuth();
   
   // Consolidated state management - single source of truth
   const [state, setState] = useState({
@@ -55,31 +55,31 @@ export const useMarkHomework = () => {
   }, [getAuthToken]);
 
   // Sync with service state when it changes
+  const syncWithService = useCallback((serviceState) => {
+    const { currentSession } = serviceState;
+    const sessionMessages = currentSession?.messages || [];
+    const sessionTitle = currentSession?.title || '';
+    const isFavorite = currentSession?.favorite || false;
+    const rating = currentSession?.rating || 0;
+
+    setState(prev => ({
+      ...prev,
+      currentSession,
+      chatMessages: sessionMessages,
+      sessionTitle,
+      isFavorite,
+      rating,
+      // If there's a current session, switch to chat mode
+      pageMode: currentSession ? 'chat' : prev.pageMode
+    }));
+  }, []);
+
   useEffect(() => {
-    const syncWithService = (serviceState) => {
-      const { currentSession } = serviceState;
-      const sessionMessages = currentSession?.messages || [];
-      const sessionTitle = currentSession?.title || '';
-      const isFavorite = currentSession?.favorite || false;
-      const rating = currentSession?.rating || 0;
-
-      setState(prev => ({
-        ...prev,
-        currentSession,
-        chatMessages: sessionMessages,
-        sessionTitle,
-        isFavorite,
-        rating,
-        // If there's a current session, switch to chat mode
-        pageMode: currentSession ? 'chat' : prev.pageMode
-      }));
-    };
-
     // Subscribe to service state changes
     const unsubscribe = simpleSessionService.subscribe(syncWithService);
 
     return unsubscribe;
-  }, []); // Remove pageMode dependency to prevent unnecessary re-subscriptions
+  }, [syncWithService]);
 
   // Actions - simplified
   const startProcessing = () => {
@@ -100,35 +100,35 @@ export const useMarkHomework = () => {
   };
 
   // AI thinking state control
-  const startAIThinking = () => {
+  const startAIThinking = useCallback(() => {
     setState(prev => ({ ...prev, isAIThinking: true }));
-  };
+  }, []);
 
-  const stopAIThinking = () => {
+  const stopAIThinking = useCallback(() => {
     setState(prev => ({ ...prev, isAIThinking: false }));
-  };
+  }, []);
 
-  const setPageMode = (mode) => {
+  const setPageMode = useCallback((mode) => {
     setState(prev => ({ ...prev, pageMode: mode }));
-  };
+  }, []);
 
-  const handleError = (error) => {
+  const handleError = useCallback((error) => {
     setState(prev => ({
       ...prev,
       isProcessing: false,
       error: error.message || 'Unknown error'
     }));
-  };
+  }, []);
 
   // Session management - simplified
-  const clearSession = () => {
+  const clearSession = useCallback(() => {
     simpleSessionService.clearSession();
-  };
+  }, []);
   
-  const addMessage = async (message) => {
+  const addMessage = useCallback(async (message) => {
     await simpleSessionService.addMessage(message);
     // No manual state sync needed - service is single source of truth
-  };
+  }, []);
   
   const processImageAPI = async (imageData, model, mode, customText = null) => {
     const result = await simpleSessionService.processImage(imageData, model, mode, customText);
@@ -270,7 +270,7 @@ export const useMarkHomework = () => {
       // Stop AI thinking state
       stopAIThinking();
     }
-  }, [getAuthToken, state.currentSession?.id, addMessage, setChatInput, handleError, startAIThinking, stopAIThinking]);
+  }, [getAuthToken, state.currentSession, addMessage, setChatInput, handleError, startAIThinking, stopAIThinking]);
 
   // Key press handler for Enter key
   const onKeyPress = useCallback((e) => {
