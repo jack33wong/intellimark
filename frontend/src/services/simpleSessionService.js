@@ -262,6 +262,7 @@ class SimpleSessionService {
       const requestBody = {
         imageData,
         userId: this.state.currentSession?.userId,
+        debug: localStorage.getItem('debugMode') === 'true', // Pass debug mode from localStorage
         // Only send sessionId for follow-up messages (when we have a real session ID from backend)
         // For first message, let backend create the session
         ...(this.state.currentSession?.id && 

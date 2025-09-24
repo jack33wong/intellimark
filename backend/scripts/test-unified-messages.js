@@ -18,7 +18,7 @@ async function testParentChildStructure() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         imageData: testImageData,
-        model: 'chatgpt-4o',
+        model: 'gemini-2.5-pro',
         userId: 'test-user-123'
       })
     });

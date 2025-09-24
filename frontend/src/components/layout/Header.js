@@ -31,36 +31,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
 
-  // Sync debug mode with backend on page load
-  useEffect(() => {
-    const syncDebugMode = async () => {
-      const localDebugMode = localStorage.getItem('debugMode') === 'true';
-      console.log('🔄 [FRONTEND SYNC] Syncing debug mode:', localDebugMode);
-      
-      // Always sync with backend (both true and false)
-      try {
-        const response = await fetch(`${API_CONFIG.BASE_URL}/api/debug/toggle`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          },
-          body: JSON.stringify({ debugMode: localDebugMode })
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          console.log('✅ [FRONTEND SYNC] Debug mode synced:', result.message);
-        } else {
-          console.error('❌ [FRONTEND SYNC] Failed to sync debug mode:', response.status);
-        }
-      } catch (error) {
-        console.error('❌ [FRONTEND SYNC] Failed to sync debug mode with backend:', error);
-      }
-    };
-
-    syncDebugMode();
-  }, []);
+  // Debug mode is now passed per request, no need to sync with backend
 
   // Fetch user subscription data
   useEffect(() => {
@@ -189,18 +160,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     const newDebugMode = !debugMode;
     setDebugMode(newDebugMode);
     localStorage.setItem('debugMode', newDebugMode.toString());
-    
-    // Send debug mode to backend
-    fetch(`${API_CONFIG.BASE_URL}/api/debug/toggle`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-      },
-      body: JSON.stringify({ debugMode: newDebugMode })
-    }).catch(error => {
-      console.error('Failed to update debug mode on backend:', error);
-    });
+    console.log(`🔍 [DEBUG MODE] Frontend debug mode toggled to: ${newDebugMode}`);
   };
 
   const getUpgradeButtonText = () => {

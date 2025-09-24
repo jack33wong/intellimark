@@ -122,7 +122,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         }
 
         aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model as any);
-        apiUsed = model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni';
+        apiUsed = 'Gemini 2.5 Pro';
       }
     } catch (error) {
       console.error('❌ AI service failed, using fallback response:', error);

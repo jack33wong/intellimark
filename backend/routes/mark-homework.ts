@@ -36,7 +36,7 @@ function sanitizeForFirestore(obj: any): any {
 
 // Simple model validation function to avoid import issues
 function validateModelConfig(modelType: string): boolean {
-  const validModels = ['gemini-2.5-pro', 'chatgpt-5', 'chatgpt-4o'];
+  const validModels = ['auto', 'gemini-2.5-pro', 'gemini-1.5-pro'];
   return validModels.includes(modelType);
 }
 
@@ -74,7 +74,7 @@ const router = express.Router();
  * });
  */
 router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
-  let { imageData, model = 'gemini-2.5-pro', sessionId: providedSessionId } = req.body;
+  let { imageData, model = 'auto', sessionId: providedSessionId } = req.body;
   
   // Convert 'auto' to default model
   if (model === 'auto') {
@@ -405,7 +405,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
  */
 router.post('/process-single', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  let { imageData, model = 'gemini-2.5-pro', userMessage } = req.body;
+  let { imageData, model = 'auto', userMessage, debug = false } = req.body;
 
   if (!imageData) {
     return res.status(400).json({ success: false, error: 'Image data is required' });
@@ -423,10 +423,8 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
 
-    // Debug mode logging at route level
-    const { getDebugMode } = await import('../config/aiModels.js');
-    const debugMode = getDebugMode();
-    console.log(`🔍 [DEBUG MODE] Route handler debug mode: ${JSON.stringify(debugMode)}`);
+    // Debug mode from request parameter
+    console.log(`🔍 [API CALL] /api/mark-homework/process-single - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
 
     // Process the image for AI response (includes classification + marking)
     // Add timeout to prevent hanging
@@ -435,7 +433,8 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
         imageData,
         model,
         userId,
-        userEmail
+        userEmail,
+        debug
       }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
@@ -682,7 +681,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
  */
 router.post('/process', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  let { imageData, model = 'gemini-2.5-pro', sessionId, userMessage } = req.body;
+  let { imageData, model = 'auto', sessionId, userMessage } = req.body;
   
   // Convert 'auto' to default model
   if (model === 'auto') {

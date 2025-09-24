@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'gemini-2.5-pro' | 'chatgpt-5' | 'chatgpt-4o' | 'gemini-2.5-flash-image-preview' | 'gemini-2.0-flash-preview-image-generation';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-1.5-pro';
 
 export interface AIModelConfig {
   name: string;

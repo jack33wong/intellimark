@@ -86,15 +86,19 @@ export class MathpixService {
    */
   static async processImage(
     imageBuffer: Buffer, 
-    options: MathpixOptions = {}
+    options: MathpixOptions = {},
+    debug: boolean = false
   ): Promise<MathpixResult> {
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     
+    // Debug mode logging
+    console.log(`🔄 [MATHPIX] Starting Mathpix API - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
+    
     // Check debug mode - return mock response if enabled
-    const debugMode = getDebugMode();
-    if (debugMode.enabled) {
-      
+    if (debug) {
+      console.log('🔍 [DEBUG MODE] Mathpix - returning mock response');
       // Simulate processing delay
+      const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
       
       return {
@@ -129,6 +133,7 @@ export class MathpixService {
 
     try {
       const data = await this.postWithBackoff(body, headers);
+      console.log(`✅ [MATHPIX] Mathpix API completed - LaTeX: ${data.latex_styled ? 'Generated' : 'None'}`);
       return data;
     } catch (error: any) {
       console.error('❌ Mathpix API Error:', error.response?.data || error.message);

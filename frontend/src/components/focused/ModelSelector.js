@@ -11,9 +11,7 @@ import './ModelSelector.css';
 const AVAILABLE_MODELS = [
   { value: 'auto', label: 'Auto', description: 'Use system default (Gemini 2.5 Pro)' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Google Gemini 2.5 Pro' },
-  { value: 'chatgpt-4o', label: 'ChatGPT 4o', description: 'OpenAI GPT-4 Omni' },
-  { value: 'gemini-2.5-flash-image-preview', label: 'Gemini 2.5 Flash (Image)', description: 'Google Gemini 2.5 Flash Image Preview' },
-  { value: 'gemini-2.0-flash-preview-image-generation', label: 'Gemini 2.0 Flash (Image Gen)', description: 'Google Gemini 2.0 Flash Preview Image Generation' }
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', description: 'Google Gemini 1.5 Pro' }
 ];
 
 const ModelSelector = ({ 
@@ -37,6 +35,8 @@ const ModelSelector = ({
       return;
     }
     
+    console.log('🔍 ModelSelector - handleModelSelect called with:', model);
+    console.log('🔍 ModelSelector - calling onModelChange with:', model.value);
     onModelChange?.(model.value);
     setIsOpen(false);
   }, [disabled, onModelChange, onError]);
@@ -66,6 +66,11 @@ const ModelSelector = ({
 
   // Get selected model info
   const selectedModelInfo = AVAILABLE_MODELS.find(model => model.value === selectedModel) || AVAILABLE_MODELS[0];
+  
+  // Debug logging
+  console.log('🔍 ModelSelector render - selectedModel:', selectedModel);
+  console.log('🔍 ModelSelector render - selectedModelInfo:', selectedModelInfo);
+  console.log('🚨 MODEL SELECTOR IS RENDERING - NEW CODE IS ACTIVE!');
 
   return (
     <div className={`model-selector ${className} ${size} ${disabled ? 'disabled' : ''}`}>

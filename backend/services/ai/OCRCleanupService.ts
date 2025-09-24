@@ -78,7 +78,7 @@ export class OCRCleanupService {
       usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;
       usageTokens = res.usageTokens;
     }
@@ -137,7 +137,7 @@ export class OCRCleanupService {
       usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;
       usageTokens = res.usageTokens;
     }

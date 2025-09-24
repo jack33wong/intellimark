@@ -41,6 +41,8 @@ const UnifiedChatInput = ({
   onSendMessage,
   onKeyPress
 }) => {
+  console.log('🔍 UnifiedChatInput - received props:', { selectedModel, onModelChange: !!onModelChange, mode });
+  console.log('🚨 UNIFIED CHAT INPUT IS LOADING - NEW CODE IS ACTIVE!');
   // Common state management
   const [previewImage, setPreviewImage] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -81,12 +83,11 @@ const UnifiedChatInput = ({
 
   // Model selection handler (100% shared)
   const handleModelSelect = useCallback((model) => {
-    if (mode === 'first-time') {
-      onModelChange?.(model);
-    } else {
-      // No-op for follow-up since model is hardcoded to 'auto'
-    }
-  }, [mode, onModelChange]);
+    console.log('🔍 UnifiedChatInput - handleModelSelect called with:', model);
+    console.log('🔍 UnifiedChatInput - mode:', mode);
+    console.log('🔍 UnifiedChatInput - calling onModelChange with:', model);
+    onModelChange?.(model);
+  }, [onModelChange, mode]);
 
   // Preview removal logic (100% shared)
   const removePreview = useCallback(() => {
@@ -250,10 +251,12 @@ const UnifiedChatInput = ({
               <div className="left-controls">
                 <ModelSelector
                   selectedModel={selectedModel}
-                  onModelSelect={handleModelSelect}
+                  onModelChange={handleModelSelect}
                   isProcessing={isProcessing}
                   size="main"
                 />
+                {/* Debug logging */}
+                {console.log('🔍 UnifiedChatInput - passing to ModelSelector:', { selectedModel, onModelChange: !!handleModelSelect, isProcessing, size: 'main' })}
               </div>
               <SendButton
                 onClick={handleSendClick}
@@ -350,10 +353,12 @@ const UnifiedChatInput = ({
                 {/* Model Dropdown */}
                 <ModelSelector
                   selectedModel={selectedModel}
-                  onModelSelect={handleModelSelect}
+                  onModelChange={handleModelSelect}
                   isProcessing={isProcessing}
                   size="small"
                 />
+                {/* Debug logging */}
+                {console.log('🔍 UnifiedChatInput (follow-up) - passing to ModelSelector:', { selectedModel, onModelChange: !!handleModelSelect, isProcessing, size: 'small' })}
               </div>
 
               {/* Right Side - Send Button */}

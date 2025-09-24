@@ -47,36 +47,20 @@ export function setDebugMode(debugMode: boolean) {
  * Configuration for all supported AI models
  */
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
+  'auto': {
+    name: 'Auto (System Default)',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
+    maxTokens: 8000,
+    temperature: 0.1
+  },
   'gemini-2.5-pro': {
     name: 'Google Gemini 2.5 Pro',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     maxTokens: 8000,
     temperature: 0.1
   },
-  'chatgpt-5': {
-    name: 'OpenAI ChatGPT 5',
-    apiEndpoint: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-5',
-    maxTokens: 8000,
-    temperature: 0.1,
-    maxCompletionTokens: 8000
-  },
-  'chatgpt-4o': {
-    name: 'OpenAI GPT-4 Omni',
-    apiEndpoint: 'https://api.openai.com/v1/chat/completions',
-    model: 'gpt-4o',
-    maxTokens: 8000,
-    temperature: 0.1,
-    maxCompletionTokens: 8000
-  },
-  'gemini-2.5-flash-image-preview': {
-    name: 'Google Gemini 1.5 Flash',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-    maxTokens: 8000,
-    temperature: 0.1
-  },
-  'gemini-2.0-flash-preview-image-generation': {
-    name: 'Google Gemini 1.5 Pro (Fallback)',
+  'gemini-1.5-pro': {
+    name: 'Google Gemini 1.5 Pro',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
     maxTokens: 8000,
     temperature: 0.1
@@ -128,7 +112,7 @@ export function isModelSupported(modelType: string): modelType is ModelType {
  * @returns The default model type
  */
 export function getDefaultModel(): ModelType {
-  return 'gemini-2.5-pro';
+  return 'auto';
 }
 
 /**
@@ -159,16 +143,11 @@ export function getModelPromptTemplate(modelType: ModelType): string {
   const basePrompt = `You are an expert mathematics tutor. Please analyze the provided homework or question and provide detailed feedback, step-by-step solutions, and constructive comments.`;
 
   switch (modelType) {
+    case 'auto':
     case 'gemini-2.5-pro':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy.`;
-    case 'chatgpt-5':
-      return `${basePrompt} Provide comprehensive explanations with mathematical rigor.`;
-    case 'chatgpt-4o':
-      return `${basePrompt} Offer detailed analysis with practical examples.`;
-    case 'gemini-2.5-flash-image-preview':
-      return `${basePrompt} Use advanced image generation capabilities for visual mathematical explanations.`;
-    case 'gemini-2.0-flash-preview-image-generation':
-      return `${basePrompt} Use advanced image generation capabilities for visual mathematical explanations with enhanced fallback processing.`;
+    case 'gemini-1.5-pro':
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with enhanced processing capabilities.`;
     default:
       return basePrompt;
   }
@@ -183,23 +162,14 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   const config = getModelConfig(modelType);
   
   switch (modelType) {
+    case 'auto':
     case 'gemini-2.5-pro':
-    case 'gemini-2.5-flash-image-preview':
-    case 'gemini-2.0-flash-preview-image-generation':
+    case 'gemini-1.5-pro':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,
         topP: 0.8,
         topK: 40
-      };
-    case 'chatgpt-5':
-    case 'chatgpt-4o':
-      return {
-        max_tokens: config.maxTokens,
-        temperature: config.temperature,
-        top_p: 0.8,
-        frequency_penalty: 0.1,
-        presence_penalty: 0.1
       };
     default:
       return {

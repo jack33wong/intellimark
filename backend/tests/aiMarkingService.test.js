@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 
 // Mock environment variables
-process.env['OPENAI_API_KEY'] = 'test-openai-key';
 
 // Mock fetch globally
 global.fetch = jest.fn();
@@ -29,7 +28,7 @@ describe('AIMarkingService.classifyImage', () => {
   });
 
   describe('OpenAI API tests', () => {
-    const testModel = 'chatgpt-4o';
+    const testModel = 'gemini-2.5-pro';
 
     test('classifies question-only image correctly via OpenAI', async () => {
       const mockResponse = {
@@ -255,7 +254,7 @@ describe('AIMarkingService.classifyImage', () => {
       const invalidImageData = 'invalid-image-data';
 
       await expect(
-        AIMarkingService.classifyImage(invalidImageData, 'chatgpt-4o')
+        AIMarkingService.classifyImage(invalidImageData, 'gemini-2.5-pro')
       ).rejects.toThrow('Invalid image data URL format');
     });
 
@@ -263,7 +262,7 @@ describe('AIMarkingService.classifyImage', () => {
       const emptyImageData = '';
 
       await expect(
-        AIMarkingService.classifyImage(emptyImageData, 'chatgpt-4o')
+        AIMarkingService.classifyImage(emptyImageData, 'gemini-2.5-pro')
       ).rejects.toThrow('Invalid image data format');
     });
 
@@ -271,41 +270,26 @@ describe('AIMarkingService.classifyImage', () => {
       const testImageData = 'data:image/jpeg;base64,test';
 
       await expect(
-        AIMarkingService.classifyImage(testImageData, 'chatgpt-4o')
+        AIMarkingService.classifyImage(testImageData, 'gemini-2.5-pro')
       ).rejects.toThrow('Invalid base64 image data');
     });
   });
 
   describe('Edge cases', () => {
     test('handles missing API keys gracefully', async () => {
-      // Temporarily remove API keys
-      const originalOpenAIKey = process.env['OPENAI_API_KEY'];
-      
-      delete process.env['OPENAI_API_KEY'];
-
       // Test that the service returns fallback response when API keys are missing
-      const result1 = await AIMarkingService.classifyImage(questionImageData, 'chatgpt-4o');
-      expect(result1).toEqual({
+      const result = await AIMarkingService.classifyImage(questionImageData, 'gemini-2.5-pro');
+      expect(result).toEqual({
         isQuestionOnly: false,
         reasoning: 'Classification failed, defaulting to homework marking',
         apiUsed: 'Fallback'
       });
-
-      const result2 = await AIMarkingService.classifyImage(questionImageData, 'gemini-2.5-pro');
-      expect(result2).toEqual({
-        isQuestionOnly: false,
-        reasoning: 'Classification failed, defaulting to homework marking',
-        apiUsed: 'Fallback'
-      });
-
-      // Restore API keys
-      process.env['OPENAI_API_KEY'] = originalOpenAIKey;
     });
 
     test('handles network timeouts gracefully', async () => {
       fetch.mockRejectedValueOnce(new Error('Network timeout'));
 
-      const result = await AIMarkingService.classifyImage(questionImageData, 'chatgpt-4o');
+      const result = await AIMarkingService.classifyImage(questionImageData, 'gemini-2.5-pro');
 
       expect(result).toEqual({
         isQuestionOnly: false,

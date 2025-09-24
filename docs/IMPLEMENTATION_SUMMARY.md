@@ -176,7 +176,6 @@ backend/
 ## 🔑 Environment Variables
 
 ### Required API Keys
-- `OPENAI_API_KEY`: OpenAI API key for GPT models
 - `MATHPIX_APP_ID`: Mathpix OCR service credentials
 - `MATHPIX_APP_KEY`: Mathpix OCR service credentials
 

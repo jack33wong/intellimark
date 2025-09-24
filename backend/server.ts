@@ -48,7 +48,6 @@ import paymentRoutes from './routes/payment.js';
 import testRoutes from './routes/test.js';
 import messagesRoutes from './routes/messages.js';
 import unifiedProcessingRoutes from './routes/unified-processing.js';
-import debugRoutes from './routes/debug.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -72,8 +71,6 @@ app.use('/api/payment', paymentRoutes);
 // Enable test routes
 app.use('/api/test', testRoutes);
 
-// Enable debug routes
-app.use('/api/debug', debugRoutes);
 
 
 // Health check endpoint

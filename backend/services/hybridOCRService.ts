@@ -300,13 +300,17 @@ export class HybridOCRService {
 
     // Pass A: Clean Scan for Completeness
     try {
+      console.log('🔄 [GOOGLE VISION] Pass A: Clean scan for completeness');
       const [resultA] = await client.textDetection(imageBuffer);
       allBlocks.push(...this.processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan'));
+      console.log('✅ [GOOGLE VISION] Pass A completed');
     } catch (error) {
+      console.error('❌ [GOOGLE VISION] Pass A failed:', error);
     }
 
     // Pass B: Enhanced Scan for Accuracy
     try {
+      console.log('🔄 [GOOGLE VISION] Pass B: Enhanced scan for accuracy');
       const originalMetadata = await sharp(imageBuffer).metadata();
       const preprocessedBufferB = await sharp(imageBuffer)
         .resize((originalMetadata.width || 0) * this.RESIZE_FACTOR)
@@ -315,11 +319,14 @@ export class HybridOCRService {
         .toBuffer();
       const [resultB] = await client.textDetection(preprocessedBufferB);
       allBlocks.push(...this.processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', this.RESIZE_FACTOR));
+      console.log('✅ [GOOGLE VISION] Pass B completed');
     } catch (error) {
+      console.error('❌ [GOOGLE VISION] Pass B failed:', error);
     }
 
     // Pass C: Aggressive Scan for Edge Cases
     try {
+      console.log('🔄 [GOOGLE VISION] Pass C: Aggressive scan for edge cases');
       const originalMetadata = await sharp(imageBuffer).metadata();
       const preprocessedBufferC = await sharp(imageBuffer)
         .resize((originalMetadata.width || 0) * this.RESIZE_FACTOR)
@@ -328,7 +335,9 @@ export class HybridOCRService {
         .toBuffer();
       const [resultC] = await client.textDetection(preprocessedBufferC);
       allBlocks.push(...this.processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', this.RESIZE_FACTOR));
+      console.log('✅ [GOOGLE VISION] Pass C completed');
     } catch (error) {
+      console.error('❌ [GOOGLE VISION] Pass C failed:', error);
     }
 
     // Keep a copy of raw detected blocks prior to clustering for visualization/debugging
@@ -409,16 +418,20 @@ export class HybridOCRService {
    */
   static async processImage(
     imageData: string,
-    options: HybridOCROptions = {}
+    options: HybridOCROptions = {},
+    debug: boolean = false
   ): Promise<HybridOCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
+    // Debug mode logging
+    console.log(`🔄 [OCR PROCESSING] Starting Hybrid OCR - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
+
     // Check debug mode - return mock response if enabled
-    const debugMode = getDebugMode();
-    if (debugMode.enabled) {
-      
+    if (debug) {
+      console.log('🔍 [DEBUG MODE] OCR Processing - returning mock response');
       // Simulate processing delay
+      const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
       
       return {
@@ -438,6 +451,7 @@ export class HybridOCRService {
     const imageBuffer = Buffer.from(base64Data, 'base64');
 
     // Step 1: Perform robust three-pass Google Vision recognition
+    console.log('🔄 [OCR PROCESSING] Step 1: Google Vision - Three-pass recognition');
     let detectedBlocks: DetectedBlock[] = [];
     let mathBlocks: MathBlock[] = [];
     let preClusterBlocks: DetectedBlock[] = [];
@@ -446,6 +460,7 @@ export class HybridOCRService {
       const robust = await this.performRobustRecognition(imageBuffer, opts);
       detectedBlocks = robust.finalBlocks;
       preClusterBlocks = robust.preClusterBlocks;
+      console.log(`✅ [OCR PROCESSING] Google Vision completed - ${detectedBlocks.length} text blocks detected`);
       
       // Convert detected blocks to our standard format
       const visionResult: ProcessedVisionResult = {
@@ -497,15 +512,19 @@ export class HybridOCRService {
       visionResult.dimensions = { width: metadata.width || 0, height: metadata.height || 0 };
 
       // Step 2: Detect math blocks from robust recognition results
+      console.log('🔄 [OCR PROCESSING] Step 2: Math Detection - Analyzing text blocks');
       mathBlocks = MathDetectionService.detectMathBlocks(visionResult);
+      console.log(`✅ [OCR PROCESSING] Math Detection completed - ${mathBlocks.length} math blocks found`);
       
     } catch (error) {
       
       // Fallback to Mathpix-only processing
+      console.log('🔄 [OCR PROCESSING] Fallback: Mathpix-only processing');
       if (MathpixService.isAvailable()) {
         try {
           const imageBuffer = Buffer.from(imageData.split(',')[1], 'base64');
-          const mathpixResult = await MathpixService.processImage(imageBuffer);
+          const mathpixResult = await MathpixService.processImage(imageBuffer, {}, debug);
+          console.log('✅ [OCR PROCESSING] Mathpix fallback completed');
           if (mathpixResult.latex_styled) {
             const metadata = await sharp(imageBuffer).metadata();
             
@@ -538,7 +557,7 @@ export class HybridOCRService {
     
     let mathpixCalls = 0;
     if (mathBlocks.length > 0 && MathpixService.isAvailable()) {
-      
+      console.log(`🔄 [OCR PROCESSING] Step 3: Mathpix Processing - ${mathBlocks.length} math blocks to process`);
       try {
         // Dedupe by bbox signature and prioritize suspicious or high-score blocks
         const seen = new Set<string>();
@@ -572,7 +591,7 @@ export class HybridOCRService {
               .toBuffer();
             
             // Process with Mathpix
-            const mathpixResult = await MathpixService.processImage(croppedBuffer);
+            const mathpixResult = await MathpixService.processImage(croppedBuffer, {}, debug);
             mathpixCalls += 1;
             
             if (mathpixResult.latex_styled && !mathpixResult.error) {
@@ -593,6 +612,7 @@ export class HybridOCRService {
         }
         
         processedMathBlocks = queue;
+        console.log(`✅ [OCR PROCESSING] Mathpix Processing completed - ${mathpixCalls} API calls made`);
         
       } catch (error) {
         console.error('❌ Mathpix processing failed:', error);
@@ -633,6 +653,8 @@ export class HybridOCRService {
     // Get image dimensions
     const metadata = await sharp(imageBuffer).metadata();
 
+    console.log(`✅ [OCR PROCESSING] Hybrid OCR completed - ${finalBoundingBoxes.length} text blocks, ${processedMathBlocks.length} math blocks, ${processingTime}ms`);
+    
     return {
       text: finalText,
       boundingBoxes: finalBoundingBoxes,

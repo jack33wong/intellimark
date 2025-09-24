@@ -102,7 +102,7 @@ export class MarkingInstructionService {
       usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider');
-      const res = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, actualModel as any);
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;
       usageTokens = res.usageTokens;
     }

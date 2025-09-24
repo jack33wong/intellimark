@@ -313,8 +313,7 @@ Required environment variables for full functionality:
 # Mathpix OCR
 MATHPIX_API_KEY=your_mathpix_api_key
 
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key
+# OpenAI - REMOVED (using only Gemini models)
 
 # Firebase (optional)
 FIREBASE_API_KEY=your_firebase_api_key

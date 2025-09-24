@@ -5,6 +5,7 @@
 
 import * as path from 'path';
 import { getModelConfig } from '../config/aiModels.js';
+import { ErrorHandler } from '../utils/errorHandler.js';
 
 // Define types inline to avoid import issues
 interface SimpleImageClassification {
@@ -14,7 +15,7 @@ interface SimpleImageClassification {
   extractedQuestionText?: string;
 }
 
-type SimpleModelType = 'gemini-2.5-pro' | 'chatgpt-5' | 'chatgpt-4o';
+type SimpleModelType = 'gemini-2.5-pro';
 
 interface SimpleProcessedImageResult {
   ocrText: string;
@@ -138,24 +139,17 @@ export class AIMarkingService {
     imageData: string,
     message: string,
     model: SimpleModelType,
-    isQuestionOnly: boolean = true
+    isQuestionOnly: boolean = true,
+    debug: boolean = false
   ): Promise<{ response: string; apiUsed: string }> {
     
     // Debug mode: Return mock response
-    try {
-      const { getDebugMode } = await import('../config/aiModels.js');
-      const debugMode = getDebugMode();
-      console.log('🔍 [DEBUG MODE] AIMarkingService debug mode:', JSON.stringify(debugMode));
-      console.log('🔍 [DEBUG MODE] Debug mode enabled check:', debugMode.enabled);
-      if (debugMode.enabled) {
-        console.log('🔍 [DEBUG MODE] Returning mock chat response');
-        return {
-          response: 'Debug mode: Mock chat response - This is a simulated AI response for testing purposes.',
-          apiUsed: 'Debug Mode - Mock Response'
-        };
-      }
-    } catch (error) {
-      console.error('❌ [DEBUG MODE] Error importing getDebugMode:', error);
+    if (debug) {
+      console.log('🔍 [DEBUG MODE] Chat Response - returning mock response');
+      return {
+        response: 'Debug mode: Mock chat response - This is a simulated AI response for testing purposes.',
+        apiUsed: 'Debug Mode - Mock Response'
+      };
     }
     
     const compressedImage = await this.compressImage(imageData);
@@ -197,63 +191,33 @@ export class AIMarkingService {
 
     try {
       console.log(`🔄 [CHAT RESPONSE] Starting with model: ${model}`);
-      if (model === 'gemini-2.5-pro') {
+      if (model === 'auto' || model === 'gemini-2.5-pro') {
         const modelConfig = getModelConfig('gemini-2.5-pro');
         console.log(`🔄 [CHAT RESPONSE] Using: ${modelConfig.name}`);
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-2.5-flash-image-preview') {
-        const modelConfig = getModelConfig('gemini-2.5-flash-image-preview');
+      } else if (model === 'gemini-1.5-pro') {
+        const modelConfig = getModelConfig('gemini-1.5-pro');
         console.log(`🔄 [CHAT RESPONSE] Using: ${modelConfig.name}`);
-        return await this.callGeminiImageGenForChatResponse(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-2.0-flash-preview-image-generation') {
-        const modelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
-        console.log(`🔄 [CHAT RESPONSE] Using: ${modelConfig.name}`);
-        try {
-          const result = await this.callGeminiImageGenForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.0-flash-preview-image-generation');
-          console.log('✅ [GEMINI 2.0 SUCCESS] Gemini 2.0 Flash Preview Image Generation completed successfully for chat response');
-          return result;
-        } catch (gemini20DirectError) {
-          const isGemini20DirectRateLimit = gemini20DirectError instanceof Error && 
-            (gemini20DirectError.message.includes('429') || 
-             gemini20DirectError.message.includes('rate limit') || 
-             gemini20DirectError.message.includes('quota exceeded'));
-          
-          if (isGemini20DirectRateLimit) {
-            console.error('❌ [GEMINI 2.0 DIRECT - 429 ERROR] Gemini 2.0 Flash Preview Image Generation hit rate limit on direct selection for chat response:', gemini20DirectError);
-          } else {
-            console.error('❌ [GEMINI 2.0 DIRECT - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error on direct selection for chat response:', gemini20DirectError);
-          }
-          throw gemini20DirectError; // Re-throw for normal error handling
-        }
+        return await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else {
-        console.log(`🔄 [CHAT RESPONSE] Using: ${model} (OpenAI)`);
-        return await this.callOpenAIForChatResponse(compressedImage, systemPrompt, userPrompt, model);
+        throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
     } catch (error) {
       console.error(`❌ [CHAT RESPONSE ERROR] Failed with model: ${model}`, error);
       
-      // Check if it's a 429 rate limit error
-      const isRateLimitError = error instanceof Error && 
-        (error.message.includes('429') || 
-         error.message.includes('rate limit') || 
-         error.message.includes('quota exceeded'));
-      
-      if (isRateLimitError) {
-        console.log(`🔄 [429 DETECTED] Rate limit detected for chat response model: ${model}, implementing exponential backoff...`);
-      } else {
-        console.log(`🔄 [NON-429 ERROR] Non-rate-limit error for chat response model: ${model}`);
-      }
+      // Use unified error handling
+      const errorInfo = ErrorHandler.analyzeError(error);
+      console.log(ErrorHandler.getLogMessage(error, `chat response model: ${model}`));
       
       // Try fallback with image generation model if primary model failed
-      if (model !== 'gemini-2.5-flash-image-preview' && model !== 'gemini-2.0-flash-preview-image-generation') {
+      if (model === 'auto' || model === 'gemini-2.5-pro') {
         try {
-          if (isRateLimitError) {
+          if (errorInfo.isRateLimit) {
             // Implement exponential backoff before fallback
-            console.log('⏳ [429 BACKOFF] Starting exponential backoff for chat response (1s, 2s, 4s)...');
-            await this.exponentialBackoff(3); // 3 retries with backoff
+            await ErrorHandler.exponentialBackoff(3);
             
             // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
+            const fallbackModelConfig = getModelConfig('gemini-1.5-pro');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} for chat response (fallback for 429 errors)`);
             try {
               const result = await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
@@ -273,11 +237,11 @@ export class AIMarkingService {
                 console.log('🔄 [GEMINI 2.0 FAILED] Trying Gemini 2.5 as fallback for chat response...');
               }
               
-              // Try Gemini 2.5 as secondary fallback
-              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Flash Image Preview for chat response');
+              // Try Gemini 2.5 Pro as secondary fallback (different model)
+              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Pro for chat response');
               try {
-                const result = await this.callGeminiImageGenForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
-                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully for chat response');
+                const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Pro model completed successfully for chat response');
                 return result;
               } catch (fallback429Error) {
                 console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
@@ -286,10 +250,10 @@ export class AIMarkingService {
               }
             }
           } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 2.5 Flash Image Preview for chat response');
+            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 1.5 Pro for chat response');
             try {
-              const result = await this.callGeminiImageGenForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
-              console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully for chat response');
+              const result = await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
+              console.log('✅ [FALLBACK SUCCESS] Gemini 1.5 Pro model completed successfully for chat response');
               return result;
             } catch (fallbackError) {
               console.error('❌ [FALLBACK ERROR] Gemini 2.5 Flash Image Preview also failed:', fallbackError);
@@ -298,7 +262,21 @@ export class AIMarkingService {
             }
           }
         } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Image generation model also failed:', fallbackError);
+          console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
+        }
+      } else if (model === 'gemini-1.5-pro') {
+        try {
+          if (errorInfo.isRateLimit) {
+            await ErrorHandler.exponentialBackoff(3);
+          }
+          
+          // Try Gemini 2.5 Pro as fallback
+          console.log('🔄 [FALLBACK] Trying Gemini 2.5 Pro for chat response');
+          const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+          console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Pro completed successfully for chat response');
+          return result;
+        } catch (fallbackError) {
+          console.error('❌ [FALLBACK ERROR] Gemini 2.5 Pro also failed:', fallbackError);
         }
       }
       
@@ -336,42 +314,13 @@ ${conversationText}
 Summary:`;
 
     try {
-      const apiKey = process.env['OPENAI_API_KEY'];
-      if (!apiKey) {
-        throw new Error('OPENAI_API_KEY not configured');
-      }
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.'
-            },
-            {
-              role: 'user',
-              content: summaryPrompt
-            }
-          ],
-          max_tokens: 300,
-          temperature: 0.3
-        })
-      });
-
-      const result = await response.json() as any;
-      
-      if (!response.ok) {
-        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
-      }
-
-      const summary = result.choices?.[0]?.message?.content?.trim() || '';
-      return summary;
+      // Use Gemini for context summary generation
+      const { ModelProvider } = await import('./ai/ModelProvider');
+      const response = await ModelProvider.callGeminiText(
+        'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
+        summaryPrompt
+      );
+      return response.content.trim();
     } catch (error) {
       console.error('❌ Context summary generation failed:', error);
       return '';
@@ -415,12 +364,7 @@ Summary:`;
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider');
-      let response;
-      if (model === 'gemini-2.5-pro') {
-        response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
-      } else {
-        response = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, model as any);
-      }
+      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       // Extract content from the response object
       return response.content;
     } catch (error) {
@@ -445,10 +389,21 @@ Summary:`;
       
       return {
         response: content,
-        apiUsed: 'Google Gemini 2.0 Flash Exp (Service Account)'
+        apiUsed: 'Google Gemini 2.5 Pro (Service Account)'
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
+      
+      // Check if it's a rate limit error
+      const isRateLimitError = error instanceof Error && 
+        (error.message.includes('429') || 
+         error.message.includes('Too Many Requests') ||
+         error.message.includes('rate limit'));
+      
+      if (isRateLimitError) {
+        console.log('🔄 [RATE LIMIT] Gemini 2.5 Pro hit rate limit, will try fallback');
+      }
+      
       throw error;
     }
   }
@@ -457,7 +412,7 @@ Summary:`;
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-2.5-flash-image-preview'
+    modelType: string = 'gemini-1.5-pro'
   ): Promise<{ response: string; apiUsed: string }> {
     try {
       const accessToken = await this.getGeminiAccessToken();
@@ -465,9 +420,7 @@ Summary:`;
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
-      const apiUsed = modelType === 'gemini-2.0-flash-preview-image-generation' 
-        ? 'Google Gemini 2.0 Flash Preview Image Generation (Service Account)'
-        : 'Google Gemini 2.5 Flash Image Preview (Service Account)';
+      const apiUsed = 'Google Gemini 1.5 Pro (Service Account)';
       
       return {
         response: content,
@@ -475,6 +428,27 @@ Summary:`;
       };
     } catch (error) {
       console.error('❌ Gemini Image Gen chat response failed:', error);
+      throw error;
+    }
+  }
+
+  private static async callGemini15ProForChatResponse(
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<{ response: string; apiUsed: string }> {
+    try {
+      const accessToken = await this.getGeminiAccessToken();
+      const response = await this.makeGemini15ProChatRequest(accessToken, imageData, systemPrompt, userPrompt);
+      const result = await response.json() as any;
+      const content = this.extractGeminiChatContent(result);
+      
+      return {
+        response: content,
+        apiUsed: 'Google Gemini 1.5 Pro (Service Account)'
+      };
+    } catch (error) {
+      console.error('❌ Gemini 1.5 Pro chat response failed:', error);
       throw error;
     }
   }
@@ -535,7 +509,10 @@ Summary:`;
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ Gemini API Error:', response.status, response.statusText);
+      console.error('❌ Error Details:', errorText);
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     return response;
@@ -546,12 +523,10 @@ Summary:`;
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-2.5-flash-image-preview'
+    modelType: string = 'gemini-1.5-pro'
   ): Promise<Response> {
     // Use the correct Gemini 1.5 endpoint based on model type
-    const endpoint = modelType === 'gemini-2.0-flash-preview-image-generation' 
-      ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent'
-      : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -586,6 +561,48 @@ Summary:`;
     return response;
   }
 
+  private static async makeGemini15ProChatRequest(
+    accessToken: string,
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string
+  ): Promise<Response> {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userPrompt },
+            {
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: imageData.includes(',') ? imageData.split(',')[1] : imageData
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1000
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Gemini 1.5 Pro API Error:', response.status, response.statusText);
+      console.error('❌ Error Details:', errorText);
+      throw new Error(`Gemini 1.5 Pro API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response;
+  }
+
   private static async exponentialBackoff(maxRetries: number): Promise<void> {
     for (let i = 0; i < maxRetries; i++) {
       const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, 8s...
@@ -596,81 +613,37 @@ Summary:`;
 
 
   private static extractGeminiChatContent(result: any): string {
+    // Check if this is an error response first
+    if (result.error) {
+      console.error('❌ [DEBUG] Gemini API returned error response:', result.error);
+      throw new Error(`Gemini API error: ${result.error.message || 'Unknown error'}`);
+    }
+    
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
-      throw new Error('No content in Gemini response');
+      console.error('❌ [DEBUG] No content found in Gemini response');
+      console.error('❌ [DEBUG] Response structure:', {
+        hasCandidates: !!result.candidates,
+        candidatesLength: result.candidates?.length,
+        firstCandidate: result.candidates?.[0],
+        hasContent: !!result.candidates?.[0]?.content,
+        hasParts: !!result.candidates?.[0]?.content?.parts,
+        partsLength: result.candidates?.[0]?.content?.parts?.length,
+        firstPart: result.candidates?.[0]?.content?.parts?.[0]
+      });
+      
+      // Check for safety filters or other issues
+      if (result.candidates?.[0]?.finishReason) {
+        console.error('❌ [DEBUG] Finish reason:', result.candidates[0].finishReason);
+      }
+      
+      throw new Error(`No content in Gemini response. Finish reason: ${result.candidates?.[0]?.finishReason || 'unknown'}`);
     }
 
     return content;
   }
 
-  /**
-   * Call OpenAI API for chat response with image
-   */
-  private static async callOpenAIForChatResponse(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: SimpleModelType
-  ): Promise<{ response: string; apiUsed: string }> {
-    try {
-      const apiKey = process.env['OPENAI_API_KEY'];
-      if (!apiKey) {
-        throw new Error('OPENAI_API_KEY not configured');
-      }
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: model === 'chatgpt-5' ? 'gpt-5' : 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { 
-              role: 'user', 
-              content: [
-                { type: 'text', text: userPrompt },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: typeof imageData === 'string' ? imageData : String(imageData)
-                  }
-                }
-              ]
-            }
-          ],
-          ...(model === 'chatgpt-5' ? { max_completion_tokens: 4000 } : { max_tokens: 1000 }),
-          //temperature: 0.7
-        })
-      });
-
-      const result = await response.json() as any;
-      
-      
-      if (!response.ok) {
-        throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
-      }
-      const content = result.choices?.[0]?.message?.content;
-      
-      if (!content) {
-        console.error('❌ No content in OpenAI chat response. Full response:', JSON.stringify(result, null, 2));
-        throw new Error('No content in OpenAI response');
-      }
-
-      return {
-        response: content,
-        apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni'
-      };
-
-    } catch (error) {
-      console.error('❌ OpenAI chat response failed:', error);
-      throw error;
-    }
-  }
 
   // Text-only response helpers removed; use ModelProvider instead
 

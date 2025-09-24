@@ -64,25 +64,6 @@ export class ModelProvider {
     return content;
   }
 
-  static async callOpenAIText(systemPrompt: string, userPrompt: string, model: ModelType): Promise<{ content: string; usageTokens: number }> {
-    const apiKey = process.env['OPENAI_API_KEY'];
-    if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model === 'chatgpt-5' ? 'gpt-5' : 'gpt-4o',
-        messages: [ { role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt } ],
-        ...(model === 'chatgpt-5' ? { max_completion_tokens: 1000 } : { max_tokens: 1000 })
-      })
-    });
-    const result = await response.json() as any;
-    if (!response.ok) throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
-    const content = result.choices?.[0]?.message?.content;
-    if (!content) throw new Error('No content in OpenAI response');
-    const usageTokens = (result.usage?.total_tokens as number) || 0;
-    return { content, usageTokens };
-  }
 }
 
 

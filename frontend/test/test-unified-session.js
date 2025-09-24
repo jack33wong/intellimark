@@ -25,7 +25,7 @@ async function testUnifiedSession() {
       },
       body: JSON.stringify({
         imageData: testImageData,
-        model: 'chatgpt-4o'
+        model: 'gemini-2.5-pro'
       })
     });
     

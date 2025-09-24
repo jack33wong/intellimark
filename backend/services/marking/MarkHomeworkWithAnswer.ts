@@ -18,9 +18,9 @@ import type {
 } from '../../types/index.js';
 
 // Debug mode helper function
-async function simulateApiDelay(operation: string): Promise<void> {
-  const debugMode = getDebugMode();
-  if (debugMode.enabled) {
+async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
+  if (debug) {
+    const debugMode = getDebugMode();
     await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
   }
 }
@@ -58,22 +58,22 @@ export class MarkHomeworkWithAnswer {
   /**
    * Classify image using AI
    */
-  private static async classifyImageWithAI(imageData: string, model: ModelType): Promise<ImageClassification> {
+  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
     const { ClassificationService } = await import('../ai/ClassificationService');
-    return ClassificationService.classifyImage(imageData, model);
+    return ClassificationService.classifyImage(imageData, model, debug);
   }
 
   /**
    * Public method to get full hybrid OCR result with proper sorting for testing
    */
-  public static async getHybridOCRResult(imageData: string, options?: any): Promise<any> {
+  public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
     const { HybridOCRService } = await import('../hybridOCRService');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
       mathThreshold: 0.10,
       ...options
-    });
+    }, debug);
 
     // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
     const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
@@ -112,13 +112,13 @@ export class MarkHomeworkWithAnswer {
   /**
    * Process image with enhanced OCR
    */
-  private static async processImageWithRealOCR(imageData: string): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
+  private static async processImageWithRealOCR(imageData: string, debug: boolean = false): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const { HybridOCRService } = await import('../hybridOCRService');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
       mathThreshold: 0.10
-    });
+    }, debug);
 
     // Build OCR text by concatenating LaTeX text, falling back to Vision text if LaTeX not available
     const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
@@ -208,19 +208,21 @@ export class MarkHomeworkWithAnswer {
     model: ModelType;
     userId?: string;
     userEmail?: string;
+    debug?: boolean;
   }): Promise<MarkHomeworkResponse> {
     const startTime = Date.now();
-    const { imageData, model } = params;
+    const { imageData, model, debug = false } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
     // Debug mode: Return mock response
-    const debugMode = getDebugMode();
-    console.log(`🔍 [DEBUG MODE] MarkHomeworkWithAnswer debug mode: ${JSON.stringify(debugMode)}`);
-    if (debugMode.enabled) {
-      await simulateApiDelay('Classification');
-      await simulateApiDelay('Question Detection');
-      await simulateApiDelay('Image Annotation');
+    if (debug) {
+      console.log(`🔍 [DEBUG MODE] Returning mock response - no AI processing`);
+    }
+    if (debug) {
+      await simulateApiDelay('Classification', debug);
+      await simulateApiDelay('Question Detection', debug);
+      await simulateApiDelay('Image Annotation', debug);
       
       return {
         success: true,
@@ -241,7 +243,7 @@ export class MarkHomeworkWithAnswer {
         instructions: {
           annotations: []
         },
-        annotatedImage: debugMode.returnOriginalImage ? imageData : imageData, // Return original image
+        annotatedImage: imageData, // Return original image in debug mode
         metadata: {
           totalProcessingTimeMs: Date.now() - startTime,
           confidence: 0.95,
@@ -254,7 +256,7 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 1: Classification
-    const imageClassification = await this.classifyImageWithAI(imageData, model);
+    const imageClassification = await this.classifyImageWithAI(imageData, model, debug);
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Debug: Show classification result
@@ -304,7 +306,8 @@ export class MarkHomeworkWithAnswer {
           imageData,
           'I have a question that I need help with. Can you assist me?',
           model as any, // Convert to SimpleModelType
-          true // isQuestionOnly
+          true, // isQuestionOnly
+          debug
         );
       } catch (error) {
         // Fallback response if AI service fails
@@ -342,7 +345,7 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 2: OCR
-    const processedImage = await this.processImageWithRealOCR(imageData);
+    const processedImage = await this.processImageWithRealOCR(imageData, debug);
 
     // Step 3: Marking instructions
     const markingInstructions = await this.generateMarkingInstructions(

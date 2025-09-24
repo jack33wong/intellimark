@@ -44,12 +44,15 @@ export class GoogleVisionService {
   /**
    * Static entry used by HybridOCRService
    */
-  static async processImage(imageData: string, _enablePreprocessing: boolean = true): Promise<ProcessedVisionResult> {
+  static async processImage(imageData: string, _enablePreprocessing: boolean = true, debug: boolean = false): Promise<ProcessedVisionResult> {
+    // Debug mode logging
+    console.log(`🔄 [GOOGLE VISION] Starting Google Vision API - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
+    
     // Check debug mode - return mock response if enabled
-    const debugMode = getDebugMode();
-    if (debugMode.enabled) {
-      
+    if (debug) {
+      console.log('🔍 [DEBUG MODE] Google Vision - returning mock response');
       // Simulate processing delay
+      const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
       
       return {
@@ -81,7 +84,9 @@ export class GoogleVisionService {
     } as any;
 
     const [response] = await client.annotateImage(request);
-    return this.parseResponse(response as any);
+    const result = this.parseResponse(response as any);
+    console.log(`✅ [GOOGLE VISION] Google Vision API completed - ${result.boundingBoxes.length} text blocks detected`);
+    return result;
   }
 
   private static parseResponse(response: protos.google.cloud.vision.v1.IAnnotateImageResponse): ProcessedVisionResult {

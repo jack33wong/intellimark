@@ -43,9 +43,9 @@ export const MESSAGE_TYPES = {
 
 // AI Models
 export const AI_MODELS = {
-  GPT4: 'gpt-4',
-  GPT35: 'gpt-3.5-turbo',
-  CLAUDE: 'claude-3-sonnet',
+  AUTO: 'auto',
+  GEMINI_2_5_PRO: 'gemini-2.5-pro',
+  GEMINI_1_5_PRO: 'gemini-1.5-pro',
 };
 
 // File Types

@@ -1,6 +1,7 @@
 import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
 import { getModelConfig, getDebugMode } from '../../config/aiModels.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export interface ClassificationResult {
   isQuestionOnly: boolean;
@@ -11,7 +12,7 @@ export interface ClassificationResult {
 }
 
 export class ClassificationService {
-  static async classifyImage(imageData: string, model: ModelType): Promise<ClassificationResult> {
+  static async classifyImage(imageData: string, model: ModelType, debug: boolean = false): Promise<ClassificationResult> {
     const { ImageUtils } = await import('./ImageUtils.js');
     const compressedImage = await ImageUtils.compressImage(imageData);
 
@@ -36,13 +37,9 @@ export class ClassificationService {
     const userPrompt = `Please classify this uploaded image and extract the question text.`;
 
     try {
-      // Debug mode logging
-      const debugMode = getDebugMode();
-      console.log(`🔍 [DEBUG MODE] Current debug mode: ${JSON.stringify(debugMode)}`);
-      
       // Debug mode: Return mock response
-      if (debugMode.enabled) {
-        console.log('🔍 [DEBUG MODE] Returning mock classification response');
+      if (debug) {
+        console.log('🔍 [DEBUG MODE] Classification - returning mock response');
         return {
           isQuestionOnly: false,
           reasoning: 'Debug mode: Mock classification reasoning',
@@ -53,63 +50,33 @@ export class ClassificationService {
       }
       
       console.log(`🔄 [CLASSIFICATION] Starting with model: ${model}`);
-      if (model === 'gemini-2.5-pro') {
+      if (model === 'auto' || model === 'gemini-2.5-pro') {
         const modelConfig = getModelConfig('gemini-2.5-pro');
         console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-2.5-flash-image-preview') {
-        const modelConfig = getModelConfig('gemini-2.5-flash-image-preview');
+      } else if (model === 'gemini-1.5-pro') {
+        const modelConfig = getModelConfig('gemini-1.5-pro');
         console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
-        return await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-2.0-flash-preview-image-generation') {
-        const modelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
-        console.log(`🔄 [CLASSIFICATION] Using: ${modelConfig.name}`);
-        try {
-          const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.0-flash-preview-image-generation');
-          console.log('✅ [GEMINI 2.0 SUCCESS] Gemini 2.0 Flash Preview Image Generation completed successfully');
-          return result;
-        } catch (gemini20DirectError) {
-          const isGemini20DirectRateLimit = gemini20DirectError instanceof Error && 
-            (gemini20DirectError.message.includes('429') || 
-             gemini20DirectError.message.includes('rate limit') || 
-             gemini20DirectError.message.includes('quota exceeded'));
-          
-          if (isGemini20DirectRateLimit) {
-            console.error('❌ [GEMINI 2.0 DIRECT - 429 ERROR] Gemini 2.0 Flash Preview Image Generation hit rate limit on direct selection:', gemini20DirectError);
-          } else {
-            console.error('❌ [GEMINI 2.0 DIRECT - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error on direct selection:', gemini20DirectError);
-          }
-          throw gemini20DirectError; // Re-throw for normal error handling
-        }
+        return await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
-        console.log(`🔄 [CLASSIFICATION] Using: ${model} (OpenAI)`);
-        return await this.callOpenAIForClassification(compressedImage, systemPrompt, userPrompt, model);
+        throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
     } catch (error) {
       console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${model}`, error);
       
-      // Check if it's a 429 rate limit error
-      const isRateLimitError = error instanceof Error && 
-        (error.message.includes('429') || 
-         error.message.includes('rate limit') || 
-         error.message.includes('quota exceeded'));
-      
-      if (isRateLimitError) {
-        console.log(`🔄 [429 DETECTED] Rate limit detected for model: ${model}, implementing exponential backoff...`);
-      } else {
-        console.log(`🔄 [NON-429 ERROR] Non-rate-limit error for model: ${model}`);
-      }
+      // Use unified error handling
+      const errorInfo = ErrorHandler.analyzeError(error);
+      console.log(ErrorHandler.getLogMessage(error, `model: ${model}`));
       
       // Try fallback with image generation model if primary model failed
-      if (model !== 'gemini-2.5-flash-image-preview' && model !== 'gemini-2.0-flash-preview-image-generation') {
+      if (model === 'auto' || model === 'gemini-2.5-pro') {
         try {
-          if (isRateLimitError) {
+          if (errorInfo.isRateLimit) {
             // Implement exponential backoff before fallback
-            console.log('⏳ [429 BACKOFF] Starting exponential backoff (1s, 2s, 4s)...');
-            await this.exponentialBackoff(3); // 3 retries with backoff
+            await ErrorHandler.exponentialBackoff(3);
             
             // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('gemini-2.0-flash-preview-image-generation');
+            const fallbackModelConfig = getModelConfig('gemini-1.5-pro');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} (fallback for 429 errors)`);
             try {
               const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
@@ -129,11 +96,11 @@ export class ClassificationService {
                 console.log('🔄 [GEMINI 2.0 FAILED] Trying Gemini 2.5 as fallback...');
               }
               
-              // Try Gemini 2.5 as secondary fallback
-              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Flash Image Preview');
+              // Try Gemini 2.5 Pro as secondary fallback (different model)
+              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Pro');
               try {
-                const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
-                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully');
+                const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
+                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Pro model completed successfully');
                 return result;
               } catch (fallback429Error) {
                 console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
@@ -142,13 +109,27 @@ export class ClassificationService {
               }
             }
           } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 2.5 Flash Image Preview');
-            const result = await this.callGeminiImageGenForClassification(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-flash-image-preview');
-            console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Flash Image Preview model completed successfully');
+            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 1.5 Pro');
+            const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
+            console.log('✅ [FALLBACK SUCCESS] Gemini 1.5 Pro model completed successfully');
             return result;
           }
         } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Image generation model also failed:', fallbackError);
+          console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
+        }
+      } else if (model === 'gemini-1.5-pro') {
+        try {
+          if (errorInfo.isRateLimit) {
+            await ErrorHandler.exponentialBackoff(3);
+          }
+          
+          // Try Gemini 2.5 Pro as fallback
+          console.log('🔄 [FALLBACK] Trying Gemini 2.5 Pro');
+          const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
+          console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Pro completed successfully');
+          return result;
+        } catch (fallbackError) {
+          console.error('❌ [FALLBACK ERROR] Gemini 2.5 Pro also failed:', fallbackError);
         }
       }
       
@@ -203,7 +184,7 @@ export class ClassificationService {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-2.5-flash-image-preview'
+    modelType: string = 'gemini-1.5-pro'
   ): Promise<ClassificationResult> {
     try {
       const accessToken = await this.getGeminiAccessToken();
@@ -313,12 +294,10 @@ export class ClassificationService {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-2.5-flash-image-preview'
+    modelType: string = 'gemini-1.5-pro'
   ): Promise<Response> {
     // Use the correct Gemini 1.5 endpoint based on model type
-    const endpoint = modelType === 'gemini-2.0-flash-preview-image-generation' 
-      ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent'
-      : 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -371,12 +350,7 @@ export class ClassificationService {
   private static parseGeminiResponse(cleanContent: string, result: any, modelType: string): ClassificationResult {
     const parsed = JSON.parse(cleanContent);
     
-    let apiUsed = 'Google Gemini 2.5 Pro (Service Account)';
-    if (modelType === 'gemini-2.5-flash-image-preview') {
-      apiUsed = 'Google Gemini 2.5 Flash Image Preview (Service Account)';
-    } else if (modelType === 'gemini-2.0-flash-preview-image-generation') {
-      apiUsed = 'Google Gemini 2.0 Flash Preview Image Generation (Service Account)';
-    }
+    let apiUsed = 'Google Gemini 1.5 Pro (Service Account)';
     
     return {
       isQuestionOnly: parsed.isQuestionOnly,
@@ -387,45 +361,6 @@ export class ClassificationService {
     };
   }
 
-  private static async callOpenAIForClassification(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    model: ModelType
-  ): Promise<ClassificationResult> {
-    const apiKey = process.env['OPENAI_API_KEY'];
-    if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model === 'chatgpt-5' ? 'gpt-5' : 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: [
-            { type: 'text', text: userPrompt },
-            { type: 'image_url', image_url: { url: typeof imageData === 'string' ? imageData : String(imageData) } }
-          ] as any }
-        ],
-        ...(model === 'chatgpt-5' ? { max_completion_tokens: 2000 } : { max_tokens: 500 })
-      })
-    });
-    const result = await response.json() as any;
-    if (!response.ok) throw new Error(`OpenAI API request failed: ${response.status} ${JSON.stringify(result)}`);
-    const content = result.choices?.[0]?.message?.content;
-    if (!content) throw new Error('No content in OpenAI response');
-    
-    
-    const parsed = JSON.parse(content);
-    const usageTokens = (result.usage?.total_tokens as number) || 0;
-    return {
-      isQuestionOnly: parsed.isQuestionOnly,
-      reasoning: parsed.reasoning,
-      apiUsed: model === 'chatgpt-5' ? 'OpenAI GPT-5' : 'OpenAI GPT-4 Omni',
-      extractedQuestionText: parsed.extractedQuestionText,
-      usageTokens
-    };
-  }
 
   private static async exponentialBackoff(maxRetries: number): Promise<void> {
     for (let i = 0; i < maxRetries; i++) {
