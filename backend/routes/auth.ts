@@ -287,10 +287,10 @@ router.post('/signup', async (req: Request, res: Response) => {
   try {
     const { email, password, fullName }: EmailPasswordSignupRequest = req.body;
     
-    if (!email || !password || !fullName) {
+    if (!email || !password) {
       return res.status(400).json({
         error: 'Missing required fields',
-        message: 'Email, password, and full name are required'
+        message: 'Email and password are required'
       });
     }
 
@@ -328,7 +328,7 @@ router.post('/signup', async (req: Request, res: Response) => {
     const userRecord = await firebaseAuth.createUser({
       email: email,
       password: password,
-      displayName: fullName,
+      displayName: fullName || email.split('@')[0], // Use email prefix if no full name
       emailVerified: false
     });
     
@@ -472,6 +472,79 @@ router.post('/signin', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Signin Failed',
       message: 'An error occurred during sign in'
+    });
+  }
+});
+
+/**
+ * POST /auth/check-user
+ * Check if user exists by email
+ */
+router.post('/check-user', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        error: 'Missing email',
+        message: 'Email is required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: 'Invalid email format',
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // Check if Firebase is available
+    if (!isFirebaseAvailable()) {
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Firebase authentication service is not available'
+      });
+    }
+    
+    // Check if user exists with Firebase Auth
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      throw new Error('Firebase Auth not available');
+    }
+
+    try {
+      await firebaseAuth.getUserByEmail(email);
+      res.json({
+        exists: true,
+        message: 'User exists'
+      });
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        res.json({
+          exists: false,
+          message: 'User does not exist'
+        });
+      } else {
+        throw error;
+      }
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Check user error:', error);
+    
+    // Handle specific Firebase errors
+    if (error.code === 'auth/invalid-email') {
+      return res.status(400).json({
+        error: 'Invalid Email',
+        message: 'Please provide a valid email address'
+      });
+    }
+    
+    res.status(500).json({
+      error: 'Check User Failed',
+      message: 'An error occurred while checking user existence'
     });
   }
 });

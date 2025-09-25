@@ -36,9 +36,9 @@ body.login-page .auth-container {
 .auth-card {
   background: var(--background-menu-white);
   border-radius: 20px;
-  padding: 60px;
+  padding: 40px;
   width: 100%;
-  max-width: 520px;
+  max-width: 480px;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--border-main);
   position: relative;
@@ -48,15 +48,15 @@ body.login-page .auth-container {
 
 .auth-header {
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: 32px;
 }
 
 .auth-logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .logo-icon {
@@ -67,7 +67,7 @@ body.login-page .auth-container {
 
 .auth-logo h1 {
   color: var(--text-brand);
-  font-size: 36px;
+  font-size: 32px;
   font-weight: 700;
   margin: 0;
   background: linear-gradient(135deg, var(--text-brand), var(--text-brand));
@@ -82,21 +82,22 @@ body.login-page .auth-container {
 }
 
 .auth-subtitle {
-  color: var(--text-secondary);
-  font-size: 18px;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 600;
   margin: 0;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
 }
 
 .social-login-section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .social-login-text {
@@ -109,7 +110,7 @@ body.login-page .auth-container {
 .social-buttons {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .auth-error {
@@ -160,10 +161,21 @@ body.login-page .auth-container {
 .form-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+
+.form-label svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  display: inline-block;
+  margin-top: -1px;
 }
 
 .form-input {
@@ -273,7 +285,7 @@ body.login-page .auth-container {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 24px 0;
+  margin: 5px 0;
   color: var(--text-tertiary);
   font-size: 14px;
 }
@@ -497,16 +509,18 @@ body.login-page .auth-container {
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 12px;
 }
 
 .password-input-container {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-.password-input {
+.password-input-container .form-input {
   padding-right: 48px;
 }
 
@@ -520,12 +534,70 @@ body.login-page .auth-container {
   color: var(--text-tertiary);
   cursor: pointer;
   padding: 4px;
-  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.2s ease;
 }
 
 .password-toggle:hover {
+  color: var(--text-primary);
+}
+
+.auth-back-button {
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  border: 2px solid var(--border-main);
+  border-radius: 8px;
   color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-back-button:hover {
+  background: var(--background-menu-gray);
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+/* Page transition animations */
+.auth-container {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Form transition animations */
+.auth-form {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .auth-submit-button {
@@ -560,6 +632,13 @@ body.login-page .auth-container {
   background: var(--text-tertiary);
   cursor: not-allowed;
   transform: none;
+}
+
+.auth-submit-button.compact {
+  padding: 12px 20px;
+  font-size: 14px;
+  border-radius: 8px;
+  min-height: 30px;
 }
 
 .auth-link {

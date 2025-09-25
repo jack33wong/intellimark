@@ -16,12 +16,11 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [providers, setProviders] = useState(null);
   const [firebaseError, setFirebaseError] = useState(null);
-  const [authMode, setAuthMode] = useState('signin'); // 'signin' or 'signup'
+  const [currentPage, setCurrentPage] = useState('main'); // 'main', 'email-signin', 'email-signup'
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    fullName: ''
+    password: ''
   });
   const navigate = useNavigate();
   
@@ -140,8 +139,8 @@ const Login = () => {
     
     try {
       let result;
-      if (authMode === 'signup') {
-        result = await emailPasswordSignup(formData.email, formData.password, formData.fullName);
+      if (currentPage === 'email-signup') {
+        result = await emailPasswordSignup(formData.email, formData.password, '');
       } else {
         result = await emailPasswordSignin(formData.email, formData.password);
       }
@@ -159,14 +158,69 @@ const Login = () => {
     }
   };
 
-  const toggleAuthMode = () => {
-    setAuthMode(prev => prev === 'signin' ? 'signup' : 'signin');
-    setFormData({ email: '', password: '', fullName: '' });
-    setFirebaseError(null);
-  };
 
   const togglePasswordVisibility = () => {
     setShowPassword(prev => !prev);
+  };
+
+  // Check if email is Gmail
+  const isGmailEmail = (email) => {
+    return email.toLowerCase().endsWith('@gmail.com');
+  };
+
+  // Check if user exists using Firebase Admin SDK
+  const checkUserExists = async (email) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/auth/check-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+      
+      const data = await response.json();
+      return data.exists;
+    } catch (error) {
+      console.error('Error checking user existence:', error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle continue button click
+  const handleContinue = async () => {
+    if (!formData.email) {
+      setFirebaseError('Please enter your email address');
+      return;
+    }
+
+    setFirebaseError(null);
+
+    // Check if Gmail
+    if (isGmailEmail(formData.email)) {
+      // Trigger Google sign in
+      await handleSocialLogin('google');
+      return;
+    }
+
+    // Check if user exists
+    const userExists = await checkUserExists(formData.email);
+    
+    if (userExists) {
+      setCurrentPage('email-signin');
+    } else {
+      setCurrentPage('email-signup');
+    }
+  };
+
+  // Handle back button
+  const handleBack = () => {
+    setCurrentPage('main');
+    setFormData(prev => ({ ...prev, password: '' }));
+    setFirebaseError(null);
   };
 
   // Don't render login form if user is already authenticated
@@ -179,16 +233,114 @@ const Login = () => {
     );
   }
 
-  return (
+  // Render main login page
+  const renderMainPage = () => (
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
             <h1>Intellimark</h1>
           </div>
-          <p className="auth-subtitle">
-            {authMode === 'signin' ? 'Sign in to your account' : 'Create your account'}
-          </p>
+          <p className="auth-subtitle">Sign in or sign up</p>
+        </div>
+
+        <div className="auth-form">
+          {/* Show Firebase configuration errors */}
+          {firebaseError && (
+            <div className="auth-error">
+              <AlertCircle size={16} />
+              <span>{firebaseError}</span>
+            </div>
+          )}
+
+          {/* Show authentication errors */}
+          {authError && (
+            <div className="auth-error">
+              <AlertCircle size={16} />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {/* Social Login Section */}
+          <div className="social-login-section">
+            {providers && (
+              <div className="social-buttons">
+                <button
+                  type="button"
+                  className="social-button google"
+                  onClick={() => handleSocialLogin('google')}
+                  disabled={isLoading}
+                >
+                  <Chrome size={20} />
+                  <span>Continue with Google</span>
+                </button>
+                
+                <button
+                  type="button"
+                  className="social-button facebook"
+                  onClick={() => handleSocialLogin('facebook')}
+                  disabled={isLoading}
+                >
+                  <Facebook size={20} />
+                  <span>Continue with Facebook</span>
+                </button>
+              </div>
+            )}
+            
+            {!providers && (
+              <div className="loading-providers">
+                <div className="loading-spinner" />
+                <p>Loading login options...</p>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className="auth-divider">
+            <span>or</span>
+          </div>
+
+          {/* Email Form */}
+          <form onSubmit={(e) => { e.preventDefault(); handleContinue(); }} className="email-form">
+            <div className="form-group">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="form-input"
+                placeholder="Enter your email"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="auth-submit-button compact"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="loading-spinner small" />
+              ) : (
+                'Continue'
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render email sign in page
+  const renderEmailSignInPage = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-logo">
+            <h1>Intellimark</h1>
+          </div>
+          <p className="auth-subtitle">Sign in with your password</p>
         </div>
 
         <div className="auth-form">
@@ -210,25 +362,6 @@ const Login = () => {
 
           {/* Email/Password Form */}
           <form onSubmit={handleEmailPasswordSubmit} className="email-password-form">
-            {authMode === 'signup' && (
-              <div className="form-group">
-                <label htmlFor="fullName" className="form-label">
-                  <User size={16} />
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="fullName"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleInputChange}
-                  required={authMode === 'signup'}
-                  className="form-input"
-                  placeholder="Enter your full name"
-                />
-              </div>
-            )}
-
             <div className="form-group">
               <label htmlFor="email" className="form-label">
                 <Mail size={16} />
@@ -243,6 +376,7 @@ const Login = () => {
                 required
                 className="form-input"
                 placeholder="Enter your email"
+                readOnly
               />
             </div>
 
@@ -280,88 +414,133 @@ const Login = () => {
               {isLoading ? (
                 <div className="loading-spinner small" />
               ) : (
-                authMode === 'signin' ? 'Sign In' : 'Sign Up'
+                'Continue'
               )}
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
-
-          {/* Social Login Section */}
-          <div className="social-login-section">
-            <p className="social-login-text">Continue with social media:</p>
-            
-            {providers && (
-              <div className="social-buttons">
-                <button
-                  type="button"
-                  className="social-button google"
-                  onClick={() => handleSocialLogin('google')}
-                  disabled={isLoading}
-                >
-                  <Chrome size={20} />
-                  <span>Continue with Google</span>
-                </button>
-                
-                <button
-                  type="button"
-                  className="social-button facebook"
-                  onClick={() => handleSocialLogin('facebook')}
-                  disabled={isLoading}
-                >
-                  <Facebook size={20} />
-                  <span>Continue with Facebook</span>
-                </button>
-              </div>
-            )}
-            
-            {!providers && (
-              <div className="loading-providers">
-                <div className="loading-spinner" />
-                <p>Loading login options...</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="auth-footer">
-          <p className="auth-info">
-            {authMode === 'signin' ? (
-              <>
-                Don't have an account?{' '}
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={toggleAuthMode}
-                >
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  className="auth-link"
-                  onClick={toggleAuthMode}
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
-          {firebaseError && (
-            <p className="auth-warning">
-              ⚠️ Firebase configuration issue detected. Some features may not work properly.
-            </p>
-          )}
+          {/* Back Button */}
+          <button
+            type="button"
+            className="auth-back-button"
+            onClick={handleBack}
+          >
+            ← Back
+          </button>
         </div>
       </div>
     </div>
   );
+
+  // Render email sign up page
+  const renderEmailSignUpPage = () => (
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-logo">
+            <h1>Intellimark</h1>
+          </div>
+          <p className="auth-subtitle">Create your account</p>
+        </div>
+
+        <div className="auth-form">
+          {/* Show Firebase configuration errors */}
+          {firebaseError && (
+            <div className="auth-error">
+              <AlertCircle size={16} />
+              <span>{firebaseError}</span>
+            </div>
+          )}
+
+          {/* Show authentication errors */}
+          {authError && (
+            <div className="auth-error">
+              <AlertCircle size={16} />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleEmailPasswordSubmit} className="email-password-form">
+            <div className="form-group">
+              <label htmlFor="email" className="form-label">
+                <Mail size={16} />
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="form-input"
+                placeholder="Enter your email"
+                readOnly
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="password" className="form-label">
+                <Lock size={16} />
+                Password
+              </label>
+              <div className="password-input-container">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  required
+                  className="form-input password-input"
+                  placeholder="Enter your password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={togglePasswordVisibility}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="auth-submit-button"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="loading-spinner small" />
+              ) : (
+                'Continue'
+              )}
+            </button>
+          </form>
+
+          {/* Back Button */}
+          <button
+            type="button"
+            className="auth-back-button"
+            onClick={handleBack}
+          >
+            ← Back
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render based on current page
+  switch (currentPage) {
+    case 'email-signin':
+      return renderEmailSignInPage();
+    case 'email-signup':
+      return renderEmailSignUpPage();
+    default:
+      return renderMainPage();
+  }
 };
 
 export default Login;
