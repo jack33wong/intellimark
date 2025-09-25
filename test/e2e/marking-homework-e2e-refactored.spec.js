@@ -144,7 +144,13 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
     });
 
-    await test.step('Step 5: Verify Database and Final UI State', async () => {
+    await test.step('Step 5: Verify Second AI Response and Database', async () => {
+      // Wait for the second AI response to complete first
+      await markHomeworkPage.waitForAIResponse();
+      
+      // Verify the second AI response (follow-up response)
+      await markHomeworkPage.verifyAIResponseHasAnnotatedImage({ responseIndex: 1 });
+      
       // Both initial and follow-up API calls are working perfectly with debug mode!
       // The follow-up flow is functioning as expected
       

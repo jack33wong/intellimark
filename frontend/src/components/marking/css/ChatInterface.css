@@ -16,7 +16,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 80vw; /* Match chat content width */
-  max-width: 1000px;
+  max-width: 1100px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
 }
@@ -36,7 +36,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: 80vw; /* Match chat content width */
-  max-width: 1200px;
+  max-width: 1100px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
 }
@@ -54,8 +54,8 @@
 
 .follow-up-chat-input-container.follow-up-bottom .followup-text-input {
   min-height: 24px; /* Match button height */
-  padding: 2px 6px; /* More reduced padding */
-  font-size: 13px; /* Smaller font */
+  padding: 12px 10px 0px; /* More reduced padding */
+  font-size: 1rem; /* Smaller font */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-upload-button {
@@ -730,7 +730,7 @@
 
 /* Add left padding for assistant annotated images */
 .chat-message.assistant .annotated-image {
-  padding-left: 25px;
+  padding-left: 0px;
 }
 
 /* Message bubble hover and special styles are defined in ChatMessage.css */

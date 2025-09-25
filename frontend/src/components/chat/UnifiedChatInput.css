@@ -411,6 +411,7 @@
   flex-direction: column;
   gap: 12px;
   width: 100%;
+  padding: 8px 12px 0px;
 }
 
 /* Buttons Row - Upload, Model, Send buttons under text area */
@@ -477,12 +478,12 @@
   width: 100%;
   min-height: 40px;
   max-height: 100px;
-  padding: 12px 16px;
+  padding: 20px 16px 12px;
   border: none;
   border-radius: 8px;
   background: var(--background-card);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 1rem;
   font-family: inherit;
   line-height: 1.4;
   resize: none;
