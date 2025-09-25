@@ -3,7 +3,7 @@
  * Orchestrates all the focused components for the mark homework page
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Brain, ChevronDown } from 'lucide-react';
 import SessionManagement from './SessionManagement';
@@ -29,6 +29,8 @@ const MainLayout = ({
   selectedModel,
   onModelChange,
   loadingProgress,
+  loadingStep,
+  loadingMessage,
   showExpandedThinking,
   markError,
   
@@ -66,6 +68,9 @@ const MainLayout = ({
   onSendMessage,
   onKeyPress
 }) => {
+  // State for progress details toggle
+  const [showProgressDetails, setShowProgressDetails] = useState(false);
+  
   // Runtime validation for critical props
   if (process.env.NODE_ENV === 'development') {
     if (!onModelChange) {
@@ -116,21 +121,55 @@ const MainLayout = ({
             ))}
             
             {/* AI Thinking Indicator */}
-            {isAIThinking && (
+            {(isAIThinking || isProcessing) && (
               <div className="chat-message assistant">
                 <div className="message-bubble">
                   <div className="assistant-header">
                     <Brain size={20} className="assistant-brain-icon" />
                   </div>
                   <div className="thinking-indicator">
-                    <div className="thinking-dots">
-                      <div className="thinking-dot"></div>
-                      <div className="thinking-dot"></div>
-                      <div className="thinking-dot"></div>
+                    {/* Always show the main thinking line */}
+                    <div className="progress-main-line">
+                      <div className="thinking-dots" style={{ flexShrink: 0 }}>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                      </div>
+                      <div className="thinking-text" style={{ flexShrink: 0 }}>
+                        AI is thinking...
+                      </div>
+                      
+                      {/* Always reserve space for toggle button to prevent layout shift */}
+                      <div className="progress-toggle-container">
+                        {/* Show toggle button only when progress data is available */}
+                        {(isProcessing || isAIThinking) && (loadingStep > 0 || loadingProgress > 0) && (
+                          <button 
+                            onClick={() => setShowProgressDetails(!showProgressDetails)}
+                            className="progress-toggle-button"
+                          >
+                            {showProgressDetails ? '▲' : '▼'}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="thinking-text">
-                      AI is thinking...
-                    </div>
+                    
+                    {/* Progress details - show when toggled */}
+                    {showProgressDetails && (isProcessing || isAIThinking) && (loadingStep > 0 || loadingProgress > 0) && (
+                      <div className="progress-details-container">
+                        <div className="progress-message-text">
+                          {loadingMessage}
+                        </div>
+                        <div className="progress-step-text">
+                          {loadingStep > 0 ? `Step ${loadingStep}/7 • ` : ''}{loadingProgress}%
+                        </div>
+                        <div className="progress-bar-container">
+                          <div 
+                            className="progress-fill" 
+                            style={{ width: `${loadingProgress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -171,6 +210,9 @@ const MainLayout = ({
           setChatInput={setChatInput}
           onSendMessage={onSendMessage}
           onKeyPress={onKeyPress}
+          loadingProgress={loadingProgress}
+          loadingStep={loadingStep}
+          loadingMessage={loadingMessage}
         />
       </div>
     </div>

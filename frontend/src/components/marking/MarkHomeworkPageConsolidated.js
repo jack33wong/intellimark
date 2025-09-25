@@ -54,6 +54,11 @@ const MarkHomeworkPageConsolidated = ({
     // Chat input state
     chatInput,
     
+    // Progress state
+    loadingProgress,
+    loadingStep,
+    loadingMessage,
+    
     // Actions - simplified
     startProcessing,
     stopProcessing,
@@ -230,6 +235,7 @@ const MarkHomeworkPageConsolidated = ({
     } catch (error) {
       console.error('❌ Error in image analysis:', error);
       stopAIThinking(); // Stop AI thinking on error
+      stopProcessing(); // Stop processing on error
       handleError(error);
     }
   }, [selectedFile, selectedModel, processImage, processImageAPI, addMessage, clearFile, startProcessing, stopProcessing, handleError, handleClearPreview, setPageMode, startAIThinking, stopAIThinking]);
@@ -360,7 +366,9 @@ const MarkHomeworkPageConsolidated = ({
       
       // Additional props
       previewUrl={null}
-      loadingProgress={0}
+      loadingProgress={loadingProgress}
+      loadingStep={loadingStep}
+      loadingMessage={loadingMessage}
       showExpandedThinking={false}
       markError={error}
       chatInput={chatInput}

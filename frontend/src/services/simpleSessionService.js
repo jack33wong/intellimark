@@ -238,6 +238,166 @@ class SimpleSessionService {
   // TWO-PHASE PROCESSING
   // ============================================================================
 
+  async processImageWithProgress(imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null) {
+    this.setState({ error: null });
+
+    try {
+      // Get auth token
+      const authToken = await this.getAuthToken();
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      // Prepare request body
+      const requestBody = {
+        imageData,
+        userId: this.state.currentSession?.userId,
+        debug: localStorage.getItem('debugMode') === 'true',
+        ...(this.state.currentSession?.id && 
+            !this.state.currentSession.id.startsWith('temp-') && { 
+          sessionId: this.state.currentSession?.id 
+        })
+      };
+      
+      if (model && model !== 'auto') {
+        requestBody.model = model;
+      }
+
+      if (this.state.currentSession?.userId) {
+        const userMessage = {
+          content: customText || 'I have a question about this image. Can you help me understand it?',
+          ...(this.state.currentSession?.id && 
+              !this.state.currentSession.id.startsWith('temp-') && { 
+            sessionId: this.state.currentSession?.id 
+          }),
+          imageData: imageData
+        };
+        requestBody.userMessage = userMessage;
+      }
+
+      // Use SSE endpoint for progress tracking
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single-stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to start processing: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'complete') {
+                return this.handleProcessComplete(data.result);
+              } else if (data.type === 'error') {
+                throw new Error(data.error);
+              } else if (data.step && onProgress) {
+                // Progress update
+                onProgress(data.step, data.message, data.percentage);
+              }
+            } catch (e) {
+              // Silently ignore parsing errors for non-critical data
+            }
+          }
+        }
+      }
+
+      throw new Error('Processing completed without final result');
+
+    } catch (error) {
+      this.setState({ error: error.message });
+      throw error;
+    }
+  }
+
+  handleProcessComplete(data) {
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to process image');
+    }
+
+    if (!data.aiMessage) {
+      throw new Error('Backend did not return AI message data');
+    }
+
+    // Check if this is a follow-up message (has real session ID, not temp)
+    const isFollowUp = this.state.currentSession?.id && !this.state.currentSession.id.startsWith('temp-');
+    
+    if (isFollowUp) {
+      // For follow-up messages, append to existing messages
+      const existingMessages = this.state.currentSession?.messages || [];
+      const updatedMessages = [...existingMessages, data.aiMessage];
+      
+      const updatedSession = {
+        ...this.state.currentSession,
+        messages: updatedMessages,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Update state with updated session
+      this.setState({ 
+        currentSession: updatedSession,
+      });
+      this.updateSidebarSession(updatedSession);
+      
+      // Trigger event for real-time updates
+      this.triggerSessionUpdate(updatedSession);
+      
+      return updatedSession;
+    } else {
+      // For initial messages, preserve existing user messages and add AI response
+      const existingMessages = this.state.currentSession?.messages || [];
+      const newMessages = [...existingMessages, data.aiMessage];
+      
+      const newSession = data.unifiedSession ? {
+        ...data.unifiedSession,
+        messages: newMessages
+      } : {
+        id: data.sessionId || this.state.currentSession.id,
+        title: data.sessionTitle || 'Marking Session',
+        userId: this.state.currentSession?.userId || 'anonymous',
+        messageType: 'Marking',
+        messages: newMessages,
+        isPastPaper: false,
+        favorite: false,
+        rating: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Update state with new session
+      this.setState({ 
+        currentSession: newSession,
+      });
+      
+      // Trigger event for real-time updates
+      this.triggerSessionUpdate(newSession);
+      
+      return newSession;
+    }
+  }
+
   async processImage(imageData, model = 'auto', mode = 'marking', customText = null) {
     this.setState({ error: null });
 

@@ -38,6 +38,11 @@ export const useMarkHomework = () => {
     pageMode: 'upload', // 'upload' | 'chat'
     error: null,
     
+    // Progress tracking
+    loadingProgress: 0,
+    loadingStep: 0,
+    loadingMessage: 'Processing your homework...',
+    
     // Chat input state
     chatInput: '',
     
@@ -87,7 +92,13 @@ export const useMarkHomework = () => {
   };
 
   const stopProcessing = () => {
-    setState(prev => ({ ...prev, isProcessing: false }));
+    setState(prev => ({ 
+      ...prev, 
+      isProcessing: false,
+      loadingProgress: 0,
+      loadingStep: 0,
+      loadingMessage: 'Processing your homework...'
+    }));
   };
 
   const reset = () => {
@@ -95,9 +106,31 @@ export const useMarkHomework = () => {
       ...prev,
       isProcessing: false,
       isAIThinking: false,
-      error: null
+      error: null,
+      loadingProgress: 0,
+      loadingStep: 0,
+      loadingMessage: 'Processing your homework...'
     }));
   };
+
+  // Progress tracking functions
+  const updateProgress = useCallback((step, message, percentage) => {
+    setState(prev => ({
+      ...prev,
+      loadingStep: step,
+      loadingMessage: message,
+      loadingProgress: percentage
+    }));
+  }, []);
+
+  const resetProgress = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      loadingProgress: 0,
+      loadingStep: 0,
+      loadingMessage: 'Processing your homework...'
+    }));
+  }, []);
 
   // AI thinking state control
   const startAIThinking = useCallback(() => {
@@ -130,11 +163,63 @@ export const useMarkHomework = () => {
     // No manual state sync needed - service is single source of truth
   }, []);
   
-  const processImageAPI = async (imageData, model, mode, customText = null) => {
-    const result = await simpleSessionService.processImage(imageData, model, mode, customText);
-    // No manual state sync needed - service is single source of truth
-    return result;
-  };
+    const processImageAPI = async (imageData, model, mode, customText = null) => {
+      try {
+        // Reset progress when starting
+        resetProgress();
+        
+        // Check if SSE is enabled (can be disabled for debugging or if SSE has issues)
+        const sseEnabled = localStorage.getItem('sseEnabled') !== 'false'; // Default to true
+        
+        if (sseEnabled) {
+        // Try SSE method first for progress tracking (optional feature)
+        try {
+          const result = await simpleSessionService.processImageWithProgress(
+            imageData, 
+            model, 
+            mode, 
+            customText, 
+            updateProgress
+          );
+          
+          // Reset progress on successful completion
+          resetProgress();
+          
+          return result;
+        } catch (sseError) {
+          // Fallback to regular endpoint (existing logic)
+          const result = await simpleSessionService.processImage(
+            imageData, 
+            model, 
+            mode, 
+            customText
+          );
+          
+          // Reset progress on successful completion
+          resetProgress();
+          
+          return result;
+        }
+        } else {
+          // Use regular endpoint directly (SSE disabled)
+          const result = await simpleSessionService.processImage(
+            imageData, 
+            model, 
+            mode, 
+            customText
+          );
+          
+          // Reset progress on successful completion
+          resetProgress();
+          
+          return result;
+        }
+      } catch (error) {
+        // Reset progress on error
+        resetProgress();
+        throw error;
+      }
+    };
 
   const loadSession = useCallback((session) => {
     // Set the session in the service

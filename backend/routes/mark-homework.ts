@@ -370,6 +370,281 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/mark-homework/process-single-stream
+ * 
+ * PURPOSE: SSE endpoint for real-time progress tracking during image processing
+ * USED BY: Frontend for progress updates during AI processing
+ * 
+ * @param {Object} req - Express request
+ * @param {string} req.body.imageData - Base64 encoded image
+ * @param {string} req.body.model - AI model (default: gemini-2.5-pro)
+ * @param {Object} req.body.userMessage - Optional user message
+ * 
+ * @returns {SSE Stream} Real-time progress updates
+ */
+router.post('/process-single-stream', optionalAuth, async (req: Request, res: Response) => {
+  let { imageData, model = 'auto', userMessage, debug = false } = req.body;
+
+  if (!imageData) {
+    return res.status(400).json({ success: false, error: 'Image data is required' });
+  }
+
+  // Convert 'auto' to default model
+  if (model === 'auto') {
+    model = 'gemini-2.5-pro';
+  }
+
+  if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
+
+  try {
+    const userId = (req as any)?.user?.uid || 'anonymous';
+    const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
+    const isAuthenticated = !!(req as any)?.user?.uid;
+
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // Progress callback for SSE
+    const onProgress = (step: number, message: string, percentage: number) => {
+      const progressData = {
+        step,
+        message,
+        percentage,
+        timestamp: new Date().toISOString()
+      };
+      res.write(`data: ${JSON.stringify(progressData)}\n\n`);
+    };
+
+    // Process the image with progress tracking
+    const result = await Promise.race([
+      MarkHomeworkWithAnswer.run({
+        imageData,
+        model,
+        userId,
+        userEmail,
+        debug,
+        onProgress
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
+      )
+    ]) as any;
+
+    // Upload annotated image to Firebase Storage if it's a marking result
+    let annotatedImageLink;
+    if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
+      const { ImageStorageService } = await import('../services/imageStorageService.js');
+      try {
+        annotatedImageLink = await ImageStorageService.uploadImage(
+          result.annotatedImage,
+          userId || 'anonymous',
+          `single-${Date.now()}`,
+          'annotated'
+        );
+      } catch (error) {
+        console.error('❌ Failed to upload annotated image:', error);
+        annotatedImageLink = null;
+      }
+    }
+
+    // Create AI message (same structure as regular endpoint)
+    const aiMessage = {
+      id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'assistant',
+      content: result.message || 'I have analyzed your homework and provided feedback.',
+      timestamp: new Date().toISOString(),
+      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
+      imageData: result.annotatedImage || null,
+      fileName: result.isQuestionOnly ? null : 'annotated-image.png',
+      metadata: {
+        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+        confidence: result.metadata?.confidence || 0,
+        modelUsed: result.metadata?.modelUsed || model,
+        apiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+        ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
+        totalAnnotations: result.metadata?.totalAnnotations || 0,
+        isQuestionOnly: result.isQuestionOnly || false,
+        isPastPaper: result.isPastPaper || false
+      }
+    };
+
+    // Update AI message with image link for authenticated users
+    if (isAuthenticated && annotatedImageLink) {
+      (aiMessage as any).imageLink = annotatedImageLink;
+      (aiMessage as any).imageData = undefined; // Don't send base64 data for authenticated users
+    }
+
+    // Determine session ID (needed for response)
+    const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
+    let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // For authenticated users, persist to database
+    if (isAuthenticated) {
+      try {
+        const { FirestoreService } = await import('../services/firestoreService.js');
+        
+        // Create timestamps to ensure proper order
+        const baseTime = Date.now();
+        const userTimestamp = new Date(baseTime - 2000).toISOString(); // 2 seconds earlier
+        const aiTimestamp = new Date(baseTime).toISOString(); // Current time
+        
+        // Create user message for database (earlier timestamp)
+        const dbUserMessage = {
+          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          role: 'user',
+          content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
+          timestamp: userTimestamp,
+          type: isFollowUp ? 'follow_up' : 'marking_original',
+          imageData: imageData, // Store original image data
+          fileName: 'uploaded-image.png',
+          metadata: {
+            processingTimeMs: 0,
+            confidence: 0,
+            modelUsed: model,
+            apiUsed: 'Single-Phase Upload',
+            ocrMethod: 'User Upload'
+          }
+        };
+
+        // Update AI message timestamp for database (later timestamp)
+        const dbAiMessage = {
+          ...aiMessage,
+          timestamp: aiTimestamp
+        };
+
+        if (isFollowUp) {
+          // For follow-up messages, add to existing session
+          try {
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
+            await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
+            } catch (error) {
+            // Create new session with both user and AI messages
+            await FirestoreService.createUnifiedSessionWithMessages({
+              sessionId: sessionId,
+              title: result.sessionTitle || 'Marking Session',
+              userId: userId,
+              messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+              messages: [dbUserMessage, dbAiMessage],
+              isPastPaper: result.isPastPaper || false,
+              sessionMetadata: {
+                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+                lastModelUsed: model,
+                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+                llmTokens: result.metadata?.tokens?.[0] || 0,
+                mathpixCalls: result.metadata?.tokens?.[1] || 0,
+                totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+                averageConfidence: result.metadata?.confidence || 0,
+                imageSize: result.metadata?.imageSize || 0,
+                totalAnnotations: result.metadata?.totalAnnotations || 0
+              }
+            });
+          }
+        } else {
+          // For initial messages, create new session
+          await FirestoreService.createUnifiedSessionWithMessages({
+            sessionId: sessionId,
+            title: result.sessionTitle || 'Marking Session',
+            userId: userId,
+            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messages: [dbUserMessage, dbAiMessage],
+            isPastPaper: result.isPastPaper || false,
+            sessionMetadata: {
+              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+              lastModelUsed: model,
+              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+              llmTokens: result.metadata?.tokens?.[0] || 0,
+              mathpixCalls: result.metadata?.tokens?.[1] || 0,
+              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+              averageConfidence: result.metadata?.confidence || 0,
+              imageSize: result.metadata?.imageSize || 0,
+              totalAnnotations: result.metadata?.totalAnnotations || 0
+            }
+          });
+        }
+        
+      } catch (error) {
+        console.error('❌ [SSE] Failed to persist to database:', error);
+        // Continue without throwing - user still gets response
+      }
+    }
+
+    // Get the complete session with metadata for the response
+    let completeSession;
+    try {
+      const { FirestoreService } = await import('../services/firestoreService.js');
+      completeSession = await FirestoreService.getUnifiedSession(sessionId);
+      
+      // Check if session was found
+      if (!completeSession) {
+        console.error(`❌ Session ${sessionId} not found in database`);
+        // Fallback to basic session structure
+        completeSession = {
+          id: sessionId,
+          title: result.sessionTitle || 'Marking Session',
+          userId: userId || 'anonymous',
+          messageType: 'Marking',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          favorite: false,
+          rating: 0,
+          messages: [aiMessage],
+          sessionMetadata: result.sessionMetadata || {}
+        };
+      } else {
+        // Ensure title is set - use the generated title from the service
+        if (!completeSession.title) {
+          completeSession.title = result.sessionTitle || 'Marking Session';
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to get complete session:', error);
+      // Fallback to basic session structure
+      completeSession = {
+        id: sessionId,
+        title: result.sessionTitle || 'Marking Session',
+        userId: userId,
+        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+        messages: [aiMessage], // Use aiMessage directly
+        isPastPaper: result.isPastPaper || false,
+        sessionMetadata: {
+          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
+          lastModelUsed: model,
+          lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+          llmTokens: result.metadata?.tokens?.[0] || 0,
+          mathpixCalls: result.metadata?.tokens?.[1] || 0,
+          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
+          averageConfidence: result.metadata?.confidence || 0,
+          imageSize: result.metadata?.imageSize || 0,
+          totalAnnotations: result.metadata?.totalAnnotations || 0
+        }
+      };
+    }
+
+    // Send final result (same structure as regular endpoint)
+    const finalResult = {
+      success: true,
+      aiMessage: aiMessage,
+      sessionId: sessionId,
+      unifiedSession: completeSession
+    };
+    
+    res.write(`data: ${JSON.stringify({ type: 'complete', result: finalResult })}\n\n`);
+    res.end();
+
+  } catch (error) {
+    console.error('❌ Error in process-single-stream:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+    res.end();
+  }
+});
+
+/**
  * POST /api/mark-homework/process-single
  * 
  * PURPOSE: Main endpoint for initial image uploads and AI processing

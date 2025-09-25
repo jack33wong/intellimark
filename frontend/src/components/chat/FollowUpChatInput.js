@@ -21,7 +21,10 @@ const FollowUpChatInput = ({
   setChatInput,
   onSendMessage,
   onKeyPress,
-  onModelChange
+  onModelChange,
+  loadingProgress,
+  loadingStep,
+  loadingMessage
 }) => {
   // Runtime validation for critical props
   if (process.env.NODE_ENV === 'development') {
@@ -48,6 +51,9 @@ const FollowUpChatInput = ({
       onSendMessage={onSendMessage}
       onKeyPress={onKeyPress}
       onModelChange={onModelChange}
+      loadingProgress={loadingProgress}
+      loadingStep={loadingStep}
+      loadingMessage={loadingMessage}
     />
   );
 };

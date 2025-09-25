@@ -33,6 +33,8 @@ const UnifiedChatInput = ({
   onFileSelect,
   onClearFile,
   loadingProgress = 0,
+  loadingStep = 0,
+  loadingMessage = 'Processing your homework...',
   showExpandedThinking = false,
   
   // Follow-up specific props
@@ -279,12 +281,15 @@ const UnifiedChatInput = ({
           {isProcessing && (
             <div className="upload-loading-bar inside-input">
               <div className="loading-content">
-                <div className="loading-text">Processing your homework...</div>
+                <div className="loading-text">{loadingMessage}</div>
                 <div className="progress-bar">
                   <div 
                     className="progress-fill" 
                     style={{ width: `${loadingProgress}%` }}
                   ></div>
+                </div>
+                <div className="progress-text">
+                  Step {loadingStep}/7 • {loadingProgress}%
                 </div>
               </div>
             </div>
