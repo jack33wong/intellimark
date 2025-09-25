@@ -31,7 +31,18 @@ module.exports = defineConfig({
     navigationTimeout: 60000,
     
     /* Maximum time for the entire test */
-    timeout: 120000, // 2 minutes
+    timeout: 300000, // 5 minutes for real AI model testing
+    
+    /* Global timeout for all operations */
+    expect: {
+      timeout: 60000, // 60 seconds for expect operations
+    },
+  },
+  
+  /* Global timeout settings */
+  timeout: 300000, // 5 minutes for all tests
+  expect: {
+    timeout: 60000, // 60 seconds for all expect operations
   },
 
   /* Configure projects for major browsers */

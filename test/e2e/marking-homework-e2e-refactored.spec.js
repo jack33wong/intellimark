@@ -46,56 +46,27 @@ test.describe('Authenticated User Marking Homework E2E', () => {
     page.on('request', request => {
       if (request.url().includes('/api/')) {
         console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
-        
-        // Log request body for debug mode verification
-        if (request.url().includes('/api/mark-homework/process-single')) {
-          const data = request.postData();
-          if (data) {
-            try {
-              const body = JSON.parse(data);
-              if (body.debug) {
-                console.log('🔧 Debug mode detected in API request');
-              }
-            } catch (e) {
-              // Ignore parsing errors
-            }
-          }
-        }
       }
     });
     
     page.on('response', response => {
       if (response.url().includes('/api/')) {
         console.log(`📡 API Response: ${response.status()} ${response.url()}`);
-        
-        // Log response body for debug mode verification
-        if (response.url().includes('/api/mark-homework/process-single')) {
-          response.text().then(text => {
-            try {
-              const body = JSON.parse(text);
-              console.log('🔧 API Response body:', JSON.stringify(body, null, 2));
-            } catch (e) {
-              console.log('🔧 API Response text:', text.substring(0, 500));
-            }
-          });
-        }
       }
     });
   });
 
-  test('Complete marking homework flow with database verification', { timeout: 120000 }, async ({ page }) => {
+  test('Complete marking homework flow with database verification', { timeout: 300000 }, async ({ page }) => {
 
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
       
-      // Enable debug mode for API testing
-      await page.evaluate(() => {
-        localStorage.setItem('debugMode', 'true');
-      });
-      console.log('🔧 Debug mode enabled for API testing');
-      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
+      
+      // Select Gemini 1.5 Pro model for testing
+      await markHomeworkPage.selectModel('gemini-1.5-pro');
+      console.log('🤖 Using Gemini 1.5 Pro for e2e testing');
     });
 
     await test.step('Step 2: Submit Initial Homework', async () => {
@@ -114,6 +85,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
     });
 
     await test.step('Step 3: Verify First AI Response and UI Updates', async () => {
+      // Wait for the actual AI response to complete (not just "thinking" placeholder)
+      await markHomeworkPage.waitForAIResponse();
+      
       // This complex check is now a clean, single call to a Page Object method
       await markHomeworkPage.verifyAIResponseHasAnnotatedImage();
 
@@ -122,7 +96,7 @@ test.describe('Authenticated User Marking Homework E2E', () => {
         const titleText = await markHomeworkPage.getChatHeaderTitleLocator().textContent();
         expect(titleText.length).toBeGreaterThan(10);
         expect(titleText).not.toContain('Processing');
-      }).toPass({ timeout: 10000 });
+      }).toPass({ timeout: 60000 });
       
       // Wait for sidebar to load and update with the new chat history item
       await sidebarPage.waitForLoad();
@@ -151,7 +125,7 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Verify the second AI response (follow-up response)
       await markHomeworkPage.verifyAIResponseHasAnnotatedImage({ responseIndex: 1 });
       
-      // Both initial and follow-up API calls are working perfectly with debug mode!
+      // Both initial and follow-up API calls are working perfectly with Gemini 1.5 Pro!
       // The follow-up flow is functioning as expected
       
       const session = await databaseHelper.waitForSessionCreation(TEST_CONFIG.userId);
@@ -160,6 +134,16 @@ test.describe('Authenticated User Marking Homework E2E', () => {
         // Expect 4 messages: 2 user messages + 2 AI responses (both initial and follow-up working!)
         expect(messageCount).toBe(4);
       }).toPass({ timeout: 15000 }); // Poll the DB until the condition is met
+      
+      // Capture full screen after Step 5 completion (scroll to end first)
+      await page.evaluate(() => {
+        // Scroll to the very bottom of the page
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      // Wait a moment for any dynamic content to load after scrolling
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: 'step5-complete-fullscreen.png', fullPage: true });
+      console.log('📸 Full screen capture saved as step5-complete-fullscreen.png (scrolled to end)');
     });
 
     await test.step('Step 6: Test Chat History Navigation and Image Sources', async () => {

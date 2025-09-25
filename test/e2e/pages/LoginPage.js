@@ -5,32 +5,44 @@ class LoginPage {
     this.page = page;
 
     // --- Define Locators in the Constructor ---
-    // Locators are the modern, robust way to reference elements.
-    this.emailInput = page.locator('input[type="email"]');
-    this.passwordInput = page.locator('input[type="password"]');
-    this.loginButton = page.locator('button[type="submit"]').or(page.locator('button:has-text("Login")')).or(page.locator('button:has-text("Sign In")'));
-    this.errorMessage = page.locator('.error-message, .alert-error, .login-error');
+    // Main page locators (email entry)
+    this.mainEmailInput = page.locator('input[type="email"]').first();
+    this.continueButton = page.locator('button[type="submit"]:has-text("Continue")').or(page.locator('.auth-submit-button:has-text("Continue")'));
     
-    // Additional form elements that might be useful
-    this.loginForm = page.locator('form[action*="login"], .login-form, #login-form');
-    this.forgotPasswordLink = page.locator('a:has-text("Forgot"), a:has-text("Reset")');
-    this.signUpLink = page.locator('a:has-text("Sign Up"), a:has-text("Register")');
+    // Sign-in page locators (after email check)
+    this.signinEmailInput = page.locator('input[type="email"]').last();
+    this.signinPasswordInput = page.locator('input[type="password"]');
+    this.signinButton = page.locator('button:has-text("Sign In")').or(page.locator('button[type="submit"]'));
+    
+    // Sign-up page locators (for new users)
+    this.signupEmailInput = page.locator('input[type="email"]').last();
+    this.signupPasswordInput = page.locator('input[type="password"]');
+    this.signupButton = page.locator('button:has-text("Sign Up")').or(page.locator('button[type="submit"]'));
+    
+    // Common elements
+    this.errorMessage = page.locator('.error-message, .alert-error, .login-error, .firebase-error');
+    this.backButton = page.locator('button:has-text("Back")');
     
     // Loading states
     this.loadingSpinner = page.locator('.loading, .spinner, .login-loading');
+    
+    // Social login buttons (if needed)
+    this.googleLoginButton = page.locator('button:has-text("Google")');
+    this.facebookLoginButton = page.locator('button:has-text("Facebook")');
   }
 
   // --- High-Level Actions ---
 
   /**
    * Navigates to the login page and performs a complete login action.
+   * Handles the actual login flow: email → continue → password → continue
    * @param {string} email - The user's email.
    * @param {string} password - The user's password.
    */
   async login(email, password) {
     await this.navigateToLogin();
-    await this.fillCredentials(email, password);
-    await this.submitLogin();
+    await this.enterEmailAndContinue(email);
+    await this.enterPasswordAndSubmit(password);
     await this.waitForLoginSuccess();
   }
 
@@ -39,25 +51,90 @@ class LoginPage {
    */
   async navigateToLogin() {
     await this.page.goto('/login');
-    await this.waitForLoginPageLoad();
+    await this.waitForMainPageLoad();
   }
 
   /**
-   * Fills in the login credentials.
+   * Enters email on the main page and clicks continue.
+   * This shows both email and password fields on the same page.
+   * @param {string} email - The user's email.
+   */
+  async enterEmailAndContinue(email) {
+    // Wait for main page to load
+    await expect(this.mainEmailInput, 'Main email input should be visible').toBeVisible();
+    await this.mainEmailInput.fill(email);
+    
+    // Click continue button
+    await expect(this.continueButton, 'Continue button should be visible').toBeVisible();
+    await this.continueButton.click();
+    
+    // Wait for password field to appear
+    await expect(this.signinPasswordInput, 'Password field should be visible after continue').toBeVisible({ timeout: 10000 });
+  }
+
+  /**
+   * Enters password and submits the login form.
+   * @param {string} password - The user's password.
+   */
+  async enterPasswordAndSubmit(password) {
+    // Fill password field
+    await expect(this.signinPasswordInput, 'Password input should be visible').toBeVisible();
+    await this.signinPasswordInput.fill(password);
+    
+    // Click continue/submit button
+    await expect(this.continueButton, 'Continue button should be visible').toBeVisible();
+    await this.continueButton.click();
+  }
+
+  /**
+   * Fills in the sign-in credentials.
    * @param {string} email - The user's email.
    * @param {string} password - The user's password.
    */
-  async fillCredentials(email, password) {
-    await expect(this.emailInput, 'Email input should be visible').toBeVisible();
-    await this.emailInput.fill(email);
-    await this.passwordInput.fill(password);
+  async fillSignInCredentials(email, password) {
+    await expect(this.signinEmailInput, 'Sign-in email input should be visible').toBeVisible();
+    await this.signinEmailInput.fill(email);
+    await this.signinPasswordInput.fill(password);
   }
 
   /**
-   * Submits the login form.
+   * Fills in the sign-up credentials.
+   * @param {string} email - The user's email.
+   * @param {string} password - The user's password.
+   */
+  async fillSignUpCredentials(email, password) {
+    await expect(this.signupEmailInput, 'Sign-up email input should be visible').toBeVisible();
+    await this.signupEmailInput.fill(email);
+    await this.signupPasswordInput.fill(password);
+  }
+
+  /**
+   * Submits the sign-in form.
+   */
+  async submitSignIn() {
+    await this.signinButton.click();
+  }
+
+  /**
+   * Submits the sign-up form.
+   */
+  async submitSignUp() {
+    await this.signupButton.click();
+  }
+
+  // --- Legacy methods for backward compatibility ---
+  /**
+   * @deprecated Use fillSignInCredentials instead
+   */
+  async fillCredentials(email, password) {
+    await this.fillSignInCredentials(email, password);
+  }
+
+  /**
+   * @deprecated Use submitSignIn instead
    */
   async submitLogin() {
-    await this.loginButton.click();
+    await this.submitSignIn();
   }
 
   /**
@@ -124,13 +201,37 @@ class LoginPage {
   // --- High-Level Verifications ---
 
   /**
-   * Waits for the login page to be fully loaded.
+   * Waits for the main login page to be fully loaded.
    * This is more reliable than waiting for network idle.
    */
+  async waitForMainPageLoad() {
+    await expect(this.mainEmailInput, 'Main email input should be visible').toBeVisible();
+    await expect(this.continueButton, 'Continue button should be visible').toBeVisible();
+  }
+
+  /**
+   * Waits for the sign-in page to be fully loaded.
+   */
+  async waitForSignInPageLoad() {
+    await expect(this.signinEmailInput, 'Sign-in email input should be visible').toBeVisible();
+    await expect(this.signinPasswordInput, 'Sign-in password input should be visible').toBeVisible();
+    await expect(this.signinButton, 'Sign-in button should be visible').toBeVisible();
+  }
+
+  /**
+   * Waits for the sign-up page to be fully loaded.
+   */
+  async waitForSignUpPageLoad() {
+    await expect(this.signupEmailInput, 'Sign-up email input should be visible').toBeVisible();
+    await expect(this.signupPasswordInput, 'Sign-up password input should be visible').toBeVisible();
+    await expect(this.signupButton, 'Sign-up button should be visible').toBeVisible();
+  }
+
+  /**
+   * @deprecated Use waitForMainPageLoad instead
+   */
   async waitForLoginPageLoad() {
-    await expect(this.emailInput, 'Email input should be visible').toBeVisible();
-    await expect(this.passwordInput, 'Password input should be visible').toBeVisible();
-    await expect(this.loginButton, 'Login button should be visible').toBeVisible();
+    await this.waitForMainPageLoad();
   }
 
   /**
@@ -151,27 +252,89 @@ class LoginPage {
   // This pattern allows for flexible assertions in the test file.
 
   /**
-   * Returns a locator for the email input field.
-   * @returns {import('@playwright/test').Locator} A Playwright Locator for the email input.
+   * Returns a locator for the main email input field.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the main email input.
+   */
+  getMainEmailInputLocator() {
+    return this.mainEmailInput;
+  }
+
+  /**
+   * Returns a locator for the continue button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the continue button.
+   */
+  getContinueButtonLocator() {
+    return this.continueButton;
+  }
+
+  /**
+   * Returns a locator for the sign-in email input field.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-in email input.
+   */
+  getSignInEmailInputLocator() {
+    return this.signinEmailInput;
+  }
+
+  /**
+   * Returns a locator for the sign-in password input field.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-in password input.
+   */
+  getSignInPasswordInputLocator() {
+    return this.signinPasswordInput;
+  }
+
+  /**
+   * Returns a locator for the sign-in button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-in button.
+   */
+  getSignInButtonLocator() {
+    return this.signinButton;
+  }
+
+  /**
+   * Returns a locator for the sign-up email input field.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-up email input.
+   */
+  getSignUpEmailInputLocator() {
+    return this.signupEmailInput;
+  }
+
+  /**
+   * Returns a locator for the sign-up password input field.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-up password input.
+   */
+  getSignUpPasswordInputLocator() {
+    return this.signupPasswordInput;
+  }
+
+  /**
+   * Returns a locator for the sign-up button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign-up button.
+   */
+  getSignUpButtonLocator() {
+    return this.signupButton;
+  }
+
+  // --- Legacy methods for backward compatibility ---
+  /**
+   * @deprecated Use getMainEmailInputLocator instead
    */
   getEmailInputLocator() {
-    return this.emailInput;
+    return this.mainEmailInput;
   }
 
   /**
-   * Returns a locator for the password input field.
-   * @returns {import('@playwright/test').Locator} A Playwright Locator for the password input.
+   * @deprecated Use getSignInPasswordInputLocator instead
    */
   getPasswordInputLocator() {
-    return this.passwordInput;
+    return this.signinPasswordInput;
   }
 
   /**
-   * Returns a locator for the login button.
-   * @returns {import('@playwright/test').Locator} A Playwright Locator for the login button.
+   * @deprecated Use getSignInButtonLocator instead
    */
   getLoginButtonLocator() {
-    return this.loginButton;
+    return this.signinButton;
   }
 
   /**
@@ -183,19 +346,27 @@ class LoginPage {
   }
 
   /**
-   * Returns a locator for the forgot password link.
-   * @returns {import('@playwright/test').Locator} A Playwright Locator for the forgot password link.
+   * Returns a locator for the back button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the back button.
    */
-  getForgotPasswordLinkLocator() {
-    return this.forgotPasswordLink;
+  getBackButtonLocator() {
+    return this.backButton;
   }
 
   /**
-   * Returns a locator for the sign up link.
-   * @returns {import('@playwright/test').Locator} A Playwright Locator for the sign up link.
+   * Returns a locator for the Google login button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the Google login button.
    */
-  getSignUpLinkLocator() {
-    return this.signUpLink;
+  getGoogleLoginButtonLocator() {
+    return this.googleLoginButton;
+  }
+
+  /**
+   * Returns a locator for the Facebook login button.
+   * @returns {import('@playwright/test').Locator} A Playwright Locator for the Facebook login button.
+   */
+  getFacebookLoginButtonLocator() {
+    return this.facebookLoginButton;
   }
 
   // --- Data Retrieval Methods ---
@@ -228,21 +399,35 @@ class LoginPage {
   }
 
   /**
-   * Checks if the login form is visible.
-   * @returns {Promise<boolean>} True if login form is visible.
+   * Checks if the main login page is visible.
+   * @returns {Promise<boolean>} True if main login page is visible.
    */
-  async isLoginFormVisible() {
-    return await this.loginForm.isVisible();
+  async isMainPageVisible() {
+    return await this.mainEmailInput.isVisible() && await this.continueButton.isVisible();
+  }
+
+  /**
+   * Checks if the sign-in page is visible.
+   * @returns {Promise<boolean>} True if sign-in page is visible.
+   */
+  async isSignInPageVisible() {
+    return await this.signinButton.isVisible();
+  }
+
+  /**
+   * Checks if the sign-up page is visible.
+   * @returns {Promise<boolean>} True if sign-up page is visible.
+   */
+  async isSignUpPageVisible() {
+    return await this.signupButton.isVisible();
   }
 
   // --- Legacy methods for backward compatibility ---
-  // These are kept for any existing code that might depend on them
-
   /**
-   * @deprecated Use waitForLoginPageLoad() instead
+   * @deprecated Use isMainPageVisible instead
    */
-  async waitForLoginPageLoad() {
-    await this.page.waitForLoadState('networkidle');
+  async isLoginFormVisible() {
+    return await this.isMainPageVisible();
   }
 }
 
