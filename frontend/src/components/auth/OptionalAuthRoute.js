@@ -10,14 +10,9 @@ import './OptionalAuthRoute.css';
 const OptionalAuthRoute = ({ children, requireAuth = false }) => {
   const { user, loading } = useAuth();
 
-  // Show loading spinner while checking authentication
+  // Show nothing while checking authentication - just render children
   if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner large"></div>
-        <p>Loading...</p>
-      </div>
-    );
+    return children;
   }
 
   // If authentication is required but user is not authenticated

@@ -77,6 +77,7 @@ const MarkHomeworkPageConsolidated = ({
   // Model selection state
   const [selectedModel, setSelectedModel] = useState('auto');
   
+  
   // Handle model change
   const handleModelChange = useCallback((model) => {
     setSelectedModel(model);
@@ -242,8 +243,8 @@ const MarkHomeworkPageConsolidated = ({
 
   return (
     <MainLayout
-      // Page mode
-      pageMode={pageMode}
+        // Page mode
+        pageMode={pageMode}
       
       // Image upload props
       selectedFile={selectedFile}

@@ -116,20 +116,7 @@
   line-height: 1;
 }
 
-/* Spinner animation */
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid transparent;
-  border-top: 2px solid currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* Spinner animation - now using MAIN SPINNER SYSTEM (.btn-spinner) */
 
 /* Hover effects */
 .send-button:not(:disabled):not(.loading):hover {

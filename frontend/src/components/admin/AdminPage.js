@@ -403,15 +403,12 @@ function AdminPage() {
 
   // Loading state is now managed in the individual load functions
 
-  // Render loading state
+  // Render loading state - just show empty content
   if (loading) {
     return (
       <div className="admin-page">
         <div className="admin-content">
-          <div className="loading-container">
-            <div className="loading-spinner"></div>
-            <p>Loading admin panel...</p>
-          </div>
+          {/* No loading screen - just empty content */}
         </div>
       </div>
     );

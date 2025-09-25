@@ -51,7 +51,7 @@ const SendButton = ({
     >
       {loading ? (
         <div className="send-button-loading">
-          <div className="spinner" />
+          <span className="btn-spinner" />
         </div>
       ) : (
         <div className="send-button-content">

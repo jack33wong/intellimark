@@ -225,12 +225,7 @@ const Login = () => {
 
   // Don't render login form if user is already authenticated
   if (user) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner large"></div>
-        <p>Redirecting to main application...</p>
-      </div>
-    );
+    return null; // Just return null, no loading screen
   }
 
   // Render main login page
@@ -321,7 +316,9 @@ const Login = () => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <div className="loading-spinner small" />
+                <div className="loading-spinner loading-spinner-small">
+                  <div className="spinner spinner-white" />
+                </div>
               ) : (
                 'Continue'
               )}
@@ -412,7 +409,9 @@ const Login = () => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <div className="loading-spinner small" />
+                <div className="loading-spinner loading-spinner-small">
+                  <div className="spinner spinner-white" />
+                </div>
               ) : (
                 'Continue'
               )}
@@ -512,7 +511,9 @@ const Login = () => {
               disabled={isLoading}
             >
               {isLoading ? (
-                <div className="loading-spinner small" />
+                <div className="loading-spinner loading-spinner-small">
+                  <div className="spinner spinner-white" />
+                </div>
               ) : (
                 'Continue'
               )}

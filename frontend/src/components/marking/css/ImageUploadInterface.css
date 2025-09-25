@@ -306,10 +306,7 @@
   100% { transform: rotate(360deg); }
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* Spinner animation - now using MAIN SPINNER SYSTEM */
 
 /* Loading Progress Bar */
 .loading-progress-container {

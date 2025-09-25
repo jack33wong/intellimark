@@ -12,14 +12,9 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
 
-  // Show loading spinner while checking authentication
+  // Show nothing while checking authentication - just render children
   if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner large"></div>
-        <p>Loading...</p>
-      </div>
-    );
+    return children;
   }
 
   // If not authenticated, redirect to login page
