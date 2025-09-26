@@ -15,7 +15,7 @@ interface SimpleImageClassification {
   extractedQuestionText?: string;
 }
 
-type SimpleModelType = 'gemini-2.5-pro';
+type SimpleModelType = 'auto' | 'gemini-2.5-pro';
 
 interface SimpleProcessedImageResult {
   ocrText: string;
@@ -192,17 +192,22 @@ export class AIMarkingService {
     try {
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-1.5-pro') {
+      } else if (model === 'auto') {
         return await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
     } catch (error) {
-      console.error(`❌ [CHAT RESPONSE ERROR] Failed with model: ${model}`, error);
+      // Get the actual model endpoint name for logging
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      
+      console.error(`❌ [CHAT RESPONSE ERROR] Failed with model: ${actualModelName}`, error);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
-      console.log(ErrorHandler.getLogMessage(error, `chat response model: ${model}`));
+      console.log(ErrorHandler.getLogMessage(error, `chat response model: ${actualModelName}`));
       
       // Try fallback with image generation model if primary model failed
       if (model === 'auto' || model === 'gemini-2.5-pro') {
@@ -212,7 +217,7 @@ export class AIMarkingService {
             await ErrorHandler.exponentialBackoff(3);
             
             // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('gemini-1.5-pro');
+            const fallbackModelConfig = getModelConfig('auto');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} for chat response (fallback for 429 errors)`);
             try {
               const result = await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
@@ -259,7 +264,7 @@ export class AIMarkingService {
         } catch (fallbackError) {
           console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
         }
-      } else if (model === 'gemini-1.5-pro') {
+      } else if (model === 'auto') {
         try {
           if (errorInfo.isRateLimit) {
             await ErrorHandler.exponentialBackoff(3);
@@ -407,7 +412,7 @@ Summary:`;
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-1.5-pro'
+    modelType: string = 'auto'
   ): Promise<{ response: string; apiUsed: string }> {
     try {
       const accessToken = await this.getGeminiAccessToken();
@@ -498,7 +503,7 @@ Summary:`;
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 1000,
+          maxOutputTokens: 8000, // Use centralized config
         }
       })
     });
@@ -518,10 +523,12 @@ Summary:`;
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-1.5-pro'
+    modelType: string = 'auto'
   ): Promise<Response> {
-    // Use the correct Gemini 1.5 endpoint based on model type
-    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const config = getModelConfig(modelType as any);
+    const endpoint = config.apiEndpoint;
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -544,7 +551,7 @@ Summary:`;
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 1000,
+          maxOutputTokens: 8000, // Use centralized config
         }
       })
     });
@@ -562,7 +569,12 @@ Summary:`;
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const config = getModelConfig('auto');
+    const endpoint = config.apiEndpoint;
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -583,7 +595,7 @@ Summary:`;
         }],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 1000
+          maxOutputTokens: 8000 // Use centralized config
         }
       })
     });
@@ -629,11 +641,18 @@ Summary:`;
       });
       
       // Check for safety filters or other issues
-      if (result.candidates?.[0]?.finishReason) {
-        console.error('❌ [DEBUG] Finish reason:', result.candidates[0].finishReason);
+      const finishReason = result.candidates?.[0]?.finishReason;
+      if (finishReason) {
+        console.error('❌ [DEBUG] Finish reason:', finishReason);
+        
+        // Handle MAX_TOKENS specifically
+        if (finishReason === 'MAX_TOKENS') {
+          console.error('❌ [MAX_TOKENS] Response truncated due to token limit. Consider using a model with higher limits or reducing prompt length.');
+          throw new Error(`Response truncated due to token limit. The model response was too long and got cut off. Consider using Gemini 2.5 Pro for longer responses.`);
+        }
       }
       
-      throw new Error(`No content in Gemini response. Finish reason: ${result.candidates?.[0]?.finishReason || 'unknown'}`);
+      throw new Error(`No content in Gemini response. Finish reason: ${finishReason || 'unknown'}`);
     }
 
     return content;

@@ -45,7 +45,6 @@ export const MESSAGE_TYPES = {
 export const AI_MODELS = {
   AUTO: 'auto',
   GEMINI_2_5_PRO: 'gemini-2.5-pro',
-  GEMINI_1_5_PRO: 'gemini-1.5-pro',
 };
 
 // File Types

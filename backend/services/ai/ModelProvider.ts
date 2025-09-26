@@ -39,7 +39,12 @@ export class ModelProvider {
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig('auto');
+    const endpoint = config.apiEndpoint;
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -47,7 +52,7 @@ export class ModelProvider {
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 4500 }
+        generationConfig: { temperature: 0, maxOutputTokens: 8000 } // Use centralized config
       })
     });
     

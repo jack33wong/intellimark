@@ -91,11 +91,11 @@ export class MarkingInstructionService {
 
     
     // Force model to gemini for consistency
-    const actualModel = 'gemini-1.5-pro';
+    const actualModel = 'auto';
     let responseText: string;
     let usageTokens = 0;
     
-    if (actualModel === 'gemini-1.5-pro') {
+    if (actualModel === 'auto') {
       const { ModelProvider } = await import('./ModelProvider');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;

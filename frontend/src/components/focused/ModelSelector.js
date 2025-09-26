@@ -9,9 +9,8 @@ import './ModelSelector.css';
 
 // Available AI models - must match backend ModelType values
 const AVAILABLE_MODELS = [
-  { value: 'auto', label: 'Auto', description: 'Use system default (Gemini 2.5 Pro)' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Google Gemini 2.5 Pro' },
-  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', description: 'Google Gemini 1.5 Pro' }
+  { value: 'auto', label: 'Auto', description: 'Use system default (Gemini 2.0 Flash-Lite)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Google Gemini 2.5 Pro (Latest & Most Powerful)' }
 ];
 
 const ModelSelector = ({ 

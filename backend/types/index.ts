@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-1.5-pro';
+export type ModelType = 'auto' | 'gemini-2.5-pro';
 
 export interface AIModelConfig {
   name: string;

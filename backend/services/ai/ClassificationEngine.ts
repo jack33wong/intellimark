@@ -6,8 +6,8 @@ import type { ImageClassification, ModelType } from '../../types/index.js';
  */
 export class ClassificationEngine {
   static async classifyImage(imageData: string, model: ModelType): Promise<ImageClassification> {
-    const { AIMarkingService } = await import('../aiMarkingService');
-    return AIMarkingService.classifyImage(imageData, model);
+    const { ClassificationService } = await import('./ClassificationService');
+    return ClassificationService.classifyImage(imageData, model);
   }
 }
 

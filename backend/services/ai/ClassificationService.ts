@@ -51,17 +51,22 @@ export class ClassificationService {
       
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'gemini-1.5-pro') {
+      } else if (model === 'auto') {
         return await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
     } catch (error) {
-      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${model}`, error);
+      // Get the actual model endpoint name for logging
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      
+      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${actualModelName}`, error);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
-      console.log(ErrorHandler.getLogMessage(error, `model: ${model}`));
+      console.log(ErrorHandler.getLogMessage(error, `model: ${actualModelName}`));
       
       // Try fallback with image generation model if primary model failed
       if (model === 'auto' || model === 'gemini-2.5-pro') {
@@ -71,7 +76,7 @@ export class ClassificationService {
             await ErrorHandler.exponentialBackoff(3);
             
             // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('gemini-1.5-pro');
+            const fallbackModelConfig = getModelConfig('auto');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} (fallback for 429 errors)`);
             try {
               const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
@@ -112,7 +117,7 @@ export class ClassificationService {
         } catch (fallbackError) {
           console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
         }
-      } else if (model === 'gemini-1.5-pro') {
+      } else if (model === 'auto') {
         try {
           if (errorInfo.isRateLimit) {
             await ErrorHandler.exponentialBackoff(3);
@@ -169,7 +174,7 @@ export class ClassificationService {
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return this.parseGeminiResponse(cleanContent, result, 'gemini-1.5-pro');
+      return this.parseGeminiResponse(cleanContent, result, 'auto');
     } catch (error) {
       throw error;
     }
@@ -179,7 +184,7 @@ export class ClassificationService {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-1.5-pro'
+    modelType: string = 'auto'
   ): Promise<ClassificationResult> {
     try {
       const accessToken = await this.getGeminiAccessToken();
@@ -236,7 +241,7 @@ export class ClassificationService {
             { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
           ]
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
       })
     });
     
@@ -256,7 +261,12 @@ export class ClassificationService {
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`, {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig('auto');
+    const endpoint = config.apiEndpoint;
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -270,7 +280,7 @@ export class ClassificationService {
             { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
           ]
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
       })
     });
     
@@ -289,10 +299,12 @@ export class ClassificationService {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    modelType: string = 'gemini-1.5-pro'
+    modelType: string = 'auto'
   ): Promise<Response> {
-    // Use the correct Gemini 1.5 endpoint based on model type
-    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig(modelType as any);
+    const endpoint = config.apiEndpoint;
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -308,7 +320,7 @@ export class ClassificationService {
             { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
           ]
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1000 }
+        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
       })
     });
     

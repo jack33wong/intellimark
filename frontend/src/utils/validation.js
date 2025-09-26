@@ -11,7 +11,7 @@ export const FILE_CONSTRAINTS = {
 };
 
 // Model validation constants
-export const VALID_MODELS = ['auto', 'gemini-2.5-pro', 'gemini-1.5-pro'];
+export const VALID_MODELS = ['auto', 'gemini-2.5-pro'];
 
 /**
  * Validate file input with fail-fast approach

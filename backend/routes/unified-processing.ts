@@ -19,7 +19,7 @@ const router = Router();
  */
 router.post('/', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { imageData, model = 'gemini-2.5-pro', sessionId = null, isFollowUp = false } = req.body;
+    const { imageData, model = 'auto', sessionId = null, isFollowUp = false } = req.body;
     
     if (!imageData) {
       return res.status(400).json({
@@ -137,7 +137,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
  */
 router.post('/ai', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const { imageData, sessionId, model = 'gemini-2.5-pro' } = req.body;
+    const { imageData, sessionId, model = 'auto' } = req.body;
     
     if (!imageData || !sessionId) {
       return res.status(400).json({

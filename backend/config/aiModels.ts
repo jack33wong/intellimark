@@ -48,20 +48,14 @@ export function setDebugMode(debugMode: boolean) {
  */
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
   'auto': {
-    name: 'Auto (System Default)',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    maxTokens: 8000,
+    name: 'Auto (Recommended)',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+    maxTokens: 8000, // Within gemini-2.0-flash-lite limit of 8192
     temperature: 0.1
   },
   'gemini-2.5-pro': {
-    name: 'Google Gemini 2.5 Pro',
+    name: 'Google Gemini 2.5 Pro (Latest)',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    maxTokens: 8000,
-    temperature: 0.1
-  },
-  'gemini-1.5-pro': {
-    name: 'Google Gemini 1.5 Pro',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
     maxTokens: 8000,
     temperature: 0.1
   }
@@ -112,7 +106,7 @@ export function isModelSupported(modelType: string): modelType is ModelType {
  * @returns The default model type
  */
 export function getDefaultModel(): ModelType {
-  return 'auto';
+  return 'auto'; // Using auto as default (maps to gemini-2.0-flash-lite)
 }
 
 /**
@@ -144,10 +138,9 @@ export function getModelPromptTemplate(modelType: ModelType): string {
 
   switch (modelType) {
     case 'auto':
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
     case 'gemini-2.5-pro':
-      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy.`;
-    case 'gemini-1.5-pro':
-      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with enhanced processing capabilities.`;
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
     default:
       return basePrompt;
   }
@@ -163,8 +156,13 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   
   switch (modelType) {
     case 'auto':
+      return {
+        maxOutputTokens: config.maxTokens,
+        temperature: config.temperature,
+        topP: 0.8,
+        topK: 40
+      };
     case 'gemini-2.5-pro':
-    case 'gemini-1.5-pro':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

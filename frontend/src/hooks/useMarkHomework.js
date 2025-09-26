@@ -275,7 +275,7 @@ export const useMarkHomework = () => {
         headers,
         body: JSON.stringify({
           message: text.trim(),
-          model: 'gemini-2.5-pro',
+          model: 'auto', // Use default model (now maps to gemini-2.0-flash-lite)
           sessionId: state.currentSession?.id || null
         })
       });

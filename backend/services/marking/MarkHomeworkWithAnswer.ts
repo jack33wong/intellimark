@@ -257,13 +257,17 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 1: Classification
-    console.log(`🔄 [STEP 1] Classification - ${model}`);
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const modelConfig = getModelConfig(model);
+    const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+    
+    console.log(`🔄 [STEP 1] Classification - ${actualModelName}`);
     onProgress?.(1, 'Analyzing image...', 14);
     const imageClassification = await this.classifyImageWithAI(imageData, model, debug);
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Step 2: Question detection
-    console.log(`🔄 [STEP 2] Question Detection`);
+    console.log(`🔄 [STEP 2] Question Detection - ${actualModelName}`);
     onProgress?.(2, 'Detecting question type...', 28);
     let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
@@ -349,12 +353,12 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Step 3: OCR
-    console.log(`🔄 [STEP 3] OCR Processing`);
+    console.log(`🔄 [STEP 3] OCR Processing - ${actualModelName}`);
     onProgress?.(3, 'Extracting text and math...', 57);
     const processedImage = await this.processImageWithRealOCR(imageData, debug);
 
     // Step 4: Marking instructions
-    console.log(`🔄 [STEP 4] Marking Instructions - ${model}`);
+    console.log(`🔄 [STEP 4] Marking Instructions - ${actualModelName}`);
     onProgress?.(4, 'Generating feedback...', 71);
     const markingInstructions = await this.generateMarkingInstructions(
       imageData,
@@ -364,7 +368,7 @@ export class MarkHomeworkWithAnswer {
     );
 
     // Step 5: Burn overlay
-    console.log(`🔄 [STEP 5] Burn Overlay`);
+    console.log(`🔄 [STEP 5] Burn Overlay - ${actualModelName}`);
     onProgress?.(5, 'Creating annotations...', 85);
     
     const annotations = markingInstructions.annotations.map(ann => ({
@@ -381,7 +385,7 @@ export class MarkHomeworkWithAnswer {
     );
 
     // Step 6: Generate AI response for marking mode
-    console.log(`🔄 [STEP 6] AI Response Generation - ${model}`);
+    console.log(`🔄 [STEP 6] AI Response Generation - ${actualModelName}`);
     onProgress?.(6, 'Finalizing response...', 95);
     let markingChatResponse;
     try {
@@ -405,7 +409,7 @@ export class MarkHomeworkWithAnswer {
     const totalProcessingTime = Date.now() - startTime;
 
     // Step 7: Data processed - session will be created by route
-    console.log(`🔄 [STEP 7] Data Processing Complete`);
+    console.log(`🔄 [STEP 7] Data Processing Complete - ${actualModelName}`);
     onProgress?.(7, 'Almost done...', 100);
 
     // Step 6: Create session for marking

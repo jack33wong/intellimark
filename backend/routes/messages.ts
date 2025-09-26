@@ -18,7 +18,7 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'gemini-2.5-pro', sessionId, mode } = req.body;
+    const { message, imageData, model = 'auto', sessionId, mode } = req.body;
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';

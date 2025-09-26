@@ -70,8 +70,8 @@ export class OCRCleanupService {
 
     let responseText: string;
     let usageTokens = 0;
-    model = 'gemini-1.5-pro';
-    if (model === 'gemini-1.5-pro') {
+    model = 'auto';
+    if (model === 'auto') {
       const { ModelProvider } = await import('./ModelProvider');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;
@@ -130,7 +130,7 @@ export class OCRCleanupService {
     let responseText: string;
     let usageTokens = 0;
     
-    if (model === 'gemini-1.5-pro') {
+    if (model === 'auto') {
       const { ModelProvider } = await import('./ModelProvider');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
       responseText = res.content;

@@ -36,7 +36,7 @@ function sanitizeForFirestore(obj: any): any {
 
 // Simple model validation function to avoid import issues
 function validateModelConfig(modelType: string): boolean {
-  const validModels = ['auto', 'gemini-2.5-pro', 'gemini-1.5-pro'];
+  const validModels = ['auto', 'gemini-2.5-pro'];
   return validModels.includes(modelType);
 }
 
@@ -76,9 +76,10 @@ const router = express.Router();
 router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
   let { imageData, model = 'auto', sessionId: providedSessionId } = req.body;
   
-  // Convert 'auto' to default model
+  // Use centralized model configuration for 'auto'
   if (model === 'auto') {
-    model = 'gemini-2.5-pro';
+    const { getDefaultModel } = await import('../config/aiModels.js');
+    model = getDefaultModel();
   }
   
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
@@ -389,9 +390,10 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     return res.status(400).json({ success: false, error: 'Image data is required' });
   }
 
-  // Convert 'auto' to default model
+  // Use centralized model configuration for 'auto'
   if (model === 'auto') {
-    model = 'gemini-2.5-pro';
+    const { getDefaultModel } = await import('../config/aiModels.js');
+    model = getDefaultModel();
   }
 
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
@@ -686,9 +688,10 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     return res.status(400).json({ success: false, error: 'Image data is required' });
   }
 
-  // Convert 'auto' to default model
+  // Use centralized model configuration for 'auto'
   if (model === 'auto') {
-    model = 'gemini-2.5-pro';
+    const { getDefaultModel } = await import('../config/aiModels.js');
+    model = getDefaultModel();
   }
 
   if (!validateModelConfig(model)) return res.status(400).json({ success: false, error: 'Valid AI model is required' });
@@ -958,9 +961,10 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
   let { imageData, model = 'auto', sessionId, userMessage } = req.body;
   
-  // Convert 'auto' to default model
+  // Use centralized model configuration for 'auto'
   if (model === 'auto') {
-    model = 'gemini-2.5-pro';
+    const { getDefaultModel } = await import('../config/aiModels.js');
+    model = getDefaultModel();
   }
   
   if (!imageData) return res.status(400).json({ success: false, error: 'Image data is required' });
