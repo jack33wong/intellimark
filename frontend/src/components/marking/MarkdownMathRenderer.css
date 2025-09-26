@@ -1,6 +1,6 @@
 /* MarkdownMathRenderer Styles */
 .markdown-math-renderer {
-  padding: 25px;
+  padding: 0px 25px 0px;
   line-height: 1.8;
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -55,8 +55,8 @@
 
 /* Code blocks */
 .markdown-math-renderer .markdown-inline-code {
-  background: var(--tertiary-bg, #f6f8fa);
-  border: 1px solid var(--border-color, #e1e4e8);
+  background: var(--background-card-gray, #f6f8fa);
+  border: 1px solid var(--border-primary, #e1e4e8);
   border-radius: 3px;
   padding: 0.2em 0.4em;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;

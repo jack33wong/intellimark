@@ -95,10 +95,13 @@ export class ClassificationService {
               }
               
               // Try Gemini 2.5 Pro as secondary fallback (different model)
-              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Pro');
+              const { getModelConfig } = await import('../../config/aiModels.js');
+              const gemini25Config = getModelConfig('gemini-2.5-pro');
+              const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+              console.log(`🔄 [SECONDARY FALLBACK] Trying ${gemini25Name}`);
               try {
                 const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Pro model completed successfully');
+                console.log(`✅ [SECONDARY FALLBACK SUCCESS] ${gemini25Name} model completed successfully`);
                 return result;
               } catch (fallback429Error) {
                 console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
@@ -122,12 +125,18 @@ export class ClassificationService {
           }
           
           // Try Gemini 2.5 Pro as fallback
-          console.log('🔄 [FALLBACK] Trying Gemini 2.5 Pro');
+          const { getModelConfig } = await import('../../config/aiModels.js');
+          const gemini25Config = getModelConfig('gemini-2.5-pro');
+          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+          console.log(`🔄 [FALLBACK] Trying ${gemini25Name}`);
           const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-          console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Pro completed successfully');
+          console.log(`✅ [FALLBACK SUCCESS] ${gemini25Name} completed successfully`);
           return result;
         } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Gemini 2.5 Pro also failed:', fallbackError);
+          const { getModelConfig } = await import('../../config/aiModels.js');
+          const gemini25Config = getModelConfig('gemini-2.5-pro');
+          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+          console.error(`❌ [FALLBACK ERROR] ${gemini25Name} also failed:`, fallbackError);
         }
       }
       
@@ -155,7 +164,7 @@ export class ClassificationService {
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return this.parseGeminiResponse(cleanContent, result, 'gemini-2.5-pro');
+      return await this.parseGeminiResponse(cleanContent, result, 'gemini-2.5-pro');
     } catch (error) {
       throw error;
     }
@@ -174,7 +183,7 @@ export class ClassificationService {
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return this.parseGeminiResponse(cleanContent, result, modelType);
+      return await this.parseGeminiResponse(cleanContent, result, modelType);
     } catch (error) {
       throw error;
     }
@@ -303,10 +312,14 @@ export class ClassificationService {
     return cleanContent;
   }
 
-  private static parseGeminiResponse(cleanContent: string, result: any, modelType: string): ClassificationResult {
+  private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
     const parsed = JSON.parse(cleanContent);
     
-    let apiUsed = 'Google Gemini 1.5 Pro (Service Account)';
+    // Get dynamic API name based on model
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const modelConfig = getModelConfig(modelType as ModelType);
+    const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
+    const apiUsed = `Google ${modelName} (Service Account)`;
     
     return {
       isQuestionOnly: parsed.isQuestionOnly,

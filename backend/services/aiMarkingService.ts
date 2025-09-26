@@ -191,7 +191,7 @@ export class AIMarkingService {
 
     try {
       if (model === 'auto' || model === 'gemini-2.5-pro') {
-        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, model);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
@@ -218,7 +218,7 @@ export class AIMarkingService {
             const fallbackModelConfig = getModelConfig('auto');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} for chat response (fallback for 429 errors)`);
             try {
-              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'auto');
               console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully for chat response`);
               return result;
             } catch (gemini20Error) {
@@ -236,10 +236,13 @@ export class AIMarkingService {
               }
               
               // Try Gemini 2.5 Pro as secondary fallback (different model)
-              console.log('🔄 [SECONDARY FALLBACK] Trying Gemini 2.5 Pro for chat response');
+              const { getModelConfig } = await import('../config/aiModels.js');
+              const gemini25Config = getModelConfig('gemini-2.5-pro');
+              const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+              console.log(`🔄 [SECONDARY FALLBACK] Trying ${gemini25Name} for chat response`);
               try {
-                const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
-                console.log('✅ [SECONDARY FALLBACK SUCCESS] Gemini 2.5 Pro model completed successfully for chat response');
+                const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-pro');
+                console.log(`✅ [SECONDARY FALLBACK SUCCESS] ${gemini25Name} model completed successfully for chat response`);
                 return result;
               } catch (fallback429Error) {
                 console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
@@ -250,7 +253,7 @@ export class AIMarkingService {
           } else {
             console.log('🔄 [FALLBACK] Non-429 error - Using: Auto model for chat response');
             try {
-              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'auto');
               console.log('✅ [FALLBACK SUCCESS] Auto model completed successfully for chat response');
               return result;
             } catch (fallbackError) {
@@ -269,12 +272,18 @@ export class AIMarkingService {
           }
           
           // Try Gemini 2.5 Pro as fallback
-          console.log('🔄 [FALLBACK] Trying Gemini 2.5 Pro for chat response');
-          const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
-          console.log('✅ [FALLBACK SUCCESS] Gemini 2.5 Pro completed successfully for chat response');
+          const { getModelConfig } = await import('../config/aiModels.js');
+          const gemini25Config = getModelConfig('gemini-2.5-pro');
+          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+          console.log(`🔄 [FALLBACK] Trying ${gemini25Name} for chat response`);
+          const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-pro');
+          console.log(`✅ [FALLBACK SUCCESS] ${gemini25Name} completed successfully for chat response`);
           return result;
         } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Gemini 2.5 Pro also failed:', fallbackError);
+          const { getModelConfig } = await import('../config/aiModels.js');
+          const gemini25Config = getModelConfig('gemini-2.5-pro');
+          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+          console.error(`❌ [FALLBACK ERROR] ${gemini25Name} also failed:`, fallbackError);
         }
       }
       
@@ -377,7 +386,8 @@ Summary:`;
   private static async callGeminiForChatResponse(
     imageData: string,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    model: ModelType = 'auto'
   ): Promise<{ response: string; apiUsed: string }> {
     try {
       const accessToken = await this.getGeminiAccessToken();
@@ -385,9 +395,15 @@ Summary:`;
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
+      // Get dynamic API name based on model
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiUsed = `Google ${modelName} (Service Account)`;
+      
       return {
         response: content,
-        apiUsed: 'Google Gemini 2.5 Pro (Service Account)'
+        apiUsed: apiUsed
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
@@ -399,7 +415,10 @@ Summary:`;
          error.message.includes('rate limit'));
       
       if (isRateLimitError) {
-        console.log('🔄 [RATE LIMIT] Gemini 2.5 Pro hit rate limit, will try fallback');
+        const { getModelConfig } = await import('../config/aiModels.js');
+        const gemini25Config = getModelConfig('gemini-2.5-pro');
+        const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+        console.log(`🔄 [RATE LIMIT] ${gemini25Name} hit rate limit, will try fallback`);
       }
       
       throw error;
@@ -418,7 +437,11 @@ Summary:`;
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
-      const apiUsed = 'Google Gemini 1.5 Pro (Service Account)';
+      // Get dynamic API name based on model
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(modelType as ModelType);
+      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
+      const apiUsed = `Google ${modelName} (Service Account)`;
       
       return {
         response: content,
@@ -585,7 +608,7 @@ Summary:`;
         // Handle MAX_TOKENS specifically
         if (finishReason === 'MAX_TOKENS') {
           console.error('❌ [MAX_TOKENS] Response truncated due to token limit. Consider using a model with higher limits or reducing prompt length.');
-          throw new Error(`Response truncated due to token limit. The model response was too long and got cut off. Consider using Gemini 2.5 Pro for longer responses.`);
+          throw new Error(`Response truncated due to token limit. The model response was too long and got cut off. Consider using a model with higher token limits for longer responses.`);
         }
       }
       
