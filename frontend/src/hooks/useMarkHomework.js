@@ -130,6 +130,31 @@ export const useMarkHomework = () => {
       loadingTotalSteps: data.allSteps.length,
       loadingProgress: data.isComplete ? 100 : Math.round((data.completedSteps.length / data.allSteps.length) * 100)
     }));
+    
+    // Update the processing message in the session with progress data
+    const currentSession = simpleSessionService.getCurrentSession();
+    if (currentSession && currentSession.messages) {
+      const lastMessage = currentSession.messages[currentSession.messages.length - 1];
+      if (lastMessage && lastMessage.isProcessing) {
+        const updatedMessage = {
+          ...lastMessage,
+          progressData: data
+          // Don't update content - it should remain empty until AI response comes back
+        };
+        
+        // Update the message in the session
+        const updatedMessages = [...currentSession.messages];
+        updatedMessages[updatedMessages.length - 1] = updatedMessage;
+        
+        const updatedSession = {
+          ...currentSession,
+          messages: updatedMessages,
+          updatedAt: new Date().toISOString()
+        };
+        
+        simpleSessionService.updateSessionState(updatedSession);
+      }
+    }
   }, []);
 
   const resetProgress = useCallback(() => {
@@ -151,6 +176,25 @@ export const useMarkHomework = () => {
   // AI thinking state control
   const startAIThinking = useCallback(() => {
     setState(prev => ({ ...prev, isAIThinking: true }));
+    
+    // Create a processing assistant message
+    const processingMessage = {
+      id: `processing-${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      isProcessing: true,
+      progressData: {
+        isComplete: false,
+        currentStepDescription: 'Processing...',
+        allSteps: [],
+        completedSteps: [],
+        currentStepId: null
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add the processing message to the session
+    simpleSessionService.addMessage(processingMessage);
   }, []);
 
   const stopAIThinking = useCallback(() => {

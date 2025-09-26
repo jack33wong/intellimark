@@ -5,7 +5,7 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Brain } from 'lucide-react';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
@@ -131,7 +131,12 @@ const MainLayout = ({
             
         {/* AI Thinking Indicator - Show during processing with toggle and dropdown */}
         {(isAIThinking || isProcessing) && !chatMessages?.some(msg => msg.role === 'assistant') && (
-          <div className="thinking-indicator">
+          <div className="chat-message assistant">
+            <div className="chat-message-content">
+              <div className="chat-message-bubble">
+                <div className="assistant-header">
+                  <Brain size={20} className="assistant-brain-icon" />
+                  <div className="thinking-indicator">
             <div className="progress-main-line">
               <div className="thinking-dots" style={{ flexShrink: 0 }}>
                 <div className="thinking-dot"></div>
@@ -153,23 +158,34 @@ const MainLayout = ({
             {showProgressDetails && (
               <div className="progress-details-container" style={{ textAlign: 'left' }}>
                 <div className="step-list-container">
-                  {(stepList || []).map((step, index) => {
-                    const isCompleted = (completedSteps || []).includes(step.id);
-                    const isCurrent = index === (completedSteps || []).length;
-                    return (
-                      <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
-                        <div className="step-indicator">
-                          {isCompleted ? '✓' : isCurrent ? '●' : '○'}
+                  {(() => {
+                    // Show only steps that have started (completed + current step)
+                    const completedCount = (completedSteps || []).length;
+                    const currentStepIndex = completedCount;
+                    const stepsToShow = (stepList || []).slice(0, currentStepIndex + 1);
+                    
+                    return stepsToShow.map((step, index) => {
+                      const isCompleted = (completedSteps || []).includes(step.id);
+                      const isCurrent = index === completedCount;
+                      return (
+                        <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                          <div className="step-indicator">
+                            {isCompleted ? '✓' : isCurrent ? '●' : '○'}
+                          </div>
+                          <div className="step-description">
+                            {step.description}
+                          </div>
                         </div>
-                        <div className="step-description">
-                          {step.description}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
           </div>

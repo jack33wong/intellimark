@@ -170,6 +170,11 @@ export const getMessageDisplayText = (message) => {
     return 'Image message';
   }
 
+  // For AI messages with progress data, don't show "Empty message"
+  if (message.role === 'assistant' && message.progressData) {
+    return '';
+  }
+
   return 'Empty message';
 };
 

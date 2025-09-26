@@ -378,10 +378,29 @@ class SimpleSessionService {
       const existingMessages = this.state.currentSession?.messages || [];
       let newMessages;
       
-      // Always add the AI message (backend provides separate content and progressData)
-      console.log('🔍 AI Message received:', data.aiMessage);
-      console.log('🔍 ProgressData:', data.aiMessage.progressData);
-      newMessages = [...existingMessages, data.aiMessage];
+      // Check if the last message is a processing message that should be updated
+      const lastMessage = existingMessages[existingMessages.length - 1];
+      
+      
+      // Force update if we have a processing message (debugging)
+      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isProcessing) {
+        // Update the existing processing message with the AI response
+        const updatedLastMessage = {
+          ...lastMessage,
+          content: data.aiMessage.content,
+          imageLink: data.aiMessage.imageLink,
+          imageData: data.aiMessage.imageData,
+          progressData: data.aiMessage.progressData,
+          metadata: data.aiMessage.metadata,
+          isProcessing: false,
+          timestamp: new Date().toISOString()
+        };
+        
+        newMessages = [...existingMessages.slice(0, -1), updatedLastMessage];
+      } else {
+        // Add new AI message if no processing message exists
+        newMessages = [...existingMessages, data.aiMessage];
+      }
       
       const newSession = data.unifiedSession ? {
         ...data.unifiedSession,

@@ -108,20 +108,27 @@ const ChatMessage = ({
           {!isUser && message.progressData && message.progressData.allSteps && showProgressSteps && (
             <div className="progress-details-container" style={{ textAlign: 'left' }}>
               <div className="step-list-container">
-                {message.progressData.allSteps.map((step, index) => {
-                  const isCompleted = message.progressData.completedSteps?.includes(step.id) || false;
-                  const isCurrent = index === message.progressData.completedSteps?.length;
-                  return (
-                    <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
-                      <div className="step-indicator">
-                        {isCompleted ? '✓' : isCurrent ? '●' : '○'}
+                {(() => {
+                  // Show only steps that have started (completed + current step)
+                  const completedCount = message.progressData.completedSteps?.length || 0;
+                  const currentStepIndex = completedCount;
+                  const stepsToShow = message.progressData.allSteps.slice(0, currentStepIndex + 1);
+                  
+                  return stepsToShow.map((step, index) => {
+                    const isCompleted = message.progressData.completedSteps?.includes(step.id) || false;
+                    const isCurrent = index === completedCount;
+                    return (
+                      <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                        <div className="step-indicator">
+                          {isCompleted ? '✓' : isCurrent ? '●' : '○'}
+                        </div>
+                        <div className="step-description">
+                          {step.description}
+                        </div>
                       </div>
-                      <div className="step-description">
-                        {step.description}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
@@ -158,8 +165,8 @@ const ChatMessage = ({
             </div>
           )}
           
-          {/* Empty message fallback */}
-          {!content && !hasImage(message) && (
+          {/* Empty message fallback - only for user messages or AI messages without progress data */}
+          {!content && !hasImage(message) && (isUser || !message.progressData) && (
             <div className="chat-message-empty">
               <span>No content</span>
             </div>
@@ -186,8 +193,8 @@ const ChatMessage = ({
           </div>
         )}
         
-        {/* Timestamp */}
-        {showTimestamp && timestamp && (
+        {/* Timestamp - only show for user messages or AI messages that are not processing */}
+        {showTimestamp && timestamp && (isUser || !message.isProcessing) && (
           <div className="chat-message-timestamp">
             {timestamp}
           </div>

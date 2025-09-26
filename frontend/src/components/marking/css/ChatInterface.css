@@ -773,6 +773,7 @@
 .assistant-header .thinking-indicator {
   flex: 1;
   margin: 0;
+  padding-top: 10px;
 }
 
 .progress-details-container {
@@ -811,7 +812,6 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 12px 25px 0px;
 }
 
 .thinking-dots {
@@ -1063,7 +1063,6 @@
 
 /* Step List Styles */
 .step-list-container {
- 
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1076,16 +1075,18 @@
   position: relative;
 }
 
-/* Vertical timeline bar */
+/* Vertical timeline bar - positioned from first to last step */
 .step-list-container::before {
   content: '';
   position: absolute;
   left: 8px;
-  top: 30px;
-  bottom: 30px;
   width: 2px;
   background: var(--text-tertiary);
   border-radius: 1px;
+  z-index: 0;
+  /* KEY CHANGE - align with vertical center of step indicators */
+  top: 15px;
+  bottom: 15px;
 }
 
 .step-item {
@@ -1116,7 +1117,7 @@
   background-color: var(--background-card-gray);
   border: 2px solid var(--text-tertiary);
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .step-item.completed .step-indicator {
