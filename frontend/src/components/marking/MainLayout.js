@@ -30,6 +30,7 @@ const MainLayout = ({
   onModelChange,
   loadingProgress,
   loadingStep,
+  loadingTotalSteps,
   loadingMessage,
   showExpandedThinking,
   markError,
@@ -141,8 +142,8 @@ const MainLayout = ({
                       
                       {/* Always reserve space for toggle button to prevent layout shift */}
                       <div className="progress-toggle-container">
-                        {/* Show toggle button only when progress data is available */}
-                        {(isProcessing || isAIThinking) && (loadingStep > 0 || loadingProgress > 0) && (
+                        {/* Show toggle button when processing starts */}
+                        {(isProcessing || isAIThinking) && (
                           <button 
                             onClick={() => setShowProgressDetails(!showProgressDetails)}
                             className="progress-toggle-button"
@@ -154,13 +155,13 @@ const MainLayout = ({
                     </div>
                     
                     {/* Progress details - show when toggled */}
-                    {showProgressDetails && (isProcessing || isAIThinking) && (loadingStep > 0 || loadingProgress > 0) && (
+                    {showProgressDetails && (isProcessing || isAIThinking) && (
                       <div className="progress-details-container">
                         <div className="progress-message-text">
                           {loadingMessage}
                         </div>
                         <div className="progress-step-text">
-                          {loadingStep > 0 ? `Step ${loadingStep}/7 • ` : ''}{loadingProgress}%
+                          {loadingStep > 0 && loadingTotalSteps ? `Step ${loadingStep}/${loadingTotalSteps} • ` : ''}{loadingProgress > 0 ? `${loadingProgress}%` : 'Starting...'}
                         </div>
                         <div className="progress-bar-container">
                           <div 

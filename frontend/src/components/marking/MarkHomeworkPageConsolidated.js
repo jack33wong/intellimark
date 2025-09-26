@@ -57,6 +57,7 @@ const MarkHomeworkPageConsolidated = ({
     // Progress state
     loadingProgress,
     loadingStep,
+    loadingTotalSteps,
     loadingMessage,
     
     // Actions - simplified
@@ -368,6 +369,7 @@ const MarkHomeworkPageConsolidated = ({
       previewUrl={null}
       loadingProgress={loadingProgress}
       loadingStep={loadingStep}
+      loadingTotalSteps={loadingTotalSteps}
       loadingMessage={loadingMessage}
       showExpandedThinking={false}
       markError={error}

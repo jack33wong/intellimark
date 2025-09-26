@@ -1037,5 +1037,8 @@
   width: 120px;
   height: 8px;
   flex-shrink: 0;
+  background: var(--border-main);
+  border-radius: 4px;
+  overflow: hidden;
 }
 

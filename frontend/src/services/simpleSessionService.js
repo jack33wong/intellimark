@@ -315,7 +315,7 @@ class SimpleSessionService {
                 throw new Error(data.error);
               } else if (data.step && onProgress) {
                 // Progress update
-                onProgress(data.step, data.message, data.percentage);
+                onProgress(data.step, data.message, data.percentage, data.totalSteps);
               }
             } catch (e) {
               // Silently ignore parsing errors for non-critical data

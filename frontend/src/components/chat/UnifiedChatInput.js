@@ -34,6 +34,7 @@ const UnifiedChatInput = ({
   onClearFile,
   loadingProgress = 0,
   loadingStep = 0,
+  loadingTotalSteps = null,
   loadingMessage = 'Processing your homework...',
   showExpandedThinking = false,
   
@@ -289,7 +290,7 @@ const UnifiedChatInput = ({
                   ></div>
                 </div>
                 <div className="progress-text">
-                  Step {loadingStep}/7 • {loadingProgress}%
+                  {loadingStep > 0 && loadingTotalSteps ? `Step ${loadingStep}/${loadingTotalSteps} • ` : ''}{loadingProgress}%
                 </div>
               </div>
             </div>

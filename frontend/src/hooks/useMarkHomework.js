@@ -41,6 +41,7 @@ export const useMarkHomework = () => {
     // Progress tracking
     loadingProgress: 0,
     loadingStep: 0,
+    loadingTotalSteps: null, // Start with null, will be set by backend
     loadingMessage: 'Processing your homework...',
     
     // Chat input state
@@ -114,12 +115,13 @@ export const useMarkHomework = () => {
   };
 
   // Progress tracking functions
-  const updateProgress = useCallback((step, message, percentage) => {
+  const updateProgress = useCallback((step, message, percentage, totalSteps) => {
     setState(prev => ({
       ...prev,
       loadingStep: step,
       loadingMessage: message,
-      loadingProgress: percentage
+      loadingProgress: percentage,
+      loadingTotalSteps: totalSteps !== undefined ? totalSteps : prev.loadingTotalSteps // Use provided totalSteps or keep existing
     }));
   }, []);
 
@@ -128,6 +130,7 @@ export const useMarkHomework = () => {
       ...prev,
       loadingProgress: 0,
       loadingStep: 0,
+      loadingTotalSteps: null, // Reset to null
       loadingMessage: 'Processing your homework...'
     }));
   }, []);
