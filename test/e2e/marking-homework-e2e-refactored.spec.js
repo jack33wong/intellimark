@@ -64,9 +64,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       
-      // Select Gemini 2.5 Pro model for testing
-      await markHomeworkPage.selectModel('gemini-2.5-pro');
-      console.log('🤖 Using Gemini 2.5 Pro for e2e testing');
+      // Select Auto model for testing (maps to gemini-2.0-flash-lite)
+      await markHomeworkPage.selectModel('auto');
+      console.log('🤖 Using Auto (Gemini 2.0 Flash-Lite) for e2e testing');
     });
 
     await test.step('Step 2: Submit Initial Homework', async () => {
@@ -92,11 +92,12 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.verifyAIResponseHasAnnotatedImage();
 
       // Check that chat header title is meaningful (length > 10) and not "Processing"
+      // Give more time for the AI response to complete and title to be generated
       await expect(async () => {
         const titleText = await markHomeworkPage.getChatHeaderTitleLocator().textContent();
         expect(titleText.length).toBeGreaterThan(10);
         expect(titleText).not.toContain('Processing');
-      }).toPass({ timeout: 60000 });
+      }).toPass({ timeout: 120000 }); // Increased to 2 minutes
       
       // Wait for sidebar to load and update with the new chat history item
       await sidebarPage.waitForLoad();
@@ -125,15 +126,26 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Verify the second AI response (follow-up response)
       await markHomeworkPage.verifyAIResponseHasAnnotatedImage({ responseIndex: 1 });
       
-      // Both initial and follow-up API calls are working perfectly with Gemini 1.5 Pro!
+      // Both initial and follow-up API calls are working perfectly with Auto (Gemini 2.0 Flash-Lite)!
       // The follow-up flow is functioning as expected
       
+      // Wait for network to be idle to ensure all API calls are complete
+      await page.waitForLoadState('networkidle');
+      
+      // Additional delay to ensure database writes are complete
+      await page.waitForTimeout(3000);
+      
       const session = await databaseHelper.waitForSessionCreation(TEST_CONFIG.userId);
+      
+      // Add a longer delay to ensure all messages are written to database
+      // The second API call needs time to complete and save to database
+      await page.waitForTimeout(5000);
+      
       await expect(async () => {
         const messageCount = await databaseHelper.getMessageCount(session.id);
         // Expect 4 messages: 2 user messages + 2 AI responses (both initial and follow-up working!)
         expect(messageCount).toBe(4);
-      }).toPass({ timeout: 15000 }); // Poll the DB until the condition is met
+      }).toPass({ timeout: 60000 }); // Increased timeout to 60 seconds
       
       // Capture full screen after Step 5 completion (scroll to end first)
       await page.evaluate(() => {

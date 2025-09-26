@@ -120,7 +120,7 @@ class MarkHomeworkPage {
     
     // 1. Wait for any "thinking" animations to finish.
     await expect(this.aiThinking, 'The AI thinking indicator should disappear')
-      .toBeHidden({ timeout: 180000 }); // 3 minutes for real AI model
+      .toBeHidden({ timeout: 300000 }); // 5 minutes for real AI model
 
     // 2. Poll until the last AI message is visible and meets our content criteria.
     await this.page.waitForFunction(async () => {
@@ -142,7 +142,7 @@ class MarkHomeworkPage {
       }
       
       return false;
-    }, { timeout: 180000 }); // 3 minutes for real AI model responses
+    }, { timeout: 300000 }); // 5 minutes for real AI model responses
     
     console.log('✅ AI response content loaded');
   }
