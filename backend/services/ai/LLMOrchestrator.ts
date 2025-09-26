@@ -6,14 +6,14 @@
  */
 
 import type {
-  ModelType as SimpleModelType,
+  ModelType,
   ProcessedImageResult as SimpleProcessedImageResult,
   MarkingInstructions as SimpleMarkingInstructions
 } from '../../types/index.js';
 
 export interface MarkingInputs {
   imageData: string;
-  model: SimpleModelType;
+  model: ModelType;
   processedImage: SimpleProcessedImageResult;
   // Use broad type to avoid coupling to specific question detection shapes
   questionDetection?: any;

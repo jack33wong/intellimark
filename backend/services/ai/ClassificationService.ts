@@ -51,8 +51,6 @@ export class ClassificationService {
       
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'auto') {
-        return await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
@@ -79,7 +77,7 @@ export class ClassificationService {
             const fallbackModelConfig = getModelConfig('auto');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} (fallback for 429 errors)`);
             try {
-              const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
+              const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
               console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully`);
               return result;
             } catch (gemini20Error) {
@@ -109,13 +107,13 @@ export class ClassificationService {
               }
             }
           } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 1.5 Pro');
-            const result = await this.callGemini15ProForClassification(compressedImage, systemPrompt, userPrompt);
-            console.log('✅ [FALLBACK SUCCESS] Gemini 1.5 Pro model completed successfully');
+            console.log('🔄 [FALLBACK] Non-429 error - Using: Auto model');
+            const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
+            console.log('✅ [FALLBACK SUCCESS] Auto model completed successfully');
             return result;
           }
         } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
+          console.error('❌ [FALLBACK ERROR] Auto model also failed:', fallbackError);
         }
       } else if (model === 'auto') {
         try {
@@ -163,22 +161,6 @@ export class ClassificationService {
     }
   }
 
-  private static async callGemini15ProForClassification(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<ClassificationResult> {
-    try {
-      const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGemini15ProRequest(accessToken, imageData, systemPrompt, userPrompt);
-      const result = await response.json() as any;
-      const content = this.extractGeminiContent(result);
-      const cleanContent = this.cleanGeminiResponse(content);
-      return this.parseGeminiResponse(cleanContent, result, 'auto');
-    } catch (error) {
-      throw error;
-    }
-  }
 
   private static async callGeminiImageGenForClassification(
     imageData: string,
@@ -227,7 +209,12 @@ export class ClassificationService {
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig('gemini-2.5-pro');
+    const endpoint = config.apiEndpoint;
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -255,44 +242,6 @@ export class ClassificationService {
     return response;
   }
 
-  private static async makeGemini15ProRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig('auto');
-    const endpoint = config.apiEndpoint;
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Gemini 1.5 Pro API Error:', response.status, response.statusText);
-      console.error('❌ Error Details:', errorText);
-      throw new Error(`Gemini 1.5 Pro API request failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    return response;
-  }
 
   private static async makeGeminiImageGenRequest(
     accessToken: string,

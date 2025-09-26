@@ -92,7 +92,7 @@ class MarkHomeworkPage {
 
   /**
    * Selects the AI model from the model selector dropdown.
-   * @param {string} model - The model to select ('auto', 'gemini-2.5-pro', 'gemini-1.5-pro')
+   * @param {string} model - The model to select ('auto', 'gemini-2.5-pro')
    */
   async selectModel(model) {
     // Click on the model selector to open dropdown

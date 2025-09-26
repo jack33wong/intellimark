@@ -64,9 +64,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       
-      // Select Gemini 1.5 Pro model for testing
-      await markHomeworkPage.selectModel('gemini-1.5-pro');
-      console.log('🤖 Using Gemini 1.5 Pro for e2e testing');
+      // Select Gemini 2.5 Pro model for testing
+      await markHomeworkPage.selectModel('gemini-2.5-pro');
+      console.log('🤖 Using Gemini 2.5 Pro for e2e testing');
     });
 
     await test.step('Step 2: Submit Initial Homework', async () => {

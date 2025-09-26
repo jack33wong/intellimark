@@ -312,7 +312,7 @@ export class MarkHomeworkWithAnswer {
         const { AIMarkingService } = await import('../aiMarkingService');
         chatResponse = await AIMarkingService.generateChatResponse(
           imageData,
-          'I have a question that I need help with. Can you assist me?',
+          'Please solve this math question step by step and explain each step clearly.',
           model as any, // Convert to SimpleModelType
           true, // isQuestionOnly
           debug

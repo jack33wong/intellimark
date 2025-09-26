@@ -15,7 +15,7 @@ interface SimpleImageClassification {
   extractedQuestionText?: string;
 }
 
-type SimpleModelType = 'auto' | 'gemini-2.5-pro';
+import { ModelType } from '../types/index.js';
 
 interface SimpleProcessedImageResult {
   ocrText: string;
@@ -86,7 +86,7 @@ export class AIMarkingService {
    */
   static async classifyImage(
     imageData: string, 
-    model: SimpleModelType
+    model: ModelType
   ): Promise<SimpleImageClassification> {
     const { ClassificationService } = await import('./ai/ClassificationService');
     return ClassificationService.classifyImage(imageData, model);
@@ -101,7 +101,7 @@ export class AIMarkingService {
    * NEW LLM2: Generate marking annotations based on final OCR text only (no coordinates)
    */
   static async generateMarkingAnnotationsFromText(
-    model: SimpleModelType,
+    model: ModelType,
     ocrText: string,
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<{
@@ -117,7 +117,7 @@ export class AIMarkingService {
    */
   static async generateMarkingInstructions(
     imageData: string, 
-    model: SimpleModelType, 
+    model: ModelType, 
     processedImage?: SimpleProcessedImageResult,
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
@@ -138,7 +138,7 @@ export class AIMarkingService {
   static async generateChatResponse(
     imageData: string,
     message: string,
-    model: SimpleModelType,
+    model: ModelType,
     isQuestionOnly: boolean = true,
     debug: boolean = false
   ): Promise<{ response: string; apiUsed: string }> {
@@ -158,18 +158,18 @@ export class AIMarkingService {
       ? `You are an AI tutor helping students with math problems.
       
       You will receive an image of a math question and a message from the student.
-      Your task is to provide helpful, educational responses that guide the student toward understanding.
+      Your task is to provide a complete, step-by-step solution that helps the student understand the problem.
       
       RESPONSE GUIDELINES:
+      - Provide a complete step-by-step solution
+      - Explain each step clearly with mathematical reasoning
+      - Use clear mathematical notation and formatting
+      - Show all calculations and working
+      - Explain the concepts and methods used
       - Be encouraging and supportive
-      - Break down complex problems into steps
-      - Ask guiding questions to help the student think
-      - Provide hints rather than direct answers when appropriate
-      - Use clear mathematical notation
-      - Explain concepts in simple terms
-      - Encourage the student to show their work
+      - If the student asks for help understanding, provide the full solution
       
-      Return a helpful, educational response that guides the student.`
+      Return a complete, educational solution that teaches the student how to solve the problem.`
       : `You are an expert math tutor reviewing a student's question AND their attempted answer in an image.
       
       Your task is to:
@@ -184,7 +184,7 @@ export class AIMarkingService {
     const userPrompt = isQuestionOnly
       ? `Student message: "${message}"
       
-      Please help the student with this math question. Provide guidance, hints, and encouragement.`
+      Please solve this math question step by step. Show all working and explain each step clearly.`
       : `Student message: "${message}"
       
       If the image contains student work, base your feedback on their steps. Provide brief, actionable feedback and one or two targeted follow-up questions.`;
@@ -192,8 +192,6 @@ export class AIMarkingService {
     try {
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
-      } else if (model === 'auto') {
-        return await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
@@ -220,7 +218,7 @@ export class AIMarkingService {
             const fallbackModelConfig = getModelConfig('auto');
             console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} for chat response (fallback for 429 errors)`);
             try {
-              const result = await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
+              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
               console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully for chat response`);
               return result;
             } catch (gemini20Error) {
@@ -250,13 +248,13 @@ export class AIMarkingService {
               }
             }
           } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Gemini 1.5 Pro for chat response');
+            console.log('🔄 [FALLBACK] Non-429 error - Using: Auto model for chat response');
             try {
-              const result = await this.callGemini15ProForChatResponse(compressedImage, systemPrompt, userPrompt);
-              console.log('✅ [FALLBACK SUCCESS] Gemini 1.5 Pro model completed successfully for chat response');
+              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt);
+              console.log('✅ [FALLBACK SUCCESS] Auto model completed successfully for chat response');
               return result;
             } catch (fallbackError) {
-              console.error('❌ [FALLBACK ERROR] Gemini 2.5 Flash Image Preview also failed:', fallbackError);
+              console.error('❌ [FALLBACK ERROR] Auto model also failed:', fallbackError);
               console.log('🔄 [FINAL FALLBACK] All AI models failed, using fallback response...');
               // Don't re-throw, let it fall through to the final fallback
             }
@@ -333,7 +331,7 @@ Summary:`;
   static async generateContextualResponse(
     message: string,
     chatHistory: any[],
-    model: SimpleModelType,
+    model: ModelType,
     contextSummary?: string
   ): Promise<string> {
     
@@ -432,26 +430,6 @@ Summary:`;
     }
   }
 
-  private static async callGemini15ProForChatResponse(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<{ response: string; apiUsed: string }> {
-    try {
-      const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGemini15ProChatRequest(accessToken, imageData, systemPrompt, userPrompt);
-      const result = await response.json() as any;
-      const content = this.extractGeminiChatContent(result);
-      
-      return {
-        response: content,
-        apiUsed: 'Google Gemini 1.5 Pro (Service Account)'
-      };
-    } catch (error) {
-      console.error('❌ Gemini 1.5 Pro chat response failed:', error);
-      throw error;
-    }
-  }
 
   private static async getGeminiAccessToken(): Promise<string> {
     const { GoogleAuth } = await import('google-auth-library');
@@ -482,7 +460,12 @@ Summary:`;
     systemPrompt: string,
     userPrompt: string
   ): Promise<Response> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent`, {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const config = getModelConfig('gemini-2.5-pro');
+    const endpoint = config.apiEndpoint;
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -563,52 +546,6 @@ Summary:`;
     return response;
   }
 
-  private static async makeGemini15ProChatRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../config/aiModels.js');
-    const config = getModelConfig('auto');
-    const endpoint = config.apiEndpoint;
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: imageData.includes(',') ? imageData.split(',')[1] : imageData
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 8000 // Use centralized config
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Gemini 1.5 Pro API Error:', response.status, response.statusText);
-      console.error('❌ Error Details:', errorText);
-      throw new Error(`Gemini 1.5 Pro API request failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response;
-  }
 
   private static async exponentialBackoff(maxRetries: number): Promise<void> {
     for (let i = 0; i < maxRetries; i++) {

@@ -140,9 +140,8 @@ The Mark Homework feature is a core functionality that allows users to upload ho
 - Show from API response for unauthenticated users
 
 #### **Model Selection**:
-- **Auto**: Use system default (Gemini 2.5 Pro)
-- **Gemini 2.5 Pro**: Google Gemini 2.5 Pro
-- **ChatGPT 4o**: OpenAI GPT-4 Omni
+- **Auto**: Use system default (Gemini 2.0 Flash-Lite)
+- **Gemini 2.5 Pro**: Google Gemini 2.5 Pro (Latest & Most Powerful)
 
 ## 🔧 **Technical Implementation**
 
@@ -150,7 +149,7 @@ The Mark Homework feature is a core functionality that allows users to upload ho
 
 #### **Classification Service**:
 - **Purpose**: Determine if image is "question-only" or "marking"
-- **AI Models**: Gemini 2.5 Pro (default) or ChatGPT 4o
+- **AI Models**: Auto (Gemini 2.0 Flash-Lite) or Gemini 2.5 Pro
 - **Fallback**: Heuristic-based classification when AI unavailable
 
 #### **OCR Service**:
@@ -159,7 +158,8 @@ The Mark Homework feature is a core functionality that allows users to upload ho
 - **Hybrid**: Combines both for best results
 
 #### **AI Processing**:
-- **Default Model**: Gemini 2.5 Pro
+- **Default Model**: Auto (Gemini 2.0 Flash-Lite)
+- **Advanced Model**: Gemini 2.5 Pro
 - **Authentication**: Google Service Account
 - **Response**: Marking instructions or explanations
 
