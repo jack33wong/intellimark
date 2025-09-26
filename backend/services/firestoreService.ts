@@ -876,13 +876,6 @@ export class FirestoreService {
       const sanitizedMessage = sanitizeForFirestore(message);
       
       // Debug logging before persistence
-      console.log('🔍 Before persisting message to database:');
-      console.log('🔍 Original message progressData:', message.progressData);
-      console.log('🔍 Sanitized message progressData:', sanitizedMessage.progressData);
-      console.log('🔍 Sanitized message keys:', Object.keys(sanitizedMessage));
-      console.log('🔍 Has progressData field:', 'progressData' in sanitizedMessage);
-      console.log('🔍 progressData value:', sanitizedMessage.progressData);
-      console.log('🔍 Full sanitized message:', JSON.stringify(sanitizedMessage, null, 2));
       
       // Add the new message to the array
       const updatedMessages = [...existingMessages, sanitizedMessage];

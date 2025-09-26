@@ -361,8 +361,6 @@ export class MarkHomeworkWithAnswer {
       }
       
       // Debug logging for progressData
-      console.log('🔍 MarkHomeworkWithAnswer: Final progressData:', finalProgressData);
-      console.log('🔍 MarkHomeworkWithAnswer: Question mode return');
 
       return {
         success: true,
@@ -499,8 +497,6 @@ export class MarkHomeworkWithAnswer {
     } as unknown as MarkHomeworkResponse;
 
     // Debug logging for progressData
-    console.log('🔍 MarkHomeworkWithAnswer: Final progressData (marking mode):', finalProgressData);
-    console.log('🔍 MarkHomeworkWithAnswer: Marking mode return');
 
     return {
       ...response,

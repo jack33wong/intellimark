@@ -403,11 +403,6 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
     
-    console.log('🔍 Authentication Debug:');
-    console.log('🔍 userId:', userId);
-    console.log('🔍 userEmail:', userEmail);
-    console.log('🔍 isAuthenticated:', isAuthenticated);
-    console.log('🔍 req.user:', (req as any)?.user);
 
     // Set SSE headers
     res.writeHead(200, {
@@ -728,12 +723,6 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Debug mode from request parameter
-    console.log(`🔍 [API CALL] /api/mark-homework/process-single - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
-    console.log('🔍 Authentication Debug:');
-    console.log('🔍 userId:', userId);
-    console.log('🔍 userEmail:', userEmail);
-    console.log('🔍 isAuthenticated:', isAuthenticated);
-    console.log('🔍 req.user:', (req as any)?.user);
 
     // Process the image for AI response (includes classification + marking)
     // Add timeout to prevent hanging
@@ -792,12 +781,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // For authenticated users, persist to database
-    console.log('🔍 Database Persistence Check:');
-    console.log('🔍 isAuthenticated:', isAuthenticated);
-    console.log('🔍 Will persist to database:', isAuthenticated);
-    
     if (isAuthenticated) {
-      console.log('🔍 Starting database persistence...');
       try {
         const { FirestoreService } = await import('../services/firestoreService.js');
         
