@@ -38,6 +38,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
   
   // Use beforeEach to initialize pages for each test
   test.beforeEach(async ({ page }) => {
+    // Set larger viewport for better screenshots (test-only change)
+    await page.setViewportSize({ width: 5120, height: 2880 });
+    
     loginPage = new LoginPage(page);
     markHomeworkPage = new MarkHomeworkPage(page);
     sidebarPage = new SidebarPage(page);
@@ -147,15 +150,7 @@ test.describe('Authenticated User Marking Homework E2E', () => {
         expect(messageCount).toBe(4);
       }).toPass({ timeout: 60000 }); // Increased timeout to 60 seconds
       
-      // Capture full screen after Step 5 completion (scroll to end first)
-      await page.evaluate(() => {
-        // Scroll to the very bottom of the page
-        window.scrollTo(0, document.body.scrollHeight);
-      });
-      // Wait a moment for any dynamic content to load after scrolling
-      await page.waitForTimeout(1000);
-      await page.screenshot({ path: 'step5-complete-fullscreen.png', fullPage: true });
-      console.log('📸 Full screen capture saved as step5-complete-fullscreen.png (scrolled to end)');
+      // Skip step5 screenshot - only capture step6
     });
 
     await test.step('Step 6: Test Chat History Navigation and Image Sources', async () => {
@@ -172,11 +167,22 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Wait for AI messages to be visible
       await expect(markHomeworkPage.aiMessages).toHaveCount(2, { timeout: 10000 });
       
+      // Verify message order: User → AI → User → AI
+      await markHomeworkPage.verifyMessageOrder([
+        { type: 'user', text: TEST_CONFIG.testTexts.initial },
+        { type: 'ai' },
+        { type: 'user', text: TEST_CONFIG.testTexts.followUp },
+        { type: 'ai' }
+      ]);
+      
       // Wait for all images to load
       await markHomeworkPage.waitForImageToLoad();
       
       // Verify that images load from appropriate sources (AI from storage, user may be base64)
       await markHomeworkPage.verifyAllImagesFromDatabaseStorage();
+      
+      // Capture full page screenshot
+      await markHomeworkPage.captureFullPageScreenshot('step6-full-page.jpg');
       
       console.log('✅ Chat history navigation verified - images load from appropriate sources');
     });

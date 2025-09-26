@@ -317,6 +317,117 @@ class MarkHomeworkPage {
       return Array.from(images).every(img => img.complete);
     }, { timeout: 10000 });
   }
+
+  /**
+   * Verifies the order of messages in the chat
+   * @param {Array} expectedOrder - Array of expected message objects with type and optional text
+   * Example: [
+   *   { type: 'user', text: 'Hello' },
+   *   { type: 'ai' },
+   *   { type: 'user', text: 'Follow up' },
+   *   { type: 'ai' }
+   * ]
+   */
+  async verifyMessageOrder(expectedOrder) {
+    console.log('🔍 Verifying message order...');
+    
+    // Get all message elements in order - use more specific selectors
+    const allMessages = await this.page.locator('.message.user, .message.ai, .chat-message.user, .chat-message.assistant, .user-message, .ai-message').all();
+    
+    console.log(`Found ${allMessages.length} messages total`);
+    
+    if (allMessages.length !== expectedOrder.length) {
+      throw new Error(`Expected ${expectedOrder.length} messages, but found ${allMessages.length}`);
+    }
+    
+    for (let i = 0; i < expectedOrder.length; i++) {
+      const message = allMessages[i];
+      const expected = expectedOrder[i];
+      
+      // Debug: Log the actual HTML structure of each message
+      const messageHTML = await message.innerHTML();
+      console.log(`Message ${i + 1} HTML:`, messageHTML.substring(0, 200) + '...');
+      
+      // Check message type using multiple approaches
+      const isUserMessage = await message.locator('.user, .user-message, [class*="user"]').count() > 0;
+      const isAIMessage = await message.locator('.ai, .ai-message, .assistant, [class*="ai"], [class*="assistant"]').count() > 0;
+      
+      // Alternative: check by looking at the message container classes
+      const messageClasses = await message.getAttribute('class');
+      console.log(`Message ${i + 1} classes:`, messageClasses);
+      
+      const hasUserClass = messageClasses && (messageClasses.includes('user') || messageClasses.includes('User'));
+      const hasAIClass = messageClasses && (messageClasses.includes('ai') || messageClasses.includes('AI') || messageClasses.includes('assistant') || messageClasses.includes('Assistant'));
+      
+      if (expected.type === 'user' && !isUserMessage && !hasUserClass) {
+        throw new Error(`Message ${i + 1} should be user message, but found AI message. Classes: ${messageClasses}`);
+      }
+      
+      if (expected.type === 'ai' && !isAIMessage && !hasAIClass) {
+        throw new Error(`Message ${i + 1} should be AI message, but found user message. Classes: ${messageClasses}`);
+      }
+      
+      // If text is specified, verify the message content
+      if (expected.text) {
+        const messageText = await message.textContent();
+        if (!messageText.includes(expected.text)) {
+          throw new Error(`Message ${i + 1} should contain "${expected.text}", but found: "${messageText}"`);
+        }
+      }
+      
+      console.log(`✅ Message ${i + 1}: ${expected.type}${expected.text ? ` (${expected.text})` : ''}`);
+    }
+    
+    console.log('✅ Message order verification completed');
+  }
+
+  /**
+   * Captures a full page screenshot with optimal settings
+   * @param {string} filename - The filename for the screenshot
+   * @param {Object} options - Additional screenshot options
+   */
+  async captureFullPageScreenshot(filename, options = {}) {
+    // Wait for all content to load
+    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(1000);
+    
+    // Default options for full page screenshot
+    const defaultOptions = {
+      path: filename,
+      fullPage: true,
+      type: 'jpeg',
+      quality: 90, // High quality JPEG
+      animations: 'disabled', // Disable animations for cleaner screenshots
+      ...options
+    };
+    
+    await this.page.screenshot(defaultOptions);
+    console.log(`📸 Full page screenshot saved as ${filename}`);
+  }
+
+  /**
+   * Captures a screenshot of the chat container (simple approach)
+   * @param {string} filename - The filename for the screenshot
+   * @param {Object} options - Additional screenshot options
+   */
+  async captureChatContainerScreenshot(filename, options = {}) {
+    // Wait for all content to load
+    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(1000);
+    
+    // Wait for chat container to be visible
+    await expect(this.chatContainer).toBeVisible();
+    
+    // Take screenshot of the chat container as it currently appears
+    await this.chatContainer.screenshot({
+      path: filename,
+      type: 'png',
+      animations: 'disabled',
+      ...options
+    });
+    
+    console.log(`📸 Chat container screenshot saved as ${filename}`);
+  }
 }
 
 module.exports = MarkHomeworkPage;
