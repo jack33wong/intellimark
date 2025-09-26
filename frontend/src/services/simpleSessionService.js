@@ -285,18 +285,31 @@ class SimpleSessionService {
         headers,
         body: JSON.stringify(requestBody)
       });
+      
+      
       if (!response.ok) {
-        throw new Error(`Failed to start processing: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ SSE response error:', response.status, errorText);
+        throw new Error(`Failed to start processing: ${response.status} - ${errorText}`);
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
+
       while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
+        let done, value;
+        try {
+          const result = await reader.read();
+          done = result.done;
+          value = result.value;
+          if (done) {
+            break;
+          }
+        } catch (readError) {
+          console.error('❌ SSE stream read error:', readError);
+          throw readError;
         }
 
         const chunk = decoder.decode(value, { stream: true });
@@ -307,17 +320,20 @@ class SimpleSessionService {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const data = JSON.parse(line.slice(6));
+              const jsonStr = line.slice(6);
+              const data = JSON.parse(jsonStr);
               
               if (data.type === 'complete') {
                 return this.handleProcessComplete(data.result);
               } else if (data.type === 'error') {
                 throw new Error(data.error);
-              } else if (data.step && onProgress) {
-                // Progress update
-                onProgress(data.step, data.message, data.percentage, data.totalSteps);
+              } else if (data.currentStepDescription && onProgress) {
+                // Progress update - check for currentStepDescription instead of currentStep
+                onProgress(data);
+              } else {
               }
             } catch (e) {
+              console.error('🔍 SSE parsing error:', e, 'for line:', line);
               // Silently ignore parsing errors for non-critical data
             }
           }
@@ -355,20 +371,17 @@ class SimpleSessionService {
         updatedAt: new Date().toISOString()
       };
       
-      // Update state with updated session
-      this.setState({ 
-        currentSession: updatedSession,
-      });
-      this.updateSidebarSession(updatedSession);
-      
-      // Trigger event for real-time updates
-      this.triggerSessionUpdate(updatedSession);
-      
+      this.updateSessionState(updatedSession);
       return updatedSession;
     } else {
-      // For initial messages, preserve existing user messages and add AI response
+      // For initial messages, check if we should update the last message or add new one
       const existingMessages = this.state.currentSession?.messages || [];
-      const newMessages = [...existingMessages, data.aiMessage];
+      let newMessages;
+      
+      // Always add the AI message (backend provides separate content and progressData)
+      console.log('🔍 AI Message received:', data.aiMessage);
+      console.log('🔍 ProgressData:', data.aiMessage.progressData);
+      newMessages = [...existingMessages, data.aiMessage];
       
       const newSession = data.unifiedSession ? {
         ...data.unifiedSession,
@@ -386,16 +399,26 @@ class SimpleSessionService {
         updatedAt: new Date().toISOString()
       };
       
-      // Update state with new session
-      this.setState({ 
-        currentSession: newSession,
-      });
-      
-      // Trigger event for real-time updates
-      this.triggerSessionUpdate(newSession);
-      
+      this.updateSessionState(newSession);
       return newSession;
     }
+  }
+
+  // Helper method to update session state (eliminates duplication)
+  updateSessionState(session) {
+    // Update state with session
+    this.setState({ 
+      currentSession: session,
+    });
+    this.updateSidebarSession(session);
+    
+    // Trigger event for real-time updates
+    this.triggerSessionUpdate(session);
+  }
+
+  // Get current session
+  getCurrentSession() {
+    return this.state.currentSession;
   }
 
   async processImage(imageData, model = 'auto', mode = 'marking', customText = null) {
@@ -501,61 +524,11 @@ class SimpleSessionService {
           updatedAt: new Date().toISOString()
         };
         
-        // Update state with updated session
-        this.setState({ 
-          currentSession: updatedSession,
-        });
-        this.updateSidebarSession(updatedSession);
-        
-        // Trigger event for real-time updates
-        this.triggerSessionUpdate(updatedSession);
-        
+        this.updateSessionState(updatedSession);
         return updatedSession;
       } else {
-        // For initial messages, preserve existing user messages and add AI response
-        const existingMessages = this.state.currentSession?.messages || [];
-        const newMessages = [...existingMessages, data.aiMessage];
-        
-        const newSession = data.unifiedSession ? {
-          ...data.unifiedSession,
-          messages: newMessages
-        } : {
-          id: data.sessionId || this.state.currentSession.id,
-          title: data.sessionTitle || 'Marking Session',
-          userId: this.state.currentSession?.userId || 'anonymous',
-          messageType: 'Marking',
-          messages: newMessages,
-          isPastPaper: false,
-          favorite: false,
-          rating: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          sessionMetadata: {
-            totalProcessingTimeMs: 0,
-            lastModelUsed: 'unknown',
-            lastApiUsed: 'Unknown',
-            llmTokens: 0,
-            mathpixCalls: 0,
-            totalTokens: 0,
-            averageConfidence: 0,
-            imageSize: 0,
-            totalAnnotations: 0
-          }
-        };
-        
-        // Update state with new session (now has real session ID and metadata)
-        // Force a new object reference to ensure React detects the change
-        const newSessionWithRef = { ...newSession, _updatedAt: Date.now() };
-        
-        this.setState({ 
-          currentSession: newSessionWithRef,
-        });
-        this.updateSidebarSession(newSessionWithRef);
-        
-        // Trigger event for real-time updates
-        this.triggerSessionUpdate(newSessionWithRef);
-        
-        return newSession;
+        // Use unified message handling logic
+        return this.handleProcessComplete(data);
       }
 
     } catch (error) {

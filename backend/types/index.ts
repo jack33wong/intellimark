@@ -199,6 +199,19 @@ export interface UnifiedMessage {
     apiUsed?: string;
   };
   
+  // Progress data for chat history (simplified)
+  progressData?: {
+    currentStepDescription: string;
+    completedSteps: string[];
+    allSteps: Array<{
+      id: string;
+      name: string;
+      description: string;
+      percentage: number;
+    }>;
+    isComplete: boolean;
+  };
+  
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;

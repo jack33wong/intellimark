@@ -425,19 +425,11 @@ export class FirestoreService {
           }
         }
 
+        // Preserve ALL fields from the input message, with specific overrides for storage
         const messageDoc = {
-          id: message.id,
-          role: message.role,
-          content: message.content,
-          timestamp: message.timestamp || new Date().toISOString(), // Use original timestamp if provided
-          type: message.type || 'chat',
-          imageLink: processedImageLink,
-          fileName: message.fileName || null,
-          model: message.model || null,
-          apiUsed: message.apiUsed || null,
-          detectedQuestion: message.detectedQuestion || null,
-          metadata: message.metadata || null,
-          updatedAt: new Date().toISOString()
+          ...message, // Preserve all original fields
+          imageLink: processedImageLink, // Override with processed image link
+          updatedAt: new Date().toISOString() // Add update timestamp
         };
 
         // Remove null values
@@ -882,6 +874,15 @@ export class FirestoreService {
       
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
+      
+      // Debug logging before persistence
+      console.log('🔍 Before persisting message to database:');
+      console.log('🔍 Original message progressData:', message.progressData);
+      console.log('🔍 Sanitized message progressData:', sanitizedMessage.progressData);
+      console.log('🔍 Sanitized message keys:', Object.keys(sanitizedMessage));
+      console.log('🔍 Has progressData field:', 'progressData' in sanitizedMessage);
+      console.log('🔍 progressData value:', sanitizedMessage.progressData);
+      console.log('🔍 Full sanitized message:', JSON.stringify(sanitizedMessage, null, 2));
       
       // Add the new message to the array
       const updatedMessages = [...existingMessages, sanitizedMessage];

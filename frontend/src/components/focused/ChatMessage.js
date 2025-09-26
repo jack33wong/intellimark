@@ -27,9 +27,13 @@ const ChatMessage = ({
   onImageLoad,
   getImageSrc,
   MarkdownMathRenderer,
-  ensureStringContent
+  ensureStringContent,
+  progressData,
+  stepList,
+  completedSteps
 }) => {
   const [imageError, setImageError] = useState(false);
+  const [showProgressSteps, setShowProgressSteps] = useState(false);
 
 
   // Handle image load error
@@ -40,7 +44,7 @@ const ChatMessage = ({
   // Get message role
   const isUser = isUserMessage(message);
 
-  // Get message content
+  // Get message content - only show AI response, progress steps are handled separately
   const content = getMessageDisplayText(message);
   const timestamp = getMessageTimestamp(message);
 
@@ -55,10 +59,70 @@ const ChatMessage = ({
     <div className={`chat-message ${className} ${isUser ? 'user' : 'assistant'} ${compact ? 'compact' : ''}`}>
       <div className="chat-message-content">
         <div className={`chat-message-bubble ${isMarking ? 'marking-message' : ''}`}>
-          {/* Assistant header with Brain icon */}
+          {/* Assistant header with Brain icon and thinking indicator */}
           {!isUser && (
             <div className="assistant-header">
               <Brain size={20} className="assistant-brain-icon" />
+              {/* Progress steps display for AI messages (same style as processing) */}
+              {message.progressData && message.progressData.allSteps && (
+                <div className="thinking-indicator">
+                  <div className="progress-main-line">
+                    <div className="thinking-dots" style={{ flexShrink: 0 }}>
+                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
+                    </div>
+                    <div className="thinking-text" style={{ flexShrink: 0 }}>
+                      {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
+                    </div>
+                    <div className="progress-toggle-container">
+                      <button 
+                        className="progress-toggle-button"
+                        onClick={() => setShowProgressSteps(!showProgressSteps)}
+                      >
+                        <svg 
+                          width="16" 
+                          height="16" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                          style={{ 
+                            transform: showProgressSteps ? 'rotate(180deg)' : 'rotate(0deg)', 
+                            transition: 'transform 0.2s ease' 
+                          }}
+                        >
+                          <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Progress details - moved outside assistant header to avoid content overlap */}
+          {!isUser && message.progressData && message.progressData.allSteps && showProgressSteps && (
+            <div className="progress-details-container" style={{ textAlign: 'left' }}>
+              <div className="step-list-container">
+                {message.progressData.allSteps.map((step, index) => {
+                  const isCompleted = message.progressData.completedSteps?.includes(step.id) || false;
+                  const isCurrent = index === message.progressData.completedSteps?.length;
+                  return (
+                    <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                      <div className="step-indicator">
+                        {isCompleted ? '✓' : isCurrent ? '●' : '○'}
+                      </div>
+                      <div className="step-description">
+                        {step.description}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
           

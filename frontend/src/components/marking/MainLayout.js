@@ -3,9 +3,9 @@
  * Orchestrates all the focused components for the mark homework page
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
-import { Brain, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
@@ -32,7 +32,12 @@ const MainLayout = ({
   loadingStep,
   loadingTotalSteps,
   loadingMessage,
+  progressData,
+  stepList,
+  completedSteps,
   showExpandedThinking,
+  showProgressDetails,
+  setShowProgressDetails,
   markError,
   
   // Chat props
@@ -69,8 +74,8 @@ const MainLayout = ({
   onSendMessage,
   onKeyPress
 }) => {
-  // State for progress details toggle
-  const [showProgressDetails, setShowProgressDetails] = useState(false);
+  
+
   
   // Runtime validation for critical props
   if (process.env.NODE_ENV === 'development') {
@@ -117,64 +122,56 @@ const MainLayout = ({
                 onImageLoad={handleImageLoad}
                 getImageSrc={getImageSrc}
                 MarkdownMathRenderer={MarkdownMathRenderer}
+                progressData={progressData}
+                stepList={stepList}
+                completedSteps={completedSteps}
                 ensureStringContent={ensureStringContent}
               />
             ))}
             
-            {/* AI Thinking Indicator */}
-            {(isAIThinking || isProcessing) && (
-              <div className="chat-message assistant">
-                <div className="message-bubble">
-                  <div className="assistant-header">
-                    <Brain size={20} className="assistant-brain-icon" />
-                  </div>
-                  <div className="thinking-indicator">
-                    {/* Always show the main thinking line */}
-                    <div className="progress-main-line">
-                      <div className="thinking-dots" style={{ flexShrink: 0 }}>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                      </div>
-                      <div className="thinking-text" style={{ flexShrink: 0 }}>
-                        AI is thinking...
-                      </div>
-                      
-                      {/* Always reserve space for toggle button to prevent layout shift */}
-                      <div className="progress-toggle-container">
-                        {/* Show toggle button when processing starts */}
-                        {(isProcessing || isAIThinking) && (
-                          <button 
-                            onClick={() => setShowProgressDetails(!showProgressDetails)}
-                            className="progress-toggle-button"
-                          >
-                            {showProgressDetails ? '▲' : '▼'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Progress details - show when toggled */}
-                    {showProgressDetails && (isProcessing || isAIThinking) && (
-                      <div className="progress-details-container">
-                        <div className="progress-message-text">
-                          {loadingMessage}
+        {/* AI Thinking Indicator - Show during processing with toggle and dropdown */}
+        {(isAIThinking || isProcessing) && !chatMessages?.some(msg => msg.role === 'assistant') && (
+          <div className="thinking-indicator">
+            <div className="progress-main-line">
+              <div className="thinking-dots" style={{ flexShrink: 0 }}>
+                <div className="thinking-dot"></div>
+                <div className="thinking-dot"></div>
+                <div className="thinking-dot"></div>
+              </div>
+              <div className="thinking-text" style={{ flexShrink: 0 }}>
+                {loadingMessage || 'AI is thinking...'}
+              </div>
+              <div className="progress-toggle-container">
+                <button 
+                  className="progress-toggle-button"
+                  onClick={() => setShowProgressDetails(!showProgressDetails)}
+                >
+                  {showProgressDetails ? '▼' : '▲'}
+                </button>
+              </div>
+            </div>
+            {showProgressDetails && (
+              <div className="progress-details-container" style={{ textAlign: 'left' }}>
+                <div className="step-list-container">
+                  {(stepList || []).map((step, index) => {
+                    const isCompleted = (completedSteps || []).includes(step.id);
+                    const isCurrent = index === (completedSteps || []).length;
+                    return (
+                      <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                        <div className="step-indicator">
+                          {isCompleted ? '✓' : isCurrent ? '●' : '○'}
                         </div>
-                        <div className="progress-step-text">
-                          {loadingStep > 0 && loadingTotalSteps ? `Step ${loadingStep}/${loadingTotalSteps} • ` : ''}{loadingProgress > 0 ? `${loadingProgress}%` : 'Starting...'}
-                        </div>
-                        <div className="progress-bar-container">
-                          <div 
-                            className="progress-fill" 
-                            style={{ width: `${loadingProgress}%` }}
-                          ></div>
+                        <div className="step-description">
+                          {step.description}
                         </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
+          </div>
+        )}
           </div>
           
           {/* Scroll to Bottom Button */}

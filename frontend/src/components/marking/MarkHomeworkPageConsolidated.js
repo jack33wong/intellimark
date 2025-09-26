@@ -59,6 +59,10 @@ const MarkHomeworkPageConsolidated = ({
     loadingStep,
     loadingTotalSteps,
     loadingMessage,
+    progressData,
+    stepList,
+    completedSteps,
+    showProgressDetails,
     
     // Actions - simplified
     startProcessing,
@@ -72,6 +76,7 @@ const MarkHomeworkPageConsolidated = ({
     setChatInput,
     onSendMessage,
     onKeyPress,
+    setShowProgressDetails,
     
     // Session management
     clearSession,
@@ -371,7 +376,12 @@ const MarkHomeworkPageConsolidated = ({
       loadingStep={loadingStep}
       loadingTotalSteps={loadingTotalSteps}
       loadingMessage={loadingMessage}
+      progressData={progressData}
+      stepList={stepList}
+      completedSteps={completedSteps}
       showExpandedThinking={false}
+      showProgressDetails={showProgressDetails}
+      setShowProgressDetails={setShowProgressDetails}
       markError={error}
       chatInput={chatInput}
       setChatInput={setChatInput}

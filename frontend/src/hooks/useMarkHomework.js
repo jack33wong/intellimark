@@ -43,6 +43,7 @@ export const useMarkHomework = () => {
     loadingStep: 0,
     loadingTotalSteps: null, // Start with null, will be set by backend
     loadingMessage: 'Processing your homework...',
+    showProgressDetails: false,
     
     // Chat input state
     chatInput: '',
@@ -90,6 +91,8 @@ export const useMarkHomework = () => {
   // Actions - simplified
   const startProcessing = () => {
     setState(prev => ({ ...prev, isProcessing: true }));
+    // Clear progress when starting new processing
+    resetProgress();
   };
 
   const stopProcessing = () => {
@@ -114,14 +117,18 @@ export const useMarkHomework = () => {
     }));
   };
 
-  // Progress tracking functions
-  const updateProgress = useCallback((step, message, percentage, totalSteps) => {
+  // Progress tracking functions - simplified data structure
+  const updateProgress = useCallback((data) => {
     setState(prev => ({
       ...prev,
-      loadingStep: step,
-      loadingMessage: message,
-      loadingProgress: percentage,
-      loadingTotalSteps: totalSteps !== undefined ? totalSteps : prev.loadingTotalSteps // Use provided totalSteps or keep existing
+      loadingMessage: data.currentStepDescription,
+      progressData: data,
+      stepList: data.allSteps,
+      completedSteps: data.completedSteps,
+      // Derive other values from the data
+      loadingStep: data.completedSteps.length + (data.isComplete ? 0 : 1),
+      loadingTotalSteps: data.allSteps.length,
+      loadingProgress: data.isComplete ? 100 : Math.round((data.completedSteps.length / data.allSteps.length) * 100)
     }));
   }, []);
 
@@ -133,6 +140,12 @@ export const useMarkHomework = () => {
       loadingTotalSteps: null, // Reset to null
       loadingMessage: 'Processing your homework...'
     }));
+  }, []);
+
+  // Session management - simplified
+  const addMessage = useCallback(async (message) => {
+    await simpleSessionService.addMessage(message);
+    // No manual state sync needed - service is single source of truth
   }, []);
 
   // AI thinking state control
@@ -161,22 +174,15 @@ export const useMarkHomework = () => {
     simpleSessionService.clearSession();
   }, []);
   
-  const addMessage = useCallback(async (message) => {
-    await simpleSessionService.addMessage(message);
-    // No manual state sync needed - service is single source of truth
-  }, []);
-  
     const processImageAPI = async (imageData, model, mode, customText = null) => {
       try {
-        // Reset progress when starting
-        resetProgress();
+        // Progress is already reset in startProcessing()
         
         // Check if SSE is enabled (can be disabled for debugging or if SSE has issues)
         const sseEnabled = localStorage.getItem('sseEnabled') !== 'false'; // Default to true
         
         if (sseEnabled) {
-        // Try SSE method first for progress tracking (optional feature)
-        try {
+          // Use SSE method for progress tracking - fail fast if it fails
           const result = await simpleSessionService.processImageWithProgress(
             imageData, 
             model, 
@@ -185,24 +191,7 @@ export const useMarkHomework = () => {
             updateProgress
           );
           
-          // Reset progress on successful completion
-          resetProgress();
-          
           return result;
-        } catch (sseError) {
-          // Fallback to regular endpoint (existing logic)
-          const result = await simpleSessionService.processImage(
-            imageData, 
-            model, 
-            mode, 
-            customText
-          );
-          
-          // Reset progress on successful completion
-          resetProgress();
-          
-          return result;
-        }
         } else {
           // Use regular endpoint directly (SSE disabled)
           const result = await simpleSessionService.processImage(
@@ -211,9 +200,6 @@ export const useMarkHomework = () => {
             mode, 
             customText
           );
-          
-          // Reset progress on successful completion
-          resetProgress();
           
           return result;
         }
@@ -234,6 +220,11 @@ export const useMarkHomework = () => {
   // Chat input management
   const setChatInput = useCallback((value) => {
     setState(prev => ({ ...prev, chatInput: value }));
+  }, []);
+
+  // Progress details toggle
+  const setShowProgressDetails = useCallback((show) => {
+    setState(prev => ({ ...prev, showProgressDetails: show }));
   }, []);
 
   // Send text message handler
@@ -394,6 +385,7 @@ export const useMarkHomework = () => {
     setChatInput,
     onSendMessage,
     onKeyPress,
+    setShowProgressDetails,
     
     // Session management
     clearSession,

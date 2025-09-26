@@ -766,7 +766,21 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 12px;
+  flex-direction: row;
+}
+
+.assistant-header .thinking-indicator {
+  flex: 1;
+  margin: 0;
+}
+
+.progress-details-container {
+  margin-top: 8px;
+  background: var(--background-gray-main);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
 }
 
 .assistant-brain-icon {
@@ -796,9 +810,8 @@
 .thinking-indicator {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 25px 0px;
+  align-items: flex-start;
+  padding: 12px 25px 0px;
 }
 
 .thinking-dots {
@@ -826,6 +839,10 @@
 
 .thinking-dot:nth-child(3) {
   animation-delay: 0s;
+}
+
+.thinking-dot.no-animation {
+  animation: none;
 }
 
 .thinking-text {
@@ -983,6 +1000,7 @@
   gap: 8px;
   white-space: nowrap;
   width: 100%;
+  padding: 0px 0px 8px 0px;
 }
 
 .progress-toggle-container {
@@ -1014,10 +1032,11 @@
 .progress-details-container {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  background-color: rgba(0, 0, 0, 0.02);
-  border-radius: 6px;
+  align-items: flex-start;
+  gap: 0;
+  background-color: transparent;
+  border-radius: 0;
+  position: relative;
 }
 
 .progress-message-text {
@@ -1040,5 +1059,98 @@
   background: var(--border-main);
   border-radius: 4px;
   overflow: hidden;
+}
+
+/* Step List Styles */
+.step-list-container {
+ 
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 400px;
+  min-height: 200px;
+  overflow-y: auto;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  position: relative;
+}
+
+/* Vertical timeline bar */
+.step-list-container::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 30px;
+  bottom: 30px;
+  width: 2px;
+  background: var(--text-tertiary);
+  border-radius: 1px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 15px;
+  border-radius: 0;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.step-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.step-indicator {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background-color: var(--background-card-gray);
+  border: 2px solid var(--text-tertiary);
+  position: relative;
+  z-index: 1;
+}
+
+.step-item.completed .step-indicator {
+  color: var(--text-tertiary);
+  background-color: var(--background-card-gray);
+  border-color: var(--text-tertiary);
+}
+
+.step-item.current .step-indicator {
+  color: var(--text-tertiary);
+  background-color: var(--background-card-gray);
+  border-color: var(--text-tertiary);
+}
+
+.step-item:not(.completed):not(.current) .step-indicator {
+  color: var(--text-tertiary);
+  background-color: var(--background-card-gray);
+  border-color: var(--text-tertiary);
+}
+
+.step-description {
+  color: var(--text-secondary);
+  flex: 1;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.step-item.completed .step-description {
+  color: var(--text-primary);
+  opacity: 0.7;
+}
+
+.step-item.current .step-description {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 

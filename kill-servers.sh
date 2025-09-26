@@ -19,3 +19,5 @@ echo "   Frontend: cd frontend && npm start"
 echo "   Backend: cd backend && npx tsx server.ts"
 
 
+
+

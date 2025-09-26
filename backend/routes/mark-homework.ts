@@ -402,6 +402,12 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     const userId = (req as any)?.user?.uid || 'anonymous';
     const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(req as any)?.user?.uid;
+    
+    console.log('🔍 Authentication Debug:');
+    console.log('🔍 userId:', userId);
+    console.log('🔍 userEmail:', userEmail);
+    console.log('🔍 isAuthenticated:', isAuthenticated);
+    console.log('🔍 req.user:', (req as any)?.user);
 
     // Set SSE headers
     res.writeHead(200, {
@@ -413,14 +419,15 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     });
 
     // Progress callback for SSE
-    const onProgress = (step: number, message: string, percentage: number) => {
-      const progressData = {
-        step,
-        message,
-        percentage,
-        timestamp: new Date().toISOString()
-      };
-      res.write(`data: ${JSON.stringify(progressData)}\n\n`);
+    const onProgress = (data: any) => {
+      try {
+        const sseData = `data: ${JSON.stringify(data)}\n\n`;
+        res.write(sseData);
+      } catch (sseError) {
+        console.error('❌ SSE write error:', sseError);
+        console.error('❌ SSE data that failed:', data);
+        throw sseError;
+      }
     };
 
     // Process the image with progress tracking
@@ -455,7 +462,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       }
     }
 
-    // Create AI message (same structure as regular endpoint)
+    // Create AI message with separate content and progressData
     const aiMessage = {
       id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
@@ -464,6 +471,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       imageData: result.annotatedImage || null,
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
+      progressData: result.progressData || null, // Keep progress data for frontend
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
@@ -636,13 +644,31 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       unifiedSession: completeSession
     };
     
-    res.write(`data: ${JSON.stringify({ type: 'complete', result: finalResult })}\n\n`);
-    res.end();
+    const completeData = { type: 'complete', result: finalResult };
+    const sseData = `data: ${JSON.stringify(completeData)}\n\n`;
+    
+    try {
+      res.write(sseData);
+      res.end();
+    } catch (writeError) {
+      console.error('❌ SSE final write error:', writeError);
+      console.error('❌ SSE final data that failed:', completeData);
+      throw writeError;
+    }
 
   } catch (error) {
     console.error('❌ Error in process-single-stream:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
-    res.end();
+    console.error('❌ Error stack:', error.stack);
+    
+    try {
+      const errorData = { type: 'error', error: error.message };
+      const sseData = `data: ${JSON.stringify(errorData)}\n\n`;
+      res.write(sseData);
+      res.end();
+    } catch (writeError) {
+      console.error('❌ SSE error write failed:', writeError);
+      console.error('❌ Original error:', error);
+    }
   }
 });
 
@@ -703,6 +729,11 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
 
     // Debug mode from request parameter
     console.log(`🔍 [API CALL] /api/mark-homework/process-single - Debug Mode: ${debug ? 'ON' : 'OFF'}`);
+    console.log('🔍 Authentication Debug:');
+    console.log('🔍 userId:', userId);
+    console.log('🔍 userEmail:', userEmail);
+    console.log('🔍 isAuthenticated:', isAuthenticated);
+    console.log('🔍 req.user:', (req as any)?.user);
 
     // Process the image for AI response (includes classification + marking)
     // Add timeout to prevent hanging
@@ -736,7 +767,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       }
     }
 
-    // Create AI response message (common for both authenticated and unauthenticated users)
+    // Create AI message with separate content and progressData
     const aiMessage = {
       id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
@@ -746,6 +777,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       imageLink: annotatedImageLink, // For authenticated users
       imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
       fileName: 'annotated-image.png',
+      progressData: result.progressData || null, // Add progress data for frontend
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
@@ -754,13 +786,18 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
         ocrMethod: result.ocrMethod
       }
     };
-
+    
     // Determine session ID (needed for response)
     const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
     let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // For authenticated users, persist to database
+    console.log('🔍 Database Persistence Check:');
+    console.log('🔍 isAuthenticated:', isAuthenticated);
+    console.log('🔍 Will persist to database:', isAuthenticated);
+    
     if (isAuthenticated) {
+      console.log('🔍 Starting database persistence...');
       try {
         const { FirestoreService } = await import('../services/firestoreService.js');
         
@@ -1001,7 +1038,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // Create AI response message
+    // Create AI message with separate content and progressData
     const aiMessage = {
       id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',

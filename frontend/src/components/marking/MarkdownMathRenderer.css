@@ -21,7 +21,7 @@
 
 .markdown-math-renderer .markdown-h1 { font-size: 2em; }
 .markdown-math-renderer .markdown-h2 { font-size: 1.5em; }
-.markdown-math-renderer .markdown-h3 { font-size: 1.25em; }
+.markdown-math-renderer .markdown-h3 { font-size: 1.1em; }
 .markdown-math-renderer .markdown-h4 { font-size: 1em; }
 .markdown-math-renderer .markdown-h5 { font-size: 0.875em; }
 .markdown-math-renderer .markdown-h6 { font-size: 0.85em; }
@@ -38,7 +38,7 @@
 /* Paragraphs */
 .markdown-math-renderer .markdown-p {
   margin: 0 0 1em 0;
-  line-height: 1.6;
+  line-height: 1.4;
 }
 
 /* Lists */

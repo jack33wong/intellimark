@@ -10,6 +10,73 @@
   margin-bottom: 24px; /* Extra margin for last message to ensure visibility */
 }
 
+/* Progress steps display */
+.progress-steps-display {
+  margin: 12px 0;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  background: var(--background-menu-gray);
+}
+
+.progress-steps-header {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-main);
+}
+
+.progress-toggle-button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.progress-toggle-button:hover {
+  background: var(--background-hover);
+}
+
+.progress-steps-list {
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.progress-step.completed {
+  color: var(--text-primary);
+}
+
+.progress-step:not(.completed) {
+  color: var(--text-secondary);
+}
+
+.progress-step-indicator {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.progress-step-description {
+  flex: 1;
+}
+
 .chat-message.user {
   justify-content: flex-end;
   align-items: flex-end;

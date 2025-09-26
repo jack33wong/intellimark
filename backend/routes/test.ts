@@ -45,4 +45,54 @@ router.post('/add-message', authenticateUser, async (req, res) => {
   }
 });
 
+/**
+ * GET /test/progress-data
+ * Test progressData generation
+ */
+router.get('/progress-data', async (req, res) => {
+  try {
+    const { ProgressTracker } = await import('../utils/progressTracker.js');
+    
+    const MARKING_MODE_STEPS = [
+      { id: 'classification', name: 'Classification', description: 'Analyzing image...', percentage: 14 },
+      { id: 'detection', name: 'Detection', description: 'Detecting question type...', percentage: 28 },
+      { id: 'extraction', name: 'Extraction', description: 'Extracting text and math...', percentage: 42 },
+      { id: 'generation', name: 'Generation', description: 'Generating feedback...', percentage: 57 },
+      { id: 'annotation', name: 'Annotation', description: 'Creating annotations...', percentage: 71 },
+      { id: 'finalization', name: 'Finalization', description: 'Finalizing response...', percentage: 85 },
+      { id: 'completion', name: 'Completion', description: 'Almost done...', percentage: 100 }
+    ];
+
+    let finalProgressData = null;
+    const progressTracker = new ProgressTracker(MARKING_MODE_STEPS, (data) => {
+      finalProgressData = data;
+    });
+
+    // Simulate progress
+    progressTracker.startStep('classification');
+    progressTracker.completeStep('classification');
+    progressTracker.startStep('detection');
+    progressTracker.completeStep('detection');
+    progressTracker.startStep('extraction');
+    progressTracker.completeStep('extraction');
+    progressTracker.startStep('generation');
+    progressTracker.completeStep('generation');
+    progressTracker.startStep('annotation');
+    progressTracker.completeStep('annotation');
+    progressTracker.startStep('finalization');
+    progressTracker.completeStep('finalization');
+    progressTracker.startStep('completion');
+    progressTracker.completeStep('completion');
+
+    res.json({ 
+      success: true, 
+      progressData: finalProgressData,
+      message: 'ProgressData generated successfully' 
+    });
+  } catch (error) {
+    console.error('❌ Test progress-data error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
