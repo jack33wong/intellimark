@@ -127,6 +127,8 @@ const MainLayout = ({
                 stepList={stepList}
                 completedSteps={completedSteps}
                 ensureStringContent={ensureStringContent}
+                scrollToBottom={scrollToBottom}
+                isLastMessage={index === chatMessages.length - 1}
               />
             ))}
             
@@ -182,15 +184,15 @@ const MainLayout = ({
                     const stepsToShow = (stepList || []).slice(0, currentStepIndex + 1);
                     
                     return stepsToShow.map((step, index) => {
-                      const isCompleted = (completedSteps || []).includes(step.id);
+                      const isCompleted = (completedSteps || []).includes(step);
                       const isCurrent = index === completedCount;
                       return (
-                        <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                        <div key={index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                           <div className="step-indicator">
                             {isCompleted ? '✓' : isCurrent ? '●' : '○'}
                           </div>
                           <div className="step-description">
-                            {step.description}
+                            {step}
                           </div>
                         </div>
                       );

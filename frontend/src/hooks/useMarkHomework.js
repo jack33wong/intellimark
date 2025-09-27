@@ -125,7 +125,7 @@ export const useMarkHomework = () => {
   const updateProgress = useCallback((data) => {
     setState(prev => ({
       ...prev,
-      loadingMessage: data.currentStepDescription,
+      loadingMessage: data.currentStep,
       progressData: data,
       stepList: data.allSteps,
       completedSteps: data.completedSteps,
@@ -189,10 +189,9 @@ export const useMarkHomework = () => {
       isProcessing: true,
       progressData: progressData || {
         isComplete: false,
-        currentStepDescription: 'Processing...',
+        currentStep: 'Processing...',
         allSteps: [],
-        completedSteps: [],
-        currentStepId: null
+        completedSteps: []
       },
       timestamp: new Date().toISOString()
     };
@@ -318,13 +317,12 @@ export const useMarkHomework = () => {
       // Create processing message for follow-up questions to show progress
       const textProgressData = {
         isComplete: false,
-        currentStepDescription: 'Thinking...',
+        currentStep: 'Thinking...',
         allSteps: [
-          { id: 'thinking', description: 'Processing your question...' },
-          { id: 'response', description: 'Generating response...' }
+          'Processing your question...',
+          'Generating response...'
         ],
-        completedSteps: [],
-        currentStepId: 'thinking'
+        completedSteps: []
       };
       
       startAIThinking(textProgressData);
@@ -332,10 +330,9 @@ export const useMarkHomework = () => {
       // Update progress: Processing your question...
       updateProgress({
         isComplete: false,
-        currentStepDescription: 'Processing your question...',
+        currentStep: 'Processing your question...',
         allSteps: textProgressData.allSteps,
-        completedSteps: ['thinking'],
-        currentStepId: 'response'
+        completedSteps: ['Processing your question...']
       });
       
       // Call the backend API to get AI response
@@ -370,10 +367,9 @@ export const useMarkHomework = () => {
       // Update progress: Generating response...
       updateProgress({
         isComplete: false,
-        currentStepDescription: 'Generating response...',
+        currentStep: 'Generating response...',
         allSteps: textProgressData.allSteps,
-        completedSteps: ['thinking', 'response'],
-        currentStepId: 'complete'
+        completedSteps: ['Processing your question...', 'Generating response...']
       });
       
       if (data.success) {
@@ -400,10 +396,9 @@ export const useMarkHomework = () => {
                   content: aiMessage.content,
                   progressData: {
                     isComplete: true,
-                    currentStepDescription: 'Show thinking',
+                    currentStep: 'Show thinking',
                     allSteps: textProgressData.allSteps,
-                    completedSteps: ['thinking', 'response'],
-                    currentStepId: 'complete'
+                    completedSteps: ['Processing your question...', 'Generating response...']
                   },
                   isProcessing: false,
                   timestamp: new Date().toISOString()

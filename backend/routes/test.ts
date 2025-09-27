@@ -54,13 +54,13 @@ router.get('/progress-data', async (req, res) => {
     const { ProgressTracker } = await import('../utils/progressTracker.js');
     
     const MARKING_MODE_STEPS = [
-      { id: 'classification', name: 'Classification', description: 'Analyzing image...', percentage: 14 },
-      { id: 'detection', name: 'Detection', description: 'Detecting question type...', percentage: 28 },
-      { id: 'extraction', name: 'Extraction', description: 'Extracting text and math...', percentage: 42 },
-      { id: 'generation', name: 'Generation', description: 'Generating feedback...', percentage: 57 },
-      { id: 'annotation', name: 'Annotation', description: 'Creating annotations...', percentage: 71 },
-      { id: 'finalization', name: 'Finalization', description: 'Finalizing response...', percentage: 85 },
-      { id: 'completion', name: 'Completion', description: 'Almost done...', percentage: 100 }
+      'Analyzing image...',
+      'Detecting question type...',
+      'Extracting text and math...',
+      'Generating feedback...',
+      'Creating annotations...',
+      'Finalizing response...',
+      'Almost done...'
     ];
 
     let finalProgressData = null;
@@ -69,20 +69,20 @@ router.get('/progress-data', async (req, res) => {
     });
 
     // Simulate progress
-    progressTracker.startStep('classification');
-    progressTracker.completeStep('classification');
-    progressTracker.startStep('detection');
-    progressTracker.completeStep('detection');
-    progressTracker.startStep('extraction');
-    progressTracker.completeStep('extraction');
-    progressTracker.startStep('generation');
-    progressTracker.completeStep('generation');
-    progressTracker.startStep('annotation');
-    progressTracker.completeStep('annotation');
-    progressTracker.startStep('finalization');
-    progressTracker.completeStep('finalization');
-    progressTracker.startStep('completion');
-    progressTracker.completeStep('completion');
+    progressTracker.startStep('Analyzing image...');
+    progressTracker.completeStep('Analyzing image...');
+    progressTracker.startStep('Detecting question type...');
+    progressTracker.completeStep('Detecting question type...');
+    progressTracker.startStep('Extracting text and math...');
+    progressTracker.completeStep('Extracting text and math...');
+    progressTracker.startStep('Generating feedback...');
+    progressTracker.completeStep('Generating feedback...');
+    progressTracker.startStep('Creating annotations...');
+    progressTracker.completeStep('Creating annotations...');
+    progressTracker.startStep('Finalizing response...');
+    progressTracker.completeStep('Finalizing response...');
+    progressTracker.startStep('Almost done...');
+    progressTracker.completeStep('Almost done...');
 
     res.json({ 
       success: true, 

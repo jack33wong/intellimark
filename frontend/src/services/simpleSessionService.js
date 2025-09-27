@@ -327,8 +327,8 @@ class SimpleSessionService {
                 return this.handleProcessComplete(data.result);
               } else if (data.type === 'error') {
                 throw new Error(data.error);
-              } else if (data.currentStepDescription && onProgress) {
-                // Progress update - check for currentStepDescription instead of currentStep
+              } else if (data.currentStep && onProgress) {
+                // Progress update - check for currentStep
                 onProgress(data);
               } else {
               }

@@ -30,10 +30,29 @@ const ChatMessage = ({
   ensureStringContent,
   progressData,
   stepList,
-  completedSteps
+  completedSteps,
+  scrollToBottom,
+  isLastMessage = false
 }) => {
   const [imageError, setImageError] = useState(false);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
+
+  // Handle progress toggle with conditional scroll
+  const handleProgressToggle = () => {
+    const newShowProgressDetails = !showProgressDetails;
+    setShowProgressDetails(newShowProgressDetails);
+    
+    // Only scroll to bottom if:
+    // 1. This is the last message
+    // 2. We're expanding (not collapsing) the progress details
+    // 3. scrollToBottom function is available
+    if (isLastMessage && newShowProgressDetails && scrollToBottom) {
+      // Use setTimeout to ensure the DOM has updated with the expanded content
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  };
 
 
   // Handle image load error
@@ -73,12 +92,12 @@ const ChatMessage = ({
                       <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
                     </div>
                     <div className="thinking-text" style={{ flexShrink: 0 }}>
-                      {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
+                      {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStep || 'Processing...')}
                     </div>
                     <div className="progress-toggle-container">
                       <button
                         className="progress-toggle-button"
-                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        onClick={handleProgressToggle}
                         style={{
                           transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
                           transition: 'transform 0.2s ease'
@@ -113,7 +132,7 @@ const ChatMessage = ({
                     <div className="progress-toggle-container">
                       <button
                         className="progress-toggle-button"
-                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        onClick={handleProgressToggle}
                         style={{
                           transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
                           transition: 'transform 0.2s ease'
@@ -141,15 +160,15 @@ const ChatMessage = ({
                   const stepsToShow = message.progressData.allSteps.slice(0, currentStepIndex + 1);
                   
                   return stepsToShow.map((step, index) => {
-                    const isCompleted = message.progressData.completedSteps?.includes(step.id) || false;
+                    const isCompleted = message.progressData.completedSteps?.includes(step) || false;
                     const isCurrent = index === completedCount;
                     return (
-                      <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                      <div key={index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                         <div className="step-indicator">
                           {isCompleted ? '✓' : isCurrent ? '●' : '○'}
                         </div>
                         <div className="step-description">
-                          {step.description}
+                          {step}
                         </div>
                       </div>
                     );

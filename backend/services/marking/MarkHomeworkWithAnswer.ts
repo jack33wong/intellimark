@@ -227,7 +227,7 @@ export class MarkHomeworkWithAnswer {
     });
 
     // Start progress tracking immediately
-    progressTracker.startStep('classification');
+    progressTracker.startStep('Analyzing image...');
 
     // Debug mode: Skip AI processing but go through the flow
     if (debug) {
@@ -271,13 +271,13 @@ export class MarkHomeworkWithAnswer {
     }
 
     // Complete classification step
-    progressTracker.completeStep('classification');
+    progressTracker.completeStep('Analyzing image...');
     
     // Start question detection step
-    progressTracker.startStep('question_detection');
+    progressTracker.startStep('Detecting question type...');
     
     // Complete question detection step
-    progressTracker.completeStep('question_detection');
+    progressTracker.completeStep('Detecting question type...');
     
     // Determine mode
     const isQuestionMode = imageClassification.isQuestionOnly;
@@ -290,10 +290,10 @@ export class MarkHomeworkWithAnswer {
         if (onProgress) onProgress(data);
       });
       // Copy current state
-      questionProgressTracker.startStep('classification');
-      questionProgressTracker.completeStep('classification');
-      questionProgressTracker.startStep('question_detection');
-      questionProgressTracker.completeStep('question_detection');
+      questionProgressTracker.startStep('Analyzing image...');
+      questionProgressTracker.completeStep('Analyzing image...');
+      questionProgressTracker.startStep('Detecting question type...');
+      questionProgressTracker.completeStep('Detecting question type...');
       
       let sessionTitle = `Question ${new Date().toLocaleDateString()}`;
       let isPastPaper = false;
@@ -318,7 +318,7 @@ export class MarkHomeworkWithAnswer {
       const totalProcessingTime = Date.now() - startTime;
       
       // Start AI response step
-      questionProgressTracker.startStep('ai_response');
+      questionProgressTracker.startStep('Generating response...');
       
       // For question-only mode, generate simple AI tutoring response
       let chatResponse;
@@ -344,7 +344,7 @@ export class MarkHomeworkWithAnswer {
       }
       
       // Complete AI response step
-      questionProgressTracker.completeStep('ai_response');
+      questionProgressTracker.completeStep('Generating response...');
       questionProgressTracker.finish();
       
       // Debug logging for progressData
@@ -380,24 +380,24 @@ export class MarkHomeworkWithAnswer {
     // Continue with marking mode steps
     // Step 3: OCR
     console.log(`🔄 [STEP 3] OCR Processing - ${actualModelName}`);
-    progressTracker.startStep('ocr_processing');
+    progressTracker.startStep('Extracting text and math...');
     const processedImage = await this.processImageWithRealOCR(imageData, debug);
-    progressTracker.completeStep('ocr_processing');
+    progressTracker.completeStep('Extracting text and math...');
 
     // Step 4: Marking instructions
     console.log(`🔄 [STEP 4] Marking Instructions - ${actualModelName}`);
-    progressTracker.startStep('marking_instructions');
+    progressTracker.startStep('Generating feedback...');
     const markingInstructions = await this.generateMarkingInstructions(
       imageData,
       model,
       processedImage,
       questionDetection
     );
-    progressTracker.completeStep('marking_instructions');
+    progressTracker.completeStep('Generating feedback...');
 
     // Step 5: Burn overlay
     console.log(`🔄 [STEP 5] Burn Overlay - ${actualModelName}`);
-    progressTracker.startStep('burn_overlay');
+    progressTracker.startStep('Creating annotations...');
     
     const annotations = markingInstructions.annotations.map(ann => ({
       bbox: ann.bbox,
@@ -411,11 +411,11 @@ export class MarkHomeworkWithAnswer {
       annotations,
       processedImage.imageDimensions
     );
-    progressTracker.completeStep('burn_overlay');
+    progressTracker.completeStep('Creating annotations...');
 
     // Step 6: Generate AI response for marking mode
     console.log(`🔄 [STEP 6] AI Response Generation - ${actualModelName}`);
-    progressTracker.startStep('ai_response');
+    progressTracker.startStep('Finalizing response...');
     let markingChatResponse;
     try {
       const { AIMarkingService } = await import('../aiMarkingService');
@@ -433,14 +433,14 @@ export class MarkHomeworkWithAnswer {
         apiUsed: 'Fallback'
       };
     }
-    progressTracker.completeStep('ai_response');
+    progressTracker.completeStep('Finalizing response...');
 
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
     // Step 7: Data processed - session will be created by route
     console.log(`🔄 [STEP 7] Data Processing Complete - ${actualModelName}`);
-    progressTracker.startStep('data_complete');
+    progressTracker.startStep('Almost done...');
     progressTracker.finish();
 
     // Step 6: Create session for marking

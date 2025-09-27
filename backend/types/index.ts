@@ -201,14 +201,9 @@ export interface UnifiedMessage {
   
   // Progress data for chat history (simplified)
   progressData?: {
-    currentStepDescription: string;
+    currentStep: string;
     completedSteps: string[];
-    allSteps: Array<{
-      id: string;
-      name: string;
-      description: string;
-      percentage: number;
-    }>;
+    allSteps: string[];
     isComplete: boolean;
   };
   

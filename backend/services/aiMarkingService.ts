@@ -194,12 +194,12 @@ export class AIMarkingService {
       // Call progress callback to indicate AI response generation is starting
       if (onProgress) {
         onProgress({
-          currentStepDescription: 'Generating response...',
-          completedSteps: ['classification', 'question_detection'],
+          currentStep: 'Generating response...',
+          completedSteps: ['Analyzing image...', 'Detecting question type...'],
           allSteps: [
-            { id: 'classification', description: 'Analyzing image...' },
-            { id: 'question_detection', description: 'Detecting question type...' },
-            { id: 'ai_response', description: 'Generating response...' }
+            'Analyzing image...',
+            'Detecting question type...',
+            'Generating response...'
           ],
           isComplete: false
         });
