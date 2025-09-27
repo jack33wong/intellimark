@@ -206,25 +206,22 @@ class UnifiedMarkingService {
       throw new Error('Message is required for text flow');
     }
     
-    // Generate AI response
-    const chatResponse = await AIMarkingService.generateChatResponse(
-      '', // No image data for text-only
+    // Generate AI response for text-only
+    const chatResponse = await AIMarkingService.generateContextualResponse(
       message,
-      model as ModelType,
-      true, // isQuestionOnly
-      false, // debug
-      undefined // onProgress
+      [], // No chat history for now
+      model as ModelType
     );
     
     return {
-      message: chatResponse.response,
+      message: chatResponse,
       isQuestionOnly: true,
       sessionTitle: 'Chat Session',
       progressData: {
         isComplete: true,
-        currentStep: 'Show thinking',
+        currentStepIndex: 2,
         allSteps: ['Processing your question...', 'Generating response...'],
-        completedSteps: ['Processing your question...', 'Generating response...']
+        completedStepIndices: [0, 1]
       },
       metadata: { flowType: 'text' }
     };
@@ -234,20 +231,36 @@ class UnifiedMarkingService {
    * Process image-based flow
    */
   static async processImageFlow(requestData: RequestData, onProgress?: (data: any) => void): Promise<ProcessingResult> {
-    const { imageData, model, auth, mode } = requestData;
+    const { imageData, message, model, auth, mode, flowType } = requestData;
     
     if (!imageData) {
       throw new Error('ImageData is required for image flow');
     }
     
-    // Process image with AI
-    const result = await MarkHomeworkWithAnswer.run({
-      imageData,
-      model: model as ModelType,
-      userId: auth.userId,
-      userEmail: auth.userEmail,
-      onProgress: onProgress
-    });
+    let result: ProcessingResult;
+    
+    if (flowType === 'image_with_text' && message) {
+      // Handle image + text submission using marking service for proper annotated images
+      console.log('🔄 Processing image + text submission with marking service');
+      result = await MarkHomeworkWithAnswer.run({
+        imageData,
+        model: model as ModelType,
+        userId: auth.userId,
+        userEmail: auth.userEmail,
+        onProgress: onProgress,
+        customMessage: message // Pass the user's text message
+      });
+    } else {
+      // Handle image-only submission using existing flow
+      console.log('🔄 Processing image-only submission');
+      result = await MarkHomeworkWithAnswer.run({
+        imageData,
+        model: model as ModelType,
+        userId: auth.userId,
+        userEmail: auth.userEmail,
+        onProgress: onProgress
+      });
+    }
     
     // Handle image uploads for authenticated users
     let imageLinks = {};
@@ -260,7 +273,7 @@ class UnifiedMarkingService {
       imageLinks,
       metadata: { 
         ...result.metadata,
-        flowType: 'image',
+        flowType: requestData.flowType,
         processingMode: mode
       }
     };
@@ -325,6 +338,11 @@ class UnifiedMarkingService {
     };
     
     // Create AI message
+    // Strip progress data for database persistence - keep only allSteps
+    const strippedProgressData = result.progressData ? {
+      allSteps: result.progressData.allSteps || []
+    } : null;
+
     const aiMessage = {
       id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
@@ -333,7 +351,7 @@ class UnifiedMarkingService {
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       imageLink: requestData.imageLinks?.annotated,
       imageData: !auth.isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined,
-      progressData: result.progressData || null,
+      progressData: strippedProgressData,
       metadata: result.metadata || {}
     };
     

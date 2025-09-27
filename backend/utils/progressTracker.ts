@@ -4,8 +4,8 @@
  */
 
 export interface ProgressData {
-  currentStep: string;            // Current step description for UI
-  completedSteps: string[];       // Array of completed step descriptions
+  currentStepIndex: number;       // Current step index (0-based)
+  completedStepIndices: number[]; // Array of completed step indices
   allSteps: string[];             // Complete array of all step descriptions
   isComplete: boolean;            // Whether all steps are completed
 }
@@ -13,7 +13,7 @@ export interface ProgressData {
 export class ProgressTracker {
   private steps: string[];
   private currentStepIndex: number = 0;
-  private completedSteps: string[] = [];
+  private completedStepIndices: number[] = [];
   private onProgress: (data: ProgressData) => void;
 
   constructor(steps: string[], onProgress: (data: ProgressData) => void) {
@@ -33,32 +33,32 @@ export class ProgressTracker {
   }
 
   completeStep(stepDescription: string): void {
-    if (!this.completedSteps.includes(stepDescription)) {
-      this.completedSteps.push(stepDescription);
+    const stepIndex = this.steps.findIndex(step => step === stepDescription);
+    if (stepIndex !== -1 && !this.completedStepIndices.includes(stepIndex)) {
+      this.completedStepIndices.push(stepIndex);
     }
     this.updateProgress();
   }
 
   completeCurrentStep(): void {
-    if (this.currentStepIndex < this.steps.length) {
-      const currentStep = this.steps[this.currentStepIndex];
-      this.completeStep(currentStep);
+    if (this.currentStepIndex < this.steps.length && !this.completedStepIndices.includes(this.currentStepIndex)) {
+      this.completedStepIndices.push(this.currentStepIndex);
     }
+    this.updateProgress();
   }
 
   finish(): void {
-    this.completedSteps = [...this.steps];
+    this.completedStepIndices = Array.from({ length: this.steps.length }, (_, i) => i);
     this.currentStepIndex = this.steps.length;
     this.updateProgress();
   }
 
   private updateProgress(): void {
-    const currentStep = this.steps[this.currentStepIndex];
-    const isComplete = this.completedSteps.length === this.steps.length;
+    const isComplete = this.completedStepIndices.length === this.steps.length;
 
     const progressData: ProgressData = {
-      currentStep: currentStep || '',
-      completedSteps: [...this.completedSteps],
+      currentStepIndex: this.currentStepIndex,
+      completedStepIndices: [...this.completedStepIndices],
       allSteps: [...this.steps],
       isComplete
     };

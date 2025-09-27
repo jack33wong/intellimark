@@ -211,9 +211,10 @@ export class MarkHomeworkWithAnswer {
     userEmail?: string;
     debug?: boolean;
     onProgress?: (data: any) => void;
+    customMessage?: string;
   }): Promise<MarkHomeworkResponse> {
     const startTime = Date.now();
-    const { imageData, model, debug = false, onProgress } = params;
+    const { imageData, model, debug = false, onProgress, customMessage } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
@@ -421,7 +422,7 @@ export class MarkHomeworkWithAnswer {
       const { AIMarkingService } = await import('../aiMarkingService');
       markingChatResponse = await AIMarkingService.generateChatResponse(
         imageData,
-        'I have completed this work and would like feedback on my solution.',
+        customMessage || 'I have completed this work and would like feedback on my solution.',
         model as any, // Convert to SimpleModelType
         false, // isQuestionOnly = false for marking mode
         debug

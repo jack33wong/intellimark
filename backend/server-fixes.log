@@ -1,0 +1,109 @@
+
+> intellimark-chat-backend@1.0.0 dev
+> cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
+
+[33m[nodemon] 3.1.10[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: json,json[39m
+[32m[nodemon] starting `tsx --tsconfig tsconfig.dev.json server.ts`[39m
+🔄 Processing image + text submission with marking service
+🔄 [STEP 1] Classification - gemini-2.0-flash-lite
+🔄 [STEP 2] Question Detection - gemini-2.0-flash-lite
+🔄 [STEP 3] OCR Processing - gemini-2.0-flash-lite
+✅ [GOOGLE VISION] Pass A completed
+✅ [GOOGLE VISION] Pass B completed
+✅ [GOOGLE VISION] Pass C completed
+✅ [OCR PROCESSING] Google Vision completed - 0 text blocks detected
+✅ [OCR PROCESSING] Math Detection completed - 0 math blocks found
+✅ [OCR PROCESSING] Hybrid OCR completed - 0 text blocks, 0 math blocks, 424ms
+🔄 [STEP 4] Marking Instructions - gemini-2.0-flash-lite
+🔄 [STEP 5] Burn Overlay - gemini-2.0-flash-lite
+🔄 [STEP 6] AI Response Generation - gemini-2.0-flash-lite
+❌ Gemini API Error: 400 Bad Request
+❌ Error Details: {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+❌ Gemini chat response failed: Error: Gemini API request failed: 400 Bad Request - {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+    at AIMarkingService.makeGeminiChatRequest (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:536:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AIMarkingService.callGeminiForChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:409:24)
+    at async AIMarkingService.generateChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:209:16)
+    at async MarkHomeworkWithAnswer.run (/Users/ytwong/github/intellimark/backend/services/marking/MarkHomeworkWithAnswer.ts:423:29)
+    at async UnifiedMarkingService.processImageFlow (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:248:16)
+    at async UnifiedMarkingService.processRequest (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:92:18)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/unified-marking.ts:86:20)
+❌ [CHAT RESPONSE ERROR] Failed with model: gemini-2.0-flash-lite Error: Gemini API request failed: 400 Bad Request - {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+    at AIMarkingService.makeGeminiChatRequest (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:536:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AIMarkingService.callGeminiForChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:409:24)
+    at async AIMarkingService.generateChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:209:16)
+    at async MarkHomeworkWithAnswer.run (/Users/ytwong/github/intellimark/backend/services/marking/MarkHomeworkWithAnswer.ts:423:29)
+    at async UnifiedMarkingService.processImageFlow (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:248:16)
+    at async UnifiedMarkingService.processRequest (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:92:18)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/unified-marking.ts:86:20)
+❌ [ERROR] chat response model: gemini-2.0-flash-lite failed with unknown error
+🔄 [FALLBACK] Non-429 error - Using: Auto model for chat response
+❌ Gemini API Error: 400 Bad Request
+❌ Error Details: {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+❌ Gemini chat response failed: Error: Gemini API request failed: 400 Bad Request - {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+    at AIMarkingService.makeGeminiChatRequest (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:536:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AIMarkingService.callGeminiForChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:409:24)
+    at async AIMarkingService.generateChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:271:30)
+    at async MarkHomeworkWithAnswer.run (/Users/ytwong/github/intellimark/backend/services/marking/MarkHomeworkWithAnswer.ts:423:29)
+    at async UnifiedMarkingService.processImageFlow (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:248:16)
+    at async UnifiedMarkingService.processRequest (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:92:18)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/unified-marking.ts:86:20)
+❌ [FALLBACK ERROR] Auto model also failed: Error: Gemini API request failed: 400 Bad Request - {
+  "error": {
+    "code": 400,
+    "message": "Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting",
+    "status": "INVALID_ARGUMENT"
+  }
+}
+
+    at AIMarkingService.makeGeminiChatRequest (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:536:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AIMarkingService.callGeminiForChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:409:24)
+    at async AIMarkingService.generateChatResponse (/Users/ytwong/github/intellimark/backend/services/aiMarkingService.ts:271:30)
+    at async MarkHomeworkWithAnswer.run (/Users/ytwong/github/intellimark/backend/services/marking/MarkHomeworkWithAnswer.ts:423:29)
+    at async UnifiedMarkingService.processImageFlow (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:248:16)
+    at async UnifiedMarkingService.processRequest (/Users/ytwong/github/intellimark/backend/services/unifiedMarkingService.ts:92:18)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/unified-marking.ts:86:20)
+🔄 [FINAL FALLBACK] All AI models failed, using fallback response...
+🔄 [STEP 7] Data Processing Complete - gemini-2.0-flash-lite
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

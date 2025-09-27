@@ -1,0 +1,144 @@
+
+> intellimark-chat-backend@1.0.0 dev
+> cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
+
+[33m[nodemon] 3.1.10[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: json,json[39m
+[32m[nodemon] starting `tsx --tsconfig tsconfig.dev.json server.ts`[39m
+❌ Firestore operation failed: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Error type: Error
+❌ Error message: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+❌ Error stack: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Failed to create UnifiedSession with nested messages: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Chat endpoint error: Error: Session creation failed: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:505:13)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Firestore operation failed: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Error type: Error
+❌ Error message: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+❌ Error stack: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Failed to create UnifiedSession with nested messages: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Chat endpoint error: Error: Session creation failed: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:505:13)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Firestore operation failed: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Error type: Error
+❌ Error message: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+❌ Error stack: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Failed to create UnifiedSession with nested messages: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Chat endpoint error: Error: Session creation failed: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:505:13)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Firestore operation failed: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Error type: Error
+❌ Error message: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+❌ Error stack: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Failed to create UnifiedSession with nested messages: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Chat endpoint error: Error: Session creation failed: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:505:13)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Firestore operation failed: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Error type: Error
+❌ Error message: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+❌ Error stack: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Failed to create UnifiedSession with nested messages: Error: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at validateResourcePath (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/path.js:483:15)
+    at CollectionReference.doc (/Users/ytwong/github/intellimark/backend/node_modules/@google-cloud/firestore/build/src/reference/collection-reference.js:184:45)
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:473:59)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ Chat endpoint error: Error: Session creation failed: Value for argument "documentPath" is not a valid resource path. Path must be a non-empty string.
+    at FirestoreService.createUnifiedSessionWithMessages (/Users/ytwong/github/intellimark/backend/services/firestoreService.ts:505:13)
+    at async <anonymous> (/Users/ytwong/github/intellimark/backend/routes/messages.ts:166:9)
+❌ [2025-09-27T16:19:00.035Z] optionalAuth: Token verification failed: FirebaseAuthError: There is no user record corresponding to the provided identifier.
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:552:15
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:1616:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async optionalAuth (/Users/ytwong/github/intellimark/backend/middleware/auth.ts:222:36) {
+  errorInfo: {
+    code: 'auth/user-not-found',
+    message: 'There is no user record corresponding to the provided identifier.'
+  },
+  codePrefix: 'auth'
+}
+❌ [2025-09-27T16:19:00.036Z] optionalAuth: Error details: There is no user record corresponding to the provided identifier.
+❌ [2025-09-27T16:19:00.036Z] optionalAuth: Error stack: Error: There is no user record corresponding to the provided identifier.
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:552:15
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:1616:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async optionalAuth (/Users/ytwong/github/intellimark/backend/middleware/auth.ts:222:36)
+❌ [2025-09-27T16:19:06.602Z] optionalAuth: Token verification failed: FirebaseAuthError: There is no user record corresponding to the provided identifier.
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:552:15
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:1616:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async optionalAuth (/Users/ytwong/github/intellimark/backend/middleware/auth.ts:222:36) {
+  errorInfo: {
+    code: 'auth/user-not-found',
+    message: 'There is no user record corresponding to the provided identifier.'
+  },
+  codePrefix: 'auth'
+}
+❌ [2025-09-27T16:19:06.602Z] optionalAuth: Error details: There is no user record corresponding to the provided identifier.
+❌ [2025-09-27T16:19:06.602Z] optionalAuth: Error stack: Error: There is no user record corresponding to the provided identifier.
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:552:15
+    at /Users/ytwong/github/intellimark/backend/node_modules/firebase-admin/lib/auth/auth-api-request.js:1616:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async optionalAuth (/Users/ytwong/github/intellimark/backend/middleware/auth.ts:222:36)
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

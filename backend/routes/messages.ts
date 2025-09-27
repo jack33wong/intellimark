@@ -7,6 +7,7 @@ import express from 'express';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { AIMarkingService } from '../services/aiMarkingService.js';
+import { UnifiedMarkingService } from '../services/unifiedMarkingService.js';
 import type { UnifiedMessage } from '../types/index.js';
 
 const router = express.Router();
@@ -51,6 +52,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
+    console.log('🔍 Initial currentSessionId:', currentSessionId);
+    console.log('🔍 isAuthenticated:', isAuthenticated);
 
     // Create user message (needed for both new and existing sessions)
     const userMessage = {
@@ -80,14 +83,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
       if (isAuthenticated) {
         const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log('🔍 Creating session with ID:', newSessionId);
         // Create session with user message - both frontend and backend need it
-        currentSessionId = await FirestoreService.createUnifiedSessionWithMessages({
+        const createdSession = await FirestoreService.createUnifiedSessionWithMessages({
           sessionId: newSessionId,
           title: sessionTitle,
           userId: userId,
           messageType: 'Chat',
           messages: [userMessage] // Include user message in database
         });
+        currentSessionId = createdSession.id; // Extract the session ID from the returned object
+        console.log('🔍 Created session ID:', currentSessionId);
       } else {
         // For anonymous users, use provided sessionId or create a temporary one
         currentSessionId = sessionId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -97,6 +103,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Generate AI response using real AI service
     let aiResponse: string;
     let apiUsed: string;
+    let textProgressData: any = null; // Store progress data for text processing
     
     try {
       if (imageData) {
@@ -123,6 +130,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
         aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model as any);
         apiUsed = 'Gemini 2.5 Pro';
+        
+        // Create progress data for text mode
+        textProgressData = {
+          isComplete: true,
+          currentStepIndex: 2,
+          allSteps: ['Processing your question...', 'Generating response...'],
+          completedStepIndices: [0, 1]
+        };
       }
     } catch (error) {
       console.error('❌ AI service failed, using fallback response:', error);
@@ -139,14 +154,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
       timestamp: new Date().toISOString(),
       detectedQuestion: { found: false, message: 'AI response' },
       isProcessing: false, // Mark as completed since this is the final response
-      progressData: {
+      progressData: textProgressData || {
         isComplete: true,
-        currentStep: 'Show thinking',
+        currentStepIndex: 2,
         allSteps: [
           'Processing your question...',
           'Generating response...'
         ],
-        completedSteps: ['Processing your question...', 'Generating response...']
+        completedStepIndices: [0, 1]
       },
       metadata: {
         resultId: `chat-ai-${Date.now()}`,
@@ -164,14 +179,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Handle session creation and message storage - only for authenticated users
     if (isAuthenticated) {
       if (!sessionId || sessionId.startsWith('temp-')) {
-        // Creating new session - create session with both user and AI messages
-        await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: currentSessionId,
-          title: sessionTitle,
-          userId: userId,
-          messageType: 'Chat',
-          messages: [userMessage, aiMessage]
-        });
+        // Session was already created above with user message, just add AI message
+        await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
       } else {
         // Adding to existing session - add both user and AI messages
         // User message needs to be persisted for follow-up messages
