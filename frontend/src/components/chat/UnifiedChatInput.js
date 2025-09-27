@@ -119,7 +119,9 @@ const UnifiedChatInput = ({
           setChatInput?.(''); // Clear input after sending
         }
       } else {
-        onAnalyzeImage?.();
+        // If no file and no text, don't call analyze image to avoid duplicate calls
+        // The user should select a file first
+        console.log('No file selected and no text input - nothing to process');
       }
     } else {
       // Follow-up mode: handle both image and text input
@@ -170,10 +172,9 @@ const UnifiedChatInput = ({
           setChatInput?.(''); // Clear input after sending
         }
       } else {
-        // If no image and no text, call analyze image (which will show error for no file)
-        if (onAnalyzeImage) {
-          onAnalyzeImage();
-        }
+        // If no image and no text, don't call analyze image to avoid duplicate calls
+        // The user should select a file first
+        console.log('No file selected and no text input - nothing to process');
       }
     }
     

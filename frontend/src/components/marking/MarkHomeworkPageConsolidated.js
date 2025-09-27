@@ -82,7 +82,10 @@ const MarkHomeworkPageConsolidated = ({
     clearSession,
     addMessage,
     processImageAPI,
-    loadSession
+    loadSession,
+    
+    // Text-only submission tracking
+    isTextOnlySubmission
   } = useMarkHomework();
 
   // Model selection state
@@ -220,10 +223,8 @@ const MarkHomeworkPageConsolidated = ({
       // Backend generates marking instructions
       // Creates annotated image
       // AI response appears in chat
+      // Note: stopAIThinking() is now called inside processImageAPI()
       await processImageAPI(imageData, selectedModel, 'marking', customText);
-      
-      // 9. Stop AI thinking animation
-      stopAIThinking();
       
       // ========================================
       // PHASE 3: Complete
@@ -274,6 +275,7 @@ const MarkHomeworkPageConsolidated = ({
       rating={rating}
       isProcessing={isProcessing}
       isAIThinking={isAIThinking}
+      isTextOnlySubmission={isTextOnlySubmission}
       
       // Session management props
       onFavoriteToggle={async () => {

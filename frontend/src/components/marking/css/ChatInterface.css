@@ -1072,6 +1072,15 @@
   position: relative;
 }
 
+/* Progress details - simple styling */
+.progress-details-container {
+  margin-top: 8px;
+  background: var(--background-gray-main);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 /* Vertical timeline bar - positioned from first to last step */
 .step-list-container::before {
   content: '';

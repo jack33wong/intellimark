@@ -361,13 +361,47 @@ class SimpleSessionService {
     const isFollowUp = this.state.currentSession?.id && !this.state.currentSession.id.startsWith('temp-');
     
     if (isFollowUp) {
-      // For follow-up messages, append to existing messages
+      // For follow-up messages, check if we should update the processing message or add new one
       const existingMessages = this.state.currentSession?.messages || [];
-      const updatedMessages = [...existingMessages, data.aiMessage];
+      let newMessages;
+      
+      // Find the processing message (it should be the last assistant message with isProcessing: true)
+      const processingMessage = existingMessages
+        .slice()
+        .reverse()
+        .find(msg => msg.role === 'assistant' && msg.isProcessing);
+      
+      if (processingMessage) {
+        // Update the existing processing message with the AI response
+        const updatedProcessingMessage = {
+          ...processingMessage,
+          content: data.aiMessage.content,
+          imageLink: data.aiMessage.imageLink,
+          imageData: data.aiMessage.imageData,
+          progressData: data.aiMessage.progressData,
+          metadata: data.aiMessage.metadata,
+          type: data.aiMessage.type, // Preserve the message type for proper rendering
+          isProcessing: false,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Find the index of the processing message and replace it
+        const processingMessageIndex = existingMessages.findIndex(msg => msg.id === processingMessage.id);
+        if (processingMessageIndex !== -1) {
+          newMessages = [...existingMessages];
+          newMessages[processingMessageIndex] = updatedProcessingMessage;
+        } else {
+          // Fallback: add new message if we can't find the processing message
+          newMessages = [...existingMessages, data.aiMessage];
+        }
+      } else {
+        // No processing message found, add new AI message
+        newMessages = [...existingMessages, data.aiMessage];
+      }
       
       const updatedSession = {
         ...this.state.currentSession,
-        messages: updatedMessages,
+        messages: newMessages,
         updatedAt: new Date().toISOString()
       };
       
@@ -378,27 +412,38 @@ class SimpleSessionService {
       const existingMessages = this.state.currentSession?.messages || [];
       let newMessages;
       
-      // Check if the last message is a processing message that should be updated
-      const lastMessage = existingMessages[existingMessages.length - 1];
+      // Find the processing message (it should be the last assistant message with isProcessing: true)
+      const processingMessage = existingMessages
+        .slice()
+        .reverse()
+        .find(msg => msg.role === 'assistant' && msg.isProcessing);
       
       
-      // Force update if we have a processing message (debugging)
-      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.isProcessing) {
+      if (processingMessage) {
         // Update the existing processing message with the AI response
-        const updatedLastMessage = {
-          ...lastMessage,
+        const updatedProcessingMessage = {
+          ...processingMessage,
           content: data.aiMessage.content,
           imageLink: data.aiMessage.imageLink,
           imageData: data.aiMessage.imageData,
           progressData: data.aiMessage.progressData,
           metadata: data.aiMessage.metadata,
+          type: data.aiMessage.type, // Preserve the message type for proper rendering
           isProcessing: false,
           timestamp: new Date().toISOString()
         };
         
-        newMessages = [...existingMessages.slice(0, -1), updatedLastMessage];
+        // Find the index of the processing message and replace it
+        const processingMessageIndex = existingMessages.findIndex(msg => msg.id === processingMessage.id);
+        if (processingMessageIndex !== -1) {
+          newMessages = [...existingMessages];
+          newMessages[processingMessageIndex] = updatedProcessingMessage;
+        } else {
+          // Fallback: add new message if we can't find the processing message
+          newMessages = [...existingMessages, data.aiMessage];
+        }
       } else {
-        // Add new AI message if no processing message exists
+        // No processing message found, add new AI message
         newMessages = [...existingMessages, data.aiMessage];
       }
       

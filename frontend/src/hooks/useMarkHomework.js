@@ -23,18 +23,22 @@
  * @returns {Object} Hook interface with state and actions
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 
 export const useMarkHomework = () => {
   const { getAuthToken } = useAuth();
   
+  // Ref to track if onSendMessage is already running (prevents duplicate calls)
+  const isSendingMessage = useRef(false);
+  
   // Consolidated state management - single source of truth
   const [state, setState] = useState({
     // UI state
     isProcessing: false,
     isAIThinking: false,
+    isTextOnlySubmission: false, // Track if current submission is text-only
     pageMode: 'upload', // 'upload' | 'chat'
     error: null,
     
@@ -174,7 +178,7 @@ export const useMarkHomework = () => {
   }, []);
 
   // AI thinking state control
-  const startAIThinking = useCallback(() => {
+  const startAIThinking = useCallback((progressData = null) => {
     setState(prev => ({ ...prev, isAIThinking: true }));
     
     // Create a processing assistant message
@@ -183,7 +187,7 @@ export const useMarkHomework = () => {
       role: 'assistant',
       content: '',
       isProcessing: true,
-      progressData: {
+      progressData: progressData || {
         isComplete: false,
         currentStepDescription: 'Processing...',
         allSteps: [],
@@ -225,31 +229,36 @@ export const useMarkHomework = () => {
         // Check if SSE is enabled (can be disabled for debugging or if SSE has issues)
         const sseEnabled = localStorage.getItem('sseEnabled') !== 'false'; // Default to true
         
+        let result;
         if (sseEnabled) {
           // Use SSE method for progress tracking - fail fast if it fails
-          const result = await simpleSessionService.processImageWithProgress(
+          result = await simpleSessionService.processImageWithProgress(
             imageData, 
             model, 
             mode, 
             customText, 
             updateProgress
           );
-          
-          return result;
         } else {
           // Use regular endpoint directly (SSE disabled)
-          const result = await simpleSessionService.processImage(
+          result = await simpleSessionService.processImage(
             imageData, 
             model, 
             mode, 
             customText
           );
-          
-          return result;
         }
+        
+        // Stop AI thinking immediately when processing completes
+        // This prevents the thinking indicator from showing alongside the assistant message
+        stopAIThinking();
+        
+        return result;
       } catch (error) {
         // Reset progress on error
         resetProgress();
+        // Stop AI thinking on error too
+        stopAIThinking();
         throw error;
       }
     };
@@ -275,11 +284,22 @@ export const useMarkHomework = () => {
   const onSendMessage = useCallback(async (text) => {
     if (!text || !text.trim()) return;
     
+    // Prevent duplicate calls using ref (more reliable than state)
+    if (isSendingMessage.current) {
+      console.log('🚫 onSendMessage: Already sending message, ignoring duplicate call');
+      return;
+    }
+    
+    // Set the ref to prevent duplicate calls
+    isSendingMessage.current = true;
+    
+    console.log('🚀 onSendMessage: Starting text message processing');
+    
     try {
-      // Start AI thinking state
-      startAIThinking();
+      // Mark this as a text-only submission and set processing flag
+      setState(prev => ({ ...prev, isTextOnlySubmission: true, isProcessing: true }));
       
-      // Add user message immediately to show in UI
+      // Add user message FIRST to show in UI immediately
       const userMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
@@ -294,6 +314,29 @@ export const useMarkHomework = () => {
       // Add message immediately for instant UI feedback (both authenticated and unauthenticated)
       // This ensures immediate display while backend handles persistence in background
       await addMessage(userMessage);
+      
+      // Create processing message for follow-up questions to show progress
+      const textProgressData = {
+        isComplete: false,
+        currentStepDescription: 'Thinking...',
+        allSteps: [
+          { id: 'thinking', description: 'Processing your question...' },
+          { id: 'response', description: 'Generating response...' }
+        ],
+        completedSteps: [],
+        currentStepId: 'thinking'
+      };
+      
+      startAIThinking(textProgressData);
+      
+      // Update progress: Processing your question...
+      updateProgress({
+        isComplete: false,
+        currentStepDescription: 'Processing your question...',
+        allSteps: textProgressData.allSteps,
+        completedSteps: ['thinking'],
+        currentStepId: 'response'
+      });
       
       // Call the backend API to get AI response
       const authToken = await getAuthToken();
@@ -324,76 +367,111 @@ export const useMarkHomework = () => {
       
       const data = await response.json();
       
+      // Update progress: Generating response...
+      updateProgress({
+        isComplete: false,
+        currentStepDescription: 'Generating response...',
+        allSteps: textProgressData.allSteps,
+        completedSteps: ['thinking', 'response'],
+        currentStepId: 'complete'
+      });
+      
       if (data.success) {
         // Handle consistent response format from both APIs
         if (data.unifiedSession) {
-          // Backend returned complete session data - convert it to proper format
+          // Backend returned complete session data - use it directly
           const convertedSession = simpleSessionService.convertToUnifiedSession(data.unifiedSession);
           
-          // For follow-up messages, append new messages instead of replacing entire session
+          // For follow-up messages, update existing processing message instead of replacing entire session
           if (state.currentSession && state.currentSession.id === convertedSession.id) {
-            // This is a follow-up message - append only new messages
-            const existingMessages = state.currentSession.messages || [];
-            const newMessages = convertedSession.messages || [];
+            const currentSession = simpleSessionService.getCurrentSession();
+            const processingMessage = currentSession?.messages
+              ?.slice()
+              ?.reverse()
+              ?.find(msg => msg.role === 'assistant' && msg.isProcessing);
             
-            // Find messages that are new (not in existing session)
-            const newMessagesToAdd = newMessages.filter(newMsg => 
-              !existingMessages.some(existingMsg => existingMsg.id === newMsg.id)
-            );
-            
-            // Append new messages to existing session
-            for (const message of newMessagesToAdd) {
-              await addMessage(message);
+            if (processingMessage) {
+              // Find the LAST AI message in the converted session (the new response)
+              const aiMessages = convertedSession.messages.filter(msg => msg.role === 'assistant');
+              const aiMessage = aiMessages[aiMessages.length - 1]; // Get the last assistant message
+              if (aiMessage) {
+                const updatedMessage = {
+                  ...processingMessage,
+                  content: aiMessage.content,
+                  progressData: {
+                    isComplete: true,
+                    currentStepDescription: 'Show thinking',
+                    allSteps: textProgressData.allSteps,
+                    completedSteps: ['thinking', 'response'],
+                    currentStepId: 'complete'
+                  },
+                  isProcessing: false,
+                  timestamp: new Date().toISOString()
+                };
+                
+                const updatedMessages = [...currentSession.messages];
+                const processingMessageIndex = updatedMessages.findIndex(msg => msg.id === processingMessage.id);
+                if (processingMessageIndex !== -1) {
+                  updatedMessages[processingMessageIndex] = updatedMessage;
+                }
+                
+                const updatedSession = {
+                  ...currentSession,
+                  messages: updatedMessages,
+                  updatedAt: new Date().toISOString()
+                };
+                
+                simpleSessionService.setCurrentSession(updatedSession);
+              } else {
+                // Fallback: use the converted session as-is
+                simpleSessionService.setCurrentSession(convertedSession);
+              }
+            } else {
+              // No processing message found, use converted session as-is
+              simpleSessionService.setCurrentSession(convertedSession);
             }
-            
-            // Update the session in the service to ensure persistence
-            simpleSessionService.setCurrentSession(convertedSession);
           } else {
-            // This is a new session - replace completely
+            // New session, use converted session as-is
             simpleSessionService.setCurrentSession(convertedSession);
           }
         } else if (data.newMessages) {
           // Backend returned only new messages (for anonymous users)
-          // Append new messages to existing session instead of replacing
-          if (state.currentSession) {
-            // Filter out user message since it was already added locally
-            const aiMessages = data.newMessages.filter(msg => msg.role === 'assistant');
-            
-            // Append only AI messages using addMessage to preserve existing messages
-            for (const aiMessage of aiMessages) {
-              await addMessage(aiMessage);
-            }
-          } else {
-            // No existing session, create new one with the messages
-            const sessionId = data.sessionId;
-            const sessionTitle = data.sessionTitle || 'Chat Session';
-            
-            const anonymousSession = {
-              id: sessionId,
-              title: sessionTitle,
-              messages: data.newMessages,
-              userId: 'anonymous',
-              messageType: 'Chat',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              favorite: false,
-              rating: 0
-            };
-            
-            simpleSessionService.setCurrentSession(anonymousSession);
-          }
+          const sessionId = data.sessionId;
+          const sessionTitle = data.sessionTitle || 'Chat Session';
+          
+          const newSession = {
+            id: sessionId,
+            title: sessionTitle,
+            messages: data.newMessages,
+            userId: 'anonymous',
+            messageType: 'Chat',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            favorite: false,
+            rating: 0
+          };
+          
+          simpleSessionService.setCurrentSession(newSession);
         }
+        
+        // Stop AI thinking after setting the session
+        stopAIThinking();
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
     } catch (error) {
       console.error('❌ Error sending text message:', error);
       handleError(error);
-    } finally {
-      // Stop AI thinking state
+      // Stop AI thinking on error
       stopAIThinking();
+    } finally {
+      // Reset text-only submission flag and processing flag
+      setState(prev => ({ ...prev, isTextOnlySubmission: false, isProcessing: false }));
+      // Reset the ref to allow future calls
+      isSendingMessage.current = false;
+      console.log('✅ onSendMessage: Completed text message processing');
     }
-  }, [getAuthToken, state.currentSession, addMessage, setChatInput, handleError, startAIThinking, stopAIThinking]);
+  }, [getAuthToken, state.currentSession, addMessage, setChatInput, handleError, stopAIThinking, startAIThinking, updateProgress]);
 
   // Key press handler for Enter key
   const onKeyPress = useCallback((e) => {
@@ -435,6 +513,9 @@ export const useMarkHomework = () => {
     clearSession,
     addMessage,
     processImageAPI,
-    loadSession
+    loadSession,
+    
+    // Text-only submission tracking
+    isTextOnlySubmission: state.isTextOnlySubmission
   };
 };

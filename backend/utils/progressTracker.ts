@@ -87,6 +87,12 @@ export const QUESTION_MODE_STEPS: StepConfig[] = [
     name: 'Question Detection',
     description: 'Detecting question type...',
     percentage: 28
+  },
+  {
+    id: 'ai_response',
+    name: 'AI Response',
+    description: 'Generating response...',
+    percentage: 42
   }
 ];
 

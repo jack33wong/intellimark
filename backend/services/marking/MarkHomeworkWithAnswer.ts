@@ -229,44 +229,9 @@ export class MarkHomeworkWithAnswer {
     // Start progress tracking immediately
     progressTracker.startStep('classification');
 
-    // Debug mode: Return mock response
+    // Debug mode: Skip AI processing but go through the flow
     if (debug) {
-      console.log(`🔍 [DEBUG MODE] Returning mock response - no AI processing`);
-    }
-    if (debug) {
-      await simulateApiDelay('Classification', debug);
-      await simulateApiDelay('Question Detection', debug);
-      await simulateApiDelay('Image Annotation', debug);
-      
-      return {
-        success: true,
-        isQuestionOnly: false,
-        isPastPaper: false,
-        classification: {
-          isQuestionOnly: false,
-          reasoning: 'Debug mode: Mock classification reasoning',
-          apiUsed: 'Debug Mode - Mock Response',
-          extractedQuestionText: 'Debug mode: Mock question text',
-          usageTokens: 100
-        },
-        questionDetection: {
-          found: true,
-          message: 'Debug mode: Question detected',
-          questionText: 'Debug mode: Mock question text'
-        },
-        instructions: {
-          annotations: []
-        },
-        annotatedImage: imageData, // Return original image in debug mode
-        metadata: {
-          totalProcessingTimeMs: Date.now() - startTime,
-          confidence: 0.95,
-          imageSize: imageData.length,
-          tokens: [100, 50, 200]
-        },
-        apiUsed: 'Debug Mode - Mock Response',
-        ocrMethod: 'Debug Mode - Mock OCR'
-      };
+      console.log(`🔍 [DEBUG MODE] Testing question mode flow - no real AI processing`);
     }
 
     // Step 1: Classification
@@ -275,7 +240,19 @@ export class MarkHomeworkWithAnswer {
     const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
     
     console.log(`🔄 [STEP 1] Classification - ${actualModelName}`);
-    const imageClassification = await this.classifyImageWithAI(imageData, model, debug);
+    let imageClassification;
+    if (debug) {
+      // Mock classification for debug mode - force question mode
+      imageClassification = {
+        isQuestionOnly: true,
+        reasoning: 'Debug mode: Mock classification reasoning',
+        apiUsed: 'Debug Mode - Mock Response',
+        extractedQuestionText: 'Debug mode: Mock question text',
+        usageTokens: 100
+      };
+    } else {
+      imageClassification = await this.classifyImageWithAI(imageData, model, debug);
+    }
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Step 2: Question detection
@@ -317,7 +294,6 @@ export class MarkHomeworkWithAnswer {
       questionProgressTracker.completeStep('classification');
       questionProgressTracker.startStep('question_detection');
       questionProgressTracker.completeStep('question_detection');
-      questionProgressTracker.finish();
       
       let sessionTitle = `Question ${new Date().toLocaleDateString()}`;
       let isPastPaper = false;
@@ -341,6 +317,9 @@ export class MarkHomeworkWithAnswer {
       // Calculate processing time for question-only mode
       const totalProcessingTime = Date.now() - startTime;
       
+      // Start AI response step
+      questionProgressTracker.startStep('ai_response');
+      
       // For question-only mode, generate simple AI tutoring response
       let chatResponse;
       try {
@@ -350,7 +329,11 @@ export class MarkHomeworkWithAnswer {
           'Please solve this math question step by step and explain each step clearly.',
           model as any, // Convert to SimpleModelType
           true, // isQuestionOnly
-          debug
+          debug,
+          (data) => {
+            // Pass progress updates through to the main progress tracker
+            if (onProgress) onProgress(data);
+          }
         );
       } catch (error) {
         // Fallback response if AI service fails
@@ -359,6 +342,10 @@ export class MarkHomeworkWithAnswer {
           apiUsed: 'Fallback'
         };
       }
+      
+      // Complete AI response step
+      questionProgressTracker.completeStep('ai_response');
+      questionProgressTracker.finish();
       
       // Debug logging for progressData
 

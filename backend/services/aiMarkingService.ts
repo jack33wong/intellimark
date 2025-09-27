@@ -140,7 +140,8 @@ export class AIMarkingService {
     message: string,
     model: ModelType,
     isQuestionOnly: boolean = true,
-    debug: boolean = false
+    debug: boolean = false,
+    onProgress?: (data: any) => void
   ): Promise<{ response: string; apiUsed: string }> {
     
     // Debug mode: Return mock response
@@ -190,6 +191,20 @@ export class AIMarkingService {
       If the image contains student work, base your feedback on their steps. Provide brief, actionable feedback and one or two targeted follow-up questions.`;
 
     try {
+      // Call progress callback to indicate AI response generation is starting
+      if (onProgress) {
+        onProgress({
+          currentStepDescription: 'Generating response...',
+          completedSteps: ['classification', 'question_detection'],
+          allSteps: [
+            { id: 'classification', description: 'Analyzing image...' },
+            { id: 'question_detection', description: 'Detecting question type...' },
+            { id: 'ai_response', description: 'Generating response...' }
+          ],
+          isComplete: false
+        });
+      }
+      
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, model);
       } else {

@@ -23,6 +23,7 @@ const MainLayout = ({
   previewUrl,
   isProcessing,
   isAIThinking,
+  isTextOnlySubmission,
   onFileSelect,
   onAnalyzeImage,
   onClearFile,
@@ -130,32 +131,48 @@ const MainLayout = ({
             ))}
             
         {/* AI Thinking Indicator - Show during processing with toggle and dropdown */}
-        {(isAIThinking || isProcessing) && !chatMessages?.some(msg => msg.role === 'assistant') && (
+        {/* Only show for image submissions when there's no processing message in chatMessages */}
+        {/* For text-only submissions, the processing message is handled by ChatMessage component */}
+        {!isTextOnlySubmission && (isAIThinking || isProcessing) && !chatMessages?.some(msg => msg.role === 'assistant' && msg.isProcessing) && (
           <div className="chat-message assistant">
             <div className="chat-message-content">
               <div className="chat-message-bubble">
                 <div className="assistant-header">
                   <Brain size={20} className="assistant-brain-icon" />
                   <div className="thinking-indicator">
-            <div className="progress-main-line">
-              <div className="thinking-dots" style={{ flexShrink: 0 }}>
-                <div className="thinking-dot"></div>
-                <div className="thinking-dot"></div>
-                <div className="thinking-dot"></div>
-              </div>
-              <div className="thinking-text" style={{ flexShrink: 0 }}>
-                {loadingMessage || 'AI is thinking...'}
-              </div>
-              <div className="progress-toggle-container">
-                <button 
-                  className="progress-toggle-button"
-                  onClick={() => setShowProgressDetails(!showProgressDetails)}
-                >
-                  {showProgressDetails ? '▼' : '▲'}
-                </button>
+                    <div className="progress-main-line">
+                      <div className="thinking-dots" style={{ flexShrink: 0 }}>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div>
+                      </div>
+                      <div className="thinking-text" style={{ flexShrink: 0 }}>
+                        {loadingMessage || 'AI is thinking...'}
+                      </div>
+                      {(stepList && stepList.length > 0) && (
+                        <div className="progress-toggle-container">
+                          <button
+                            className="progress-toggle-button"
+                            onClick={() => setShowProgressDetails(!showProgressDetails)}
+                            style={{
+                              transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease'
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M6 9l6 6 6-6"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            {showProgressDetails && (
+            
+            {/* Progress details - only show if there are steps */}
+            {showProgressDetails && stepList && stepList.length > 0 && (
               <div className="progress-details-container" style={{ textAlign: 'left' }}>
                 <div className="step-list-container">
                   {(() => {
@@ -182,10 +199,6 @@ const MainLayout = ({
                 </div>
               </div>
             )}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
           </div>
@@ -250,6 +263,7 @@ MainLayout.propTypes = {
   onRatingChange: PropTypes.func,
   isProcessing: PropTypes.bool,
   isAIThinking: PropTypes.bool,
+  isTextOnlySubmission: PropTypes.bool,
   error: PropTypes.object,
   onError: PropTypes.func,
   onFollowUpImage: PropTypes.func,

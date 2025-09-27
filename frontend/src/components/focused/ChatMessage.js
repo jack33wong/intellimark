@@ -33,7 +33,7 @@ const ChatMessage = ({
   completedSteps
 }) => {
   const [imageError, setImageError] = useState(false);
-  const [showProgressSteps, setShowProgressSteps] = useState(false);
+  const [showProgressDetails, setShowProgressDetails] = useState(false);
 
 
   // Handle image load error
@@ -63,8 +63,8 @@ const ChatMessage = ({
           {!isUser && (
             <div className="assistant-header">
               <Brain size={20} className="assistant-brain-icon" />
-              {/* Progress steps display for AI messages (same style as processing) */}
-              {message.progressData && message.progressData.allSteps && (
+              {/* Progress steps display for AI messages */}
+              {message.progressData && message.progressData.allSteps && message.isProcessing ? (
                 <div className="thinking-indicator">
                   <div className="progress-main-line">
                     <div className="thinking-dots" style={{ flexShrink: 0 }}>
@@ -76,36 +76,62 @@ const ChatMessage = ({
                       {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
                     </div>
                     <div className="progress-toggle-container">
-                      <button 
+                      <button
                         className="progress-toggle-button"
-                        onClick={() => setShowProgressSteps(!showProgressSteps)}
+                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        style={{
+                          transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease'
+                        }}
                       >
-                        <svg 
-                          width="16" 
-                          height="16" 
-                          viewBox="0 0 24 24" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          strokeWidth="2" 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round"
-                          style={{ 
-                            transform: showProgressSteps ? 'rotate(180deg)' : 'rotate(0deg)', 
-                            transition: 'transform 0.2s ease' 
-                          }}
-                        >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M6 9l6 6 6-6"/>
                         </svg>
                       </button>
                     </div>
                   </div>
                 </div>
-              )}
+              ) : message.isProcessing ? (
+                <div className="thinking-indicator">
+                  <div className="progress-main-line">
+                    <div className="thinking-dots" style={{ flexShrink: 0 }}>
+                      <div className="thinking-dot"></div>
+                      <div className="thinking-dot"></div>
+                      <div className="thinking-dot"></div>
+                    </div>
+                    <div className="thinking-text" style={{ flexShrink: 0 }}>
+                      Processing...
+                    </div>
+                  </div>
+                </div>
+              ) : message.progressData ? (
+                <div className="thinking-indicator">
+                  <div className="progress-main-line">
+                    <div className="thinking-text" style={{ flexShrink: 0 }}>
+                      Show thinking
+                    </div>
+                    <div className="progress-toggle-container">
+                      <button
+                        className="progress-toggle-button"
+                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        style={{
+                          transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease'
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
 
-          {/* Progress details - moved outside assistant header to avoid content overlap */}
-          {!isUser && message.progressData && message.progressData.allSteps && showProgressSteps && (
+          {/* Progress details - completely outside header */}
+          {!isUser && message.progressData && message.progressData.allSteps && showProgressDetails && (
             <div className="progress-details-container" style={{ textAlign: 'left' }}>
               <div className="step-list-container">
                 {(() => {
@@ -132,6 +158,7 @@ const ChatMessage = ({
               </div>
             </div>
           )}
+
           
           {/* Show content for regular chat messages and AI responses */}
           {!isUser && 

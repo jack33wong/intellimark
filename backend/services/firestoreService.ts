@@ -399,7 +399,7 @@ export class FirestoreService {
       const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
       
       // Import ImageStorageService
-      const { ImageStorageService } = await import('./imageStorageService');
+      const { ImageStorageService } = await import('./imageStorageService.js');
       
       // Prepare messages array with proper formatting  
       
@@ -473,8 +473,7 @@ export class FirestoreService {
         await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
         // Verify the session was saved
         const verifyDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
-        if (verifyDoc.exists) {
-          } else {
+        if (!verifyDoc.exists) {
           throw new Error(`Session verification failed - document not found after save`);
         }
       } catch (firestoreError) {
@@ -640,7 +639,7 @@ export class FirestoreService {
   ): Promise<void> {
     try {
       // Upload images to Firebase Storage
-      const { ImageStorageService } = await import('./imageStorageService');
+      const { ImageStorageService } = await import('./imageStorageService.js');
       
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
       const annotatedImageUrl = await ImageStorageService.uploadImage(annotatedImage, userId, sessionId, 'annotated');
@@ -740,7 +739,7 @@ export class FirestoreService {
   ): Promise<void> {
     try {
       // Upload image to Firebase Storage
-      const { ImageStorageService } = await import('./imageStorageService');
+      const { ImageStorageService } = await import('./imageStorageService.js');
       
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
 
@@ -827,7 +826,7 @@ export class FirestoreService {
   static async deleteUser(userId: string): Promise<void> {
     try {
       // Import ImageStorageService dynamically to avoid circular dependencies
-      const { ImageStorageService } = await import('./imageStorageService');
+      const { ImageStorageService } = await import('./imageStorageService.js');
       
       // Delete all user images
       await ImageStorageService.deleteUserImages(userId);

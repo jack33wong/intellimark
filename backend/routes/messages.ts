@@ -130,7 +130,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
       apiUsed = 'Fallback';
     }
 
-    // Create AI message
+    // Create AI message with progressData for text-only submissions
     const aiMessage = {
       messageId: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant' as const,
@@ -138,6 +138,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
       type: 'chat_assistant' as const,
       timestamp: new Date().toISOString(),
       detectedQuestion: { found: false, message: 'AI response' },
+      isProcessing: false, // Mark as completed since this is the final response
+      progressData: {
+        isComplete: true,
+        currentStepDescription: 'Show thinking',
+        allSteps: [
+          { id: 'thinking', description: 'Processing your question...', status: 'completed' },
+          { id: 'response', description: 'Generating response...', status: 'completed' }
+        ],
+        completedSteps: ['thinking', 'response'],
+        currentStepId: 'complete'
+      },
       metadata: {
         resultId: `chat-ai-${Date.now()}`,
         processingTime: new Date().toISOString(),
@@ -180,27 +191,15 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let sessionData;
     
     if (isAuthenticated) {
-      // Try to load existing session if sessionId was provided
-      if (sessionId) {
-        try {
-          sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
-        } catch (error) {
-          console.error(`❌ Failed to load session ${currentSessionId}:`, error);
-          sessionData = null;
-        }
-      }
-      
       // Load session data for response
-      if (!sessionData) {
-        try {
-          sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
-        } catch (error) {
-          console.error(`❌ Failed to load session ${currentSessionId}:`, error);
-          return res.status(500).json({
-            success: false,
-            error: 'Failed to load session data'
-          });
-        }
+      try {
+        sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
+      } catch (error) {
+        console.error(`❌ Failed to load session ${currentSessionId}:`, error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to load session data'
+        });
       }
     } else {
       // For anonymous users, return only new messages (frontend maintains history)
