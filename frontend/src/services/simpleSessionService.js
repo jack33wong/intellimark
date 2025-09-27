@@ -16,8 +16,8 @@
  * - Sidebar.js:45 (session history)
  * 
  * API INTEGRATION:
- * - /api/mark-homework/process-single (initial uploads - line 263)
- * - /api/mark-homework/process (follow-up messages - line 423)
+ * - /api/unified/process-stream (initial uploads with SSE - line 283)
+ * - /api/unified/process (follow-up messages - line 670)
  * - /api/messages/sessions (session management)
  * 
  * DESIGN PRINCIPLES:
@@ -279,8 +279,8 @@ class SimpleSessionService {
         requestBody.userMessage = userMessage;
       }
 
-      // Use SSE endpoint for progress tracking
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single-stream`, {
+      // Use unified SSE endpoint for progress tracking
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/unified/process-stream`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
@@ -324,7 +324,7 @@ class SimpleSessionService {
               const data = JSON.parse(jsonStr);
               
               if (data.type === 'complete') {
-                return this.handleProcessComplete(data.result);
+                return this.handleProcessComplete(data);
               } else if (data.type === 'error') {
                 throw new Error(data.error);
               } else if (data.currentStep && onProgress) {
@@ -353,8 +353,8 @@ class SimpleSessionService {
       throw new Error(data.error || 'Failed to process image');
     }
 
-    if (!data.aiMessage) {
-      throw new Error('Backend did not return AI message data');
+    if (!data.result) {
+      throw new Error('Backend did not return result data');
     }
 
     // Check if this is a follow-up message (has real session ID, not temp)
@@ -375,12 +375,12 @@ class SimpleSessionService {
         // Update the existing processing message with the AI response
         const updatedProcessingMessage = {
           ...processingMessage,
-          content: data.aiMessage.content,
-          imageLink: data.aiMessage.imageLink,
-          imageData: data.aiMessage.imageData,
-          progressData: data.aiMessage.progressData,
-          metadata: data.aiMessage.metadata,
-          type: data.aiMessage.type, // Preserve the message type for proper rendering
+          content: data.result.message,
+          imageLink: data.result.imageLink,
+          imageData: data.result.imageData,
+          progressData: data.result.progressData,
+          metadata: data.result.metadata,
+          type: data.result.isQuestionOnly ? 'question_response' : 'marking_annotated', // Map from new format
           isProcessing: false,
           timestamp: new Date().toISOString()
         };
@@ -392,11 +392,11 @@ class SimpleSessionService {
           newMessages[processingMessageIndex] = updatedProcessingMessage;
         } else {
           // Fallback: add new message if we can't find the processing message
-          newMessages = [...existingMessages, data.aiMessage];
+          newMessages = [...existingMessages, data.result];
         }
       } else {
         // No processing message found, add new AI message
-        newMessages = [...existingMessages, data.aiMessage];
+        newMessages = [...existingMessages, data.result];
       }
       
       const updatedSession = {
@@ -423,12 +423,12 @@ class SimpleSessionService {
         // Update the existing processing message with the AI response
         const updatedProcessingMessage = {
           ...processingMessage,
-          content: data.aiMessage.content,
-          imageLink: data.aiMessage.imageLink,
-          imageData: data.aiMessage.imageData,
-          progressData: data.aiMessage.progressData,
-          metadata: data.aiMessage.metadata,
-          type: data.aiMessage.type, // Preserve the message type for proper rendering
+          content: data.result.message,
+          imageLink: data.result.imageLink,
+          imageData: data.result.imageData,
+          progressData: data.result.progressData,
+          metadata: data.result.metadata,
+          type: data.result.isQuestionOnly ? 'question_response' : 'marking_annotated', // Map from new format
           isProcessing: false,
           timestamp: new Date().toISOString()
         };
@@ -440,19 +440,19 @@ class SimpleSessionService {
           newMessages[processingMessageIndex] = updatedProcessingMessage;
         } else {
           // Fallback: add new message if we can't find the processing message
-          newMessages = [...existingMessages, data.aiMessage];
+          newMessages = [...existingMessages, data.result];
         }
       } else {
         // No processing message found, add new AI message
-        newMessages = [...existingMessages, data.aiMessage];
+        newMessages = [...existingMessages, data.result];
       }
       
-      const newSession = data.unifiedSession ? {
-        ...data.unifiedSession,
+      const newSession = data.session ? {
+        ...data.session,
         messages: newMessages
       } : {
-        id: data.sessionId || this.state.currentSession.id,
-        title: data.sessionTitle || 'Marking Session',
+        id: data.session?.id || this.state.currentSession.id,
+        title: data.result.sessionTitle || 'Marking Session',
         userId: this.state.currentSession?.userId || 'anonymous',
         messageType: 'Marking',
         messages: newMessages,
@@ -543,7 +543,7 @@ class SimpleSessionService {
       // SINGLE-PHASE: Upload + Classification + AI Processing
       // ========================================
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/unified/process`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
@@ -567,7 +567,7 @@ class SimpleSessionService {
         throw new Error(data.error || 'Failed to process image');
       }
 
-      if (!data.aiMessage) {
+      if (!data.result) {
         throw new Error('Backend did not return AI message data');
       }
 
@@ -580,7 +580,7 @@ class SimpleSessionService {
       if (isFollowUp) {
         // For follow-up messages, append to existing messages
         const existingMessages = this.state.currentSession?.messages || [];
-        const updatedMessages = [...existingMessages, data.aiMessage];
+        const updatedMessages = [...existingMessages, data.result];
         
         const updatedSession = {
           ...this.state.currentSession,
@@ -666,8 +666,8 @@ class SimpleSessionService {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      // Call Phase 2 API to get AI response
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process`, {
+      // Call unified API to get AI response
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/unified/process`, {
         method: 'POST',
         headers,
         body: JSON.stringify({

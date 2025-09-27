@@ -7,8 +7,8 @@ import ApiClient from '../services/apiClient';
 
 // API endpoints
 export const API_ENDPOINTS = {
-  PROCESS_IMAGE: '/api/process',
-  PROCESS_AI: '/api/process/ai',
+  PROCESS_IMAGE: '/api/unified/process',
+  PROCESS_STREAM: '/api/unified/process-stream',
   MESSAGES_CHAT: '/api/messages/chat',
   MESSAGES_SESSION: '/api/messages/session',
   MESSIONS_SESSIONS: '/api/messages/sessions'

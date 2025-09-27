@@ -42,18 +42,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Import routes
 import authRoutes from './routes/auth.js';
-import markHomeworkRoutes from './routes/mark-homework.js';
+// import markHomeworkRoutes from './routes/mark-homework-deprecated.js'; // REMOVED - using unified endpoint
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import testRoutes from './routes/test.js';
 import messagesRoutes from './routes/messages.js';
-import unifiedProcessingRoutes from './routes/unified-processing.js';
+// import unifiedProcessingRoutes from './routes/unified-processing-deprecated.js'; // REMOVED - using unified endpoint
+import unifiedMarkingRoutes from './routes/unified-marking.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
 
-// Enable mark question system
-app.use('/api/mark-homework', markHomeworkRoutes);
+// Enable mark question system (REMOVED - using unified endpoint)
+// app.use('/api/mark-homework', markHomeworkRoutes);
 
 // Enable admin routes
 app.use('/api/admin', adminRoutes);
@@ -62,8 +63,11 @@ app.use('/api/admin', adminRoutes);
 // Enable messages API (new UnifiedMessage system)
 app.use('/api/messages', messagesRoutes);
 
-// Enable unified processing API
-app.use('/api/process', unifiedProcessingRoutes);
+// Enable unified processing API (REMOVED - using unified endpoint)
+// app.use('/api/process', unifiedProcessingRoutes);
+
+// Enable unified marking API (NEW - replaces all duplicate endpoints)
+app.use('/api/unified', unifiedMarkingRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);

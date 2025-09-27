@@ -393,7 +393,7 @@ export class FirestoreService {
     messages: any[];
     sessionMetadata?: any;
     isPastPaper?: boolean;
-  }): Promise<string> {
+  }): Promise<any> {
     try {
       ensureDbAvailable();
       const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
@@ -486,7 +486,20 @@ export class FirestoreService {
         throw firestoreError;
       }
 
-      return sessionId;
+      // Return the full session object
+      return {
+        id: sessionId,
+        title,
+        userId,
+        messageType,
+        messages: unifiedMessages,
+        isPastPaper: false,
+        favorite: false,
+        rating: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...sessionMetadata
+      };
     } catch (error) {
       console.error('❌ Failed to create UnifiedSession with nested messages:', error);
       throw new Error(`Session creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
