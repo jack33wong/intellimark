@@ -16,7 +16,7 @@ const TestData = {
     followUpQuestion: 'Can you explain that step in more detail?',
   },
 
-  // Expected progress steps for different modes
+  // Expected progress steps for different modes (matching backend ProgressTracker)
   progressSteps: {
     marking: [
       'Analyzing image...',
@@ -36,6 +36,16 @@ const TestData = {
       'Processing your question...',
       'Generating response...'
     ]
+  },
+
+  // Timeout configurations for different modes (in milliseconds)
+  timeouts: {
+    marking: 90000,    // 90 seconds for marking mode (longest)
+    question: 45000,   // 45 seconds for question mode
+    chat: 15000,       // 15 seconds for chat mode (shortest)
+    progressStep: 15000, // 15 seconds for individual progress steps
+    navigation: 10000,   // 10 seconds for page navigation
+    elementWait: 5000    // 5 seconds for element visibility
   },
 
   // Test scenarios

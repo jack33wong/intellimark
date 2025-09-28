@@ -50,9 +50,44 @@ export const useAutoScroll = (messages = []) => {
     onScrollChange(shouldShowButton);
   }, [messages.length]);
 
+  // Smart scroll function that only scrolls if user is near the bottom
+  const smartScrollToBottom = useCallback((hasNewResponse = false) => {
+    if (containerRef.current) {
+      const container = containerRef.current;
+      
+      // Don't auto-scroll if new response button is active
+      if (hasNewResponse) {
+        return;
+      }
+      
+      // Check immediately first
+      const immediateScrollDistance = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const isImmediatelyNearBottom = immediateScrollDistance < 100;
+      
+      if (isImmediatelyNearBottom) {
+        scrollToBottom();
+        return;
+      }
+      
+      // If not immediately near bottom, wait a bit for content to settle, then check again
+      setTimeout(() => {
+        if (containerRef.current && !hasNewResponse) {
+          const container = containerRef.current;
+          const scrollDistance = container.scrollHeight - container.scrollTop - container.clientHeight;
+          const isNearBottom = scrollDistance < 100;
+          
+          if (isNearBottom) {
+            scrollToBottom();
+          }
+        }
+      }, 100); // Small delay to allow content to settle
+    }
+  }, [scrollToBottom]);
+
   return {
     containerRef,
     scrollToBottom,
+    smartScrollToBottom,
     handleImageLoad,
     handleScroll
   };

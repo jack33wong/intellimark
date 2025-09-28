@@ -48,6 +48,8 @@ const MainLayout = ({
   scrollToBottom,
   handleImageLoad,
   getImageSrc,
+  hasNewResponse,
+  scrollToNewResponse,
   
   // Session props
   currentSession,
@@ -204,14 +206,21 @@ const MainLayout = ({
         )}
           </div>
           
-          {/* Scroll to Bottom Button */}
-          <div className={`scroll-to-bottom-container ${showScrollButton ? 'show' : 'hidden'}`}>
+          {/* Scroll to Bottom Button / New Response Button */}
+          <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) ? 'show' : 'hidden'}`}>
             <button 
-              className="scroll-to-bottom-btn"
-              onClick={scrollToBottom}
-              title="Scroll to bottom"
+              className={`scroll-to-bottom-btn ${hasNewResponse ? 'new-response-btn blinking' : ''}`}
+              onClick={hasNewResponse ? scrollToNewResponse : scrollToBottom}
+              title={hasNewResponse ? "View new response" : "Scroll to bottom"}
             >
-              <ChevronDown size={20} />
+              {hasNewResponse ? (
+                <div className="new-response-icon">
+                  <span className="new-text">New</span>
+                  <ChevronDown size={16} />
+                </div>
+              ) : (
+                <ChevronDown size={20} />
+              )}
             </button>
           </div>
         </div>

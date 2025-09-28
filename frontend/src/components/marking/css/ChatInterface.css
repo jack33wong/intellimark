@@ -649,6 +649,54 @@
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
+/* New Response Button Styles */
+.scroll-to-bottom-btn.new-response-btn {
+  background: #10b981; /* Green color for new response */
+}
+
+.scroll-to-bottom-btn.new-response-btn.blinking {
+  animation: blink 1.5s infinite;
+}
+
+.scroll-to-bottom-btn.new-response-btn:hover {
+  background: #059669; /* Darker green on hover */
+  transform: translateY(-3px) scale(1.1);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+}
+
+.scroll-to-bottom-btn.new-response-btn:active {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+/* New Response Icon */
+.new-response-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.new-text {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Blink Animation */
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  25%, 75% {
+    opacity: 0.7;
+    transform: scale(0.95);
+  }
+}
+
 .chat-message {
   padding: 0;
   background: transparent;

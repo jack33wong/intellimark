@@ -15,6 +15,12 @@ class BasePage {
   }
 
   async login(email = 'test@intellimark.com', password = '123456') {
+    // Enable debug mode for API calls
+    await this.page.evaluate(() => {
+      localStorage.setItem('debugMode', 'true');
+    });
+    console.log('🐛 Debug mode enabled for API calls');
+    
     if (await this.loginButton.isVisible()) {
       await this.loginButton.click();
       await this.page.waitForSelector('input[type="email"]');

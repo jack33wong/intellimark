@@ -97,10 +97,16 @@ const MarkHomeworkPageConsolidated = ({
     setSelectedModel(model);
   }, []);
 
+  // Scroll button state - declare early to avoid hoisting issues
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [hasNewResponse, setHasNewResponse] = useState(false);
+  const [newResponseMessageId, setNewResponseMessageId] = useState(null);
+
   // Auto scroll functionality
   const {
     containerRef: chatContainerRef,
     scrollToBottom,
+    smartScrollToBottom,
     handleImageLoad,
     handleScroll
   } = useAutoScroll(chatMessages);
@@ -123,25 +129,33 @@ const MarkHomeworkPageConsolidated = ({
       if (lastMessage && lastMessage.timestamp) {
         const messageTime = new Date(lastMessage.timestamp).getTime();
         const now = Date.now();
-        // If message is very recent (within last 2 seconds), force scroll
+        // If message is very recent (within last 2 seconds), smart scroll
         if (now - messageTime < 2000) {
           setTimeout(() => {
-            scrollToBottom();
+            smartScrollToBottom(hasNewResponse);
           }, 50);
         }
       }
     }
-  }, [chatMessages.length, scrollToBottom]);
+  }, [chatMessages.length, smartScrollToBottom, hasNewResponse]);
 
   // Auto-scroll when AI thinking stops (AI response completed)
   useEffect(() => {
     if (!isAIThinking && chatMessages.length > 0) {
-      // Small delay to ensure the AI response is rendered
-      setTimeout(() => {
-        scrollToBottom();
-      }, 100);
+      // Check if this is a new AI response
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content && !lastMessage.isProcessing) {
+        // This is a completed AI response - show new response button instead of auto-scroll
+        setHasNewResponse(true);
+        setNewResponseMessageId(lastMessage.id || lastMessage.timestamp);
+      } else {
+        // Not a new AI response, use smart scroll
+        setTimeout(() => {
+          smartScrollToBottom(false); // Pass false since we know there's no new response
+        }, 100);
+      }
     }
-  }, [isAIThinking, chatMessages.length, scrollToBottom]);
+  }, [isAIThinking, chatMessages.length, smartScrollToBottom]);
 
   // Auto-scroll when message content changes (for AI response updates)
   useEffect(() => {
@@ -149,16 +163,49 @@ const MarkHomeworkPageConsolidated = ({
       // Check if the last message is an assistant message with content
       const lastMessage = chatMessages[chatMessages.length - 1];
       if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content && !lastMessage.isProcessing) {
-        // This is a completed AI response, scroll to show it
-        setTimeout(() => {
-          scrollToBottom();
-        }, 50);
+        // This is a completed AI response, but don't auto-scroll if new response button is active
+        if (!hasNewResponse) {
+          setTimeout(() => {
+            smartScrollToBottom(false); // Pass false since we're checking hasNewResponse above
+          }, 50);
+        }
       }
     }
-  }, [chatMessages, scrollToBottom]);
+  }, [chatMessages, smartScrollToBottom, hasNewResponse]);
 
-  // Scroll button state
-  const [showScrollButton, setShowScrollButton] = useState(false);
+
+  // Scroll to new response function
+  const scrollToNewResponse = useCallback(() => {
+    if (chatContainerRef.current && newResponseMessageId) {
+      // Find the new response message element
+      const messageElements = chatContainerRef.current.querySelectorAll('.chat-message[data-message-id]');
+      let newResponseElement = null;
+      
+      for (let element of messageElements) {
+        const messageId = element.getAttribute('data-message-id');
+        if (messageId === newResponseMessageId.toString()) {
+          newResponseElement = element;
+          break;
+        }
+      }
+      
+      if (newResponseElement) {
+        // Scroll to the top of the new response minus 100px
+        const elementTop = newResponseElement.offsetTop;
+        const scrollPosition = Math.max(0, elementTop - 100);
+        chatContainerRef.current.scrollTop = scrollPosition;
+        
+        // Clear new response state
+        setHasNewResponse(false);
+        setNewResponseMessageId(null);
+      } else {
+        // Fallback to scroll to bottom
+        scrollToBottom();
+        setHasNewResponse(false);
+        setNewResponseMessageId(null);
+      }
+    }
+  }, [chatContainerRef, newResponseMessageId, scrollToBottom, hasNewResponse]);
   
   // Session management state
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
@@ -194,7 +241,15 @@ const MarkHomeworkPageConsolidated = ({
     const container = chatContainerRef.current;
     if (container) {
       const handleScrollEvent = () => {
-        handleScroll(setShowScrollButton);
+        handleScroll((shouldShow) => {
+          setShowScrollButton(shouldShow);
+          
+          // If user scrolls near bottom and new response button is active, clear it
+          if (hasNewResponse && !shouldShow) {
+            setHasNewResponse(false);
+            setNewResponseMessageId(null);
+          }
+        });
       };
       
       container.addEventListener('scroll', handleScrollEvent);
@@ -206,7 +261,7 @@ const MarkHomeworkPageConsolidated = ({
         container.removeEventListener('scroll', handleScrollEvent);
       };
     }
-  }, [chatContainerRef, handleScroll, chatMessages.length]);
+  }, [chatContainerRef, handleScroll, chatMessages.length, hasNewResponse]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -408,6 +463,8 @@ const MarkHomeworkPageConsolidated = ({
       showScrollButton={showScrollButton}
       scrollToBottom={scrollToBottom}
       handleImageLoad={handleImageLoad}
+      hasNewResponse={hasNewResponse}
+      scrollToNewResponse={scrollToNewResponse}
       getImageSrc={(message) => {
         // Handle different image source formats
         if (message?.imageLink) {
