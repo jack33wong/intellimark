@@ -459,7 +459,6 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
 
     // Create AI message with separate content and progressData
     const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
-    console.log('🔍 Backend sending progressData:', JSON.stringify(finalProgressData, null, 2));
     
     const aiMessage = {
       id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
