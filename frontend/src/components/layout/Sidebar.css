@@ -490,7 +490,7 @@
   align-items: center;
 }
 
-/* Dropdown Button */
+/* Dropdown Button - Hidden by default, show on hover */
 .mark-history-dropdown-btn {
   background: transparent;
   border: none;
@@ -502,6 +502,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.8);
+}
+
+/* Show dropdown button on hover over chat history item */
+.mark-history-item:hover .mark-history-dropdown-btn {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+/* Keep dropdown button visible when dropdown is open */
+.mark-history-actions-container:hover .mark-history-dropdown-btn {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
 }
 
 .mark-history-dropdown-btn:hover {
