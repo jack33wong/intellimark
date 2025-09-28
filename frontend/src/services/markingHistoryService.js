@@ -112,6 +112,53 @@ class MarkingHistoryService {
 
 
   /**
+   * Update a chat session
+   * @param {string} sessionId - The session ID to update
+   * @param {object} updates - The updates to apply (title, favorite, rating, etc.)
+   * @param {string} authToken - Authentication token (required)
+   * @returns {Promise<Object>} The update result
+   */
+  static async updateSession(sessionId, updates, authToken) {
+    try {
+      const url = `${API_BASE}/api/messages/session/${sessionId}`;
+      
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add authorization header (required for updates)
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      } else {
+        throw new Error('Authentication token is required to update sessions');
+      }
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updates)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
+      }
+
+      const result = await response.json();
+
+      return {
+        success: true,
+        sessionId: sessionId,
+        message: result.message || 'Session updated successfully',
+        session: result.session
+      };
+    } catch (error) {
+      console.error('Error updating session:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete a chat session
    * @param {string} sessionId - The session ID to delete
    * @param {string} authToken - Authentication token (required)

@@ -7,7 +7,10 @@ import {
   Trash2,
   Menu,
   X,
-  Star
+  Star,
+  MoreVertical,
+  Edit3,
+  Heart
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -32,6 +35,9 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [dropdownSessionId, setDropdownSessionId] = useState(null);
   
   // Memory-first approach: Use simpleSessionService.sidebarSessions as primary data source
   useEffect(() => {
@@ -57,6 +63,20 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   useEffect(() => {
     setSelectedSessionId(null);
   }, [activeTab]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownSessionId && !event.target.closest('.mark-history-actions-container')) {
+        setDropdownSessionId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [dropdownSessionId]);
 
   // Initialize sessions from database only once when user logs in
   const initializeSessions = useCallback(async () => {
@@ -194,6 +214,103 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       alert(`Failed to delete session: ${error.message}`);
     } finally {
       setDeletingSessionId(null);
+    }
+  };
+
+  // Handle dropdown toggle
+  const handleDropdownToggle = (sessionId, event) => {
+    event.stopPropagation(); // Prevent triggering the session click
+    setDropdownSessionId(dropdownSessionId === sessionId ? null : sessionId);
+  };
+
+  // Handle edit title
+  const handleEditTitle = (session, event) => {
+    event.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title || 'Chat Session');
+    setDropdownSessionId(null); // Close dropdown
+  };
+
+  // Handle save title
+  const handleSaveTitle = async (sessionId, event) => {
+    event.stopPropagation();
+    
+    if (editingTitle.trim() === '') {
+      alert('Title cannot be empty');
+      return;
+    }
+
+    try {
+      const authToken = await getAuthToken();
+      await MarkingHistoryService.updateSession(sessionId, { title: editingTitle.trim() }, authToken);
+      
+      // Update the session in memory
+      simpleSessionService.setState(prevState => ({
+        sidebarSessions: prevState.sidebarSessions.map(session => 
+          session.id === sessionId 
+            ? { ...session, title: editingTitle.trim(), updatedAt: new Date().toISOString() }
+            : session
+        )
+      }));
+
+      // Update current session if it's the one being edited
+      const currentSession = simpleSessionService.getCurrentSession();
+      if (currentSession && currentSession.id === sessionId) {
+        simpleSessionService.setCurrentSession({
+          ...currentSession,
+          title: editingTitle.trim(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      setEditingSessionId(null);
+      setEditingTitle('');
+    } catch (error) {
+      console.error('❌ Error updating session title:', error);
+      alert(`Failed to update title: ${error.message}`);
+    }
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = (event) => {
+    event.stopPropagation();
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
+
+  // Handle favorite toggle
+  const handleToggleFavorite = async (session, event) => {
+    event.stopPropagation();
+    
+    const newFavoriteStatus = !session.favorite;
+    
+    try {
+      const authToken = await getAuthToken();
+      await MarkingHistoryService.updateSession(session.id, { favorite: newFavoriteStatus }, authToken);
+      
+      // Update the session in memory
+      simpleSessionService.setState(prevState => ({
+        sidebarSessions: prevState.sidebarSessions.map(s => 
+          s.id === session.id 
+            ? { ...s, favorite: newFavoriteStatus, updatedAt: new Date().toISOString() }
+            : s
+        )
+      }));
+
+      // Update current session if it's the one being favorited
+      const currentSession = simpleSessionService.getCurrentSession();
+      if (currentSession && currentSession.id === session.id) {
+        simpleSessionService.setCurrentSession({
+          ...currentSession,
+          favorite: newFavoriteStatus,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      setDropdownSessionId(null); // Close dropdown
+    } catch (error) {
+      console.error('❌ Error updating favorite status:', error);
+      alert(`Failed to update favorite: ${error.message}`);
     }
   };
 
@@ -446,34 +563,69 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                       {session.favorite && (
                         <Star size={14} className="favorite-star-inline" />
                       )}
-                      {getSessionTitle(session)}
+                      {editingSessionId === session.id ? (
+                        <div className="title-edit-container">
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveTitle(session.id, e);
+                              } else if (e.key === 'Escape') {
+                                handleCancelEdit(e);
+                              }
+                            }}
+                            onBlur={(e) => handleSaveTitle(session.id, e)}
+                            className="title-edit-input"
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        getSessionTitle(session)
+                      )}
                     </div>
                     <div className="mark-history-last-message">
                       {getLastMessage(session)}
                     </div>
                   </div>
                   
-                  {/* Time and Delete Button Column */}
+                  {/* Time and Actions Column */}
                   <div className="mark-history-actions">
                     {/* Update Time */}
                     <div className="mark-history-time">
                       {formatSessionDate(session)}
                     </div>
                     
-                    {/* Delete Button */}
+                    {/* Actions Dropdown */}
                     {user?.uid && (
-                      <button
-                        className="mark-history-delete-btn"
-                        onClick={(e) => handleDeleteSession(session.id, e)}
-                        disabled={deletingSessionId === session.id}
-                        title="Delete session"
-                      >
-                        {deletingSessionId === session.id ? (
-                          <Clock size={16} />
-                        ) : (
-                          <Trash2 size={16} />
+                      <div className="mark-history-actions-container">
+                        <button
+                          className="mark-history-dropdown-btn"
+                          onClick={(e) => handleDropdownToggle(session.id, e)}
+                          title="More options"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        
+                        {/* Dropdown Menu */}
+                        {dropdownSessionId === session.id && (
+                          <div className="mark-history-dropdown">
+                            <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}>
+                              <Edit3 size={16} />
+                              <span>Edit</span>
+                            </div>
+                            <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}>
+                              <Heart size={16} />
+                              <span>{session.favorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+                            </div>
+                            <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}>
+                              <Trash2 size={16} />
+                              <span>Delete</span>
+                            </div>
+                          </div>
                         )}
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>
