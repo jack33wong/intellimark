@@ -293,26 +293,30 @@ const MarkHomeworkPageConsolidated = ({
           // Toggle favorite status
           const newFavoriteStatus = !isFavorite;
           
+          // OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+          const updatedSession = {
+            ...currentSession,
+            favorite: newFavoriteStatus,
+            updatedAt: new Date().toISOString()
+          };
+          
+          // Update the service state immediately (optimistic update)
+          simpleSessionService.setCurrentSession(updatedSession);
+          simpleSessionService.updateSidebarSession(updatedSession);
+          
+          // Trigger event for real-time updates
+          simpleSessionService.triggerSessionUpdate(updatedSession);
+          
           try {
-            // Update in backend first
-            await simpleSessionService.updateSession(currentSession.id, {
+            // Update in backend (async, don't wait for it)
+            simpleSessionService.updateSession(currentSession.id, {
               favorite: newFavoriteStatus,
               updatedAt: new Date().toISOString()
+            }).catch(error => {
+              console.error('❌ Failed to update favorite status in backend:', error);
+              // Optionally revert the optimistic update on error
+              // For now, we'll keep the optimistic update even if backend fails
             });
-            
-            // Update the session in the service (only after successful backend update)
-            const updatedSession = {
-              ...currentSession,
-              favorite: newFavoriteStatus,
-              updatedAt: new Date().toISOString()
-            };
-            
-            // Update the service state
-            simpleSessionService.setCurrentSession(updatedSession);
-            simpleSessionService.updateSidebarSession(updatedSession);
-            
-            // Trigger event for real-time updates
-            simpleSessionService.triggerSessionUpdate(updatedSession);
           } catch (error) {
             console.error('❌ Failed to update favorite status:', error);
           }
@@ -320,26 +324,30 @@ const MarkHomeworkPageConsolidated = ({
       }}
       onRatingChange={async (rating) => {
         if (currentSession) {
+          // OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+          const updatedSession = {
+            ...currentSession,
+            rating: rating,
+            updatedAt: new Date().toISOString()
+          };
+          
+          // Update the service state immediately (optimistic update)
+          simpleSessionService.setCurrentSession(updatedSession);
+          simpleSessionService.updateSidebarSession(updatedSession);
+          
+          // Trigger event for real-time updates
+          simpleSessionService.triggerSessionUpdate(updatedSession);
+          
           try {
-            // Update in backend first
-            await simpleSessionService.updateSession(currentSession.id, {
+            // Update in backend (async, don't wait for it)
+            simpleSessionService.updateSession(currentSession.id, {
               rating: rating,
               updatedAt: new Date().toISOString()
+            }).catch(error => {
+              console.error('❌ Failed to update rating in backend:', error);
+              // Optionally revert the optimistic update on error
+              // For now, we'll keep the optimistic update even if backend fails
             });
-            
-            // Update the session in the service (only after successful backend update)
-            const updatedSession = {
-              ...currentSession,
-              rating: rating,
-              updatedAt: new Date().toISOString()
-            };
-            
-            // Update the service state
-            simpleSessionService.setCurrentSession(updatedSession);
-            simpleSessionService.updateSidebarSession(updatedSession);
-            
-            // Trigger event for real-time updates
-            simpleSessionService.triggerSessionUpdate(updatedSession);
           } catch (error) {
             console.error('❌ Failed to update rating:', error);
           }

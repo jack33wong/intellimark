@@ -25,35 +25,25 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
   const navigate = useNavigate();
   // const location = useLocation(); // Removed - not used
   const { user, getAuthToken } = useAuth();
+  // Memory-first approach: Use simpleSessionService.sidebarSessions as primary data source
   const [chatSessions, setChatSessions] = useState([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState(null);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
   const [deletingSessionId, setDeletingSessionId] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   
-  // Subscribe to simpleSessionService for real-time updates
+  // Memory-first approach: Use simpleSessionService.sidebarSessions as primary data source
   useEffect(() => {
     const syncWithService = (serviceState) => {
       const { sidebarSessions } = serviceState;
-      // Merge new sessions with existing ones instead of replacing
-      if (sidebarSessions && sidebarSessions.length > 0) {
-        setChatSessions(prevSessions => {
-          // Create a map of existing sessions by ID
-          const existingSessionsMap = new Map(prevSessions.map(s => [s.id, s]));
-          
-          // Add or update sessions from service
-          sidebarSessions.forEach(serviceSession => {
-            existingSessionsMap.set(serviceSession.id, serviceSession);
-          });
-          
-          // Convert back to array and sort by updatedAt
-          const mergedSessions = Array.from(existingSessionsMap.values())
-            .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-          
-          return mergedSessions;
-        });
+      // Use sidebarSessions directly from memory as primary data source
+      if (sidebarSessions) {
+        // Sort by updatedAt for consistent ordering
+        const sortedSessions = [...sidebarSessions].sort((a, b) => 
+          new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+        );
+        setChatSessions(sortedSessions);
       }
     };
     
@@ -68,8 +58,8 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     setSelectedSessionId(null);
   }, [activeTab]);
 
-  // Function to refresh chat sessions with debouncing
-  const refreshChatSessions = useCallback(async () => {
+  // Initialize sessions from database only once when user logs in
+  const initializeSessions = useCallback(async () => {
     // Only load sessions for authenticated users
     if (!user?.uid) {
       setChatSessions([]);
@@ -78,27 +68,22 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       return;
     }
 
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastFetchTime;
-    
-    // Debounce: don't fetch if we've fetched within the last 1 second
-    if (timeSinceLastFetch < 1000) {
-      return;
-    }
     setIsLoadingSessions(true);
     setSessionsError(null);
-    setLastFetchTime(now);
     
     try {
       // Get authentication token
       const authToken = await getAuthToken();
       
-      // Load sessions only for authenticated users
+      // Load sessions only for authenticated users - this is the only database call
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 20, authToken);
       
       if (response.success) {
         const sessions = response.sessions || [];
-        setChatSessions(sessions);
+        // Populate the service memory with initial data
+        sessions.forEach(session => {
+          simpleSessionService.updateSidebarSession(session);
+        });
       } else {
         setSessionsError('Failed to load chat sessions');
       }
@@ -108,13 +93,13 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     } finally {
       setIsLoadingSessions(false);
     }
-  }, [user?.uid, getAuthToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.uid, getAuthToken]);
 
-  // Fetch chat sessions for authenticated users only (only on initial load)
+  // Initialize sessions from database only once when user logs in
   // Also clear sessions when user logs out
   useEffect(() => {
     if (user?.uid) {
-      refreshChatSessions();
+      initializeSessions();
     } else {
       // User logged out, clear chat sessions
       setChatSessions([]);
@@ -124,22 +109,35 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       // Also clear all sessions in the service
       simpleSessionService.clearAllSessions();
     }
-  }, [user?.uid, refreshChatSessions]); // Run when user changes (login/logout)
+  }, [user?.uid, initializeSessions]); // Run when user changes (login/logout)
 
   // Expose refresh function to parent component
   useEffect(() => {
     if (onMarkingResultSaved) {
       // Store the refresh function in the callback so parent can call it
-      onMarkingResultSaved.refresh = refreshChatSessions;
+      onMarkingResultSaved.refresh = initializeSessions;
     }
-  }, [onMarkingResultSaved, refreshChatSessions]);
+  }, [onMarkingResultSaved, initializeSessions]);
 
-  // Listen for custom events to refresh sessions
+  // Listen for custom events - no longer need database reloads since we use memory
   useEffect(() => {
     const cleanup = EventManager.listenToMultiple({
-      [EVENT_TYPES.SESSIONS_CLEARED]: refreshChatSessions,
-      [EVENT_TYPES.SESSION_UPDATED]: refreshChatSessions,
-      [EVENT_TYPES.SESSION_DELETED]: refreshChatSessions,
+      [EVENT_TYPES.SESSIONS_CLEARED]: () => {
+        // Clear memory and UI
+        simpleSessionService.clearAllSessions();
+        setChatSessions([]);
+        setSessionsError(null);
+        setIsLoadingSessions(false);
+      },
+      [EVENT_TYPES.SESSION_DELETED]: (event) => {
+        // Remove session from memory
+        const { sessionId } = event.detail;
+        if (sessionId) {
+          simpleSessionService.setState(prevState => ({
+            sidebarSessions: prevState.sidebarSessions.filter(s => s.id !== sessionId)
+          }));
+        }
+      },
       [EVENT_TYPES.USER_LOGGED_OUT]: () => {
         setChatSessions([]);
         setSessionsError(null);
@@ -149,7 +147,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     });
     
     return cleanup;
-  }, [refreshChatSessions]);
+  }, []);
 
   const handleSessionClick = (session) => {
     setSelectedSessionId(session.id);
@@ -175,12 +173,12 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       const authToken = await getAuthToken();
       await MarkingHistoryService.deleteSession(sessionId, authToken);
       
-      // Remove the session from the local state (immediate UI update)
-      setChatSessions(prevSessions => 
-        prevSessions.filter(session => session.id !== sessionId)
-      );
+      // Remove the session from memory (immediate UI update)
+      simpleSessionService.setState(prevState => ({
+        sidebarSessions: prevState.sidebarSessions.filter(session => session.id !== sessionId)
+      }));
       
-      // Dispatch custom event to notify other components (this will trigger refresh)
+      // Dispatch custom event to notify other components
       EventManager.dispatch(EVENT_TYPES.SESSION_DELETED, { sessionId });
       
       // Reset to upload mode and navigate to mark homework page
@@ -256,6 +254,11 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     // Use lastMessage from unified sessions API
     if (session.lastMessage && session.lastMessage.content) {
       const contentStr = ensureStringContent(session.lastMessage.content);
+      // Only show "No messages yet" if content is truly empty
+      if (contentStr.trim().length === 0) {
+        return 'No messages yet';
+      }
+      
       // Truncate to 20 characters as requested
       const truncated = contentStr.length > 20 ? contentStr.substring(0, 20) + '...' : contentStr;
       
@@ -277,6 +280,11 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
       const lastMsg = session.messages[session.messages.length - 1];
       if (lastMsg.content) {
         const contentStr = ensureStringContent(lastMsg.content);
+        // Only show "No messages yet" if content is truly empty
+        if (contentStr.trim().length === 0) {
+          return 'No messages yet';
+        }
+        
         const truncated = contentStr.length > 20 ? contentStr.substring(0, 20) + '...' : contentStr;
         
         const hasImage = lastMsg.hasImage || isOriginalImageMessage(lastMsg) || isAnnotatedImageMessage(lastMsg);
