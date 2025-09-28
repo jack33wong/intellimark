@@ -143,7 +143,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
         allSteps: [
           'Processing your question...',
           'Generating response...'
-        ]
+        ],
+        isComplete: true
       },
       metadata: {
         resultId: `chat-ai-${Date.now()}`,

@@ -650,7 +650,6 @@
 }
 
 .chat-message {
-  margin-bottom: 16px; /* Reduced from 24px to 16px */
   padding: 0;
   background: transparent;
   border-radius: 0;

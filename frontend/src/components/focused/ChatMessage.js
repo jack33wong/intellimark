@@ -107,16 +107,16 @@ const ChatMessage = ({
             <div className="assistant-header">
               <Brain size={20} className="assistant-brain-icon" />
               {/* Progress steps display for AI messages */}
-              {message.progressData && message.progressData.allSteps && message.isProcessing ? (
+              {message.progressData && message.progressData.allSteps && !message.progressData.isComplete ? (
                 <div className="thinking-indicator">
                   <div className="progress-main-line">
                     <div className="thinking-dots" style={{ flexShrink: 0 }}>
-                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
-                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
-                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${message.progressData?.isComplete ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${message.progressData?.isComplete ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${message.progressData?.isComplete ? 'no-animation' : ''}`}></div>
                     </div>
                     <div className="thinking-text" style={{ flexShrink: 0 }}>
-                      {message.isProcessing ? 
+                      {!message.progressData?.isComplete ? 
                         (message.progressData?.currentStepDescription || message.progressData?.allSteps?.[0] || 'Processing...') : 
                         'Show thinking'
                       }
@@ -137,7 +137,7 @@ const ChatMessage = ({
                     </div>
                   </div>
                 </div>
-              ) : message.isProcessing ? (
+              ) : message.progressData && !message.progressData.isComplete ? (
                 <div className="thinking-indicator">
                   <div className="progress-main-line">
                     <div className="thinking-dots" style={{ flexShrink: 0 }}>

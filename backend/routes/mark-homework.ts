@@ -458,6 +458,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     }
 
     // Create AI message with separate content and progressData
+    const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
+    console.log('🔍 Backend sending progressData:', JSON.stringify(finalProgressData, null, 2));
+    
     const aiMessage = {
       id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
@@ -466,7 +469,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       imageData: result.annotatedImage || null,
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
-      progressData: result.progressData || null, // Keep progress data for frontend
+      progressData: finalProgressData, // Ensure isComplete is true for final response
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
@@ -766,7 +769,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
       imageLink: annotatedImageLink, // For authenticated users
       imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
       fileName: 'annotated-image.png',
-      progressData: result.progressData || null, // Add progress data for frontend
+      progressData: result.progressData ? { ...result.progressData, isComplete: true } : null, // Ensure isComplete is true for final response
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
