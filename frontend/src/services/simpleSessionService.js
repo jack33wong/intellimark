@@ -745,6 +745,20 @@ class SimpleSessionService {
       return;
     }
 
+    // Find the last non-processing message for lastMessage
+    let lastMessage = null;
+    if (session.messages && session.messages.length > 0) {
+      // Look for the last non-processing message
+      for (let i = session.messages.length - 1; i >= 0; i--) {
+        const msg = session.messages[i];
+        // Skip processing messages (they have empty content)
+        if (msg.content && !msg.isProcessing) {
+          lastMessage = msg;
+          break;
+        }
+      }
+    }
+
     const lightweightSession = {
       id: session.id,
       title: session.title,
@@ -753,9 +767,7 @@ class SimpleSessionService {
       updatedAt: session.updatedAt,
       favorite: session.favorite,
       rating: session.rating,
-      lastMessage: session.messages && session.messages.length > 0 
-        ? session.messages[session.messages.length - 1] 
-        : null
+      lastMessage: lastMessage
     };
 
     this.setState(prevState => {
