@@ -122,20 +122,6 @@ class LoginPage {
     await this.signupButton.click();
   }
 
-  // --- Legacy methods for backward compatibility ---
-  /**
-   * @deprecated Use fillSignInCredentials instead
-   */
-  async fillCredentials(email, password) {
-    await this.fillSignInCredentials(email, password);
-  }
-
-  /**
-   * @deprecated Use submitSignIn instead
-   */
-  async submitLogin() {
-    await this.submitSignIn();
-  }
 
   /**
    * Waits for login to complete successfully.
@@ -227,12 +213,6 @@ class LoginPage {
     await expect(this.signupButton, 'Sign-up button should be visible').toBeVisible();
   }
 
-  /**
-   * @deprecated Use waitForMainPageLoad instead
-   */
-  async waitForLoginPageLoad() {
-    await this.waitForMainPageLoad();
-  }
 
   /**
    * Waits for login error to appear.
@@ -315,27 +295,6 @@ class LoginPage {
     return this.signupButton;
   }
 
-  // --- Legacy methods for backward compatibility ---
-  /**
-   * @deprecated Use getMainEmailInputLocator instead
-   */
-  getEmailInputLocator() {
-    return this.mainEmailInput;
-  }
-
-  /**
-   * @deprecated Use getSignInPasswordInputLocator instead
-   */
-  getPasswordInputLocator() {
-    return this.signinPasswordInput;
-  }
-
-  /**
-   * @deprecated Use getSignInButtonLocator instead
-   */
-  getLoginButtonLocator() {
-    return this.signinButton;
-  }
 
   /**
    * Returns a locator for error messages.
@@ -422,13 +381,6 @@ class LoginPage {
     return await this.signupButton.isVisible();
   }
 
-  // --- Legacy methods for backward compatibility ---
-  /**
-   * @deprecated Use isMainPageVisible instead
-   */
-  async isLoginFormVisible() {
-    return await this.isMainPageVisible();
-  }
 }
 
 module.exports = LoginPage;

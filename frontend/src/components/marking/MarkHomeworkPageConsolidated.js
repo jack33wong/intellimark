@@ -347,7 +347,7 @@ const MarkHomeworkPageConsolidated = ({
       }}
       onRatingHover={setHoveredRating}
       user={user}
-      markingResult={null} // TODO: Get from current session
+      markingResult={null}
       sessionData={currentSession} // Pass current session as sessionData
       showInfoDropdown={showInfoDropdown}
       onToggleInfoDropdown={() => setShowInfoDropdown(!showInfoDropdown)}

@@ -177,25 +177,6 @@ class SidebarPage {
     return await this.sidebar.isVisible();
   }
 
-  // --- Legacy methods for backward compatibility ---
-  // These are kept for any existing code that might depend on them
-
-  async waitForSidebarLoad() {
-    await this.waitForLoad();
-  }
-
-  async getNewestChatHistoryItem() {
-    await this.waitForLoad();
-    const newestItem = this.newestChatItem;
-    if (await newestItem.isVisible()) {
-      return {
-        title: await newestItem.locator(this.chatTitle).textContent(),
-        timestamp: await newestItem.locator(this.chatTimestamp).textContent(),
-        preview: await newestItem.locator(this.chatPreview).textContent()
-      };
-    }
-    return null;
-  }
 
   async waitForChatLoad() {
     // Wait for chat to load after clicking history item

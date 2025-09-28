@@ -297,17 +297,10 @@ class MarkHomeworkPage {
     expect(textContent.length).toBeGreaterThan(10);
   }
 
-  // --- Legacy methods for backward compatibility ---
-  // These are kept for any existing code that might depend on them
 
   async waitForPageLoad() {
     await this.page.waitForLoadState('networkidle');
     await expect(this.chatContainer).toBeVisible({ timeout: 10000 });
-  }
-
-  async isMessageVisible(messageText) {
-    const messageLocator = this.userMessages.filter({ hasText: messageText });
-    return await messageLocator.isVisible();
   }
 
   async waitForImageToLoad() {
