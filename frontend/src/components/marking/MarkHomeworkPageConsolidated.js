@@ -105,7 +105,7 @@ const MarkHomeworkPageConsolidated = ({
     handleScroll
   } = useAutoScroll(chatMessages);
 
-  // Auto-scroll for text-only submissions
+  // Auto-scroll for text-only submissions - ensure it works for both Enter key and Send button
   useEffect(() => {
     if (isTextOnlySubmission && chatMessages.length > 0) {
       // Small delay to ensure the message is rendered
@@ -114,6 +114,48 @@ const MarkHomeworkPageConsolidated = ({
       }, 100);
     }
   }, [isTextOnlySubmission, chatMessages.length, scrollToBottom]);
+
+  // Force auto-scroll when new messages are added (for both Enter key and Send button)
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      // Check if this is a new message (not just a re-render)
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      if (lastMessage && lastMessage.timestamp) {
+        const messageTime = new Date(lastMessage.timestamp).getTime();
+        const now = Date.now();
+        // If message is very recent (within last 2 seconds), force scroll
+        if (now - messageTime < 2000) {
+          setTimeout(() => {
+            scrollToBottom();
+          }, 50);
+        }
+      }
+    }
+  }, [chatMessages.length, scrollToBottom]);
+
+  // Auto-scroll when AI thinking stops (AI response completed)
+  useEffect(() => {
+    if (!isAIThinking && chatMessages.length > 0) {
+      // Small delay to ensure the AI response is rendered
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [isAIThinking, chatMessages.length, scrollToBottom]);
+
+  // Auto-scroll when message content changes (for AI response updates)
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      // Check if the last message is an assistant message with content
+      const lastMessage = chatMessages[chatMessages.length - 1];
+      if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content && !lastMessage.isProcessing) {
+        // This is a completed AI response, scroll to show it
+        setTimeout(() => {
+          scrollToBottom();
+        }, 50);
+      }
+    }
+  }, [chatMessages, scrollToBottom]);
 
   // Scroll button state
   const [showScrollButton, setShowScrollButton] = useState(false);

@@ -427,8 +427,8 @@ export const useMarkHomework = () => {
                 
                 simpleSessionService.setCurrentSession(updatedSession);
                 
-                // Update the message in the UI to trigger re-render
-                await addMessage(updatedMessage);
+                // FIXED: Don't call addMessage() here - it would duplicate the AI response
+                // The session state is already updated above, which will trigger UI re-render
                 
                 // Update progress to complete
                 updateProgress({
