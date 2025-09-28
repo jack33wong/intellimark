@@ -277,8 +277,18 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
     
     // Fallback: check old messages array format (for backward compatibility)
     if (session.messages && session.messages.length > 0) {
-      const lastMsg = session.messages[session.messages.length - 1];
-      if (lastMsg.content) {
+      // Find the last non-processing message to display
+      let lastMsg = null;
+      for (let i = session.messages.length - 1; i >= 0; i--) {
+        const msg = session.messages[i];
+        // Skip processing messages (they have empty content)
+        if (msg.content && !msg.isProcessing) {
+          lastMsg = msg;
+          break;
+        }
+      }
+      
+      if (lastMsg && lastMsg.content) {
         const contentStr = ensureStringContent(lastMsg.content);
         // Only show "No messages yet" if content is truly empty
         if (contentStr.trim().length === 0) {
