@@ -10,7 +10,8 @@ import {
   Star,
   MoreVertical,
   Edit3,
-  Heart
+  Heart,
+  Ellipsis
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -605,7 +606,7 @@ function Sidebar({ isOpen = true, onMarkingHistoryClick, onMarkingResultSaved, o
                           onClick={(e) => handleDropdownToggle(session.id, e)}
                           title="More options"
                         >
-                          <MoreVertical size={16} />
+                          <Ellipsis size={16} />
                         </button>
                         
                         {/* Dropdown Menu */}

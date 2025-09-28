@@ -507,6 +507,12 @@
   transform: scale(0.8);
 }
 
+/* Ensure ellipsis icon uses the correct color */
+.mark-history-dropdown-btn svg {
+  color: var(--text-tertiary);
+  stroke: var(--text-tertiary);
+}
+
 /* Show dropdown button on hover over chat history item */
 .mark-history-item:hover .mark-history-dropdown-btn {
   opacity: 1;
@@ -524,6 +530,11 @@
 .mark-history-dropdown-btn:hover {
   background: var(--background-menu-gray);
   color: var(--text-primary);
+}
+
+.mark-history-dropdown-btn:hover svg {
+  color: var(--text-primary);
+  stroke: var(--text-primary);
 }
 
 /* Dropdown Menu - Match Task Details Dropdown Style */
@@ -554,12 +565,12 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  color: #ffffff; /* White text for contrast like task details */
+  color: var(--text-primary); /* White text for contrast like task details */
   text-decoration: none;
   transition: all 0.2s ease;
   border-bottom: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
 }
 
