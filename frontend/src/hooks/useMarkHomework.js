@@ -331,13 +331,11 @@ export const useMarkHomework = () => {
       // Create processing message for follow-up questions to show progress
       const textProgressData = {
         isComplete: false,
-        currentStepDescription: 'Thinking...',
+        currentStepDescription: 'Processing your question...',
         allSteps: [
-          { id: 'thinking', description: 'Processing your question...' },
-          { id: 'response', description: 'Generating response...' }
-        ],
-        completedSteps: [],
-        currentStepId: 'thinking'
+          'Processing your question...',
+          'Generating response...'
+        ]
       };
       
       startAIThinking(textProgressData);
@@ -346,9 +344,7 @@ export const useMarkHomework = () => {
       updateProgress({
         isComplete: false,
         currentStepDescription: 'Processing your question...',
-        allSteps: textProgressData.allSteps,
-        completedSteps: ['thinking'],
-        currentStepId: 'response'
+        allSteps: textProgressData.allSteps
       });
       
       // Call the backend API to get AI response
@@ -384,9 +380,7 @@ export const useMarkHomework = () => {
       updateProgress({
         isComplete: false,
         currentStepDescription: 'Generating response...',
-        allSteps: textProgressData.allSteps,
-        completedSteps: ['thinking', 'response'],
-        currentStepId: 'complete'
+        allSteps: textProgressData.allSteps
       });
       
       if (data.success) {
@@ -413,10 +407,7 @@ export const useMarkHomework = () => {
                   content: aiMessage.content,
                   progressData: {
                     isComplete: true,
-                    currentStepDescription: 'Show thinking',
-                    allSteps: textProgressData.allSteps,
-                    completedSteps: ['thinking', 'response'],
-                    currentStepId: 'complete'
+                    allSteps: textProgressData.allSteps
                   },
                   isProcessing: false,
                   timestamp: new Date().toISOString()
@@ -435,17 +426,56 @@ export const useMarkHomework = () => {
                 };
                 
                 simpleSessionService.setCurrentSession(updatedSession);
+                
+                // Update the message in the UI to trigger re-render
+                await addMessage(updatedMessage);
+                
+                // Update progress to complete
+                updateProgress({
+                  isComplete: true,
+                  allSteps: textProgressData.allSteps
+                });
+                
+                // Stop AI thinking to complete the processing
+                stopAIThinking();
               } else {
                 // Fallback: use the converted session as-is
                 simpleSessionService.setCurrentSession(convertedSession);
+                
+                // Update progress to complete
+                updateProgress({
+                  isComplete: true,
+                  allSteps: textProgressData.allSteps
+                });
+                
+                // Stop AI thinking to complete the processing
+                stopAIThinking();
               }
             } else {
               // No processing message found, use converted session as-is
               simpleSessionService.setCurrentSession(convertedSession);
+              
+              // Update progress to complete
+              updateProgress({
+                isComplete: true,
+                allSteps: textProgressData.allSteps
+              });
+              
+              // Stop AI thinking to complete the processing
+              stopAIThinking();
             }
           } else {
             // New session, use converted session as-is
             simpleSessionService.setCurrentSession(convertedSession);
+            
+            // Update progress to complete
+            updateProgress({
+              isComplete: true,
+              allSteps: textProgressData.allSteps
+            });
+            
+            // Stop AI thinking to complete the processing
+            stopAIThinking();
           }
         } else if (data.newMessages) {
           // Backend returned only new messages (for anonymous users)
@@ -465,10 +495,16 @@ export const useMarkHomework = () => {
           };
           
           simpleSessionService.setCurrentSession(newSession);
+          
+          // Update progress to complete
+          updateProgress({
+            isComplete: true,
+            allSteps: textProgressData.allSteps
+          });
+          
+          // Stop AI thinking to complete the processing
+          stopAIThinking();
         }
-        
-        // Stop AI thinking after setting the session
-        stopAIThinking();
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }

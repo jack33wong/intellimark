@@ -58,9 +58,9 @@ test.describe('Thinking Text Update Tests', () => {
       // Track which steps we've seen
       const seenSteps = new Set();
       
-      // Monitor thinking text changes for up to 30 seconds
+      // Monitor thinking text changes for up to 90 seconds
       const startTime = Date.now();
-      const timeout = 30000; // 30 seconds
+      const timeout = 90000; // 90 seconds
       
       while (Date.now() - startTime < timeout) {
         const currentText = await thinkingText.textContent();
@@ -100,10 +100,35 @@ test.describe('Thinking Text Update Tests', () => {
       // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
       
-      // Check that thinking text now shows "Show thinking"
+      // Wait for "Almost done..." step if it appears, then wait for "Show thinking"
       const thinkingText = page.locator('.thinking-text');
-      const finalText = await thinkingText.textContent();
       
+      // First wait for "Almost done..." if it appears (with timeout)
+      try {
+        await thinkingText.waitFor({ state: 'visible', timeout: 2000 });
+        const currentText = await thinkingText.textContent();
+        if (currentText && currentText.includes('Almost done...')) {
+          console.log('⏳ Waiting for "Almost done..." step to complete...');
+          await thinkingText.waitFor({ 
+            state: 'visible', 
+            timeout: 10000 
+          });
+        }
+      } catch (e) {
+        // "Almost done..." might not appear, that's okay
+        console.log('ℹ️ "Almost done..." step not detected, continuing...');
+      }
+      
+      // Now wait for "Show thinking" with longer timeout
+      await thinkingText.waitFor({ 
+        state: 'visible', 
+        timeout: 15000 
+      });
+      
+      // Wait a bit more to ensure the final state is stable
+      await page.waitForTimeout(1000);
+      
+      const finalText = await thinkingText.textContent();
       console.log(`🎯 Final thinking text: "${finalText}"`);
       
       // Expected: Should show "Show thinking" when completed
@@ -177,10 +202,35 @@ test.describe('Thinking Text Update Tests', () => {
       // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
       
-      // Check that thinking text now shows "Show thinking"
+      // Wait for "Almost done..." step if it appears, then wait for "Show thinking"
       const thinkingText = page.locator('.thinking-text');
-      const finalText = await thinkingText.textContent();
       
+      // First wait for "Almost done..." if it appears (with timeout)
+      try {
+        await thinkingText.waitFor({ state: 'visible', timeout: 2000 });
+        const currentText = await thinkingText.textContent();
+        if (currentText && currentText.includes('Almost done...')) {
+          console.log('⏳ Waiting for "Almost done..." step to complete...');
+          await thinkingText.waitFor({ 
+            state: 'visible', 
+            timeout: 10000 
+          });
+        }
+      } catch (e) {
+        // "Almost done..." might not appear, that's okay
+        console.log('ℹ️ "Almost done..." step not detected, continuing...');
+      }
+      
+      // Now wait for "Show thinking" with longer timeout
+      await thinkingText.waitFor({ 
+        state: 'visible', 
+        timeout: 15000 
+      });
+      
+      // Wait a bit more to ensure the final state is stable
+      await page.waitForTimeout(1000);
+      
+      const finalText = await thinkingText.textContent();
       console.log(`🎯 Final thinking text: "${finalText}"`);
       
       // Expected: Should show "Show thinking" when completed

@@ -105,6 +105,16 @@ const MarkHomeworkPageConsolidated = ({
     handleScroll
   } = useAutoScroll(chatMessages);
 
+  // Auto-scroll for text-only submissions
+  useEffect(() => {
+    if (isTextOnlySubmission && chatMessages.length > 0) {
+      // Small delay to ensure the message is rendered
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [isTextOnlySubmission, chatMessages.length, scrollToBottom]);
+
   // Scroll button state
   const [showScrollButton, setShowScrollButton] = useState(false);
   
