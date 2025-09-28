@@ -123,17 +123,34 @@ export const useMarkHomework = () => {
 
   // Progress tracking functions - simplified data structure
   const updateProgress = useCallback((data) => {
-    setState(prev => ({
-      ...prev,
-      loadingMessage: data.currentStepDescription,
-      progressData: data,
-      stepList: data.allSteps,
-      completedSteps: data.completedSteps,
-      // Derive other values from the data
-      loadingStep: data.completedSteps.length + (data.isComplete ? 0 : 1),
-      loadingTotalSteps: data.allSteps.length,
-      loadingProgress: data.isComplete ? 100 : Math.round((data.completedSteps.length / data.allSteps.length) * 100)
-    }));
+    // Handle both old complex structure and new simplified structure
+    const isSimplified = data && data.allSteps && Array.isArray(data.allSteps) && typeof data.allSteps[0] === 'string';
+    
+    if (isSimplified) {
+      // New simplified structure: { allSteps: ["step1", "step2"] }
+      setState(prev => ({
+        ...prev,
+        loadingMessage: data.currentStepDescription || data.allSteps[0] || 'Processing...',
+        progressData: data,
+        stepList: data.allSteps,
+        completedSteps: data.completedSteps || [],
+        loadingStep: (data.completedSteps || []).length + (data.isComplete ? 0 : 1),
+        loadingTotalSteps: data.allSteps.length,
+        loadingProgress: data.isComplete ? 100 : Math.round(((data.completedSteps || []).length / data.allSteps.length) * 100)
+      }));
+    } else {
+      // Old complex structure: { allSteps: [{id, description, status}], ... }
+      setState(prev => ({
+        ...prev,
+        loadingMessage: data.currentStepDescription,
+        progressData: data,
+        stepList: data.allSteps,
+        completedSteps: data.completedSteps,
+        loadingStep: data.completedSteps.length + (data.isComplete ? 0 : 1),
+        loadingTotalSteps: data.allSteps.length,
+        loadingProgress: data.isComplete ? 100 : Math.round((data.completedSteps.length / data.allSteps.length) * 100)
+      }));
+    }
     
     // Update the processing message in the session with progress data
     const currentSession = simpleSessionService.getCurrentSession();
@@ -188,11 +205,7 @@ export const useMarkHomework = () => {
       content: '',
       isProcessing: true,
       progressData: progressData || {
-        isComplete: false,
-        currentStepDescription: 'Processing...',
-        allSteps: [],
-        completedSteps: [],
-        currentStepId: null
+        allSteps: []
       },
       timestamp: new Date().toISOString()
     };

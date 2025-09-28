@@ -13,7 +13,7 @@ export interface StepConfig {
 export interface ProgressData {
   currentStepDescription: string; // Current step description for UI
   completedSteps: string[];       // Array of completed step IDs
-  allSteps: StepConfig[];         // Complete array of all steps
+  allSteps: string[];             // Simplified array of step descriptions
   isComplete: boolean;            // Whether all steps are completed
 }
 
@@ -66,7 +66,7 @@ export class ProgressTracker {
     const progressData: ProgressData = {
       currentStepDescription: currentStep?.description || '',
       completedSteps: [...this.completedSteps],
-      allSteps: [...this.steps],
+      allSteps: this.steps.map(step => step.description), // Convert to simplified string array
       isComplete
     };
 

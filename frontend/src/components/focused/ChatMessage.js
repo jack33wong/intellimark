@@ -3,7 +3,7 @@
  * Simple, maintainable, single-purpose component for displaying chat messages
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { Brain } from 'lucide-react';
 import { 
   isUserMessage, 
@@ -30,11 +30,50 @@ const ChatMessage = ({
   ensureStringContent,
   progressData,
   stepList,
-  completedSteps
+  completedSteps,
+  scrollToBottom
 }) => {
   const [imageError, setImageError] = useState(false);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
+  const messageRef = useRef(null);
 
+  // Smart scroll handler for progress details toggle
+  const handleProgressToggle = useCallback(() => {
+    const newShowProgressDetails = !showProgressDetails;
+    setShowProgressDetails(newShowProgressDetails);
+    
+    // Only scroll if we're expanding the progress details and scrollToBottom is available
+    if (newShowProgressDetails && scrollToBottom) {
+      // Use setTimeout to allow the DOM to update with the new progress details
+      setTimeout(() => {
+        // Check if this is the last message in the chat
+        const chatMessages = document.querySelector('.chat-messages');
+        if (chatMessages) {
+          const messageElements = chatMessages.querySelectorAll('.chat-message');
+          const lastMessageElement = messageElements[messageElements.length - 1];
+          const isLastMessage = lastMessageElement && lastMessageElement.contains(messageRef.current);
+          
+          if (isLastMessage) {
+            // Check if there's content below the progress details
+            const progressDetails = messageRef.current?.querySelector('.progress-details-container');
+            if (progressDetails) {
+              const progressRect = progressDetails.getBoundingClientRect();
+              const chatRect = chatMessages.getBoundingClientRect();
+              
+              // Only scroll if the progress details extend beyond the visible chat area
+              if (progressRect.bottom > chatRect.bottom) {
+                scrollToBottom();
+              }
+            } else {
+              // If progress details don't exist yet, just scroll to bottom anyway
+              // This handles the case where allSteps is not available yet during processing
+              scrollToBottom();
+            }
+          }
+        }
+      }, 150); // Increased delay to allow for DOM updates and animations
+    }
+  }, [showProgressDetails, scrollToBottom]);
 
   // Handle image load error
   const handleImageError = useCallback(() => {
@@ -56,7 +95,11 @@ const ChatMessage = ({
   const isMarking = isMarkingMessage(message);
 
   return (
-    <div className={`chat-message ${className} ${isUser ? 'user' : 'assistant'} ${compact ? 'compact' : ''}`}>
+    <div 
+      ref={messageRef}
+      className={`chat-message ${className} ${isUser ? 'user' : 'assistant'} ${compact ? 'compact' : ''}`}
+      data-message-id={message.id}
+    >
       <div className="chat-message-content">
         <div className={`chat-message-bubble ${isMarking ? 'marking-message' : ''}`}>
           {/* Assistant header with Brain icon and thinking indicator */}
@@ -68,17 +111,20 @@ const ChatMessage = ({
                 <div className="thinking-indicator">
                   <div className="progress-main-line">
                     <div className="thinking-dots" style={{ flexShrink: 0 }}>
-                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
-                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
-                      <div className={`thinking-dot ${message.progressData.isComplete ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
+                      <div className={`thinking-dot ${!message.isProcessing ? 'no-animation' : ''}`}></div>
                     </div>
                     <div className="thinking-text" style={{ flexShrink: 0 }}>
-                      {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
+                      {message.isProcessing ? 
+                        (message.progressData?.currentStepDescription || message.progressData?.allSteps?.[0] || 'Processing...') : 
+                        'Show thinking'
+                      }
                     </div>
                     <div className="progress-toggle-container">
                       <button
                         className="progress-toggle-button"
-                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        onClick={handleProgressToggle}
                         style={{
                           transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
                           transition: 'transform 0.2s ease'
@@ -113,7 +159,7 @@ const ChatMessage = ({
                     <div className="progress-toggle-container">
                       <button
                         className="progress-toggle-button"
-                        onClick={() => setShowProgressDetails(!showProgressDetails)}
+                        onClick={handleProgressToggle}
                         style={{
                           transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)',
                           transition: 'transform 0.2s ease'
@@ -135,21 +181,29 @@ const ChatMessage = ({
             <div className="progress-details-container" style={{ textAlign: 'left' }}>
               <div className="step-list-container">
                 {(() => {
-                  // Show only steps that have started (completed + current step)
+                  // Handle simplified structure: allSteps is array of strings
+                  const allSteps = message.progressData.allSteps || [];
                   const completedCount = message.progressData.completedSteps?.length || 0;
-                  const currentStepIndex = completedCount;
-                  const stepsToShow = message.progressData.allSteps.slice(0, currentStepIndex + 1);
+                  const currentStepIndex = message.progressData.currentStepIndex || completedCount;
+                  
+                  // Show only steps that have started (completed + current step)
+                  const stepsToShow = allSteps.slice(0, Math.min(currentStepIndex + 1, allSteps.length));
                   
                   return stepsToShow.map((step, index) => {
-                    const isCompleted = message.progressData.completedSteps?.includes(step.id) || false;
-                    const isCurrent = index === completedCount;
+                    // Handle both string and object formats
+                    const stepText = typeof step === 'string' ? step : (step.description || step.name || 'Step');
+                    const stepId = typeof step === 'string' ? `step-${index}` : (step.id || `step-${index}`);
+                    
+                    const isCompleted = index < completedCount;
+                    const isCurrent = index === currentStepIndex && !isCompleted;
+                    
                     return (
-                      <div key={step.id || index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                      <div key={stepId} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                         <div className="step-indicator">
                           {isCompleted ? '✓' : isCurrent ? '●' : '○'}
                         </div>
                         <div className="step-description">
-                          {step.description}
+                          {stepText}
                         </div>
                       </div>
                     );

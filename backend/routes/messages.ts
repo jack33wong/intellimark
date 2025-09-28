@@ -140,14 +140,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
       detectedQuestion: { found: false, message: 'AI response' },
       isProcessing: false, // Mark as completed since this is the final response
       progressData: {
-        isComplete: true,
-        currentStepDescription: 'Show thinking',
         allSteps: [
-          { id: 'thinking', description: 'Processing your question...', status: 'completed' },
-          { id: 'response', description: 'Generating response...', status: 'completed' }
-        ],
-        completedSteps: ['thinking', 'response'],
-        currentStepId: 'complete'
+          'Processing your question...',
+          'Generating response...'
+        ]
       },
       metadata: {
         resultId: `chat-ai-${Date.now()}`,

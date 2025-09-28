@@ -18,12 +18,16 @@ export const useAutoScroll = (messages = []) => {
     }
   }, []);
 
-  // Auto-scroll when messages change (works for both new messages AND history loading)
+  // Auto-scroll when messages change, but only if user is already near the bottom
   useLayoutEffect(() => {
-    if (messages.length > 0) {
-      // useLayoutEffect runs synchronously after DOM mutations but before paint
-      // No need for requestAnimationFrame - DOM is already updated
-      scrollToBottom();
+    if (messages.length > 0 && containerRef.current) {
+      const container = containerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      // Only auto-scroll if user is already near the bottom
+      if (isNearBottom) {
+        scrollToBottom();
+      }
     }
   }, [messages, scrollToBottom]);
 

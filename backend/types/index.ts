@@ -203,12 +203,7 @@ export interface UnifiedMessage {
   progressData?: {
     currentStepDescription: string;
     completedSteps: string[];
-    allSteps: Array<{
-      id: string;
-      name: string;
-      description: string;
-      percentage: number;
-    }>;
+    allSteps: string[];
     isComplete: boolean;
   };
   

@@ -127,6 +127,7 @@ const MainLayout = ({
                 stepList={stepList}
                 completedSteps={completedSteps}
                 ensureStringContent={ensureStringContent}
+                scrollToBottom={scrollToBottom}
               />
             ))}
             

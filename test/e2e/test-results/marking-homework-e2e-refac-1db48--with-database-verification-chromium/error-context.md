@@ -1,0 +1,248 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - button "Toggle menu" [ref=e9] [cursor=pointer]:
+          - img [ref=e10] [cursor=pointer]
+        - generic [ref=e11] [cursor=pointer]:
+          - heading "Intellimark" [level=1] [ref=e12] [cursor=pointer]
+          - paragraph [ref=e13] [cursor=pointer]: powered by AI
+      - button "Mark Homework" [ref=e14] [cursor=pointer]:
+        - img [ref=e15] [cursor=pointer]
+        - text: Mark Homework
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - button "All" [ref=e20] [cursor=pointer]
+          - button "Mark" [ref=e21] [cursor=pointer]
+          - button "Question" [ref=e22] [cursor=pointer]
+          - button "Favorite" [ref=e23] [cursor=pointer]
+        - generic [ref=e26] [cursor=pointer]:
+          - img [ref=e28] [cursor=pointer]
+          - generic [ref=e30] [cursor=pointer]:
+            - generic [ref=e31] [cursor=pointer]: AQA GCSE Mathematics 8300/2H - Q19
+            - generic [ref=e32] [cursor=pointer]: Of course! I can cer...
+          - generic [ref=e33] [cursor=pointer]:
+            - generic [ref=e34] [cursor=pointer]: 10:11
+            - button "Delete session" [ref=e35] [cursor=pointer]:
+              - img [ref=e36] [cursor=pointer]
+    - generic [ref=e40] [cursor=pointer]:
+      - img [ref=e41] [cursor=pointer]
+      - text: Admin
+  - generic [ref=e46]:
+    - generic [ref=e48]:
+      - generic [ref=e50]:
+        - heading "AQA GCSE Mathematics 8300/2H - Q19" [level=1] [ref=e52]
+        - generic [ref=e53]:
+          - button "Information" [ref=e55] [cursor=pointer]:
+            - img [ref=e56] [cursor=pointer]
+          - button "Add to favorites" [ref=e58] [cursor=pointer]:
+            - img [ref=e59] [cursor=pointer]
+      - generic [ref=e61]:
+        - generic [ref=e63]:
+          - generic [ref=e65]: I have a question about this image.
+          - generic:
+            - img "Uploaded"
+          - generic [ref=e66]: 10:10 AM
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - img [ref=e71]
+              - generic [ref=e75]:
+                - generic [ref=e76]: Show thinking
+                - button [ref=e78] [cursor=pointer]:
+                  - img [ref=e79] [cursor=pointer]
+            - generic [ref=e81]:
+              - paragraph [ref=e82]: Excellent work on this problem! You have a very clear method and you've correctly completed the most difficult parts.
+              - paragraph [ref=e83]:
+                - text: "You're spot on with finding the first and second differences. This correctly led you to the first part of the expression:"
+                - strong [ref=e84]:
+                  - text: "5"
+                  - emphasis [ref=e85]: "n"
+                  - text: ²
+                - text: .
+              - paragraph [ref=e86]:
+                - text: You then correctly started building the linear part of the sequence by subtracting the 5
+                - emphasis [ref=e87]: "n"
+                - text: ² values from the original terms.
+              - list [ref=e88]:
+                - listitem [ref=e89]: "n=1: 3 - 5(1)² = -2"
+                - listitem [ref=e90]: "n=2: 20 - 5(2)² = 0"
+                - listitem [ref=e91]: "n=3: 47 - 5(3)² = 2"
+              - paragraph [ref=e92]:
+                - text: "This gives the linear sequence:"
+                - strong [ref=e93]: "-2, 0, 2, ..."
+              - paragraph [ref=e94]:
+                - text: You correctly found the difference for this linear sequence is +2, which means the next part of your expression is
+                - strong [ref=e95]:
+                  - text: "+2"
+                  - emphasis [ref=e96]: "n"
+                  - text: .
+              - paragraph [ref=e97]:
+                - text: The small mistake is in the final constant term. It looks like you used the first term of the linear sequence (-2) as your constant. The constant term is found by figuring out what you need to add or subtract to
+                - code [ref=e98]: 2n
+                - text: to get the terms in the sequence -2, 0, 2, ...
+              - paragraph [ref=e99]: "Here are a couple of questions to help you find the correct final term:"
+              - list [ref=e100]:
+                - listitem [ref=e101]:
+                  - text: For n=1, your linear term
+                  - code [ref=e102]: 2n
+                  - text: gives
+                  - code [ref=e103]: 2(1) = 2
+                  - text: . How do you get from
+                  - code [ref=e104]: "2"
+                  - text: to the first term of the linear sequence, which is
+                  - code [ref=e105]: "-2"
+                  - text: "?"
+                - listitem [ref=e106]:
+                  - text: A great way to check your final answer is to test it. If you substitute
+                  - code [ref=e107]: n=1
+                  - text: into your expression
+                  - code [ref=e108]: 5n² + 2n - 2
+                  - text: ", do you get the first term of the original sequence, which is 3?"
+              - paragraph [ref=e109]: You are very close to the correct solution! Keep up the great work.
+            - img "Marked homework" [ref=e111]
+          - generic [ref=e112]: 10:10 AM
+        - generic [ref=e114]:
+          - generic [ref=e116]: I have a question about this image.
+          - generic:
+            - img "Uploaded"
+          - generic [ref=e117]: 10:11 AM
+        - generic [ref=e119]:
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - img [ref=e122]
+              - generic [ref=e126]:
+                - generic [ref=e127]: Show thinking
+                - button [ref=e129] [cursor=pointer]:
+                  - img [ref=e130] [cursor=pointer]
+            - generic [ref=e132]:
+              - paragraph [ref=e133]: Of course! I can certainly help you with this compound interest problem. It involves a bit of algebra, but we can break it down into simple steps.
+              - paragraph [ref=e134]: "Here is a complete step-by-step solution:"
+              - heading "Understanding the Problem" [level=3] [ref=e135]:
+                - strong [ref=e136]: Understanding the Problem
+              - paragraph [ref=e137]:
+                - text: The question asks for the
+                - strong [ref=e138]: minimum
+                - text: annual interest rate needed for an initial investment of £500 to grow to
+                - strong [ref=e139]: at least
+                - text: £560 over 3 years. This means the final amount can be £560 or more.
+              - 'heading "Step 1: The Compound Interest Formula" [level=3] [ref=e140]':
+                - strong [ref=e141]: "Step 1: The Compound Interest Formula"
+              - paragraph [ref=e142]: "First, let's recall the formula for compound interest:"
+              - paragraph [ref=e143]:
+                - strong [ref=e144]: A = P(1 + r)ⁿ
+              - paragraph [ref=e145]: "Where:"
+              - list [ref=e146]:
+                - listitem [ref=e147]:
+                  - strong [ref=e148]: A
+                  - text: is the final amount in the account.
+                - listitem [ref=e149]:
+                  - strong [ref=e150]: P
+                  - text: is the principal amount (the initial investment).
+                - listitem [ref=e151]:
+                  - strong [ref=e152]: r
+                  - text: is the annual interest rate (as a decimal).
+                - listitem [ref=e153]:
+                  - strong [ref=e154]: "n"
+                  - text: is the number of years.
+              - 'heading "Step 2: Identify the Known Values" [level=3] [ref=e155]':
+                - strong [ref=e156]: "Step 2: Identify the Known Values"
+              - paragraph [ref=e157]: "From the problem statement, we can identify the following values:"
+              - list [ref=e158]:
+                - listitem [ref=e159]:
+                  - strong [ref=e160]: P
+                  - text: (Principal) = £500
+                - listitem [ref=e161]:
+                  - strong [ref=e162]: A
+                  - text: (Final Amount) must be at least £560. To find the minimum rate, we'll set the target amount to exactly £560.
+                - listitem [ref=e163]:
+                  - strong [ref=e164]: "n"
+                  - text: (Number of years) = 3
+                - listitem [ref=e165]:
+                  - strong [ref=e166]: r
+                  - text: (Interest rate) is what we need to find.
+              - 'heading "Step 3: Set up the Equation" [level=3] [ref=e167]':
+                - strong [ref=e168]: "Step 3: Set up the Equation"
+              - paragraph [ref=e169]: "Now, we substitute the known values into the compound interest formula:"
+              - paragraph [ref=e170]: 560 = 500(1 + r)³
+              - paragraph [ref=e171]: Our goal is to solve this equation for 'r'.
+              - 'heading "Step 4: Solve for ''r''" [level=3] [ref=e172]':
+                - strong [ref=e173]: "Step 4: Solve for 'r'"
+              - paragraph [ref=e174]: Let's rearrange the equation step-by-step to isolate 'r'.
+              - list [ref=e175]:
+                - listitem [ref=e176]:
+                  - paragraph [ref=e177]:
+                    - strong [ref=e178]: "Divide both sides by the principal amount (500):"
+                    - text: This will help us start to isolate the
+                    - code [ref=e179]: (1 + r)³
+                    - text: part of the equation.
+                  - paragraph [ref=e180]: 560 / 500 = (1 + r)³ 1.12 = (1 + r)³
+                - listitem [ref=e181]:
+                  - paragraph [ref=e182]:
+                    - strong [ref=e183]: "Take the cube root of both sides:"
+                    - text: To get rid of the power of 3, we do the opposite operation, which is taking the cube root (³√).
+                  - paragraph [ref=e184]: ³√1.12 = 1 + r
+                - listitem [ref=e185]:
+                  - paragraph [ref=e186]:
+                    - strong [ref=e187]: "Calculate the value of the cube root:"
+                    - text: "Using a calculator:"
+                  - paragraph [ref=e188]: ³√1.12 ≈ 1.038498...
+                  - paragraph [ref=e189]: "So now our equation is: 1.038498... = 1 + r"
+                - listitem [ref=e190]:
+                  - paragraph [ref=e191]:
+                    - strong [ref=e192]: "Subtract 1 from both sides to find 'r':"
+                    - text: This will finally give us the value of 'r' as a decimal.
+                  - paragraph [ref=e193]: r = 1.038498... - 1 r = 0.038498...
+              - 'heading "Step 5: Convert the Interest Rate to a Percentage" [level=3] [ref=e194]':
+                - strong [ref=e195]: "Step 5: Convert the Interest Rate to a Percentage"
+              - paragraph [ref=e196]: The value of 'r' we just found is in decimal form. To express it as a percentage, we multiply by 100.
+              - paragraph [ref=e197]: Percentage Rate = r × 100 Percentage Rate = 0.038498... × 100 Percentage Rate = 3.8498... %
+              - 'heading "Step 6: Round to 1 Decimal Place" [level=3] [ref=e198]':
+                - strong [ref=e199]: "Step 6: Round to 1 Decimal Place"
+              - paragraph [ref=e200]: The question asks for the answer to 1 decimal place.
+              - paragraph [ref=e201]: The calculated rate is 3.8498...%. The second decimal digit is 4, so normally we would round down to 3.8%.
+              - paragraph [ref=e202]:
+                - text: However, we must be careful. The question states she wants
+                - strong [ref=e203]: at least
+                - text: £560. Let's check if a 3.8% rate is enough.
+              - list [ref=e204]:
+                - listitem [ref=e205]:
+                  - strong [ref=e206]: "Check with 3.8%:"
+                  - text: A = 500(1 + 0.038)³ = 500(1.038)³ ≈ £559.12 This is
+                  - emphasis [ref=e207]: less
+                  - text: than £560, so 3.8% is not enough.
+              - paragraph [ref=e208]: Because the required rate is slightly higher than 3.8%, we must round up to the next possible value with one decimal place to ensure the condition "at least £560" is met.
+              - paragraph [ref=e209]:
+                - text: The minimum rate of 3.8498...% must be rounded up to
+                - strong [ref=e210]: 3.9%
+                - text: .
+              - list [ref=e211]:
+                - listitem [ref=e212]:
+                  - strong [ref=e213]: "Check with 3.9%:"
+                  - text: A = 500(1 + 0.039)³ = 500(1.039)³ ≈ £560.70 This is greater than £560, so this rate works.
+              - heading "Final Answer" [level=3] [ref=e214]:
+                - strong [ref=e215]: Final Answer
+              - paragraph [ref=e216]:
+                - text: The minimum annual interest rate Magana needs, to 1 decimal place, is
+                - strong [ref=e217]: 3.9%
+                - text: .
+              - paragraph [ref=e218]: I hope this detailed breakdown helps you understand every step of the process. Let me know if you have any more questions
+          - generic [ref=e219]: 10:11 AM
+      - button "Scroll to bottom" [ref=e220] [cursor=pointer]:
+        - img [ref=e221] [cursor=pointer]
+    - generic [ref=e226]:
+      - textbox "Ask me anything about your homework..." [ref=e228]
+      - generic [ref=e229]:
+        - generic [ref=e230]:
+          - button "Upload image" [ref=e231] [cursor=pointer]:
+            - img [ref=e232] [cursor=pointer]
+          - button "Auto ▼" [ref=e234] [cursor=pointer]:
+            - generic [ref=e235] [cursor=pointer]:
+              - generic [ref=e236] [cursor=pointer]: Auto
+              - generic [ref=e237] [cursor=pointer]: ▼
+        - button "Send" [disabled] [ref=e238]:
+          - img [ref=e240]
+```
