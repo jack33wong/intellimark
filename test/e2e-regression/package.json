@@ -1,0 +1,14 @@
+{
+  "name": "e2e-regression-tests",
+  "version": "1.0.0",
+  "description": "Comprehensive E2E regression tests for marking homework functionality",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed",
+    "test:debug": "npx playwright test --debug",
+    "report": "npx playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

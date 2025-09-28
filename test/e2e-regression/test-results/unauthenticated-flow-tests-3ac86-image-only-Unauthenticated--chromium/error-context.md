@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e5]:
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - button "Toggle menu" [ref=e9] [cursor=pointer]:
+        - img [ref=e10] [cursor=pointer]
+      - generic [ref=e11] [cursor=pointer]:
+        - heading "Intellimark" [level=1] [ref=e12] [cursor=pointer]
+        - paragraph [ref=e13] [cursor=pointer]: powered by AI
+    - button "Mark Homework" [ref=e14] [cursor=pointer]:
+      - img [ref=e15] [cursor=pointer]
+      - text: Mark Homework
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - button "All" [ref=e20] [cursor=pointer]
+        - button "Mark" [ref=e21] [cursor=pointer]
+        - button "Question" [ref=e22] [cursor=pointer]
+        - button "Favorite" [ref=e23] [cursor=pointer]
+      - generic [ref=e26]:
+        - img [ref=e27]
+        - generic [ref=e30]: No sessions yet
+  - generic [ref=e31]:
+    - banner [ref=e32]:
+      - generic [ref=e33]:
+        - navigation [ref=e34]:
+          - button "Debug OFF" [ref=e35] [cursor=pointer]:
+            - img [ref=e36] [cursor=pointer]
+            - text: Debug OFF
+        - generic [ref=e45]:
+          - button "Upgrade" [ref=e46] [cursor=pointer]
+          - button "Sign In" [ref=e47] [cursor=pointer]
+    - generic [ref=e49]:
+      - button "Scroll to bottom" [ref=e53] [cursor=pointer]:
+        - img [ref=e54] [cursor=pointer]
+      - generic:
+        - generic:
+          - heading "Hello!" [level=2]
+          - paragraph: What can I do for you?
+        - generic [ref=e58]:
+          - generic [ref=e60]:
+            - img "Preview" [ref=e61]
+            - button "×" [ref=e62] [cursor=pointer]
+          - generic [ref=e63]:
+            - textbox "Ask me anything about your homework..." [ref=e65]
+            - generic [ref=e66]:
+              - generic [ref=e67]:
+                - button "Upload image" [ref=e68] [cursor=pointer]:
+                  - img [ref=e69] [cursor=pointer]
+                - button "Auto ▼" [ref=e71] [cursor=pointer]:
+                  - generic [ref=e72] [cursor=pointer]:
+                    - generic [ref=e73] [cursor=pointer]: Auto
+                    - generic [ref=e74] [cursor=pointer]: ▼
+              - button "Send" [ref=e75] [cursor=pointer]:
+                - img [ref=e77] [cursor=pointer]
+```
