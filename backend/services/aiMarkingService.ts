@@ -161,6 +161,13 @@ export class AIMarkingService {
       You will receive an image of a math question and a message from the student.
       Your task is to provide a clear, step-by-step solution with minimal explanation.
       
+      RESPONSE FORMAT REQUIREMENTS:
+      - Use Markdown formatting
+      - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
+      - The explanation must start in the next, separate paragraph.
+      - For any inline emphasis, use italics instead of bold
+      - Always put the final, conclusive answer in the very last paragraph
+      
       RESPONSE GUIDELINES:
       - Show the solution steps clearly and concisely
       - Use clear mathematical notation and formatting
@@ -171,6 +178,13 @@ export class AIMarkingService {
       
       Return a clear, step-by-step solution with minimal explanatory text.`
       : `You are an expert math tutor reviewing a student's work in an image.
+      
+      RESPONSE FORMAT REQUIREMENTS:
+      - Use Markdown formatting
+      - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
+      - The explanation must start in the next, separate paragraph.
+      - For any inline emphasis, use italics instead of bold
+      - Always put the final, conclusive answer in the very last paragraph
       
       Your task is to:
       - Review the student's working and answer
@@ -356,18 +370,25 @@ Summary:`;
     contextSummary?: string
   ): Promise<string> {
     
-    const systemPrompt = `You are an AI tutor helping students with math problems. 
+    const systemPrompt = `You are a math solver that provides direct, step-by-step solutions to math problems.
     
     You will receive a message from the student and their chat history for context.
-    Provide helpful, educational responses that continue the conversation naturally.
+    ALWAYS solve the math problem directly. Do NOT ask questions or ask for clarification.
     
-    RESPONSE GUIDELINES:
-    - Reference previous parts of the conversation when relevant
-    - Be encouraging and supportive
-    - Ask clarifying questions if needed
-    - Provide step-by-step guidance
+    RESPONSE FORMAT REQUIREMENTS:
+    - Use Markdown formatting
+    - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
+    - The explanation must start in the next, separate paragraph.
+    - For any inline emphasis, use italics instead of bold
+    - Always put the final, conclusive answer in the very last paragraph
+    
+    RESPONSE RULES:
+    - Solve the problem immediately, don't ask questions
+    - Show step-by-step mathematical work
     - Use clear mathematical notation
-    - Keep responses concise but helpful`;
+    - Keep explanations minimal and focused
+    - Do NOT ask "Do you want to try another one?" or similar questions
+    - Do NOT ask about preferred methods - just solve it`;
 
     // Use context summary if available, otherwise fall back to recent messages
     let contextPrompt = '';
@@ -377,9 +398,9 @@ Summary:`;
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
     }
 
-    const userPrompt = `Student message: "${message}"${contextPrompt}
+    const userPrompt = `Math problem: "${message}"${contextPrompt}
     
-    Please provide a helpful response that continues our conversation.`;
+    Solve this problem step by step. Show your work and give the final answer. Do not ask questions.`;
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider');

@@ -347,6 +347,15 @@ export const useMarkHomework = () => {
         allSteps: textProgressData.allSteps
       });
       
+      // Show "Processing your question..." for 1.5 seconds, then transition to "Generating response..."
+      setTimeout(() => {
+        updateProgress({
+          isComplete: false,
+          currentStepDescription: 'Generating response...',
+          allSteps: textProgressData.allSteps
+        });
+      }, 1500);
+      
       // Call the backend API to get AI response
       const authToken = await getAuthToken();
       const headers = {
@@ -376,13 +385,6 @@ export const useMarkHomework = () => {
       
       const data = await response.json();
       
-      // Update progress: Generating response...
-      updateProgress({
-        isComplete: false,
-        currentStepDescription: 'Generating response...',
-        allSteps: textProgressData.allSteps
-      });
-      
       if (data.success) {
         // Handle consistent response format from both APIs
         if (data.unifiedSession) {
@@ -406,8 +408,10 @@ export const useMarkHomework = () => {
                   ...processingMessage,
                   content: aiMessage.content,
                   progressData: {
-                    isComplete: true,
-                    allSteps: textProgressData.allSteps
+                    allSteps: textProgressData.allSteps,
+                    currentStepDescription: 'Generating response...',
+                    completedSteps: ['Processing your question...', 'Generating response...'],
+                    isComplete: true
                   },
                   isProcessing: false,
                   timestamp: new Date().toISOString()
@@ -433,6 +437,8 @@ export const useMarkHomework = () => {
                 // Update progress to complete
                 updateProgress({
                   isComplete: true,
+                  currentStepDescription: 'Generating response...',
+                  completedSteps: ['Processing your question...', 'Generating response...'],
                   allSteps: textProgressData.allSteps
                 });
                 
@@ -445,6 +451,8 @@ export const useMarkHomework = () => {
                 // Update progress to complete
                 updateProgress({
                   isComplete: true,
+                  currentStepDescription: 'Generating response...',
+                  completedSteps: ['Processing your question...', 'Generating response...'],
                   allSteps: textProgressData.allSteps
                 });
                 
@@ -458,6 +466,8 @@ export const useMarkHomework = () => {
               // Update progress to complete
               updateProgress({
                 isComplete: true,
+                currentStepDescription: 'Generating response...',
+                completedSteps: ['Processing your question...', 'Generating response...'],
                 allSteps: textProgressData.allSteps
               });
               
@@ -471,6 +481,8 @@ export const useMarkHomework = () => {
             // Update progress to complete
             updateProgress({
               isComplete: true,
+              currentStepDescription: 'Generating response...',
+              completedSteps: ['Processing your question...', 'Generating response...'],
               allSteps: textProgressData.allSteps
             });
             

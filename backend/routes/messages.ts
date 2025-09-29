@@ -105,7 +105,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
       } else {
-        // For text-only messages, use contextual response
+        // For text-only messages, use contextual response with progress tracking
         // First get existing session messages for context
         let chatHistory: any[] = [];
         if (currentSessionId) {
@@ -120,6 +120,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
           } catch (error) {
           }
         }
+
+        // Simulate processing time for "Processing your question..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
 
         aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model as any);
         apiUsed = 'Gemini 2.5 Pro';
@@ -144,6 +147,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           'Processing your question...',
           'Generating response...'
         ],
+        currentStepDescription: 'Generating response...', // Show final step
+        completedSteps: ['Processing your question...', 'Generating response...'],
         isComplete: true
       },
       metadata: {

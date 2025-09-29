@@ -1,232 +1,48 @@
-/* MarkdownMathRenderer Styles */
+/* --- Final, Simplified, and Reliable CSS --- */
+
 .markdown-math-renderer {
   padding: 0px 25px 0px;
   line-height: 1.8;
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Headings */
-.markdown-math-renderer .markdown-h1,
-.markdown-math-renderer .markdown-h2,
-.markdown-math-renderer .markdown-h3,
-.markdown-math-renderer .markdown-h4,
-.markdown-math-renderer .markdown-h5,
-.markdown-math-renderer .markdown-h6 {
-  margin: 1.5em 0 0.5em 0;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--text-primary);
-}
-
-.markdown-math-renderer .markdown-h1 { font-size: 2em; }
-.markdown-math-renderer .markdown-h2 { font-size: 1.5em; }
-.markdown-math-renderer .markdown-h3 { font-size: 1.1em; }
-.markdown-math-renderer .markdown-h4 { font-size: 1em; }
-.markdown-math-renderer .markdown-h5 { font-size: 0.875em; }
-.markdown-math-renderer .markdown-h6 { font-size: 0.85em; }
-
-.markdown-math-renderer .markdown-h1:first-child,
-.markdown-math-renderer .markdown-h2:first-child,
-.markdown-math-renderer .markdown-h3:first-child,
-.markdown-math-renderer .markdown-h4:first-child,
-.markdown-math-renderer .markdown-h5:first-child,
-.markdown-math-renderer .markdown-h6:first-child {
-  margin-top: 0;
-}
-
-/* Paragraphs */
-.markdown-math-renderer .markdown-p {
-  margin: 0 0 1em 0;
-  line-height: 1.4;
-}
-
-/* Lists */
-.markdown-math-renderer .markdown-ul,
-.markdown-math-renderer .markdown-ol {
-  margin: 0 0 1em 0;
-  padding-left: 2em;
-}
-
-.markdown-math-renderer .markdown-li {
-  margin: 0.25em 0;
-  line-height: 1.6;
-}
-
-/* Code blocks */
-.markdown-math-renderer .markdown-inline-code {
-  background: var(--background-card-gray, #f6f8fa);
-  border: 1px solid var(--border-primary, #e1e4e8);
-  border-radius: 3px;
-  padding: 0.2em 0.4em;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.85em;
-  color: var(--code-text, #e36209);
-}
-
-.markdown-math-renderer .markdown-pre {
-  background: var(--tertiary-bg, #f6f8fa);
-  border: 1px solid var(--border-color, #e1e4e8);
-  border-radius: 6px;
-  padding: 16px;
-  overflow-x: auto;
-  margin: 1em 0;
-  line-height: 1.45;
-}
-
-.markdown-math-renderer .markdown-code {
-  background: var(--tertiary-bg, #f6f8fa);
-  border: 1px solid var(--border-color, #e1e4e8);
-  border-radius: 3px;
-  padding: 0.2em 0.4em;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.85em;
-  color: var(--code-text, #e36209);
-}
-
-/* Blockquotes */
-.markdown-math-renderer .markdown-blockquote {
-  margin: 1em 0;
-  padding: 0 1em;
-  color: var(--secondary-text, #6a737d);
-  border-left: 0.25em solid var(--border-color, #dfe2e5);
-  background: var(--tertiary-bg, #f6f8fa);
-}
-
-/* Tables */
-.markdown-math-renderer .markdown-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  overflow-x: auto;
-  display: block;
-}
-
-.markdown-math-renderer .markdown-th,
-.markdown-math-renderer .markdown-td {
-  border: 1px solid var(--border-color, #dfe2e5);
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.markdown-math-renderer .markdown-th {
-  background: var(--tertiary-bg, #f6f8fa);
-  font-weight: 600;
-}
-
-/* Links */
-.markdown-math-renderer .markdown-link {
-  color: var(--accent-color, #0366d6);
-  text-decoration: none;
-}
-
-.markdown-math-renderer .markdown-link:hover {
-  text-decoration: underline;
-}
-
-/* Emphasis */
-.markdown-math-renderer .markdown-strong {
-  font-weight: 500;
-}
-
-.markdown-math-renderer .markdown-em {
-  font-style: italic;
-}
-
-/* Step-by-step solution styling - simple and clean */
-.markdown-math-renderer .markdown-p {
+.markdown-p,
+.markdown-ol {
   margin: 0.5em 0;
-  line-height: 1.6;
 }
 
-/* Step titles - simple brand color like chat titles */
-.markdown-math-renderer .markdown-p .markdown-strong:first-child {
+/* --- Title & Indentation --- */
+
+.markdown-math-renderer h3 {
   color: var(--text-primary);
   font-weight: 500;
-  display: block;
-  margin-bottom: 0.3em;
+  margin: 1.0em 0 0.5em 0;
+  font-size: 1.1em; /* You can adjust the title size here */
 }
 
-/* Only indent paragraphs that come immediately after a step title */
-.markdown-math-renderer .markdown-p:has(.markdown-strong:first-child) + .markdown-p:not(:has(.markdown-strong:first-child)) {
-  color: var(--text-secondary);
-  margin-left: 1em;
-  margin-bottom: 0.4em;
+/* Indent any paragraph or list that follows an h3 */
+.markdown-math-renderer h3 ~ .markdown-p,
+.markdown-math-renderer h3 ~ .markdown-ol {
+  margin-left: 1.5em;
+  color: var(--text-primary);
 }
 
-/* Mathematical expressions - simple highlight */
+/* --- Final Answer Section --- */
+.markdown-math-renderer > p:last-of-type {
+  border-top: 1px solid var(--text-tertiary, #cccccc);
+  padding: 1em 1em 3em 1em;
+  margin-top: 1em;
+  margin-left: 0;
+}
+
+/* --- Other styles --- */
+.markdown-math-renderer .math-inline,
 .markdown-math-renderer .markdown-em {
   color: var(--function-error);
-  font-weight: 600;
   font-style: normal;
 }
 
-/* Answer section - rounded rectangle grey background */
-.markdown-math-renderer .markdown-p:last-child {
-  background: var(--background-nav);
-  border-radius: 8px;
-  padding: 1em;
-  margin: 1em 0;
+.markdown-math-renderer .markdown-ol {
+  list-style-position: outside;
+  padding-left: 1.5em;
 }
-
-/* Horizontal rule */
-.markdown-math-renderer .markdown-hr {
-  border: none;
-  border-top: 1px solid var(--border-color, #dfe2e5);
-  margin: 2em 0;
-}
-
-/* Empty content */
-.markdown-math-renderer .empty-content {
-  color: var(--muted-text, #6a737d);
-  font-style: italic;
-  text-align: center;
-  padding: 2em;
-}
-
-/* KaTeX Math Styling */
-.markdown-math-renderer .math {
-  font-family: 'KaTeX_Main', 'Times New Roman', serif;
-}
-
-.markdown-math-renderer .math-display {
-  display: block;
-  text-align: center;
-  margin: 1em 0;
-}
-
-.markdown-math-renderer .math-inline {
-  display: inline;
-}
-
-/* KaTeX error styling */
-.markdown-math-renderer .katex-error {
-  color: var(--error-color, #cc0000);
-  background: rgba(204, 0, 0, 0.1);
-  padding: 2px 4px;
-  border-radius: 3px;
-  font-family: monospace;
-}
-
-/* KaTeX display mode */
-.markdown-math-renderer .katex-display {
-  margin: 1em 0;
-  text-align: center;
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .markdown-math-renderer .markdown-h1 { font-size: 1.75em; }
-  .markdown-math-renderer .markdown-h2 { font-size: 1.5em; }
-  .markdown-math-renderer .markdown-h3 { font-size: 1.25em; }
-  
-  .markdown-math-renderer .markdown-pre {
-    padding: 12px;
-    font-size: 0.8em;
-  }
-  
-  .markdown-math-renderer .markdown-table {
-    font-size: 0.9em;
-  }
-}
-
