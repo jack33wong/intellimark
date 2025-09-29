@@ -17,7 +17,7 @@ ul {
 .markdown-math-renderer h3 {
   color: var(--text-primary);
   font-weight: 500;
-  margin: 1.0em 0 0.5em 0;
+  margin: 0.5em 0 0.5em 0;
   font-size: 1.1em;
 }
 
@@ -52,6 +52,8 @@ ul {
 
 /* Style ONLY the KaTeX blocks */
 .markdown-math-renderer .katex {
+  padding: 0.2em;
+  background: var(--background-card);
   color: var(--function-error);
   line-height: initial; /* FIX: This protects KaTeX from the global line-height */
 }
