@@ -50,9 +50,6 @@ test.describe('Authenticated User Marking Homework E2E', () => {
     page.on('request', request => {
       if (request.url().includes('/api/')) {
         console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
-        if (request.url().includes('/api/mark-homework/') || request.url().includes('/api/messages/')) {
-          console.log(`🔍 Request Body: ${request.postData()}`);
-        }
       }
     });
     
@@ -144,41 +141,37 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Verify text-only user message
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible();
       
-      // Wait for AI response to contain "4" specifically in the rendered HTML
+      // Wait for 6 messages total (3 user + 3 AI responses)
       await expect(async () => {
-        const aiMessages = markHomeworkPage.aiMessages;
-        const lastAIMessage = aiMessages.last();
-        await expect(lastAIMessage).toBeVisible();
-        
-        // Check for the markdown renderer structure
-        const markdownRenderer = lastAIMessage.locator('.markdown-math-renderer.chat-message-renderer');
-        const hasMarkdownRenderer = await markdownRenderer.count() > 0;
-        
-        if (!hasMarkdownRenderer) {
-          console.log('⏳ Waiting for markdown renderer to appear...');
-          throw new Error('Markdown renderer not found - verification failed');
+        const allMessages = await page.locator('.chat-message').count();
+        if (allMessages < 6) {
+          throw new Error(`Expected 6 messages, got ${allMessages}`);
         }
-        
-        // Get the text content from the markdown renderer ONLY
-        const renderedText = await markdownRenderer.textContent();
-        console.log(`🔍 Rendered AI Response: "${renderedText}"`);
-        
-        // Check if it contains "4" in the rendered content
-        if (!renderedText.includes('4')) {
-          throw new Error(`AI response does not contain "4" - got: "${renderedText}"`);
-        }
-        
-        console.log('✅ AI response contains "4" - verification passed');
         return true;
-      }).toPass({ timeout: 120000 }); // 2 minutes to wait for AI to respond with "4"
+      }).toPass({ timeout: 120000 });
       
-      // Verify no image in the AI response (text-only mode)
+      // Wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
+      
+      // Verify the AI response contains "4" and is about the math question
       const aiMessages = markHomeworkPage.aiMessages;
       const lastAIMessage = aiMessages.last();
+      await expect(lastAIMessage).toBeVisible();
+      
+      const markdownRenderer = lastAIMessage.locator('.markdown-math-renderer.chat-message-renderer');
+      await expect(markdownRenderer).toBeVisible();
+      
+      const renderedText = await markdownRenderer.textContent();
+      
+      // Real verification: AI response must contain "4" and be about math, not sequences
+      expect(renderedText).toContain('4');
+      expect(renderedText).not.toContain('sequence');
+      expect(renderedText).not.toContain('follow-up');
+      expect(renderedText).not.toContain('linear');
+      
+      // Verify no image in the AI response (text-only mode)
       const aiResponseImages = lastAIMessage.locator('img');
       await expect(aiResponseImages).toHaveCount(0);
-      
-      console.log('✅ Text-only mode verified - AI response contains "4" and has no image');
     });
 
     await test.step('Step 6: Verify Third AI Response and Database', async () => {
@@ -199,11 +192,8 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       
       await expect(async () => {
         const messageCount = await databaseHelper.getMessageCount(session.id);
-        // Expect 6 messages: 3 user messages + 3 AI responses (initial, follow-up, and text-only)
         expect(messageCount).toBe(6);
-      }).toPass({ timeout: 60000 }); // Increased timeout to 60 seconds
-      
-      console.log('✅ Database verification complete - 6 messages saved');
+      }).toPass({ timeout: 60000 });
     });
 
     await test.step('Step 7: Test Chat History Navigation and Image Sources', async () => {
@@ -239,8 +229,6 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       
       // Capture full page screenshot
       await markHomeworkPage.captureFullPageScreenshot('step7-full-page.jpg');
-      
-      console.log('✅ Chat history navigation verified - 6 messages in correct order with appropriate image sources');
     });
   });
 });

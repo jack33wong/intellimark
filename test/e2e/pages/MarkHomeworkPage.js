@@ -51,16 +51,11 @@ class MarkHomeworkPage {
     const isInChatMode = await this.page.isVisible('#followup-file-input');
     const isInUploadMode = await this.page.isVisible('#main-file-input');
     
-    console.log(`📄 Page mode: Chat=${isInChatMode}, Upload=${isInUploadMode}`);
-    
     // If we're in chat mode but need upload mode, try to find upload button
     if (isInChatMode && !isInUploadMode) {
-      console.log('🔄 Page loaded in chat mode, looking for upload button...');
-      
       // Look for upload button or title upload button
       const uploadButton = await this.page.$('.title-upload-btn, .upload-button, button:has-text("Upload")');
       if (uploadButton) {
-        console.log('🖱️ Clicking upload button to switch to upload mode');
         await uploadButton.click();
         // Wait for upload mode to be active
         await this.page.waitForSelector('#main-file-input', { timeout: 5000 });
@@ -74,7 +69,6 @@ class MarkHomeworkPage {
   async uploadImage(imagePath) {
     // No more loops or try/catch. The locator finds the correct input automatically.
     await this.fileInput.setInputFiles(imagePath);
-    console.log('📸 Image uploaded successfully');
     
     // Wait for image processing to complete
     await this.page.waitForLoadState('networkidle');
@@ -82,12 +76,10 @@ class MarkHomeworkPage {
 
   async enterText(text) {
     await this.textInput.fill(text);
-    console.log(`📝 Text entered: "${text}"`);
   }
 
   async sendMessage() {
     await this.sendButton.click();
-    console.log('🖱️ Send button clicked');
   }
 
   /**
@@ -104,7 +96,6 @@ class MarkHomeworkPage {
     await expect(modelOption, `Model option for ${model} should be visible`).toBeVisible();
     await modelOption.click();
     
-    console.log(`🤖 Model selected: ${model}`);
   }
 
   // --- Verifications and Waits ---
@@ -116,8 +107,6 @@ class MarkHomeworkPage {
    * contains meaningful, non-placeholder content that matches specific keywords.
    */
   async waitForAIResponse() {
-    console.log('🤖 Waiting for AI response...');
-    
     // 1. Wait for any "thinking" animations to finish.
     await expect(this.aiThinking, 'The AI thinking indicator should disappear')
       .toBeHidden({ timeout: 300000 }); // 5 minutes for real AI model
@@ -130,28 +119,23 @@ class MarkHomeworkPage {
       // Check for annotated image first (for marking_annotated messages)
       const annotatedImage = lastMessage.querySelector('.homework-annotated-image img.annotated-image');
       if (annotatedImage) {
-        console.log('✅ AI response with annotated image loaded');
         return true;
       }
       
       // Check for markdown renderer (for chat/text-only responses)
       const markdownRenderer = lastMessage.querySelector('.markdown-math-renderer.chat-message-renderer');
       if (markdownRenderer) {
-        console.log('✅ AI response with markdown renderer loaded');
         return true;
       }
       
       // For text-based responses, verify the content has meaningful length and is not just "thinking"
       const textContent = lastMessage.textContent;
       if (textContent && textContent.length > 20 && !textContent.includes('AI is thinking')) {
-        console.log('✅ AI response content loaded');
         return true;
       }
       
       return false;
     }, { timeout: 300000 }); // 5 minutes for real AI model responses
-    
-    console.log('✅ AI response content loaded');
   }
 
   async waitForUserMessage() {
@@ -207,7 +191,6 @@ class MarkHomeworkPage {
       // Check that the image source starts with data:image (base64 format)
       await expect(userImage).toHaveAttribute('src', /^data:image/);
       
-      console.log(`✅ User image ${i + 1} verified to have base64 source`);
     }
   }
 
@@ -233,7 +216,6 @@ class MarkHomeworkPage {
     }, { timeout: 10000 });
     
     const imageCount = await allImages.count();
-    console.log(`🔍 Found ${imageCount} images to verify`);
     
     // Verify each image - AI images should have storage URLs, user images may be base64
     for (let i = 0; i < imageCount; i++) {
@@ -244,7 +226,6 @@ class MarkHomeworkPage {
       await expect(image).toHaveAttribute('src', /.+/, { timeout: 5000 });
       
       const src = await image.getAttribute('src');
-      console.log(`🔍 Image ${i + 1} src: ${src ? src.substring(0, 50) + '...' : 'null'}`);
       
       // Check if this is an AI image (annotated image) - these should have storage URLs
       const isAnnotatedImage = await image.locator('..').locator('..').locator('.homework-annotated-image').count() > 0;
@@ -252,23 +233,21 @@ class MarkHomeworkPage {
       if (isAnnotatedImage) {
         // AI images should have storage URLs
         await expect(image).toHaveAttribute('src', /storage\.googleapis\.com/);
-        console.log(`✅ AI image ${i + 1} verified to have database storage URL`);
       } else {
         // User images may still be base64 from session memory
         const hasStorageUrl = src && src.includes('storage.googleapis.com');
         const hasBase64 = src && src.startsWith('data:image');
         
         if (hasStorageUrl) {
-          console.log(`✅ User image ${i + 1} verified to have database storage URL`);
+          // User image has storage URL - this is expected for images loaded from database
         } else if (hasBase64) {
-          console.log(`ℹ️ User image ${i + 1} still has base64 source (from session memory)`);
+          // User image still has base64 - this is expected for images in session memory
         } else {
-          throw new Error(`User image ${i + 1} has unexpected source format: ${src}`);
+          throw new Error(`User image ${i + 1} has unexpected source format`);
         }
       }
     }
     
-    console.log(`✅ Image verification completed for ${imageCount} images`);
   }
   
   /**
@@ -329,12 +308,8 @@ class MarkHomeworkPage {
    * ]
    */
   async verifyMessageOrder(expectedOrder) {
-    console.log('🔍 Verifying message order...');
-    
     // Get all message elements in order - use more specific selectors
     const allMessages = await this.page.locator('.message.user, .message.ai, .chat-message.user, .chat-message.assistant, .user-message, .ai-message').all();
-    
-    console.log(`Found ${allMessages.length} messages total`);
     
     if (allMessages.length !== expectedOrder.length) {
       throw new Error(`Expected ${expectedOrder.length} messages, but found ${allMessages.length}`);
@@ -344,17 +319,12 @@ class MarkHomeworkPage {
       const message = allMessages[i];
       const expected = expectedOrder[i];
       
-      // Debug: Log the actual HTML structure of each message
-      const messageHTML = await message.innerHTML();
-      console.log(`Message ${i + 1} HTML:`, messageHTML.substring(0, 200) + '...');
-      
       // Check message type using multiple approaches
       const isUserMessage = await message.locator('.user, .user-message, [class*="user"]').count() > 0;
       const isAIMessage = await message.locator('.ai, .ai-message, .assistant, [class*="ai"], [class*="assistant"]').count() > 0;
       
       // Alternative: check by looking at the message container classes
       const messageClasses = await message.getAttribute('class');
-      console.log(`Message ${i + 1} classes:`, messageClasses);
       
       const hasUserClass = messageClasses && (messageClasses.includes('user') || messageClasses.includes('User'));
       const hasAIClass = messageClasses && (messageClasses.includes('ai') || messageClasses.includes('AI') || messageClasses.includes('assistant') || messageClasses.includes('Assistant'));
@@ -374,11 +344,7 @@ class MarkHomeworkPage {
           throw new Error(`Message ${i + 1} should contain "${expected.text}", but found: "${messageText}"`);
         }
       }
-      
-      console.log(`✅ Message ${i + 1}: ${expected.type}${expected.text ? ` (${expected.text})` : ''}`);
     }
-    
-    console.log('✅ Message order verification completed');
   }
 
   /**
@@ -402,7 +368,6 @@ class MarkHomeworkPage {
     };
     
     await this.page.screenshot(defaultOptions);
-    console.log(`📸 Full page screenshot saved as ${filename}`);
   }
 
   /**
@@ -426,7 +391,6 @@ class MarkHomeworkPage {
       ...options
     });
     
-    console.log(`📸 Chat container screenshot saved as ${filename}`);
   }
 }
 
