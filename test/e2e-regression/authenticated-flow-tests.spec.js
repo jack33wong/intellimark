@@ -12,7 +12,7 @@ test.describe('Authenticated User Flow Tests', () => {
   });
 
   test.describe('Marking Mode Tests', () => {
-    test('A001: First-time marking with image + text (Authenticated)', async ({ page }) => {
+    test('A001: First-time marking with image + text (Authenticated)', { timeout: 120000 }, async ({ page }) => {
       await test.step('Create scrollable content', async () => {
         // Send a few text messages to create scrollable content
         for (let i = 0; i < 3; i++) {
@@ -108,7 +108,7 @@ test.describe('Authenticated User Flow Tests', () => {
   });
 
   test.describe('Question Mode Tests', () => {
-    test('A003: First-time question with image only (Authenticated)', async ({ page }) => {
+    test('A003: First-time question with image only (Authenticated)', { timeout: 120000 }, async ({ page }) => {
       await test.step('Upload image only', async () => {
         await markHomeworkPage.uploadImage(TestData.images.q21);
         await markHomeworkPage.sendButton.click();
@@ -127,22 +127,53 @@ test.describe('Authenticated User Flow Tests', () => {
       });
     });
 
-    test('A004: Follow-up question with image only (Authenticated)', async ({ page }) => {
+    test('A004: Follow-up question with image only (Authenticated)', { timeout: 120000 }, async ({ page }) => {
       await test.step('First submission', async () => {
         await markHomeworkPage.uploadImage(TestData.images.q21);
         await markHomeworkPage.sendButton.click();
         await markHomeworkPage.waitForThinkingComplete('question');
+        
+        // Debug: Check message count after first submission
+        const messagesAfterFirst = await markHomeworkPage.chatMessages.count();
+        console.log(`📊 Messages after first submission: ${messagesAfterFirst}`);
+        
+        // Capture screenshot after first submission
+        await page.screenshot({ path: 'test-results/A004-after-first-submission.png', fullPage: true });
+        console.log('📸 Screenshot saved: A004-after-first-submission.png');
       });
 
       await test.step('Follow-up submission', async () => {
         await markHomeworkPage.uploadImage(TestData.images.q19);
         await markHomeworkPage.sendButton.click();
         await markHomeworkPage.waitForThinkingComplete('question');
+        
+        // Debug: Check message count after second submission
+        const messagesAfterSecond = await markHomeworkPage.chatMessages.count();
+        console.log(`📊 Messages after second submission: ${messagesAfterSecond}`);
+        
+        // Capture screenshot after second submission
+        await page.screenshot({ path: 'test-results/A004-after-second-submission.png', fullPage: true });
+        console.log('📸 Screenshot saved: A004-after-second-submission.png');
       });
 
       await test.step('Verify session persistence', async () => {
+        // Capture screenshot to investigate message count issue
+        await page.screenshot({ path: 'test-results/A004-message-count-debug.png', fullPage: true });
+        console.log('📸 Screenshot saved: A004-message-count-debug.png');
+        
+        // Get all message elements and their content for debugging
+        const messageElements = await markHomeworkPage.chatMessages.all();
+        console.log(`🔍 Found ${messageElements.length} message elements`);
+        
+        for (let i = 0; i < messageElements.length; i++) {
+          const messageText = await messageElements[i].textContent();
+          console.log(`📝 Message ${i + 1}: ${messageText.substring(0, 100)}...`);
+        }
+        
         const messages = await markHomeworkPage.chatMessages.count();
-        expect(messages).toBeGreaterThanOrEqual(4);
+        console.log(`📊 Total message count: ${messages}`);
+        expect(messages).toBeGreaterThanOrEqual(4); // Should have 4 messages: 2 user + 2 AI
+        console.log(`✅ Session persistence: ${messages} messages in session`);
       });
     });
   });

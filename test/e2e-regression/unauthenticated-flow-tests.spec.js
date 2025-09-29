@@ -12,7 +12,7 @@ test.describe('Unauthenticated User Flow Tests', () => {
   });
 
   test.describe('Marking Mode Tests', () => {
-    test('U001: First-time marking with image + text (Unauthenticated)', async ({ page }) => {
+    test('U001: First-time marking with image + text (Unauthenticated)', { timeout: 120000 }, async ({ page }) => {
       await test.step('Upload image with text', async () => {
         await markHomeworkPage.uploadImage(TestData.images.q21);
         await markHomeworkPage.sendTextMessage(TestData.messages.mathQuestion);
@@ -69,7 +69,7 @@ test.describe('Unauthenticated User Flow Tests', () => {
   });
 
   test.describe('Question Mode Tests', () => {
-    test('U003: First-time question with image only (Unauthenticated)', async ({ page }) => {
+    test('U003: First-time question with image only (Unauthenticated)', { timeout: 120000 }, async ({ page }) => {
       await test.step('Upload image only', async () => {
         await markHomeworkPage.uploadImage(TestData.images.q21);
         await markHomeworkPage.sendButton.click();

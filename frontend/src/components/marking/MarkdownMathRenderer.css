@@ -126,11 +126,47 @@
 
 /* Emphasis */
 .markdown-math-renderer .markdown-strong {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .markdown-math-renderer .markdown-em {
   font-style: italic;
+}
+
+/* Step-by-step solution styling - simple and clean */
+.markdown-math-renderer .markdown-p {
+  margin: 0.5em 0;
+  line-height: 1.6;
+}
+
+/* Step titles - simple brand color like chat titles */
+.markdown-math-renderer .markdown-p .markdown-strong:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+  display: block;
+  margin-bottom: 0.3em;
+}
+
+/* Only indent paragraphs that come immediately after a step title */
+.markdown-math-renderer .markdown-p:has(.markdown-strong:first-child) + .markdown-p:not(:has(.markdown-strong:first-child)) {
+  color: var(--text-secondary);
+  margin-left: 1em;
+  margin-bottom: 0.4em;
+}
+
+/* Mathematical expressions - simple highlight */
+.markdown-math-renderer .markdown-em {
+  color: var(--function-error);
+  font-weight: 600;
+  font-style: normal;
+}
+
+/* Answer section - rounded rectangle grey background */
+.markdown-math-renderer .markdown-p:last-child {
+  background: var(--background-nav);
+  border-radius: 8px;
+  padding: 1em;
+  margin: 1em 0;
 }
 
 /* Horizontal rule */

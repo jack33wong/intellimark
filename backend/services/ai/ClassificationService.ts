@@ -64,79 +64,26 @@ export class ClassificationService {
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
-      console.log(ErrorHandler.getLogMessage(error, `model: ${actualModelName}`));
       
-      // Try fallback with image generation model if primary model failed
+      // Fail fast on 429 errors with clear message
+      if (errorInfo.isRateLimit) {
+        const modelConfig = getModelConfig(model);
+        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+        console.error(`❌ [QUOTA EXCEEDED] ${actualModelName} (${apiVersion}) quota exceeded`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(`API quota exceeded for ${actualModelName} (${apiVersion}). Please check your Google Cloud Console for quota limits.`);
+      }
+      
+      // For non-429 errors, try fallback only if it's a different model
       if (model === 'auto' || model === 'gemini-2.5-pro') {
         try {
-          if (errorInfo.isRateLimit) {
-            // Implement exponential backoff before fallback
-            await ErrorHandler.exponentialBackoff(3);
-            
-            // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('auto');
-            console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} (fallback for 429 errors)`);
-            try {
-              const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-              console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully`);
-              return result;
-            } catch (gemini20Error) {
-              const isGemini20RateLimit = gemini20Error instanceof Error && 
-                (gemini20Error.message.includes('429') || 
-                 gemini20Error.message.includes('rate limit') || 
-                 gemini20Error.message.includes('quota exceeded'));
-              
-              if (isGemini20RateLimit) {
-                console.error('❌ [GEMINI 2.0 - 429 ERROR] Gemini 2.0 Flash Preview Image Generation also hit rate limit:', gemini20Error);
-                console.log('🔄 [CASCADING 429] Both primary and Gemini 2.0 models rate limited, trying Gemini 2.5...');
-              } else {
-                console.error('❌ [GEMINI 2.0 - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error:', gemini20Error);
-                console.log('🔄 [GEMINI 2.0 FAILED] Trying Gemini 2.5 as fallback...');
-              }
-              
-              // Try Gemini 2.5 Pro as secondary fallback (different model)
-              const { getModelConfig } = await import('../../config/aiModels.js');
-              const gemini25Config = getModelConfig('gemini-2.5-pro');
-              const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-              console.log(`🔄 [SECONDARY FALLBACK] Trying ${gemini25Name}`);
-              try {
-                const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-                console.log(`✅ [SECONDARY FALLBACK SUCCESS] ${gemini25Name} model completed successfully`);
-                return result;
-              } catch (fallback429Error) {
-                console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
-                console.log('🔄 [FINAL FALLBACK] All AI models rate limited, using fallback classification...');
-                // Don't re-throw, let it fall through to the final fallback
-              }
-            }
-          } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Auto model');
-            const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-            console.log('✅ [FALLBACK SUCCESS] Auto model completed successfully');
-            return result;
-          }
-        } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Auto model also failed:', fallbackError);
-        }
-      } else if (model === 'auto') {
-        try {
-          if (errorInfo.isRateLimit) {
-            await ErrorHandler.exponentialBackoff(3);
-          }
-          
-          // Try Gemini 2.5 Pro as fallback
-          const { getModelConfig } = await import('../../config/aiModels.js');
-          const gemini25Config = getModelConfig('gemini-2.5-pro');
-          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-          console.log(`🔄 [FALLBACK] Trying ${gemini25Name}`);
+          console.log('🔄 [FALLBACK] Non-429 error - Trying alternative model');
           const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-          console.log(`✅ [FALLBACK SUCCESS] ${gemini25Name} completed successfully`);
+          console.log('✅ [FALLBACK SUCCESS] Alternative model completed successfully');
           return result;
         } catch (fallbackError) {
-          const { getModelConfig } = await import('../../config/aiModels.js');
-          const gemini25Config = getModelConfig('gemini-2.5-pro');
-          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-          console.error(`❌ [FALLBACK ERROR] ${gemini25Name} also failed:`, fallbackError);
+          console.error('❌ [FALLBACK ERROR] Alternative model also failed:', fallbackError);
         }
       }
       

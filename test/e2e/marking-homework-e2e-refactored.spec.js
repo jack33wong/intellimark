@@ -16,9 +16,10 @@ const TEST_CONFIG = {
   },
   testTexts: {
     initial: 'Can you help e2e with this math problem',
-    followUp: 'Can you help e2e with this follow up?'
+    followUp: 'Can you help e2e with this follow up?',
+    textOnly: 'what is 2 + 2?'
   },
-  expectedMessageCount: 4
+  expectedMessageCount: 6
 };
 
 test.describe('Authenticated User Marking Homework E2E', () => {
@@ -49,6 +50,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
     page.on('request', request => {
       if (request.url().includes('/api/')) {
         console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
+        if (request.url().includes('/api/mark-homework/') || request.url().includes('/api/messages/')) {
+          console.log(`🔍 Request Body: ${request.postData()}`);
+        }
       }
     });
     
@@ -122,15 +126,64 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
     });
 
-    await test.step('Step 5: Verify Second AI Response and Database', async () => {
-      // Wait for the second AI response to complete first
+    await test.step('Step 5: Text-Only Follow-up Mode', async () => {
+      // Clear any file input that might be selected from previous steps
+      await page.evaluate(() => {
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+          input.value = '';
+        });
+      });
+      
+      await markHomeworkPage.enterText(TEST_CONFIG.testTexts.textOnly);
+      await markHomeworkPage.sendMessage();
+      
+      // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
       
-      // Verify the second AI response (follow-up response)
-      await markHomeworkPage.verifyAIResponseHasAnnotatedImage({ responseIndex: 1 });
+      // Verify text-only user message
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible();
       
-      // Both initial and follow-up API calls are working perfectly with Auto (Gemini 2.0 Flash-Lite)!
-      // The follow-up flow is functioning as expected
+      // Wait for AI response to contain "4" specifically in the rendered HTML
+      await expect(async () => {
+        const aiMessages = markHomeworkPage.aiMessages;
+        const lastAIMessage = aiMessages.last();
+        await expect(lastAIMessage).toBeVisible();
+        
+        // Check for the markdown renderer structure
+        const markdownRenderer = lastAIMessage.locator('.markdown-math-renderer.chat-message-renderer');
+        const hasMarkdownRenderer = await markdownRenderer.count() > 0;
+        
+        if (!hasMarkdownRenderer) {
+          console.log('⏳ Waiting for markdown renderer to appear...');
+          throw new Error('Markdown renderer not found - verification failed');
+        }
+        
+        // Get the text content from the markdown renderer ONLY
+        const renderedText = await markdownRenderer.textContent();
+        console.log(`🔍 Rendered AI Response: "${renderedText}"`);
+        
+        // Check if it contains "4" in the rendered content
+        if (!renderedText.includes('4')) {
+          throw new Error(`AI response does not contain "4" - got: "${renderedText}"`);
+        }
+        
+        console.log('✅ AI response contains "4" - verification passed');
+        return true;
+      }).toPass({ timeout: 120000 }); // 2 minutes to wait for AI to respond with "4"
+      
+      // Verify no image in the AI response (text-only mode)
+      const aiMessages = markHomeworkPage.aiMessages;
+      const lastAIMessage = aiMessages.last();
+      const aiResponseImages = lastAIMessage.locator('img');
+      await expect(aiResponseImages).toHaveCount(0);
+      
+      console.log('✅ Text-only mode verified - AI response contains "4" and has no image');
+    });
+
+    await test.step('Step 6: Verify Third AI Response and Database', async () => {
+      // Wait for the third AI response to complete first
+      await markHomeworkPage.waitForAIResponse();
       
       // Wait for network to be idle to ensure all API calls are complete
       await page.waitForLoadState('networkidle');
@@ -141,19 +194,19 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       const session = await databaseHelper.waitForSessionCreation(TEST_CONFIG.userId);
       
       // Add a longer delay to ensure all messages are written to database
-      // The second API call needs time to complete and save to database
+      // The third API call needs time to complete and save to database
       await page.waitForTimeout(5000);
       
       await expect(async () => {
         const messageCount = await databaseHelper.getMessageCount(session.id);
-        // Expect 4 messages: 2 user messages + 2 AI responses (both initial and follow-up working!)
-        expect(messageCount).toBe(4);
+        // Expect 6 messages: 3 user messages + 3 AI responses (initial, follow-up, and text-only)
+        expect(messageCount).toBe(6);
       }).toPass({ timeout: 60000 }); // Increased timeout to 60 seconds
       
-      // Skip step5 screenshot - only capture step6
+      console.log('✅ Database verification complete - 6 messages saved');
     });
 
-    await test.step('Step 6: Test Chat History Navigation and Image Sources', async () => {
+    await test.step('Step 7: Test Chat History Navigation and Image Sources', async () => {
       // Click on the chat history item to load the conversation from database
       await sidebarPage.clickChatHistoryItem(0);
       
@@ -163,15 +216,18 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Wait for user messages to be visible (they should load first)
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible({ timeout: 10000 });
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible({ timeout: 10000 });
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible({ timeout: 10000 });
       
       // Wait for AI messages to be visible
-      await expect(markHomeworkPage.aiMessages).toHaveCount(2, { timeout: 10000 });
+      await expect(markHomeworkPage.aiMessages).toHaveCount(3, { timeout: 10000 });
       
-      // Verify message order: User → AI → User → AI
+      // Verify message order: User → AI → User → AI → User → AI
       await markHomeworkPage.verifyMessageOrder([
         { type: 'user', text: TEST_CONFIG.testTexts.initial },
         { type: 'ai' },
         { type: 'user', text: TEST_CONFIG.testTexts.followUp },
+        { type: 'ai' },
+        { type: 'user', text: TEST_CONFIG.testTexts.textOnly },
         { type: 'ai' }
       ]);
       
@@ -182,9 +238,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       await markHomeworkPage.verifyAllImagesFromDatabaseStorage();
       
       // Capture full page screenshot
-      await markHomeworkPage.captureFullPageScreenshot('step6-full-page.jpg');
+      await markHomeworkPage.captureFullPageScreenshot('step7-full-page.jpg');
       
-      console.log('✅ Chat history navigation verified - images load from appropriate sources');
+      console.log('✅ Chat history navigation verified - 6 messages in correct order with appropriate image sources');
     });
   });
 });

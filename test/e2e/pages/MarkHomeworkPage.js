@@ -134,6 +134,13 @@ class MarkHomeworkPage {
         return true;
       }
       
+      // Check for markdown renderer (for chat/text-only responses)
+      const markdownRenderer = lastMessage.querySelector('.markdown-math-renderer.chat-message-renderer');
+      if (markdownRenderer) {
+        console.log('✅ AI response with markdown renderer loaded');
+        return true;
+      }
+      
       // For text-based responses, verify the content has meaningful length and is not just "thinking"
       const textContent = lastMessage.textContent;
       if (textContent && textContent.length > 20 && !textContent.includes('AI is thinking')) {

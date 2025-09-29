@@ -163,7 +163,7 @@
   background: transparent;
   color: var(--text-primary);
   transition: all 0.2s ease;
-  font-size: 1.1em;
+  font-size: 1.0em;
 }
 
 .chat-message.assistant .chat-message-bubble:hover {

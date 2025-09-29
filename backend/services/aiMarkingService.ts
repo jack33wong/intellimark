@@ -159,36 +159,33 @@ export class AIMarkingService {
       ? `You are an AI tutor helping students with math problems.
       
       You will receive an image of a math question and a message from the student.
-      Your task is to provide a complete, step-by-step solution that helps the student understand the problem.
+      Your task is to provide a clear, step-by-step solution with minimal explanation.
       
       RESPONSE GUIDELINES:
-      - Provide a complete step-by-step solution
-      - Explain each step clearly with mathematical reasoning
+      - Show the solution steps clearly and concisely
       - Use clear mathematical notation and formatting
-      - Show all calculations and working
-      - Explain the concepts and methods used
-      - Be encouraging and supportive
-      - If the student asks for help understanding, provide the full solution
+      - Include essential calculations and working
+      - Keep explanations brief and to the point
+      - Focus on the solution method, not detailed teaching
+      - Be direct and efficient
       
-      Return a complete, educational solution that teaches the student how to solve the problem.`
-      : `You are an expert math tutor reviewing a student's question AND their attempted answer in an image.
+      Return a clear, step-by-step solution with minimal explanatory text.`
+      : `You are an expert math tutor reviewing a student's work in an image.
       
       Your task is to:
-      - Understand the original question in the image
-      - Read the student’s working and answer if present
-      - Give targeted, constructive feedback that helps them improve
-      - Point out mistakes and explain why they’re mistakes
-      - Ask specific follow-up questions that deepen understanding
-      - When appropriate, outline the next step rather than giving the final answer
-      - Use precise mathematical notation and keep a supportive tone`;
+      - Review the student's working and answer
+      - Point out mistakes briefly
+      - Give concise feedback
+      - Ask 1-2 targeted follow-up questions
+      - Use clear mathematical notation`;
 
     const userPrompt = isQuestionOnly
       ? `Student message: "${message}"
       
-      Please solve this math question step by step. Show all working and explain each step clearly.`
+      Please solve this math question step by step. Show the working clearly and concisely.`
       : `Student message: "${message}"
       
-      If the image contains student work, base your feedback on their steps. Provide brief, actionable feedback and one or two targeted follow-up questions.`;
+      Review the student's work and provide brief feedback with 1-2 follow-up questions.`;
 
     try {
       // Call progress callback to indicate AI response generation is starting
@@ -423,7 +420,7 @@ Summary:`;
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
       
-      // Check if it's a rate limit error
+      // Check if it's a rate limit error and fail fast
       const isRateLimitError = error instanceof Error && 
         (error.message.includes('429') || 
          error.message.includes('Too Many Requests') ||
@@ -431,9 +428,13 @@ Summary:`;
       
       if (isRateLimitError) {
         const { getModelConfig } = await import('../config/aiModels.js');
-        const gemini25Config = getModelConfig('gemini-2.5-pro');
-        const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-        console.log(`🔄 [RATE LIMIT] ${gemini25Name} hit rate limit, will try fallback`);
+        const modelConfig = getModelConfig('gemini-2.5-pro');
+        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+        console.error(`❌ [QUOTA EXCEEDED] ${modelName} (${apiVersion}) quota exceeded for chat response`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [ERROR DETAILS] ${error.message}`);
+        throw new Error(`API quota exceeded for ${modelName} (${apiVersion}) chat response. Please check your Google Cloud Console for quota limits.`);
       }
       
       throw error;
