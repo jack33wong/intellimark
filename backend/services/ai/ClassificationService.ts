@@ -50,7 +50,7 @@ export class ClassificationService {
       }
       
       if (model === 'auto' || model === 'gemini-2.5-pro') {
-        return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
+        return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt, model);
       } else {
         throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
       }
@@ -59,59 +59,39 @@ export class ClassificationService {
       const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
       
-      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${actualModelName}`, error);
+      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
       
       // Fail fast on 429 errors with clear message
       if (errorInfo.isRateLimit) {
-        const modelConfig = getModelConfig(model);
-        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
         console.error(`❌ [QUOTA EXCEEDED] ${actualModelName} (${apiVersion}) quota exceeded`);
-        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-        console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
         throw new Error(`API quota exceeded for ${actualModelName} (${apiVersion}). Please check your Google Cloud Console for quota limits.`);
       }
       
-      // For non-429 errors, try fallback only if it's a different model
-      if (model === 'auto' || model === 'gemini-2.5-pro') {
-        try {
-          console.log('🔄 [FALLBACK] Non-429 error - Trying alternative model');
-          const result = await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt);
-          console.log('✅ [FALLBACK SUCCESS] Alternative model completed successfully');
-          return result;
-        } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Alternative model also failed:', fallbackError);
-        }
-      }
-      
-      // Final fallback: Try to classify based on image characteristics
-      const fallbackResult = await this.fallbackClassification(imageData);
-      
-      return {
-        isQuestionOnly: fallbackResult.isQuestionOnly,
-        reasoning: `API failed (${error instanceof Error ? error.message : 'Unknown error'}), using fallback: ${fallbackResult.reasoning}`,
-        apiUsed: 'Fallback Classification',
-        extractedQuestionText: fallbackResult.extractedQuestionText,
-        usageTokens: 0
-      };
+      // Fail fast - no fallbacks
+      throw error;
     }
   }
 
   private static async callGeminiForClassification(
     imageData: string,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    model: ModelType = 'gemini-2.5-pro'
   ): Promise<ClassificationResult> {
     try {
       const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt);
+      const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return await this.parseGeminiResponse(cleanContent, result, 'gemini-2.5-pro');
+      return await this.parseGeminiResponse(cleanContent, result, model);
     } catch (error) {
       throw error;
     }
@@ -163,11 +143,12 @@ export class ClassificationService {
     accessToken: string,
     imageData: string,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    model: ModelType = 'gemini-2.5-pro'
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig('gemini-2.5-pro');
+    const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
     const response = await fetch(endpoint, {
@@ -190,9 +171,17 @@ export class ClassificationService {
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Gemini API Error:', response.status, response.statusText);
-      console.error('❌ Error Details:', errorText);
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      
+      console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
     }
     
     return response;

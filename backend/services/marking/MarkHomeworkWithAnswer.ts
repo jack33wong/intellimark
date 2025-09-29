@@ -217,42 +217,43 @@ export class MarkHomeworkWithAnswer {
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
 
-    // Create progress tracker IMMEDIATELY at the start
-    let finalProgressData: any = null;
-    const progressTracker = new ProgressTracker(MARKING_MODE_STEPS, (data) => {
-      // Store the final progress data for chat history
-      finalProgressData = data;
-      // Call the original callback
-      if (onProgress) onProgress(data);
-    });
+    try {
+      // Create progress tracker IMMEDIATELY at the start
+      let finalProgressData: any = null;
+      const progressTracker = new ProgressTracker(MARKING_MODE_STEPS, (data) => {
+        // Store the final progress data for chat history
+        finalProgressData = data;
+        // Call the original callback
+        if (onProgress) onProgress(data);
+      });
 
-    // Start progress tracking immediately
-    progressTracker.startStep('classification');
+      // Start progress tracking immediately
+      progressTracker.startStep('classification');
 
-    // Debug mode: Skip AI processing but go through the flow
-    if (debug) {
-      console.log(`🔍 [DEBUG MODE] Testing question mode flow - no real AI processing`);
-    }
+      // Debug mode: Skip AI processing but go through the flow
+      if (debug) {
+        console.log(`🔍 [DEBUG MODE] Testing question mode flow - no real AI processing`);
+      }
 
-    // Step 1: Classification
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const modelConfig = getModelConfig(model);
-    const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-    
-    console.log(`🔄 [STEP 1] Classification - ${actualModelName}`);
-    let imageClassification;
-    if (debug) {
-      // Mock classification for debug mode - force question mode
-      imageClassification = {
-        isQuestionOnly: true,
-        reasoning: 'Debug mode: Mock classification reasoning',
-        apiUsed: 'Debug Mode - Mock Response',
-        extractedQuestionText: 'Debug mode: Mock question text',
-        usageTokens: 100
-      };
-    } else {
-      imageClassification = await this.classifyImageWithAI(imageData, model, debug);
-    }
+      // Step 1: Classification
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      
+      console.log(`🔄 [STEP 1] Classification - ${actualModelName}`);
+      let imageClassification;
+      if (debug) {
+        // Mock classification for debug mode - force question mode
+        imageClassification = {
+          isQuestionOnly: true,
+          reasoning: 'Debug mode: Mock classification reasoning',
+          apiUsed: 'Debug Mode - Mock Response',
+          extractedQuestionText: 'Debug mode: Mock question text',
+          usageTokens: 100
+        };
+      } else {
+        imageClassification = await this.classifyImageWithAI(imageData, model, debug);
+      }
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Step 2: Question detection
@@ -502,6 +503,17 @@ export class MarkHomeworkWithAnswer {
         ]
       }
     } as unknown as MarkHomeworkResponse;
+    } catch (error) {
+      // Handle quota exceeded errors immediately to prevent timeout
+      if (error instanceof Error && error.message.includes('quota exceeded')) {
+        console.error('❌ [QUOTA ERROR] API quota exceeded, failing fast:', error.message);
+        throw error; // Re-throw immediately to prevent timeout
+      }
+      
+      // Handle other errors
+      console.error('❌ [MARKING ERROR] Unexpected error in MarkHomeworkWithAnswer.run():', error);
+      throw error;
+    }
   }
 }
 

@@ -167,6 +167,7 @@ export class AIMarkingService {
       - The explanation must start in the next, separate paragraph.
       - For any inline emphasis, use italics instead of bold
       - Always put the final, conclusive answer in the very last paragraph
+      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
       
       RESPONSE GUIDELINES:
       - Show the solution steps clearly and concisely
@@ -180,18 +181,19 @@ export class AIMarkingService {
       : `You are an expert math tutor reviewing a student's work in an image.
       
       RESPONSE FORMAT REQUIREMENTS:
-      - Use Markdown formatting
-      - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
+      - Use Markdown formatting.
+      - CRITICAL RULE: Each step of the solution must have a title (e.g., 'Step 1:'). The title must be in its own paragraph with no other text.
       - The explanation must start in the next, separate paragraph.
-      - For any inline emphasis, use italics instead of bold
-      - Always put the final, conclusive answer in the very last paragraph
-      
-      Your task is to:
-      - Review the student's working and answer
-      - Point out mistakes briefly
-      - Give concise feedback
-      - Ask 1-2 targeted follow-up questions
-      - Use clear mathematical notation`;
+      - Use italics for any inline emphasis, not bold.
+      - Always put the final, conclusive answer in the very last paragraph.
+      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
+
+      YOUR TASK:
+      - Adopt the persona of an expert math tutor providing brief, targeted feedback.
+      - Your entire response must be under 150 words.
+      - Do not provide a full step-by-step walkthrough of the correct solution.
+      - Concisely point out the student's single key mistake.
+      - Ask 1-2 follow-up questions to guide the student.`;
 
     const userPrompt = isQuestionOnly
       ? `Student message: "${message}"
@@ -226,97 +228,18 @@ export class AIMarkingService {
       const { getModelConfig } = await import('../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
       
-      console.error(`❌ [CHAT RESPONSE ERROR] Failed with model: ${actualModelName}`, error);
+      console.error(`❌ [CHAT RESPONSE ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
       console.log(ErrorHandler.getLogMessage(error, `chat response model: ${actualModelName}`));
       
-      // Try fallback with image generation model if primary model failed
-      if (model === 'auto' || model === 'gemini-2.5-pro') {
-        try {
-          if (errorInfo.isRateLimit) {
-            // Implement exponential backoff before fallback
-            await ErrorHandler.exponentialBackoff(3);
-            
-            // Always try Gemini 2.0 first for 429 fallback (Google recommends it for higher quotas)
-            const fallbackModelConfig = getModelConfig('auto');
-            console.log(`🔄 [429 FALLBACK] Trying ${fallbackModelConfig.name} for chat response (fallback for 429 errors)`);
-            try {
-              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'auto');
-              console.log(`✅ [429 FALLBACK SUCCESS] ${fallbackModelConfig.name} model completed successfully for chat response`);
-              return result;
-            } catch (gemini20Error) {
-              const isGemini20RateLimit = gemini20Error instanceof Error && 
-                (gemini20Error.message.includes('429') || 
-                 gemini20Error.message.includes('rate limit') || 
-                 gemini20Error.message.includes('quota exceeded'));
-              
-              if (isGemini20RateLimit) {
-                console.error('❌ [GEMINI 2.0 - 429 ERROR] Gemini 2.0 Flash Preview Image Generation also hit rate limit for chat response:', gemini20Error);
-                console.log('🔄 [CASCADING 429] Both primary and Gemini 2.0 models rate limited, trying Gemini 2.5 for chat response...');
-              } else {
-                console.error('❌ [GEMINI 2.0 - OTHER ERROR] Gemini 2.0 Flash Preview Image Generation failed with non-429 error for chat response:', gemini20Error);
-                console.log('🔄 [GEMINI 2.0 FAILED] Trying Gemini 2.5 as fallback for chat response...');
-              }
-              
-              // Try Gemini 2.5 Pro as secondary fallback (different model)
-              const { getModelConfig } = await import('../config/aiModels.js');
-              const gemini25Config = getModelConfig('gemini-2.5-pro');
-              const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-              console.log(`🔄 [SECONDARY FALLBACK] Trying ${gemini25Name} for chat response`);
-              try {
-                const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-pro');
-                console.log(`✅ [SECONDARY FALLBACK SUCCESS] ${gemini25Name} model completed successfully for chat response`);
-                return result;
-              } catch (fallback429Error) {
-                console.error('❌ [CASCADING 429] Gemini 2.5 Flash Image Preview also hit rate limit:', fallback429Error);
-                console.log('🔄 [FINAL FALLBACK] All AI models rate limited, using fallback response...');
-                // Don't re-throw, let it fall through to the final fallback
-              }
-            }
-          } else {
-            console.log('🔄 [FALLBACK] Non-429 error - Using: Auto model for chat response');
-            try {
-              const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'auto');
-              console.log('✅ [FALLBACK SUCCESS] Auto model completed successfully for chat response');
-              return result;
-            } catch (fallbackError) {
-              console.error('❌ [FALLBACK ERROR] Auto model also failed:', fallbackError);
-              console.log('🔄 [FINAL FALLBACK] All AI models failed, using fallback response...');
-              // Don't re-throw, let it fall through to the final fallback
-            }
-          }
-        } catch (fallbackError) {
-          console.error('❌ [FALLBACK ERROR] Gemini 1.5 Pro also failed:', fallbackError);
-        }
-      } else if (model === 'auto') {
-        try {
-          if (errorInfo.isRateLimit) {
-            await ErrorHandler.exponentialBackoff(3);
-          }
-          
-          // Try Gemini 2.5 Pro as fallback
-          const { getModelConfig } = await import('../config/aiModels.js');
-          const gemini25Config = getModelConfig('gemini-2.5-pro');
-          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-          console.log(`🔄 [FALLBACK] Trying ${gemini25Name} for chat response`);
-          const result = await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, 'gemini-2.5-pro');
-          console.log(`✅ [FALLBACK SUCCESS] ${gemini25Name} completed successfully for chat response`);
-          return result;
-        } catch (fallbackError) {
-          const { getModelConfig } = await import('../config/aiModels.js');
-          const gemini25Config = getModelConfig('gemini-2.5-pro');
-          const gemini25Name = gemini25Config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
-          console.error(`❌ [FALLBACK ERROR] ${gemini25Name} also failed:`, fallbackError);
-        }
-      }
-      
-      return {
-        response: 'I apologize, but I encountered an error while processing your question. Please try again or rephrase your question.',
-        apiUsed: 'Fallback Response'
-      };
+      // Fail fast - no fallbacks
+      throw error;
     }
   }
 
@@ -351,7 +274,8 @@ Summary:`;
       const { ModelProvider } = await import('./ai/ModelProvider');
       const response = await ModelProvider.callGeminiText(
         'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
-        summaryPrompt
+        summaryPrompt,
+        'auto'
       );
       return response.content.trim();
     } catch (error) {
@@ -381,6 +305,7 @@ Summary:`;
     - The explanation must start in the next, separate paragraph.
     - For any inline emphasis, use italics instead of bold
     - Always put the final, conclusive answer in the very last paragraph
+    - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
     
     RESPONSE RULES:
     - Solve the problem immediately, don't ask questions
@@ -404,7 +329,7 @@ Summary:`;
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider');
-      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt);
+      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       // Extract content from the response object
       return response.content;
     } catch (error) {
@@ -424,7 +349,7 @@ Summary:`;
   ): Promise<{ response: string; apiUsed: string }> {
     try {
       const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt);
+      const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
@@ -449,8 +374,8 @@ Summary:`;
       
       if (isRateLimitError) {
         const { getModelConfig } = await import('../config/aiModels.js');
-        const modelConfig = getModelConfig('gemini-2.5-pro');
-        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || 'gemini-2.5-pro';
+        const modelConfig = getModelConfig(model);
+        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
         const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
         console.error(`❌ [QUOTA EXCEEDED] ${modelName} (${apiVersion}) quota exceeded for chat response`);
         console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
@@ -518,11 +443,12 @@ Summary:`;
     accessToken: string,
     imageData: string,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    model: ModelType = 'gemini-2.5-pro'
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../config/aiModels.js');
-    const config = getModelConfig('gemini-2.5-pro');
+    const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
     const response = await fetch(endpoint, {
@@ -553,9 +479,17 @@ Summary:`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Gemini API Error:', response.status, response.statusText);
-      console.error('❌ Error Details:', errorText);
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      
+      console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
     }
 
     return response;

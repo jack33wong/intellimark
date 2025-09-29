@@ -362,9 +362,30 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error in complete mark question:', error);
-    return res.status(500).json({ 
+    
+    // Provide user-friendly error messages based on error type
+    let userFriendlyMessage = 'Internal server error in mark question system';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      if (error.message.includes('quota exceeded') || error.message.includes('429')) {
+        userFriendlyMessage = 'API quota exceeded. Please try again later or contact support if this persists.';
+        statusCode = 429;
+      } else if (error.message.includes('timeout')) {
+        userFriendlyMessage = 'Request timed out. The image might be too complex or the service is busy. Please try again.';
+        statusCode = 408;
+      } else if (error.message.includes('authentication') || error.message.includes('401') || error.message.includes('403')) {
+        userFriendlyMessage = 'Authentication error. Please refresh the page and try again.';
+        statusCode = 401;
+      } else if (error.message.includes('network') || error.message.includes('connection')) {
+        userFriendlyMessage = 'Network error. Please check your connection and try again.';
+        statusCode = 503;
+      }
+    }
+    
+    return res.status(statusCode).json({ 
       success: false, 
-      error: 'Internal server error in mark question system', 
+      error: userFriendlyMessage, 
       details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' 
     });
   }
@@ -658,7 +679,26 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     console.error('❌ Error stack:', error.stack);
     
     try {
-      const errorData = { type: 'error', error: error.message };
+      // Provide user-friendly error messages based on error type
+      let userFriendlyMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('quota exceeded') || error.message.includes('429')) {
+          userFriendlyMessage = 'API quota exceeded. Please try again later or contact support if this persists.';
+        } else if (error.message.includes('timeout')) {
+          userFriendlyMessage = 'Request timed out. The image might be too complex or the service is busy. Please try again.';
+        } else if (error.message.includes('authentication') || error.message.includes('401') || error.message.includes('403')) {
+          userFriendlyMessage = 'Authentication error. Please refresh the page and try again.';
+        } else if (error.message.includes('network') || error.message.includes('connection')) {
+          userFriendlyMessage = 'Network error. Please check your connection and try again.';
+        }
+      }
+      
+      const errorData = { 
+        type: 'error', 
+        error: userFriendlyMessage,
+        technicalError: process.env['NODE_ENV'] === 'development' ? error.message : undefined
+      };
       const sseData = `data: ${JSON.stringify(errorData)}\n\n`;
       res.write(sseData);
       res.end();

@@ -2,9 +2,9 @@ import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
 
 export class ModelProvider {
-  static async callGeminiText(systemPrompt: string, userPrompt: string): Promise<{ content: string; usageTokens: number }> {
+  static async callGeminiText(systemPrompt: string, userPrompt: string, model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
-    const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt);
+    const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
     const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
@@ -37,11 +37,12 @@ export class ModelProvider {
   private static async makeGeminiTextRequest(
     accessToken: string,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    model: ModelType = 'auto'
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig('auto');
+    const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
     const response = await fetch(endpoint, {
@@ -57,7 +58,16 @@ export class ModelProvider {
     });
     
     if (!response.ok) {
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText}`);
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      
+      console.error(`❌ [MODEL PROVIDER ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+      
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion})`);
     }
     
     return response;

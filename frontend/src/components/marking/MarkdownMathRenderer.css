@@ -1,4 +1,4 @@
-/* --- Final, Simplified, and Reliable CSS --- */
+/* --- Final CSS with KaTeX line-height Fix --- */
 
 .markdown-math-renderer {
   padding: 0px 25px 0px;
@@ -7,42 +7,51 @@
 }
 
 .markdown-p,
-.markdown-ol {
+.markdown-ol,
+ul {
   margin: 0.5em 0;
+  line-height: 1.6; /* This is good for text, but bad for KaTeX */
 }
 
 /* --- Title & Indentation --- */
-
 .markdown-math-renderer h3 {
   color: var(--text-primary);
   font-weight: 500;
   margin: 1.0em 0 0.5em 0;
-  font-size: 1.1em; /* You can adjust the title size here */
+  font-size: 1.1em;
 }
 
-/* Indent any paragraph or list that follows an h3 */
 .markdown-math-renderer h3 ~ .markdown-p,
-.markdown-math-renderer h3 ~ .markdown-ol {
+.markdown-math-renderer h3 ~ .markdown-ol,
+.markdown-math-renderer h3 ~ ul {
   margin-left: 1.5em;
-  color: var(--text-primary);
+}
+
+/* --- List Styling --- */
+.markdown-math-renderer .markdown-ol,
+.markdown-math-renderer ul {
+  list-style-position: outside;
+  padding-left: 1.5em;
 }
 
 /* --- Final Answer Section --- */
 .markdown-math-renderer > p:last-of-type {
   border-top: 1px solid var(--text-tertiary, #cccccc);
-  padding: 1em 1em 3em 1em;
+  padding: 1em;
   margin-top: 1em;
   margin-left: 0;
 }
 
-/* --- Other styles --- */
-.markdown-math-renderer .math-inline,
+/* --- Math and Variable Styling --- */
+
+/* Style ONLY the simple variables */
 .markdown-math-renderer .markdown-em {
   color: var(--function-error);
   font-style: normal;
 }
 
-.markdown-math-renderer .markdown-ol {
-  list-style-position: outside;
-  padding-left: 1.5em;
+/* Style ONLY the KaTeX blocks */
+.markdown-math-renderer .katex {
+  color: var(--function-error);
+  line-height: initial; /* FIX: This protects KaTeX from the global line-height */
 }

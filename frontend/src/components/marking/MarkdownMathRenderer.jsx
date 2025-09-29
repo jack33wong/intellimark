@@ -14,7 +14,9 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\\\(/g, '$')
     .replace(/\\\)/g, '$')
     .replace(/\\\[/g, '$$')
-    .replace(/\\\]/g, '$$');
+    .replace(/\\\]/g, '$$')
+    // FIX: This new line finds ^(...) and converts it to the correct ^{...} syntax.
+    .replace(/\^\(([^)]+)\)/g, '^{$1}');
 };
 
 const MarkdownMathRenderer = ({ 
@@ -22,10 +24,20 @@ const MarkdownMathRenderer = ({
   className = '', 
   options = {} 
 }) => {
-  const defaultOptions = { /* ... */ };
+  const defaultOptions = {
+    throwOnError: false,
+    errorColor: '#cc0000',
+    strict: false,
+    trust: true,
+    ...options
+  };
 
   if (!content || typeof content !== 'string') {
-    // ... (error handling is the same)
+    return (
+      <div className={`markdown-math-renderer ${className}`}>
+        <p className="empty-content">No content to display</p>
+      </div>
+    );
   }
 
   const contentWithMath = detectAndWrapMath(content);
@@ -37,27 +49,27 @@ const MarkdownMathRenderer = ({
         remarkPlugins={[remarkMath]}
         rehypePlugins={[[rehypeKatex, defaultOptions]]}
         components={{
-          // --- THIS IS THE NEW RESILIENT LOGIC ---
-          // It now checks the text content of a paragraph, not the tags inside it.
           p: ({ node, children }) => {
-            // Extract plain text from the paragraph's children
             const textContent = node.children.map(child => child.value || '').join('').trim();
-            
-            // Check if the entire paragraph is just a step title
-            const isStepTitle = /^(Step \d+:)$/i.test(textContent);
-
+            const isStepTitle = /^(Step \d+:)/i.test(textContent);
             if (isStepTitle) {
-              // If it's a title, render it as an h3.
               return <h3 className="markdown-h3">{children}</h3>;
             }
-            
-            // Otherwise, render a normal paragraph.
             return <p className="markdown-p">{children}</p>;
           },
-          
+          em: ({ node, children }) => {
+            const isMathWrapper =
+              node.children.length === 1 &&
+              node.children[0].tagName === 'span' &&
+              node.children[0].properties?.className?.includes('katex');
+            if (isMathWrapper) {
+              return <>{children}</>;
+            }
+            return <em className="markdown-em">{children}</em>;
+          },
           h3: ({ children }) => <h3 className="markdown-h3">{children}</h3>,
           ol: ({ children }) => <ol className="markdown-ol">{children}</ol>,
-          em: ({ children }) => <em className="markdown-em">{children}</em>,
+          ul: ({ children }) => <ul>{children}</ul>,
         }}
       >
         {preprocessedContent}
