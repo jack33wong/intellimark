@@ -91,8 +91,11 @@ export class ClassificationService {
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      return await this.parseGeminiResponse(cleanContent, result, model);
+      const finalResult = await this.parseGeminiResponse(cleanContent, result, model);
+      
+      return finalResult;
     } catch (error) {
+      console.error(`❌ [CLASSIFICATION] Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
@@ -151,22 +154,24 @@ export class ClassificationService {
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
+    const requestBody = {
+      contents: [{
+        parts: [
+          { text: systemPrompt },
+          { text: userPrompt },
+          { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
+        ]
+      }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
+    };
+    
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
-      })
+      body: JSON.stringify(requestBody)
     });
     
     if (!response.ok) {

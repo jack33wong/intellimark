@@ -28,22 +28,8 @@ export class MathpixService {
   private static readonly LOG_CALL_INTERVAL = 10; // Or every 10 calls
 
   private static logConsolidatedStats(forceLog = false) {
-    const now = Date.now();
-    const timeSinceLastLog = now - this.lastLogTime;
-    
-    if (forceLog || 
-        this.startCallCount >= this.LOG_CALL_INTERVAL || 
-        timeSinceLastLog >= this.LOG_INTERVAL_MS) {
-      
-      if (this.startCallCount > 0) {
-        console.log(`📊 [MATHPIX] Stats - Started: ${this.startCallCount}, Completed: ${this.completedCallCount}, Success Rate: ${this.completedCallCount > 0 ? Math.round((this.completedCallCount / this.startCallCount) * 100) : 0}%`);
-      }
-      
-      // Reset counters
-      this.startCallCount = 0;
-      this.completedCallCount = 0;
-      this.lastLogTime = now;
-    }
+    // Stats logging removed for cleaner output
+    // The main step completion is handled by MarkHomeworkWithAnswer.ts
   }
 
   /**
@@ -179,7 +165,10 @@ export class MathpixService {
       this.completedCallCount++;
       this.logConsolidatedStats();
       
-      console.error('❌ Mathpix API Error:', error.response?.data || error.message);
+      console.error(`❌ [MATHPIX API ERROR] Request failed`);
+      console.error(`❌ [API ENDPOINT] https://api.mathpix.com/v3/text`);
+      console.error(`❌ [ERROR DETAILS] ${error.response?.data || error.message}`);
+      console.error(`❌ [HTTP STATUS] ${error.response?.status || 'Unknown'}`);
       
       return {
         error: error.response?.data?.error || error.message || 'Unknown Mathpix API error'

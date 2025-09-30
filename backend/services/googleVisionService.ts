@@ -83,10 +83,17 @@ export class GoogleVisionService {
       features: [{ type: 'DOCUMENT_TEXT_DETECTION' }]
     } as any;
 
-    const [response] = await client.annotateImage(request);
-    const result = this.parseResponse(response as any);
-    console.log(`✅ [GOOGLE VISION] Google Vision API completed - ${result.boundingBoxes.length} text blocks detected`);
-    return result;
+    try {
+      const [response] = await client.annotateImage(request);
+      const result = this.parseResponse(response as any);
+      return result;
+    } catch (error) {
+      console.error(`❌ [GOOGLE VISION ERROR] API request failed`);
+      console.error(`❌ [API ENDPOINT] Google Vision API v1`);
+      console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ [ERROR STACK]`, error);
+      throw error;
+    }
   }
 
   private static parseResponse(response: protos.google.cloud.vision.v1.IAnnotateImageResponse): ProcessedVisionResult {

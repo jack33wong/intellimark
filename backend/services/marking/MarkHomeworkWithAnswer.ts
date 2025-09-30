@@ -26,6 +26,7 @@ async function simulateApiDelay(operation: string, debug: boolean = false): Prom
   }
 }
 
+
 // Common function to generate session titles for non-past-paper images
 function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
@@ -216,6 +217,43 @@ export class MarkHomeworkWithAnswer {
     const { imageData, model, debug = false, onProgress } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
+    
+    // Timing tracking for performance analysis
+    const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
+    let currentStep = 0;
+    let totalSteps = 0;
+    
+    const logStep = (stepName: string, modelInfo: string) => {
+      currentStep++;
+      const startTime = Date.now();
+      stepTimings[stepName] = { start: startTime };
+      
+      // Log step completion with duration
+      const logStepComplete = (subSteps?: { [key: string]: number }) => {
+        const timing = stepTimings[stepName];
+        if (timing) {
+          timing.duration = Date.now() - timing.start;
+          timing.subSteps = subSteps;
+          const duration = (timing.duration / 1000).toFixed(1);
+          
+          // Ensure totalSteps is set before logging
+          const actualTotalSteps = totalSteps > 0 ? totalSteps : 3; // Default to 3 if not set
+          const progress = `[${currentStep}/${actualTotalSteps}]`;
+          const paddedName = stepName.padEnd(25); // Fixed 25-character width for all step names
+          const durationStr = `[${duration}s]`;
+          const modelStr = `(${modelInfo})`;
+          console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
+          
+          if (subSteps) {
+            Object.entries(subSteps).forEach(([subStep, subDuration]) => {
+              console.log(`  ✅ [${stepName}] ${subStep} - [${(subDuration / 1000).toFixed(1)}s]`);
+            });
+          }
+        }
+      };
+      
+      return logStepComplete;
+    };
 
     try {
       // Create progress tracker IMMEDIATELY at the start
@@ -240,7 +278,7 @@ export class MarkHomeworkWithAnswer {
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       
-      console.log(`🔄 [STEP 1] Classification - ${actualModelName}`);
+      const logStep1Complete = logStep('Classification', 'gemini-2.0-flash-lite');
       let imageClassification;
       if (debug) {
         // Mock classification for debug mode - force question mode
@@ -254,10 +292,11 @@ export class MarkHomeworkWithAnswer {
       } else {
         imageClassification = await this.classifyImageWithAI(imageData, model, debug);
       }
+      logStep1Complete();
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Step 2: Question detection
-    console.log(`🔄 [STEP 2] Question Detection - ${actualModelName}`);
+    const logStep2Complete = logStep('Question Detection', 'database-lookup');
     let questionDetection: QuestionDetectionResult | undefined;
     if (imageClassification.extractedQuestionText) {
       try {
@@ -270,6 +309,7 @@ export class MarkHomeworkWithAnswer {
     } else {
       questionDetection = { found: false, message: 'No question text extracted' };
     }
+    logStep2Complete();
 
     // Complete classification step
     progressTracker.completeStep('classification');
@@ -280,8 +320,9 @@ export class MarkHomeworkWithAnswer {
     // Complete question detection step
     progressTracker.completeStep('question_detection');
     
-    // Determine mode
+    // Determine mode and set total steps
     const isQuestionMode = imageClassification.isQuestionOnly;
+    totalSteps = isQuestionMode ? 3 : 7; // Question mode: 3 steps, Marking mode: 7 steps
 
     // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
@@ -322,6 +363,7 @@ export class MarkHomeworkWithAnswer {
       questionProgressTracker.startStep('ai_response');
       
       // For question-only mode, generate simple AI tutoring response
+      const logQuestionComplete = logStep('Question Mode AI Response', 'gemini-2.0-flash-lite');
       let chatResponse;
       try {
         const { AIMarkingService } = await import('../aiMarkingService');
@@ -343,6 +385,7 @@ export class MarkHomeworkWithAnswer {
           apiUsed: 'Fallback'
         };
       }
+      logQuestionComplete();
       
       // Complete AI response step
       questionProgressTracker.completeStep('ai_response');
@@ -380,13 +423,14 @@ export class MarkHomeworkWithAnswer {
 
     // Continue with marking mode steps
     // Step 3: OCR
-    console.log(`🔄 [STEP 3] OCR Processing - ${actualModelName}`);
+    const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
     progressTracker.startStep('ocr_processing');
     const processedImage = await this.processImageWithRealOCR(imageData, debug);
     progressTracker.completeStep('ocr_processing');
+    logStep3Complete();
 
     // Step 4: Marking instructions
-    console.log(`🔄 [STEP 4] Marking Instructions - ${actualModelName}`);
+    const logStep4Complete = logStep('Marking Instructions', 'gemini-2.0-flash-lite');
     progressTracker.startStep('marking_instructions');
     const markingInstructions = await this.generateMarkingInstructions(
       imageData,
@@ -395,9 +439,10 @@ export class MarkHomeworkWithAnswer {
       questionDetection
     );
     progressTracker.completeStep('marking_instructions');
+    logStep4Complete();
 
     // Step 5: Burn overlay
-    console.log(`🔄 [STEP 5] Burn Overlay - ${actualModelName}`);
+    const logStep5Complete = logStep('Burn Overlay', 'image-processing');
     progressTracker.startStep('burn_overlay');
     
     const annotations = markingInstructions.annotations.map(ann => ({
@@ -413,9 +458,10 @@ export class MarkHomeworkWithAnswer {
       processedImage.imageDimensions
     );
     progressTracker.completeStep('burn_overlay');
+    logStep5Complete();
 
     // Step 6: Generate AI response for marking mode
-    console.log(`🔄 [STEP 6] AI Response Generation - ${actualModelName}`);
+    const logStep6Complete = logStep('AI Response', 'gemini-2.0-flash-lite');
     progressTracker.startStep('ai_response');
     let markingChatResponse;
     try {
@@ -435,14 +481,33 @@ export class MarkHomeworkWithAnswer {
       };
     }
     progressTracker.completeStep('ai_response');
+    logStep6Complete();
 
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
     // Step 7: Data processed - session will be created by route
-    console.log(`🔄 [STEP 7] Data Processing Complete - ${actualModelName}`);
+    const logStep7Complete = logStep('Data Complete', 'processing-complete');
     progressTracker.startStep('data_complete');
     progressTracker.finish();
+    logStep7Complete();
+
+    // Performance Summary
+    const totalTime = totalProcessingTime / 1000;
+    console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+    
+    // Calculate step percentages
+    const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
+    if (stepEntries.length > 0) {
+      stepEntries
+        .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
+        .forEach(([stepName, timing]) => {
+          const duration = (timing.duration || 0) / 1000;
+          const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
+          const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
+          console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
+        });
+    }
 
     // Step 6: Create session for marking
     let sessionId: string | undefined;

@@ -302,7 +302,6 @@ export class HybridOCRService {
     try {
       const [resultA] = await client.textDetection(imageBuffer);
       allBlocks.push(...this.processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan'));
-      console.log('✅ [GOOGLE VISION] Pass A completed');
     } catch (error) {
       console.error('❌ [GOOGLE VISION] Pass A failed:', error);
     }
@@ -317,7 +316,6 @@ export class HybridOCRService {
         .toBuffer();
       const [resultB] = await client.textDetection(preprocessedBufferB);
       allBlocks.push(...this.processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', this.RESIZE_FACTOR));
-      console.log('✅ [GOOGLE VISION] Pass B completed');
     } catch (error) {
       console.error('❌ [GOOGLE VISION] Pass B failed:', error);
     }
@@ -332,7 +330,6 @@ export class HybridOCRService {
         .toBuffer();
       const [resultC] = await client.textDetection(preprocessedBufferC);
       allBlocks.push(...this.processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', this.RESIZE_FACTOR));
-      console.log('✅ [GOOGLE VISION] Pass C completed');
     } catch (error) {
       console.error('❌ [GOOGLE VISION] Pass C failed:', error);
     }
@@ -420,6 +417,8 @@ export class HybridOCRService {
   ): Promise<HybridOCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    
+    // Sub-step timing removed for cleaner logs
 
     // Debug mode logging
 
@@ -455,7 +454,6 @@ export class HybridOCRService {
       const robust = await this.performRobustRecognition(imageBuffer, opts);
       detectedBlocks = robust.finalBlocks;
       preClusterBlocks = robust.preClusterBlocks;
-      console.log(`✅ [OCR PROCESSING] Google Vision completed - ${detectedBlocks.length} text blocks detected`);
       
       // Convert detected blocks to our standard format
       const visionResult: ProcessedVisionResult = {
@@ -508,9 +506,10 @@ export class HybridOCRService {
 
       // Step 2: Detect math blocks from robust recognition results
       mathBlocks = MathDetectionService.detectMathBlocks(visionResult);
-      console.log(`✅ [OCR PROCESSING] Math Detection completed - ${mathBlocks.length} math blocks found`);
       
     } catch (error) {
+      console.error(`❌ [OCR PROCESSING ERROR] Google Vision failed:`, error instanceof Error ? error.message : 'Unknown error');
+      console.error(`❌ [ERROR DETAILS]`, error);
       
       // Fallback to Mathpix-only processing
       if (MathpixService.isAvailable()) {
@@ -604,9 +603,6 @@ export class HybridOCRService {
         }
         
         processedMathBlocks = queue;
-        console.log(`✅ [OCR PROCESSING] Mathpix Processing completed - ${mathpixCalls} API calls made`);
-        // Log final consolidated Mathpix stats
-        MathpixService.logFinalStats();
         
       } catch (error) {
         console.error('❌ Mathpix processing failed:', error);
@@ -647,7 +643,8 @@ export class HybridOCRService {
     // Get image dimensions
     const metadata = await sharp(imageBuffer).metadata();
 
-    console.log(`✅ [OCR PROCESSING] Hybrid OCR completed - ${finalBoundingBoxes.length} text blocks, ${processedMathBlocks.length} math blocks, ${processingTime}ms`);
+    // OCR processing completed - detailed logging removed for cleaner format
+    // The main step completion is handled by MarkHomeworkWithAnswer.ts
     
     return {
       text: finalText,

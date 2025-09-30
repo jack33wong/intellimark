@@ -59,6 +59,16 @@ export class ProgressTracker {
     this.updateProgress();
   }
 
+  getCurrentStep(): string {
+    const currentStep = this.steps[this.currentStepIndex];
+    return currentStep ? `${currentStep.name} (${currentStep.description})` : 'Unknown step';
+  }
+
+  getCurrentStepId(): string {
+    const currentStep = this.steps[this.currentStepIndex];
+    return currentStep ? currentStep.id : 'unknown';
+  }
+
   private updateProgress(): void {
     const currentStep = this.steps[this.currentStepIndex];
     const isComplete = this.completedSteps.length === this.steps.length;

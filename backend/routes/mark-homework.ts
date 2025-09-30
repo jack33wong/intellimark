@@ -522,6 +522,21 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         const userTimestamp = new Date(baseTime - 2000).toISOString(); // 2 seconds earlier
         const aiTimestamp = new Date(baseTime).toISOString(); // Current time
         
+        // Upload original image to Firebase Storage for authenticated users only
+        let originalImageLink;
+        const { ImageStorageService } = await import('../services/imageStorageService.js');
+        try {
+          originalImageLink = await ImageStorageService.uploadImage(
+            imageData,
+            userId || 'anonymous',
+            sessionId,
+            'original'
+          );
+        } catch (error) {
+          console.error('❌ Failed to upload original image:', error);
+          originalImageLink = null;
+        }
+
         // Create user message for database (earlier timestamp)
         const dbUserMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -529,7 +544,8 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
           timestamp: userTimestamp,
           type: isFollowUp ? 'follow_up' : 'marking_original',
-          imageData: imageData, // Store original image data
+          imageLink: originalImageLink, // For authenticated users
+          imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
           fileName: 'uploaded-image.png',
           metadata: {
             processingTimeMs: 0,
@@ -832,6 +848,21 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
         const userTimestamp = new Date(baseTime - 2000).toISOString(); // 2 seconds earlier
         const aiTimestamp = new Date(baseTime).toISOString(); // Current time
         
+        // Upload original image to Firebase Storage for authenticated users only
+        let originalImageLink;
+        const { ImageStorageService } = await import('../services/imageStorageService.js');
+        try {
+          originalImageLink = await ImageStorageService.uploadImage(
+            imageData,
+            userId || 'anonymous',
+            sessionId,
+            'original'
+          );
+        } catch (error) {
+          console.error('❌ Failed to upload original image:', error);
+          originalImageLink = null;
+        }
+
         // Create user message for database (earlier timestamp)
         const dbUserMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -839,7 +870,8 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
           content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
           timestamp: userTimestamp,
           type: isFollowUp ? 'follow_up' : 'marking_original',
-          imageData: imageData, // Store original image data
+          imageLink: originalImageLink, // For authenticated users
+          imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
           fileName: 'uploaded-image.png',
           metadata: {
             processingTimeMs: 0,
