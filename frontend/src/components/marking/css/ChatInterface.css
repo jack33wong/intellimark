@@ -21,6 +21,7 @@
   transition: all 0.3s ease-in-out;
 }
 
+
 /* Mobile responsive - when sidebar is collapsed */
 @media (max-width: 768px) {
   .follow-up-chat-input-container.follow-up-center {
@@ -133,13 +134,6 @@
   overflow: hidden; /* Prevent page scrolling */
 }
 
-.mark-homework-page.chat-mode .session-header {
-  background: var(--background-menu-white);
-  border-bottom: 1px solid var(--border-main);
-  padding: 16px 20px;
-  margin-bottom: 0;
-}
-
 .mark-homework-page.chat-mode .chat-interface {
   flex: 1;
   display: flex;
@@ -200,7 +194,7 @@
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--background-gray-main);
-  max-height: 88vh; /* Limit the viewable height */
+  max-height: 82vh; /* Limit the viewable height */
   flex: 1; /* Take up remaining space in chat-mode */
   min-height: 0; /* Allow flex item to shrink below content size */
 }

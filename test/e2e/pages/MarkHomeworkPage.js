@@ -8,15 +8,15 @@ class MarkHomeworkPage {
     // --- Define Locators in the Constructor ---
     // This is the core best practice. Locators are resilient and reusable.
     
-    // Use .or() to handle multiple possible selectors gracefully
-    this.fileInput = page.locator('#main-file-input').or(page.locator('#followup-file-input'));
+    // Use the unified file input selector
+    this.fileInput = page.locator('#unified-file-input');
     this.textInput = page.locator('.main-chat-input').or(page.locator('textarea')).or(page.locator('input[type="text"]')).or(page.locator('.chat-input'));
     this.sendButton = page.locator('button:has-text("Send")').or(page.locator('button:has-text("Analyze")')).or(page.locator('button[type="submit"]')).or(page.locator('.send-button'));
     
     // Locators for key UI areas
     this.chatContainer = page.locator('.chat-container, .messages-container, .main-chat-container');
     this.aiThinking = page.locator('.ai-thinking, .thinking-animation, .upload-loading-bar');
-    this.chatHeaderTitle = page.locator('.chat-header-left h1');
+    this.chatHeaderTitle = page.locator('.session-title');
     
     // Locators for message elements
     this.userMessages = page.locator('.message.user, .user-message, .chat-message.user');
@@ -42,25 +42,14 @@ class MarkHomeworkPage {
     
     // Wait for page to be in a stable state (either upload or chat mode)
     await this.page.waitForFunction(() => {
-      const followupInput = document.querySelector('#followup-file-input');
-      const mainInput = document.querySelector('#main-file-input');
-      return followupInput || mainInput;
+      const unifiedInput = document.querySelector('#unified-file-input');
+      return unifiedInput;
     }, { timeout: 10000 });
     
-    // Check if we're in initial upload mode or chat mode
-    const isInChatMode = await this.page.isVisible('#followup-file-input');
-    const isInUploadMode = await this.page.isVisible('#main-file-input');
+    // Check if we're in initial upload mode or chat mode by looking at the chat messages
+    const hasMessages = await this.page.locator('.chat-message, .message').count() > 0;
     
-    // If we're in chat mode but need upload mode, try to find upload button
-    if (isInChatMode && !isInUploadMode) {
-      // Look for upload button or title upload button
-      const uploadButton = await this.page.$('.title-upload-btn, .upload-button, button:has-text("Upload")');
-      if (uploadButton) {
-        await uploadButton.click();
-        // Wait for upload mode to be active
-        await this.page.waitForSelector('#main-file-input', { timeout: 5000 });
-      }
-    }
+    // The unified input handles both modes, so no need for mode switching logic
     
     // Instead of waiting for network, wait for a key element to be ready.
     await expect(this.chatContainer).toBeVisible({ timeout: 10000 });

@@ -19,9 +19,10 @@
   overflow: visible;
   width: 100%;
 }
-
-
-
+/* 👇 FIX: Add this rule to hide the central navigation when in chat mode. */
+.chat-mode .header {
+  display: none;
+}
 
 /* Center - Navigation */
 .header-nav {

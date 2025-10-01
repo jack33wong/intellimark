@@ -42,6 +42,9 @@ test.describe('Authenticated User Marking Homework E2E', () => {
     // Set larger viewport for better screenshots (test-only change)
     await page.setViewportSize({ width: 5120, height: 2880 });
     
+    // Clean up any leftover sessions before each test
+    await databaseHelper.cleanupUnifiedSessions(TEST_CONFIG.userId);
+    
     loginPage = new LoginPage(page);
     markHomeworkPage = new MarkHomeworkPage(page);
     sidebarPage = new SidebarPage(page);
@@ -105,7 +108,15 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       
       // Wait for sidebar to load and update with the new chat history item
       await sidebarPage.waitForLoad();
-      await expect(sidebarPage.getChatHistoryItemLocator()).toHaveCount(1, { timeout: 10000 });
+      
+      // Wait for the sidebar to have exactly 1 item, with retries
+      await expect(async () => {
+        const count = await sidebarPage.getChatHistoryItemLocator().count();
+        if (count !== 1) {
+          throw new Error(`Expected 1 chat history item, but found ${count}. This might be due to leftover test data.`);
+        }
+        return true;
+      }).toPass({ timeout: 15000 });
     });
 
     await test.step('Step 4: Submit Follow-up Question', async () => {
