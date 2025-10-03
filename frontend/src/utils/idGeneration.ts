@@ -1,9 +1,34 @@
-import { generateUserMessageId, generateAIMessageId, generateMessageId } from './contentHash';
+/**
+ * Consolidated ID generation utilities
+ * All ID generation logic in one place
+ */
+
+// ============================================================================
+// CONTENT HASH GENERATION
+// ============================================================================
 
 /**
- * Utility functions for generating message IDs
- * Centralizes all message ID generation logic
+ * Generates a simple hash from a string content
+ * @param content - The string content to hash
+ * @param length - The desired hash length (default: 8)
+ * @returns A base36 hash string
  */
+export function generateContentHash(content: string, length: number = 8): string {
+  if (!content || typeof content !== 'string') {
+    return 'empty';
+  }
+  
+  const hash = content.split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0);
+    return a & a;
+  }, 0);
+  
+  return Math.abs(hash).toString(36).substring(0, length);
+}
+
+// ============================================================================
+// MESSAGE ID GENERATION
+// ============================================================================
 
 /**
  * Message ID types
@@ -16,7 +41,7 @@ export type MessageIdType = 'user' | 'ai' | 'msg' | 'session';
  * @returns A user message ID
  */
 export function createUserMessageId(content: string): string {
-  return generateUserMessageId(content);
+  return `user-${generateContentHash(content)}`;
 }
 
 /**
@@ -26,7 +51,9 @@ export function createUserMessageId(content: string): string {
  * @returns An AI message ID
  */
 export function createAIMessageId(content: string, timestamp?: number): string {
-  return generateAIMessageId(content, timestamp);
+  const hash = generateContentHash(content);
+  const time = timestamp || Date.now();
+  return `ai-${hash}-${time}`;
 }
 
 /**
@@ -60,8 +87,14 @@ export function createTempSessionId(timestamp?: number): string {
  * @returns A message ID
  */
 export function createMessageId(content: string, prefix: MessageIdType, timestamp?: number): string {
-  return generateMessageId(content, prefix, timestamp);
+  const hash = generateContentHash(content);
+  const time = timestamp ? `-${timestamp}` : '';
+  return `${prefix}-${hash}${time}`;
 }
+
+// ============================================================================
+// ID VALIDATION AND UTILITIES
+// ============================================================================
 
 /**
  * Validates if a message ID has the correct format
@@ -94,5 +127,20 @@ export function extractMessageIdPrefix(messageId: string): string | null {
   }
   
   const match = messageId.match(/^([a-z]+)-/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extracts the content hash from an AI message ID
+ * @param messageId - The AI message ID
+ * @returns The content hash or null if not found
+ */
+export function extractContentHashFromAIMessageId(messageId: string): string | null {
+  if (!messageId || typeof messageId !== 'string') {
+    return null;
+  }
+  
+  // Pattern: ai-{hash}-{timestamp} or msg-{hash}
+  const match = messageId.match(/^(?:ai|msg)-([a-f0-9]+)(?:-\d+)?$/);
   return match ? match[1] : null;
 }

@@ -412,3 +412,90 @@ export const appendFollowUpMessages = (existingMessages, newMessages) => {
   // Combine and deduplicate
   return deduplicateMessages([...existingMessages, ...mappedNewMessages]);
 };
+
+// ============================================================================
+// NEW UTILITIES FOR BUG FIXES
+// ============================================================================
+
+/**
+ * Generates a simple hash from a string content
+ * @param {string} content - The string content to hash
+ * @param {number} length - The desired hash length (default: 8)
+ * @returns {string} A base36 hash string
+ */
+export const generateContentHash = (content, length = 8) => {
+  if (!content || typeof content !== 'string') {
+    return 'empty';
+  }
+  
+  const hash = content.split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0);
+    return a & a;
+  }, 0);
+  
+  return Math.abs(hash).toString(36).substring(0, length);
+};
+
+/**
+ * Generates a user message ID based on content
+ * @param {string} content - The message content
+ * @returns {string} A user message ID
+ */
+export const createUserMessageId = (content) => {
+  const hash = generateContentHash(content);
+  return `user-${hash}`;
+};
+
+/**
+ * Generates an AI message ID based on content
+ * @param {string} content - The message content
+ * @param {number} timestamp - Optional timestamp for uniqueness
+ * @returns {string} An AI message ID
+ */
+export const createAIMessageId = (content, timestamp) => {
+  const hash = generateContentHash(content);
+  const time = timestamp || Date.now();
+  return `ai-${hash}-${time}`;
+};
+
+/**
+ * Checks if a message is a "ghost message" (empty assistant message)
+ * @param {Object} message - The message to check
+ * @returns {boolean} True if the message should be filtered out
+ */
+export const isGhostMessage = (message) => {
+  if (message.role !== 'assistant') {
+    return false;
+  }
+  
+  // Keep assistant messages that have content or are processing
+  const hasContent = message.content && message.content.trim() !== '';
+  const isProcessing = message.isProcessing === true;
+  const hasProgressData = !!message.progressData;
+  
+  // Filter out empty assistant messages that are not processing
+  return !hasContent && !isProcessing && !hasProgressData;
+};
+
+/**
+ * Checks if a message should be rendered
+ * @param {Object} message - The message to check
+ * @returns {boolean} True if the message should be rendered
+ */
+export const shouldRenderMessage = (message) => {
+  if (message.role === 'user') {
+    return true; // Always render user messages
+  }
+  
+  // For assistant messages, check if it's not a ghost message
+  return !isGhostMessage(message);
+};
+
+/**
+ * Filters out ghost messages from an array of messages
+ * @param {Array} messages - Array of messages to filter
+ * @returns {Array} Filtered array without ghost messages
+ */
+export const filterGhostMessages = (messages) => {
+  return messages.filter(message => !isGhostMessage(message));
+};

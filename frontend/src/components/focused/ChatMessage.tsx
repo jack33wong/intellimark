@@ -8,13 +8,13 @@ import {
   isUserMessage, 
   hasImage, 
   getMessageDisplayText,
-  getMessageTimestamp 
-} from '../../utils/messageUtils';
+  getMessageTimestamp,
+  shouldRenderMessage
+} from '../../utils/messageUtils.js';
 import { 
   isAnnotatedImageMessage
 } from '../../utils/sessionUtils';
 import { useDropdownState } from '../../hooks/useDropdownState';
-import { shouldRenderMessage } from '../../utils/messageFiltering';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 

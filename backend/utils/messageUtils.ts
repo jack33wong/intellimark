@@ -1,0 +1,319 @@
+import crypto from 'crypto';
+import type { UnifiedMessage } from '../types/index.js';
+
+/**
+ * Consolidated message utilities for backend
+ * All message-related functionality in one place
+ */
+
+// ============================================================================
+// CONTENT HASH GENERATION
+// ============================================================================
+
+/**
+ * Generates a content hash using MD5 algorithm
+ * @param content - The content to hash
+ * @param length - The desired hash length (default: 8)
+ * @returns A hex hash string
+ */
+export function generateContentHash(content: string, length: number = 8): string {
+  if (!content || typeof content !== 'string') {
+    return 'empty';
+  }
+  
+  return crypto.createHash('md5').update(content).digest('hex').substring(0, length);
+}
+
+// ============================================================================
+// MESSAGE ID GENERATION
+// ============================================================================
+
+/**
+ * Generates a user message ID based on content
+ * @param content - The message content
+ * @returns A user message ID
+ */
+export function generateUserMessageId(content: string): string {
+  const hash = generateContentHash(content);
+  return `msg-${hash}`;
+}
+
+/**
+ * Generates an AI message ID based on content
+ * @param content - The message content
+ * @param timestamp - Optional timestamp for uniqueness
+ * @returns An AI message ID
+ */
+export function generateAIMessageId(content: string, timestamp?: number): string {
+  const hash = generateContentHash(content);
+  const time = timestamp || Date.now();
+  return `ai-${hash}-${time}`;
+}
+
+/**
+ * Generates a message ID with a specific prefix
+ * @param content - The content to hash
+ * @param prefix - The prefix for the ID (e.g., 'msg', 'ai', 'user')
+ * @param timestamp - Optional timestamp for uniqueness
+ * @returns A message ID
+ */
+export function generateMessageId(content: string, prefix: string, timestamp?: number): string {
+  const hash = generateContentHash(content);
+  const time = timestamp ? `-${timestamp}` : '';
+  return `${prefix}-${hash}${time}`;
+}
+
+/**
+ * Generates a session ID
+ * @param userId - Optional user ID
+ * @param timestamp - Optional timestamp
+ * @returns A session ID
+ */
+export function generateSessionId(userId?: string, timestamp?: number): string {
+  const time = timestamp || Date.now();
+  const user = userId ? `-${userId.substring(0, 8)}` : '';
+  const random = Math.random().toString(36).substr(2, 9);
+  return `session-${time}${user}-${random}`;
+}
+
+/**
+ * Generates a temporary session ID
+ * @param timestamp - Optional timestamp
+ * @returns A temporary session ID
+ */
+export function generateTempSessionId(timestamp?: number): string {
+  const time = timestamp || Date.now();
+  const random = Math.random().toString(36).substr(2, 9);
+  return `temp-${time}-${random}`;
+}
+
+// ============================================================================
+// MESSAGE CREATION
+// ============================================================================
+
+export interface UserMessageOptions {
+  content: string;
+  imageLink?: string;
+  imageData?: string;
+  sessionId?: string;
+  model?: string;
+  messageId?: string;
+}
+
+export interface AIMessageOptions {
+  content: string;
+  imageData?: string;
+  fileName?: string;
+  progressData?: any;
+  metadata?: any;
+  messageId?: string;
+  isQuestionOnly?: boolean;
+}
+
+/**
+ * Creates a user message object
+ * @param options - User message options
+ * @returns A user message object
+ */
+export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
+  const {
+    content,
+    imageLink,
+    imageData,
+    sessionId,
+    model = 'auto',
+    messageId
+  } = options;
+
+  return {
+    id: messageId || generateUserMessageId(content),
+    messageId: messageId || generateUserMessageId(content),
+    role: 'user',
+    content: content || (imageData ? 'Image uploaded' : ''),
+    type: 'chat_user',
+    timestamp: new Date().toISOString(),
+    imageLink: imageLink,
+    imageData: imageData,
+    detectedQuestion: { found: false, message: content || 'Chat message' },
+    metadata: {
+      resultId: `chat-${Date.now()}`,
+      processingTime: new Date().toISOString(),
+      totalProcessingTimeMs: 0,
+      modelUsed: model,
+      totalAnnotations: 0,
+      imageSize: imageData ? imageData.length : 0,
+      confidence: 0,
+      tokens: [0, 0],
+      ocrMethod: 'Chat'
+    }
+  };
+}
+
+/**
+ * Creates an AI message object
+ * @param options - AI message options
+ * @returns An AI message object
+ */
+export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
+  const {
+    content,
+    imageData,
+    fileName,
+    progressData,
+    metadata,
+    messageId,
+    isQuestionOnly = false
+  } = options;
+
+  return {
+    id: messageId || generateAIMessageId(content),
+    messageId: messageId || generateAIMessageId(content),
+    role: 'assistant',
+    content: content || 'I have analyzed your homework and provided feedback.',
+    type: isQuestionOnly ? 'question_response' : 'marking_annotated',
+    timestamp: new Date().toISOString(),
+    imageData: imageData || null,
+    fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
+    progressData: progressData,
+    detectedQuestion: { found: false, message: 'AI response' },
+    metadata: {
+      resultId: `chat-${Date.now()}`,
+      processingTime: new Date().toISOString(),
+      totalProcessingTimeMs: 0,
+      modelUsed: 'auto',
+      totalAnnotations: 0,
+      imageSize: imageData ? imageData.length : 0,
+      confidence: 0,
+      tokens: [0, 0],
+      ocrMethod: 'Chat',
+      ...metadata
+    }
+  };
+}
+
+// ============================================================================
+// PROGRESS DATA CREATION
+// ============================================================================
+
+/**
+ * Creates a progress data object for AI processing
+ * @param currentStep - Current processing step description
+ * @param allSteps - All processing steps
+ * @param completedSteps - Completed steps
+ * @param isComplete - Whether processing is complete
+ * @returns A progress data object
+ */
+export function createProgressData(
+  currentStep: string,
+  allSteps: string[],
+  completedSteps: string[] = [],
+  isComplete: boolean = false
+) {
+  return {
+    isComplete,
+    currentStepDescription: currentStep,
+    allSteps,
+    completedSteps
+  };
+}
+
+/**
+ * Creates a chat progress data object
+ * @param isComplete - Whether processing is complete
+ * @returns A chat progress data object
+ */
+export function createChatProgressData(isComplete: boolean = false) {
+  return createProgressData(
+    isComplete ? 'Generating response...' : 'Processing question...',
+    ['Processing question...', 'Generating response...'],
+    isComplete ? ['Processing question...', 'Generating response...'] : [],
+    isComplete
+  );
+}
+
+/**
+ * Creates a marking progress data object
+ * @param isComplete - Whether processing is complete
+ * @returns A marking progress data object
+ */
+export function createMarkingProgressData(isComplete: boolean = false) {
+  return createProgressData(
+    isComplete ? 'Generating feedback...' : 'Analyzing image...',
+    [
+      'Analyzing image...',
+      'Detecting question type...',
+      'Extracting text and math...',
+      'Generating feedback...',
+      'Creating annotations...',
+      'Finalizing response...',
+      'Almost done...'
+    ],
+    isComplete ? [
+      'Analyzing image...',
+      'Detecting question type...',
+      'Extracting text and math...',
+      'Generating feedback...',
+      'Creating annotations...',
+      'Finalizing response...',
+      'Almost done...'
+    ] : [],
+    isComplete
+  );
+}
+
+// ============================================================================
+// AI MESSAGE ID HANDLING
+// ============================================================================
+
+export interface AIMessageIdOptions {
+  providedId?: string;
+  content: string;
+  fallbackPrefix?: string;
+  timestamp?: number;
+}
+
+/**
+ * Resolves the AI message ID to use, with fallback logic
+ * @param options - AI message ID options
+ * @returns The resolved AI message ID
+ */
+export function resolveAIMessageId(options: AIMessageIdOptions): string {
+  const { providedId, content, fallbackPrefix = 'ai', timestamp } = options;
+  
+  // Use provided ID if valid
+  if (providedId && typeof providedId === 'string' && providedId.trim() !== '') {
+    return providedId;
+  }
+  
+  // Generate fallback ID based on content
+  if (fallbackPrefix === 'ai') {
+    return generateAIMessageId(content, timestamp);
+  }
+  
+  // Generate fallback ID with custom prefix
+  const time = timestamp || Date.now();
+  const random = Math.random().toString(36).substr(2, 9);
+  return `${fallbackPrefix}-${time}-${random}`;
+}
+
+/**
+ * Handles AI message ID resolution for different endpoint types
+ * @param requestBody - The request body containing aiMessageId
+ * @param content - The AI response content
+ * @param endpointType - The type of endpoint (chat, marking, question)
+ * @returns The resolved AI message ID
+ */
+export function handleAIMessageIdForEndpoint(
+  requestBody: any,
+  content: string,
+  endpointType: 'chat' | 'marking' | 'question' = 'chat'
+): string {
+  const providedId = requestBody.aiMessageId;
+  
+  return resolveAIMessageId({
+    providedId,
+    content,
+    fallbackPrefix: 'ai',
+    timestamp: Date.now()
+  });
+}

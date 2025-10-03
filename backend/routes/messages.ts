@@ -7,8 +7,7 @@ import express from 'express';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { AIMarkingService } from '../services/aiMarkingService.js';
-import { createUserMessage, createAIMessage, createChatProgressData } from '../utils/messageFactory.js';
-import { handleAIMessageIdForEndpoint } from '../utils/aiMessageIdHandler.js';
+import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import type { UnifiedMessage } from '../types/index.js';
 
 const router = express.Router();

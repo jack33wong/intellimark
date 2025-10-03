@@ -5,7 +5,7 @@ import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 import { useScrollManager } from '../hooks/useScrollManager';
-import { createUserMessageId, createAIMessageId } from '../utils/messageIdGenerator';
+import { createUserMessageId, createAIMessageId } from '../utils/messageUtils.js';
 
 const MarkingPageContext = createContext();
 
