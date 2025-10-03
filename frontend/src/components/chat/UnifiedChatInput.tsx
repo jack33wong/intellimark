@@ -1,16 +1,25 @@
 /**
- * UnifiedChatInput Component
- * This is the definitive version. It combines the correct, single-render-path
- * architecture with the "fire-and-forget" submission logic to fix all
- * outstanding layout and functional bugs.
+ * UnifiedChatInput Component (TypeScript)
+ * This component now correctly manages its own state and is fully typed.
  */
 import React, { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
-import { ModelSelector, SendButton, ImageUpload } from '../focused';
+import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import './UnifiedChatInput.css';
 
-const UnifiedChatInput = ({
+// Define the type for the props this component receives
+interface UnifiedChatInputProps {
+  mode: 'first-time' | 'follow-up';
+  selectedModel: string;
+  isProcessing: boolean;
+  onModelChange: (model: string) => void;
+  onAnalyzeImage: (file: File, text: string) => void;
+  onFollowUpImage: (file: File, text: string) => void;
+  onSendMessage: (text: string) => void;
+}
+
+const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   mode,
   selectedModel,
   isProcessing,
@@ -20,17 +29,21 @@ const UnifiedChatInput = ({
   onSendMessage,
 }) => {
   const { user } = useAuth();
-  const [chatInput, setChatInput] = useState('');
-  const [previewImage, setPreviewImage] = useState(null);
-  const [imageFile, setImageFile] = useState(null); 
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [chatInput, setChatInput] = useState<string>('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null); 
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-  const handleFileChange = useCallback((e) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file); 
       const reader = new FileReader();
-      reader.onload = () => setPreviewImage(reader.result);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setPreviewImage(reader.result);
+        }
+      };
       reader.readAsDataURL(file);
       setIsExpanded(true);
     }
@@ -47,38 +60,38 @@ const UnifiedChatInput = ({
     setIsExpanded(false);
   }, []);
 
-  // 👇 FIX 1: The `handleSendClick` function correctly "fires-and-forgets"
-  // the submission, allowing the UI to clean up immediately.
   const handleSendClick = useCallback(() => {
+    console.log('[DEBUG] 1: handleSendClick in UnifiedChatInput');
     if (isProcessing) return;
     const textToSend = chatInput.trim();
     const fileToSend = imageFile;
     if (!textToSend && !fileToSend) return;
 
     if (fileToSend) {
-      // The parent passes the same handler for both modes
-      onAnalyzeImage?.(fileToSend, textToSend);
+      const handler = mode === 'first-time' ? onAnalyzeImage : onFollowUpImage;
+      handler(fileToSend, textToSend);
     } else if (textToSend) {
-      onSendMessage?.(textToSend);
+      onSendMessage(textToSend);
     }
     
-    // Immediately clean up the local UI state.
     setChatInput('');
     setPreviewImage(null);
     setImageFile(null);
     setIsExpanded(false);
-  }, [isProcessing, chatInput, imageFile, onAnalyzeImage, onSendMessage]);
+  }, [isProcessing, chatInput, imageFile, mode, onAnalyzeImage, onFollowUpImage, onSendMessage]);
 
-  const handleKeyPress = useCallback((e) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendClick();
     }
   }, [handleSendClick]);
+
+  const handleError = (error: Error) => {
+    console.error("Component Error:", error);
+  };
   
   return (
-    // 👇 FIX 2: The component has a single, unified render path with a fragment
-    // as its root. This restores your correct CSS-driven architecture.
     <>
       {mode === 'first-time' && (
         <div className="chat-title-section">
@@ -117,9 +130,11 @@ const UnifiedChatInput = ({
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image">
                     <Plus size={14} />
                   </button>
-                  <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} isProcessing={isProcessing} size={mode === 'first-time' ? 'main' : 'small'} />
+                  {/* 👇 FIX 1: Changed `isProcessing` to the correct `disabled` prop. */}
+                  <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} disabled={isProcessing} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
                 </div>
-                <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !chatInput?.trim())} loading={isProcessing} variant={imageFile ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} />
+                {/* 👇 FIX 2: Added the required `onError` prop. */}
+                <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !chatInput?.trim())} loading={isProcessing} variant={imageFile ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
               </div>
             </div>
           </div>

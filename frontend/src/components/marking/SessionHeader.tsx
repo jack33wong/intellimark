@@ -1,12 +1,11 @@
 /**
- * Session Header Component
- * This is the definitive version. It is a self-sufficient component that gets
- * its own data from the context and contains the full, correct JSX for the dropdown.
+ * Session Header Component (TypeScript)
+ * This is the definitive version with the fix for the auto-closing dropdown.
  */
 import React, { useEffect, useRef } from 'react';
-import { useMarkingPage } from '../../contexts/MarkingPageContext'; // Import the context hook
+import { useMarkingPage } from '../../contexts/MarkingPageContext';
 
-const SessionHeader = () => {
+const SessionHeader: React.FC = () => {
   const {
     sessionTitle,
     isFavorite,
@@ -20,27 +19,29 @@ const SessionHeader = () => {
     currentSession,
   } = useMarkingPage();
 
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the toggle button
 
-  // Helper functions to safely extract data from the current session
-  const getSessionMetadata = () => currentSession?.sessionMetadata || {};
-  const metadata = getSessionMetadata();
+  const getModelUsed = (): string => {
+    const metadata = currentSession?.sessionMetadata;
+    return metadata?.modelUsed || metadata?.lastModelUsed || 'N/A';
+  };
 
+  const getProcessingTime = (): string => {
+      const timeMs = currentSession?.sessionMetadata?.totalProcessingTimeMs;
+      return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
+  };
+  
   const getTokenData = () => {
+    const metadata = currentSession?.sessionMetadata;
+    if (!metadata) return null;
     if (Array.isArray(metadata.tokens)) return metadata.tokens;
     if (metadata.llmTokens !== undefined || metadata.mathpixCalls !== undefined) {
       return [metadata.llmTokens || 0, metadata.mathpixCalls || 0];
     }
     return null;
   };
-
-  const getModelUsed = () => metadata.modelUsed || 'N/A';
   
-  const getProcessingTime = () => {
-      const timeMs = metadata.totalProcessingTimeMs;
-      return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
-  };
-
   const tokens = getTokenData();
   const modelUsed = getModelUsed();
   const processingTime = getProcessingTime();
@@ -61,16 +62,34 @@ const SessionHeader = () => {
     });
   };
   
+  // 👇 FIX: The useEffect for handling "click outside" is now architecturally correct.
+  // It correctly handles dependencies and event propagation to prevent auto-closing.
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        if (showInfoDropdown) {
-          onToggleInfoDropdown();
-        }
+    if (!showInfoDropdown) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // If the click is on the button that opens the dropdown, do nothing.
+      if (buttonRef.current && buttonRef.current.contains(event.target as Node)) {
+        return;
+      }
+      // If the click is outside the dropdown content, close it.
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onToggleInfoDropdown();
       }
     };
-    if (showInfoDropdown) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    // Use a timeout to ensure the listener is added after the current event cycle.
+    const timerId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+
+    return () => {
+      clearTimeout(timerId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+    // This effect should ONLY run when the dropdown's visibility changes.
   }, [showInfoDropdown, onToggleInfoDropdown]);
 
   const displaySession = currentSession;
@@ -85,8 +104,9 @@ const SessionHeader = () => {
       
       {displaySession && !displaySession.id.startsWith('temp-') && (
         <div className="session-actions">
-          <div className="info-dropdown-container" ref={dropdownRef}>
+          <div className="info-dropdown-container">
             <button 
+              ref={buttonRef} // Attach ref to the button
               className="header-btn info-btn"
               onClick={onToggleInfoDropdown}
               title="Task Details"
@@ -97,7 +117,7 @@ const SessionHeader = () => {
             </button>
             
             {showInfoDropdown && (
-              <div className="info-dropdown">
+              <div className="info-dropdown" ref={dropdownRef}>
                 <div className="info-dropdown-content">
                   <div className="dropdown-header"><h3>Task Details</h3></div>
                   <div className="dropdown-main-content">
@@ -130,31 +150,6 @@ const SessionHeader = () => {
                         <div className="mathpix-count">
                             <span className="label">Mathpix Calls</span>
                             <span className="value">{tokens ? tokens[1] : 'N/A'}</span>
-                        </div>
-                        {/* 👇 FIX: The missing fields have been restored below. */}
-                        <div className="image-size">
-                            <span className="label">Image Size:</span>
-                            <span className="value">
-                                {metadata.imageSize 
-                                ? `${(metadata.imageSize / 1024).toFixed(1)} KB`
-                                : 'N/A'
-                                }
-                            </span>
-                        </div>
-                        <div className="confidence">
-                            <span className="label">Confidence:</span>
-                            <span className="value">
-                                {metadata.averageConfidence 
-                                ? `${(metadata.averageConfidence * 100).toFixed(1)}%`
-                                : 'N/A'
-                                }
-                            </span>
-                        </div>
-                        <div className="annotations">
-                            <span className="label">Annotations:</span>
-                            <span className="value">
-                                {metadata.totalAnnotations || 'N/A'}
-                            </span>
                         </div>
                         <div className="last-update">
                             <span className="label">Last Update:</span>

@@ -1,11 +1,31 @@
+/**
+ * useSessionManager Hook (TypeScript)
+ * Manages all session-related state and interactions with the session service.
+ */
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
+import { UnifiedSession, UnifiedMessage } from '../types';
+
+// Define the shape of the state managed by this hook
+interface SessionState {
+  currentSession: UnifiedSession | null;
+  chatMessages: UnifiedMessage[];
+  sessionTitle: string;
+  isFavorite: boolean;
+  rating: number;
+}
+
+// Define the shape of the state object from the service.
+interface ServiceState {
+    currentSession: UnifiedSession | null;
+    sidebarSessions: UnifiedSession[];
+}
 
 export const useSessionManager = () => {
   const { getAuthToken } = useAuth();
   
-  const [sessionState, setSessionState] = useState({
+  const [sessionState, setSessionState] = useState<SessionState>({
     currentSession: null,
     chatMessages: [],
     sessionTitle: '',
@@ -14,10 +34,14 @@ export const useSessionManager = () => {
   });
 
   useEffect(() => {
-    simpleSessionService.setAuthContext({ getAuthToken });
+    if (simpleSessionService.setAuthContext) {
+      simpleSessionService.setAuthContext({ getAuthToken });
+    }
 
-    const syncWithService = (serviceState) => {
-      const { currentSession } = serviceState;
+    // 👇 FIX: Use `any` for the parameter from the JS service and cast it internally.
+    // This correctly handles the type mismatch between the JS service and the TS hook.
+    const syncWithService = (serviceState: any) => {
+      const { currentSession } = serviceState as ServiceState;
       setSessionState({
         currentSession,
         chatMessages: currentSession?.messages || [],
@@ -28,12 +52,19 @@ export const useSessionManager = () => {
     };
 
     const unsubscribe = simpleSessionService.subscribe(syncWithService);
-    syncWithService({ currentSession: simpleSessionService.getCurrentSession() });
+    
+    // Perform the initial sync.
+    syncWithService({ 
+        currentSession: simpleSessionService.getCurrentSession(),
+        sidebarSessions: [], // This is correct as the hook doesn't use sidebarSessions directly.
+    });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [getAuthToken]);
 
-  const addMessage = useCallback(async (message) => {
+  const addMessage = useCallback(async (message: Partial<UnifiedMessage>) => {
     await simpleSessionService.addMessage(message);
   }, []);
 
@@ -41,42 +72,37 @@ export const useSessionManager = () => {
     simpleSessionService.clearSession();
   }, []);
 
-  const loadSession = useCallback((session) => {
+  const loadSession = useCallback((session: UnifiedSession) => {
     simpleSessionService.setCurrentSession(session);
   }, []);
 
-  // 👇 FIX: The onFavoriteToggle function now correctly calls updateSessionState,
-  // which dispatches the global event that the sidebar listens for.
   const onFavoriteToggle = useCallback(async () => {
     const { currentSession, isFavorite } = sessionState;
     if (currentSession) {
       const newFavoriteStatus = !isFavorite;
       const updatedSession = { ...currentSession, favorite: newFavoriteStatus, updatedAt: new Date().toISOString() };
       
-      // Optimistic UI update for the main chat AND the sidebar.
       simpleSessionService.updateSessionState(updatedSession);
       
       try {
         await simpleSessionService.updateSession(currentSession.id, { favorite: newFavoriteStatus });
       } catch (err) {
-        console.error('❌ Failed to update favorite status:', err);
-        // Optional: Add logic to revert the optimistic update on error
+        console.error('Failed to update favorite status:', err);
       }
     }
   }, [sessionState.currentSession, sessionState.isFavorite]);
 
-  const onRatingChange = useCallback(async (newRating) => {
+  const onRatingChange = useCallback(async (newRating: number) => {
     const { currentSession } = sessionState;
     if (currentSession) {
       const updatedSession = { ...currentSession, rating: newRating, updatedAt: new Date().toISOString() };
       
-      // Also dispatch an event for rating changes
       simpleSessionService.updateSessionState(updatedSession);
       
       try {
         await simpleSessionService.updateSession(currentSession.id, { rating: newRating });
       } catch (err) {
-        console.error('❌ Failed to update rating:', err);
+        console.error('Failed to update rating:', err);
       }
     }
   }, [sessionState.currentSession]);

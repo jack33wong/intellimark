@@ -4,19 +4,15 @@ import { useSessionManager } from '../hooks/useSessionManager';
 import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
+import { useScrollManager } from '../hooks/useScrollManager';
 
 const MarkingPageContext = createContext();
 
-// 1. All UI state, including chatInput, is now managed by the reducer for stability.
 const initialState = {
   pageMode: 'upload',
   selectedModel: 'auto',
   showInfoDropdown: false,
   hoveredRating: 0,
-  showScrollButton: false,
-  hasNewResponse: false,
-  newResponseMessageId: null,
-  chatInput: '',
 };
 
 function markingPageReducer(state, action) {
@@ -29,14 +25,6 @@ function markingPageReducer(state, action) {
       return { ...state, showInfoDropdown: !state.showInfoDropdown };
     case 'SET_HOVERED_RATING':
       return { ...state, hoveredRating: action.payload };
-    case 'SET_SHOW_SCROLL_BUTTON':
-      return { ...state, showScrollButton: action.payload };
-    case 'SHOW_NEW_RESPONSE':
-      return { ...state, hasNewResponse: true, newResponseMessageId: action.payload };
-    case 'HIDE_NEW_RESPONSE':
-      return { ...state, hasNewResponse: false, newResponseMessageId: null };
-    case 'SET_CHAT_INPUT':
-      return { ...state, chatInput: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
@@ -56,9 +44,23 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, handleError } = apiProcessor;
   
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, showScrollButton, hasNewResponse, newResponseMessageId, chatInput } = state;
-  
-  const setChatInput = useCallback((value) => dispatch({ type: 'SET_CHAT_INPUT', payload: value }), []);
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating } = state;
+
+  const {
+    chatContainerRef,
+    showScrollButton,
+    hasNewResponse,
+    scrollToBottom,
+    scrollToNewResponse,
+    scrollToMessage,
+  } = useScrollManager(chatMessages, isAIThinking);
+
+  // This effect connects the service to the API state controls from our hook.
+  useEffect(() => {
+    if (simpleSessionService.setApiControls) {
+      simpleSessionService.setApiControls({ stopAIThinking, stopProcessing, handleError });
+    }
+  }, [stopAIThinking, stopProcessing, handleError]);
 
   useEffect(() => {
     if (onPageModeChange) {
@@ -66,12 +68,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     }
   }, [pageMode, onPageModeChange]);
 
-  // 2. The onSendMessage function is now complete and correct.
   const onSendMessage = useCallback(async (text) => {
     const trimmedText = text.trim();
     if (!trimmedText) return;
     try {
-      setChatInput(''); // Clear input immediately
       await addMessage({
         id: `user-${Date.now()}`,
         role: 'user',
@@ -80,17 +80,23 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         type: 'text'
       });
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-      startAIThinking();
+      
+      const textProgressData = {
+        isComplete: false,
+        currentStepDescription: 'Processing question...',
+        allSteps: ['Processing question...', 'Generating response...'],
+        completedSteps: [],
+      };
+      startAIThinking(textProgressData);
+
       const authToken = await getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      
       const response = await fetch('/api/messages/chat', {
         method: 'POST',
         headers,
         body: JSON.stringify({ message: trimmedText, model: 'auto', sessionId: currentSession?.id || null })
       });
-      
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       if (data.success && data.unifiedSession) {
@@ -99,35 +105,12 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         throw new Error(data.error || 'Failed to get AI response');
       }
     } catch (err) {
-      console.error('Error sending text message:', err);
       handleError(err);
-    } finally {
+      // Stop state only if the initial fetch fails. The service handles success.
       stopAIThinking();
     }
-  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, handleError, setChatInput]);
-
-  const chatContainerRef = useRef(null);
-  const prevMessagesCountRef = useRef(chatMessages.length);
-  const prevIsAIThinkingRef = useRef(isAIThinking);
+  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, handleError]);
   
-  const scrollToBottom = useCallback(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({ top: chatContainerRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, []);
-  
-  const scrollToMessage = useCallback((messageId) => {
-    if (chatContainerRef.current && messageId) {
-      const targetMessage = chatContainerRef.current.querySelector(`[data-message-id="${messageId}"]`);
-      if (targetMessage) {
-        targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return true;
-      }
-    }
-    scrollToBottom();
-    return false;
-  }, [scrollToBottom]);
-
   useEffect(() => {
     if (selectedMarkingResult) {
       loadSession(selectedMarkingResult);
@@ -151,58 +134,12 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       return () => clearTimeout(timeoutId);
     }
   }, [currentSession, selectedMarkingResult, scrollToMessage, scrollToBottom]);
-  
-  useEffect(() => {
-    const container = chatContainerRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      const isUp = container.scrollHeight - container.scrollTop - container.clientHeight > 200;
-      dispatch({ type: 'SET_SHOW_SCROLL_BUTTON', payload: isUp });
-      if (hasNewResponse && !isUp) {
-        dispatch({ type: 'HIDE_NEW_RESPONSE' });
-      }
-    };
-    container.addEventListener('scroll', handleScroll);
-    handleScroll();
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [chatContainerRef, hasNewResponse]);
 
-  useEffect(() => {
-    if (chatMessages.length > prevMessagesCountRef.current) {
-      const lastMessage = chatMessages[chatMessages.length - 1];
-      if (lastMessage && lastMessage.role === 'user') {
-        scrollToBottom();
-      }
-    }
-    prevMessagesCountRef.current = chatMessages.length;
-  }, [chatMessages, scrollToBottom]);
-
-  useEffect(() => {
-    if (prevIsAIThinkingRef.current === true && isAIThinking === false) {
-      const animationFrameId = requestAnimationFrame(() => {
-        const container = chatContainerRef.current;
-        if (!container) return;
-        const lastMessage = chatMessages[chatMessages.length-1];
-        if (!lastMessage) return;
-        const isScrolledUp = container.scrollHeight - container.scrollTop - container.clientHeight > 200;
-        if (isScrolledUp) {
-          dispatch({ type: 'SHOW_NEW_RESPONSE', payload: lastMessage.id || lastMessage.timestamp });
-        } else {
-          scrollToBottom();
-        }
-      });
-      return () => cancelAnimationFrame(animationFrameId);
-    }
-    prevIsAIThinkingRef.current = isAIThinking;
-  }, [isAIThinking, chatMessages, scrollToBottom]);
-
-  // 3. The handleImageAnalysis function is now complete and correct.
   const handleImageAnalysis = useCallback(async (file = null, customText = null) => {
     const targetFile = file || selectedFile;
-    if (!targetFile) return Promise.resolve();
+    if (!targetFile) return;
     try {
       startProcessing();
-      setChatInput(''); // Clear input immediately
       const imageData = await processImage(targetFile);
       const optimisticMessage = {
         id: `user-${Date.now()}`,
@@ -215,23 +152,16 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       startAIThinking();
-      await processImageAPI(imageData, selectedModel, 'marking', customText);
+      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined);
       clearFile();
     } catch (err) {
       console.error('Error in image analysis flow:', err);
       handleError(err);
-    } finally {
+      // Also stop states on initial error. The service handles success.
       stopAIThinking();
       stopProcessing();
     }
-  }, [selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, processImageAPI, clearFile, handleError, setChatInput]);
-  
-  const scrollToNewResponse = useCallback(() => {
-    if (newResponseMessageId) {
-      scrollToMessage(newResponseMessageId);
-    }
-    dispatch({ type: 'HIDE_NEW_RESPONSE' });
-  }, [newResponseMessageId, scrollToMessage]);
+  }, [selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
   
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;
@@ -243,23 +173,17 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const onToggleInfoDropdown = useCallback(() => dispatch({ type: 'TOGGLE_INFO_DROPDOWN' }), []);
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
   
-  // 4. The context value and its dependencies are now complete and correct.
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
     handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating, onFavoriteToggle, onRatingChange,
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    chatInput, setChatInput, onSendMessage, onKeyPress: (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (chatInput.trim()) {
-                onSendMessage(chatInput);
-            }
-        }
-    },
+    onSendMessage,
     chatContainerRef,
     scrollToBottom, 
-    showScrollButton, hasNewResponse, scrollToNewResponse,
+    showScrollButton, 
+    hasNewResponse, 
+    scrollToNewResponse,
     onFollowUpImage: handleImageAnalysis,
     getImageSrc,
     ...progressProps
@@ -267,8 +191,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    chatInput, setChatInput, onSendMessage, chatContainerRef, scrollToBottom, showScrollButton,
-    hasNewResponse, scrollToNewResponse, progressProps, getImageSrc
+    onSendMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc
   ]);
 
   return (

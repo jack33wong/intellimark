@@ -259,15 +259,29 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 export const requireAuth = authenticateUser;
 
 /**
- * Admin-only middleware (temporary)
+ * Admin-only middleware
+ * This should be used AFTER authenticateUser middleware
  * @param req - Express request object
  * @param res - Express response object
  * @param next - Express next function
  */
-export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   try {
-    // For development, allow all requests
-    // In production, this would check Firebase custom claims
+    if (!req.user) {
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: 'Authentication required' 
+      });
+    }
+
+    // Check if user has admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        error: 'Forbidden', 
+        message: 'Admin access required' 
+      });
+    }
+
     next();
   } catch (error) {
     console.error('❌ Admin check failed:', error);

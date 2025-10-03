@@ -6,7 +6,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { authenticateUser } from '../middleware/auth.js';
-import { getFirebaseAuth, getUserRole, isFirebaseAvailable } from '../config/firebase.js';
+import { getFirebaseAuth, getUserRole, isFirebaseAvailable, isAdminUser, setUserCustomClaims } from '../config/firebase.js';
 
 const router = express.Router();
 
@@ -147,6 +147,16 @@ router.post('/social-login', async (req: Request, res: Response) => {
     
     // Get user from Firebase
     const userRecord = await firebaseAuth.getUser(decodedToken.uid);
+    
+    // Set custom claims for admin users
+    const isAdmin = isAdminUser(userRecord.email || '');
+    if (isAdmin) {
+      await setUserCustomClaims(userRecord.uid, {
+        admin: true,
+        role: 'admin'
+      });
+      console.log(`✅ Admin custom claims set for social login user: ${userRecord.email}`);
+    }
     
     const user: User = {
       uid: userRecord.uid,
@@ -332,6 +342,16 @@ router.post('/signup', async (req: Request, res: Response) => {
       emailVerified: false
     });
     
+    // Set custom claims for admin users
+    const isAdmin = isAdminUser(userRecord.email || '');
+    if (isAdmin) {
+      await setUserCustomClaims(userRecord.uid, {
+        admin: true,
+        role: 'admin'
+      });
+      console.log(`✅ Admin custom claims set for new user: ${userRecord.email}`);
+    }
+    
     const user: User = {
       uid: userRecord.uid,
       email: userRecord.email || '',
@@ -433,11 +453,21 @@ router.post('/signin', async (req: Request, res: Response) => {
       role: getUserRole(userRecord.email || '')
     };
     
+    // Set custom claims for admin users
+    const isAdmin = isAdminUser(userRecord.email || '');
+    if (isAdmin) {
+      await setUserCustomClaims(userRecord.uid, {
+        admin: true,
+        role: 'admin'
+      });
+      console.log(`✅ Admin custom claims set for signin user: ${userRecord.email}`);
+    }
     
     // Generate a custom token for the user
     const customToken = await firebaseAuth.createCustomToken(user.uid, {
       role: user.role,
-      email: user.email
+      email: user.email,
+      admin: isAdmin
     });
     
     

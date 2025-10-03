@@ -6,7 +6,7 @@
 import * as express from 'express';
 import type { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { requireAdmin } from '../middleware/auth.js';
+import { authenticateUser, requireAdmin } from '../middleware/auth.js';
 
 // Import Firebase instances from centralized config
 import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
@@ -14,7 +14,7 @@ import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
 const router = express.Router();
 
 // Apply admin authentication to all admin routes
-router.use(requireAdmin);
+router.use(authenticateUser, requireAdmin);
 
 // Types
 interface JSONExamPaper {

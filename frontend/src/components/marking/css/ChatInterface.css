@@ -103,16 +103,6 @@
   }
 }
 
-/* Chat Container - Adjust for center input */
-.mark-homework-page.chat-mode .chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding-bottom: 60px; /* Reduced space for compact bottom input */
-}
-
-
 /* Smooth transition animation */
 .upload-bottom.entering {
   transform: translateY(100%);
@@ -194,7 +184,7 @@
   overflow-y: auto; /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--background-gray-main);
-  max-height: 82vh; /* Limit the viewable height */
+  max-height: 88vh; /* Limit the viewable height */
   flex: 1; /* Take up remaining space in chat-mode */
   min-height: 0; /* Allow flex item to shrink below content size */
 }

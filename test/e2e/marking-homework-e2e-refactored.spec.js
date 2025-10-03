@@ -164,13 +164,86 @@ test.describe('Authenticated User Marking Homework E2E', () => {
       // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
       
+      // Wait for the AI message to finish processing and have actual content
+      let processingComplete = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes with 2-second intervals
+      
+      while (!processingComplete && attempts < maxAttempts) {
+        attempts++;
+        const aiMessages = markHomeworkPage.aiMessages;
+        const lastAIMessage = aiMessages.last();
+        
+        // Find the last visible AI message instead of just the last one
+        let lastVisibleAIMessage = null;
+        const aiMessageCount = await aiMessages.count();
+        if (aiMessageCount > 0) {
+          for (let i = aiMessageCount - 1; i >= 0; i--) {
+            const msg = aiMessages.nth(i);
+            const msgId = await msg.getAttribute('data-message-id');
+            const isVisible = await msg.isVisible();
+            
+            if (isVisible && msgId && !lastVisibleAIMessage) {
+              lastVisibleAIMessage = msg;
+            }
+          }
+        }
+        
+        // Use the last visible message, or fall back to the last message
+        const messageToCheck = lastVisibleAIMessage || lastAIMessage;
+        const html = await messageToCheck.innerHTML();
+        
+        // Check that processing is complete AND we have actual content
+        const isProcessingComplete = !html.includes('Processing...') && !html.includes('thinking-dots');
+        const hasContent = html.includes('markdown-math-renderer') || 
+                          html.includes('Step') || 
+                          html.includes('answer') ||
+                          html.includes('katex') ||
+                          html.includes('The answer is');
+        
+        
+        if (isProcessingComplete && hasContent) {
+          processingComplete = true;
+        } else {
+          // Wait 2 seconds before next check
+          await page.waitForTimeout(2000);
+        }
+      }
+      
+      if (!processingComplete) {
+        throw new Error('AI response processing did not complete within expected time');
+      }
+      
       // Verify the AI response contains "4" and is about the math question
       const aiMessages = markHomeworkPage.aiMessages;
       const lastAIMessage = aiMessages.last();
-      await expect(lastAIMessage).toBeVisible();
       
-      const markdownRenderer = lastAIMessage.locator('.markdown-math-renderer.chat-message-renderer');
-      await expect(markdownRenderer).toBeVisible();
+      // Find the last visible AI message
+      let lastVisibleAIMessage = null;
+      const aiMessageCount = await aiMessages.count();
+      if (aiMessageCount > 0) {
+        for (let i = aiMessageCount - 1; i >= 0; i--) {
+          const msg = aiMessages.nth(i);
+          const isVisible = await msg.isVisible();
+          if (isVisible && !lastVisibleAIMessage) {
+            lastVisibleAIMessage = msg;
+            break;
+          }
+        }
+      }
+      
+      const messageToCheck = lastVisibleAIMessage || lastAIMessage;
+      await expect(messageToCheck).toBeVisible();
+      
+      // Wait for the markdown renderer to appear after processing is complete
+      const markdownRenderer = messageToCheck.locator('.markdown-math-renderer.chat-message-renderer');
+      await expect(markdownRenderer).toBeVisible({ timeout: 30000 });
+      
+      // Wait for the content to be fully rendered (not just empty)
+      await expect(async () => {
+        const renderedText = await markdownRenderer.textContent();
+        return renderedText && renderedText.trim().length > 0;
+      }).toPass({ timeout: 15000 });
       
       const renderedText = await markdownRenderer.textContent();
       

@@ -7,6 +7,8 @@ import {
   Search
 } from 'lucide-react';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
+import { useAuth } from '../../contexts/AuthContext';
+import ApiClient from '../../services/apiClient';
 import './AdminPage.css';
 
 // Utility functions
@@ -32,6 +34,9 @@ const formatDate = (dateString) => {
  * @returns {JSX.Element} The admin page component
  */
 function AdminPage() {
+  // Get auth context
+  const { getAuthToken } = useAuth();
+  
   // State management
   const [activeTab, setActiveTab] = useState('json'); // Default to JSON tab
   const [loading, setLoading] = useState(true);
@@ -56,8 +61,7 @@ function AdminPage() {
   const [isClearingSessions, setIsClearingSessions] = useState(false);
   const [isClearingMarkingResults, setIsClearingMarkingResults] = useState(false);
   
-  // Constants
-  const API_BASE = process.env.NODE_ENV === 'development' ? 'http://localhost:5001' : '';
+  // Constants removed - using ApiClient instead
   
   // Form validation
   const isJsonFormValid = useCallback(() => {
@@ -84,39 +88,28 @@ function AdminPage() {
   // Load JSON entries from fullExamPapers
   const loadJsonEntries = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers`);
-      if (response.ok) {
-        const data = await response.json();
-        setJsonEntries(Array.isArray(data.entries) ? data.entries : []);
-        setLoading(false); // Set loading to false when data is loaded (even if empty)
-      } else {
-        setError(`Failed to load JSON entries (HTTP ${response.status})`);
-        setLoading(false); // Set loading to false on error
-        setTimeout(() => setError(null), 4000);
-      }
+      const authToken = await getAuthToken();
+      const data = await ApiClient.get('/api/admin/json/collections/fullExamPapers', authToken);
+      setJsonEntries(Array.isArray(data.entries) ? data.entries : []);
+      setLoading(false); // Set loading to false when data is loaded (even if empty)
     } catch (e) {
       setError(`Failed to load JSON entries: ${e.message}`);
       setLoading(false); // Set loading to false on error
       setTimeout(() => setError(null), 4000);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Load marking scheme entries
   const loadMarkingSchemeEntries = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/markingSchemes`);
-      if (response.ok) {
-        const data = await response.json();
-        setMarkingSchemeEntries(data.entries || []);
-      } else {
-        console.error('Failed to load marking scheme entries');
-        setMarkingSchemeEntries([]);
-      }
+      const authToken = await getAuthToken();
+      const data = await ApiClient.get('/api/admin/json/collections/markingSchemes', authToken);
+      setMarkingSchemeEntries(data.entries || []);
     } catch (error) {
       console.error('Error loading marking scheme entries:', error);
       setMarkingSchemeEntries([]);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
   
   // Delete all JSON entries
   const deleteAllJsonEntries = useCallback(async () => {
@@ -126,22 +119,12 @@ function AdminPage() {
     
     setIsDeletingAll(true);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers/clear-all`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('All entries deleted:', result.message);
-        setJsonEntries([]);
-        setError(`✅ All exam paper data has been deleted successfully.`);
-        setTimeout(() => setError(null), 5000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to delete all entries:', error);
-        setError(`Failed to delete all entries: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/json/collections/fullExamPapers/clear-all', authToken);
+      console.log('All entries deleted:', result.message);
+      setJsonEntries([]);
+      setError(`✅ All exam paper data has been deleted successfully.`);
+      setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error deleting all entries:', error);
       setError(`Error deleting all entries: ${error.message}`);
@@ -149,7 +132,7 @@ function AdminPage() {
     } finally {
       setIsDeletingAll(false);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Delete individual JSON entry
   const deleteJsonEntry = useCallback(async (entryId) => {
@@ -158,28 +141,18 @@ function AdminPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers/${entryId}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Entry deleted:', result.message);
-        setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
-        setError(`✅ Exam paper deleted successfully.`);
-          setTimeout(() => setError(null), 3000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to delete entry:', error);
-        setError(`Failed to delete entry: ${error.error}`);
-          setTimeout(() => setError(null), 5000);
-        }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete(`/api/admin/json/collections/fullExamPapers/${entryId}`, authToken);
+      console.log('Entry deleted:', result.message);
+      setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
+      setError(`✅ Exam paper deleted successfully.`);
+      setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting entry:', error);
       setError(`Error deleting entry: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Delete all marking scheme entries
   const deleteAllMarkingSchemeEntries = useCallback(async () => {
@@ -188,28 +161,18 @@ function AdminPage() {
     }
     
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/markingSchemes`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('All marking schemes deleted:', result.message);
-        setMarkingSchemeEntries([]);
-        setError(`✅ All marking schemes deleted successfully.`);
-        setTimeout(() => setError(null), 3000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to delete all marking schemes:', error);
-        setError(`Failed to delete all marking schemes: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all', authToken);
+      console.log('All marking schemes deleted:', result.message);
+      setMarkingSchemeEntries([]);
+      setError(`✅ All marking schemes deleted successfully.`);
+      setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting all marking schemes:', error);
       setError(`Error deleting all marking schemes: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Delete individual marking scheme entry
   const deleteMarkingSchemeEntry = useCallback(async (entryId) => {
@@ -218,28 +181,18 @@ function AdminPage() {
     }
     
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/markingSchemes/${entryId}`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Marking scheme deleted:', result.message);
-        setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
-        setError(`✅ Marking scheme deleted successfully.`);
-        setTimeout(() => setError(null), 3000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to delete marking scheme:', error);
-        setError(`Failed to delete marking scheme: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`, authToken);
+      console.log('Marking scheme deleted:', result.message);
+      setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
+      setError(`✅ Marking scheme deleted successfully.`);
+      setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting marking scheme:', error);
       setError(`Error deleting marking scheme: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
   
   // Upload JSON data
   const uploadJsonData = useCallback(async () => {
@@ -250,33 +203,19 @@ function AdminPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/fullExamPapers`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: jsonForm.jsonData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('JSON uploaded successfully:', result);
-        setJsonEntries(prev => [result.entry, ...prev]);
-        resetJsonForm();
-        setError(`✅ JSON data uploaded successfully to fullExamPapers collection.`);
-        setTimeout(() => setError(null), 5000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to upload JSON:', error);
-        setError(`Failed to upload JSON: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.post('/api/admin/json/collections/fullExamPapers', JSON.parse(jsonForm.jsonData), authToken);
+      console.log('JSON uploaded successfully:', result);
+      setJsonEntries(prev => [result.entry, ...prev]);
+      resetJsonForm();
+      setError(`✅ JSON data uploaded successfully to fullExamPapers collection.`);
+      setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error uploading JSON:', error);
       setError(`Error uploading JSON: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [jsonForm, API_BASE, resetJsonForm, isJsonFormValid]);
+  }, [jsonForm, getAuthToken, resetJsonForm, isJsonFormValid]);
 
   // Upload marking scheme data
   const uploadMarkingSchemeData = useCallback(async () => {
@@ -287,33 +226,21 @@ function AdminPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/admin/json/collections/markingSchemes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          markingSchemeData: markingSchemeForm.markingSchemeData
-        }),
-      });
+      const authToken = await getAuthToken();
+      await ApiClient.post('/api/admin/json/collections/markingSchemes', {
+        markingSchemeData: markingSchemeForm.markingSchemeData
+      }, authToken);
 
-      if (response.ok) {
-        setError(null);
-        resetMarkingSchemeForm();
-        // Reload marking scheme entries
-        loadMarkingSchemeEntries();
-      } else {
-        const error = await response.json();
-        console.error('Failed to upload marking scheme:', error);
-        setError(`Failed to upload marking scheme: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      setError(null);
+      resetMarkingSchemeForm();
+      // Reload marking scheme entries
+      loadMarkingSchemeEntries();
     } catch (error) {
       console.error('Error uploading marking scheme:', error);
       setError(`Error uploading marking scheme: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
-  }, [markingSchemeForm, API_BASE, resetMarkingSchemeForm, isMarkingSchemeFormValid, loadMarkingSchemeEntries]);
+  }, [markingSchemeForm, getAuthToken, resetMarkingSchemeForm, isMarkingSchemeFormValid, loadMarkingSchemeEntries]);
 
   // Clear all sessions data
   const clearAllSessions = useCallback(async () => {
@@ -323,27 +250,17 @@ function AdminPage() {
     
     setIsClearingSessions(true);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/clear-all-sessions`, {
-        method: 'DELETE'
-      });
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/clear-all-sessions', authToken);
+      console.log('All sessions cleared:', result.message);
+      setError(`✅ All chat sessions have been cleared successfully.`);
+      setTimeout(() => setError(null), 5000);
       
-            if (response.ok) {
-              const result = await response.json();
-              console.log('All sessions cleared:', result.message);
-              setError(`✅ All chat sessions have been cleared successfully.`);
-              setTimeout(() => setError(null), 5000);
-              
-              // Dispatch custom event to notify sidebar to refresh
-              EventManager.dispatch(EVENT_TYPES.SESSIONS_CLEARED);
-              
-              // Navigate to mark homework page after clearing all sessions
-              window.location.href = '/mark-homework';
-            } else {
-        const error = await response.json();
-        console.error('Failed to clear sessions:', error);
-        setError(`Failed to clear sessions: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      // Dispatch custom event to notify sidebar to refresh
+      EventManager.dispatch(EVENT_TYPES.SESSIONS_CLEARED);
+      
+      // Navigate to mark homework page after clearing all sessions
+      window.location.href = '/mark-homework';
     } catch (error) {
       console.error('Error clearing sessions:', error);
       setError(`Error clearing sessions: ${error.message}`);
@@ -351,7 +268,7 @@ function AdminPage() {
     } finally {
       setIsClearingSessions(false);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Clear all marking results data
   const clearAllMarkingResults = useCallback(async () => {
@@ -361,21 +278,11 @@ function AdminPage() {
     
     setIsClearingMarkingResults(true);
     try {
-      const response = await fetch(`${API_BASE}/api/admin/clear-all-marking-results`, {
-        method: 'DELETE'
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('All marking results cleared:', result.message);
-        setError(`✅ All marking results have been cleared successfully.`);
-        setTimeout(() => setError(null), 5000);
-      } else {
-        const error = await response.json();
-        console.error('Failed to clear marking results:', error);
-        setError(`Failed to clear marking results: ${error.error}`);
-        setTimeout(() => setError(null), 5000);
-      }
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/clear-all-marking-results', authToken);
+      console.log('All marking results cleared:', result.message);
+      setError(`✅ All marking results have been cleared successfully.`);
+      setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error clearing marking results:', error);
       setError(`Error clearing marking results: ${error.message}`);
@@ -383,7 +290,7 @@ function AdminPage() {
     } finally {
       setIsClearingMarkingResults(false);
     }
-  }, [API_BASE]);
+  }, [getAuthToken]);
 
   // Handle JSON form input changes
   const handleJsonInputChange = useCallback((field, value) => {

@@ -1,6 +1,6 @@
 /**
- * MainLayout Component
- * Orchestrates all the focused components for the mark homework page.
+ * MainLayout Component (TypeScript)
+ * This is the definitive version with the fix for the re-mounting bug.
  */
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
@@ -13,8 +13,9 @@ import { ensureStringContent } from '../../utils/contentUtils';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 
-const MainLayout = () => {
+const MainLayout: React.FC = () => {
   const {
+    pageMode,
     isProcessing,
     isAIThinking,
     selectedModel,
@@ -30,9 +31,6 @@ const MainLayout = () => {
     currentSession,
     handleImageAnalysis,
     onSendMessage,
-    progressData,
-    stepList,
-    completedSteps,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -42,27 +40,25 @@ const MainLayout = () => {
       <div className="mark-homework-main-content">
         <div className="chat-container" ref={chatContainerRef}>
           {currentSession && (
-            <SessionManagement />
+            // 👇 FIX: Add a stable `key`. This prevents the component from being
+            // unmounted and remounted, which was resetting the dropdown state.
+            <SessionManagement key={currentSession.id} />
           )}
         
           <div className="chat-messages">
-              {(chatMessages || []).map((message) => (
-                // 👇 FIX: Use a stable key (message.id). This prevents the "page refresh" effect.
+              {(chatMessages || []).map((message: any) => (
                 <ChatMessage
                   key={message.id}
                   message={message}
                   onImageLoad={handleImageLoad}
                   getImageSrc={getImageSrc}
                   MarkdownMathRenderer={MarkdownMathRenderer}
-                  progressData={progressData}
-                  stepList={stepList}
-                  completedSteps={completedSteps}
                   ensureStringContent={ensureStringContent}
                   scrollToBottom={scrollToBottom}
                 />
               ))}
               
-              {isAIThinking && !chatMessages?.some(msg => msg.role === 'assistant' && msg.isProcessing) && (
+              {isAIThinking && !chatMessages?.some((msg: any) => msg.role === 'assistant' && msg.isProcessing) && (
                 <div className="chat-message assistant">
                    {/* AI Thinking Indicator would go here */}
                 </div>
@@ -89,6 +85,7 @@ const MainLayout = () => {
                 onModelChange={onModelChange}
                 isProcessing={isProcessing}
                 onAnalyzeImage={handleImageAnalysis}
+                onFollowUpImage={handleImageAnalysis}
                 onSendMessage={onSendMessage}
                 mode={isFollowUp ? 'follow-up' : 'first-time'}
             />

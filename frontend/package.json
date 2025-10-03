@@ -56,5 +56,17 @@
     "@types/react-dom": "^18.3.7",
     "@types/react-router-dom": "^5.3.3",
     "typescript": "^4.9.5"
+  },
+"jest": {
+    "transformIgnorePatterns": [
+      "/node_modules/(?!react-markdown|vfile|unist-util-visit-parents|unist-util-visit|remark-rehype|rehype-raw|hast-util-to-jsx-runtime|remark-math|rehype-katex|mdast-util-to-hast|micromark|micromark-extension-gfm|mdast-util-gfm|mdast-util-from-markdown|decode-named-character-reference|character-entities)/"
+    ],
+    "moduleNameMapper": {
+      "unist-util-visit-parents/do-not-use-color": "<rootDir>/node_modules/unist-util-visit-parents/index.js",
+      "#minpath": "<rootDir>/node_modules/vfile/lib/minpath.js",
+      "#minproc": "<rootDir>/node_modules/vfile/lib/minproc.js",
+      "#minurl": "<rootDir>/node_modules/vfile/lib/minurl.js",
+      "../config/firebase": "<rootDir>/src/config/__mocks__/firebase.ts"
+    }
   }
 }

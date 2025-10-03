@@ -1,11 +1,16 @@
 /**
  * Simple Session Service
- * This is the complete and definitive version of the service class,
- * containing all necessary methods and fixes for data synchronization.
+ * This is the definitive version with the correct asynchronous state handling.
  */
 import API_CONFIG from '../config/api';
 
 let getAuthTokenFromContext = null;
+// A placeholder for the API controls from the useApiProcessor hook.
+let apiControls = {
+  stopAIThinking: () => console.warn('stopAIThinking not yet initialized'),
+  stopProcessing: () => console.warn('stopProcessing not yet initialized'),
+  handleError: (err) => console.error("Service error handler not initialized", err),
+};
 
 class SimpleSessionService {
   constructor() {
@@ -16,8 +21,16 @@ class SimpleSessionService {
     this.MAX_SIDEBAR_SESSIONS = 50;
     this.listeners = new Set();
   }
+  
+  // A method to receive the state controls from the context.
+  setApiControls = (controls) => {
+    apiControls = controls;
+  }
 
-  // All methods are arrow functions to preserve `this` context.
+  setAuthContext = (authContext) => {
+    getAuthTokenFromContext = authContext.getAuthToken;
+  }
+
   getAuthToken = async () => {
     try {
       if (getAuthTokenFromContext) {
@@ -30,10 +43,6 @@ class SimpleSessionService {
       return null;
     }
   }
-
-  setAuthContext = (authContext) => {
-    getAuthTokenFromContext = authContext.getAuthToken;
-  }
   
   setState = (updates) => {
     const newState = typeof updates === 'function' ? updates(this.state) : updates;
@@ -43,7 +52,9 @@ class SimpleSessionService {
 
   subscribe = (listener) => {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+        this.listeners.delete(listener);
+    };
   }
   
   notifyListeners = () => { this.listeners.forEach(listener => listener(this.state)); }
@@ -58,7 +69,7 @@ class SimpleSessionService {
     const session = this.state.currentSession;
     const newMessages = [...(session?.messages || []), message];
     if (!session) {
-      this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages } });
+      this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionMetadata: {} } });
     } else {
       this.setState({ currentSession: { ...session, messages: newMessages } });
     }
@@ -69,8 +80,9 @@ class SimpleSessionService {
   
   _setAndMergeCurrentSession = (newSessionData, modelUsed = null) => {
     const localSession = this.state.currentSession;
-    let mergedSession = { ...newSessionData };
-
+    let mergedSession = { ...localSession, ...newSessionData };
+    mergedSession.title = newSessionData.title || localSession?.title || 'Chat Session';
+    
     const localMeta = localSession?.sessionMetadata || {};
     const serverMeta = newSessionData.sessionMetadata || {};
     mergedSession.sessionMetadata = {
@@ -78,23 +90,45 @@ class SimpleSessionService {
         ...serverMeta,
         modelUsed: serverMeta.modelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.modelUsed || 'N/A'
     };
+    
+    // 👇 FIX: This is the definitive fix for the "ghost message" and "auto-close" bugs.
+    // It correctly REPLACES the thinking message instead of creating a new array.
+    if (localSession?.messages && newSessionData.messages) {
+        let finalMessages = [...localSession.messages];
+        const thinkingMsgIndex = finalMessages.findIndex(m => m.isProcessing);
+        // Find the new AI response from the server that isn't already in our local state.
+        const newAiResponse = newSessionData.messages.find(m => m.role === 'assistant' && !localSession.messages.some(lm => lm.id === m.id));
 
+        if (thinkingMsgIndex !== -1 && newAiResponse) {
+            // If we found both, REPLACE the thinking message with the final AI response.
+            // This is the key to preventing the flicker, stopping the animation, and keeping the dropdown open.
+            finalMessages[thinkingMsgIndex] = newAiResponse;
+        } else {
+            // Fallback for cases where there is no "thinking" message (e.g., history load).
+            finalMessages = newSessionData.messages;
+        }
+        mergedSession.messages = finalMessages;
+    } else {
+        mergedSession.messages = newSessionData.messages;
+    }
+    
     if (localSession?.messages && mergedSession.messages) {
-        const lastOptimisticMsg = [...localSession.messages].reverse()
-            .find(m => m.role === 'user' && m.imageData && !m.imageLink);
-
-        if (lastOptimisticMsg) {
-            // 👇 FIX: Match the message by content, not ID, as the ID changes.
-            const serverMsgToUpdate = [...mergedSession.messages].reverse()
-                .find(m => m.role === 'user' && m.content === lastOptimisticMsg.content && m.imageLink);
-
-            if (serverMsgToUpdate) {
-                // Restore the local imageData to prevent the image from refreshing.
-                serverMsgToUpdate.imageData = lastOptimisticMsg.imageData;
+        const localImageContentMap = new Map();
+        localSession.messages.forEach(msg => {
+            if (msg.role === 'user' && msg.imageData) {
+                localImageContentMap.set(msg.content, msg.imageData);
             }
+        });
+        if (localImageContentMap.size > 0) {
+            mergedSession.messages = mergedSession.messages.map(serverMessage => {
+                if (serverMessage.role === 'user' && localImageContentMap.has(serverMessage.content)) {
+                    return { ...serverMessage, imageData: localImageContentMap.get(serverMessage.content) };
+                }
+                return serverMessage;
+            });
         }
     }
-
+    
     this.setState({ currentSession: mergedSession });
     this.updateSidebarSession(mergedSession);
     this.triggerSessionUpdate(mergedSession);
@@ -105,12 +139,17 @@ class SimpleSessionService {
   }
 
   handleProcessComplete = (data, modelUsed) => {
-    if (!data.success || !data.unifiedSession) {
-      throw new Error(data.error || 'Failed to process image');
+    try {
+      if (!data.success || !data.unifiedSession) {
+        throw new Error(data.error || 'Failed to process image');
+      }
+      const newSession = this.convertToUnifiedSession(data.unifiedSession);
+      this._setAndMergeCurrentSession(newSession, modelUsed);
+      return newSession;
+    } finally {
+      apiControls.stopAIThinking();
+      apiControls.stopProcessing();
     }
-    const newSession = this.convertToUnifiedSession(data.unifiedSession);
-    this._setAndMergeCurrentSession(newSession, modelUsed);
-    return newSession;
   }
   
   updateSessionState = (newSessionFromServer, modelUsed = null) => {
@@ -130,6 +169,7 @@ class SimpleSessionService {
         model,
         sessionId: sessionId,
         userMessage: { 
+            id: `user-${Date.now()}`,
             content: customText || 'I have a question about this image.', 
             imageData: imageData,
             sessionId: sessionId
@@ -146,25 +186,43 @@ class SimpleSessionService {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+
+      const processChunk = (chunk) => {
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                  try {
+                      const data = JSON.parse(line.slice(6));
+                      if (data.type === 'complete') {
+                          this.handleProcessComplete(data.result, model);
+                          return true;
+                      }
+                      if (data.type === 'error') throw new Error(data.error);
+                      if (onProgress) onProgress(data);
+                  } catch (e) {}
+              }
+          }
+          return false;
+      };
+
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+            if (buffer) processChunk(buffer);
+            break;
+        }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop();
+        buffer = lines.pop() || '';
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'complete') return this.handleProcessComplete(data.result, model);
-              if (data.type === 'error') throw new Error(data.error);
-              if (onProgress) onProgress(data);
-            } catch (e) {}
-          }
+            if (processChunk(line)) return;
         }
       }
     } catch (error) {
       this.setState({ error: error.message });
+      apiControls.handleError(error);
+      apiControls.stopAIThinking();
+      apiControls.stopProcessing();
       throw error;
     }
   }

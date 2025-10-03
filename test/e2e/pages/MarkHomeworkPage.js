@@ -32,7 +32,7 @@ class MarkHomeworkPage {
     
     // Model selector
     this.modelSelector = page.locator('.model-selector-button');
-    this.modelOption = page.locator('.model-selector-option');
+    this.modelOption = page.locator('.dropdown-item');
   }
 
   // --- Actions ---

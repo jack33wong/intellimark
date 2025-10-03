@@ -1,8 +1,32 @@
 import { useState, useCallback } from 'react';
 import { simpleSessionService } from '../services/simpleSessionService';
+import { UnifiedMessage, UnifiedSession } from '../types';
+
+// Define the shape of the API state
+interface ApiState {
+  isProcessing: boolean;
+  isAIThinking: boolean;
+  error: string | null;
+  loadingProgress: number;
+  loadingStep: number;
+  loadingTotalSteps: number | null;
+  loadingMessage: string;
+  showProgressDetails: boolean;
+  progressData: any; 
+  stepList: any[];
+  completedSteps: any[];
+}
+
+// Define the type for the progress data from the backend
+interface ProgressData {
+  currentStepDescription?: string;
+  allSteps?: any[];
+  completedSteps?: any[];
+  isComplete?: boolean;
+}
 
 export const useApiProcessor = () => {
-  const [apiState, setApiState] = useState({
+  const [apiState, setApiState] = useState<ApiState>({
     isProcessing: false,
     isAIThinking: false,
     error: null,
@@ -24,9 +48,9 @@ export const useApiProcessor = () => {
     setApiState(prev => ({ ...prev, isProcessing: false }));
   }, []);
 
-  const startAIThinking = useCallback((progressData = null) => {
+  const startAIThinking = useCallback((progressData: any = null) => {
     setApiState(prev => ({ ...prev, isAIThinking: true }));
-    const processingMessage = {
+    const processingMessage: Partial<UnifiedMessage> = {
       id: `processing-${Date.now()}`,
       role: 'assistant',
       content: '',
@@ -41,13 +65,11 @@ export const useApiProcessor = () => {
     setApiState(prev => ({ ...prev, isAIThinking: false }));
   }, []);
 
-  const handleError = useCallback((error) => {
+  const handleError = useCallback((error: Error) => {
     setApiState(prev => ({ ...prev, isProcessing: false, isAIThinking: false, error: error.message || 'An unknown error occurred' }));
   }, []);
 
-  // 👇 FIX: The updateProgress function now also updates the session message in real-time.
-  const updateProgress = useCallback((data) => {
-    // 1. Update the hook's own state for the top-level progress bar/dropdown
+  const updateProgress = useCallback((data: ProgressData) => {
     setApiState(prev => ({
       ...prev,
       loadingMessage: data.currentStepDescription || prev.loadingMessage,
@@ -56,49 +78,54 @@ export const useApiProcessor = () => {
       completedSteps: data.completedSteps || [],
       loadingStep: (data.completedSteps || []).length + (data.isComplete ? 0 : 1),
       loadingTotalSteps: (data.allSteps || []).length,
-      loadingProgress: data.isComplete ? 100 : Math.round(((data.completedSteps || []).length / (data.allSteps || []).length) * 100)
+      loadingProgress: data.isComplete ? 100 : Math.round(((data.completedSteps || []).length / ((data.allSteps || []).length || 1)) * 100)
     }));
 
-    // 2. Update the "isProcessing" message object itself for the ChatMessage component
-    const currentSession = simpleSessionService.getCurrentSession();
-    if (currentSession && currentSession.messages && currentSession.messages.length > 0) {
-      const processingMessageIndex = currentSession.messages.map(m => m.isProcessing).lastIndexOf(true);
-
+    const currentSession = simpleSessionService.getCurrentSession() as UnifiedSession | null;
+    if (currentSession?.messages?.length) {
+      const processingMessageIndex = [...currentSession.messages].reverse().findIndex(m => m.isProcessing);
+      
       if (processingMessageIndex !== -1) {
+        const indexToUpdate = currentSession.messages.length - 1 - processingMessageIndex;
         const updatedMessages = [...currentSession.messages];
-        const messageToUpdate = updatedMessages[processingMessageIndex];
+        const messageToUpdate = updatedMessages[indexToUpdate];
         
-        const updatedMessage = {
+        const updatedMessage: UnifiedMessage = {
           ...messageToUpdate,
-          progressData: data
+          progressData: {
+            currentStepDescription: data.currentStepDescription || '',
+            completedSteps: data.completedSteps || [],
+            allSteps: data.allSteps || [],
+            isComplete: data.isComplete || false,
+          }
         };
 
-        updatedMessages[processingMessageIndex] = updatedMessage;
+        updatedMessages[indexToUpdate] = updatedMessage;
         
         const updatedSession = {
           ...currentSession,
           messages: updatedMessages,
         };
         
-        // This notifies all subscribed components (like our context) of the change
         simpleSessionService.setCurrentSession(updatedSession);
       }
     }
   }, []);
 
-  const processImageAPI = useCallback(async (imageData, model, mode, customText = null) => {
+  const processImageAPI = useCallback(async (imageData: string, model: string, mode: string, customText?: string) => {
     try {
+      // 👇 FIX: Use a type assertion `as any` for the callback as well to resolve the type mismatch.
       const result = await simpleSessionService.processImageWithProgress(
-        imageData, model, mode, customText, updateProgress
+        imageData, model, mode, customText as any, updateProgress as any
       );
       return result;
     } catch (error) {
-      handleError(error);
+      handleError(error as Error);
       throw error;
     }
   }, [updateProgress, handleError]);
 
-  const setShowProgressDetails = useCallback((show) => {
+  const setShowProgressDetails = useCallback((show: boolean) => {
     setApiState(prev => ({ ...prev, showProgressDetails: show }));
   }, []);
 

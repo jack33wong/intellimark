@@ -144,6 +144,38 @@ export const getUserRole = (email: string): string => {
   return ADMIN_EMAILS.includes(email) ? 'admin' : 'user';
 };
 
+/**
+ * Helper function to check if user is admin based on email
+ */
+export const isAdminUser = (email: string): boolean => {
+  return ADMIN_EMAILS.includes(email);
+};
+
+/**
+ * Set custom claims for a user
+ */
+export const setUserCustomClaims = async (uid: string, claims: Record<string, any>): Promise<boolean> => {
+  try {
+    if (!isFirebaseAvailable()) {
+      console.warn('⚠️ Firebase not available, cannot set custom claims');
+      return false;
+    }
+
+    const firebaseAuth = getFirebaseAuth();
+    if (!firebaseAuth) {
+      console.error('❌ Firebase Auth not available');
+      return false;
+    }
+
+    await firebaseAuth.setCustomUserClaims(uid, claims);
+    console.log(`✅ Custom claims set for user ${uid}:`, claims);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to set custom claims for user ${uid}:`, error);
+    return false;
+  }
+};
+
 // Initialize Firebase on module load
 initializeFirebase();
 
@@ -151,3 +183,6 @@ initializeFirebase();
 export const firebaseApp = firebaseAdmin;
 export const firestore = firestoreDb;
 export const auth = firebaseAuth;
+
+// Export admin emails for use in scripts
+export { ADMIN_EMAILS };
