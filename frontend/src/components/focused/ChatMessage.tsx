@@ -8,8 +8,7 @@ import {
   isUserMessage, 
   hasImage, 
   getMessageDisplayText,
-  getMessageTimestamp,
-  shouldRenderMessage
+  getMessageTimestamp
 } from '../../utils/messageUtils.js';
 import { 
   isAnnotatedImageMessage
@@ -38,8 +37,30 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   
+  // Inline function to avoid Jest import issues
+  const shouldRenderMessage = (message: UnifiedMessage): boolean => {
+    if (message.role === 'user') {
+      return true; // Always render user messages
+    }
+    
+    // For assistant messages, check if it's not a ghost message
+    if (message.role !== 'assistant') {
+      return false;
+    }
+    
+    // Keep assistant messages that have content or are processing
+    const hasContent = message.content && message.content.trim() !== '';
+    const isProcessing = message.isProcessing === true;
+    const hasProgressData = !!message.progressData;
+    
+    // Filter out empty assistant messages that are not processing
+    return hasContent || isProcessing || hasProgressData;
+  };
+  
   // Use custom hook for dropdown state management
-  const { showProgressDetails, toggleDropdown } = useDropdownState(message.id);
+  // Auto-open dropdown for completed messages
+  const shouldAutoOpen = message.progressData?.isComplete === true;
+  const { showProgressDetails, toggleDropdown } = useDropdownState(message.id, shouldAutoOpen);
 
   const handleProgressToggle = useCallback(() => {
     toggleDropdown(scrollToBottom);
