@@ -2,7 +2,7 @@
  * Focused ChatMessage Component (TypeScript)
  * This is the definitive version with fixes for all rendering and state bugs.
  */
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Brain } from 'lucide-react';
 import { 
   isUserMessage, 
@@ -13,6 +13,8 @@ import {
 import { 
   isAnnotatedImageMessage
 } from '../../utils/sessionUtils';
+import { useDropdownState } from '../../hooks/useDropdownState';
+import { shouldRenderMessage } from '../../utils/messageFiltering';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 
@@ -35,37 +37,25 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   scrollToBottom
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
-  // Use ref to persist dropdown state across re-renders
-  const showProgressDetailsRef = useRef<boolean>(false);
-  const [showProgressDetails, setShowProgressDetails] = useState<boolean>(false);
   
+  // Use custom hook for dropdown state management
+  const { showProgressDetails, toggleDropdown } = useDropdownState(message.id);
 
   const handleProgressToggle = useCallback(() => {
-    const newState = !showProgressDetailsRef.current;
-    showProgressDetailsRef.current = newState;
-    setShowProgressDetails(newState);
-    
-    if (!newState && scrollToBottom) {
-      setTimeout(() => scrollToBottom(), 150);
-    }
-  }, [scrollToBottom, message.id]);
+    toggleDropdown(scrollToBottom);
+  }, [toggleDropdown, scrollToBottom]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
   }, []);
-
-  // Initialize state from ref on mount and when message changes
-  useEffect(() => {
-    setShowProgressDetails(showProgressDetailsRef.current);
-  }, [message.id, message.progressData]);
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
-  // Don't render empty assistant messages (ghost messages)
-  if (!isUser && (!content || content.trim() === '') && !message.progressData && !hasImage(message)) {
+  // Don't render ghost messages
+  if (!shouldRenderMessage(message)) {
     return null;
   }
 

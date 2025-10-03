@@ -5,6 +5,7 @@ import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 import { useScrollManager } from '../hooks/useScrollManager';
+import { createUserMessageId, createAIMessageId } from '../utils/messageIdGenerator';
 
 const MarkingPageContext = createContext();
 
@@ -73,13 +74,8 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     if (!trimmedText) return;
     try {
       // Use content-based ID for stability across re-renders
-      // Use simple hash to match backend approach
-      const contentHash = trimmedText.split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a;
-      }, 0).toString(36).substring(0, 8);
       await addMessage({
-        id: `user-${contentHash}`,
+        id: createUserMessageId(trimmedText),
         role: 'user',
         content: trimmedText,
         timestamp: new Date().toISOString(),
@@ -95,8 +91,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       };
       
       // Generate a predictable AI message ID that backend can use
-      // Use contentHash + timestamp to ensure uniqueness while maintaining stability
-      const aiMessageId = `ai-${contentHash}-${Date.now()}`;
+      const aiMessageId = createAIMessageId(trimmedText);
       startAIThinking(textProgressData, aiMessageId);
 
       const authToken = await getAuthToken();
@@ -183,11 +178,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       // Generate unique AI message ID for image processing
-      const imageContentHash = imageData.split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a;
-      }, 0).toString(36).substring(0, 8);
-      const imageAiMessageId = `ai-${imageContentHash}-${Date.now()}`;
+      const imageAiMessageId = createAIMessageId(imageData);
       startAIThinking(null, imageAiMessageId);
       await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId);
       clearFile();

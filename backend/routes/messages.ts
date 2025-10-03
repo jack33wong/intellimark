@@ -4,10 +4,11 @@
  */
 
 import express from 'express';
-import crypto from 'crypto';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { AIMarkingService } from '../services/aiMarkingService.js';
+import { createUserMessage, createAIMessage, createChatProgressData } from '../utils/messageFactory.js';
+import { handleAIMessageIdForEndpoint } from '../utils/aiMessageIdHandler.js';
 import type { UnifiedMessage } from '../types/index.js';
 
 const router = express.Router();
@@ -54,29 +55,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
 
-    // Create user message (needed for both new and existing sessions)
-    // Use content-based ID for stability across re-renders
-    const contentHash = crypto.createHash('md5').update(message || 'image').digest('hex').substring(0, 8);
-    const userMessage = {
-      messageId: `msg-${contentHash}`,
-      role: 'user',
+    // Create user message using factory
+    const userMessage = createUserMessage({
       content: message || (imageData ? 'Image uploaded' : ''),
-      type: 'chat_user',
-      timestamp: new Date().toISOString(),
       imageLink: imageLink || (isAuthenticated ? undefined : imageData),
-      detectedQuestion: { found: false, message: message || 'Chat message' },
-      metadata: {
-        resultId: `chat-${Date.now()}`,
-        processingTime: new Date().toISOString(),
-        totalProcessingTimeMs: 0,
-        modelUsed: model,
-        totalAnnotations: 0,
-        imageSize: imageData ? imageData.length : 0,
-        confidence: 0,
-        tokens: [0, 0],
-        ocrMethod: 'Chat'
-      }
-    };
+      imageData: imageData,
+      sessionId: sessionId,
+      model: model
+    });
 
     // Session management - use provided sessionId or create new one
     if (!currentSessionId) {
@@ -137,37 +123,18 @@ router.post('/chat', optionalAuth, async (req, res) => {
       apiUsed = 'Fallback';
     }
 
-    // Create AI message with progressData for text-only submissions
-    // Use provided aiMessageId to match frontend processing message
-    const aiMessage = {
-      messageId: aiMessageId || `msg-${crypto.createHash('md5').update(aiResponse).digest('hex').substring(0, 8)}`,
-      role: 'assistant' as const,
+    // Create AI message using factory
+    const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');
+    const aiMessage = createAIMessage({
       content: aiResponse,
-      type: 'chat_assistant' as const,
-      timestamp: new Date().toISOString(),
-      detectedQuestion: { found: false, message: 'AI response' },
-      isProcessing: false, // Mark as completed since this is the final response
-      progressData: {
-        allSteps: [
-          'Processing your question...',
-          'Generating response...'
-        ],
-        currentStepDescription: 'Generating response...', // Show final step
-        completedSteps: ['Processing your question...', 'Generating response...'],
-        isComplete: true
-      },
+      messageId: resolvedAIMessageId,
+      progressData: createChatProgressData(true),
       metadata: {
-        resultId: `chat-ai-${Date.now()}`,
-        processingTime: new Date().toISOString(),
-        totalProcessingTimeMs: 0,
         modelUsed: model,
-        totalAnnotations: 0,
         imageSize: imageData ? imageData.length : 0,
-        confidence: 0,
-        tokens: [0, 0],
-        ocrMethod: 'Chat'
+        apiUsed: apiUsed
       }
-    };
+    });
 
     // Handle session creation and message storage - only for authenticated users
     if (isAuthenticated) {

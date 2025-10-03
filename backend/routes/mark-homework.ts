@@ -8,6 +8,8 @@ import type { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
+import { createAIMessage, createMarkingProgressData } from '../utils/messageFactory.js';
+import { handleAIMessageIdForEndpoint } from '../utils/aiMessageIdHandler.js';
 
 // Get Firestore instance
 admin.firestore();
@@ -482,15 +484,15 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     // Create AI message with separate content and progressData
     const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
     
-    const aiMessage = {
-      id: result.messageId || aiMessageId || `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'assistant',
+    // Create AI message using factory
+    const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, result.message || 'Processing complete', 'marking');
+    const aiMessage = createAIMessage({
       content: result.message || 'I have analyzed your homework and provided feedback.',
-      timestamp: new Date().toISOString(),
-      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
+      messageId: result.messageId || resolvedAIMessageId,
       imageData: result.annotatedImage || null,
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
-      progressData: finalProgressData, // Ensure isComplete is true for final response
+      progressData: finalProgressData,
+      isQuestionOnly: result.isQuestionOnly,
       metadata: {
         processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
         confidence: result.metadata?.confidence || 0,
@@ -501,7 +503,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         isQuestionOnly: result.isQuestionOnly || false,
         isPastPaper: result.isPastPaper || false
       }
-    };
+    });
 
     // Update AI message with image link for authenticated users
     if (isAuthenticated && annotatedImageLink) {
