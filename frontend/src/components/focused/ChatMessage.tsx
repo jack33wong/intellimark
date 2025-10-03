@@ -2,7 +2,7 @@
  * Focused ChatMessage Component (TypeScript)
  * This is the definitive version with fixes for all rendering and state bugs.
  */
-import React, { useCallback, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { Brain } from 'lucide-react';
 import { 
   isUserMessage, 
@@ -15,6 +15,7 @@ import {
 } from '../../utils/sessionUtils';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
+
 
 interface ChatMessageProps {
   message: UnifiedMessage;
@@ -34,30 +35,42 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   scrollToBottom
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
-  const [showProgressDetails, setShowProgressDetails] = useState<boolean>(
-    message.progressData?.isComplete || false
-  );
-  const messageRef = useRef<HTMLDivElement>(null);
+  // Use ref to persist dropdown state across re-renders
+  const showProgressDetailsRef = useRef<boolean>(false);
+  const [showProgressDetails, setShowProgressDetails] = useState<boolean>(false);
+  
 
   const handleProgressToggle = useCallback(() => {
-    setShowProgressDetails(prev => !prev);
-    if (!showProgressDetails && scrollToBottom) {
+    const newState = !showProgressDetailsRef.current;
+    showProgressDetailsRef.current = newState;
+    setShowProgressDetails(newState);
+    
+    if (!newState && scrollToBottom) {
       setTimeout(() => scrollToBottom(), 150);
     }
-  }, [showProgressDetails, scrollToBottom]);
+  }, [scrollToBottom, message.id]);
 
   const handleImageError = useCallback(() => {
     setImageError(true);
   }, []);
+
+  // Initialize state from ref on mount and when message changes
+  useEffect(() => {
+    setShowProgressDetails(showProgressDetailsRef.current);
+  }, [message.id, message.progressData]);
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
+  // Don't render empty assistant messages (ghost messages)
+  if (!isUser && (!content || content.trim() === '') && !message.progressData && !hasImage(message)) {
+    return null;
+  }
+
   return (
     <div 
-      ref={messageRef}
       className={`chat-message ${isUser ? 'user' : 'assistant'}`}
       data-message-id={message.id}
       aria-roledescription={isUser ? 'user-message' : 'assistant-message'}
@@ -82,11 +95,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     </div>
                     {message.progressData.allSteps && message.progressData.allSteps.length > 0 && (
                       <div className="progress-toggle-container">
-                        <button
-                          className="progress-toggle-button"
-                          onClick={handleProgressToggle}
-                          style={{ transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                        >
+                                <button
+                                  className="progress-toggle-button"
+                                  onClick={handleProgressToggle}
+                                  style={{ transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                                >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M6 9l6 6 6-6"/>
                           </svg>
@@ -99,7 +112,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
           
-          {showProgressDetails && message.progressData?.allSteps && (
+                  {showProgressDetails && message.progressData?.allSteps && (
              <div className="progress-details-container">
                 <div className="step-list-container">
                   {(message.progressData.allSteps || []).map((step: any, index: number) => {

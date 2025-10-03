@@ -72,12 +72,12 @@ export class OCRCleanupService {
     let usageTokens = 0;
     model = 'auto';
     if (model === 'auto') {
-      const { ModelProvider } = await import('./ModelProvider');
+      const { ModelProvider } = await import('./ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       responseText = res.content;
       usageTokens = res.usageTokens;
     } else {
-      const { ModelProvider } = await import('./ModelProvider');
+      const { ModelProvider } = await import('./ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro');
       responseText = res.content;
       usageTokens = res.usageTokens;
@@ -131,12 +131,12 @@ export class OCRCleanupService {
     let usageTokens = 0;
     
     if (model === 'auto') {
-      const { ModelProvider } = await import('./ModelProvider');
+      const { ModelProvider } = await import('./ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       responseText = res.content;
       usageTokens = res.usageTokens;
     } else {
-      const { ModelProvider } = await import('./ModelProvider');
+      const { ModelProvider } = await import('./ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro');
       responseText = res.content;
       usageTokens = res.usageTokens;

@@ -4,6 +4,7 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { AIMarkingService } from '../services/aiMarkingService.js';
@@ -18,7 +19,8 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'auto', sessionId, mode } = req.body;
+    const { message, imageData, model = 'auto', sessionId, mode, aiMessageId } = req.body;
+    
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -53,8 +55,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let sessionTitle = 'Chat Session';
 
     // Create user message (needed for both new and existing sessions)
+    // Use content-based ID for stability across re-renders
+    const contentHash = crypto.createHash('md5').update(message || 'image').digest('hex').substring(0, 8);
     const userMessage = {
-      messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      messageId: `msg-${contentHash}`,
       role: 'user',
       content: message || (imageData ? 'Image uploaded' : ''),
       type: 'chat_user',
@@ -134,8 +138,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
     }
 
     // Create AI message with progressData for text-only submissions
+    // Use provided aiMessageId to match frontend processing message
     const aiMessage = {
-      messageId: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+      messageId: aiMessageId || `msg-${crypto.createHash('md5').update(aiResponse).digest('hex').substring(0, 8)}`,
       role: 'assistant' as const,
       content: aiResponse,
       type: 'chat_assistant' as const,

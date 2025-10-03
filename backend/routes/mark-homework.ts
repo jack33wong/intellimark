@@ -405,7 +405,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
  * @returns {SSE Stream} Real-time progress updates
  */
 router.post('/process-single-stream', optionalAuth, async (req: Request, res: Response) => {
-  let { imageData, model = 'auto', userMessage, debug = false } = req.body;
+  let { imageData, model = 'auto', userMessage, debug = false, aiMessageId } = req.body;
 
   if (!imageData) {
     return res.status(400).json({ success: false, error: 'Image data is required' });
@@ -454,7 +454,8 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         userId,
         userEmail,
         debug,
-        onProgress
+        onProgress,
+        aiMessageId
       }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
@@ -482,7 +483,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
     
     const aiMessage = {
-      id: `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: result.messageId || aiMessageId || `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
       content: result.message || 'I have analyzed your homework and provided feedback.',
       timestamp: new Date().toISOString(),

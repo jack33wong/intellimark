@@ -35,7 +35,7 @@ export class LLMOrchestrator {
 
     try {
       // Step 0a: Assign step_id to original OCR text first
-      const { OCRCleanupService } = await import('./OCRCleanupService');
+      const { OCRCleanupService } = await import('./OCRCleanupService.js');
       const stepAssignmentResult = await OCRCleanupService.assignStepIds(
         model,
         processedImage.ocrText || '',

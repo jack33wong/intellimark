@@ -429,7 +429,8 @@ export class FirestoreService {
         const messageDoc = {
           ...message, // Preserve all original fields
           imageLink: processedImageLink, // Override with processed image link
-          updatedAt: new Date().toISOString() // Add update timestamp
+          // Only add updatedAt if it doesn't already exist (preserve existing timestamps)
+          ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
         };
 
         // Remove null values
@@ -517,12 +518,31 @@ export class FirestoreService {
         return timeA - timeB;
       });
 
-      // Map messages to ensure frontend compatibility (messageId -> id)
-      const mappedMessages = unifiedMessages.map((msg: any) => ({
-        ...msg,
-        id: msg.messageId || msg.id, // Map messageId to id for frontend
-        messageId: msg.messageId || msg.id // Keep original messageId
-      }));
+      // Map messages to ensure frontend compatibility while preserving object references
+      const mappedMessages = unifiedMessages.map((msg: any) => {
+        // Only modify if absolutely necessary to preserve React component state
+        if (!msg.id && msg.messageId) {
+          // Add id field if missing - but only if it's actually missing
+          if (msg.id === undefined) {
+            msg.id = msg.messageId;
+          }
+          return msg; // Return the SAME object reference
+        } else if (!msg.messageId && msg.id) {
+          // Add messageId field if missing - but only if it's actually missing
+          if (msg.messageId === undefined) {
+            msg.messageId = msg.id;
+          }
+          return msg; // Return the SAME object reference
+        } else if (!msg.id && !msg.messageId) {
+          // Both missing, add both (shouldn't happen in normal flow)
+          const fallbackId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          msg.id = fallbackId;
+          msg.messageId = fallbackId;
+          return msg; // Return the SAME object reference
+        }
+        // Both fields exist, return original object to preserve React state
+        return msg;
+      });
 
       // Create result without unifiedMessages to avoid duplication
       const result = {

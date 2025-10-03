@@ -61,7 +61,7 @@ export class MarkHomeworkWithAnswer {
    * Classify image using AI
    */
   private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
-    const { ClassificationService } = await import('../ai/ClassificationService');
+    const { ClassificationService } = await import('../ai/ClassificationService.js');
     return ClassificationService.classifyImage(imageData, model, debug);
   }
 
@@ -69,7 +69,7 @@ export class MarkHomeworkWithAnswer {
    * Public method to get full hybrid OCR result with proper sorting for testing
    */
   public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
-    const { HybridOCRService } = await import('../hybridOCRService');
+    const { HybridOCRService } = await import('../hybridOCRService.js');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -115,7 +115,7 @@ export class MarkHomeworkWithAnswer {
    * Process image with enhanced OCR
    */
   private static async processImageWithRealOCR(imageData: string, debug: boolean = false): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
-    const { HybridOCRService } = await import('../hybridOCRService');
+    const { HybridOCRService } = await import('../hybridOCRService.js');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -188,7 +188,7 @@ export class MarkHomeworkWithAnswer {
     questionDetection?: QuestionDetectionResult
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number } }> {
     try {
-      const { LLMOrchestrator } = await import('../ai/LLMOrchestrator');
+      const { LLMOrchestrator } = await import('../ai/LLMOrchestrator.js');
       return await LLMOrchestrator.executeMarking({
         imageData,
         model,
@@ -212,9 +212,10 @@ export class MarkHomeworkWithAnswer {
     userEmail?: string;
     debug?: boolean;
     onProgress?: (data: any) => void;
+    aiMessageId?: string;
   }): Promise<MarkHomeworkResponse> {
     const startTime = Date.now();
-    const { imageData, model, debug = false, onProgress } = params;
+    const { imageData, model, debug = false, onProgress, aiMessageId } = params;
     const userId = params.userId || 'anonymous';
     const userEmail = params.userEmail || 'anonymous@example.com';
     
@@ -366,7 +367,7 @@ export class MarkHomeworkWithAnswer {
       const logQuestionComplete = logStep('Question Mode AI Response', 'gemini-2.0-flash-lite');
       let chatResponse;
       try {
-        const { AIMarkingService } = await import('../aiMarkingService');
+        const { AIMarkingService } = await import('../aiMarkingService.js');
         chatResponse = await AIMarkingService.generateChatResponse(
           imageData,
           'Please solve this math question step by step and explain each step clearly.',
@@ -404,6 +405,7 @@ export class MarkHomeworkWithAnswer {
         classification: imageClassification,
         sessionId: null, // Will be set by route
         sessionTitle: sessionTitle,
+        messageId: aiMessageId, // Include the provided aiMessageId
         isPastPaper: isPastPaper,
         progressData: finalProgressData, // Add progress data for chat history
         ocrMethod: 'Question-Only Mode - No OCR Required',
@@ -553,6 +555,7 @@ export class MarkHomeworkWithAnswer {
 
     return {
       ...response,
+      messageId: aiMessageId, // Include the provided aiMessageId
       progressData: finalProgressData, // Add progress data for chat history
       metadata: {
         resultId: `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

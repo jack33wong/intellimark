@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { optionalAuth } from '../middleware/auth.js';
 import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
 import { FirestoreService } from '../services/firestoreService.js';
@@ -175,8 +176,10 @@ router.post('/ai', optionalAuth, async (req: Request, res: Response) => {
     }
 
     // Create AI response message
+    // Use content-based ID for stability across re-renders
+    const aiContentHash = crypto.createHash('md5').update(result.message || 'Processing complete').digest('hex').substring(0, 8);
     const aiMessage = {
-      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `msg-${aiContentHash}`,
       role: 'assistant',
       content: result.message || 'Processing complete',
       timestamp: new Date().toISOString(),

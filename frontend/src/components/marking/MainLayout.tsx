@@ -59,7 +59,7 @@ const MainLayout: React.FC = () => {
               ))}
               
               {isAIThinking && !chatMessages?.some((msg: any) => msg.role === 'assistant' && msg.isProcessing) && (
-                <div className="chat-message assistant">
+                <div key="ai-thinking-indicator" className="chat-message assistant">
                    {/* AI Thinking Indicator would go here */}
                 </div>
               )}

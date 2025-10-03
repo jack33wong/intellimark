@@ -271,7 +271,7 @@ Summary:`;
 
     try {
       // Use Gemini for context summary generation
-      const { ModelProvider } = await import('./ai/ModelProvider');
+      const { ModelProvider } = await import('./ai/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(
         'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
         summaryPrompt,
@@ -328,7 +328,7 @@ Summary:`;
     Solve this problem step by step. Show your work and give the final answer. Do not ask questions.`;
 
     try {
-      const { ModelProvider } = await import('./ai/ModelProvider');
+      const { ModelProvider } = await import('./ai/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       // Extract content from the response object
       return response.content;

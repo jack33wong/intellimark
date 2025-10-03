@@ -48,10 +48,13 @@ export const useApiProcessor = () => {
     setApiState(prev => ({ ...prev, isProcessing: false }));
   }, []);
 
-  const startAIThinking = useCallback((progressData: any = null) => {
+  const startAIThinking = useCallback((progressData: any = null, aiMessageId?: string) => {
     setApiState(prev => ({ ...prev, isAIThinking: true }));
+    
+    // Use provided aiMessageId or generate one
+    // This ensures React treats processing and final messages as the same component
     const processingMessage: Partial<UnifiedMessage> = {
-      id: `processing-${Date.now()}`,
+      id: aiMessageId || `ai-${Date.now()}`,
       role: 'assistant',
       content: '',
       isProcessing: true,
@@ -112,11 +115,11 @@ export const useApiProcessor = () => {
     }
   }, []);
 
-  const processImageAPI = useCallback(async (imageData: string, model: string, mode: string, customText?: string) => {
+  const processImageAPI = useCallback(async (imageData: string, model: string, mode: string, customText?: string, aiMessageId?: string) => {
     try {
       // 👇 FIX: Use a type assertion `as any` for the callback as well to resolve the type mismatch.
       const result = await simpleSessionService.processImageWithProgress(
-        imageData, model, mode, customText as any, updateProgress as any
+        imageData, model, mode, customText as any, updateProgress as any, aiMessageId as any
       );
       return result;
     } catch (error) {

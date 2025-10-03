@@ -91,25 +91,15 @@ class SimpleSessionService {
         modelUsed: serverMeta.modelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.modelUsed || 'N/A'
     };
     
-    // 👇 FIX: This is the definitive fix for the "ghost message" and "auto-close" bugs.
-    // It correctly REPLACES the thinking message instead of creating a new array.
-    if (localSession?.messages && newSessionData.messages) {
-        let finalMessages = [...localSession.messages];
-        const thinkingMsgIndex = finalMessages.findIndex(m => m.isProcessing);
-        // Find the new AI response from the server that isn't already in our local state.
-        const newAiResponse = newSessionData.messages.find(m => m.role === 'assistant' && !localSession.messages.some(lm => lm.id === m.id));
-
-        if (thinkingMsgIndex !== -1 && newAiResponse) {
-            // If we found both, REPLACE the thinking message with the final AI response.
-            // This is the key to preventing the flicker, stopping the animation, and keeping the dropdown open.
-            finalMessages[thinkingMsgIndex] = newAiResponse;
-        } else {
-            // Fallback for cases where there is no "thinking" message (e.g., history load).
-            finalMessages = newSessionData.messages;
-        }
-        mergedSession.messages = finalMessages;
-    } else {
+    // 👇 SIMPLIFIED: Use server messages directly since we now have stable IDs
+    // With content-based IDs, server messages should be stable and we don't need complex merging
+    if (newSessionData.messages && Array.isArray(newSessionData.messages)) {
         mergedSession.messages = newSessionData.messages;
+    } else if (localSession?.messages) {
+        // Fallback to local messages if server doesn't provide messages
+        mergedSession.messages = localSession.messages;
+    } else {
+        mergedSession.messages = [];
     }
     
     if (localSession?.messages && mergedSession.messages) {
@@ -124,6 +114,7 @@ class SimpleSessionService {
                 if (serverMessage.role === 'user' && localImageContentMap.has(serverMessage.content)) {
                     return { ...serverMessage, imageData: localImageContentMap.get(serverMessage.content) };
                 }
+                // Return the original message object to preserve React component state
                 return serverMessage;
             });
         }
@@ -154,9 +145,11 @@ class SimpleSessionService {
   
   updateSessionState = (newSessionFromServer, modelUsed = null) => {
       this._setAndMergeCurrentSession(newSessionFromServer, modelUsed);
+      // Stop AI thinking when session is updated with new messages
+      apiControls.stopAIThinking();
   }
 
-  processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null) => {
+  processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) => {
     try {
       const authToken = await this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
@@ -168,6 +161,7 @@ class SimpleSessionService {
         imageData,
         model,
         sessionId: sessionId,
+        aiMessageId: aiMessageId, // Pass the AI message ID to the backend
         userMessage: { 
             id: `user-${Date.now()}`,
             content: customText || 'I have a question about this image.', 

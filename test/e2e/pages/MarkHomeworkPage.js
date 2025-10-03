@@ -119,7 +119,10 @@ class MarkHomeworkPage {
       
       // For text-based responses, verify the content has meaningful length and is not just "thinking"
       const textContent = lastMessage.textContent;
-      if (textContent && textContent.length > 20 && !textContent.includes('AI is thinking')) {
+      if (textContent && textContent.length > 20 && 
+          !textContent.includes('AI is thinking') && 
+          !textContent.includes('Processing question') &&
+          !textContent.includes('Show thinking')) {
         return true;
       }
       

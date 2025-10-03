@@ -72,8 +72,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     const trimmedText = text.trim();
     if (!trimmedText) return;
     try {
+      // Use content-based ID for stability across re-renders
+      // Use simple hash to match backend approach
+      const contentHash = trimmedText.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0).toString(36).substring(0, 8);
       await addMessage({
-        id: `user-${Date.now()}`,
+        id: `user-${contentHash}`,
         role: 'user',
         content: trimmedText,
         timestamp: new Date().toISOString(),
@@ -87,7 +93,11 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         allSteps: ['Processing question...', 'Generating response...'],
         completedSteps: [],
       };
-      startAIThinking(textProgressData);
+      
+      // Generate a predictable AI message ID that backend can use
+      // Use contentHash + timestamp to ensure uniqueness while maintaining stability
+      const aiMessageId = `ai-${contentHash}-${Date.now()}`;
+      startAIThinking(textProgressData, aiMessageId);
 
       const authToken = await getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
@@ -95,12 +105,33 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       const response = await fetch('/api/messages/chat', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ message: trimmedText, model: 'auto', sessionId: currentSession?.id || null })
+        body: JSON.stringify({ 
+          message: trimmedText, 
+          model: 'auto', 
+          sessionId: currentSession?.id || null,
+          aiMessageId: aiMessageId // Pass the AI message ID to backend
+        })
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      if (data.success && data.unifiedSession) {
-        simpleSessionService.updateSessionState(data.unifiedSession);
+      
+      if (data.success) {
+        if (data.unifiedSession) {
+          // Authenticated users get full session data
+          simpleSessionService.updateSessionState(data.unifiedSession);
+        } else if (data.newMessages) {
+          // Unauthenticated users get new messages to append
+          // Create a temporary session with the new messages
+          const tempSession = {
+            id: data.sessionId || `temp-${Date.now()}`,
+            title: data.sessionTitle || 'Chat Session',
+            messages: data.newMessages,
+            sessionMetadata: {}
+          };
+          simpleSessionService.updateSessionState(tempSession);
+        } else {
+          throw new Error(data.error || 'No session data received');
+        }
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
@@ -151,8 +182,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       };
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-      startAIThinking();
-      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined);
+      // Generate unique AI message ID for image processing
+      const imageContentHash = imageData.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0).toString(36).substring(0, 8);
+      const imageAiMessageId = `ai-${imageContentHash}-${Date.now()}`;
+      startAIThinking(null, imageAiMessageId);
+      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId);
       clearFile();
     } catch (err) {
       console.error('Error in image analysis flow:', err);
