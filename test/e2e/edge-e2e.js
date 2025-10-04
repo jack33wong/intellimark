@@ -18,7 +18,7 @@ const TEST_CONFIG = {
   }
 };
 
-test.describe('Edge Case & Bug Detection E2E Tests', () => {
+test.describe('Edge Case E2E Tests', () => {
   let loginPage, markHomeworkPage, sidebarPage, databaseHelper;
 
   test.beforeAll(async () => {

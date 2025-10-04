@@ -22,7 +22,7 @@ const TEST_CONFIG = {
   expectedMessageCount: 6
 };
 
-test.describe('Happy Path E2E Tests - Marking Homework', () => {
+test.describe('Happy Path E2E Tests', () => {
   let loginPage, markHomeworkPage, sidebarPage, databaseHelper;
 
   // Use test.beforeAll for one-time setup
