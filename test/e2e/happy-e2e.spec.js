@@ -46,7 +46,7 @@ test.describe('Happy Path E2E Tests', () => {
     await databaseHelper.cleanupUnifiedSessions(TEST_CONFIG.userId);
     
     loginPage = new LoginPage(page);
-    markHomeworkPage = new MarkHomeworkPage(page);
+    markHomeworkPage = new MarkHomeworkPage(page, 'HappyPathE2E');
     sidebarPage = new SidebarPage(page);
     
     // Monitor network requests for debugging

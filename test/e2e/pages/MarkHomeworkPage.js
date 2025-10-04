@@ -1,9 +1,12 @@
 const { expect } = require('@playwright/test');
 const path = require('path');
+const ErrorReporter = require('../utils/ErrorReporter');
 
 class MarkHomeworkPage {
-  constructor(page) {
+  constructor(page, testName = 'MarkHomeworkPage') {
     this.page = page;
+    this.errorReporter = new ErrorReporter(page, testName);
+    this.setupConsoleLogging();
 
     // --- Define Locators in the Constructor ---
     // This is the core best practice. Locators are resilient and reusable.
@@ -35,6 +38,57 @@ class MarkHomeworkPage {
     this.modelOption = page.locator('.dropdown-item');
   }
 
+  /**
+   * Sets up console logging and error tracking for better debugging
+   */
+  setupConsoleLogging() {
+    // Capture console logs
+    this.page.on('console', msg => {
+      const timestamp = new Date().toISOString();
+      const level = msg.type();
+      const text = msg.text();
+      
+      // Store logs for error reporting
+      this.page.evaluate(({ timestamp, level, text }) => {
+        if (!window.consoleLogs) window.consoleLogs = [];
+        window.consoleLogs.push({ timestamp, level, text });
+      }, { timestamp, level, text });
+      
+      // Log important messages
+      if (level === 'error' || level === 'warn') {
+        console.log(`🔍 Browser ${level.toUpperCase()}: ${text}`);
+      }
+    });
+
+    // Capture page errors
+    this.page.on('pageerror', error => {
+      const timestamp = new Date().toISOString();
+      console.log(`🚨 Page Error: ${error.message}`);
+      
+      this.page.evaluate(({ timestamp, message, stack }) => {
+        if (!window.pageErrors) window.pageErrors = [];
+        window.pageErrors.push({ timestamp, message, stack });
+      }, { timestamp, message: error.message, stack: error.stack });
+    });
+
+    // Track network requests for debugging
+    this.page.on('request', request => {
+      this.page.evaluate(({ url, method, headers }) => {
+        if (!window.networkRequests) window.networkRequests = [];
+        window.networkRequests.push({ 
+          timestamp: new Date().toISOString(), 
+          url, 
+          method, 
+          headers: Object.fromEntries(headers) 
+        });
+      }, { 
+        url: request.url(), 
+        method: request.method(), 
+        headers: request.headers() 
+      });
+    });
+  }
+
   // --- Actions ---
 
   async navigateToMarkHomework() {
@@ -56,11 +110,38 @@ class MarkHomeworkPage {
   }
 
   async uploadImage(imagePath) {
-    // No more loops or try/catch. The locator finds the correct input automatically.
-    await this.fileInput.setInputFiles(imagePath);
-    
-    // Wait for image processing to complete
-    await this.page.waitForLoadState('networkidle');
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        // Verify file exists before attempting upload
+        if (!require('fs').existsSync(imagePath)) {
+          throw new Error(`Image file not found: ${imagePath}`);
+        }
+
+        // Check if file input is available
+        const isFileInputVisible = await this.fileInput.isVisible();
+        if (!isFileInputVisible) {
+          throw new Error('File input is not visible or available');
+        }
+
+        // Upload the image
+        await this.fileInput.setInputFiles(imagePath);
+        
+        // Wait for image processing to complete with better error handling
+        await this.page.waitForLoadState('networkidle', { timeout: 30000 });
+        
+        // Verify upload was successful by checking for chat messages or processing indicators
+        const hasProcessingIndicator = await this.page.locator('.ai-thinking, .thinking-animation, .upload-loading-bar').isVisible();
+        const hasChatMessages = await this.page.locator('.chat-message, .message').count() > 0;
+        
+        if (!hasProcessingIndicator && !hasChatMessages) {
+          throw new Error('Image upload may have failed - no processing indicator or chat messages found');
+        }
+
+        console.log(`✅ Image uploaded successfully: ${path.basename(imagePath)}`);
+      },
+      `Upload image: ${path.basename(imagePath)}`,
+      { maxRetries: 1, retryDelay: 2000 }
+    );
   }
 
   async enterText(text) {
@@ -68,7 +149,30 @@ class MarkHomeworkPage {
   }
 
   async sendMessage() {
-    await this.sendButton.click();
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        // Check if send button is available and enabled
+        const isSendButtonVisible = await this.sendButton.isVisible();
+        if (!isSendButtonVisible) {
+          throw new Error('Send button is not visible');
+        }
+
+        const isSendButtonEnabled = await this.sendButton.isEnabled();
+        if (!isSendButtonEnabled) {
+          throw new Error('Send button is disabled');
+        }
+
+        // Click the send button
+        await this.sendButton.click();
+        
+        // Wait for the message to be processed
+        await this.page.waitForLoadState('networkidle', { timeout: 10000 });
+        
+        console.log('✅ Message sent successfully');
+      },
+      'Send message',
+      { maxRetries: 1, retryDelay: 1000 }
+    );
   }
 
   /**
@@ -96,38 +200,48 @@ class MarkHomeworkPage {
    * contains meaningful, non-placeholder content that matches specific keywords.
    */
   async waitForAIResponse() {
-    // 1. Wait for any "thinking" animations to finish.
-    await expect(this.aiThinking, 'The AI thinking indicator should disappear')
-      .toBeHidden({ timeout: 300000 }); // 5 minutes for real AI model
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('⏳ Waiting for AI response...');
+        
+        // 1. Wait for any "thinking" animations to finish.
+        await expect(this.aiThinking, 'The AI thinking indicator should disappear')
+          .toBeHidden({ timeout: 300000 }); // 5 minutes for real AI model
 
-    // 2. Poll until the last AI message is visible and meets our content criteria.
-    await this.page.waitForFunction(async () => {
-      const lastMessage = document.querySelector('.message.ai, .ai-message, .chat-message.assistant:last-child');
-      if (!lastMessage) return false;
-      
-      // Check for annotated image first (for marking_annotated messages)
-      const annotatedImage = lastMessage.querySelector('.homework-annotated-image img.annotated-image');
-      if (annotatedImage) {
-        return true;
-      }
-      
-      // Check for markdown renderer (for chat/text-only responses)
-      const markdownRenderer = lastMessage.querySelector('.markdown-math-renderer.chat-message-renderer');
-      if (markdownRenderer) {
-        return true;
-      }
-      
-      // For text-based responses, verify the content has meaningful length and is not just "thinking"
-      const textContent = lastMessage.textContent;
-      if (textContent && textContent.length > 20 && 
-          !textContent.includes('AI is thinking') && 
-          !textContent.includes('Processing question') &&
-          !textContent.includes('Show thinking')) {
-        return true;
-      }
-      
-      return false;
-    }, { timeout: 300000 }); // 5 minutes for real AI model responses
+        // 2. Poll until the last AI message is visible and meets our content criteria.
+        await this.page.waitForFunction(async () => {
+          const lastMessage = document.querySelector('.message.ai, .ai-message, .chat-message.assistant:last-child');
+          if (!lastMessage) return false;
+          
+          // Check for annotated image first (for marking_annotated messages)
+          const annotatedImage = lastMessage.querySelector('.homework-annotated-image img.annotated-image');
+          if (annotatedImage) {
+            return true;
+          }
+          
+          // Check for markdown renderer (for chat/text-only responses)
+          const markdownRenderer = lastMessage.querySelector('.markdown-math-renderer.chat-message-renderer');
+          if (markdownRenderer) {
+            return true;
+          }
+          
+          // For text-based responses, verify the content has meaningful length and is not just "thinking"
+          const textContent = lastMessage.textContent;
+          if (textContent && textContent.length > 20 && 
+              !textContent.includes('AI is thinking') && 
+              !textContent.includes('Processing question') &&
+              !textContent.includes('Show thinking')) {
+            return true;
+          }
+          
+          return false;
+        }, { timeout: 300000 }); // 5 minutes for real AI model responses
+        
+        console.log('✅ AI response received successfully');
+      },
+      'Wait for AI response',
+      { maxRetries: 0 } // No retries for this method as it already has long timeouts
+    );
   }
 
   async waitForUserMessage() {

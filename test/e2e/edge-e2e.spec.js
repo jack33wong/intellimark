@@ -36,7 +36,7 @@ test.describe('Edge Case E2E Tests', () => {
     await databaseHelper.cleanupUnifiedSessions(TEST_CONFIG.userId);
     
     loginPage = new LoginPage(page);
-    markHomeworkPage = new MarkHomeworkPage(page);
+    markHomeworkPage = new MarkHomeworkPage(page, 'EdgeCaseE2E');
     sidebarPage = new SidebarPage(page);
   });
 
