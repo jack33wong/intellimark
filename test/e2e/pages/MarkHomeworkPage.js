@@ -97,24 +97,36 @@ class MarkHomeworkPage {
           throw new Error(`Image file not found: ${imagePath}`);
         }
 
-        // Check if file input is available
-        const isFileInputVisible = await this.fileInput.isVisible();
-        if (!isFileInputVisible) {
-          // Take a screenshot to debug the page state
+        // In chat mode, click the upload button to trigger the file input (real user behavior)
+        const uploadButton = this.page.locator('.followup-upload-button');
+        if (await uploadButton.isVisible()) {
+          console.log('🖱️  Clicking upload button to trigger file input...');
+          await uploadButton.click();
+          // Small delay for file input to be ready
+          await this.page.waitForTimeout(200);
+        } else {
+          console.log('⚠️  Upload button not visible, trying direct file input access...');
+        }
+
+        // Try to use the file input directly (it might be hidden but still functional)
+        try {
+          console.log('📁 Attempting to upload image...');
+          await this.fileInput.setInputFiles(imagePath);
+          console.log('✅ File input accepted the file');
+        } catch (error) {
+          // If direct file input fails, take a screenshot and provide better error info
           await this.page.screenshot({ 
-            path: path.join(__dirname, `../debug-screenshots/debug-file-input-not-visible-${Date.now()}.png`),
+            path: path.join(__dirname, `../debug-screenshots/debug-file-input-error-${Date.now()}.png`),
             fullPage: true 
           });
           
-          // Check if we're on the right page
           const currentUrl = this.page.url();
           const pageTitle = await this.page.title();
           
-          throw new Error(`File input is not visible or available. Current URL: ${currentUrl}, Page Title: ${pageTitle}`);
+          throw new Error(`File input failed to accept file. Error: ${error.message}. Current URL: ${currentUrl}, Page Title: ${pageTitle}`);
         }
 
-        // Upload the image
-        await this.fileInput.setInputFiles(imagePath);
+        // Image upload is already handled above
         
         // Wait for image processing to complete with better error handling
         await this.page.waitForLoadState('networkidle', { timeout: 30000 });
