@@ -47,6 +47,49 @@ class LoginPage {
   }
 
   /**
+   * Gets the current user ID from the browser's localStorage or sessionStorage.
+   * This should be called after successful login.
+   * @returns {Promise<string|null>} The user ID or null if not found.
+   */
+  async getUserId() {
+    try {
+      // Try to get user ID from localStorage (Firebase Auth stores it there)
+      const userId = await this.page.evaluate(() => {
+        // Check localStorage for Firebase Auth user data
+        const authData = localStorage.getItem('firebase:authUser:intellimark-6649e:[DEFAULT]');
+        if (authData) {
+          try {
+            const parsed = JSON.parse(authData);
+            return parsed.uid || parsed.localId;
+          } catch (e) {
+            return null;
+          }
+        }
+        
+        // Fallback: check for any Firebase auth data
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes('firebase:authUser')) {
+            try {
+              const data = JSON.parse(localStorage.getItem(key));
+              return data.uid || data.localId;
+            } catch (e) {
+              continue;
+            }
+          }
+        }
+        
+        return null;
+      });
+      
+      return userId;
+    } catch (error) {
+      console.error('Error getting user ID:', error);
+      return null;
+    }
+  }
+
+  /**
    * Navigates to the login page.
    */
   async navigateToLogin() {

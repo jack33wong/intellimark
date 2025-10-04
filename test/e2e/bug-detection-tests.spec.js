@@ -5,11 +5,11 @@ const MarkHomeworkPage = require('./pages/MarkHomeworkPage');
 const SidebarPage = require('./pages/SidebarPage');
 const DatabaseHelper = require('./utils/DatabaseHelper');
 
-// Test configuration
+// Test configuration - Edge Case & Bug Detection E2E Tests
 const TEST_CONFIG = {
-  email: 'admin@intellimark.com',
+  email: 'edgee2e@intellimark.com',
   password: '123456',
-  userId: 'GdH3EGZ4mLQrBO5w20seIzbqVKv1',
+  userId: 'edgee2e-user-id', // Will be updated after login
   testImages: {
     q19: path.join(__dirname, 'test-data/q19.png'),
   },
@@ -18,7 +18,7 @@ const TEST_CONFIG = {
   }
 };
 
-test.describe('Bug Detection E2E Tests', () => {
+test.describe('Edge Case & Bug Detection E2E Tests', () => {
   let loginPage, markHomeworkPage, sidebarPage, databaseHelper;
 
   test.beforeAll(async () => {
@@ -44,6 +44,16 @@ test.describe('Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
+      
+      // Get the actual user ID after login
+      const actualUserId = await loginPage.getUserId();
+      if (actualUserId) {
+        TEST_CONFIG.userId = actualUserId;
+        console.log(`✅ Using user ID: ${actualUserId}`);
+      } else {
+        console.warn('⚠️ Could not get user ID, using fallback');
+      }
+      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');
@@ -92,6 +102,16 @@ test.describe('Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
+      
+      // Get the actual user ID after login
+      const actualUserId = await loginPage.getUserId();
+      if (actualUserId) {
+        TEST_CONFIG.userId = actualUserId;
+        console.log(`✅ Using user ID: ${actualUserId}`);
+      } else {
+        console.warn('⚠️ Could not get user ID, using fallback');
+      }
+      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');
@@ -208,6 +228,16 @@ test.describe('Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
+      
+      // Get the actual user ID after login
+      const actualUserId = await loginPage.getUserId();
+      if (actualUserId) {
+        TEST_CONFIG.userId = actualUserId;
+        console.log(`✅ Using user ID: ${actualUserId}`);
+      } else {
+        console.warn('⚠️ Could not get user ID, using fallback');
+      }
+      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');

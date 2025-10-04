@@ -5,11 +5,11 @@ const MarkHomeworkPage = require('./pages/MarkHomeworkPage');
 const SidebarPage = require('./pages/SidebarPage');
 const DatabaseHelper = require('./utils/DatabaseHelper');
 
-// Test configuration
+// Test configuration - Happy Path E2E Tests
 const TEST_CONFIG = {
-  email: 'admin@intellimark.com',
+  email: 'happye2e@intellimark.com',
   password: '123456',
-  userId: 'GdH3EGZ4mLQrBO5w20seIzbqVKv1',
+  userId: 'happye2e-user-id', // Will be updated after login
   testImages: {
     q19: path.join(__dirname, 'test-data/q19.png'),
     q21: path.join(__dirname, 'test-data/q21.png')
@@ -22,7 +22,7 @@ const TEST_CONFIG = {
   expectedMessageCount: 6
 };
 
-test.describe('Authenticated User Marking Homework E2E', () => {
+test.describe('Happy Path E2E Tests - Marking Homework', () => {
   let loginPage, markHomeworkPage, sidebarPage, databaseHelper;
 
   // Use test.beforeAll for one-time setup
@@ -67,6 +67,15 @@ test.describe('Authenticated User Marking Homework E2E', () => {
 
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
+      
+      // Get the actual user ID after login
+      const actualUserId = await loginPage.getUserId();
+      if (actualUserId) {
+        TEST_CONFIG.userId = actualUserId;
+        console.log(`✅ Using user ID: ${actualUserId}`);
+      } else {
+        console.warn('⚠️ Could not get user ID, using fallback');
+      }
       
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
