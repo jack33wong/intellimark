@@ -20,6 +20,7 @@ class SimpleSessionService {
     };
     this.MAX_SIDEBAR_SESSIONS = 50;
     this.listeners = new Set();
+    this.processingSessions = new Set(); // Track sessions being processed
   }
   
   // A method to receive the state controls from the context.
@@ -80,6 +81,12 @@ class SimpleSessionService {
   
   _setAndMergeCurrentSession = (newSessionData, modelUsed = null) => {
     const localSession = this.state.currentSession;
+    
+    // Prevent processing the same session multiple times
+    if (localSession?.id === newSessionData.id && localSession?.updatedAt === newSessionData.updatedAt) {
+      return;
+    }
+    
     let mergedSession = { ...localSession, ...newSessionData };
     mergedSession.title = newSessionData.title || localSession?.title || 'Chat Session';
     
@@ -94,7 +101,21 @@ class SimpleSessionService {
     // 👇 SIMPLIFIED: Use server messages directly since we now have stable IDs
     // With content-based IDs, server messages should be stable and we don't need complex merging
     if (newSessionData.messages && Array.isArray(newSessionData.messages)) {
-        mergedSession.messages = newSessionData.messages;
+        // Smart deduplication: Allow duplicate user messages, prevent duplicate AI responses
+        const seenIds = new Set();
+        mergedSession.messages = newSessionData.messages.filter(msg => {
+            // Always allow user messages (they might legitimately send duplicates)
+            if (msg.role === 'user') {
+                return true;
+            }
+            
+            // For AI messages, check for duplicates
+            if (seenIds.has(msg.id)) {
+                return false;
+            }
+            seenIds.add(msg.id);
+            return true;
+        });
     } else if (localSession?.messages) {
         // Fallback to local messages if server doesn't provide messages
         mergedSession.messages = localSession.messages;
@@ -144,9 +165,26 @@ class SimpleSessionService {
   }
   
   updateSessionState = (newSessionFromServer, modelUsed = null) => {
+    const sessionId = newSessionFromServer.id;
+    
+    // Prevent duplicate processing using a simple flag
+    if (this.processingSessions.has(sessionId)) {
+      return;
+    }
+    
+    // Mark as processing
+    this.processingSessions.add(sessionId);
+    
+    try {
       this._setAndMergeCurrentSession(newSessionFromServer, modelUsed);
       // Stop AI thinking when session is updated with new messages
       apiControls.stopAIThinking();
+    } finally {
+      // Remove from processing set after a short delay
+      setTimeout(() => {
+        this.processingSessions.delete(sessionId);
+      }, 1000);
+    }
   }
 
   processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) => {
@@ -243,6 +281,8 @@ class SimpleSessionService {
   
   updateSidebarSession = (session) => { 
     if (!session) return;
+    // Don't add temp sessions to sidebar - they will be replaced by real sessions
+    if (session.id && session.id.startsWith('temp-')) return;
     const lightweightSession = {
       id: session.id,
       title: session.title,

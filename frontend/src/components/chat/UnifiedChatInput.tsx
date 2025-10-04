@@ -61,7 +61,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   }, []);
 
   const handleSendClick = useCallback(() => {
-    console.log('[DEBUG] 1: handleSendClick in UnifiedChatInput');
     if (isProcessing) return;
     const textToSend = chatInput.trim();
     const fileToSend = imageFile;

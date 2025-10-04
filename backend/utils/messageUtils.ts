@@ -29,13 +29,40 @@ export function generateContentHash(content: string, length: number = 8): string
 // ============================================================================
 
 /**
- * Generates a user message ID based on content
+ * Generates a user message ID based on content with timestamp for uniqueness
+ * 
+ * ============================================================================
+ * CRITICAL: UNIQUE MESSAGE ID GENERATION FOR BACKEND
+ * ============================================================================
+ * 
+ * IMPORTANT: This timestamp-based ID generation is ESSENTIAL and must NOT be changed!
+ * 
+ * Why this design is critical:
+ * 1. PREVENTS DUPLICATE MESSAGE IDS: Users can send identical text multiple times
+ *    (e.g., "2 + 2" and "2+2") and each must get a unique ID
+ * 2. REACT KEY UNIQUENESS: Frontend React requires unique keys for list items
+ * 3. DATABASE INTEGRITY: Prevents duplicate key conflicts in Firestore
+ * 4. SESSION MANAGEMENT: Each message must be uniquely identifiable
+ * 
+ * DO NOT REMOVE TIMESTAMP:
+ * - Content-based hashing alone causes duplicate IDs for identical content
+ * - Timestamp ensures uniqueness even for identical content
+ * - This was the root cause of the "duplicate children" React warnings
+ * 
+ * This approach guarantees uniqueness:
+ * - Content hash provides content-based identification
+ * - Timestamp ensures uniqueness even for identical content
+ * - Format: msg-{contentHash}-{timestamp}
+ * ============================================================================
+ * 
  * @param content - The message content
+ * @param timestamp - Optional timestamp for uniqueness
  * @returns A user message ID
  */
-export function generateUserMessageId(content: string): string {
+export function generateUserMessageId(content: string, timestamp?: number): string {
   const hash = generateContentHash(content);
-  return `msg-${hash}`;
+  const time = timestamp || Date.now();
+  return `msg-${hash}-${time}`;
 }
 
 /**
@@ -126,8 +153,10 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
   } = options;
 
   return {
-    id: messageId || generateUserMessageId(content),
-    messageId: messageId || generateUserMessageId(content),
+    // CRITICAL: Always pass Date.now() to ensure unique IDs for identical content
+    // DO NOT remove Date.now() - this prevents duplicate message ID conflicts
+    id: messageId || generateUserMessageId(content, Date.now()),
+    messageId: messageId || generateUserMessageId(content, Date.now()),
     role: 'user',
     content: content || (imageData ? 'Image uploaded' : ''),
     type: 'chat_user',

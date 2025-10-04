@@ -58,9 +58,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   };
   
   // Use custom hook for dropdown state management
-  // Auto-open dropdown for completed messages
-  const shouldAutoOpen = message.progressData?.isComplete === true;
-  const { showProgressDetails, toggleDropdown } = useDropdownState(message.id, shouldAutoOpen);
+  const { showProgressDetails, toggleDropdown } = useDropdownState(message.id);
 
   const handleProgressToggle = useCallback(() => {
     toggleDropdown(scrollToBottom);

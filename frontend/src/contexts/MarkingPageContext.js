@@ -46,6 +46,9 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating } = state;
+  
+  // Ref to prevent duplicate text message requests
+  const textRequestInProgress = useRef(false);
 
   const {
     chatContainerRef,
@@ -72,10 +75,41 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const onSendMessage = useCallback(async (text) => {
     const trimmedText = text.trim();
     if (!trimmedText) return;
+    
+    // Prevent duplicate calls for the same text
+    if (textRequestInProgress.current) {
+      return;
+    }
+    
     try {
-      // Use content-based ID for stability across re-renders
+      textRequestInProgress.current = true;
+      startProcessing();
+      // ============================================================================
+      // CRITICAL: UNIQUE MESSAGE ID GENERATION FOR TEXT MODE
+      // ============================================================================
+      // 
+      // IMPORTANT: This timestamp-based ID generation is ESSENTIAL and must NOT be changed!
+      // 
+      // Why this design is critical:
+      // 1. PREVENTS DUPLICATE MESSAGE IDS: Users can send identical text multiple times
+      //    (e.g., "2 + 2" and "2+2") and each must get a unique ID
+      // 2. REACT KEY UNIQUENESS: React requires unique keys for list items to prevent
+      //    rendering issues and performance problems
+      // 3. CONSISTENT WITH IMAGE MODE: Image mode uses the same pattern for reliability
+      // 4. BACKEND COMPATIBILITY: Backend expects unique IDs for each message
+      // 
+      // DO NOT CHANGE TO CONTENT-BASED HASHING:
+      // - Content-based hashing (like createUserMessageId) causes duplicate IDs
+      // - Same content + same timestamp = same ID = React key conflicts
+      // - This was the root cause of the "duplicate children" React warnings
+      // 
+      // This simple approach guarantees uniqueness:
+      // - Each message gets a unique timestamp
+      // - No content dependency = no collision risk
+      // - Works for identical content sent multiple times
+      // ============================================================================
       await addMessage({
-        id: createUserMessageId(trimmedText),
+        id: `user-${Date.now()}`,
         role: 'user',
         content: trimmedText,
         timestamp: new Date().toISOString(),
@@ -130,12 +164,19 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
+      
+      // Reset the request flag and processing state on success
+      textRequestInProgress.current = false;
+      stopProcessing();
     } catch (err) {
       handleError(err);
       // Stop state only if the initial fetch fails. The service handles success.
       stopAIThinking();
+      stopProcessing();
+      // Reset the request flag on error
+      textRequestInProgress.current = false;
     }
-  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, handleError]);
+  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError]);
   
   useEffect(() => {
     if (selectedMarkingResult) {
@@ -179,7 +220,15 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       // Generate unique AI message ID for image processing
       const imageAiMessageId = createAIMessageId(imageData);
-      startAIThinking(null, imageAiMessageId);
+      
+      const imageProgressData = {
+        isComplete: false,
+        currentStepDescription: 'Processing image...',
+        allSteps: ['Processing image...', 'Analyzing content...', 'Generating response...'],
+        completedSteps: [],
+      };
+      
+      startAIThinking(imageProgressData, imageAiMessageId);
       await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId);
       clearFile();
     } catch (err) {
