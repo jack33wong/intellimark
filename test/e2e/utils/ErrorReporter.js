@@ -49,15 +49,9 @@ class ErrorReporter {
    * @returns {Promise<Array>} Array of console log entries
    */
   async captureConsoleLogs() {
-    try {
-      const logs = await this.page.evaluate(() => {
-        return window.consoleLogs || [];
-      });
-      return logs;
-    } catch (error) {
-      console.error('❌ Failed to capture console logs:', error);
-      return [];
-    }
+    // Console logs are now handled by the page event listeners
+    // This method is kept for compatibility but returns empty array
+    return [];
   }
 
   /**
@@ -74,7 +68,7 @@ class ErrorReporter {
           visibleElements: {
             fileInput: !!document.querySelector('#unified-file-input'),
             textInput: !!document.querySelector('.main-chat-input, textarea, input[type="text"], .chat-input'),
-            sendButton: !!document.querySelector('button:has-text("Send"), button:has-text("Analyze"), button[type="submit"], .send-button'),
+            sendButton: !!document.querySelector('button[type="submit"], .send-button, button'),
             chatMessages: document.querySelectorAll('.chat-message, .message').length,
             aiThinking: !!document.querySelector('.ai-thinking, .thinking-animation, .upload-loading-bar')
           },

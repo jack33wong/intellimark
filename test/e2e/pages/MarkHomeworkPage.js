@@ -48,12 +48,6 @@ class MarkHomeworkPage {
       const level = msg.type();
       const text = msg.text();
       
-      // Store logs for error reporting
-      this.page.evaluate(({ timestamp, level, text }) => {
-        if (!window.consoleLogs) window.consoleLogs = [];
-        window.consoleLogs.push({ timestamp, level, text });
-      }, { timestamp, level, text });
-      
       // Log important messages
       if (level === 'error' || level === 'warn') {
         console.log(`🔍 Browser ${level.toUpperCase()}: ${text}`);
@@ -64,28 +58,14 @@ class MarkHomeworkPage {
     this.page.on('pageerror', error => {
       const timestamp = new Date().toISOString();
       console.log(`🚨 Page Error: ${error.message}`);
-      
-      this.page.evaluate(({ timestamp, message, stack }) => {
-        if (!window.pageErrors) window.pageErrors = [];
-        window.pageErrors.push({ timestamp, message, stack });
-      }, { timestamp, message: error.message, stack: error.stack });
     });
 
     // Track network requests for debugging
     this.page.on('request', request => {
-      this.page.evaluate(({ url, method, headers }) => {
-        if (!window.networkRequests) window.networkRequests = [];
-        window.networkRequests.push({ 
-          timestamp: new Date().toISOString(), 
-          url, 
-          method, 
-          headers: Object.fromEntries(headers) 
-        });
-      }, { 
-        url: request.url(), 
-        method: request.method(), 
-        headers: request.headers() 
-      });
+      // Only track API requests to avoid overwhelming the logs
+      if (request.url().includes('/api/')) {
+        console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
+      }
     });
   }
 
@@ -120,7 +100,17 @@ class MarkHomeworkPage {
         // Check if file input is available
         const isFileInputVisible = await this.fileInput.isVisible();
         if (!isFileInputVisible) {
-          throw new Error('File input is not visible or available');
+          // Take a screenshot to debug the page state
+          await this.page.screenshot({ 
+            path: path.join(__dirname, `../debug-screenshots/debug-file-input-not-visible-${Date.now()}.png`),
+            fullPage: true 
+          });
+          
+          // Check if we're on the right page
+          const currentUrl = this.page.url();
+          const pageTitle = await this.page.title();
+          
+          throw new Error(`File input is not visible or available. Current URL: ${currentUrl}, Page Title: ${pageTitle}`);
         }
 
         // Upload the image
