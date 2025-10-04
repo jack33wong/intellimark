@@ -9,7 +9,7 @@ const DatabaseHelper = require('./utils/DatabaseHelper');
 const TEST_CONFIG = {
   email: 'edgee2e@intellimark.com',
   password: '123456',
-  userId: 'edgee2e-user-id', // Will be updated after login
+  userId: 'DClCZt95Y8RLOQHvEgo2PyPpZiF2',
   testImages: {
     q19: path.join(__dirname, 'test-data/q19.png'),
   },
@@ -44,16 +44,6 @@ test.describe('Edge Case & Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
-      
-      // Get the actual user ID after login
-      const actualUserId = await loginPage.getUserId();
-      if (actualUserId) {
-        TEST_CONFIG.userId = actualUserId;
-        console.log(`✅ Using user ID: ${actualUserId}`);
-      } else {
-        console.warn('⚠️ Could not get user ID, using fallback');
-      }
-      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');
@@ -102,16 +92,6 @@ test.describe('Edge Case & Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
-      
-      // Get the actual user ID after login
-      const actualUserId = await loginPage.getUserId();
-      if (actualUserId) {
-        TEST_CONFIG.userId = actualUserId;
-        console.log(`✅ Using user ID: ${actualUserId}`);
-      } else {
-        console.warn('⚠️ Could not get user ID, using fallback');
-      }
-      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');
@@ -228,16 +208,6 @@ test.describe('Edge Case & Bug Detection E2E Tests', () => {
     
     await test.step('Step 1: Login and Navigate', async () => {
       await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
-      
-      // Get the actual user ID after login
-      const actualUserId = await loginPage.getUserId();
-      if (actualUserId) {
-        TEST_CONFIG.userId = actualUserId;
-        console.log(`✅ Using user ID: ${actualUserId}`);
-      } else {
-        console.warn('⚠️ Could not get user ID, using fallback');
-      }
-      
       await markHomeworkPage.navigateToMarkHomework();
       await expect(page).toHaveURL(/.*mark-homework/);
       await markHomeworkPage.selectModel('auto');
