@@ -382,16 +382,17 @@ export class MarkHomeworkWithAnswerAuto {
 
         // Execute marking mode pipeline with auto-progress
         // Skip steps 1-2 (already completed in question mode)
-        // Step 3: Question Detection
-        const logStep3Complete = logStep('Question Detection', 'question-detection');
-        const detectQuestion = async () => {
-          return questionDetectionService.detectQuestion(imageData);
-        };
-        const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
+        // Step 3: OCR Processing (extract text first)
+        const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
+        const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
         logStep3Complete();
 
-        const logStep4Complete = logStep('OCR Processing', 'google-vision + mathpix');
-        const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
+        // Step 4: Question Detection (use extracted text)
+        const logStep4Complete = logStep('Question Detection', 'question-detection');
+        const detectQuestion = async () => {
+          return questionDetectionService.detectQuestion(processedImage.ocrText);
+        };
+        const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
         logStep4Complete();
 
         const logStep5Complete = logStep('Marking Instructions', actualModel);
