@@ -7,20 +7,18 @@ export interface StepConfig {
   id: string;
   name: string;
   description: string;
-  percentage: number;
 }
 
 export interface ProgressData {
   currentStepDescription: string; // Current step description for UI
-  completedSteps: string[];       // Array of completed step IDs
   allSteps: string[];             // Simplified array of step descriptions
+  currentStepIndex: number;       // Current active step index (0-based)
   isComplete: boolean;            // Whether all steps are completed
 }
 
 export class ProgressTracker {
   private steps: StepConfig[];
   private currentStepIndex: number = 0;
-  private completedSteps: string[] = [];
   private onProgress: (data: ProgressData) => void;
 
   constructor(steps: StepConfig[], onProgress: (data: ProgressData) => void) {
@@ -39,23 +37,16 @@ export class ProgressTracker {
     this.updateProgress();
   }
 
-  completeStep(stepId: string): void {
-    if (!this.completedSteps.includes(stepId)) {
-      this.completedSteps.push(stepId);
-    }
-    this.updateProgress();
-  }
-
   completeCurrentStep(): void {
-    if (this.currentStepIndex < this.steps.length) {
-      const currentStep = this.steps[this.currentStepIndex];
-      this.completeStep(currentStep.id);
+    if (this.currentStepIndex < this.steps.length - 1) {
+      this.currentStepIndex++;
+      this.updateProgress();
     }
   }
 
   finish(): void {
-    this.completedSteps = this.steps.map(step => step.id);
-    this.currentStepIndex = this.steps.length;
+    // Don't change currentStepIndex - keep it at the last step that was actually reached
+    // Just mark as complete
     this.updateProgress();
   }
 
@@ -71,82 +62,112 @@ export class ProgressTracker {
 
   private updateProgress(): void {
     const currentStep = this.steps[this.currentStepIndex];
-    const isComplete = this.completedSteps.length === this.steps.length;
+    const isComplete = this.currentStepIndex >= this.steps.length - 1;
+
+    // For progressive display, show only steps up to the current one
+    const visibleSteps = this.steps.slice(0, this.currentStepIndex + 1).map(step => step.description);
 
     const progressData: ProgressData = {
-      currentStepDescription: currentStep?.description || '',
-      completedSteps: [...this.completedSteps],
-      allSteps: this.steps.map(step => step.description), // Convert to simplified string array
+      currentStepDescription: currentStep?.description || (isComplete ? 'Complete' : ''),
+      allSteps: visibleSteps, // Only show steps that have been reached
+      currentStepIndex: this.currentStepIndex,
       isComplete
     };
+
+    // Debug logging
+    console.log('🔍 [BACKEND DEBUG] ProgressTracker updateProgress:', {
+      currentStepIndex: this.currentStepIndex,
+      totalSteps: this.steps.length,
+      currentStepDescription: progressData.currentStepDescription,
+      allSteps: progressData.allSteps,
+      isComplete: progressData.isComplete,
+      steps: this.steps.map(s => ({ id: s.id, name: s.name, description: s.description }))
+    });
 
     this.onProgress(progressData);
   }
 }
 
-// Predefined step configurations
+// Mode-specific step configurations
+export const TEXT_MODE_STEPS: StepConfig[] = [
+  {
+    id: 'ai_thinking',
+    name: 'AI Thinking',
+    description: 'AI is thinking...'
+  },
+  {
+    id: 'generating_response',
+    name: 'Generating Response',
+    description: 'Generating response...'
+  }
+];
+
 export const QUESTION_MODE_STEPS: StepConfig[] = [
   {
-    id: 'classification',
-    name: 'Classification',
-    description: 'Analyzing image...',
-    percentage: 14
+    id: 'analyzing_image',
+    name: 'Analyzing Image',
+    description: 'Analyzing image...'
   },
   {
-    id: 'question_detection',
-    name: 'Question Detection',
-    description: 'Detecting question type...',
-    percentage: 28
+    id: 'classifying_image',
+    name: 'Classifying Image',
+    description: 'Classifying image...'
   },
   {
-    id: 'ai_response',
-    name: 'AI Response',
-    description: 'Generating response...',
-    percentage: 42
+    id: 'generating_response',
+    name: 'Generating Response',
+    description: 'Generating response...'
   }
 ];
 
 export const MARKING_MODE_STEPS: StepConfig[] = [
   {
-    id: 'classification',
-    name: 'Classification',
-    description: 'Analyzing image...',
-    percentage: 14
+    id: 'analyzing_image',
+    name: 'Analyzing Image',
+    description: 'Analyzing image...'
   },
   {
-    id: 'question_detection',
-    name: 'Question Detection',
-    description: 'Detecting question type...',
-    percentage: 28
+    id: 'classifying_image',
+    name: 'Classifying Image',
+    description: 'Classifying image...'
   },
   {
-    id: 'ocr_processing',
-    name: 'OCR Processing',
-    description: 'Extracting text and math...',
-    percentage: 57
+    id: 'detecting_question',
+    name: 'Detecting Question',
+    description: 'Detecting question type...'
   },
   {
-    id: 'marking_instructions',
-    name: 'Marking Instructions',
-    description: 'Generating feedback...',
-    percentage: 71
+    id: 'extracting_text',
+    name: 'Extracting Text',
+    description: 'Extracting text and math...'
   },
   {
-    id: 'burn_overlay',
-    name: 'Burn Overlay',
-    description: 'Creating annotations...',
-    percentage: 85
+    id: 'generating_feedback',
+    name: 'Generating Feedback',
+    description: 'Generating feedback...'
   },
   {
-    id: 'ai_response',
-    name: 'AI Response',
-    description: 'Finalizing response...',
-    percentage: 95
+    id: 'creating_annotations',
+    name: 'Creating Annotations',
+    description: 'Creating annotations...'
   },
   {
-    id: 'data_complete',
-    name: 'Data Complete',
-    description: 'Almost done...',
-    percentage: 100
+    id: 'generating_response',
+    name: 'Generating Response',
+    description: 'Generating response...'
   }
 ];
+
+// Helper function to get steps for a specific mode
+export function getStepsForMode(mode: 'text' | 'question' | 'marking'): StepConfig[] {
+  switch (mode) {
+    case 'text':
+      return TEXT_MODE_STEPS;
+    case 'question':
+      return QUESTION_MODE_STEPS;
+    case 'marking':
+      return MARKING_MODE_STEPS;
+    default:
+      return TEXT_MODE_STEPS;
+  }
+}

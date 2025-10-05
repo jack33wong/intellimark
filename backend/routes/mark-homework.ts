@@ -438,6 +438,11 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     // Progress callback for SSE
     const onProgress = (data: any) => {
       try {
+        // Don't send progress updates with isComplete: true via SSE
+        // The complete event will be sent separately with the final result
+        if (data.isComplete) {
+          return;
+        }
         const sseData = `data: ${JSON.stringify(data)}\n\n`;
         res.write(sseData);
       } catch (sseError) {

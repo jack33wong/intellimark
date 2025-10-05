@@ -238,11 +238,14 @@ export function createProgressData(
   completedSteps: string[] = [],
   isComplete: boolean = false
 ) {
+  // Calculate currentStepIndex based on completedSteps for backward compatibility
+  const currentStepIndex = completedSteps.length;
+  
   return {
     isComplete,
     currentStepDescription: currentStep,
     allSteps,
-    completedSteps
+    currentStepIndex
   };
 }
 
@@ -252,12 +255,12 @@ export function createProgressData(
  * @returns A chat progress data object
  */
 export function createChatProgressData(isComplete: boolean = false) {
-  return createProgressData(
-    isComplete ? 'Generating response...' : 'Processing question...',
-    ['Processing question...', 'Generating response...'],
-    isComplete ? ['Processing question...', 'Generating response...'] : [],
-    isComplete
-  );
+  return {
+    isComplete,
+    currentStepDescription: isComplete ? 'Generating response...' : 'AI is thinking...',
+    allSteps: isComplete ? ['AI is thinking...', 'Generating response...'] : ['AI is thinking...'],
+    currentStepIndex: isComplete ? 1 : 0 // Use new format with currentStepIndex
+  };
 }
 
 /**

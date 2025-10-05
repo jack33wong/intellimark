@@ -8,6 +8,7 @@ import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { AIMarkingService } from '../services/aiMarkingService.js';
 import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
+import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';
 
 const router = express.Router();
@@ -86,6 +87,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Generate AI response using real AI service
     let aiResponse: string;
     let apiUsed: string;
+    let finalProgressData: any = null;
     
     try {
       if (imageData) {
@@ -95,6 +97,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
         apiUsed = aiResult.apiUsed;
       } else {
         // For text-only messages, use contextual response with progress tracking
+        console.log('🔍 [BACKEND DEBUG] Processing TEXT mode message');
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
         // First get existing session messages for context
         let chatHistory: any[] = [];
         if (currentSessionId) {
@@ -110,11 +120,19 @@ router.post('/chat', optionalAuth, async (req, res) => {
           }
         }
 
-        // Simulate processing time for "Processing your question..." step
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
         await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
 
         aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model as any);
         apiUsed = 'Gemini 2.5 Pro';
+
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
       }
     } catch (error) {
       console.error('❌ AI service failed, using fallback response:', error);
@@ -127,7 +145,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     const aiMessage = createAIMessage({
       content: aiResponse,
       messageId: resolvedAIMessageId,
-      progressData: createChatProgressData(true),
+      progressData: finalProgressData || createChatProgressData(true),
       metadata: {
         modelUsed: model,
         imageSize: imageData ? imageData.length : 0,

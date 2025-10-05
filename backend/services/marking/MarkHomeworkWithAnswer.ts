@@ -7,7 +7,7 @@
 import { questionDetectionService } from '../../services/questionDetectionService.js';
 import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
 import { getDebugMode } from '../../config/aiModels.js';
-import { ProgressTracker, QUESTION_MODE_STEPS, MARKING_MODE_STEPS } from '../../utils/progressTracker.js';
+import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
 
 import type {
   MarkHomeworkResponse,
@@ -257,17 +257,19 @@ export class MarkHomeworkWithAnswer {
     };
 
     try {
-      // Create progress tracker IMMEDIATELY at the start
+      // Create progress tracker with question mode steps initially
       let finalProgressData: any = null;
-      const progressTracker = new ProgressTracker(MARKING_MODE_STEPS, (data) => {
+      let progressTracker = new ProgressTracker(getStepsForMode('question'), (data) => {
         // Store the final progress data for chat history
         finalProgressData = data;
         // Call the original callback
         if (onProgress) onProgress(data);
       });
+      
+      console.log('🔍 [BACKEND DEBUG] MarkHomeworkWithAnswer initialized with question mode steps');
 
       // Start progress tracking immediately
-      progressTracker.startStep('classification');
+      progressTracker.startStep('analyzing_image');
 
       // Debug mode: Skip AI processing but go through the flow
       if (debug) {
@@ -312,31 +314,28 @@ export class MarkHomeworkWithAnswer {
     }
     logStep2Complete();
 
-    // Complete classification step
-    progressTracker.completeStep('classification');
-    
-    // Start question detection step
-    progressTracker.startStep('question_detection');
-    
-    // Complete question detection step
-    progressTracker.completeStep('question_detection');
-    
     // Determine mode and set total steps
     const isQuestionMode = imageClassification.isQuestionOnly;
     totalSteps = isQuestionMode ? 3 : 7; // Question mode: 3 steps, Marking mode: 7 steps
 
+    // Complete analyzing image step and move to classification
+    progressTracker.completeCurrentStep();
+    
+    // Add delay to show step 0 completion before starting step 1
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    progressTracker.startStep('classifying_image');
+    progressTracker.completeCurrentStep();
+    
+    // Add delay to show step 1 completion before starting step 2
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
-      // Switch to question mode progress tracker
-      const questionProgressTracker = new ProgressTracker(QUESTION_MODE_STEPS, (data) => {
-        finalProgressData = data;
-        if (onProgress) onProgress(data);
-      });
-      // Copy current state
-      questionProgressTracker.startStep('classification');
-      questionProgressTracker.completeStep('classification');
-      questionProgressTracker.startStep('question_detection');
-      questionProgressTracker.completeStep('question_detection');
+      console.log('🔍 [BACKEND DEBUG] Using QUESTION mode (already initialized)');
+      console.log('🔍 [BACKEND DEBUG] Question mode - current progressTracker steps:', progressTracker.getCurrentStep());
+      // The progress tracker is already initialized with question mode steps
+      // Just continue with the current step progression
       
       let sessionTitle = `Question ${new Date().toLocaleDateString()}`;
       let isPastPaper = false;
@@ -361,7 +360,7 @@ export class MarkHomeworkWithAnswer {
       const totalProcessingTime = Date.now() - startTime;
       
       // Start AI response step
-      questionProgressTracker.startStep('ai_response');
+      progressTracker.startStep('generating_response');
       
       // For question-only mode, generate simple AI tutoring response
       const logQuestionComplete = logStep('Question Mode AI Response', 'gemini-2.0-flash-lite');
@@ -373,11 +372,8 @@ export class MarkHomeworkWithAnswer {
           'Please solve this math question step by step and explain each step clearly.',
           model as any, // Convert to SimpleModelType
           true, // isQuestionOnly
-          debug,
-          (data) => {
-            // Pass progress updates through to the main progress tracker
-            if (onProgress) onProgress(data);
-          }
+          debug
+          // Don't pass onProgress callback - let the main progress tracker handle all progress updates
         );
       } catch (error) {
         // Fallback response if AI service fails
@@ -389,8 +385,13 @@ export class MarkHomeworkWithAnswer {
       logQuestionComplete();
       
       // Complete AI response step
-      questionProgressTracker.completeStep('ai_response');
-      questionProgressTracker.finish();
+      progressTracker.completeCurrentStep();
+      
+      // Add small delay before finishing to allow frontend to show final step
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Don't call finish() here - let the mark-homework route handle it when sending the complete event
+      // progressTracker.finish();
       
       // Debug logging for progressData
 
@@ -421,31 +422,55 @@ export class MarkHomeworkWithAnswer {
           tokens: [classificationTokens, 0] // [input, output]
         }
       } as unknown as MarkHomeworkResponse;
-    }
-
-    // Continue with marking mode steps
-    // Step 3: OCR
-    const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-    progressTracker.startStep('ocr_processing');
-    const processedImage = await this.processImageWithRealOCR(imageData, debug);
-    progressTracker.completeStep('ocr_processing');
+    } else {
+      // Only run marking mode if NOT question mode
+      console.log('🔍 [BACKEND DEBUG] Switching to MARKING mode');
+      progressTracker = new ProgressTracker(getStepsForMode('marking'), (data) => {
+        finalProgressData = data;
+        if (onProgress) onProgress(data);
+      });
+      
+      try {
+    
+      // Start with analyzing image step for marking mode
+      progressTracker.startStep('analyzing_image');
+      progressTracker.completeCurrentStep();
+      
+      // Add small delay to allow frontend to show step progression
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      progressTracker.startStep('classifying_image');
+      progressTracker.completeCurrentStep();
+      
+      // Add small delay to allow frontend to show step progression
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      progressTracker.startStep('detecting_question');
+      progressTracker.completeCurrentStep();
+    
+      // Continue with marking mode steps
+      // Step 3: OCR
+      const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
+      progressTracker.startStep('extracting_text');
+      const processedImage = await this.processImageWithRealOCR(imageData, debug);
+    progressTracker.completeCurrentStep();
     logStep3Complete();
 
     // Step 4: Marking instructions
     const logStep4Complete = logStep('Marking Instructions', 'gemini-2.0-flash-lite');
-    progressTracker.startStep('marking_instructions');
+    progressTracker.startStep('generating_feedback');
     const markingInstructions = await this.generateMarkingInstructions(
       imageData,
       model,
       processedImage,
       questionDetection
     );
-    progressTracker.completeStep('marking_instructions');
+    progressTracker.completeCurrentStep();
     logStep4Complete();
 
     // Step 5: Burn overlay
     const logStep5Complete = logStep('Burn Overlay', 'image-processing');
-    progressTracker.startStep('burn_overlay');
+    progressTracker.startStep('creating_annotations');
     
     const annotations = markingInstructions.annotations.map(ann => ({
       bbox: ann.bbox,
@@ -459,12 +484,12 @@ export class MarkHomeworkWithAnswer {
       annotations,
       processedImage.imageDimensions
     );
-    progressTracker.completeStep('burn_overlay');
+    progressTracker.completeCurrentStep();
     logStep5Complete();
 
     // Step 6: Generate AI response for marking mode
     const logStep6Complete = logStep('AI Response', 'gemini-2.0-flash-lite');
-    progressTracker.startStep('ai_response');
+    progressTracker.startStep('generating_response');
     let markingChatResponse;
     try {
       const { AIMarkingService } = await import('../aiMarkingService');
@@ -482,17 +507,14 @@ export class MarkHomeworkWithAnswer {
         apiUsed: 'Fallback'
       };
     }
-    progressTracker.completeStep('ai_response');
+    progressTracker.completeCurrentStep();
     logStep6Complete();
 
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
-    // Step 7: Data processed - session will be created by route
-    const logStep7Complete = logStep('Data Complete', 'processing-complete');
-    progressTracker.startStep('data_complete');
-    progressTracker.finish();
-    logStep7Complete();
+    // Complete final step - don't call finish() here as it's already called in question mode
+    // progressTracker.finish();
 
     // Performance Summary
     const totalTime = totalProcessingTime / 1000;
@@ -571,6 +593,18 @@ export class MarkHomeworkWithAnswer {
         ]
       }
     } as unknown as MarkHomeworkResponse;
+      } catch (error) {
+        // Handle quota exceeded errors immediately to prevent timeout
+        if (error instanceof Error && error.message.includes('quota exceeded')) {
+          console.error('❌ [QUOTA ERROR] API quota exceeded, failing fast:', error.message);
+          throw error; // Re-throw immediately to prevent timeout
+        }
+        
+        // Handle other errors
+        console.error('❌ [MARKING ERROR] Unexpected error in MarkHomeworkWithAnswer.run():', error);
+        throw error;
+      }
+    } // End of marking mode else block
     } catch (error) {
       // Handle quota exceeded errors immediately to prevent timeout
       if (error instanceof Error && error.message.includes('quota exceeded')) {
