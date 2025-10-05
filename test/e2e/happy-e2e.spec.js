@@ -89,17 +89,8 @@ test.describe('Happy Path E2E Tests', () => {
       // This step will be completed after progress step verification in Step 3.1
       // The AI response verification is now handled in Step 3.1 after progress steps
       
-      // Wait for sidebar to load and update with the new chat history item
+      // Wait for sidebar to load
       await sidebarPage.waitForLoad();
-      
-      // Wait for the sidebar to have exactly 1 item, with retries
-      await expect(async () => {
-        const count = await sidebarPage.getChatHistoryItemLocator().count();
-        if (count !== 1) {
-          throw new Error(`Expected 1 chat history item, but found ${count}. This might be due to leftover test data.`);
-        }
-        return true;
-      }).toPass({ timeout: 15000 });
     });
 
     await test.step('Step 3.1: Verify Marking Mode Progress Steps (First Image)', async () => {
@@ -142,6 +133,15 @@ test.describe('Happy Path E2E Tests', () => {
         expect(titleText.length).toBeGreaterThan(10);
         expect(titleText).not.toContain('Processing');
       }).toPass({ timeout: 120000 }); // Increased to 2 minutes
+      
+      // Wait for the sidebar to have exactly 1 item, with retries
+      await expect(async () => {
+        const count = await sidebarPage.getChatHistoryItemLocator().count();
+        if (count !== 1) {
+          throw new Error(`Expected 1 chat history item, but found ${count}. This might be due to leftover test data.`);
+        }
+        return true;
+      }).toPass({ timeout: 15000 });
     });
 
     await test.step('Step 4: Submit Follow-up Question', async () => {
