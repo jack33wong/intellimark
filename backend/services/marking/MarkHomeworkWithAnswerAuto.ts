@@ -320,7 +320,7 @@ export class MarkHomeworkWithAnswerAuto {
           imageData, model, processedImage, questionDetection, debug, markingProgressTracker
         );
 
-        // Create annotations
+        // Create annotations and annotated image
         const createAnnotations = async () => {
           const boundingBoxes = markingInstructions.annotations.map(ann => ({
             x: ann.bbox[0],
@@ -331,11 +331,18 @@ export class MarkHomeworkWithAnswerAuto {
             confidence: 0.9
           }));
 
-          return ImageAnnotationService.createAnnotationsFromBoundingBoxes(
+          const annotations = ImageAnnotationService.createAnnotationsFromBoundingBoxes(
             boundingBoxes
           );
+
+          // Generate the actual annotated image
+          return ImageAnnotationService.generateAnnotationResult(
+            imageData,
+            annotations,
+            processedImage.imageDimensions
+          );
         };
-        await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
+        const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
 
         // Generate final AI response
         const generateFinalResponse = async () => {
@@ -357,6 +364,7 @@ export class MarkHomeworkWithAnswerAuto {
           extractedText: processedImage.ocrText,
           mathBlocks: processedImage.boundingBoxes,
           markingInstructions: markingInstructions,
+          annotatedImage: annotationResult.annotatedImage,
           message: aiResponse.response,
           aiResponse: aiResponse.response,
           confidence: 0.9,

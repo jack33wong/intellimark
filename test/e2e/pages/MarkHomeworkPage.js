@@ -364,6 +364,44 @@ class MarkHomeworkPage {
   }
 
   /**
+   * Verifies that AI response has annotated image with correct source type.
+   * For marking mode, the annotated image should have imageLink (storage URL) source.
+   */
+  async verifyAIResponseHasAnnotatedImage() {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying AI response has annotated image...');
+        
+        // Wait for AI response to be visible
+        await expect(this.aiMessages.last()).toBeVisible({ timeout: 30000 });
+        
+        // Get the last AI message
+        const lastAIMessage = this.aiMessages.last();
+        
+        // Check for annotated image within the AI message
+        const annotatedImage = lastAIMessage.locator('img.annotated-image');
+        await expect(annotatedImage).toBeVisible({ timeout: 15000 });
+        
+        // Verify the annotated image has the correct source type
+        // For marking mode, it should have imageLink (storage URL), not base64
+        const imageSrc = await annotatedImage.getAttribute('src');
+        
+        if (imageSrc && imageSrc.startsWith('data:image')) {
+          throw new Error('Annotated image should have storage URL (imageLink), not base64 data');
+        }
+        
+        if (imageSrc && !imageSrc.includes('storage.googleapis.com')) {
+          throw new Error('Annotated image should have storage URL containing "storage.googleapis.com"');
+        }
+        
+        console.log('✅ AI response has annotated image with correct source type');
+      },
+      'Verify AI response has annotated image',
+      { maxRetries: 2 }
+    );
+  }
+
+  /**
    * Returns a locator for the chat header title.
    * @returns {import('@playwright/test').Locator} A Playwright Locator.
    */
