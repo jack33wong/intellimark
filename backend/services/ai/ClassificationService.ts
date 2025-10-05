@@ -86,12 +86,16 @@ export class ClassificationService {
     model: ModelType = 'gemini-2.5-pro'
   ): Promise<ClassificationResult> {
     try {
+      console.log(`🔍 [AI CLASSIFICATION] Starting classification with model: ${model}`);
+      console.log(`🔍 [AI CLASSIFICATION] Image data length: ${imageData.length} characters`);
       const accessToken = await this.getGeminiAccessToken();
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
+      console.log(`🔍 [AI CLASSIFICATION] Raw AI response: ${cleanContent}`);
       const finalResult = await this.parseGeminiResponse(cleanContent, result, model);
+      console.log(`🔍 [AI CLASSIFICATION] Parsed result: isQuestionOnly=${finalResult.isQuestionOnly}, reasoning="${finalResult.reasoning}"`);
       
       return finalResult;
     } catch (error) {

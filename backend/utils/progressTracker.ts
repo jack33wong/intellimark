@@ -74,6 +74,8 @@ export class ProgressTracker {
       isComplete
     };
 
+    console.log(`🔍 [PROGRESS TRACKER] Sending progress: currentStepIndex=${this.currentStepIndex}, totalSteps=${this.steps.length}, visibleSteps=${visibleSteps.length}, isComplete=${isComplete}`);
+    console.log(`🔍 [PROGRESS TRACKER] Steps: ${visibleSteps.join(' | ')}`);
 
     this.onProgress(progressData);
   }

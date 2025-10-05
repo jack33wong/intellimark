@@ -408,6 +408,8 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
 router.post('/process-single-stream', optionalAuth, async (req: Request, res: Response) => {
   let { imageData, model = 'auto', userMessage, debug = false, aiMessageId } = req.body;
 
+  console.log(`🔍 [SSE ROUTE] Received request: model=${model}, debug=${debug}, imageDataLength=${imageData?.length || 0}`);
+
   if (!imageData) {
     return res.status(400).json({ success: false, error: 'Image data is required' });
   }
@@ -453,6 +455,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     };
 
     // Process the image with progress tracking
+    console.log(`🔍 [SSE ROUTE] Calling MarkHomeworkWithAnswer.run with debug=${debug}`);
     const result = await Promise.race([
       MarkHomeworkWithAnswer.run({
         imageData,
