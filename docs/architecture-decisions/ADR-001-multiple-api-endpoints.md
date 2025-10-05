@@ -22,9 +22,9 @@ Each scenario has different:
 Use separate, specialized endpoints instead of one complex endpoint:
 
 ### Primary Endpoints (High Usage)
-- **`/api/mark-homework/process-single`** - Initial image uploads and AI processing
-  - **Used by**: Frontend main workflow (simpleSessionService.js:263)
-  - **Purpose**: Create new session with AI response
+- **`/api/mark-homework/process-single-stream`** - Initial image uploads and AI processing with real-time progress
+  - **Used by**: Frontend main workflow (simpleSessionService.js:228)
+  - **Purpose**: Create new session with AI response and real-time progress updates
   - **Frequency**: High (primary user interaction)
 
 - **`/api/mark-homework/process`** - Follow-up messages in existing sessions
@@ -82,8 +82,8 @@ Consolidation would:
 
 ### Frontend Integration
 ```javascript
-// Initial upload (simpleSessionService.js:263)
-const response = await fetch('/api/mark-homework/process-single', {
+// Initial upload with real-time progress (simpleSessionService.js:228)
+const response = await fetch('/api/mark-homework/process-single-stream', {
   method: 'POST',
   body: JSON.stringify({ imageData, model: 'auto' })
 });
@@ -98,7 +98,7 @@ const response = await fetch('/api/mark-homework/process', {
 ### Usage Monitoring
 Each endpoint logs usage for monitoring:
 ```javascript
-console.log(`[USAGE] /api/mark-homework/process-single called by: ${userAgent}`);
+console.log(`[USAGE] /api/mark-homework/process-single-stream called by: ${userAgent}`);
 ```
 
 ### Documentation

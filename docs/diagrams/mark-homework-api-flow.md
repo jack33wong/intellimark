@@ -8,7 +8,7 @@ This diagram shows the relationship between different API endpoints and their us
 ```mermaid
 graph TD
     A[Frontend: Image Upload] --> B{First Time Upload?}
-    B -->|Yes| C[/api/mark-homework/process-single]
+    B -->|Yes| C[/api/mark-homework/process-single-stream]
     B -->|No| D[/api/mark-homework/process]
     
     E[Frontend: Chat Input] --> F{Has Session?}
@@ -29,10 +29,10 @@ graph TD
 ## Usage Patterns
 
 ### High Frequency (Primary User Flow)
-- **`/api/mark-homework/process-single`**
-  - Used by: `simpleSessionService.js:263`
-  - Purpose: Initial image uploads
-  - Creates: New session with AI response
+- **`/api/mark-homework/process-single-stream`**
+  - Used by: `simpleSessionService.js:228`
+  - Purpose: Initial image uploads with real-time progress
+  - Creates: New session with AI response and progress updates
 
 ### Medium Frequency (Follow-up Flow)
 - **`/api/mark-homework/process`**
@@ -71,22 +71,22 @@ graph LR
 ## Why Multiple Endpoints?
 
 1. **Different Input Requirements**
-   - `process-single`: No sessionId required
+   - `process-single-stream`: No sessionId required, real-time progress
    - `process`: sessionId required
    - `upload`: No AI processing
 
 2. **Different Business Logic**
-   - `process-single`: Create new session
+   - `process-single-stream`: Create new session with progress updates
    - `process`: Update existing session
    - `upload`: Store image only
 
 3. **Different Error Handling**
-   - `process-single`: Handle new session creation errors
+   - `process-single-stream`: Handle new session creation errors with progress
    - `process`: Handle session not found errors
    - `upload`: Handle storage errors
 
 4. **Different Optimization Needs**
-   - `process-single`: Optimized for first-time users
+   - `process-single-stream`: Optimized for first-time users with real-time feedback
    - `process`: Optimized for follow-up interactions
    - `upload`: Optimized for bulk operations
 

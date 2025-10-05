@@ -216,7 +216,7 @@ npx playwright test --debug
 ```
 
 ### Backend API Debug Mode
-The e2e tests automatically enable debug mode for the `/api/mark-homework/process-single` endpoint by setting `localStorage.setItem('debugMode', 'true')`. This enables additional debugging information in the backend API processing.
+The e2e tests automatically enable debug mode for the `/api/mark-homework/process-single-stream` endpoint by setting `localStorage.setItem('debugMode', 'true')`. This enables additional debugging information in the backend API processing.
 
 **Debug Mode Features:**
 - Enhanced logging in backend API processing
