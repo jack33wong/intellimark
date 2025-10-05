@@ -97,7 +97,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
         apiUsed = aiResult.apiUsed;
       } else {
         // For text-only messages, use contextual response with progress tracking
-        console.log('🔍 [BACKEND DEBUG] Processing TEXT mode message');
         const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
           finalProgressData = data;
         });

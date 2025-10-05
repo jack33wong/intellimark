@@ -225,31 +225,6 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
 // ============================================================================
 
 /**
- * Creates a progress data object for AI processing
- * @param currentStep - Current processing step description
- * @param allSteps - All processing steps
- * @param completedSteps - Completed steps
- * @param isComplete - Whether processing is complete
- * @returns A progress data object
- */
-export function createProgressData(
-  currentStep: string,
-  allSteps: string[],
-  completedSteps: string[] = [],
-  isComplete: boolean = false
-) {
-  // Calculate currentStepIndex based on completedSteps for backward compatibility
-  const currentStepIndex = completedSteps.length;
-  
-  return {
-    isComplete,
-    currentStepDescription: currentStep,
-    allSteps,
-    currentStepIndex
-  };
-}
-
-/**
  * Creates a chat progress data object
  * @param isComplete - Whether processing is complete
  * @returns A chat progress data object
@@ -261,36 +236,6 @@ export function createChatProgressData(isComplete: boolean = false) {
     allSteps: isComplete ? ['AI is thinking...', 'Generating response...'] : ['AI is thinking...'],
     currentStepIndex: isComplete ? 1 : 0 // Use new format with currentStepIndex
   };
-}
-
-/**
- * Creates a marking progress data object
- * @param isComplete - Whether processing is complete
- * @returns A marking progress data object
- */
-export function createMarkingProgressData(isComplete: boolean = false) {
-  return createProgressData(
-    isComplete ? 'Generating feedback...' : 'Analyzing image...',
-    [
-      'Analyzing image...',
-      'Detecting question type...',
-      'Extracting text and math...',
-      'Generating feedback...',
-      'Creating annotations...',
-      'Finalizing response...',
-      'Almost done...'
-    ],
-    isComplete ? [
-      'Analyzing image...',
-      'Detecting question type...',
-      'Extracting text and math...',
-      'Generating feedback...',
-      'Creating annotations...',
-      'Finalizing response...',
-      'Almost done...'
-    ] : [],
-    isComplete
-  );
 }
 
 // ============================================================================

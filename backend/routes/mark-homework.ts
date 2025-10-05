@@ -8,7 +8,7 @@ import type { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
-import { createAIMessage, createMarkingProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
+import { createAIMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 
 // Get Firestore instance
 admin.firestore();

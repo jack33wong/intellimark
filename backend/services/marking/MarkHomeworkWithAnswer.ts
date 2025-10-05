@@ -265,8 +265,6 @@ export class MarkHomeworkWithAnswer {
         // Call the original callback
         if (onProgress) onProgress(data);
       });
-      
-      console.log('🔍 [BACKEND DEBUG] MarkHomeworkWithAnswer initialized with question mode steps');
 
       // Start progress tracking immediately
       progressTracker.startStep('analyzing_image');
@@ -332,14 +330,11 @@ export class MarkHomeworkWithAnswer {
 
     // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
-      console.log('🔍 [BACKEND DEBUG] Using QUESTION mode (already initialized)');
-      console.log('🔍 [BACKEND DEBUG] Question mode - current progressTracker steps:', progressTracker.getCurrentStep());
       // The progress tracker is already initialized with question mode steps
       // Just continue with the current step progression
-      
       let sessionTitle = `Question ${new Date().toLocaleDateString()}`;
       let isPastPaper = false;
-      
+
       // Generate session title based on question detection
       if (questionDetection?.found && (questionDetection as any).match) {
         const match: any = (questionDetection as any).match;
@@ -358,10 +353,10 @@ export class MarkHomeworkWithAnswer {
 
       // Calculate processing time for question-only mode
       const totalProcessingTime = Date.now() - startTime;
-      
+
       // Start AI response step
       progressTracker.startStep('generating_response');
-      
+
       // For question-only mode, generate simple AI tutoring response
       const logQuestionComplete = logStep('Question Mode AI Response', 'gemini-2.0-flash-lite');
       let chatResponse;
@@ -383,17 +378,14 @@ export class MarkHomeworkWithAnswer {
         };
       }
       logQuestionComplete();
-      
+
       // Complete AI response step
       progressTracker.completeCurrentStep();
-      
+
       // Add small delay before finishing to allow frontend to show final step
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // Don't call finish() here - let the mark-homework route handle it when sending the complete event
-      // progressTracker.finish();
-      
-      // Debug logging for progressData
 
       return {
         success: true,
@@ -424,7 +416,6 @@ export class MarkHomeworkWithAnswer {
       } as unknown as MarkHomeworkResponse;
     } else {
       // Only run marking mode if NOT question mode
-      console.log('🔍 [BACKEND DEBUG] Switching to MARKING mode');
       progressTracker = new ProgressTracker(getStepsForMode('marking'), (data) => {
         finalProgressData = data;
         if (onProgress) onProgress(data);
@@ -513,8 +504,7 @@ export class MarkHomeworkWithAnswer {
     // Calculate processing time before saving
     const totalProcessingTime = Date.now() - startTime;
 
-    // Complete final step - don't call finish() here as it's already called in question mode
-    // progressTracker.finish();
+      // Complete final step - don't call finish() here as it's already called in question mode
 
     // Performance Summary
     const totalTime = totalProcessingTime / 1000;
@@ -572,8 +562,6 @@ export class MarkHomeworkWithAnswer {
       sessionTitle: sessionTitle,
       isPastPaper: isPastPaper
     } as unknown as MarkHomeworkResponse;
-
-    // Debug logging for progressData
 
     return {
       ...response,

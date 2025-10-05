@@ -74,15 +74,6 @@ export class ProgressTracker {
       isComplete
     };
 
-    // Debug logging
-    console.log('🔍 [BACKEND DEBUG] ProgressTracker updateProgress:', {
-      currentStepIndex: this.currentStepIndex,
-      totalSteps: this.steps.length,
-      currentStepDescription: progressData.currentStepDescription,
-      allSteps: progressData.allSteps,
-      isComplete: progressData.isComplete,
-      steps: this.steps.map(s => ({ id: s.id, name: s.name, description: s.description }))
-    });
 
     this.onProgress(progressData);
   }
