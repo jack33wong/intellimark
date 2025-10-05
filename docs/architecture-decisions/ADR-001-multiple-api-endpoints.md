@@ -38,10 +38,11 @@ Use separate, specialized endpoints instead of one complex endpoint:
   - **Purpose**: Upload images without AI processing
   - **Frequency**: Low (admin/test use cases)
 
-- **`/api/process`** - Unified processing
-  - **Used by**: External integrations
-  - **Purpose**: Generic image processing
-  - **Frequency**: Low (external use)
+- **`/api/process`** - ~~Unified processing~~ **REMOVED**
+  - ~~**Used by**: External integrations~~
+  - ~~**Purpose**: Generic image processing~~
+  - ~~**Frequency**: Low (external use)~~
+  - **Status**: ❌ **OBSOLETE** - Removed due to no usage
 
 ## Consequences
 

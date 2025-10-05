@@ -47,7 +47,6 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import testRoutes from './routes/test.js';
 import messagesRoutes from './routes/messages.js';
-import unifiedProcessingRoutes from './routes/unified-processing.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -62,8 +61,6 @@ app.use('/api/admin', adminRoutes);
 // Enable messages API (new UnifiedMessage system)
 app.use('/api/messages', messagesRoutes);
 
-// Enable unified processing API
-app.use('/api/process', unifiedProcessingRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);

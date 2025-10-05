@@ -17,17 +17,13 @@ graph TD
     
     G[Admin Panel] --> H[/api/mark-homework/upload]
     I[Test Files] --> H
-    J[External API] --> K[/api/process]
-    
     C --> L[Create New Session]
     D --> M[Add to Existing Session]
     H --> N[Upload Only - No AI]
-    K --> O[Unified Processing]
     
     L --> P[AI Response + Session ID]
     M --> Q[AI Response + Updated Session]
     N --> R[Image Stored + Session ID]
-    O --> S[Generic Response]
 ```
 
 ## Usage Patterns
@@ -50,10 +46,11 @@ graph TD
   - Purpose: Image storage without AI
   - Creates: Session with user message only
 
-- **`/api/process`**
-  - Used by: External integrations
-  - Purpose: Generic processing
-  - Returns: Standardized response
+- ~~**`/api/process`**~~ **REMOVED**
+  - ~~Used by: External integrations~~
+  - ~~Purpose: Generic processing~~
+  - ~~Returns: Standardized response~~
+  - **Status**: ❌ **OBSOLETE** - Removed due to no usage
 
 ## Frontend Integration Points
 
