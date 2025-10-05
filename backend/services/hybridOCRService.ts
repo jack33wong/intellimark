@@ -424,7 +424,6 @@ export class HybridOCRService {
 
     // Check debug mode - return mock response if enabled
     if (debug) {
-      console.log('🔍 [DEBUG MODE] OCR Processing - returning mock response');
       // Simulate processing delay
       const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));

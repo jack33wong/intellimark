@@ -146,7 +146,6 @@ export class AIMarkingService {
     
     // Debug mode: Return mock response
     if (debug) {
-      console.log('🔍 [DEBUG MODE] Chat Response - returning mock response');
       return {
         response: 'Debug mode: Mock chat response - This is a simulated AI response for testing purposes.',
         apiUsed: 'Debug Mode - Mock Response'

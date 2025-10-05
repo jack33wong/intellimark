@@ -290,14 +290,12 @@ export class MarkHomeworkWithAnswerAuto {
       
       if (isQuestionMode) {
         // Question mode: perform question detection internally for proper title, then AI response
-        console.log(`🔍 [DEBUG] Question mode: performing question detection internally for proper title`);
         
         // Question Detection (internal, not shown as a step)
         const detectQuestion = async () => {
           return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
         };
         const questionDetection = await detectQuestion();
-        console.log(`🔍 [DEBUG] Question detection completed internally: found=${questionDetection?.found}`);
         
         // AI Response Generation (visible step)
         const logStep3Complete = logStep('AI Response Generation', actualModel);
@@ -338,7 +336,6 @@ export class MarkHomeworkWithAnswerAuto {
         const sessionTitle = questionDetection?.found && questionDetection.match 
           ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
           : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
-        console.log(`🔍 [DEBUG] Question mode session title: "${sessionTitle}" (questionDetection: ${questionDetection ? `found=${questionDetection.found}` : 'undefined'})`);
         
         return {
           success: true,

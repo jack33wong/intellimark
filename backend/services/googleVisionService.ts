@@ -50,7 +50,6 @@ export class GoogleVisionService {
     
     // Check debug mode - return mock response if enabled
     if (debug) {
-      console.log('🔍 [DEBUG MODE] Google Vision - returning mock response');
       // Simulate processing delay
       const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
