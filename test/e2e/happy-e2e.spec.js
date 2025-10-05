@@ -162,26 +162,22 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
     });
 
-    await test.step('Step 4.1: Verify Marking Mode Progress Steps (Second Image)', async () => {
-      // Verify the second image upload (q21.png) shows marking mode progress steps
+    await test.step('Step 4.1: Verify Question Mode Progress Steps (Second Image)', async () => {
+      // Verify the second image upload (q21.png) shows question mode progress steps
       await markHomeworkPage.verifyProgressSteps({
-        mode: 'marking',
+        mode: 'question',
         expectedSteps: [
           'Analyzing image...',
           'Classifying image...',
-          'Detecting question type...',
-          'Extracting text and math...',
-          'Generating feedback...',
-          'Creating annotations...',
           'Generating response...'
         ],
-        expectedStepCount: 7
+        expectedStepCount: 3
       });
 
-      // Verify progressive step display for marking mode
+      // Verify progressive step display for question mode
       await markHomeworkPage.verifyProgressiveStepDisplay({
         initialStepCount: 1,
-        finalStepCount: 7,
+        finalStepCount: 3,
         stepProgressionDelay: 800 // ms between steps
       });
 
@@ -385,7 +381,7 @@ test.describe('Happy Path E2E Tests', () => {
       const firstAIMessage = aiMessages.nth(0);
       await expect(firstAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
       
-      // Check second AI message (marking mode) - should have progress steps  
+      // Check second AI message (question mode) - should have progress steps  
       const secondAIMessage = aiMessages.nth(1);
       await expect(secondAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
       
