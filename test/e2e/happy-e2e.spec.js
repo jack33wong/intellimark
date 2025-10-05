@@ -86,19 +86,8 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 3: Verify First AI Response and UI Updates', async () => {
-      // Wait for the actual AI response to complete (not just "thinking" placeholder)
-      await markHomeworkPage.waitForAIResponse();
-      
-      // This complex check is now a clean, single call to a Page Object method
-      await markHomeworkPage.verifyAIResponseHasAnnotatedImage();
-
-      // Check that chat header title is meaningful (length > 10) and not "Processing"
-      // Give more time for the AI response to complete and title to be generated
-      await expect(async () => {
-        const titleText = await markHomeworkPage.getChatHeaderTitleLocator().textContent();
-        expect(titleText.length).toBeGreaterThan(10);
-        expect(titleText).not.toContain('Processing');
-      }).toPass({ timeout: 120000 }); // Increased to 2 minutes
+      // This step will be completed after progress step verification in Step 3.1
+      // The AI response verification is now handled in Step 3.1 after progress steps
       
       // Wait for sidebar to load and update with the new chat history item
       await sidebarPage.waitForLoad();
@@ -114,8 +103,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 3.1: Verify Marking Mode Progress Steps (First Image)', async () => {
-      // Wait for AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
+      // Verify progress steps DURING processing (not after completion)
+      // Wait for progress toggle to appear first
+      await expect(markHomeworkPage.page.locator('.progress-toggle-button').first()).toBeVisible({ timeout: 15000 });
       
       // Verify the first image upload (q19.png) shows marking mode progress steps
       await markHomeworkPage.verifyProgressSteps({
@@ -138,6 +128,20 @@ test.describe('Happy Path E2E Tests', () => {
         shouldExpandSteps: true,
         shouldCollapseSteps: true
       });
+      
+      // Now wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
+      
+      // This complex check is now a clean, single call to a Page Object method
+      await markHomeworkPage.verifyAIResponseHasAnnotatedImage();
+
+      // Check that chat header title is meaningful (length > 10) and not "Processing"
+      // Give more time for the AI response to complete and title to be generated
+      await expect(async () => {
+        const titleText = await markHomeworkPage.getChatHeaderTitleLocator().textContent();
+        expect(titleText.length).toBeGreaterThan(10);
+        expect(titleText).not.toContain('Processing');
+      }).toPass({ timeout: 120000 }); // Increased to 2 minutes
     });
 
     await test.step('Step 4: Submit Follow-up Question', async () => {
@@ -153,8 +157,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 4.1: Verify Question Mode Progress Steps (Second Image)', async () => {
-      // Wait for AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
+      // Verify progress steps DURING processing (not after completion)
+      // Wait for progress toggle to appear first
+      await expect(markHomeworkPage.page.locator('.progress-toggle-button').first()).toBeVisible({ timeout: 15000 });
       
       // Verify the second image upload (q21.png) shows question mode progress steps
       await markHomeworkPage.verifyProgressSteps({
@@ -173,6 +178,9 @@ test.describe('Happy Path E2E Tests', () => {
         shouldExpandSteps: true,
         shouldCollapseSteps: true
       });
+      
+      // Now wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
     });
 
     await test.step('Step 5: Text-Only Follow-up Mode', async () => {
@@ -187,9 +195,6 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.enterText(TEST_CONFIG.testTexts.textOnly);
       await markHomeworkPage.sendMessage();
       
-      // Wait for AI response to complete
-      await markHomeworkPage.waitForAIResponse();
-      
       // Verify text-only user message
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible();
       
@@ -201,9 +206,6 @@ test.describe('Happy Path E2E Tests', () => {
         }
         return true;
       }).toPass({ timeout: 120000 });
-      
-      // Wait for AI response to complete
-      await markHomeworkPage.waitForAIResponse();
       
       // Wait for the AI message to finish processing and have actual content
       let processingComplete = false;
@@ -301,8 +303,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 5.1: Verify Text Mode Progress Steps', async () => {
-      // Wait for AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
+      // Verify progress steps DURING processing (not after completion)
+      // Wait for progress toggle to appear first
+      await expect(markHomeworkPage.page.locator('.progress-toggle-button').first()).toBeVisible({ timeout: 15000 });
       
       // Verify the text-only message shows text mode progress steps
       await markHomeworkPage.verifyProgressSteps({
@@ -319,12 +322,12 @@ test.describe('Happy Path E2E Tests', () => {
         completedSteps: ['✓', '✓'], // Both steps completed
         currentStep: 1
       });
+      
+      // Now wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
     });
 
     await test.step('Step 6: Verify Third AI Response and Database', async () => {
-      // Wait for the third AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
-      
       // Wait for network to be idle to ensure all API calls are complete
       await page.waitForLoadState('networkidle');
       
