@@ -22,7 +22,12 @@ export class ClassificationService {
     1. Determine if an uploaded image contains:
        A) A math question ONLY (no student work, no answers, just the question/problem)
        B) A math question WITH student work/answers (homework to be marked)
-    2. Extract the main question text from the image
+    2. Extract the COMPLETE question text from the image, including:
+       - Any context or setup information (e.g., "Here are the first four terms of a sequence: 3, 20, 47, 84")
+       - The actual question or instruction (e.g., "Work out an expression for the nth term")
+       - Any diagrams, tables, or data provided as part of the question
+       
+    IMPORTANT: Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
@@ -31,7 +36,7 @@ export class ClassificationService {
     {
       "isQuestionOnly": true/false,
       "reasoning": "brief explanation of your classification",
-      "extractedQuestionText": "the main question text extracted from the image"
+      "extractedQuestionText": "the COMPLETE question text including ALL context, setup information, data, and the actual question/instruction - do NOT extract only the instruction part"
     }`;
 
     const userPrompt = `Please classify this uploaded image and extract the question text.`;
@@ -253,7 +258,9 @@ export class ClassificationService {
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
+    console.log('🔍 [DEBUG] ClassificationService AI response:', cleanContent);
     const parsed = JSON.parse(cleanContent);
+    console.log('🔍 [DEBUG] ClassificationService parsed result:', parsed);
     
     // Get dynamic API name based on model
     const { getModelConfig } = await import('../../config/aiModels.js');

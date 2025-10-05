@@ -506,6 +506,20 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       }
     });
 
+    // Debug: Log the result object to see what we're getting
+    console.log('🔍 [DEBUG] result.questionDetection:', result.questionDetection);
+    console.log('🔍 [DEBUG] result.classification:', result.classification);
+    
+    // Add detectedQuestion data to AI message
+    (aiMessage as any).detectedQuestion = result.questionDetection?.found ? {
+      found: true,
+      questionText: result.classification?.extractedQuestionText || '',
+      message: result.questionDetection?.message || 'Question detected'
+    } : {
+      found: false,
+      message: result.questionDetection?.message || 'No question detected'
+    };
+
     // Update AI message with image link for authenticated users
     if (isAuthenticated && annotatedImageLink) {
       (aiMessage as any).imageLink = annotatedImageLink;

@@ -14,9 +14,9 @@ import type {
   ImageClassification,
   ProcessedImageResult,
   MarkingInstructions,
-  ModelType,
-  QuestionDetectionResult
+  ModelType
 } from '../../types/index.js';
+import type { QuestionDetectionResult } from '../../services/questionDetectionService.js';
 
 // Debug mode helper function
 async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
@@ -281,7 +281,17 @@ export class MarkHomeworkWithAnswerAuto {
       const isQuestionMode = classification.isQuestionOnly === true;
       
       if (isQuestionMode) {
-        // Question mode: simple AI response
+        // Question mode: perform question detection internally for proper title, then AI response
+        console.log(`🔍 [DEBUG] Question mode: performing question detection internally for proper title`);
+        
+        // Question Detection (internal, not shown as a step)
+        const detectQuestion = async () => {
+          return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
+        };
+        const questionDetection = await detectQuestion();
+        console.log(`🔍 [DEBUG] Question detection completed internally: found=${questionDetection?.found}`);
+        
+        // AI Response Generation (visible step)
         const logStep3Complete = logStep('AI Response Generation', actualModel);
         const generateResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
@@ -316,6 +326,12 @@ export class MarkHomeworkWithAnswerAuto {
         console.log(`🤖 [MODEL] Used: ${actualModel}`);
         console.log(`✅ [RESULT] Question mode completed successfully`);
         
+        // Generate session title based on question detection result
+        const sessionTitle = questionDetection?.found && questionDetection.match 
+          ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
+          : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
+        console.log(`🔍 [DEBUG] Question mode session title: "${sessionTitle}" (questionDetection: ${questionDetection ? `found=${questionDetection.found}` : 'undefined'})`);
+        
         return {
           success: true,
           mode: 'Question',
@@ -325,7 +341,9 @@ export class MarkHomeworkWithAnswerAuto {
           confidence: 0.9,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
-          sessionTitle: generateNonPastPaperTitle('Question detected', 'Question')
+          sessionTitle: sessionTitle,
+          classification: classification,
+          questionDetection: questionDetection
         } as MarkHomeworkResponse;
       } else {
         // Marking mode: full processing pipeline
@@ -389,8 +407,10 @@ export class MarkHomeworkWithAnswerAuto {
 
         // Step 4: Question Detection (use extracted text)
         const logStep4Complete = logStep('Question Detection', 'question-detection');
+        console.log('🔍 [DEBUG] classification.extractedQuestionText:', classification.extractedQuestionText);
+        console.log('🔍 [DEBUG] classification object:', classification);
         const detectQuestion = async () => {
-          return questionDetectionService.detectQuestion(processedImage.ocrText);
+          return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
         };
         const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
         logStep4Complete();
@@ -475,7 +495,11 @@ export class MarkHomeworkWithAnswerAuto {
           confidence: 0.9,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
-          sessionTitle: generateNonPastPaperTitle(processedImage.ocrText, 'Marking')
+          sessionTitle: questionDetection?.found && questionDetection.match 
+            ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
+            : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
+          classification: classification,
+          questionDetection: questionDetection
         } as MarkHomeworkResponse;
       }
     } catch (error) {
