@@ -13,6 +13,9 @@ export interface MarkHomeworkOptions {
   onProgress?: (data: any) => void;
   debug?: boolean;
   useAutoProgress?: boolean; // New option to enable auto-progress
+  userId?: string;
+  userEmail?: string;
+  aiMessageId?: string;
 }
 
 /**

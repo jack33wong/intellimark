@@ -7,7 +7,7 @@ import * as express from 'express';
 import type { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
-import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
+import { MarkHomeworkWithAnswerWrapper } from '../services/marking/MarkHomeworkWithAnswerWrapper.js';
 import { createAIMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 
 // Get Firestore instance
@@ -95,14 +95,14 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     
     // Add timeout to prevent hanging
     const result = await Promise.race([
-      MarkHomeworkWithAnswer.run({
+      MarkHomeworkWithAnswerWrapper.run({
         imageData,
         model,
         userId,
         userEmail
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 30 seconds')), 30000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerWrapper.run() timeout after 30 seconds')), 30000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
 
@@ -452,19 +452,20 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       }
     };
 
-    // Process the image with progress tracking
+    // Process the image with auto-progress tracking
     const result = await Promise.race([
-      MarkHomeworkWithAnswer.run({
+      MarkHomeworkWithAnswerWrapper.run({
         imageData,
         model,
         userId,
         userEmail,
         debug,
         onProgress,
-        aiMessageId
+        aiMessageId,
+        useAutoProgress: true
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerWrapper.run() timeout after 60 seconds')), 60000)
       )
     ]) as any;
 
@@ -792,7 +793,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     // Process the image for AI response (includes classification + marking)
     // Add timeout to prevent hanging
     const result = await Promise.race([
-      MarkHomeworkWithAnswer.run({
+      MarkHomeworkWithAnswerWrapper.run({
         imageData,
         model,
         userId,
@@ -800,7 +801,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
         debug
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswer.run() timeout after 60 seconds')), 60000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerWrapper.run() timeout after 60 seconds')), 60000)
       )
     ]) as any;
 
@@ -1079,7 +1080,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Process the image for AI response
-    const result = await MarkHomeworkWithAnswer.run({
+    const result = await MarkHomeworkWithAnswerWrapper.run({
       imageData,
       model,
       userId,
