@@ -453,7 +453,6 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     };
 
     // Process the image with progress tracking
-    console.log(`🔍 [SSE ROUTE] Calling MarkHomeworkWithAnswer.run with debug=${debug}`);
     const result = await Promise.race([
       MarkHomeworkWithAnswer.run({
         imageData,

@@ -22,8 +22,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
   try {
     const { message, imageData, model = 'auto', sessionId, mode, aiMessageId } = req.body;
     
-    console.log(`🔍 [MESSAGES ROUTE] Received chat request: message="${message?.substring(0, 50)}...", model=${model}, hasImage=${!!imageData}, mode=${mode}`);
-    
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
