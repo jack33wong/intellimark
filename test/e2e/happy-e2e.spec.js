@@ -116,22 +116,26 @@ test.describe('Happy Path E2E Tests', () => {
       }).toPass({ timeout: 15000 });
     });
 
-    await test.step('Step 3.1: Verify Question Mode Progress Steps', async () => {
-      // Verify the first image upload (q19.png) shows question mode progress steps
+    await test.step('Step 3.1: Verify Marking Mode Progress Steps (First Image)', async () => {
+      // Verify the first image upload (q19.png) shows marking mode progress steps
       await markHomeworkPage.verifyProgressSteps({
-        mode: 'question',
+        mode: 'marking',
         expectedSteps: [
           'Analyzing image...',
-          'Classifying image...', 
+          'Classifying image...',
+          'Detecting question type...',
+          'Extracting text and math...',
+          'Generating feedback...',
+          'Creating annotations...',
           'Generating response...'
         ],
-        expectedStepCount: 3
+        expectedStepCount: 7
       });
 
       // Verify progressive step display (steps appear one by one)
       await markHomeworkPage.verifyProgressiveStepDisplay({
         initialStepCount: 1,
-        finalStepCount: 3,
+        finalStepCount: 7,
         stepProgressionDelay: 800 // ms between steps
       });
 
@@ -158,7 +162,7 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
     });
 
-    await test.step('Step 4.1: Verify Marking Mode Progress Steps', async () => {
+    await test.step('Step 4.1: Verify Marking Mode Progress Steps (Second Image)', async () => {
       // Verify the second image upload (q21.png) shows marking mode progress steps
       await markHomeworkPage.verifyProgressSteps({
         mode: 'marking',
@@ -302,8 +306,9 @@ test.describe('Happy Path E2E Tests', () => {
       
       const renderedText = await markdownRenderer.textContent();
       
-      // Real verification: AI response must contain "4" and be about math, not sequences
+      // Real verification: AI response must contain "4" and be about math addition
       expect(renderedText).toContain('4');
+      expect(renderedText).toContain('2 + 2 = 4'); // More specific check for the math problem
       expect(renderedText).not.toContain('sequence');
       expect(renderedText).not.toContain('follow-up');
       expect(renderedText).not.toContain('linear');
@@ -376,7 +381,7 @@ test.describe('Happy Path E2E Tests', () => {
       // Verify progress steps are preserved in chat history for all three AI messages
       const aiMessages = markHomeworkPage.aiMessages;
       
-      // Check first AI message (question mode) - should have progress steps
+      // Check first AI message (marking mode) - should have progress steps
       const firstAIMessage = aiMessages.nth(0);
       await expect(firstAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
       
