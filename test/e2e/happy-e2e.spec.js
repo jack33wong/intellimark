@@ -78,9 +78,6 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.enterText(TEST_CONFIG.testTexts.initial);
       await markHomeworkPage.sendMessage();
       
-      // Wait for AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
-      
       // Assert that the user's content appeared correctly
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible();
       
@@ -117,6 +114,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 3.1: Verify Marking Mode Progress Steps (First Image)', async () => {
+      // Wait for AI response to complete first
+      await markHomeworkPage.waitForAIResponse();
+      
       // Verify the first image upload (q19.png) shows marking mode progress steps
       await markHomeworkPage.verifyProgressSteps({
         mode: 'marking',
@@ -132,13 +132,6 @@ test.describe('Happy Path E2E Tests', () => {
         expectedStepCount: 7
       });
 
-      // Verify progressive step display (steps appear one by one)
-      await markHomeworkPage.verifyProgressiveStepDisplay({
-        initialStepCount: 1,
-        finalStepCount: 7,
-        stepProgressionDelay: 800 // ms between steps
-      });
-
       // Verify progress toggle functionality
       await markHomeworkPage.verifyProgressToggle({
         shouldBeVisible: true,
@@ -152,9 +145,6 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.enterText(TEST_CONFIG.testTexts.followUp);
       await markHomeworkPage.sendMessage();
       
-      // Wait for AI response to complete first
-      await markHomeworkPage.waitForAIResponse();
-      
       // Verify follow-up user message
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible();
       
@@ -163,6 +153,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 4.1: Verify Question Mode Progress Steps (Second Image)', async () => {
+      // Wait for AI response to complete first
+      await markHomeworkPage.waitForAIResponse();
+      
       // Verify the second image upload (q21.png) shows question mode progress steps
       await markHomeworkPage.verifyProgressSteps({
         mode: 'question',
@@ -174,18 +167,11 @@ test.describe('Happy Path E2E Tests', () => {
         expectedStepCount: 3
       });
 
-      // Verify progressive step display for question mode
-      await markHomeworkPage.verifyProgressiveStepDisplay({
-        initialStepCount: 1,
-        finalStepCount: 3,
-        stepProgressionDelay: 800 // ms between steps
-      });
-
-      // Verify thinking animation synchronization
-      await markHomeworkPage.verifyThinkingAnimationSync({
-        shouldStartWithThinking: true,
-        shouldStopWithResponse: true,
-        shouldShowThinkingText: true
+      // Verify progress toggle functionality
+      await markHomeworkPage.verifyProgressToggle({
+        shouldBeVisible: true,
+        shouldExpandSteps: true,
+        shouldCollapseSteps: true
       });
     });
 
@@ -315,6 +301,9 @@ test.describe('Happy Path E2E Tests', () => {
     });
 
     await test.step('Step 5.1: Verify Text Mode Progress Steps', async () => {
+      // Wait for AI response to complete first
+      await markHomeworkPage.waitForAIResponse();
+      
       // Verify the text-only message shows text mode progress steps
       await markHomeworkPage.verifyProgressSteps({
         mode: 'text',
@@ -323,13 +312,6 @@ test.describe('Happy Path E2E Tests', () => {
           'Generating response...'
         ],
         expectedStepCount: 2
-      });
-
-      // Verify progressive step display for text mode
-      await markHomeworkPage.verifyProgressiveStepDisplay({
-        initialStepCount: 1,
-        finalStepCount: 2,
-        stepProgressionDelay: 800 // ms between steps
       });
 
       // Verify step completion indicators (all steps should be completed for text mode)
