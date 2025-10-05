@@ -182,6 +182,7 @@ export class MarkHomeworkWithAnswerAuto {
     const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
     let currentStep = 0;
     let totalSteps = 0;
+    let modeSteps: string[] = []; // Track steps for current mode
     
     const logStep = (stepName: string, modelInfo: string) => {
       currentStep++;
@@ -196,8 +197,8 @@ export class MarkHomeworkWithAnswerAuto {
           timing.subSteps = subSteps;
           const duration = (timing.duration / 1000).toFixed(1);
           
-          // Ensure totalSteps is set before logging
-          const actualTotalSteps = totalSteps > 0 ? totalSteps : 3; // Default to 3 if not set
+          // Use actual total steps for current mode
+          const actualTotalSteps = modeSteps.length;
           const progress = `[${currentStep}/${actualTotalSteps}]`;
           const paddedName = stepName.padEnd(25); // Fixed 25-character width for all step names
           const durationStr = `[${duration}s]`;
@@ -220,6 +221,12 @@ export class MarkHomeworkWithAnswerAuto {
     try {
       // Create auto-progress tracker
       let finalProgressData: any = null;
+      
+      // Set up for question mode first (will be updated if marking mode is needed)
+      modeSteps = ['Image Analysis', 'Image Classification', 'AI Response Generation'];
+      totalSteps = modeSteps.length;
+      currentStep = 0; // Reset step counter
+      
       const progressTracker = createAutoProgressTracker(getStepsForMode('question'), (data) => {
         finalProgressData = data;
         if (onProgress) onProgress(data);
@@ -313,6 +320,19 @@ export class MarkHomeworkWithAnswerAuto {
         } as MarkHomeworkResponse;
       } else {
         // Marking mode: full processing pipeline
+        // Reset for marking mode steps
+        modeSteps = [
+          'Image Analysis', 
+          'Image Classification', 
+          'Question Detection', 
+          'OCR Processing', 
+          'Marking Instructions', 
+          'Burn Overlay', 
+          'AI Response Generation'
+        ];
+        totalSteps = modeSteps.length;
+        currentStep = 0; // Reset step counter for marking mode
+        
         // Switch to marking mode steps
         const markingProgressTracker = createAutoProgressTracker(getStepsForMode('marking'), (data) => {
           finalProgressData = data;
