@@ -162,7 +162,7 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
-    detectedQuestion: { found: false, message: content || 'Chat message' },
+    detectedQuestion: { found: false, message: content || 'User message' },
     metadata: {
       resultId: `chat-${Date.now()}`,
       processingTime: new Date().toISOString(),
@@ -197,12 +197,12 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     id: messageId || generateAIMessageId(content),
     messageId: messageId || generateAIMessageId(content),
     role: 'assistant',
-    content: content || 'I have analyzed your homework and provided feedback.',
+    content: content || 'Processing your request...',
     type: isQuestionOnly ? 'question_response' : 'marking_annotated',
     timestamp: new Date().toISOString(),
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
     progressData: progressData,
-    detectedQuestion: { found: false, message: 'AI response' },
+    detectedQuestion: { found: false, message: content || 'Processing...' },
     metadata: {
       resultId: `chat-${Date.now()}`,
       processingTime: new Date().toISOString(),
