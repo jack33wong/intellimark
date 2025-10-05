@@ -1,0 +1,371 @@
+/**
+ * MarkHomeworkWithAnswer with Auto Progress Tracking
+ * Non-breaking: maintains same interface as original but with automatic progress tracking
+ */
+
+import { questionDetectionService } from '../../services/questionDetectionService.js';
+import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
+import { getDebugMode } from '../../config/aiModels.js';
+import { AutoProgressTracker, createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
+import { getStepsForMode } from '../../utils/progressTracker.js';
+
+import type {
+  MarkHomeworkResponse,
+  ImageClassification,
+  ProcessedImageResult,
+  MarkingInstructions,
+  ModelType,
+  QuestionDetectionResult
+} from '../../types/index.js';
+
+// Debug mode helper function
+async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
+  if (debug) {
+    const debugMode = getDebugMode();
+    await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+  }
+}
+
+// Common function to generate session titles for non-past-paper images
+function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
+  if (extractedQuestionText && extractedQuestionText.trim()) {
+    const questionText = extractedQuestionText.trim();
+    
+    // Handle cases where extraction failed
+    if (questionText.toLowerCase().includes('unable to extract') || 
+        questionText.toLowerCase().includes('no text detected') ||
+        questionText.toLowerCase().includes('extraction failed')) {
+      return `${mode} - ${new Date().toLocaleDateString()}`;
+    }
+    
+    // Use the truncated question text directly - much simpler and more reliable
+    const truncatedText = questionText.length > 30 
+      ? questionText.substring(0, 30) + '...' 
+      : questionText;
+    const result = `${mode} - ${truncatedText}`;
+    return result;
+  } else {
+    // Fallback when no question text is extracted
+    const result = `${mode} - ${new Date().toLocaleDateString()}`;
+    return result;
+  }
+}
+
+/**
+ * Auto-progress version of MarkHomeworkWithAnswer
+ * Uses automatic progress tracking instead of manual step management
+ */
+export class MarkHomeworkWithAnswerAuto {
+  /**
+   * Classify image using AI
+   */
+  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
+    const { ClassificationService } = await import('../ai/ClassificationService.js');
+    return ClassificationService.classifyImage(imageData, model, debug);
+  }
+
+  /**
+   * Public method to get full hybrid OCR result with proper sorting for testing
+   */
+  public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
+    const { HybridOCRService } = await import('../hybridOCRService.js');
+
+    const hybridResult = await HybridOCRService.processImage(imageData, {
+      enablePreprocessing: true,
+      mathThreshold: 0.10,
+      ...options
+    }, debug);
+
+    // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
+    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+
+    return {
+      ...hybridResult,
+      mathBlocks: sortedMathBlocks
+    };
+  }
+
+  /**
+   * Process image with real OCR (auto-progress version)
+   */
+  private static async processImageWithRealOCR(
+    imageData: string, 
+    debug: boolean = false,
+    progressTracker?: AutoProgressTracker
+  ): Promise<ProcessedImageResult> {
+    const processImage = async (): Promise<ProcessedImageResult> => {
+      const hybridResult = await this.getHybridOCRResult(imageData, {}, debug);
+      
+      return {
+        ocrText: hybridResult.extractedText,
+        boundingBoxes: hybridResult.mathBlocks || [],
+        imageDimensions: hybridResult.imageDimensions,
+        confidence: hybridResult.confidence
+      };
+    };
+
+    if (progressTracker) {
+      return progressTracker.withProgress('extracting_text', processImage)();
+    }
+    return processImage();
+  }
+
+  /**
+   * Generate marking instructions (auto-progress version)
+   */
+  private static async generateMarkingInstructions(
+    imageData: string,
+    model: ModelType,
+    processedImage: ProcessedImageResult,
+    questionDetection: QuestionDetectionResult,
+    debug: boolean = false,
+    progressTracker?: AutoProgressTracker
+  ): Promise<MarkingInstructions> {
+    const generateInstructions = async (): Promise<MarkingInstructions> => {
+      const { AIMarkingService } = await import('../aiMarkingService.js');
+      
+      return AIMarkingService.generateMarkingInstructions(
+        imageData,
+        model,
+        processedImage,
+        questionDetection
+      );
+    };
+
+    if (progressTracker) {
+      return progressTracker.withProgress('generating_feedback', generateInstructions)();
+    }
+    return generateInstructions();
+  }
+
+  /**
+   * Main run method with auto-progress tracking
+   */
+  public static async run({
+    imageData,
+    model = 'gemini-2.5-pro',
+    onProgress,
+    debug = false
+  }: {
+    imageData: string;
+    model?: ModelType;
+    onProgress?: (data: any) => void;
+    debug?: boolean;
+  }): Promise<MarkHomeworkResponse> {
+    const startTime = Date.now();
+
+    try {
+      // Create auto-progress tracker
+      let finalProgressData: any = null;
+      const progressTracker = createAutoProgressTracker(getStepsForMode('question'), (data) => {
+        finalProgressData = data;
+        if (onProgress) onProgress(data);
+      });
+
+      // Register steps for auto-progress tracking
+      progressTracker.registerStep('analyzing_image', {
+        stepId: 'analyzing_image',
+        stepName: 'Analyzing Image',
+        stepDescription: 'Analyzing image structure and content...'
+      });
+
+      progressTracker.registerStep('classifying_image', {
+        stepId: 'classifying_image',
+        stepName: 'Classifying Image',
+        stepDescription: 'Determining image type and mode...'
+      });
+
+      progressTracker.registerStep('generating_response', {
+        stepId: 'generating_response',
+        stepName: 'Generating Response',
+        stepDescription: 'Generating AI response...'
+      });
+
+      // Step 1: Analyze image (auto-progress)
+      const analyzeImage = async () => {
+        await simulateApiDelay('Image Analysis', debug);
+        return { analyzed: true };
+      };
+      await progressTracker.withProgress('analyzing_image', analyzeImage)();
+
+      // Step 2: Classify image (auto-progress)
+      const classifyImage = async () => {
+        return this.classifyImageWithAI(imageData, model, debug);
+      };
+      const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
+
+      // Determine if this is question mode or marking mode
+      const isQuestionMode = classification.isQuestionOnly === true;
+      
+      if (isQuestionMode) {
+        // Question mode: simple AI response
+        const generateResponse = async () => {
+          const { AIMarkingService } = await import('../aiMarkingService');
+          return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
+        };
+        
+        const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
+        
+        // Finish progress tracking
+        progressTracker.finish();
+
+        const totalProcessingTime = Date.now() - startTime;
+        
+        return {
+          success: true,
+          mode: 'Question',
+          extractedText: 'Question detected - AI response generated',
+          aiResponse: aiResponse.response,
+          confidence: 0.9,
+          processingTime: totalProcessingTime,
+          progressData: finalProgressData,
+          sessionTitle: generateNonPastPaperTitle('Question detected', 'Question')
+        } as MarkHomeworkResponse;
+      } else {
+        // Marking mode: full processing pipeline
+        // Switch to marking mode steps
+        const markingProgressTracker = createAutoProgressTracker(getStepsForMode('marking'), (data) => {
+          finalProgressData = data;
+          if (onProgress) onProgress(data);
+        });
+
+        // Register marking mode steps
+        markingProgressTracker.registerStep('analyzing_image', {
+          stepId: 'analyzing_image',
+          stepName: 'Analyzing Image',
+          stepDescription: 'Analyzing image structure and content...'
+        });
+
+        markingProgressTracker.registerStep('classifying_image', {
+          stepId: 'classifying_image',
+          stepName: 'Classifying Image',
+          stepDescription: 'Determining image type and mode...'
+        });
+
+        markingProgressTracker.registerStep('detecting_question', {
+          stepId: 'detecting_question',
+          stepName: 'Detecting Question',
+          stepDescription: 'Identifying question structure...'
+        });
+
+        markingProgressTracker.registerStep('extracting_text', {
+          stepId: 'extracting_text',
+          stepName: 'Extracting Text',
+          stepDescription: 'Extracting text and math expressions...'
+        });
+
+        markingProgressTracker.registerStep('generating_feedback', {
+          stepId: 'generating_feedback',
+          stepName: 'Generating Feedback',
+          stepDescription: 'Creating marking instructions...'
+        });
+
+        markingProgressTracker.registerStep('creating_annotations', {
+          stepId: 'creating_annotations',
+          stepName: 'Creating Annotations',
+          stepDescription: 'Generating visual annotations...'
+        });
+
+        markingProgressTracker.registerStep('generating_response', {
+          stepId: 'generating_response',
+          stepName: 'Generating Response',
+          stepDescription: 'Generating final AI response...'
+        });
+
+        // Execute marking mode pipeline with auto-progress
+        const analyzeImageMarking = async () => {
+          await simulateApiDelay('Image Analysis', debug);
+          return { analyzed: true };
+        };
+        await markingProgressTracker.withProgress('analyzing_image', analyzeImageMarking)();
+
+        const classifyImageMarking = async () => {
+          return this.classifyImageWithAI(imageData, model, debug);
+        };
+        await markingProgressTracker.withProgress('classifying_image', classifyImageMarking)();
+
+        const detectQuestion = async () => {
+          return questionDetectionService.detectQuestion(imageData);
+        };
+        const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
+
+        const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
+        const markingInstructions = await this.generateMarkingInstructions(
+          imageData, model, processedImage, questionDetection, debug, markingProgressTracker
+        );
+
+        // Create annotations
+        const createAnnotations = async () => {
+          const boundingBoxes = markingInstructions.annotations.map(ann => ({
+            x: ann.bbox[0],
+            y: ann.bbox[1],
+            width: ann.bbox[2],
+            height: ann.bbox[3],
+            text: ann.comment || ann.text || 'annotation',
+            confidence: 0.9
+          }));
+
+          return ImageAnnotationService.createAnnotationsFromBoundingBoxes(
+            boundingBoxes
+          );
+        };
+        await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
+
+        // Generate final AI response
+        const generateFinalResponse = async () => {
+          const { AIMarkingService } = await import('../aiMarkingService');
+          return AIMarkingService.generateChatResponse(
+            imageData, '', model, false, debug
+          );
+        };
+        const aiResponse = await markingProgressTracker.withProgress('generating_response', generateFinalResponse)();
+
+        // Finish progress tracking
+        markingProgressTracker.finish();
+
+        const totalProcessingTime = Date.now() - startTime;
+
+        return {
+          success: true,
+          mode: 'Marking',
+          extractedText: processedImage.ocrText,
+          mathBlocks: processedImage.boundingBoxes,
+          markingInstructions: markingInstructions,
+          aiResponse: aiResponse.response,
+          confidence: 0.9,
+          processingTime: totalProcessingTime,
+          progressData: finalProgressData,
+          sessionTitle: generateNonPastPaperTitle(processedImage.ocrText, 'Marking')
+        } as MarkHomeworkResponse;
+      }
+    } catch (error) {
+      console.error('Error in MarkHomeworkWithAnswerAuto.run:', error);
+      throw error;
+    }
+  }
+}

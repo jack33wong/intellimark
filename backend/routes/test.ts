@@ -70,19 +70,19 @@ router.get('/progress-data', async (req, res) => {
 
     // Simulate progress
     progressTracker.startStep('classification');
-    progressTracker.completeStep('classification');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('detection');
-    progressTracker.completeStep('detection');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('extraction');
-    progressTracker.completeStep('extraction');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('generation');
-    progressTracker.completeStep('generation');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('annotation');
-    progressTracker.completeStep('annotation');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('finalization');
-    progressTracker.completeStep('finalization');
+    progressTracker.completeCurrentStep();
     progressTracker.startStep('completion');
-    progressTracker.completeStep('completion');
+    progressTracker.completeCurrentStep();
 
     res.json({ 
       success: true, 
