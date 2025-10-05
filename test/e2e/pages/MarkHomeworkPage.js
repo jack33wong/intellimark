@@ -509,15 +509,16 @@ class MarkHomeworkPage {
       async () => {
         console.log('⏳ Waiting for progress steps to appear...');
         
-        // Wait for progress toggle button to be visible
-        const progressToggleButton = this.page.locator('.progress-toggle-button').first();
+        // Wait for progress toggle button to be visible in the latest AI message
+        const latestAIMessage = this.aiMessages.last();
+        const progressToggleButton = latestAIMessage.locator('.progress-toggle-button');
         await expect(progressToggleButton).toBeVisible({ timeout });
         
         // Click the progress toggle button to expand steps
         await progressToggleButton.click();
         
-        // Wait for step list container to be visible
-        await expect(this.page.locator('.step-list-container')).toBeVisible({ timeout });
+        // Wait for step list container to be visible in the latest AI message
+        await expect(latestAIMessage.locator('.step-list-container')).toBeVisible({ timeout });
         
         console.log('✅ Progress steps are now visible');
       },
@@ -540,7 +541,9 @@ class MarkHomeworkPage {
         
         await this.waitForProgressStepsToAppear();
         
-        const stepItems = this.page.locator('.step-item');
+        // Target only the latest AI message's progress steps, not all step items on the page
+        const latestAIMessage = this.aiMessages.last();
+        const stepItems = latestAIMessage.locator('.step-item');
         await expect(stepItems).toHaveCount(expectedStepCount, { timeout: 15000 });
         
         // Verify each step text matches expected
@@ -595,7 +598,9 @@ class MarkHomeworkPage {
       async () => {
         console.log(`🔍 Verifying step completion indicators...`);
         
-        const stepIndicators = this.page.locator('.step-indicator');
+        // Target only the latest AI message's step indicators
+        const latestAIMessage = this.aiMessages.last();
+        const stepIndicators = latestAIMessage.locator('.step-indicator');
         
         for (let i = 0; i < completedSteps.length; i++) {
           const indicator = await stepIndicators.nth(i).textContent();
@@ -622,7 +627,9 @@ class MarkHomeworkPage {
       async () => {
         console.log('🔍 Verifying progress toggle functionality...');
         
-        const toggleButton = this.page.locator('.progress-toggle-button').first();
+        // Target only the latest AI message's progress toggle
+        const latestAIMessage = this.aiMessages.last();
+        const toggleButton = latestAIMessage.locator('.progress-toggle-button');
         
         if (shouldBeVisible) {
           await expect(toggleButton).toBeVisible({ timeout: 10000 });
@@ -631,13 +638,13 @@ class MarkHomeworkPage {
         
         if (shouldExpandSteps) {
           await toggleButton.click();
-          await expect(this.page.locator('.step-list-container')).toBeVisible({ timeout: 5000 });
+          await expect(latestAIMessage.locator('.step-list-container')).toBeVisible({ timeout: 5000 });
           console.log('✅ Progress steps expanded successfully');
         }
         
         if (shouldCollapseSteps) {
           await toggleButton.click();
-          await expect(this.page.locator('.step-list-container')).toBeHidden({ timeout: 5000 });
+          await expect(latestAIMessage.locator('.step-list-container')).toBeHidden({ timeout: 5000 });
           console.log('✅ Progress steps collapsed successfully');
         }
       },
