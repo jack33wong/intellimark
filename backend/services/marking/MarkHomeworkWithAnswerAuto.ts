@@ -222,8 +222,16 @@ export class MarkHomeworkWithAnswerAuto {
       // Create auto-progress tracker
       let finalProgressData: any = null;
       
-      // Set up for question mode first (will be updated if marking mode is needed)
-      modeSteps = ['Image Analysis', 'Image Classification', 'AI Response Generation'];
+      // Set up for complete flow (question mode + potential marking mode)
+      modeSteps = [
+        'Image Analysis', 
+        'Image Classification', 
+        'Question Detection', 
+        'OCR Processing', 
+        'Marking Instructions', 
+        'Burn Overlay', 
+        'AI Response Generation'
+      ];
       totalSteps = modeSteps.length;
       currentStep = 0; // Reset step counter
       
@@ -261,7 +269,8 @@ export class MarkHomeworkWithAnswerAuto {
       logStep1Complete();
 
       // Step 2: Classify image (auto-progress)
-      const logStep2Complete = logStep('Image Classification', model);
+      const actualModel = model === 'auto' ? 'gemini-2.0-flash-lite' : model;
+      const logStep2Complete = logStep('Image Classification', actualModel);
       const classifyImage = async () => {
         return this.classifyImageWithAI(imageData, model, debug);
       };
@@ -273,7 +282,7 @@ export class MarkHomeworkWithAnswerAuto {
       
       if (isQuestionMode) {
         // Question mode: simple AI response
-        const logStep3Complete = logStep('AI Response Generation', model);
+        const logStep3Complete = logStep('AI Response Generation', actualModel);
         const generateResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
           return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
@@ -304,7 +313,7 @@ export class MarkHomeworkWithAnswerAuto {
             });
         }
         
-        console.log(`🤖 [MODEL] Used: ${model}`);
+        console.log(`🤖 [MODEL] Used: ${actualModel}`);
         console.log(`✅ [RESULT] Question mode completed successfully`);
         
         return {
@@ -320,18 +329,7 @@ export class MarkHomeworkWithAnswerAuto {
         } as MarkHomeworkResponse;
       } else {
         // Marking mode: full processing pipeline
-        // Reset for marking mode steps
-        modeSteps = [
-          'Image Analysis', 
-          'Image Classification', 
-          'Question Detection', 
-          'OCR Processing', 
-          'Marking Instructions', 
-          'Burn Overlay', 
-          'AI Response Generation'
-        ];
-        totalSteps = modeSteps.length;
-        currentStep = 0; // Reset step counter for marking mode
+        // Continue with marking mode steps (no reset needed - using complete flow)
         
         // Switch to marking mode steps
         const markingProgressTracker = createAutoProgressTracker(getStepsForMode('marking'), (data) => {
@@ -383,21 +381,8 @@ export class MarkHomeworkWithAnswerAuto {
         });
 
         // Execute marking mode pipeline with auto-progress
-        const logStep1Complete = logStep('Image Analysis', 'google-vision');
-        const analyzeImageMarking = async () => {
-          await simulateApiDelay('Image Analysis', debug);
-          return { analyzed: true };
-        };
-        await markingProgressTracker.withProgress('analyzing_image', analyzeImageMarking)();
-        logStep1Complete();
-
-        const logStep2Complete = logStep('Image Classification', model);
-        const classifyImageMarking = async () => {
-          return this.classifyImageWithAI(imageData, model, debug);
-        };
-        await markingProgressTracker.withProgress('classifying_image', classifyImageMarking)();
-        logStep2Complete();
-
+        // Skip steps 1-2 (already completed in question mode)
+        // Step 3: Question Detection
         const logStep3Complete = logStep('Question Detection', 'question-detection');
         const detectQuestion = async () => {
           return questionDetectionService.detectQuestion(imageData);
@@ -409,7 +394,7 @@ export class MarkHomeworkWithAnswerAuto {
         const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
         logStep4Complete();
 
-        const logStep5Complete = logStep('Marking Instructions', 'gemini-2.0-flash-lite');
+        const logStep5Complete = logStep('Marking Instructions', actualModel);
         const markingInstructions = await this.generateMarkingInstructions(
           imageData, model, processedImage, questionDetection, debug, markingProgressTracker
         );
@@ -442,7 +427,7 @@ export class MarkHomeworkWithAnswerAuto {
         logStep6Complete();
 
         // Generate final AI response
-        const logStep7Complete = logStep('AI Response Generation', model);
+        const logStep7Complete = logStep('AI Response Generation', actualModel);
         const generateFinalResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
           return AIMarkingService.generateChatResponse(
@@ -474,7 +459,7 @@ export class MarkHomeworkWithAnswerAuto {
             });
         }
         
-        console.log(`🤖 [MODEL] Used: ${model}`);
+        console.log(`🤖 [MODEL] Used: ${actualModel}`);
         console.log(`✅ [RESULT] Marking mode completed successfully`);
 
         return {
