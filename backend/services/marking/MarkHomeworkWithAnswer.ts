@@ -294,6 +294,10 @@ export class MarkHomeworkWithAnswer {
         imageClassification = await this.classifyImageWithAI(imageData, model, debug);
       }
       logStep1Complete();
+      
+      // Debug: Log classification result
+      console.log(`🔍 [CLASSIFICATION RESULT] isQuestionOnly: ${imageClassification.isQuestionOnly}, reasoning: ${imageClassification.reasoning}`);
+      
     const classificationTokens = imageClassification.usageTokens || 0;
     
     // Step 2: Question detection
