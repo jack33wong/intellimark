@@ -177,6 +177,44 @@ export class MarkHomeworkWithAnswerAuto {
     onProgress?: (data: any) => void;
     debug?: boolean;
   }): Promise<MarkHomeworkResponse> {
+    
+    // Timing tracking for performance analysis
+    const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
+    let currentStep = 0;
+    let totalSteps = 0;
+    
+    const logStep = (stepName: string, modelInfo: string) => {
+      currentStep++;
+      const startTime = Date.now();
+      stepTimings[stepName] = { start: startTime };
+      
+      // Log step completion with duration
+      const logStepComplete = (subSteps?: { [key: string]: number }) => {
+        const timing = stepTimings[stepName];
+        if (timing) {
+          timing.duration = Date.now() - timing.start;
+          timing.subSteps = subSteps;
+          const duration = (timing.duration / 1000).toFixed(1);
+          
+          // Ensure totalSteps is set before logging
+          const actualTotalSteps = totalSteps > 0 ? totalSteps : 3; // Default to 3 if not set
+          const progress = `[${currentStep}/${actualTotalSteps}]`;
+          const paddedName = stepName.padEnd(25); // Fixed 25-character width for all step names
+          const durationStr = `[${duration}s]`;
+          const modelStr = `(${modelInfo})`;
+          console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
+          
+          if (subSteps) {
+            Object.entries(subSteps).forEach(([subStep, subDuration]) => {
+              const subDurationStr = (subDuration / 1000).toFixed(1);
+              console.log(`   └─ ${subStep}: [${subDurationStr}s]`);
+            });
+          }
+        }
+      };
+      
+      return logStepComplete;
+    };
     const startTime = Date.now();
 
     try {
@@ -207,29 +245,35 @@ export class MarkHomeworkWithAnswerAuto {
       });
 
       // Step 1: Analyze image (auto-progress)
+      const logStep1Complete = logStep('Image Analysis', 'google-vision');
       const analyzeImage = async () => {
         await simulateApiDelay('Image Analysis', debug);
         return { analyzed: true };
       };
       await progressTracker.withProgress('analyzing_image', analyzeImage)();
+      logStep1Complete();
 
       // Step 2: Classify image (auto-progress)
+      const logStep2Complete = logStep('Image Classification', model);
       const classifyImage = async () => {
         return this.classifyImageWithAI(imageData, model, debug);
       };
       const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
+      logStep2Complete();
 
       // Determine if this is question mode or marking mode
       const isQuestionMode = classification.isQuestionOnly === true;
       
       if (isQuestionMode) {
         // Question mode: simple AI response
+        const logStep3Complete = logStep('AI Response Generation', model);
         const generateResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
           return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
         };
         
         const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
+        logStep3Complete();
         
         // Finish progress tracking
         progressTracker.finish();
@@ -239,6 +283,20 @@ export class MarkHomeworkWithAnswerAuto {
         // Performance Summary
         const totalTime = totalProcessingTime / 1000;
         console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+        
+        // Calculate step percentages
+        const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
+        if (stepEntries.length > 0) {
+          stepEntries
+            .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
+            .forEach(([stepName, timing]) => {
+              const duration = (timing.duration || 0) / 1000;
+              const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
+              const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
+              console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
+            });
+        }
+        
         console.log(`🤖 [MODEL] Used: ${model}`);
         console.log(`✅ [RESULT] Question mode completed successfully`);
         
@@ -305,28 +363,40 @@ export class MarkHomeworkWithAnswerAuto {
         });
 
         // Execute marking mode pipeline with auto-progress
+        const logStep1Complete = logStep('Image Analysis', 'google-vision');
         const analyzeImageMarking = async () => {
           await simulateApiDelay('Image Analysis', debug);
           return { analyzed: true };
         };
         await markingProgressTracker.withProgress('analyzing_image', analyzeImageMarking)();
+        logStep1Complete();
 
+        const logStep2Complete = logStep('Image Classification', model);
         const classifyImageMarking = async () => {
           return this.classifyImageWithAI(imageData, model, debug);
         };
         await markingProgressTracker.withProgress('classifying_image', classifyImageMarking)();
+        logStep2Complete();
 
+        const logStep3Complete = logStep('Question Detection', 'question-detection');
         const detectQuestion = async () => {
           return questionDetectionService.detectQuestion(imageData);
         };
         const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
+        logStep3Complete();
 
+        const logStep4Complete = logStep('OCR Processing', 'google-vision + mathpix');
         const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
+        logStep4Complete();
+
+        const logStep5Complete = logStep('Marking Instructions', 'gemini-2.0-flash-lite');
         const markingInstructions = await this.generateMarkingInstructions(
           imageData, model, processedImage, questionDetection, debug, markingProgressTracker
         );
+        logStep5Complete();
 
         // Create annotations and annotated image
+        const logStep6Complete = logStep('Burn Overlay', 'image-processing');
         const createAnnotations = async () => {
           const boundingBoxes = markingInstructions.annotations.map(ann => ({
             x: ann.bbox[0],
@@ -349,8 +419,10 @@ export class MarkHomeworkWithAnswerAuto {
           );
         };
         const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
+        logStep6Complete();
 
         // Generate final AI response
+        const logStep7Complete = logStep('AI Response Generation', model);
         const generateFinalResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
           return AIMarkingService.generateChatResponse(
@@ -358,6 +430,7 @@ export class MarkHomeworkWithAnswerAuto {
           );
         };
         const aiResponse = await markingProgressTracker.withProgress('generating_response', generateFinalResponse)();
+        logStep7Complete();
 
         // Finish progress tracking
         markingProgressTracker.finish();
@@ -367,6 +440,20 @@ export class MarkHomeworkWithAnswerAuto {
         // Performance Summary
         const totalTime = totalProcessingTime / 1000;
         console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+        
+        // Calculate step percentages
+        const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
+        if (stepEntries.length > 0) {
+          stepEntries
+            .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
+            .forEach(([stepName, timing]) => {
+              const duration = (timing.duration || 0) / 1000;
+              const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
+              const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
+              console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
+            });
+        }
+        
         console.log(`🤖 [MODEL] Used: ${model}`);
         console.log(`✅ [RESULT] Marking mode completed successfully`);
 

@@ -8,7 +8,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { optionalAuth } from '../middleware/auth.js';
-import { MarkHomeworkWithAnswer } from '../services/marking/MarkHomeworkWithAnswer.js';
+import { MarkHomeworkWithAnswerAuto } from '../services/marking/MarkHomeworkWithAnswerAuto.js';
 import { FirestoreService } from '../services/firestoreService.js';
 import { ImageStorageService } from '../services/imageStorageService.js';
 
@@ -35,11 +35,11 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 
 
     // Process image for AI analysis
-    const result = await MarkHomeworkWithAnswer.run({
+    const result = await MarkHomeworkWithAnswerAuto.run({
       imageData,
       model,
-      userId,
-      userEmail
+      debug: false,
+      onProgress: undefined
     });
 
     // Generate session ID
@@ -152,11 +152,11 @@ router.post('/ai', optionalAuth, async (req: Request, res: Response) => {
     const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Process image for AI response
-    const result = await MarkHomeworkWithAnswer.run({
+    const result = await MarkHomeworkWithAnswerAuto.run({
       imageData,
       model,
-      userId,
-      userEmail
+      debug: false,
+      onProgress: undefined
     });
 
     // Upload annotated image to Firebase Storage if it's a marking result
