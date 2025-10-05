@@ -490,9 +490,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
     
     // Create AI message using factory
-    const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, result.message || 'Processing complete', 'marking');
+    const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, result.message, 'marking');
     const aiMessage = createAIMessage({
-      content: result.message || 'I have analyzed your homework and provided feedback.',
+      content: result.message,
       messageId: result.messageId || resolvedAIMessageId,
       imageData: result.annotatedImage || null,
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
@@ -826,7 +826,7 @@ router.post('/process-single', optionalAuth, async (req: Request, res: Response)
     const aiMessage = {
       id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
-      content: result.message || 'Processing complete',
+      content: result.message,
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       imageLink: annotatedImageLink, // For authenticated users
@@ -1108,7 +1108,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const aiMessage = {
       id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',
-      content: result.message || 'Processing complete',
+      content: result.message,
       timestamp: new Date().toISOString(),
       type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
       imageLink: annotatedImageLink, // For authenticated users
