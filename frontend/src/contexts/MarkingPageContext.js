@@ -5,7 +5,7 @@ import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
 import { useScrollManager } from '../hooks/useScrollManager';
-import { createUserMessageId, createAIMessageId } from '../utils/messageUtils.js';
+import { createAIMessageId } from '../utils/messageUtils.js';
 
 const MarkingPageContext = createContext();
 
@@ -99,7 +99,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       // 4. BACKEND COMPATIBILITY: Backend expects unique IDs for each message
       // 
       // DO NOT CHANGE TO CONTENT-BASED HASHING:
-      // - Content-based hashing (like createUserMessageId) causes duplicate IDs
+      // - Content-based hashing causes duplicate IDs for identical content
       // - Same content + same timestamp = same ID = React key conflicts
       // - This was the root cause of the "duplicate children" React warnings
       // 
@@ -119,9 +119,9 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       
       const textProgressData = {
         isComplete: false,
-        currentStepDescription: 'Processing question...',
-        allSteps: ['Processing question...', 'Generating response...'],
-        completedSteps: [],
+        currentStepDescription: 'AI is thinking...',
+        allSteps: ['AI is thinking...'],
+        currentStepIndex: 0,
       };
       
       // Generate a predictable AI message ID that backend can use
@@ -223,9 +223,9 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       
       const imageProgressData = {
         isComplete: false,
-        currentStepDescription: 'Processing image...',
-        allSteps: ['Processing image...', 'Analyzing content...', 'Generating response...'],
-        completedSteps: [],
+        currentStepDescription: 'Analyzing image...',
+        allSteps: ['Analyzing image...'],
+        currentStepIndex: 0,
       };
       
       startAIThinking(imageProgressData, imageAiMessageId);

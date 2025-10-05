@@ -145,7 +145,7 @@ class LoginPage {
     // Additional wait to ensure token refresh is complete
     await this.page.waitForTimeout(2000);
     
-    console.log('✅ Login successful - authentication token stored');
+    // Login successful
     
     // Verify token is valid by making a test API call
     await this.verifyTokenValidity();
@@ -174,7 +174,7 @@ class LoginPage {
       });
       
       if (response.success) {
-        console.log('✅ Authentication token is valid');
+        // Token is valid
       } else {
         console.log(`❌ Authentication token validation failed: ${response.status} ${response.statusText}`);
         throw new Error(`Token validation failed: ${response.status} ${response.statusText}`);

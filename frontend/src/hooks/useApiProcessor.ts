@@ -14,14 +14,14 @@ interface ApiState {
   showProgressDetails: boolean;
   progressData: any; 
   stepList: any[];
-  completedSteps: any[];
+  currentStepIndex: number;
 }
 
 // Define the type for the progress data from the backend
 interface ProgressData {
   currentStepDescription?: string;
   allSteps?: any[];
-  completedSteps?: any[];
+  currentStepIndex?: number;
   isComplete?: boolean;
 }
 
@@ -37,7 +37,7 @@ export const useApiProcessor = () => {
     showProgressDetails: false,
     progressData: null,
     stepList: [],
-    completedSteps: [],
+    currentStepIndex: 0,
   });
 
   const startProcessing = useCallback(() => {
@@ -73,44 +73,36 @@ export const useApiProcessor = () => {
   }, []);
 
   const updateProgress = useCallback((data: ProgressData) => {
+    const currentStepIndex = data.currentStepIndex || 0;
+    const totalSteps = (data.allSteps || []).length;
+
     setApiState(prev => ({
       ...prev,
       loadingMessage: data.currentStepDescription || prev.loadingMessage,
       progressData: data,
       stepList: data.allSteps || [],
-      completedSteps: data.completedSteps || [],
-      loadingStep: (data.completedSteps || []).length + (data.isComplete ? 0 : 1),
-      loadingTotalSteps: (data.allSteps || []).length,
-      loadingProgress: data.isComplete ? 100 : Math.round(((data.completedSteps || []).length / ((data.allSteps || []).length || 1)) * 100)
+      currentStepIndex: currentStepIndex,
+      loadingStep: currentStepIndex + (data.isComplete ? 0 : 1),
+      loadingTotalSteps: totalSteps,
+      loadingProgress: data.isComplete ? 100 : Math.round((currentStepIndex / (totalSteps || 1)) * 100)
     }));
 
     const currentSession = simpleSessionService.getCurrentSession() as UnifiedSession | null;
     if (currentSession?.messages?.length) {
       const processingMessageIndex = [...currentSession.messages].reverse().findIndex(m => m.isProcessing);
-      
+
       if (processingMessageIndex !== -1) {
-        const indexToUpdate = currentSession.messages.length - 1 - processingMessageIndex;
-        const updatedMessages = [...currentSession.messages];
-        const messageToUpdate = updatedMessages[indexToUpdate];
-        
-        const updatedMessage: UnifiedMessage = {
-          ...messageToUpdate,
-          progressData: {
-            currentStepDescription: data.currentStepDescription || '',
-            completedSteps: data.completedSteps || [],
-            allSteps: data.allSteps || [],
-            isComplete: data.isComplete || false,
-          }
+        const messageToUpdate = currentSession.messages[currentSession.messages.length - 1 - processingMessageIndex];
+
+        const progressData = {
+          currentStepDescription: data.currentStepDescription || '',
+          allSteps: [...(data.allSteps || [])], // Create a new array to force React re-render
+          currentStepIndex: data.currentStepIndex || 0,
+          isComplete: data.isComplete || false,
         };
 
-        updatedMessages[indexToUpdate] = updatedMessage;
-        
-        const updatedSession = {
-          ...currentSession,
-          messages: updatedMessages,
-        };
-        
-        simpleSessionService.setCurrentSession(updatedSession);
+        // Use the simpler update method
+        simpleSessionService.updateMessageInCurrentSession(messageToUpdate.id, { progressData });
       }
     }
   }, []);

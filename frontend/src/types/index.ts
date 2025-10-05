@@ -29,8 +29,8 @@ export interface UnifiedMessage {
     type?: 'chat' | 'marking_original' | 'marking_annotated';
     progressData?: {
       currentStepDescription: string;
-      completedSteps: string[];
       allSteps: string[];
+      currentStepIndex: number;
       isComplete: boolean;
     };
   }

@@ -51,9 +51,7 @@ test.describe('Happy Path E2E Tests', () => {
     
     // Monitor network requests for debugging
     page.on('request', request => {
-      if (request.url().includes('/api/')) {
-        console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
-      }
+      // API request logged
     });
     
     page.on('response', response => {

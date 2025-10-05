@@ -56,7 +56,7 @@ describe('ChatMessage Component', () => {
       content: 'Done.', 
       progressData: { 
         allSteps: ['Step A'], 
-        completedSteps: ['Step A'], 
+        currentStepIndex: 1, 
         isComplete: true 
       } 
     };

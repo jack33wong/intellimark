@@ -436,36 +436,6 @@ export const generateContentHash = (content, length = 8) => {
   return Math.abs(hash).toString(36).substring(0, length);
 };
 
-/**
- * Generates a user message ID based on content
- * 
- * ============================================================================
- * DEPRECATED: DO NOT USE THIS FUNCTION FOR NEW MESSAGES
- * ============================================================================
- * 
- * WARNING: This function is DEPRECATED and should NOT be used for new messages!
- * 
- * Why this function is problematic:
- * 1. CAUSES DUPLICATE MESSAGE IDS: Same content + same timestamp = same ID
- * 2. REACT KEY CONFLICTS: Causes "duplicate children" React warnings
- * 3. REPLACED BY SIMPLE TIMESTAMP APPROACH: Use `user-${Date.now()}` instead
- * 
- * Current approach in MarkingPageContext.js:
- * - Uses simple `user-${Date.now()}` for guaranteed uniqueness
- * - No content dependency = no collision risk
- * - Works for identical content sent multiple times
- * 
- * This function is kept for backward compatibility only.
- * ============================================================================
- * 
- * @param {string} content - The message content
- * @returns {string} A user message ID
- */
-export const createUserMessageId = (content) => {
-  const hash = generateContentHash(content);
-  const timestamp = Date.now();
-  return `user-${hash}-${timestamp}`;
-};
 
 /**
  * Generates an AI message ID based on content

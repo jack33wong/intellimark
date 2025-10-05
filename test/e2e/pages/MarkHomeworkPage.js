@@ -63,9 +63,7 @@ class MarkHomeworkPage {
     // Track network requests for debugging
     this.page.on('request', request => {
       // Only track API requests to avoid overwhelming the logs
-      if (request.url().includes('/api/')) {
-        console.log(`🌐 API Request: ${request.method()} ${request.url()}`);
-      }
+      // API request logged
     });
   }
 
@@ -110,7 +108,6 @@ class MarkHomeworkPage {
 
         // Try to use the file input directly (it might be hidden but still functional)
         try {
-          console.log('📁 Attempting to upload image...');
           await this.fileInput.setInputFiles(imagePath);
           console.log('✅ File input accepted the file');
         } catch (error) {

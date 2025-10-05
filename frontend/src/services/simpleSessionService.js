@@ -150,6 +150,23 @@ class SimpleSessionService {
     this._setAndMergeCurrentSession(session);
   }
 
+  // Simple method to update just a message in the current session
+  updateMessageInCurrentSession = (messageId, updates) => {
+    const currentSession = this.state.currentSession;
+    if (!currentSession?.messages) return;
+
+    const updatedMessages = currentSession.messages.map(msg => 
+      msg.id === messageId ? { ...msg, ...updates } : msg
+    );
+
+    const updatedSession = {
+      ...currentSession,
+      messages: updatedMessages
+    };
+
+    this.setState({ currentSession: updatedSession });
+  }
+
   handleProcessComplete = (data, modelUsed) => {
     try {
       if (!data.success || !data.unifiedSession) {

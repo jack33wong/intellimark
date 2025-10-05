@@ -81,7 +81,7 @@ describe('useApiProcessor hook', () => {
     const progressUpdate = {
       currentStepDescription: 'Analyzing image...',
       allSteps: ['Step 1', 'Step 2', 'Step 3'],
-      completedSteps: ['Step 1'],
+      currentStepIndex: 1,
       isComplete: false,
     };
     act(() => { result.current.updateProgress(progressUpdate); });

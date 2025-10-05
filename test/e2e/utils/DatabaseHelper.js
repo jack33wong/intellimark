@@ -120,7 +120,7 @@ class DatabaseHelper {
     await this.connectToFirestore();
     
     try {
-      console.log(`🧹 Cleaning up unifiedSessions for userId: ${userId}`);
+      // Cleaning up test sessions
       
       const sessionsSnapshot = await this.db
         .collection('unifiedSessions')
@@ -149,13 +149,13 @@ class DatabaseHelper {
         
         if (messagesSnapshot.size > 0) {
           await messageBatch.commit();
-          console.log(`🗑️ Deleted ${messagesSnapshot.size} messages from session ${sessionId}`);
+          // Deleted messages from session
         }
         
         // Delete the session itself
         await this.db.collection('unifiedSessions').doc(sessionId).delete();
         deletedSessions++;
-        console.log(`🗑️ Deleted session ${sessionId}`);
+        // Deleted session
       }
       
       if (deletedSessions > 0) {
@@ -175,7 +175,7 @@ class DatabaseHelper {
     await this.connectToFirestore();
     
     try {
-      console.log(`🧹 Cleaning up ALL test data...`);
+      // Cleaning up all test data
       
       // Get all sessions
       const sessionsSnapshot = await this.db
@@ -204,13 +204,13 @@ class DatabaseHelper {
         
         if (messagesSnapshot.size > 0) {
           await messageBatch.commit();
-          console.log(`🗑️ Deleted ${messagesSnapshot.size} messages from session ${sessionId}`);
+          // Deleted messages from session
         }
         
         // Delete the session itself
         await this.db.collection('unifiedSessions').doc(sessionId).delete();
         deletedSessions++;
-        console.log(`🗑️ Deleted session ${sessionId}`);
+        // Deleted session
       }
       
       console.log(`✅ Complete cleanup: ${deletedSessions} sessions and ${deletedMessages} messages deleted`);
@@ -335,7 +335,7 @@ class DatabaseHelper {
     if (this.isInitialized) {
       await admin.app().delete();
       this.isInitialized = false;
-      console.log('🔌 Disconnected from Firestore');
+      // Disconnected from Firestore
     }
   }
 }

@@ -126,8 +126,15 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 <div className="step-list-container">
                   {(message.progressData.allSteps || []).map((step: any, index: number) => {
                       const stepText = typeof step === 'string' ? step : (step.description || 'Step');
-                      const isCompleted = (message.progressData?.completedSteps || []).includes(stepText);
-                      const isCurrent = index === (message.progressData?.completedSteps?.length || 0) && !isCompleted;
+                      const currentStepIndex = message.progressData?.currentStepIndex || 0;
+                      const isComplete = message.progressData?.isComplete || false;
+                      
+                      // If process is complete, all steps are completed
+                      // Otherwise, step N is completed when currentStepIndex > N (we've moved past step N)
+                      const isCompleted = isComplete || index < currentStepIndex;
+                      // Step N is current when currentStepIndex === N AND process is not complete
+                      const isCurrent = !isComplete && index === currentStepIndex;
+                      
                       return (
                         <div key={index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
                           <div className="step-indicator">
