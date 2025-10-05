@@ -160,7 +160,6 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     const newDebugMode = !debugMode;
     setDebugMode(newDebugMode);
     localStorage.setItem('debugMode', newDebugMode.toString());
-    console.log(`🔍 [DEBUG MODE] Frontend debug mode toggled to: ${newDebugMode}`);
   };
 
   const getUpgradeButtonText = () => {

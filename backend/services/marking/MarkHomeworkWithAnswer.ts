@@ -271,7 +271,7 @@ export class MarkHomeworkWithAnswer {
 
       // Debug mode: Skip AI processing but go through the flow
       if (debug) {
-        console.log(`🔍 [DEBUG MODE] Testing question mode flow - no real AI processing`);
+        // Debug mode enabled - no real AI processing
       }
 
       // Step 1: Classification
@@ -295,9 +295,7 @@ export class MarkHomeworkWithAnswer {
       }
       logStep1Complete();
       
-      // Debug: Log classification result
-      console.log(`🔍 [CLASSIFICATION RESULT] isQuestionOnly: ${imageClassification.isQuestionOnly}, reasoning: ${imageClassification.reasoning}`);
-      console.log(`🔍 [CLASSIFICATION DETAILS] apiUsed: ${imageClassification.apiUsed}, extractedText: ${imageClassification.extractedQuestionText?.substring(0, 100)}...`);
+      // Classification completed
       
     const classificationTokens = imageClassification.usageTokens || 0;
     
@@ -333,8 +331,7 @@ export class MarkHomeworkWithAnswer {
     // Add delay to show step 1 completion before starting step 2
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    // Debug: Log mode decision
-    console.log(`🔍 [MODE DECISION] isQuestionOnly: ${imageClassification.isQuestionOnly} -> ${imageClassification.isQuestionOnly ? 'QUESTION MODE (3 steps)' : 'MARKING MODE (7 steps)'}`);
+    // Mode decision completed
     
     // If question-only, generate session title but don't create session yet
     if (imageClassification.isQuestionOnly) {
@@ -424,7 +421,6 @@ export class MarkHomeworkWithAnswer {
       } as unknown as MarkHomeworkResponse;
     } else {
       // Only run marking mode if NOT question mode
-      console.log(`🔍 [PROGRESS TRACKER] Switching to MARKING MODE with 7 steps`);
       progressTracker = new ProgressTracker(getStepsForMode('marking'), (data) => {
         finalProgressData = data;
         if (onProgress) onProgress(data);
