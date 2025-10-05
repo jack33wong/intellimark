@@ -497,6 +497,187 @@ class MarkHomeworkPage {
     });
     
   }
+
+  // --- Progress Step Testing Methods ---
+
+  /**
+   * Wait for progress steps to appear and expand the progress dropdown
+   * @param {number} timeout - Timeout in milliseconds (default: 10000)
+   */
+  async waitForProgressStepsToAppear(timeout = 10000) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('⏳ Waiting for progress steps to appear...');
+        
+        // Wait for progress toggle button to be visible
+        const progressToggleButton = this.page.locator('.progress-toggle-button').first();
+        await expect(progressToggleButton).toBeVisible({ timeout });
+        
+        // Click the progress toggle button to expand steps
+        await progressToggleButton.click();
+        
+        // Wait for step list container to be visible
+        await expect(this.page.locator('.step-list-container')).toBeVisible({ timeout });
+        
+        console.log('✅ Progress steps are now visible');
+      },
+      'Wait for progress steps to appear',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verify progress steps for a specific mode
+   * @param {Object} options - Configuration options
+   * @param {string} options.mode - The mode ('text', 'question', 'marking')
+   * @param {Array<string>} options.expectedSteps - Array of expected step descriptions
+   * @param {number} options.expectedStepCount - Expected number of steps
+   */
+  async verifyProgressSteps({ mode, expectedSteps, expectedStepCount }) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log(`🔍 Verifying ${mode} mode progress steps...`);
+        
+        await this.waitForProgressStepsToAppear();
+        
+        const stepItems = this.page.locator('.step-item');
+        await expect(stepItems).toHaveCount(expectedStepCount, { timeout: 15000 });
+        
+        // Verify each step text matches expected
+        for (let i = 0; i < expectedStepCount; i++) {
+          const stepText = await stepItems.nth(i).locator('.step-description').textContent();
+          expect(stepText).toBe(expectedSteps[i]);
+          console.log(`✅ Step ${i + 1}: "${stepText}"`);
+        }
+        
+        console.log(`✅ All ${expectedStepCount} ${mode} mode steps verified`);
+      },
+      `Verify ${mode} mode progress steps`,
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verify progressive step display (steps appear one by one)
+   * @param {Object} options - Configuration options
+   * @param {number} options.initialStepCount - Initial number of steps visible
+   * @param {number} options.finalStepCount - Final number of steps visible
+   * @param {number} options.stepProgressionDelay - Delay between step appearances in ms
+   */
+  async verifyProgressiveStepDisplay({ initialStepCount, finalStepCount, stepProgressionDelay }) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log(`🔍 Verifying progressive step display (${initialStepCount} → ${finalStepCount})...`);
+        
+        // Wait for initial step
+        await expect(this.page.locator('.step-item')).toHaveCount(initialStepCount, { timeout: 5000 });
+        console.log(`✅ Initial ${initialStepCount} step(s) visible`);
+        
+        // Wait for all steps to appear progressively
+        await expect(this.page.locator('.step-item')).toHaveCount(finalStepCount, { 
+          timeout: stepProgressionDelay * finalStepCount + 10000 
+        });
+        console.log(`✅ All ${finalStepCount} steps now visible`);
+      },
+      'Verify progressive step display',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verify step completion indicators (tick marks, current step indicators)
+   * @param {Object} options - Configuration options
+   * @param {Array<string>} options.completedSteps - Array of expected indicators ('✓', '●', '○')
+   * @param {number} options.currentStep - Index of current step
+   */
+  async verifyStepCompletionIndicators({ completedSteps, currentStep }) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log(`🔍 Verifying step completion indicators...`);
+        
+        const stepIndicators = this.page.locator('.step-indicator');
+        
+        for (let i = 0; i < completedSteps.length; i++) {
+          const indicator = await stepIndicators.nth(i).textContent();
+          expect(indicator).toBe(completedSteps[i]);
+          console.log(`✅ Step ${i + 1} indicator: "${indicator}"`);
+        }
+        
+        console.log(`✅ All step indicators verified (current step: ${currentStep})`);
+      },
+      'Verify step completion indicators',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verify progress toggle functionality (expand/collapse)
+   * @param {Object} options - Configuration options
+   * @param {boolean} options.shouldBeVisible - Whether toggle should be visible
+   * @param {boolean} options.shouldExpandSteps - Whether to test expanding steps
+   * @param {boolean} options.shouldCollapseSteps - Whether to test collapsing steps
+   */
+  async verifyProgressToggle({ shouldBeVisible, shouldExpandSteps, shouldCollapseSteps }) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying progress toggle functionality...');
+        
+        const toggleButton = this.page.locator('.progress-toggle-button').first();
+        
+        if (shouldBeVisible) {
+          await expect(toggleButton).toBeVisible({ timeout: 10000 });
+          console.log('✅ Progress toggle button is visible');
+        }
+        
+        if (shouldExpandSteps) {
+          await toggleButton.click();
+          await expect(this.page.locator('.step-list-container')).toBeVisible({ timeout: 5000 });
+          console.log('✅ Progress steps expanded successfully');
+        }
+        
+        if (shouldCollapseSteps) {
+          await toggleButton.click();
+          await expect(this.page.locator('.step-list-container')).toBeHidden({ timeout: 5000 });
+          console.log('✅ Progress steps collapsed successfully');
+        }
+      },
+      'Verify progress toggle functionality',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verify thinking animation synchronization
+   * @param {Object} options - Configuration options
+   * @param {boolean} options.shouldStartWithThinking - Whether thinking should start
+   * @param {boolean} options.shouldStopWithResponse - Whether thinking should stop with response
+   * @param {boolean} options.shouldShowThinkingText - Whether thinking text should be visible
+   */
+  async verifyThinkingAnimationSync({ shouldStartWithThinking, shouldStopWithResponse, shouldShowThinkingText }) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying thinking animation synchronization...');
+        
+        if (shouldStartWithThinking) {
+          await expect(this.page.locator('.thinking-dots')).toBeVisible({ timeout: 10000 });
+          console.log('✅ Thinking dots started');
+        }
+        
+        if (shouldShowThinkingText) {
+          await expect(this.page.locator('.thinking-text')).toBeVisible({ timeout: 10000 });
+          console.log('✅ Thinking text is visible');
+        }
+        
+        if (shouldStopWithResponse) {
+          await this.waitForAIResponse();
+          await expect(this.page.locator('.thinking-dots')).toBeHidden({ timeout: 10000 });
+          console.log('✅ Thinking dots stopped with AI response');
+        }
+      },
+      'Verify thinking animation synchronization',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
 }
 
 module.exports = MarkHomeworkPage;

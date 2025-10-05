@@ -116,6 +116,33 @@ test.describe('Happy Path E2E Tests', () => {
       }).toPass({ timeout: 15000 });
     });
 
+    await test.step('Step 3.1: Verify Question Mode Progress Steps', async () => {
+      // Verify the first image upload (q19.png) shows question mode progress steps
+      await markHomeworkPage.verifyProgressSteps({
+        mode: 'question',
+        expectedSteps: [
+          'Analyzing image...',
+          'Classifying image...', 
+          'Generating response...'
+        ],
+        expectedStepCount: 3
+      });
+
+      // Verify progressive step display (steps appear one by one)
+      await markHomeworkPage.verifyProgressiveStepDisplay({
+        initialStepCount: 1,
+        finalStepCount: 3,
+        stepProgressionDelay: 800 // ms between steps
+      });
+
+      // Verify progress toggle functionality
+      await markHomeworkPage.verifyProgressToggle({
+        shouldBeVisible: true,
+        shouldExpandSteps: true,
+        shouldCollapseSteps: true
+      });
+    });
+
     await test.step('Step 4: Submit Follow-up Question', async () => {
       await markHomeworkPage.uploadImage(TEST_CONFIG.testImages.q21);
       await markHomeworkPage.enterText(TEST_CONFIG.testTexts.followUp);
@@ -129,6 +156,37 @@ test.describe('Happy Path E2E Tests', () => {
       
       // Verify 2nd user uploaded image has base64 source (from chat session memory)
       await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
+    });
+
+    await test.step('Step 4.1: Verify Marking Mode Progress Steps', async () => {
+      // Verify the second image upload (q21.png) shows marking mode progress steps
+      await markHomeworkPage.verifyProgressSteps({
+        mode: 'marking',
+        expectedSteps: [
+          'Analyzing image...',
+          'Classifying image...',
+          'Detecting question type...',
+          'Extracting text and math...',
+          'Generating feedback...',
+          'Creating annotations...',
+          'Generating response...'
+        ],
+        expectedStepCount: 7
+      });
+
+      // Verify progressive step display for marking mode
+      await markHomeworkPage.verifyProgressiveStepDisplay({
+        initialStepCount: 1,
+        finalStepCount: 7,
+        stepProgressionDelay: 800 // ms between steps
+      });
+
+      // Verify thinking animation synchronization
+      await markHomeworkPage.verifyThinkingAnimationSync({
+        shouldStartWithThinking: true,
+        shouldStopWithResponse: true,
+        shouldShowThinkingText: true
+      });
     });
 
     await test.step('Step 5: Text-Only Follow-up Mode', async () => {
@@ -255,6 +313,31 @@ test.describe('Happy Path E2E Tests', () => {
       await expect(aiResponseImages).toHaveCount(0);
     });
 
+    await test.step('Step 5.1: Verify Text Mode Progress Steps', async () => {
+      // Verify the text-only message shows text mode progress steps
+      await markHomeworkPage.verifyProgressSteps({
+        mode: 'text',
+        expectedSteps: [
+          'AI is thinking...',
+          'Generating response...'
+        ],
+        expectedStepCount: 2
+      });
+
+      // Verify progressive step display for text mode
+      await markHomeworkPage.verifyProgressiveStepDisplay({
+        initialStepCount: 1,
+        finalStepCount: 2,
+        stepProgressionDelay: 800 // ms between steps
+      });
+
+      // Verify step completion indicators (all steps should be completed for text mode)
+      await markHomeworkPage.verifyStepCompletionIndicators({
+        completedSteps: ['✓', '✓'], // Both steps completed
+        currentStep: 1
+      });
+    });
+
     await test.step('Step 6: Verify Third AI Response and Database', async () => {
       // Wait for the third AI response to complete first
       await markHomeworkPage.waitForAIResponse();
@@ -277,9 +360,39 @@ test.describe('Happy Path E2E Tests', () => {
       }).toPass({ timeout: 60000 });
     });
 
-    await test.step('Step 7: Test Chat History Navigation and Image Sources', async () => {
+    await test.step('Step 6.1: Verify All Progress Steps in Chat History', async () => {
       // Click on the chat history item to load the conversation from database
       await sidebarPage.clickChatHistoryItem(0);
+      
+      // Wait for the chat to load from database and messages to be visible
+      await markHomeworkPage.waitForPageLoad();
+      
+      // Wait for all messages to be visible
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible({ timeout: 10000 });
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible({ timeout: 10000 });
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible({ timeout: 10000 });
+      await expect(markHomeworkPage.aiMessages).toHaveCount(3, { timeout: 10000 });
+      
+      // Verify progress steps are preserved in chat history for all three AI messages
+      const aiMessages = markHomeworkPage.aiMessages;
+      
+      // Check first AI message (question mode) - should have progress steps
+      const firstAIMessage = aiMessages.nth(0);
+      await expect(firstAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
+      
+      // Check second AI message (marking mode) - should have progress steps  
+      const secondAIMessage = aiMessages.nth(1);
+      await expect(secondAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
+      
+      // Check third AI message (text mode) - should have progress steps
+      const thirdAIMessage = aiMessages.nth(2);
+      await expect(thirdAIMessage.locator('.progress-toggle-button')).toBeVisible({ timeout: 5000 });
+      
+      console.log('✅ All AI messages have progress steps preserved in chat history');
+    });
+
+    await test.step('Step 7: Test Chat History Navigation and Image Sources', async () => {
+      // Note: Chat history is already loaded from previous step
       
       // Wait for the chat to load from database and messages to be visible
       await markHomeworkPage.waitForPageLoad();
