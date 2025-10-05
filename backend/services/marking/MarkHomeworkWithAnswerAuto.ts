@@ -236,6 +236,12 @@ export class MarkHomeworkWithAnswerAuto {
 
         const totalProcessingTime = Date.now() - startTime;
         
+        // Performance Summary
+        const totalTime = totalProcessingTime / 1000;
+        console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+        console.log(`🤖 [MODEL] Used: ${model}`);
+        console.log(`✅ [RESULT] Question mode completed successfully`);
+        
         return {
           success: true,
           mode: 'Question',
@@ -357,6 +363,12 @@ export class MarkHomeworkWithAnswerAuto {
         markingProgressTracker.finish();
 
         const totalProcessingTime = Date.now() - startTime;
+        
+        // Performance Summary
+        const totalTime = totalProcessingTime / 1000;
+        console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+        console.log(`🤖 [MODEL] Used: ${model}`);
+        console.log(`✅ [RESULT] Marking mode completed successfully`);
 
         return {
           success: true,
