@@ -502,14 +502,11 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
         totalAnnotations: result.metadata?.totalAnnotations || 0,
         isQuestionOnly: result.isQuestionOnly || false,
-        isPastPaper: result.isPastPaper || false
+        isPastPaper: result.isPastPaper || false,
+        tokens: result.metadata?.tokens || [0, 0] // [llmTokens, mathpixCalls]
       }
     });
 
-    // Debug: Log the result object to see what we're getting
-    console.log('🔍 [DEBUG] result.questionDetection:', result.questionDetection);
-    console.log('🔍 [DEBUG] result.classification:', result.classification);
-    
     // Add detectedQuestion data to AI message
     (aiMessage as any).detectedQuestion = result.questionDetection?.found ? {
       found: true,

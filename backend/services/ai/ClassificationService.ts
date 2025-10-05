@@ -258,9 +258,7 @@ export class ClassificationService {
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
-    console.log('🔍 [DEBUG] ClassificationService AI response:', cleanContent);
     const parsed = JSON.parse(cleanContent);
-    console.log('🔍 [DEBUG] ClassificationService parsed result:', parsed);
     
     // Get dynamic API name based on model
     const { getModelConfig } = await import('../../config/aiModels.js');

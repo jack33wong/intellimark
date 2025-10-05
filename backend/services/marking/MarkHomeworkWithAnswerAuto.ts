@@ -117,15 +117,16 @@ export class MarkHomeworkWithAnswerAuto {
     imageData: string, 
     debug: boolean = false,
     progressTracker?: AutoProgressTracker
-  ): Promise<ProcessedImageResult> {
-    const processImage = async (): Promise<ProcessedImageResult> => {
+  ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
+    const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
       const hybridResult = await this.getHybridOCRResult(imageData, {}, debug);
       
       return {
         ocrText: hybridResult.extractedText,
         boundingBoxes: hybridResult.mathBlocks || [],
         imageDimensions: hybridResult.imageDimensions,
-        confidence: hybridResult.confidence
+        confidence: hybridResult.confidence,
+        mathpixCalls: hybridResult.usage?.mathpixCalls || 0
       };
     };
 
@@ -183,6 +184,10 @@ export class MarkHomeworkWithAnswerAuto {
     let currentStep = 0;
     let totalSteps = 0;
     let modeSteps: string[] = []; // Track steps for current mode
+    
+    // Token and API call tracking
+    let totalLLMTokens = 0;
+    let totalMathpixCalls = 0;
     
     const logStep = (stepName: string, modelInfo: string) => {
       currentStep++;
@@ -276,6 +281,9 @@ export class MarkHomeworkWithAnswerAuto {
       };
       const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
       logStep2Complete();
+      
+      // Collect LLM tokens from classification
+      totalLLMTokens += classification.usageTokens || 0;
 
       // Determine if this is question mode or marking mode
       const isQuestionMode = classification.isQuestionOnly === true;
@@ -343,7 +351,15 @@ export class MarkHomeworkWithAnswerAuto {
           progressData: finalProgressData,
           sessionTitle: sessionTitle,
           classification: classification,
-          questionDetection: questionDetection
+          questionDetection: questionDetection,
+          metadata: {
+            totalProcessingTimeMs: totalProcessingTime,
+            confidence: 0.9,
+            imageSize: imageData.length,
+            tokens: [totalLLMTokens, totalMathpixCalls], // [llmTokens, mathpixCalls]
+            totalAnnotations: 0
+          },
+          apiUsed: actualModel
         } as MarkHomeworkResponse;
       } else {
         // Marking mode: full processing pipeline
@@ -404,11 +420,12 @@ export class MarkHomeworkWithAnswerAuto {
         const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
         const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
         logStep3Complete();
+        
+        // Collect Mathpix calls from OCR processing
+        totalMathpixCalls += processedImage.mathpixCalls || 0;
 
         // Step 4: Question Detection (use extracted text)
         const logStep4Complete = logStep('Question Detection', 'question-detection');
-        console.log('🔍 [DEBUG] classification.extractedQuestionText:', classification.extractedQuestionText);
-        console.log('🔍 [DEBUG] classification object:', classification);
         const detectQuestion = async () => {
           return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
         };
@@ -420,6 +437,9 @@ export class MarkHomeworkWithAnswerAuto {
           imageData, model, processedImage, questionDetection, debug, markingProgressTracker
         );
         logStep5Complete();
+        
+        // Collect LLM tokens from marking instructions
+        totalLLMTokens += (markingInstructions as any).usage?.llmTokens || 0;
 
         // Create annotations and annotated image
         const logStep6Complete = logStep('Burn Overlay', 'image-processing');
@@ -499,7 +519,15 @@ export class MarkHomeworkWithAnswerAuto {
             ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
             : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
           classification: classification,
-          questionDetection: questionDetection
+          questionDetection: questionDetection,
+          metadata: {
+            totalProcessingTimeMs: totalProcessingTime,
+            confidence: 0.9,
+            imageSize: imageData.length,
+            tokens: [totalLLMTokens, totalMathpixCalls], // [llmTokens, mathpixCalls]
+            totalAnnotations: processedImage.boundingBoxes?.length || 0
+          },
+          apiUsed: actualModel
         } as MarkHomeworkResponse;
       }
     } catch (error) {
