@@ -33,6 +33,20 @@ export interface UnifiedMessage {
       currentStepIndex: number;
       isComplete: boolean;
     };
+    
+    // Question detection with full exam paper metadata
+    detectedQuestion?: {
+      found: boolean;
+      questionText?: string;
+      questionNumber?: string;       // Question number from exam paper
+      subQuestionNumber?: string;    // Optional sub-question number if matched
+      examBoard?: string;
+      examCode?: string;
+      paperTitle?: string;
+      subject?: string;
+      tier?: string;
+      year?: string;
+    };
   }
   
   // ============================================================================

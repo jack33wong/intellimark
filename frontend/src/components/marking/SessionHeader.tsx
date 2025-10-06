@@ -198,31 +198,28 @@ const SessionHeader: React.FC = () => {
                     if (detectedQuestion && detectedQuestion.found) {
                       return (
                         <div className="exam-paper-section">
-                          <div className="section-header">Exam Paper Details</div>
-                          <div className="exam-details-grid">
-                            <div className="exam-detail-item">
-                              <span className="label">Board:</span>
-                              <span className="value">{detectedQuestion.examBoard || 'N/A'}</span>
-                            </div>
-                            <div className="exam-detail-item">
-                              <span className="label">Subject:</span>
-                              <span className="value">{detectedQuestion.subject || 'N/A'}</span>
-                            </div>
-                            <div className="exam-detail-item">
-                              <span className="label">Paper Code:</span>
-                              <span className="value">{detectedQuestion.examCode || 'N/A'}</span>
-                            </div>
-                            <div className="exam-detail-item">
-                              <span className="label">Year:</span>
-                              <span className="value">{detectedQuestion.year || 'N/A'}</span>
-                            </div>
-                            {detectedQuestion.tier && (
-                              <div className="exam-detail-item">
-                                <span className="label">Tier:</span>
-                                <span className="value">{detectedQuestion.tier}</span>
-                              </div>
-                            )}
+                          <div className="label-value-item">
+                            <span className="label">Board:</span>
+                            <span className="value">{detectedQuestion.examBoard || 'N/A'}</span>
                           </div>
+                          <div className="label-value-item">
+                            <span className="label">Subject:</span>
+                            <span className="value">{detectedQuestion.subject || 'N/A'}</span>
+                          </div>
+                          <div className="label-value-item">
+                            <span className="label">Paper Code:</span>
+                            <span className="value">{detectedQuestion.examCode || 'N/A'}</span>
+                          </div>
+                          <div className="label-value-item">
+                            <span className="label">Year:</span>
+                            <span className="value">{detectedQuestion.year || 'N/A'}</span>
+                          </div>
+                          {detectedQuestion.tier && (
+                            <div className="label-value-item">
+                              <span className="label">Tier:</span>
+                              <span className="value">{detectedQuestion.tier}</span>
+                            </div>
+                          )}
                         </div>
                       );
                     }

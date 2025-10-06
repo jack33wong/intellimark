@@ -46,14 +46,12 @@ ul {
 
 /* Style ONLY the simple variables */
 .markdown-math-renderer .markdown-em {
-  color: var(--function-error);
-  font-style: normal;
+  color: var(--text-katex);
+  font-size: 1.1em;
 }
 
 /* Style ONLY the KaTeX blocks */
 .markdown-math-renderer .katex {
-  padding: 0.2em;
-  background: var(--background-card);
-  color: var(--function-error);
-  line-height: initial; /* FIX: This protects KaTeX from the global line-height */
+  color: var(--text-katex);
+  font-size: 1.1em;
 }

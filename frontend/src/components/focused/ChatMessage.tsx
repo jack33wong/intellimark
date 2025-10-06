@@ -14,6 +14,7 @@ import {
   isAnnotatedImageMessage
 } from '../../utils/sessionUtils';
 import { useDropdownState } from '../../hooks/useDropdownState';
+import ExamPaperTab from '../marking/ExamPaperTab';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 
@@ -119,6 +120,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 </div>
               )}
             </div>
+          )}
+          {!isUser && message.detectedQuestion && message.detectedQuestion.found && (
+            <ExamPaperTab detectedQuestion={message.detectedQuestion} />
           )}
           
                   {showProgressDetails && message.progressData?.allSteps && (

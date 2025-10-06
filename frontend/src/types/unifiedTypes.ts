@@ -19,10 +19,20 @@ export interface UnifiedMessage {
   
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
+  imageData?: string; // For optimistic UI
   fileName?: string;
   
   // Display options
   isImageContext?: boolean;
+  isProcessing?: boolean;
+  
+  // Progress tracking
+  progressData?: {
+    currentStepDescription: string;
+    allSteps: string[];
+    currentStepIndex: number;
+    isComplete: boolean;
+  };
   
   // Question detection with full exam paper metadata
   detectedQuestion?: {
