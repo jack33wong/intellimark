@@ -731,9 +731,7 @@ export class HybridOCRService {
       }
     }
 
-    // Step 3: Create debug visualization of detected math blocks
-
-    // Step 4: Process math blocks with Mathpix if available
+    // Step 3: Process math blocks with Mathpix if available
     let mathpixCalls = 0;
     if (mathBlocks.length > 0 && InlineMathpixService.isAvailable()) {
       try {

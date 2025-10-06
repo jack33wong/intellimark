@@ -5,8 +5,6 @@
 
 import sharp from 'sharp';
 import { Annotation, ImageDimensions } from '../types/index.js';
-import * as fs from 'fs';
-import * as path from 'path';
 
 /**
  * SVG Overlay Service class
@@ -246,74 +244,4 @@ export class SVGOverlayService {
             opacity="0.9">${comment}</text>`;
   }
 
-  /**
-   * Create debug visualization of math blocks detected by Google Vision
-   * Draws red rectangles around each detected math block and saves to temp folder
-   */
-  static async createMathBlocksDebugImage(
-    imageBuffer: Buffer,
-    mathBlocks: any[],
-    filename: string
-  ): Promise<string> {
-    try {
-      if (!mathBlocks || mathBlocks.length === 0) {
-        return '';
-      }
-
-      const imageMetadata = await sharp(imageBuffer).metadata();
-      const imageWidth = imageMetadata.width || 800;
-      const imageHeight = imageMetadata.height || 600;
-
-      // Create SVG overlay with red rectangles for each math block
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}" style="position: absolute; top: 0; left: 0;">`;
-      
-      mathBlocks.forEach((block, index) => {
-        const coords = block.coordinates;
-        if (coords && coords.x !== undefined && coords.y !== undefined && coords.width && coords.height) {
-          // Red rectangle around math block
-          svg += `<rect x="${coords.x}" y="${coords.y}" width="${coords.width}" height="${coords.height}" 
-                   fill="none" stroke="red" stroke-width="3" opacity="0.8"/>`;
-          
-          // Block number label
-          svg += `<text x="${coords.x + 5}" y="${coords.y + 20}" fill="red" 
-                   font-family="Arial, sans-serif" font-size="16" font-weight="bold">${index + 1}</text>`;
-          
-          // Confidence score
-          const confidence = block.confidence || 0;
-          svg += `<text x="${coords.x + 5}" y="${coords.y + 40}" fill="red" 
-                   font-family="Arial, sans-serif" font-size="12" opacity="0.8">${(confidence * 100).toFixed(1)}%</text>`;
-        }
-      });
-      
-      svg += '</svg>';
-
-      // Create SVG buffer
-      const svgBuffer = Buffer.from(svg);
-
-      // Composite the SVG overlay onto the original image
-      const debugImageBuffer = await sharp(imageBuffer)
-        .composite([
-          {
-            input: svgBuffer,
-            top: 0,
-            left: 0
-          }
-        ])
-        .png()
-        .toBuffer();
-
-      // Ensure temp directory exists
-      const tempDir = path.join(process.cwd(), 'backend', 'temp');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-
-      const filePath = path.join(tempDir, filename);
-      fs.writeFileSync(filePath, debugImageBuffer);
-      return filePath;
-    } catch (error) {
-      console.error('❌ Failed to create math blocks debug image:', error);
-      return '';
-    }
-  }
 }

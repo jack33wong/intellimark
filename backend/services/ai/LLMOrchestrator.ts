@@ -183,8 +183,6 @@ export class LLMOrchestrator {
       }
       
 
-      // Print raw cleaned OCR text from cleanup service
-      
 
       // Step 2: Map annotations to coordinates using pre-built unified lookup table
       const { AnnotationMapper } = await import('./AnnotationMapper');
