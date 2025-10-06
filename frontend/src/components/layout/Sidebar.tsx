@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings,
@@ -51,6 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
@@ -92,28 +93,23 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [user?.uid, initializeSessions]);
 
   useEffect(() => {
-    // 👇 FIX 1: The handleSessionUpdate function now correctly removes temporary sessions.
     const handleSessionUpdate = (event: CustomEvent<{ session: UnifiedSession }>) => {
       const { session: updatedSession } = event.detail;
       if (!updatedSession) return;
 
       setChatSessions(prevSessions => {
-        // First, filter out any old temporary sessions.
         const sessionsWithoutTemp = prevSessions.filter(s => !s.id.startsWith('temp-'));
         
         const existingIndex = sessionsWithoutTemp.findIndex(s => s.id === updatedSession.id);
         let newSessions;
 
         if (existingIndex !== -1) {
-          // Update existing session in the list
           newSessions = [...sessionsWithoutTemp];
           newSessions[existingIndex] = updatedSession;
         } else {
-          // Add new session to the list
           newSessions = [updatedSession, ...sessionsWithoutTemp];
         }
 
-        // Re-sort to ensure the most recently updated session is always at the top
         return newSessions.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
       });
     };
@@ -132,6 +128,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       cleanup();
     };
   }, []);
+  
+  useEffect(() => {
+    if (editingSessionId && editInputRef.current) {
+      const input = editInputRef.current;
+      input.focus();
+      input.select();
+      // 👇 FIX: Manually set the horizontal scroll position to the beginning.
+      // This overrides the browser's default behavior and fixes the bug.
+      input.scrollLeft = 0;
+    }
+  }, [editingSessionId]);
 
 
   const handleGoToMarkHomework = () => {
@@ -168,12 +175,18 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleEditTitle = (session: UnifiedSession, event: React.MouseEvent) => {
     event.stopPropagation();
     setEditingSessionId(session.id);
-    setEditingTitle(session.title || 'Chat Session');
+    let fullTitle = session.title || 'Chat Session';
+    if (fullTitle.endsWith('...')) {
+      fullTitle = fullTitle.slice(0, -3).trim();
+    }
+    setEditingTitle(fullTitle);
     setDropdownSessionId(null);
   };
 
+
   const handleSaveTitle = async (sessionId: string) => {
     if (editingTitle.trim() === '') return;
+    
     try {
       const authToken = await getAuthToken();
       if(!authToken) return;
@@ -188,9 +201,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
   
   const handleCancelEdit = () => {
-      setEditingSessionId(null);
-      setEditingTitle('');
-  }
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
 
   const handleToggleFavorite = async (session: UnifiedSession, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -221,7 +234,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
   
-  const getSessionTitle = (session: UnifiedSession) => session.title || 'Chat Session';
+  const getSessionTitle = (session: UnifiedSession) => {
+    const title = session.title || 'Chat Session';
+    const maxLength = 50;
+    return title.length > maxLength ? title.substring(0, maxLength) + '...' : title;
+  };
   const getMessageTypeIcon = (messageType?: string) => {
     switch (messageType) {
       case 'Marking': return <BookOpen size={16} />;
@@ -230,9 +247,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   };
   
-  // 👇 FIX 2: The getLastMessage function is now more robust and checks both sources.
-  const getLastMessage = (session: any) => { // Use 'any' to handle both full and lightweight sessions
-    // First, check the lightweight `lastMessage` property from the initial load
+  const getLastMessage = (session: any) => {
     if (session?.lastMessage?.content) {
         const contentStr = ensureStringContent(session.lastMessage.content);
         if (contentStr.trim().length > 0) {
@@ -240,7 +255,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         }
     }
     
-    // Then, as a fallback for live updates, check the full `messages` array
     if (session?.messages && session.messages.length > 0) {
         const lastMsgWithContent = [...session.messages].reverse().find(m => m.content && !m.isProcessing);
         if (lastMsgWithContent) {
@@ -302,15 +316,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 {session.favorite && <Star size={14} className="favorite-star-inline" />}
                                 {editingSessionId === session.id ? (
                                     <input
+                                        ref={editInputRef}
                                         type="text"
+                                        className="title-edit-input"
                                         value={editingTitle}
                                         onChange={(e) => setEditingTitle(e.target.value)}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') handleSaveTitle(session.id);
-                                            if (e.key === 'Escape') handleCancelEdit();
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleSaveTitle(session.id);
+                                            }
+                                            if (e.key === 'Escape') {
+                                                e.preventDefault();
+                                                handleCancelEdit();
+                                            }
                                         }}
                                         onBlur={() => handleSaveTitle(session.id)}
-                                        autoFocus
+                                        style={{ width: '100%' }}
                                     />
                                 ) : getSessionTitle(session)}
                             </div>

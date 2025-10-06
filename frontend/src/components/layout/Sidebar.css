@@ -249,7 +249,7 @@
 }
 
 .mark-history-item {
-  padding: 8px 20px;
+  padding: 6px 12px;
   margin: 2px 8px;
   border-radius: 6px;
   cursor: pointer;
@@ -258,7 +258,7 @@
   background: transparent;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: calc(100% - 16px);
 }
 
@@ -277,8 +277,8 @@
 /* Message Type Icon */
 .mark-history-icon {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -289,8 +289,8 @@
 }
 
 .mark-history-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Content Area */
@@ -312,10 +312,12 @@
   text-overflow: ellipsis;
   line-height: 1.3;
   text-align: left !important;
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   margin: 0;
   padding: 0;
+  position: relative;
 }
 
 /* Last Message */
@@ -336,26 +338,30 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  min-width: 35px;
+  min-width: 25px;
   align-self: flex-start;
   padding-top: 2px;
 }
 
 /* Update Time */
 .mark-history-time {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-secondary);
   text-align: center;
   opacity: 0.5;
+  white-space: nowrap;
 }
 
 /* Inline Favorite Star */
 .favorite-star-inline {
   color: var(--function-warning);
   fill: var(--function-warning);
-  margin-right: 6px;
+  margin-right: 4px;
   display: inline-block;
   vertical-align: middle;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
 }
 
 .mark-history-delete-btn {
@@ -467,20 +473,41 @@
 }
 
 .title-edit-input {
-  width: 100%;
-  background: var(--background-white-main);
-  border: 1px solid var(--text-brand);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  outline: none;
+  flex: 1 !important;
+  min-width: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: var(--text-primary) !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  /* Override parent ellipsis styles */
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  transition: all 0.2s ease !important;
+  /* Take advantage of more space */
+  max-width: none !important;
+}
+
+.title-edit-input:hover {
+  background: var(--background-gray-main) !important;
+  border: 1px solid var(--border-main) !important;
 }
 
 .title-edit-input:focus {
-  border-color: var(--text-brand);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  background: var(--background-white-main) !important;
+  border: 1px solid var(--text-brand) !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+  outline: none !important;
+  /* Allow the input to expand when focused */
+  min-width: 150px !important;
+  flex: 1 !important;
+  max-width: none !important;
 }
 
 /* Actions Container */
@@ -496,8 +523,8 @@
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 2px;
+  border-radius: 3px;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -505,12 +532,16 @@
   opacity: 0;
   visibility: hidden;
   transform: scale(0.8);
+  width: 16px;
+  height: 16px;
 }
 
 /* Ensure ellipsis icon uses the correct color */
 .mark-history-dropdown-btn svg {
   color: var(--text-tertiary);
   stroke: var(--text-tertiary);
+  width: 12px;
+  height: 12px;
 }
 
 /* Show dropdown button on hover over chat history item */
