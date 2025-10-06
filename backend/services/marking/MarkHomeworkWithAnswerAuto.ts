@@ -122,9 +122,9 @@ export class MarkHomeworkWithAnswerAuto {
       const hybridResult = await this.getHybridOCRResult(imageData, {}, debug);
       
       return {
-        ocrText: hybridResult.extractedText,
+        ocrText: hybridResult.text,
         boundingBoxes: hybridResult.mathBlocks || [],
-        imageDimensions: hybridResult.imageDimensions,
+        imageDimensions: hybridResult.dimensions,
         confidence: hybridResult.confidence,
         mathpixCalls: hybridResult.usage?.mathpixCalls || 0
       };
@@ -444,6 +444,15 @@ export class MarkHomeworkWithAnswerAuto {
         // Create annotations and annotated image
         const logStep6Complete = logStep('Burn Overlay', 'image-processing');
         const createAnnotations = async () => {
+          if (!markingInstructions.annotations || markingInstructions.annotations.length === 0) {
+            return {
+              originalImage: imageData,
+              annotatedImage: imageData,
+              annotations: [],
+              svgOverlay: ''
+            };
+          }
+
           const boundingBoxes = markingInstructions.annotations.map(ann => ({
             x: ann.bbox[0],
             y: ann.bbox[1],

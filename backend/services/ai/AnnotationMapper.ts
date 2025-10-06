@@ -18,8 +18,10 @@ export class AnnotationMapper {
     stepAssignment?: Array<{ unified_step_id: string; text: string; bbox: number[] }>;
   }): Promise<{ annotations: Annotation[] }> {
     const { ocrText, boundingBoxes, rawAnnotations, imageDimensions, unifiedLookupTable, stepMapping, stepAssignment } = params;
+    
     const parsed = await this.parseAnnotations(rawAnnotations.annotations);
     const placed = this.placeAnnotations(ocrText, boundingBoxes, parsed, imageDimensions, unifiedLookupTable, stepMapping, stepAssignment);
+    
     return { annotations: placed };
   }
 

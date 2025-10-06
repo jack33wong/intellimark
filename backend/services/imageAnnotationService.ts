@@ -245,16 +245,6 @@ export class ImageAnnotationService {
         };
       }
 
-      // Log concise mapping details for each annotation
-      annotations.forEach((ann, index) => {
-        const anyAnn = ann as unknown as { action?: string; text?: string; reasoning?: string; step_id?: string; comment?: string; textMatch?: string };
-        const overlayInfo = `[Overlay] #${index} bbox=[${ann.bbox.join(',')}]` +
-          ` action=${anyAnn.action || 'n/a'}` +
-          ` step_id=${anyAnn.step_id || 'n/a'}` +
-          ` text=${anyAnn.text || 'n/a'}` +
-          ` comment=${anyAnn.comment || 'n/a'}` +
-          ` textMatch=${anyAnn.textMatch || 'n/a'}`;
-      });
       
       // Create SVG overlay for reference
       const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
@@ -289,28 +279,11 @@ export class ImageAnnotationService {
       };
     } catch (error) {
       console.error('❌ Failed to generate annotation result:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       
-      // Fallback to original implementation if burning fails
-      const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
-      const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
-        position: { x: ann.bbox[0], y: ann.bbox[1] },
-        comment: ann.comment || '',
-        hasComment: !!ann.comment,
-        boundingBox: {
-          x: ann.bbox[0],
-          y: ann.bbox[1],
-          width: ann.bbox[2],
-          height: ann.bbox[3],
-          text: ann.comment || ''
-        }
-      }));
-
-      return {
-        originalImage,
-        annotatedImage: originalImage, // Fallback to original image
-        annotations: imageAnnotations,
-        svgOverlay
-      };
+      // Throw the real error instead of failing silently
+      throw new Error(`Image annotation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

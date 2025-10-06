@@ -710,6 +710,9 @@ export class HybridOCRService {
             
           }
         } catch (mathpixError) {
+          console.error('❌ [OCR PROCESSING ERROR] Mathpix fallback also failed:', mathpixError instanceof Error ? mathpixError.message : 'Unknown error');
+          console.error('❌ [ERROR DETAILS]', mathpixError);
+          throw new Error(`OCR processing failed completely: Google Vision failed and Mathpix fallback also failed. ${mathpixError instanceof Error ? mathpixError.message : 'Unknown error'}`);
         }
       }
     }

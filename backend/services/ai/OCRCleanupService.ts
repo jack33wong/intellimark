@@ -11,11 +11,13 @@ export class OCRCleanupService {
     boundingBoxes: Array<{ x: number; y: number; width: number; height: number; text: string; confidence?: number }>
   ): Promise<{ originalWithStepIds: string }> {
     // Generate unified step IDs that directly contain bbox mapping
-    const steps = boundingBoxes.map((bbox, index) => ({
-      unified_step_id: `step_${index + 1}`,
-      text: bbox.text,
-      bbox: [bbox.x, bbox.y, bbox.width, bbox.height]
-    }));
+    const steps = boundingBoxes.map((bbox, index) => {
+      return {
+        unified_step_id: `step_${index + 1}`,
+        text: bbox.googleVisionText || bbox.text || '',
+        bbox: [bbox.coordinates.x, bbox.coordinates.y, bbox.coordinates.width, bbox.coordinates.height]
+      };
+    });
     
     // Return the step data as JSON string for the next step
     return { originalWithStepIds: JSON.stringify({ steps }) };

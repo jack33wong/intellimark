@@ -786,7 +786,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         );
       } catch (error) {
         console.error('❌ Failed to upload annotated image:', error);
-        annotatedImageLink = null;
+        console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+        console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        throw new Error(`Failed to upload annotated image: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 
@@ -886,33 +888,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         } catch (error) {
           console.error('❌ Failed to add AI message to session:', error);
           console.error('❌ Session ID:', sessionId);
-          console.error('❌ Error details:', error.message);
-          // Create a fallback session with just the AI message
-          aiSession = {
-            id: sessionId,
-            title: 'Marking Session',
-            messages: [aiMessage],
-            userId: userId,
-            userEmail: userEmail,
-            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isPastPaper: result.isPastPaper || false,
-            favorite: false,
-            rating: 0,
-            sessionStats: {
-              totalMessages: 1,
-              lastModelUsed: result.processingStats?.modelUsed || model,
-              totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
-              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
-              totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
-              totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
-              totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
-              averageConfidence: result.processingStats?.confidence || 0,
-              imageSize: result.processingStats?.imageSize || 0,
-              totalAnnotations: result.processingStats?.annotations || 0
-            }
-          };
+          console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+          console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+          throw new Error(`Failed to add AI message to session: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
         // For unauthenticated users, create session with only AI message
@@ -944,26 +922,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       }
     } catch (error) {
       console.error('❌ Failed to create AI session:', error);
-      // Fallback to basic session structure
-      aiSession = {
-        id: sessionId,
-        title: 'Marking Session',
-        messages: [aiMessage], // Only AI message
-        userId: userId,
-        userEmail: userEmail,
-        messageType: result.isQuestionOnly ? 'Question' : 'Marking',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isPastPaper: false,
-        favorite: false,
-        rating: 0,
-        sessionStats: {
-          totalMessages: 1,
-          lastModelUsed: result.processingStats?.modelUsed || model,
-          totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
-          lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
-        }
-      };
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      throw new Error(`Failed to create AI session: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     return res.json({

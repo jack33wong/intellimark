@@ -159,8 +159,11 @@ export class LLMOrchestrator {
       return result;
     } catch (error) {
       console.error('❌ New 2-step LLM flow failed:', error);
-      // Fallback to basic annotations if the new flow fails
-      return { annotations: [], usage: { llmTokens: 0 } } as any;
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Throw the real error instead of failing silently
+      throw new Error(`LLM marking flow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }
