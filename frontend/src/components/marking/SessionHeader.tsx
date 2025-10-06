@@ -112,6 +112,21 @@ const SessionHeader: React.FC = () => {
   const modelUsed = getModelUsed();
   const processingTime = getProcessingTime();
 
+  const renderStars = () => {
+    return Array.from({ length: 5 }, (_, index) => {
+      const starValue = index + 1;
+      const isFilled = starValue <= (hoveredRating || rating);
+      return (
+        <span
+          key={starValue}
+          className={`star ${isFilled ? 'filled' : ''}`}
+          onClick={() => onRatingChange(starValue)}
+          onMouseEnter={() => setHoveredRating(starValue)}
+          onMouseLeave={() => setHoveredRating(0)}
+        >★</span>
+      );
+    });
+  };
   
   // 👇 FIX: The useEffect for handling "click outside" is now architecturally correct.
   // It correctly handles dependencies and event propagation to prevent auto-closing.
@@ -224,21 +239,7 @@ const SessionHeader: React.FC = () => {
                   <div className="dropdown-rating-section">
                     <div className="rating-container">
                       <div className="rating-label"><span className="label">Rate this task:</span></div>
-                      <div className="rating-stars">
-                        {Array.from({ length: 5 }, (_, index) => {
-                          const starValue = index + 1;
-                          const isFilled = starValue <= (hoveredRating || rating);
-                          return (
-                            <span
-                              key={`star-${starValue}`}
-                              className={`star ${isFilled ? 'filled' : ''}`}
-                              onClick={() => onRatingChange(starValue)}
-                              onMouseEnter={() => setHoveredRating(starValue)}
-                              onMouseLeave={() => setHoveredRating(0)}
-                            >★</span>
-                          );
-                        })}
-                      </div>
+                      <div className="rating-stars">{renderStars()}</div>
                     </div>
                   </div>
                    <div className="dropdown-footer">
