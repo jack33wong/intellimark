@@ -23,23 +23,43 @@ const SessionHeader: React.FC = () => {
   const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the toggle button
 
   const getModelUsed = (): string => {
-    const metadata = currentSession?.sessionMetadata;
-    return metadata?.modelUsed || metadata?.lastModelUsed || 'N/A';
+    const stats = currentSession?.sessionStats;
+    return stats?.lastModelUsed || 'N/A';
   };
 
   const getProcessingTime = (): string => {
-      const timeMs = currentSession?.sessionMetadata?.totalProcessingTimeMs;
+      const timeMs = currentSession?.sessionStats?.totalProcessingTimeMs;
       return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
   };
   
   const getTokenData = () => {
-    const metadata = currentSession?.sessionMetadata;
-    if (!metadata) return null;
-    if (Array.isArray(metadata.tokens)) return metadata.tokens;
-    if (metadata.llmTokens !== undefined || metadata.mathpixCalls !== undefined) {
-      return [metadata.llmTokens || 0, metadata.mathpixCalls || 0];
+    const stats = currentSession?.sessionStats;
+    if (!stats) return null;
+    if (stats.totalLlmTokens !== undefined || stats.totalMathpixCalls !== undefined) {
+      return [stats.totalLlmTokens || 0, stats.totalMathpixCalls || 0];
     }
     return null;
+  };
+
+  const getImageSize = (): string => {
+    const stats = currentSession?.sessionStats;
+    if (!stats?.imageSize) return 'N/A';
+    const sizeKB = stats.imageSize / 1024;
+    if (sizeKB >= 1024) {
+      return `${(sizeKB / 1024).toFixed(1)} MB`;
+    }
+    return `${sizeKB.toFixed(1)} KB`;
+  };
+
+  const getConfidence = (): string => {
+    const stats = currentSession?.sessionStats;
+    if (!stats?.averageConfidence) return 'N/A';
+    return `${(stats.averageConfidence * 100).toFixed(1)}%`;
+  };
+
+  const getAnnotations = (): string => {
+    const stats = currentSession?.sessionStats;
+    return stats?.totalAnnotations?.toString() || 'N/A';
   };
   
   const tokens = getTokenData();
@@ -150,6 +170,18 @@ const SessionHeader: React.FC = () => {
                         <div className="mathpix-count">
                             <span className="label">Mathpix Calls</span>
                             <span className="value">{tokens ? tokens[1] : 'N/A'}</span>
+                        </div>
+                        <div className="image-size">
+                            <span className="label">Image Size</span>
+                            <span className="value">{getImageSize()}</span>
+                        </div>
+                        <div className="confidence">
+                            <span className="label">Confidence</span>
+                            <span className="value">{getConfidence()}</span>
+                        </div>
+                        <div className="annotations">
+                            <span className="label">Annotations</span>
+                            <span className="value">{getAnnotations()}</span>
                         </div>
                         <div className="last-update">
                             <span className="label">Last Update:</span>

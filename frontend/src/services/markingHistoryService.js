@@ -45,7 +45,7 @@ class MarkingHistoryService {
       
       // Filter sessions that contain any messages (be more inclusive)
       const markingSessions = sessions.filter(session => 
-        session.messageCount > 0
+        session.messages?.length > 0
       );
 
       return {

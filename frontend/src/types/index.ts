@@ -54,6 +54,6 @@ export interface UnifiedMessage {
     rating?: number;
     
     // This can hold any legacy or unstructured metadata.
-    sessionMetadata?: any;
+    sessionStats?: any;
   }
   

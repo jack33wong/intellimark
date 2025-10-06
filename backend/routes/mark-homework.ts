@@ -147,10 +147,16 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         found: false,
         message: result.questionDetection?.message || 'No question detected'
       },
-      metadata: {
-        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        confidence: result.metadata?.confidence || 0,
-        imageSize: result.metadata?.imageSize || 0
+      processingStats: {
+        processingTimeMs: result.processingStats?.processingTimeMs || 0,
+        confidence: result.processingStats?.confidence || 0,
+        imageSize: result.processingStats?.imageSize || 0,
+        modelUsed: result.processingStats?.modelUsed || model,
+        apiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        llmTokens: result.processingStats?.llmTokens || 0,
+        mathpixCalls: result.processingStats?.mathpixCalls || 0,
+        annotations: result.processingStats?.annotations || 0,
+        ocrMethod: result.ocrMethod || 'hybrid'
       }
     };
 
@@ -182,17 +188,17 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       updatedAt: new Date().toISOString(),
       favorite: false,
       rating: 0,
-      sessionMetadata: {
-        totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-        llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-        mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-        averageConfidence: result.metadata?.confidence || 0,
-        lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-        lastModelUsed: model,
+      sessionStats: {
+        totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+        totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0),
+        totalLlmTokens: result.processingStats?.llmTokens || 0,
+        totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
+        averageConfidence: result.processingStats?.confidence || 0,
+        lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        lastModelUsed: result.processingStats?.modelUsed || model,
         totalMessages: 1, // Only user message
-        imageSize: result.metadata?.imageSize || 0,
-        totalAnnotations: result.metadata?.totalAnnotations || 0
+        imageSize: result.processingStats?.imageSize || 0,
+        totalAnnotations: result.processingStats?.annotations || 0
       }
     };
 
@@ -219,17 +225,17 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                 messageType: result.isQuestionOnly ? 'Question' : 'Marking',
                 messages: [userMessage], // Only user message for authenticated users
                 isPastPaper: result.isPastPaper || false,
-                sessionMetadata: {
-                  totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-                  totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-                  llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-                  mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-                  averageConfidence: result.metadata?.confidence || 0,
-                  lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-                  lastModelUsed: model,
+                sessionStats: {
+                  totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+                  totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+                  totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+                  totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+                  averageConfidence: result.processingStats?.confidence || 0,
+                  lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                  lastModelUsed: result.processingStats?.modelUsed || model,
                   totalMessages: 1, // Only user message
-                  imageSize: result.metadata?.imageSize || 0,
-                  totalAnnotations: result.metadata?.totalAnnotations || 0
+                  imageSize: result.processingStats?.imageSize || 0,
+                  totalAnnotations: result.processingStats?.annotations || 0
                 }
               });
             
@@ -314,7 +320,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       questionDetection: result.questionDetection,
       sessionId: result.sessionId,
       sessionTitle: result.sessionTitle,
-      metadata: result.metadata
+      processingStats: result.processingStats
     };
 
     // Create UnifiedSession for Response 1 (Original Image)
@@ -330,17 +336,17 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       isPastPaper: result.isPastPaper || false,
       favorite: false,
       rating: 0,
-      sessionMetadata: {
+      sessionStats: {
         totalMessages: 1,
-        lastModelUsed: model,
-        totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-        llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-        mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-        totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-        averageConfidence: result.metadata?.confidence || 0,
-        imageSize: result.metadata?.imageSize || 0,
-        totalAnnotations: result.metadata?.totalAnnotations || 0
+        lastModelUsed: result.processingStats?.modelUsed || model,
+        totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+        lastApiUsed: result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+        totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+        totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+        averageConfidence: result.processingStats?.confidence || 0,
+        imageSize: result.processingStats?.imageSize || 0,
+        totalAnnotations: result.processingStats?.annotations || 0
       }
     };
 
@@ -494,16 +500,15 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
       progressData: finalProgressData,
       isQuestionOnly: result.isQuestionOnly,
-      metadata: {
-        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        confidence: result.metadata?.confidence || 0,
-        modelUsed: result.metadata?.modelUsed || model,
-        apiUsed: result.apiUsed || 'Single-Phase AI Marking System',
+      processingStats: {
+        processingTimeMs: result.processingStats?.processingTimeMs || 0,
+        confidence: result.processingStats?.confidence || 0,
+        modelUsed: result.processingStats?.modelUsed || model,
+        apiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
         ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
-        totalAnnotations: result.metadata?.totalAnnotations || 0,
-        isQuestionOnly: result.isQuestionOnly || false,
-        isPastPaper: result.isPastPaper || false,
-        tokens: result.metadata?.tokens || [0, 0] // [llmTokens, mathpixCalls]
+        annotations: result.processingStats?.annotations || 0,
+        llmTokens: result.processingStats?.llmTokens || 0,
+        mathpixCalls: result.processingStats?.mathpixCalls || 0
       }
     });
 
@@ -562,11 +567,11 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           imageLink: originalImageLink, // For authenticated users
           imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
           fileName: 'uploaded-image.png',
-          metadata: {
+          processingStats: {
             processingTimeMs: 0,
             confidence: 0,
             modelUsed: model,
-            apiUsed: 'Single-Phase Upload',
+            apiUsed: 'User Upload',
             ocrMethod: 'User Upload'
           }
         };
@@ -591,16 +596,16 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
               messageType: result.isQuestionOnly ? 'Question' : 'Marking',
               messages: [dbUserMessage, dbAiMessage],
               isPastPaper: result.isPastPaper || false,
-              sessionMetadata: {
-                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-                lastModelUsed: model,
-                lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
-                llmTokens: result.metadata?.tokens?.[0] || 0,
-                mathpixCalls: result.metadata?.tokens?.[1] || 0,
-                totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-                averageConfidence: result.metadata?.confidence || 0,
-                imageSize: result.metadata?.imageSize || 0,
-                totalAnnotations: result.metadata?.totalAnnotations || 0
+              sessionStats: {
+                totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+                lastModelUsed: result.processingStats?.modelUsed || model,
+                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                totalLlmTokens: result.processingStats?.llmTokens || 0,
+                totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
+                totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+                averageConfidence: result.processingStats?.confidence || 0,
+                imageSize: result.processingStats?.imageSize || 0,
+                totalAnnotations: result.processingStats?.annotations || 0
               }
             });
           }
@@ -613,16 +618,16 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
             messageType: result.isQuestionOnly ? 'Question' : 'Marking',
             messages: [dbUserMessage, dbAiMessage],
             isPastPaper: result.isPastPaper || false,
-            sessionMetadata: {
-              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastModelUsed: model,
-              lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
-              llmTokens: result.metadata?.tokens?.[0] || 0,
-              mathpixCalls: result.metadata?.tokens?.[1] || 0,
-              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-              averageConfidence: result.metadata?.confidence || 0,
-              imageSize: result.metadata?.imageSize || 0,
-              totalAnnotations: result.metadata?.totalAnnotations || 0
+            sessionStats: {
+              totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+              lastModelUsed: result.processingStats?.modelUsed || model,
+              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+              totalLlmTokens: result.processingStats?.llmTokens || 0,
+              totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
+              totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+              averageConfidence: result.processingStats?.confidence || 0,
+              imageSize: result.processingStats?.imageSize || 0,
+              totalAnnotations: result.processingStats?.annotations || 0
             }
           });
         }
@@ -653,7 +658,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           favorite: false,
           rating: 0,
           messages: [aiMessage],
-          sessionMetadata: result.sessionMetadata || {}
+          sessionStats: result.sessionStats || {}
         };
       } else {
         // Ensure title is set - use the generated title from the service
@@ -671,16 +676,16 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         messageType: result.isQuestionOnly ? 'Question' : 'Marking',
         messages: [aiMessage], // Use aiMessage directly
         isPastPaper: result.isPastPaper || false,
-        sessionMetadata: {
-          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-          lastModelUsed: model,
-          lastApiUsed: result.apiUsed || 'Single-Phase AI Marking System',
-          llmTokens: result.metadata?.tokens?.[0] || 0,
-          mathpixCalls: result.metadata?.tokens?.[1] || 0,
-          totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-          averageConfidence: result.metadata?.confidence || 0,
-          imageSize: result.metadata?.imageSize || 0,
-          totalAnnotations: result.metadata?.totalAnnotations || 0
+        sessionStats: {
+          totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+          lastModelUsed: result.processingStats?.modelUsed || model,
+          lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+          totalLlmTokens: result.processingStats?.llmTokens || 0,
+          totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
+          totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+          averageConfidence: result.processingStats?.confidence || 0,
+          imageSize: result.processingStats?.imageSize || 0,
+          totalAnnotations: result.processingStats?.annotations || 0
         }
       };
     }
@@ -795,11 +800,11 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       imageLink: annotatedImageLink, // For authenticated users
       imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
       fileName: 'annotated-image.png',
-      metadata: {
-        processingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-        confidence: result.metadata?.confidence || 0,
-        modelUsed: result.metadata?.modelUsed || model,
-        apiUsed: result.apiUsed,
+      processingStats: {
+        processingTimeMs: result.processingStats?.processingTimeMs || 0,
+        confidence: result.processingStats?.confidence || 0,
+        modelUsed: result.processingStats?.modelUsed || model,
+        apiUsed: result.processingStats?.apiUsed || result.apiUsed,
         ocrMethod: result.ocrMethod
       }
     };
@@ -836,16 +841,16 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               messageType: result.isQuestionOnly ? 'Question' : 'Marking',
               messages: messages,
               isPastPaper: result.isPastPaper || false,
-              sessionMetadata: {
-                totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-                lastModelUsed: model,
-                lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-                llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-                mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-                totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-                averageConfidence: result.metadata?.confidence || 0,
-                imageSize: result.metadata?.imageSize || 0,
-                totalAnnotations: result.metadata?.totalAnnotations || 0
+              sessionStats: {
+                totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+                lastModelUsed: result.processingStats?.modelUsed || model,
+                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+                totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+                totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+                averageConfidence: result.processingStats?.confidence || 0,
+                imageSize: result.processingStats?.imageSize || 0,
+                totalAnnotations: result.processingStats?.annotations || 0
               }
             });
           }
@@ -865,17 +870,17 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             isPastPaper: completeSession.isPastPaper || false,
             favorite: completeSession.favorite || false,
             rating: completeSession.rating || 0,
-            sessionMetadata: {
+            sessionStats: {
               totalMessages: aiMessages.length,
-              lastModelUsed: model,
-              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-              llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-              mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-              averageConfidence: result.metadata?.confidence || 0,
-              imageSize: result.metadata?.imageSize || 0,
-              totalAnnotations: result.metadata?.totalAnnotations || 0
+              lastModelUsed: result.processingStats?.modelUsed || model,
+              totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+              totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+              totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+              totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+              averageConfidence: result.processingStats?.confidence || 0,
+              imageSize: result.processingStats?.imageSize || 0,
+              totalAnnotations: result.processingStats?.annotations || 0
             }
           };
         } catch (error) {
@@ -895,17 +900,17 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             isPastPaper: result.isPastPaper || false,
             favorite: false,
             rating: 0,
-            sessionMetadata: {
+            sessionStats: {
               totalMessages: 1,
-              lastModelUsed: model,
-              totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-              lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-              llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-              mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-              totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-              averageConfidence: result.metadata?.confidence || 0,
-              imageSize: result.metadata?.imageSize || 0,
-              totalAnnotations: result.metadata?.totalAnnotations || 0
+              lastModelUsed: result.processingStats?.modelUsed || model,
+              totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+              totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+              totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+              totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+              averageConfidence: result.processingStats?.confidence || 0,
+              imageSize: result.processingStats?.imageSize || 0,
+              totalAnnotations: result.processingStats?.annotations || 0
             }
           };
         }
@@ -923,17 +928,17 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
           isPastPaper: false,
           favorite: false,
           rating: 0,
-          sessionMetadata: {
+          sessionStats: {
             totalMessages: 1,
-            lastModelUsed: model,
-            totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-            lastApiUsed: result.apiUsed || 'Complete AI Marking System',
-            llmTokens: result.metadata?.tokens?.[0] || 0, // Input tokens
-            mathpixCalls: result.metadata?.tokens?.[1] || 0, // Mathpix API calls
-            totalTokens: result.metadata?.tokens?.reduce((a: number, b: number) => a + b, 0) || 0,
-            averageConfidence: result.metadata?.confidence || 0,
-            imageSize: result.metadata?.imageSize || 0,
-            totalAnnotations: result.metadata?.totalAnnotations || 0
+            lastModelUsed: result.processingStats?.modelUsed || model,
+            totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+            lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+            totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
+            totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
+            totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
+            averageConfidence: result.processingStats?.confidence || 0,
+            imageSize: result.processingStats?.imageSize || 0,
+            totalAnnotations: result.processingStats?.annotations || 0
           }
         };
       }
@@ -952,11 +957,11 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         isPastPaper: false,
         favorite: false,
         rating: 0,
-        sessionMetadata: {
+        sessionStats: {
           totalMessages: 1,
-          lastModelUsed: model,
-          totalProcessingTimeMs: result.metadata?.totalProcessingTimeMs || 0,
-          lastApiUsed: result.apiUsed || 'Complete AI Marking System'
+          lastModelUsed: result.processingStats?.modelUsed || model,
+          totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
+          lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
         }
       };
     }

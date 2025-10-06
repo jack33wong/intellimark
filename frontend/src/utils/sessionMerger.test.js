@@ -13,7 +13,7 @@ describe('sessionMerger utility', () => {
         content: 'Check this image',
         imageData: 'base64_data_for_image_1'
       }],
-      sessionMetadata: { modelUsed: 'auto' }
+      sessionStats: { modelUsed: 'auto' }
     };
 
     const serverSession = {
@@ -22,7 +22,7 @@ describe('sessionMerger utility', () => {
         { id: 'user-real-def', role: 'user', content: 'Check this image', imageLink: 'http://storage.link/image_1.jpg' },
         { id: 'ai-1', role: 'assistant', content: 'Here is the feedback.' }
       ],
-      sessionMetadata: { totalProcessingTimeMs: 500 }
+      sessionStats: { totalProcessingTimeMs: 500 }
     };
     
     const modelUsed = 'gemini-pro';
@@ -37,8 +37,8 @@ describe('sessionMerger utility', () => {
     // It should have the final imageLink from the server
     expect(mergedUserMessage.imageLink).toBe('http://storage.link/image_1.jpg');
     // It should merge the metadata correctly
-    expect(mergedSession.sessionMetadata.modelUsed).toBe('gemini-pro');
-    expect(mergedSession.sessionMetadata.totalProcessingTimeMs).toBe(500);
+    expect(mergedSession.sessionStats.modelUsed).toBe('gemini-pro');
+    expect(mergedSession.sessionStats.totalProcessingTimeMs).toBe(500);
     // It should contain both messages
     expect(mergedSession.messages.length).toBe(2);
   });
@@ -53,7 +53,7 @@ describe('sessionMerger utility', () => {
         { id: 'ai-1', role: 'assistant', content: 'Here is the feedback.' },
         { id: 'user-temp-2', role: 'user', content: 'What about this one?', imageData: 'base64_data_for_image_2' }
       ],
-      sessionMetadata: { modelUsed: 'gemini-pro', totalProcessingTimeMs: 500 }
+      sessionStats: { modelUsed: 'gemini-pro', totalProcessingTimeMs: 500 }
     };
 
     const serverSession = {
@@ -64,7 +64,7 @@ describe('sessionMerger utility', () => {
         { id: 'user-real-ghi', role: 'user', content: 'What about this one?', imageLink: 'http://storage.link/image_2.jpg' },
         { id: 'ai-2', role: 'assistant', content: 'That one is different.' }
       ],
-      sessionMetadata: { modelUsed: 'gemini-ultra', totalProcessingTimeMs: 1200 }
+      sessionStats: { modelUsed: 'gemini-ultra', totalProcessingTimeMs: 1200 }
     };
     
     const modelUsed = 'gemini-ultra';
@@ -80,8 +80,8 @@ describe('sessionMerger utility', () => {
     // It should preserve the imageData for the SECOND image
     expect(secondUserImage.imageData).toBe('base64_data_for_image_2');
     // The metadata should be correctly updated
-    expect(mergedSession.sessionMetadata.modelUsed).toBe('gemini-ultra');
-    expect(mergedSession.sessionMetadata.totalProcessingTimeMs).toBe(1200);
+    expect(mergedSession.sessionStats.modelUsed).toBe('gemini-ultra');
+    expect(mergedSession.sessionStats.totalProcessingTimeMs).toBe(1200);
     // It should contain all four messages
     expect(mergedSession.messages.length).toBe(4);
   });
@@ -98,7 +98,7 @@ describe('sessionMerger utility', () => {
         { id: 'user-real-def', role: 'user', content: 'Check this image', imageLink: 'http://storage.link/image_1.jpg' },
         { id: 'ai-1', role: 'assistant', content: 'Here is the feedback.' }
       ],
-      sessionMetadata: { modelUsed: 'gemini-pro' }
+      sessionStats: { modelUsed: 'gemini-pro' }
     };
 
     // ACT
@@ -110,7 +110,7 @@ describe('sessionMerger utility', () => {
     expect(mergedUserMessage.imageData).toBeUndefined();
     expect(mergedUserMessage.imageLink).toBe('http://storage.link/image_1.jpg');
     // The metadata should be correct
-    expect(mergedSession.sessionMetadata.modelUsed).toBe('gemini-pro');
+    expect(mergedSession.sessionStats.modelUsed).toBe('gemini-pro');
   });
 
 });

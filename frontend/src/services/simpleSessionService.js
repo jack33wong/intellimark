@@ -70,7 +70,7 @@ class SimpleSessionService {
     const session = this.state.currentSession;
     const newMessages = [...(session?.messages || []), message];
     if (!session) {
-      this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionMetadata: {} } });
+      this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionStats: {} } });
     } else {
       this.setState({ currentSession: { ...session, messages: newMessages } });
     }
@@ -90,12 +90,12 @@ class SimpleSessionService {
     let mergedSession = { ...localSession, ...newSessionData };
     mergedSession.title = newSessionData.title || localSession?.title || 'Chat Session';
     
-    const localMeta = localSession?.sessionMetadata || {};
-    const serverMeta = newSessionData.sessionMetadata || {};
-    mergedSession.sessionMetadata = {
+    const localMeta = localSession?.sessionStats || {};
+    const serverMeta = newSessionData.sessionStats || {};
+    mergedSession.sessionStats = {
         ...localMeta,
         ...serverMeta,
-        modelUsed: serverMeta.modelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.modelUsed || 'N/A'
+        lastModelUsed: serverMeta.lastModelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.lastModelUsed || 'N/A'
     };
     
     // 👇 SIMPLIFIED: Use server messages directly since we now have stable IDs
@@ -278,10 +278,7 @@ class SimpleSessionService {
   
   convertToUnifiedSession = (sessionData) => { 
     if (!sessionData) return null;
-    const sessionMetadata = sessionData.sessionMetadata || {};
-    if (sessionMetadata.lastModelUsed && !sessionMetadata.modelUsed) {
-        sessionMetadata.modelUsed = sessionMetadata.lastModelUsed;
-    }
+    const sessionStats = sessionData.sessionStats || {};
     return {
         id: sessionData.id,
         title: sessionData.title || 'Untitled Session',
@@ -292,7 +289,7 @@ class SimpleSessionService {
         updatedAt: sessionData.updatedAt || new Date().toISOString(),
         favorite: sessionData.favorite || false,
         rating: sessionData.rating || 0,
-        sessionMetadata: sessionMetadata,
+        sessionStats: sessionStats,
     };
   }
   

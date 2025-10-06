@@ -21,10 +21,6 @@ export interface UnifiedMessage {
   imageLink?: string;
   fileName?: string;
   
-  // AI metadata
-  model?: string;
-  apiUsed?: string;
-  
   // Display options
   isImageContext?: boolean;
   
@@ -35,19 +31,18 @@ export interface UnifiedMessage {
     message?: string;
   };
   
-  // Processing metadata (matches backend)
-  metadata?: {
-    resultId?: string;
-    processingTime?: string;
-    totalProcessingTimeMs?: number;
-    modelUsed?: string;
-    tokens?: number[];
+  // Message-specific processing stats
+  processingStats?: {
+    processingTimeMs?: number;   
     confidence?: number;
-    totalAnnotations?: number;
+    annotations?: number;       		 
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
-    apiUsed?: string;
+    modelUsed?: string;				// Real model version (e.g., "gemini-2.5-pro")
+    apiUsed?: string;              // API service used (e.g., "Google Gemini API")
+    llmTokens?: number;               
+    mathpixCalls?: number;  
   };
   
   // Firestore timestamps (for backend compatibility)
@@ -66,29 +61,35 @@ export interface UnifiedSession {
   userId: string;
   messageType: 'Marking' | 'Question' | 'Chat' | 'Mixed';
   
-  // Timestamps
-  createdAt: string;
-  updatedAt: string;
+  // Session timestamps
+  createdAt: string;    // When session was created
+  updatedAt: string;    // When session was last modified
   
   // User preferences
   favorite?: boolean;
   rating?: number;
   
-  // Question classification
+  // Session-specific flags
   isPastPaper?: boolean;
   
   // Context
   contextSummary?: string;
   lastSummaryUpdate?: string;
   
-  // Session metadata
-  sessionMetadata?: {
-    totalProcessingTimeMs?: number;
-    totalTokens?: number;
-    averageConfidence?: number;
-    lastApiUsed?: string;
-    lastModelUsed?: string;
-    totalMessages?: number;
+  // Aggregated stats across ALL messages
+  sessionStats?: {
+    totalProcessingTimeMs?: number;   
+    totalLlmTokens?: number;               
+    totalMathpixCalls?: number;  
+    totalMessages: number;            
+    totalTokens?: number;   // sum of totalLlmTokens + totalMathpixCalls
+
+    // Additional fields for Task Details dropdown
+    imageSize?: number;           // For "Image Size" display
+    averageConfidence?: number;   // For "Confidence" display  
+    totalAnnotations?: number;    // For "Annotations" display
+    lastApiUsed?: string;         // For consistency
+    lastModelUsed?: string;       // For consistency
   };
 }
 
@@ -114,7 +115,6 @@ export interface LightweightSession {
   };
   
   // Session stats
-  messageCount: number;
   hasImage: boolean;
   lastApiUsed?: string;
 }

@@ -6,14 +6,23 @@
 
 import sharp from 'sharp';
 import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
-import { MathDetectionService, MathBlock } from './mathDetectionService.js';
-import { MathpixService } from './mathpixService.js';
+// Inline MathDetectionService and MathpixService functionality
 import { getDebugMode } from '../config/aiModels.js';
 import type { ProcessedVisionResult } from '../types/index.js';
 
 // Type aliases for robust recognition
 type IBlock = protos.google.cloud.vision.v1.IBlock;
 type IVertex = protos.google.cloud.vision.v1.IVertex;
+
+// Inline MathBlock interface from MathDetectionService
+export interface MathBlock {
+  googleVisionText: string;
+  mathpixLatex?: string;
+  confidence: number;
+  mathLikenessScore: number;
+  coordinates: { x: number; y: number; width: number; height: number };
+  suspicious?: boolean;
+}
 
 interface DetectedBlock {
   source: string;
@@ -43,6 +52,168 @@ export interface HybridOCRResult {
   processingTime: number;
   rawResponse?: any;
   usage?: { mathpixCalls: number };
+}
+
+// Inline MathDetectionService functionality
+function scoreMathLikeness(text: string): number {
+  const t = text || "";
+  if (!t.trim()) return 0;
+
+  // Check if it's clearly an English word/phrase (exclude these)
+  const englishWordPattern = /^[a-zA-Z\s]+$/;
+  if (englishWordPattern.test(t.trim()) && t.length > 3) {
+    const commonEnglishWords = [
+      'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+      'question', 'answer', 'find', 'calculate', 'solve', 'show', 'prove', 'given'
+    ];
+    
+    const words = t.toLowerCase().split(/\s+/);
+    const isCommonEnglish = words.every(word => commonEnglishWords.includes(word));
+    if (isCommonEnglish) {
+      return 0; // Exclude common English words
+    }
+  }
+
+  // Mathematical features
+  const features = [
+    /[=≠≈≤≥]/g,                    // Equality/inequality symbols
+    /[+\-×÷*/]/g,                  // Basic operators
+    /\b\d+\b/g,                    // Numbers
+    /[()\[\]{}]/g,                 // Brackets
+    /\|.*\|/g,                     // Absolute value
+    /√|∑|∫|π|θ|λ|α|β|γ|δ|ε|ζ|η|θ|ι|κ|λ|μ|ν|ξ|ο|π|ρ|σ|τ|υ|φ|χ|ψ|ω/g, // Greek letters
+    /\b\w\^\d/g,                   // Exponents
+    /\b\w_\d/g,                    // Subscripts
+    /\b(sin|cos|tan|log|ln|exp|sqrt|abs|max|min|lim|sum|prod|int)\b/g, // Functions
+    /\b(infinity|∞|inf)\b/g,       // Infinity
+    /\b(pi|e|phi|gamma|alpha|beta|theta|lambda|mu|sigma|omega)\b/g, // Constants
+    /\b(and|or|not|implies|iff|forall|exists)\b/g, // Logic
+    /\b(if|then|else|when|where|given|let|assume|suppose|prove|show|find|solve|calculate)\b/g // Math words
+  ];
+
+  let score = 0;
+  for (const feature of features) {
+    const matches = t.match(feature);
+    if (matches) {
+      score += matches.length * 0.1;
+    }
+  }
+
+  return Math.min(1, score);
+}
+
+function detectMathBlocks(vision: ProcessedVisionResult | null, threshold = 0.35): MathBlock[] {
+  if (!vision) return [];
+
+  const candidateBoxes = vision.boundingBoxes || [];
+  const blocks: MathBlock[] = [];
+  
+  for (const b of candidateBoxes) {
+    const score = scoreMathLikeness(b.text || "");
+    if (score >= threshold) {
+      const pipes = (b.text.match(/\|/g) || []).length;
+      const suspicious = pipes === 1 || ((b.text.match(/[+\-×÷*/=]/g) || []).length > 2 && !(b.text.match(/\d/g) || []).length);
+
+      blocks.push({
+        googleVisionText: b.text,
+        confidence: b.confidence || vision.confidence || 0.6,
+        mathLikenessScore: score,
+        coordinates: { x: b.x, y: b.y, width: b.width, height: b.height },
+        suspicious
+      });
+    }
+  }
+  return blocks;
+}
+
+function getCropOptions(coords: { x: number; y: number; width: number; height: number }) {
+  return {
+    left: Math.max(0, Math.floor(coords.x)),
+    top: Math.max(0, Math.floor(coords.y)),
+    width: Math.max(1, Math.floor(coords.width)),
+    height: Math.max(1, Math.floor(coords.height))
+  };
+}
+
+// Inline MathpixService functionality
+class InlineMathpixService {
+  private static readonly API_URL = 'https://api.mathpix.com/v3/text';
+  private static readonly DEFAULT_OPTIONS: any = {
+    formats: ['latex_styled'],
+    include_latex: true,
+    include_mathml: false,
+    include_asciimath: false
+  };
+
+  static isAvailable(): boolean {
+    return !!(process.env.MATHPIX_APP_ID && process.env.MATHPIX_API_KEY);
+  }
+
+  static getServiceStatus() {
+    const appId = process.env.MATHPIX_APP_ID;
+    const appKey = process.env.MATHPIX_API_KEY;
+    
+    if (!appId || !appKey) {
+      return {
+        available: false,
+        configured: false,
+        error: 'Mathpix credentials not configured'
+      };
+    }
+
+    return {
+      available: true,
+      configured: true
+    };
+  }
+
+  static async processImage(imageBuffer: Buffer, options: any = {}, debug: boolean = false): Promise<any> {
+    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    
+    if (debug) {
+      const debugMode = getDebugMode();
+      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+      return {
+        latex_styled: 'Debug mode: Mock LaTeX expression',
+        confidence: 0.95
+      };
+    }
+    
+    if (!this.isAvailable()) {
+      return {
+        error: 'Mathpix service not available'
+      };
+    }
+
+    const appId = process.env.MATHPIX_APP_ID!;
+    const appKey = process.env.MATHPIX_API_KEY!;
+    
+    const imageBase64 = imageBuffer.toString('base64');
+    const headers = {
+      'app_id': appId,
+      'app_key': appKey,
+      'Content-Type': 'application/json'
+    };
+
+    const body = {
+      src: `data:image/png;base64,${imageBase64}`,
+      formats: opts.formats,
+      include_latex: opts.include_latex,
+      include_mathml: opts.include_mathml,
+      include_asciimath: opts.include_asciimath
+    };
+
+    try {
+      const axios = await import('axios');
+      const response = await axios.default.post(this.API_URL, body, { headers });
+      return response.data;
+    } catch (error: any) {
+      console.error(`❌ [MATHPIX API ERROR] ${error.response?.data || error.message}`);
+      return {
+        error: error.response?.data?.error || error.message || 'Unknown Mathpix API error'
+      };
+    }
+  }
 }
 
 export interface HybridOCROptions {
@@ -504,17 +675,17 @@ export class HybridOCRService {
       visionResult.dimensions = { width: metadata.width || 0, height: metadata.height || 0 };
 
       // Step 2: Detect math blocks from robust recognition results
-      mathBlocks = MathDetectionService.detectMathBlocks(visionResult);
+      mathBlocks = detectMathBlocks(visionResult);
       
     } catch (error) {
       console.error(`❌ [OCR PROCESSING ERROR] Google Vision failed:`, error instanceof Error ? error.message : 'Unknown error');
       console.error(`❌ [ERROR DETAILS]`, error);
       
       // Fallback to Mathpix-only processing
-      if (MathpixService.isAvailable()) {
+      if (InlineMathpixService.isAvailable()) {
         try {
           const imageBuffer = Buffer.from(imageData.split(',')[1], 'base64');
-          const mathpixResult = await MathpixService.processImage(imageBuffer, {}, debug);
+          const mathpixResult = await InlineMathpixService.processImage(imageBuffer, {}, debug);
           console.log('✅ [OCR PROCESSING] Mathpix fallback completed');
           if (mathpixResult.latex_styled) {
             const metadata = await sharp(imageBuffer).metadata();
@@ -547,7 +718,7 @@ export class HybridOCRService {
     let processedMathBlocks: MathBlock[] = mathBlocks;
     
     let mathpixCalls = 0;
-    if (mathBlocks.length > 0 && MathpixService.isAvailable()) {
+    if (mathBlocks.length > 0 && InlineMathpixService.isAvailable()) {
       try {
         // Dedupe by bbox signature and prioritize suspicious or high-score blocks
         const seen = new Set<string>();
@@ -568,7 +739,7 @@ export class HybridOCRService {
             continue;
           }
           
-          const cropOptions = MathDetectionService.getCropOptions(coords);
+          const cropOptions = getCropOptions(coords);
           const sig = `${cropOptions.left}-${cropOptions.top}-${cropOptions.width}-${cropOptions.height}`;
           if (seen.has(sig)) continue;
           seen.add(sig);
@@ -581,7 +752,7 @@ export class HybridOCRService {
               .toBuffer();
             
             // Process with Mathpix
-            const mathpixResult = await MathpixService.processImage(croppedBuffer, {}, debug);
+            const mathpixResult = await InlineMathpixService.processImage(croppedBuffer, {}, debug);
             mathpixCalls += 1;
             
             if (mathpixResult.latex_styled && !mathpixResult.error) {
@@ -671,7 +842,7 @@ export class HybridOCRService {
     hybrid: boolean;
     robustRecognition: boolean;
   } {
-    const mathpixStatus = MathpixService.getServiceStatus();
+    const mathpixStatus = InlineMathpixService.getServiceStatus();
     
     // Check if Google Vision credentials are available
     const googleVisionAvailable = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -688,7 +859,7 @@ export class HybridOCRService {
    * Check if hybrid OCR is available
    */
   static isAvailable(): boolean {
-    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS && MathpixService.isAvailable();
+    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS && InlineMathpixService.isAvailable();
   }
 }
 

@@ -155,7 +155,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
             id: data.sessionId || `temp-${Date.now()}`,
             title: data.sessionTitle || 'Chat Session',
             messages: data.newMessages,
-            sessionMetadata: {}
+            sessionStats: {}
           };
           simpleSessionService.updateSessionState(tempSession);
         } else {

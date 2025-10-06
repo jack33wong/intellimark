@@ -170,10 +170,6 @@ export interface UnifiedMessage {
   imageLink?: string;
   fileName?: string;
   
-  // AI metadata
-  model?: string;
-  apiUsed?: string;
-  
   // Display options
   isImageContext?: boolean;
   
@@ -184,19 +180,18 @@ export interface UnifiedMessage {
     message?: string;
   };
   
-  // Processing metadata (comprehensive)
-  metadata?: {
-    resultId?: string;
-    processingTime?: string;
-    totalProcessingTimeMs?: number;
-    modelUsed?: string;
-    tokens?: number[];
+  // Message-specific processing stats
+  processingStats?: {
+    processingTimeMs?: number;   
     confidence?: number;
-    totalAnnotations?: number;
+    annotations?: number;       		 
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
-    apiUsed?: string;
+    modelUsed?: string;				// Real model version (e.g., "gemini-2.5-pro")
+    apiUsed?: string;              // API service used (e.g., "Google Gemini API")
+    llmTokens?: number;               
+    mathpixCalls?: number;  
   };
   
   // Progress data for chat history (simplified)
@@ -210,6 +205,42 @@ export interface UnifiedMessage {
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Unified Session types
+export interface UnifiedSession {
+  id: string;
+  title: string;
+  messages: UnifiedMessage[];
+  userId: string;
+  messageType: 'Marking' | 'Question' | 'Chat';
+  
+  // Session timestamps
+  createdAt: string;    // When session was created
+  updatedAt: string;    // When session was last modified
+  
+  // User preferences
+  favorite?: boolean;
+  rating?: number;
+  
+  // Session-specific flags
+  isPastPaper?: boolean;
+  
+  // Aggregated stats across ALL messages
+  sessionStats?: {
+    totalProcessingTimeMs?: number;   
+    totalLlmTokens?: number;               
+    totalMathpixCalls?: number;  
+    totalMessages: number;            
+    totalTokens?: number;   // sum of totalLlmTokens + totalMathpixCalls
+
+    // Additional fields for Task Details dropdown
+    imageSize?: number;           // For "Image Size" display
+    averageConfidence?: number;   // For "Confidence" display  
+    totalAnnotations?: number;    // For "Annotations" display
+    lastApiUsed?: string;         // For consistency
+    lastModelUsed?: string;       // For consistency
+  };
 }
 
 
@@ -267,12 +298,17 @@ export interface MarkHomeworkResponse {
   sessionId?: string;
   sessionTitle?: string;
   isPastPaper?: boolean;
-  metadata?: {
-    totalProcessingTimeMs?: number;
-    tokens?: number[];
+  processingStats?: {
+    processingTimeMs?: number;
     confidence?: number;
-    totalAnnotations?: number;
+    annotations?: number;
     imageSize?: number;
+    modelUsed?: string;
+    apiUsed?: string;
+    llmTokens?: number;
+    mathpixCalls?: number;
+    ocrMethod?: string;
+    classificationResult?: any;
   };
 }
 

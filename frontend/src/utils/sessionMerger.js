@@ -7,12 +7,12 @@ export const mergeSessionData = (localSession, newSessionFromServer, modelUsed =
     let mergedSession = { ...newSessionFromServer };
 
     // Merge metadata to fix the "N/A" bug, correctly prioritizing the server's data.
-    const localMeta = localSession?.sessionMetadata || {};
-    const serverMeta = newSessionFromServer.sessionMetadata || {};
-    mergedSession.sessionMetadata = {
+    const localMeta = localSession?.sessionStats || {};
+    const serverMeta = newSessionFromServer.sessionStats || {};
+    mergedSession.sessionStats = {
         ...localMeta,
         ...serverMeta,
-        modelUsed: serverMeta.modelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.modelUsed || 'N/A'
+        lastModelUsed: serverMeta.lastModelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.lastModelUsed || 'N/A'
     };
 
     // Preserve the local `imageData` for ALL optimistic user messages in the session.

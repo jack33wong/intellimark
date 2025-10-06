@@ -145,7 +145,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
       content: aiResponse,
       messageId: resolvedAIMessageId,
       progressData: finalProgressData || createChatProgressData(true),
-      metadata: {
+      processingStats: {
         modelUsed: model,
         imageSize: imageData ? imageData.length : 0,
         apiUsed: apiUsed
@@ -201,15 +201,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
         timestamp: new Date().toISOString(),
         imageLink: imageLink || (isAuthenticated ? undefined : imageData),
         detectedQuestion: { found: false, message: 'Chat message' },
-        metadata: {
-          resultId: `chat-${Date.now()}`,
-          processingTime: new Date().toISOString(),
-          totalProcessingTimeMs: 0,
+        processingStats: {
+          processingTimeMs: 0,
           modelUsed: model,
-          totalAnnotations: 0,
+          annotations: 0,
           imageSize: imageData ? imageData.length : 0,
           confidence: 0,
-          tokens: [0, 0],
+          llmTokens: 0,
+          mathpixCalls: 0,
           ocrMethod: 'Chat'
         }
       };
@@ -332,7 +331,6 @@ router.get('/session/:sessionId', optionalAuth, async (req, res) => {
       session,
       sessionId,
       messages: session.messages,
-      messageCount: session.messages.length
     });
   } catch (error) {
     console.error('Failed to get UnifiedSession:', error);

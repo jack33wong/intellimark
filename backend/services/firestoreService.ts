@@ -107,10 +107,10 @@ export interface MarkingResultDocument {
     }>;
   };
   annotatedImage?: string;
-  metadata: {
-    processingTime: string;
+  processingStats: {
+    processingTimeMs: number;
     modelUsed: string;
-    totalAnnotations: number;
+    annotations: number;
     imageSize: number;
     confidence: number;
     apiUsed: string;
@@ -391,12 +391,12 @@ export class FirestoreService {
     userId: string;
     messageType: 'Marking' | 'Question' | 'Chat';
     messages: any[];
-    sessionMetadata?: any;
+    sessionStats?: any;
     isPastPaper?: boolean;
   }): Promise<string> {
     try {
       ensureDbAvailable();
-      const { sessionId, title, userId, messageType, messages, sessionMetadata } = sessionData;
+      const { sessionId, title, userId, messageType, messages, sessionStats } = sessionData;
       
       // Import ImageStorageService
       const { ImageStorageService } = await import('./imageStorageService.js');
@@ -454,13 +454,12 @@ export class FirestoreService {
         title,
         userId,
         messageType,
-        messageCount: messages.length,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         favorite: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
-        sessionMetadata: sessionMetadata || null,
+        sessionStats: sessionStats || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
 
@@ -550,12 +549,11 @@ export class FirestoreService {
         title: sessionData.title,
         userId: sessionData.userId,
         messageType: sessionData.messageType,
-        messageCount: sessionData.messageCount,
         createdAt: sessionData.createdAt,
         updatedAt: sessionData.updatedAt,
         favorite: sessionData.favorite,
         rating: sessionData.rating,
-        sessionMetadata: sessionData.sessionMetadata,
+        sessionStats: sessionData.sessionStats,
         messages: mappedMessages  // Use mapped messages with id field
       };
       
@@ -620,7 +618,6 @@ export class FirestoreService {
             role: lastMessage.role,
             timestamp: lastMessage.timestamp
           } : null,
-          messageCount: sessionData.messageCount || 0,
           hasImage,
           lastApiUsed: lastMessage?.apiUsed
         });
@@ -654,7 +651,7 @@ export class FirestoreService {
     instructions: any,
     classification: any,
     annotatedImage: string,
-    metadata: any,
+    processingStats: any,
     questionDetection?: any
   ): Promise<void> {
     try {
@@ -903,10 +900,10 @@ export class FirestoreService {
       const updateData = {
         unifiedMessages: updatedMessages,
         updatedAt: new Date().toISOString(),
-        'sessionMetadata.totalMessages': updatedMessages.length,
-        'sessionMetadata.hasImage': updatedMessages.some((msg: any) => msg.imageLink),
-        'sessionMetadata.lastApiUsed': sanitizedMessage?.metadata?.apiUsed || 'Unknown',
-        'sessionMetadata.lastModelUsed': sanitizedMessage?.metadata?.modelUsed || 'Unknown'
+        'sessionStats.totalMessages': updatedMessages.length,
+        'sessionStats.hasImage': updatedMessages.some((msg: any) => msg.imageLink),
+        'sessionStats.lastApiUsed': sanitizedMessage?.processingStats?.apiUsed || 'Unknown',
+        'sessionStats.lastModelUsed': sanitizedMessage?.processingStats?.modelUsed || 'Unknown'
       };
       
       await sessionRef.update(updateData);

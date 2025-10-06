@@ -349,14 +349,17 @@ export class MarkHomeworkWithAnswerAuto {
           sessionTitle: sessionTitle,
           classification: classification,
           questionDetection: questionDetection,
-          metadata: {
-            totalProcessingTimeMs: totalProcessingTime,
+          processingStats: {
+            processingTimeMs: totalProcessingTime,
             confidence: 0.9,
             imageSize: imageData.length,
-            tokens: [totalLLMTokens, totalMathpixCalls], // [llmTokens, mathpixCalls]
-            totalAnnotations: 0
+            llmTokens: totalLLMTokens,
+            mathpixCalls: totalMathpixCalls,
+            annotations: 0,
+            modelUsed: actualModel,
+            apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
           },
-          apiUsed: actualModel
+          apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
         } as MarkHomeworkResponse;
       } else {
         // Marking mode: full processing pipeline
@@ -517,14 +520,17 @@ export class MarkHomeworkWithAnswerAuto {
             : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
           classification: classification,
           questionDetection: questionDetection,
-          metadata: {
-            totalProcessingTimeMs: totalProcessingTime,
+          processingStats: {
+            processingTimeMs: totalProcessingTime,
             confidence: 0.9,
             imageSize: imageData.length,
-            tokens: [totalLLMTokens, totalMathpixCalls], // [llmTokens, mathpixCalls]
-            totalAnnotations: processedImage.boundingBoxes?.length || 0
+            llmTokens: totalLLMTokens,
+            mathpixCalls: totalMathpixCalls,
+            annotations: processedImage.boundingBoxes?.length || 0,
+            modelUsed: actualModel,
+            apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
           },
-          apiUsed: actualModel
+          apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
         } as MarkHomeworkResponse;
       }
     } catch (error) {

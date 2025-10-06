@@ -45,7 +45,6 @@ import authRoutes from './routes/auth.js';
 import markHomeworkRoutes from './routes/mark-homework.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
-import testRoutes from './routes/test.js';
 import messagesRoutes from './routes/messages.js';
 
 // Enable auth routes
@@ -65,8 +64,6 @@ app.use('/api/messages', messagesRoutes);
 // Enable payment system
 app.use('/api/payment', paymentRoutes);
 
-// Enable test routes
-app.use('/api/test', testRoutes);
 
 
 

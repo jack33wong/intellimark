@@ -132,7 +132,7 @@ export interface AIMessageOptions {
   imageData?: string;
   fileName?: string;
   progressData?: any;
-  metadata?: any;
+  processingStats?: any;
   messageId?: string;
   isQuestionOnly?: boolean;
 }
@@ -163,15 +163,14 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
     detectedQuestion: { found: false, message: content || 'User message' },
-    metadata: {
-      resultId: `chat-${Date.now()}`,
-      processingTime: new Date().toISOString(),
-      totalProcessingTimeMs: 0,
+    processingStats: {
+      processingTimeMs: 0,
       modelUsed: model,
-      totalAnnotations: 0,
+      annotations: 0,
       imageSize: imageData ? imageData.length : 0,
       confidence: 0,
-      tokens: [0, 0],
+      llmTokens: 0,
+      mathpixCalls: 0,
       ocrMethod: 'Chat'
     }
   };
@@ -188,7 +187,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     imageData,
     fileName,
     progressData,
-    metadata,
+    processingStats,
     messageId,
     isQuestionOnly = false
   } = options;
@@ -203,17 +202,16 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
     progressData: progressData,
     detectedQuestion: { found: false, message: content },
-    metadata: {
-      resultId: `chat-${Date.now()}`,
-      processingTime: new Date().toISOString(),
-      totalProcessingTimeMs: 0,
+    processingStats: {
+      processingTimeMs: 0,
       modelUsed: 'auto',
-      totalAnnotations: 0,
+      annotations: 0,
       imageSize: imageData ? imageData.length : 0,
       confidence: 0,
-      tokens: [0, 0],
+      llmTokens: 0,
+      mathpixCalls: 0,
       ocrMethod: 'Chat',
-      ...metadata
+      ...processingStats
     }
   };
 }
