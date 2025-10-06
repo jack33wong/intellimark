@@ -24,6 +24,14 @@ const SessionHeader: React.FC = () => {
 
   const getModelUsed = (): string => {
     const stats = currentSession?.sessionStats;
+    
+    // Fail fast if old sessionMetadata structure is detected
+    if (currentSession?.sessionMetadata) {
+      console.error('❌ [DATA STRUCTURE ERROR] Old sessionMetadata structure detected');
+      console.error('❌ [ERROR DETAILS] sessionMetadata:', currentSession.sessionMetadata);
+      throw new Error('Old sessionMetadata data structure detected. Please clear database and create new sessions.');
+    }
+    
     return stats?.lastModelUsed || 'N/A';
   };
 
@@ -60,6 +68,44 @@ const SessionHeader: React.FC = () => {
   const getAnnotations = (): string => {
     const stats = currentSession?.sessionStats;
     return stats?.totalAnnotations?.toString() || 'N/A';
+  };
+
+  const getDetectedQuestion = () => {
+    // Find the first message with detectedQuestion data
+    const messageWithQuestion = currentSession?.messages?.find((msg: any) => 
+      msg.detectedQuestion && msg.detectedQuestion.found
+    );
+    
+    const detectedQuestion = messageWithQuestion?.detectedQuestion;
+    
+    // Fail fast if old data structure is detected
+    if (detectedQuestion && detectedQuestion.message) {
+      console.error('❌ [DATA STRUCTURE ERROR] Old detectedQuestion structure detected with "message" field');
+      console.error('❌ [ERROR DETAILS] detectedQuestion:', detectedQuestion);
+      throw new Error('Old detectedQuestion data structure detected. Please clear database and create new sessions.');
+    }
+    
+    // Fail fast if required new fields are missing
+    if (detectedQuestion && detectedQuestion.found) {
+      const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject', 'year'];
+      const missingFields = requiredFields.filter(field => !detectedQuestion.hasOwnProperty(field));
+      
+      if (missingFields.length > 0) {
+        console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion missing required fields:', missingFields);
+        console.error('❌ [ERROR DETAILS] detectedQuestion:', detectedQuestion);
+        throw new Error(`detectedQuestion missing required fields: ${missingFields.join(', ')}. Please clear database and create new sessions.`);
+      }
+    }
+    
+    // Also check for old metadata structure in messages
+    const messageWithOldMetadata = currentSession?.messages?.find((msg: any) => msg.metadata);
+    if (messageWithOldMetadata) {
+      console.error('❌ [DATA STRUCTURE ERROR] Old metadata structure detected in message');
+      console.error('❌ [ERROR DETAILS] message:', messageWithOldMetadata);
+      throw new Error('Old metadata data structure detected in messages. Please clear database and create new sessions.');
+    }
+    
+    return detectedQuestion;
   };
   
   const tokens = getTokenData();
@@ -146,6 +192,43 @@ const SessionHeader: React.FC = () => {
                       <span className="value">{sessionTitle}</span>
                     </div>
                   </div>
+                  
+                  {(() => {
+                    const detectedQuestion = getDetectedQuestion();
+                    if (detectedQuestion && detectedQuestion.found) {
+                      return (
+                        <div className="exam-paper-section">
+                          <div className="section-header">Exam Paper Details</div>
+                          <div className="exam-details-grid">
+                            <div className="exam-detail-item">
+                              <span className="label">Board:</span>
+                              <span className="value">{detectedQuestion.examBoard || 'N/A'}</span>
+                            </div>
+                            <div className="exam-detail-item">
+                              <span className="label">Subject:</span>
+                              <span className="value">{detectedQuestion.subject || 'N/A'}</span>
+                            </div>
+                            <div className="exam-detail-item">
+                              <span className="label">Paper Code:</span>
+                              <span className="value">{detectedQuestion.examCode || 'N/A'}</span>
+                            </div>
+                            <div className="exam-detail-item">
+                              <span className="label">Year:</span>
+                              <span className="value">{detectedQuestion.year || 'N/A'}</span>
+                            </div>
+                            {detectedQuestion.tier && (
+                              <div className="exam-detail-item">
+                                <span className="label">Tier:</span>
+                                <span className="value">{detectedQuestion.tier}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
                    <div className="agent-speed-section">
                         <div className="agent-info">
                             <span className="label">Model Used</span>

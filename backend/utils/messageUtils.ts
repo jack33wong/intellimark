@@ -162,7 +162,16 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
-    detectedQuestion: { found: false, message: content || 'User message' },
+    detectedQuestion: { 
+      found: false, 
+      questionText: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: ''
+    },
     processingStats: {
       processingTimeMs: 0,
       modelUsed: model,
@@ -201,7 +210,16 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     timestamp: new Date().toISOString(),
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
     progressData: progressData,
-    detectedQuestion: { found: false, message: content },
+    detectedQuestion: { 
+      found: false, 
+      questionText: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: ''
+    },
     processingStats: {
       processingTimeMs: 0,
       modelUsed: 'auto',

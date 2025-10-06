@@ -704,10 +704,21 @@ export class FirestoreService {
       const detectedQuestion = questionDetection?.found ? {
         found: true,
         questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
-        message: questionDetection.message || 'Question detected'
+        examBoard: questionDetection.match?.board || '',
+        examCode: questionDetection.match?.paperCode || '',
+        paperTitle: questionDetection.match?.qualification || '',
+        subject: questionDetection.match?.qualification || '', // Using qualification as subject
+        tier: '', // Not available in current structure
+        year: questionDetection.match?.year || ''
       } : {
         found: false,
-        message: questionDetection?.message || 'No question detected'
+        questionText: '',
+        examBoard: '',
+        examCode: '',
+        paperTitle: '',
+        subject: '',
+        tier: '',
+        year: ''
       };
 
       // Create original image message
@@ -785,10 +796,21 @@ export class FirestoreService {
       const detectedQuestion = questionDetection?.found ? {
         found: true,
         questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
-        message: questionDetection.message || 'Question detected'
+        examBoard: questionDetection.match?.board || '',
+        examCode: questionDetection.match?.paperCode || '',
+        paperTitle: questionDetection.match?.qualification || '',
+        subject: questionDetection.match?.qualification || '', // Using qualification as subject
+        tier: '', // Not available in current structure
+        year: questionDetection.match?.year || ''
       } : {
         found: false,
-        message: questionDetection?.message || 'No question detected'
+        questionText: '',
+        examBoard: '',
+        examCode: '',
+        paperTitle: '',
+        subject: '',
+        tier: '',
+        year: ''
       };
 
       // Create question image message

@@ -142,10 +142,21 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       detectedQuestion: result.questionDetection?.found ? {
         found: true,
         questionText: result.classification?.extractedQuestionText || '',
-        message: result.questionDetection?.message || 'Question detected'
+        examBoard: result.questionDetection.match?.board || '',
+        examCode: result.questionDetection.match?.paperCode || '',
+        paperTitle: result.questionDetection.match?.qualification || '',
+        subject: result.questionDetection.match?.qualification || '',
+        tier: '',
+        year: result.questionDetection.match?.year || ''
       } : {
         found: false,
-        message: result.questionDetection?.message || 'No question detected'
+        questionText: '',
+        examBoard: '',
+        examCode: '',
+        paperTitle: '',
+        subject: '',
+        tier: '',
+        year: ''
       },
       processingStats: {
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
@@ -516,10 +527,21 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     (aiMessage as any).detectedQuestion = result.questionDetection?.found ? {
       found: true,
       questionText: result.classification?.extractedQuestionText || '',
-      message: result.questionDetection?.message || 'Question detected'
+      examBoard: result.questionDetection.match?.board || '',
+      examCode: result.questionDetection.match?.paperCode || '',
+      paperTitle: result.questionDetection.match?.qualification || '',
+      subject: result.questionDetection.match?.qualification || '',
+      tier: '',
+      year: result.questionDetection.match?.year || ''
     } : {
       found: false,
-      message: result.questionDetection?.message || 'No question detected'
+      questionText: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: ''
     };
 
     // Update AI message with image link for authenticated users

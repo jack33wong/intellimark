@@ -26,6 +26,38 @@ async function simulateApiDelay(operation: string, debug: boolean = false): Prom
   }
 }
 
+// Common function to convert full subject names to short forms
+function getShortSubjectName(qualification: string): string {
+  const subjectMap: { [key: string]: string } = {
+    'MATHEMATICS': 'MATHS',
+    'PHYSICS': 'PHYSICS',
+    'CHEMISTRY': 'CHEMISTRY',
+    'BIOLOGY': 'BIOLOGY',
+    'ENGLISH': 'ENGLISH',
+    'ENGLISH LITERATURE': 'ENG LIT',
+    'HISTORY': 'HISTORY',
+    'GEOGRAPHY': 'GEOGRAPHY',
+    'FRENCH': 'FRENCH',
+    'SPANISH': 'SPANISH',
+    'GERMAN': 'GERMAN',
+    'COMPUTER SCIENCE': 'COMP SCI',
+    'ECONOMICS': 'ECONOMICS',
+    'PSYCHOLOGY': 'PSYCHOLOGY',
+    'SOCIOLOGY': 'SOCIOLOGY',
+    'BUSINESS STUDIES': 'BUSINESS',
+    'ART': 'ART',
+    'DESIGN AND TECHNOLOGY': 'D&T',
+    'MUSIC': 'MUSIC',
+    'PHYSICAL EDUCATION': 'PE',
+    // Handle reverse mappings for short forms that might be in database
+    'CHEM': 'CHEMISTRY',
+    'PHYS': 'PHYSICS'
+  };
+  
+  const upperQualification = qualification.toUpperCase();
+  return subjectMap[upperQualification] || qualification;
+}
+
 // Common function to generate session titles for non-past-paper images
 function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
@@ -334,7 +366,7 @@ export class MarkHomeworkWithAnswerAuto {
         
         // Generate session title based on question detection result
         const sessionTitle = questionDetection?.found && questionDetection.match 
-          ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
+          ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
           : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
         
         return {
@@ -515,7 +547,7 @@ export class MarkHomeworkWithAnswerAuto {
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
           sessionTitle: questionDetection?.found && questionDetection.match 
-            ? `${questionDetection.match.board} ${questionDetection.match.qualification} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
+            ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
             : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
           classification: classification,
           questionDetection: questionDetection,

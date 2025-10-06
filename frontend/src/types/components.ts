@@ -63,10 +63,14 @@ export interface ChatMessage {
   fileName?: string;
   apiUsed?: string;
   detectedQuestion?: {
-    examDetails: Record<string, any>;
-    questionNumber: string;
-    questionText: string;
-    confidence: number;
+    found: boolean;
+    questionText?: string;
+    examBoard?: string;
+    examCode?: string;
+    paperTitle?: string;
+    subject?: string;
+    tier?: string;
+    year?: string;
   };
 }
 

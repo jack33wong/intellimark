@@ -5,6 +5,38 @@
 
 import { getFirestore } from '../config/firebase.js';
 
+// Common function to convert full subject names to short forms
+function getShortSubjectName(qualification: string): string {
+  const subjectMap: { [key: string]: string } = {
+    'MATHEMATICS': 'MATHS',
+    'PHYSICS': 'PHYSICS',
+    'CHEMISTRY': 'CHEMISTRY',
+    'BIOLOGY': 'BIOLOGY',
+    'ENGLISH': 'ENGLISH',
+    'ENGLISH LITERATURE': 'ENG LIT',
+    'HISTORY': 'HISTORY',
+    'GEOGRAPHY': 'GEOGRAPHY',
+    'FRENCH': 'FRENCH',
+    'SPANISH': 'SPANISH',
+    'GERMAN': 'GERMAN',
+    'COMPUTER SCIENCE': 'COMP SCI',
+    'ECONOMICS': 'ECONOMICS',
+    'PSYCHOLOGY': 'PSYCHOLOGY',
+    'SOCIOLOGY': 'SOCIOLOGY',
+    'BUSINESS STUDIES': 'BUSINESS',
+    'ART': 'ART',
+    'DESIGN AND TECHNOLOGY': 'D&T',
+    'MUSIC': 'MUSIC',
+    'PHYSICAL EDUCATION': 'PE',
+    // Handle reverse mappings for short forms that might be in database
+    'CHEM': 'CHEMISTRY',
+    'PHYS': 'PHYSICS'
+  };
+  
+  const upperQualification = qualification.toUpperCase();
+  return subjectMap[upperQualification] || qualification;
+}
+
 export interface ExamPaperMatch {
   board: string;
   qualification: string;
@@ -98,7 +130,7 @@ export class QuestionDetectionService {
         return {
           found: true,
           match: bestMatch,
-          message: `Matched with ${bestMatch.board} ${bestMatch.qualification} - ${bestMatch.paperCode} (${bestMatch.year})`
+          message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.year})`
         };
       }
 

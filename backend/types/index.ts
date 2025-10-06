@@ -173,11 +173,16 @@ export interface UnifiedMessage {
   // Display options
   isImageContext?: boolean;
   
-  // Question detection (simplified)
+  // Question detection with full exam paper metadata
   detectedQuestion?: {
     found: boolean;
     questionText?: string;
-    message?: string;
+    examBoard?: string;
+    examCode?: string;
+    paperTitle?: string;
+    subject?: string;
+    tier?: string;
+    year?: string;
   };
   
   // Message-specific processing stats

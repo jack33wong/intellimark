@@ -278,6 +278,34 @@ class SimpleSessionService {
   
   convertToUnifiedSession = (sessionData) => { 
     if (!sessionData) return null;
+    
+    // Fail fast if old data structure is detected
+    if (sessionData.sessionMetadata) {
+      console.error('❌ [DATA STRUCTURE ERROR] Old sessionMetadata structure detected in session data');
+      console.error('❌ [ERROR DETAILS] sessionData:', sessionData);
+      throw new Error('Old sessionMetadata data structure detected. Please clear database and create new sessions.');
+    }
+    
+    // Check for old metadata structure in messages
+    if (sessionData.messages) {
+      const messageWithOldMetadata = sessionData.messages.find(msg => msg.metadata);
+      if (messageWithOldMetadata) {
+        console.error('❌ [DATA STRUCTURE ERROR] Old metadata structure detected in message');
+        console.error('❌ [ERROR DETAILS] message:', messageWithOldMetadata);
+        throw new Error('Old metadata data structure detected in messages. Please clear database and create new sessions.');
+      }
+      
+      // Check for old detectedQuestion structure
+      const messageWithOldDetectedQuestion = sessionData.messages.find(msg => 
+        msg.detectedQuestion && msg.detectedQuestion.message
+      );
+      if (messageWithOldDetectedQuestion) {
+        console.error('❌ [DATA STRUCTURE ERROR] Old detectedQuestion structure detected with "message" field');
+        console.error('❌ [ERROR DETAILS] detectedQuestion:', messageWithOldDetectedQuestion.detectedQuestion);
+        throw new Error('Old detectedQuestion data structure detected. Please clear database and create new sessions.');
+      }
+    }
+    
     const sessionStats = sessionData.sessionStats || {};
     return {
         id: sessionData.id,
