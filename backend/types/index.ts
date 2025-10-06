@@ -177,6 +177,8 @@ export interface UnifiedMessage {
   detectedQuestion?: {
     found: boolean;
     questionText?: string;
+    questionNumber?: string;       // Question number from exam paper
+    subQuestionNumber?: string;    // Optional sub-question number if matched
     examBoard?: string;
     examCode?: string;
     paperTitle?: string;

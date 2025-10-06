@@ -142,15 +142,19 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       detectedQuestion: result.questionDetection?.found ? {
         found: true,
         questionText: result.classification?.extractedQuestionText || '',
+        questionNumber: result.questionDetection.match?.questionNumber || '',
+        subQuestionNumber: result.questionDetection.match?.subQuestionNumber || '',
         examBoard: result.questionDetection.match?.board || '',
         examCode: result.questionDetection.match?.paperCode || '',
         paperTitle: result.questionDetection.match?.qualification || '',
         subject: result.questionDetection.match?.qualification || '',
-        tier: '',
+        tier: result.questionDetection.match?.tier || '',
         year: result.questionDetection.match?.year || ''
       } : {
         found: false,
         questionText: '',
+        questionNumber: '',
+        subQuestionNumber: '',
         examBoard: '',
         examCode: '',
         paperTitle: '',
@@ -527,15 +531,19 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     (aiMessage as any).detectedQuestion = result.questionDetection?.found ? {
       found: true,
       questionText: result.classification?.extractedQuestionText || '',
+      questionNumber: result.questionDetection.match?.questionNumber || '',
+      subQuestionNumber: result.questionDetection.match?.subQuestionNumber || '',
       examBoard: result.questionDetection.match?.board || '',
       examCode: result.questionDetection.match?.paperCode || '',
       paperTitle: result.questionDetection.match?.qualification || '',
       subject: result.questionDetection.match?.qualification || '',
-      tier: '',
+      tier: result.questionDetection.match?.tier || '',
       year: result.questionDetection.match?.year || ''
     } : {
       found: false,
       questionText: '',
+      questionNumber: '',
+      subQuestionNumber: '',
       examBoard: '',
       examCode: '',
       paperTitle: '',

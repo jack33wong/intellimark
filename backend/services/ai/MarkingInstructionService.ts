@@ -116,12 +116,12 @@ export class MarkingInstructionService {
     
     if (actualModel === 'auto') {
       const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', true);
       responseText = res.content;
       usageTokens = res.usageTokens;
     } else {
       const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro');
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro', true);
       responseText = res.content;
       usageTokens = res.usageTokens;
     }

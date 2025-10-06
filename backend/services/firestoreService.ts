@@ -703,16 +703,20 @@ export class FirestoreService {
       
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
+        questionText: classification?.extractedQuestionText || '',
+        questionNumber: questionDetection.match?.questionNumber || '',
+        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
         examBoard: questionDetection.match?.board || '',
         examCode: questionDetection.match?.paperCode || '',
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
-        tier: '', // Not available in current structure
+        tier: questionDetection.match?.tier || '',
         year: questionDetection.match?.year || ''
       } : {
         found: false,
         questionText: '',
+        questionNumber: '',
+        subQuestionNumber: '',
         examBoard: '',
         examCode: '',
         paperTitle: '',
@@ -795,16 +799,20 @@ export class FirestoreService {
       
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: questionDetection.match?.questionText || classification?.extractedQuestionText || '',
+        questionText: classification?.extractedQuestionText || '',
+        questionNumber: questionDetection.match?.questionNumber || '',
+        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
         examBoard: questionDetection.match?.board || '',
         examCode: questionDetection.match?.paperCode || '',
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
-        tier: '', // Not available in current structure
+        tier: questionDetection.match?.tier || '',
         year: questionDetection.match?.year || ''
       } : {
         found: false,
         questionText: '',
+        questionNumber: '',
+        subQuestionNumber: '',
         examBoard: '',
         examCode: '',
         paperTitle: '',

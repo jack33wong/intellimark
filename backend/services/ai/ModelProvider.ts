@@ -2,9 +2,9 @@ import type { ModelType } from '../../types/index.js';
 import * as path from 'path';
 
 export class ModelProvider {
-  static async callGeminiText(systemPrompt: string, userPrompt: string, model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
+  static async callGeminiText(systemPrompt: string, userPrompt: string, model: ModelType = 'auto', forceJsonResponse: boolean = false): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
-    const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model);
+    const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
     const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
@@ -38,7 +38,8 @@ export class ModelProvider {
     accessToken: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto'
+    model: ModelType = 'auto',
+    forceJsonResponse: boolean = false
   ): Promise<Response> {
     // Use centralized model configuration
     const { getModelConfig } = await import('../../config/aiModels.js');
@@ -56,7 +57,7 @@ export class ModelProvider {
         generationConfig: { 
           temperature: 0, 
           maxOutputTokens: 8000,
-          responseMimeType: "application/json"
+          ...(forceJsonResponse && { responseMimeType: "application/json" })
         } // Use centralized config
       })
     });

@@ -42,7 +42,9 @@ export interface ExamPaperMatch {
   qualification: string;
   paperCode: string;
   year: string;
+  tier?: string;  // Add tier field
   questionNumber?: string;
+  subQuestionNumber?: string;  // Optional sub-question number if matched
   confidence?: number;
   markingScheme?: MarkingSchemeMatch;
 }
@@ -189,6 +191,8 @@ export class QuestionDetectionService {
 
       // Try to match with each question in the exam paper
       // Handle both array and object structures
+      let bestSubQuestionNumber = '';
+      
       if (Array.isArray(questions)) {
         // Handle array structure: questions = [{ question_number: "1", question_text: "...", sub_questions: [...] }]
         for (const question of questions) {
@@ -201,6 +205,24 @@ export class QuestionDetectionService {
             if (similarity > bestScore) {
               bestScore = similarity;
               bestQuestionMatch = questionNumber;
+              bestSubQuestionNumber = ''; // Reset sub-question
+              
+              // Check for sub-questions
+              const subQuestions = question.sub_questions || question.subQuestions || [];
+              if (subQuestions.length > 0) {
+                // Try to match with sub-questions
+                for (const subQ of subQuestions) {
+                  const subQuestionText = subQ.text || subQ.question || subQ.sub_question || '';
+                  const subQuestionNumber = subQ.number || subQ.sub_question_number || subQ.id || '';
+                  if (subQuestionText && subQuestionNumber) {
+                    const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+                    if (subSimilarity > 0.6) { // Lower threshold for sub-questions
+                      bestSubQuestionNumber = subQuestionNumber;
+                      break;
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -215,6 +237,23 @@ export class QuestionDetectionService {
             if (similarity > bestScore) {
               bestScore = similarity;
               bestQuestionMatch = questionNumber;
+              bestSubQuestionNumber = ''; // Reset sub-question
+              
+              // Check for sub-questions in object structure
+              const subQuestions = (questionData as any).sub_questions || (questionData as any).subQuestions || [];
+              if (subQuestions.length > 0) {
+                for (const subQ of subQuestions) {
+                  const subQuestionText = subQ.text || subQ.question || subQ.sub_question || '';
+                  const subQuestionNumber = subQ.number || subQ.sub_question_number || subQ.id || '';
+                  if (subQuestionText && subQuestionNumber) {
+                    const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+                    if (subSimilarity > 0.6) {
+                      bestSubQuestionNumber = subQuestionNumber;
+                      break;
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -224,17 +263,21 @@ export class QuestionDetectionService {
       if (bestQuestionMatch && bestScore > 0.5) {
         // Handle different data structures
         const metadata = examPaper.metadata || {};
-        const board = metadata.exam_board || examPaper.board || 'Unknown';
+        const exam = examPaper.exam || {};
+        const board = metadata.exam_board || exam.board || examPaper.board || 'Unknown';
         const qualification = metadata.subject || examPaper.qualification || 'Unknown';
-        const paperCode = metadata.exam_code || examPaper.paperCode || 'Unknown';
+        const paperCode = metadata.exam_code || exam.code || examPaper.paperCode || 'Unknown';
         const year = metadata.year || examPaper.year || 'Unknown';
+        const tier = exam.tier || metadata.tier || '';
         
         return {
           board: board,
           qualification: qualification,
           paperCode: paperCode,
           year: year,
+          tier: tier,
           questionNumber: bestQuestionMatch,
+          subQuestionNumber: bestSubQuestionNumber || undefined,
           confidence: bestScore
         };
       }
