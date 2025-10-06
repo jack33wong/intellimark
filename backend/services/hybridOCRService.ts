@@ -18,7 +18,8 @@ type IVertex = protos.google.cloud.vision.v1.IVertex;
 export interface MathBlock {
   googleVisionText: string;
   mathpixLatex?: string;
-  confidence: number;
+  confidence: number;              // Google Vision confidence (NEVER modified)
+  mathpixConfidence?: number;      // NEW: Mathpix confidence (only set after Mathpix)
   mathLikenessScore: number;
   coordinates: { x: number; y: number; width: number; height: number };
   suspicious?: boolean;
@@ -114,7 +115,6 @@ function detectMathBlocks(vision: ProcessedVisionResult | null, threshold = 0.35
       const pipes = (b.text.match(/\|/g) || []).length;
       const suspicious = pipes === 1 || ((b.text.match(/[+\-×÷*/=]/g) || []).length > 2 && !(b.text.match(/\d/g) || []).length);
 
-      // Use math likeness score as confidence if Google Vision confidence is not available
       const finalConfidence = b.confidence || vision.confidence || score;
 
       blocks.push({
@@ -402,6 +402,7 @@ export class HybridOCRService {
                     confidence = wordConfidences.reduce((sum, c) => sum + c, 0) / wordConfidences.length;
                   }
                 }
+                
                 
                 detectedBlocks.push({
                   source,
@@ -731,20 +732,8 @@ export class HybridOCRService {
     }
 
     // Step 3: Create debug visualization of detected math blocks
-    if (mathBlocks.length > 0) {
-      try {
-        const { SVGOverlayService } = await import('./svgOverlayService.js');
-        const timestamp = Date.now();
-        const filename = `math-blocks-debug-${timestamp}.png`;
-        await SVGOverlayService.createMathBlocksDebugImage(imageBuffer, mathBlocks, filename);
-      } catch (debugError) {
-        console.warn('⚠️ Failed to create math blocks debug visualization:', debugError);
-      }
-    }
 
     // Step 4: Process math blocks with Mathpix if available
-    let processedMathBlocks: MathBlock[] = mathBlocks;
-    
     let mathpixCalls = 0;
     if (mathBlocks.length > 0 && InlineMathpixService.isAvailable()) {
       try {
@@ -773,21 +762,33 @@ export class HybridOCRService {
           seen.add(sig);
           
           try {
-            // Crop the image to the math block
-            const croppedBuffer = await sharp(imageBuffer)
-              .extract(cropOptions)
-              .png()
-              .toBuffer();
+            // Phase 1: Smart Math Block Triage
+            // Skip Mathpix if Google Vision confidence >= 90%
+            const shouldSkipMathpix = mathBlock.confidence >= 0.9;
             
-            // Process with Mathpix
-            const mathpixResult = await InlineMathpixService.processImage(croppedBuffer, {}, debug);
-            mathpixCalls += 1;
-            
-            if (mathpixResult.latex_styled && !mathpixResult.error) {
-              mathBlock.mathpixLatex = mathpixResult.latex_styled;
-              mathBlock.confidence = mathpixResult.confidence;
+            if (shouldSkipMathpix) {
+              mathBlock.mathpixLatex = mathBlock.googleVisionText;
             } else {
-              //console.warn(`⚠️ Math block ${i + 1} failed: ${mathpixResult.error || 'Unknown error'}`);
+              // Crop the image to the math block
+              const croppedBuffer = await sharp(imageBuffer)
+                .extract(cropOptions)
+                .png()
+                .toBuffer();
+              
+              // Process with Mathpix
+              const mathpixResult = await InlineMathpixService.processImage(croppedBuffer, {}, debug);
+              mathpixCalls += 1;
+              
+              if (mathpixResult.latex_styled && !mathpixResult.error) {
+                mathBlock.mathpixLatex = mathpixResult.latex_styled;
+                mathBlock.mathpixConfidence = mathpixResult.confidence;  // NEW: Set mathpix confidence
+                // DON'T overwrite mathBlock.confidence (keep original Google Vision confidence)
+              } else {
+                // Fallback to Google Vision text if Mathpix fails
+                console.warn(`⚠️ Mathpix failed for block ${i + 1}, using Google Vision text`);
+                mathBlock.mathpixLatex = mathBlock.googleVisionText;
+                // No mathpixConfidence set (Mathpix failed)
+              }
             }
             
             // Small delay to avoid rate limiting
@@ -800,49 +801,45 @@ export class HybridOCRService {
           }
         }
         
-        processedMathBlocks = queue;
+        // Update mathBlocks with the modified queue
+        mathBlocks.splice(0, mathBlocks.length, ...queue);
         
       } catch (error) {
         console.error('❌ Mathpix processing failed:', error);
       }
     } else if (mathBlocks.length > 0) {
+      // No Mathpix available, use Google Vision results directly
     }
 
     // Step 4: Combine results
     const processingTime = Date.now() - startTime;
     
 
-    // Create final result from detected blocks
-    const finalText = detectedBlocks.map(block => block.text || '').join('\n');
-    const finalBoundingBoxes = detectedBlocks.map(block => ({
-      text: block.text || '',
-      x: block.geometry.minX,
-      y: block.geometry.minY,
-      width: block.geometry.width,
-      height: block.geometry.height,
-      confidence: block.confidence || 0
+    // Create final result from math blocks
+    const finalText = mathBlocks.map(block => block.googleVisionText || block.mathpixLatex || '').join('\n');
+    const finalBoundingBoxes = mathBlocks.map(block => ({
+      text: block.googleVisionText || block.mathpixLatex || '',
+      x: block.coordinates.x,
+      y: block.coordinates.y,
+      width: block.coordinates.width,
+      height: block.coordinates.height,
+      confidence: block.mathpixConfidence || block.confidence  // Use Mathpix confidence if available, fail fast if missing
     }));
 
-    // Debug final result
-    // if (finalBoundingBoxes.length > 0) {
-    // }
-    const finalConfidence = detectedBlocks.reduce((sum, block) => sum + (block.confidence || 0), 0) / detectedBlocks.length || 0;
-    const finalSymbols = detectedBlocks.map(block => ({
-      text: block.text || '',
+    const finalConfidence = mathBlocks.reduce((sum, block) => sum + (block.mathpixConfidence || block.confidence), 0) / mathBlocks.length;
+    const finalSymbols = mathBlocks.map(block => ({
+      text: block.googleVisionText || block.mathpixLatex || '',
       boundingBox: [
-        block.geometry.minX,
-        block.geometry.minY,
-        block.geometry.width,
-        block.geometry.height
+        block.coordinates.x,
+        block.coordinates.y,
+        block.coordinates.width,
+        block.coordinates.height
       ],
-      confidence: block.confidence || 0
+      confidence: block.mathpixConfidence || block.confidence
     }));
 
     // Get image dimensions
     const metadata = await sharp(imageBuffer).metadata();
-
-    // OCR processing completed - detailed logging removed for cleaner format
-    // The main step completion is handled by MarkHomeworkWithAnswer.ts
     
     return {
       text: finalText,
@@ -850,7 +847,7 @@ export class HybridOCRService {
       confidence: finalConfidence,
       dimensions: { width: metadata.width || 0, height: metadata.height || 0 },
       symbols: finalSymbols,
-      mathBlocks: processedMathBlocks,
+      mathBlocks: mathBlocks,
       processingTime,
       rawResponse: {
         detectedBlocks,

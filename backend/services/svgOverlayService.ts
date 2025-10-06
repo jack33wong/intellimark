@@ -257,11 +257,9 @@ export class SVGOverlayService {
   ): Promise<string> {
     try {
       if (!mathBlocks || mathBlocks.length === 0) {
-        console.log('🔍 [DEBUG] No math blocks detected, skipping debug visualization');
         return '';
       }
 
-      // Get image metadata
       const imageMetadata = await sharp(imageBuffer).metadata();
       const imageWidth = imageMetadata.width || 800;
       const imageHeight = imageMetadata.height || 600;
@@ -310,13 +308,8 @@ export class SVGOverlayService {
         fs.mkdirSync(tempDir, { recursive: true });
       }
 
-      // Save debug image to temp folder
       const filePath = path.join(tempDir, filename);
       fs.writeFileSync(filePath, debugImageBuffer);
-
-      console.log(`🔍 [DEBUG] Math blocks visualization saved: ${filePath}`);
-      console.log(`🔍 [DEBUG] Detected ${mathBlocks.length} math blocks`);
-      
       return filePath;
     } catch (error) {
       console.error('❌ Failed to create math blocks debug image:', error);

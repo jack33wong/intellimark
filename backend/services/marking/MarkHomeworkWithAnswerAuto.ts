@@ -521,7 +521,7 @@ export class MarkHomeworkWithAnswerAuto {
           questionDetection: questionDetection,
           processingStats: {
             processingTimeMs: totalProcessingTime,
-            confidence: 0.9,
+            confidence: processedImage.confidence || 0,
             imageSize: imageData.length,
             llmTokens: totalLLMTokens,
             mathpixCalls: totalMathpixCalls,

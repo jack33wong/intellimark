@@ -258,17 +258,7 @@ export class AnnotationMapper {
       const w = Math.min(Math.max(0, line.width), Math.max(0, widthLimit - x));
       const h = Math.min(Math.max(0, line.height), Math.max(0, heightLimit - y));
 
-      // Log unified step mapping
-
       const finalBbox = [x + (usage.endsWith('#2') ? 6 : 0), y, Math.max(1, w), Math.max(1, h)];
-      
-      console.log(`🔍 [COORDINATE DEBUG] Annotation ${stepId}:`, {
-        original: { x: line.x, y: line.y, w: line.width, h: line.height },
-        clamped: { x, y, w, h },
-        final: finalBbox,
-        action,
-        text: commentText
-      });
       
       results.push({
         bbox: finalBbox,

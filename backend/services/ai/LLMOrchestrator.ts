@@ -40,52 +40,22 @@ export class LLMOrchestrator {
       // Transform mathBlocks to the expected format for assignStepIds
       // Handle both data structures: nested boundingBox and flat properties
       const transformedBoundingBoxes = (processedImage.boundingBoxes || []).map((block: any, index: number) => {
-        // Try multiple nested structures: boundingBox, coordinates, etc.
-        let x = block.boundingBox?.x;
-        let y = block.boundingBox?.y;
-        let width = block.boundingBox?.width;
-        let height = block.boundingBox?.height;
-        let text = block.boundingBox?.text;
-        
-        // If boundingBox structure is missing, try coordinates structure
-        if (x === undefined || y === undefined || width === undefined || height === undefined) {
-          x = block.coordinates?.x;
-          y = block.coordinates?.y;
-          width = block.coordinates?.width;
-          height = block.coordinates?.height;
-          text = block.coordinates?.text;
-        }
-        
-        // If coordinates structure is missing, try flat structure (block.x, block.y, etc.)
-        if (x === undefined || y === undefined || width === undefined || height === undefined) {
-          x = block.x;
-          y = block.y;
-          width = block.width;
-          height = block.height;
-          text = block.text;
-        }
+        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
+        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
+        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
+        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
+        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
         
         // Validate coordinates
         if (x === undefined || y === undefined || width === undefined || height === undefined) {
-          console.error(`❌ [OCR DEBUG] Block ${index} has invalid coordinates:`, {
-            x, y, width, height,
-            hasBoundingBox: !!block.boundingBox,
-            hasCoordinates: !!block.coordinates,
-            boundingBoxKeys: block.boundingBox ? Object.keys(block.boundingBox) : [],
-            coordinatesKeys: block.coordinates ? Object.keys(block.coordinates) : [],
-            blockKeys: Object.keys(block)
-          });
           throw new Error(`Block ${index} has invalid coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
         }
         
-        // Validate coordinate values
         if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
-          console.error(`❌ [OCR DEBUG] Block ${index} has NaN coordinates:`, { x, y, width, height });
           throw new Error(`Block ${index} has NaN coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
         }
         
         if (x < 0 || y < 0 || width <= 0 || height <= 0) {
-          console.error(`❌ [OCR DEBUG] Block ${index} has invalid coordinate values:`, { x, y, width, height });
           throw new Error(`Block ${index} has invalid coordinate values: x=${x}, y=${y}, width=${width}, height=${height}`);
         }
         
@@ -98,10 +68,6 @@ export class LLMOrchestrator {
           confidence: block.confidence || 0
         };
       });
-      
-      console.log('🔍 [COORDINATE DEBUG] Transformed bounding boxes before assignStepIds:', transformedBoundingBoxes.map(b => ({
-        x: b.x, y: b.y, width: b.width, height: b.height, text: b.text
-      })));
       
       const stepAssignmentResult = await OCRCleanupService.assignStepIds(
         model,
@@ -212,12 +178,7 @@ export class LLMOrchestrator {
       );
       totalTokens += annotationData.usageTokens || 0;
       
-      console.log('🔍 [ANNOTATION DEBUG] AI generated annotations count:', annotationData.annotations?.length || 0);
-      
-      if (annotationData.annotations && Array.isArray(annotationData.annotations) && annotationData.annotations.length > 0) {
-        console.log('🔍 [ANNOTATION DEBUG] All annotation texts:', annotationData.annotations.map(a => a.text));
-      } else {
-        console.error('❌ [ANNOTATION DEBUG] Invalid annotations data:', annotationData.annotations);
+      if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
         throw new Error('AI failed to generate valid annotations array');
       }
       
@@ -248,13 +209,6 @@ export class LLMOrchestrator {
         imageDimensions: processedImage.imageDimensions,
         unifiedLookupTable: unifiedLookupTable // Pass the complete pre-built lookup table
       });
-      
-      console.log('🔍 [FINAL DEBUG] Mapped annotations count:', placed.annotations?.length || 0);
-      if (placed.annotations?.length > 0) {
-        console.log('🔍 [FINAL DEBUG] Final annotation texts:', placed.annotations.map(a => a.text));
-        console.log('🔍 [FINAL DEBUG] First final annotation bbox:', placed.annotations[0].bbox);
-      }
-      
 
       const result: SimpleMarkingInstructions & { usage?: { llmTokens: number } } = { annotations: placed.annotations as any, usage: { llmTokens: totalTokens } };
       return result;
