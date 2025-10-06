@@ -25,15 +25,57 @@ export class AnnotationMapper {
     return { annotations: placed };
   }
 
-  static async parseAnnotations(raw: string): Promise<Array<any>> {
-    const { JsonUtils } = await import('./JsonUtils');
-    try {
-      const parsed = JsonUtils.cleanAndValidateJSON(raw, 'annotations');
-      return parsed.annotations || [];
-    } catch (error) {
-      console.error('[AnnotationMapper] Failed to parse annotations:', error);
-      return [];
+  static async parseAnnotations(raw: any): Promise<Array<any>> {
+    // If raw is already an array, return it
+    if (Array.isArray(raw)) {
+      return raw;
     }
+    
+    // If raw is an object with annotations property, return that
+    if (raw && typeof raw === 'object' && raw.annotations && Array.isArray(raw.annotations)) {
+      return raw.annotations;
+    }
+    
+    // If raw is a string, try to parse it
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed.annotations || [];
+      } catch (error) {
+        console.error('❌ [PARSE DEBUG] Failed to parse string as JSON:', error);
+        return [];
+      }
+    }
+    
+    console.error('❌ [PARSE DEBUG] Unexpected raw data type:', typeof raw, raw);
+    return [];
+  }
+
+  private static cleanJsonResponse(raw: any): string {
+    // Convert to string if it's not already
+    const rawString = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    
+    // Remove markdown code blocks
+    let cleaned = rawString
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    
+    // Find the first { and last } to extract JSON
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+    
+    // Additional cleanup for common issues
+    cleaned = cleaned
+      .replace(/^\s*```.*?\n/, '') // Remove any remaining markdown
+      .replace(/\n```\s*$/, '')    // Remove trailing markdown
+      .trim();
+    
+    return cleaned;
   }
 
   static placeAnnotations(
@@ -48,6 +90,7 @@ export class AnnotationMapper {
     const results: Annotation[] = [];
     const widthLimit = imageDimensions?.width ?? Number.MAX_SAFE_INTEGER;
     const heightLimit = imageDimensions?.height ?? Number.MAX_SAFE_INTEGER;
+    
 
     // Use pre-built unified lookup table if provided, otherwise build it (legacy support)
     let unifiedStepLookup: Record<string, { bbox: number[]; cleanedText: string }> = {};
@@ -179,7 +222,11 @@ export class AnnotationMapper {
     const lineUsage: Record<string, number> = {}; const sigSet = new Set<string>();
     let unmatched = 0;
     for (const a of annotations) {
-      const action = (a.action || 'comment') as Annotation['action'];
+      const action = a.action as Annotation['action'];
+      if (!action) {
+        console.error(`❌ [ANNOTATION ERROR] Missing action field for annotation:`, a);
+        throw new Error(`Annotation missing required action field: ${JSON.stringify(a)}`);
+      }
       const textMatch = a.textMatch as string | undefined; const commentText = a.text as string | undefined;
       const reasoning = a.reasoning as string | undefined; const stepId = a.step_id as string | undefined;
       const idSig = `${action}|${textMatch}|${commentText}|${stepId}`;
@@ -187,7 +234,8 @@ export class AnnotationMapper {
 
       // Require step_id for mapping. If missing, log and skip.
       if (!stepId) {
-        console.error('[AnnotationMapper] annotation missing step_id; skipping placement');
+        console.error('❌ [ANNOTATION DEBUG] annotation missing step_id; skipping placement');
+        console.error('❌ [ANNOTATION DEBUG] Full annotation object:', a);
         unmatched++;
         continue;
       }
@@ -197,7 +245,12 @@ export class AnnotationMapper {
 
       // Rely solely on unified bbox derived from step_id (including merged steps)
       const line = unifiedBox;
-      if (!line) { unmatched++; continue; }
+      if (!line) { 
+        console.error('❌ [ANNOTATION DEBUG] No unified box found for step_id:', stepId);
+        console.error('❌ [ANNOTATION DEBUG] Available lookup keys:', Object.keys(unifiedStepLookup));
+        unmatched++; 
+        continue; 
+      }
 
       const usage = `${line.x},${line.y},${line.width},${line.height}`; lineUsage[usage] = (lineUsage[usage] || 0) + 1;
       const x = Math.min(Math.max(0, line.x), widthLimit);
@@ -207,8 +260,18 @@ export class AnnotationMapper {
 
       // Log unified step mapping
 
+      const finalBbox = [x + (usage.endsWith('#2') ? 6 : 0), y, Math.max(1, w), Math.max(1, h)];
+      
+      console.log(`🔍 [COORDINATE DEBUG] Annotation ${stepId}:`, {
+        original: { x: line.x, y: line.y, w: line.width, h: line.height },
+        clamped: { x, y, w, h },
+        final: finalBbox,
+        action,
+        text: commentText
+      });
+      
       results.push({
-        bbox: [x + (usage.endsWith('#2') ? 6 : 0), y, Math.max(1, w), Math.max(1, h)],
+        bbox: finalBbox,
         action,
         text: commentText,
         reasoning,
@@ -221,7 +284,9 @@ export class AnnotationMapper {
     }
 
     if (unmatched > 0) {
+      console.error(`❌ [ANNOTATION DEBUG] ${unmatched} annotations were unmatched and skipped`);
     }
+    
 
     // Print the final unified step lookup table (after any dynamic additions)
     for (const [stepId, data] of Object.entries(unifiedStepLookup)) {

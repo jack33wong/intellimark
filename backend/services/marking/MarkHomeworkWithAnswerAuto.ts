@@ -453,18 +453,8 @@ export class MarkHomeworkWithAnswerAuto {
             };
           }
 
-          const boundingBoxes = markingInstructions.annotations.map(ann => ({
-            x: ann.bbox[0],
-            y: ann.bbox[1],
-            width: ann.bbox[2],
-            height: ann.bbox[3],
-            text: ann.comment || ann.text || 'annotation',
-            confidence: 0.9
-          }));
-
-          const annotations = ImageAnnotationService.createAnnotationsFromBoundingBoxes(
-            boundingBoxes
-          );
+          // Use the AI-generated annotations directly - they already have correct actions and text
+          const annotations = markingInstructions.annotations;
 
           // Generate the actual annotated image
           return ImageAnnotationService.generateAnnotationResult(

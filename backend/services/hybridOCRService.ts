@@ -114,9 +114,12 @@ function detectMathBlocks(vision: ProcessedVisionResult | null, threshold = 0.35
       const pipes = (b.text.match(/\|/g) || []).length;
       const suspicious = pipes === 1 || ((b.text.match(/[+\-×÷*/=]/g) || []).length > 2 && !(b.text.match(/\d/g) || []).length);
 
+      // Use math likeness score as confidence if Google Vision confidence is not available
+      const finalConfidence = b.confidence || vision.confidence || score;
+
       blocks.push({
         googleVisionText: b.text,
-        confidence: b.confidence || vision.confidence || 0.6,
+        confidence: finalConfidence,
         mathLikenessScore: score,
         coordinates: { x: b.x, y: b.y, width: b.width, height: b.height },
         suspicious
@@ -391,11 +394,20 @@ export class HybridOCRService {
             lines.forEach(line => {
               const lineText = line.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ');
               if (line.boundingBox) {
+                // Calculate average confidence from words if line confidence is not available
+                let confidence = line.confidence;
+                if (!confidence && line.words && line.words.length > 0) {
+                  const wordConfidences = line.words.map(w => w.confidence).filter(c => c !== undefined && c !== null);
+                  if (wordConfidences.length > 0) {
+                    confidence = wordConfidences.reduce((sum, c) => sum + c, 0) / wordConfidences.length;
+                  }
+                }
+                
                 detectedBlocks.push({
                   source,
                   blockIndex: detectedBlocks.length + 1,
                   text: lineText,
-                  confidence: line.confidence,
+                  confidence: confidence,
                   geometry: this.getBlockGeometry(line as unknown as protos.google.cloud.vision.v1.IBlock, scale)
                 });
               }
@@ -625,6 +637,7 @@ export class HybridOCRService {
       detectedBlocks = robust.finalBlocks;
       preClusterBlocks = robust.preClusterBlocks;
       
+
       // Convert detected blocks to our standard format
       const visionResult: ProcessedVisionResult = {
         text: detectedBlocks.map(block => block.text || '').join('\n'),
@@ -717,7 +730,19 @@ export class HybridOCRService {
       }
     }
 
-    // Step 3: Process math blocks with Mathpix if available
+    // Step 3: Create debug visualization of detected math blocks
+    if (mathBlocks.length > 0) {
+      try {
+        const { SVGOverlayService } = await import('./svgOverlayService.js');
+        const timestamp = Date.now();
+        const filename = `math-blocks-debug-${timestamp}.png`;
+        await SVGOverlayService.createMathBlocksDebugImage(imageBuffer, mathBlocks, filename);
+      } catch (debugError) {
+        console.warn('⚠️ Failed to create math blocks debug visualization:', debugError);
+      }
+    }
+
+    // Step 4: Process math blocks with Mathpix if available
     let processedMathBlocks: MathBlock[] = mathBlocks;
     
     let mathpixCalls = 0;

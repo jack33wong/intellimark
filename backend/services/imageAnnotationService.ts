@@ -178,25 +178,6 @@ export class ImageAnnotationService {
     return { x: Math.max(0, x), y: Math.max(0, y) };
   }
 
-  /**
-   * Create annotations from bounding boxes with default comments
-   * @param boundingBoxes - Array of bounding boxes from OCR
-   * @param imageDimensions - Dimensions of the original image
-   * @returns Array of annotations positioned around bounding boxes
-   */
-  static createAnnotationsFromBoundingBoxes(
-    boundingBoxes: BoundingBox[]
-  ): Annotation[] {
-    return boundingBoxes.map((box, index) => {
-      const comment = `Text ${index + 1}: ${box.text}`;
-
-      return {
-        action: 'comment',
-        bbox: [box.x, box.y, box.width, box.height],
-        comment
-      };
-    });
-  }
 
   /**
    * Validate annotation position within image bounds
@@ -259,14 +240,14 @@ export class ImageAnnotationService {
       // Convert annotations to ImageAnnotation format
       const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
         position: { x: ann.bbox[0], y: ann.bbox[1] },
-        comment: ann.comment || '',
-        hasComment: !!ann.comment,
+        comment: ann.text || '',
+        hasComment: !!ann.text,
         boundingBox: {
           x: ann.bbox[0],
           y: ann.bbox[1],
           width: ann.bbox[2],
           height: ann.bbox[3],
-          text: ann.comment || ''
+          text: ann.text || ''
         }
       }));
 

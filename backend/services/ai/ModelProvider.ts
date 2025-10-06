@@ -53,7 +53,11 @@ export class ModelProvider {
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 8000 } // Use centralized config
+        generationConfig: { 
+          temperature: 0, 
+          maxOutputTokens: 8000,
+          responseMimeType: "application/json"
+        } // Use centralized config
       })
     });
     

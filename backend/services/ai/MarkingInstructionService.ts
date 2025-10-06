@@ -20,9 +20,15 @@ export class MarkingInstructionService {
       2. Generate appropriate marking annotations for different parts of the work
       3. Provide reasoning for each annotation decision
 
-      CRITICAL OUTPUT RULES:
-      - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
-      - Output MUST strictly follow this format:
+      **CRITICAL OUTPUT RULES:**
+
+      Your entire response will be passed directly into a JSON parser.
+      The parser will fail if there are ANY extraneous characters or formatting.
+      Your response MUST begin with the character { and end with the character }.
+      Do not include any explanation or introductory text.
+      Return only the raw, valid JSON object.
+
+      Output MUST strictly follow this format:
 
       {
         "annotations": [
@@ -44,6 +50,9 @@ export class MarkingInstructionService {
       - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
       - When the OCR TEXT includes structured steps with step_id, you MUST include the corresponding step_id for each annotation by matching the text.
       - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
+      - CRITICAL: For "tick" actions, use "comment text" as the text field.
+      - CRITICAL: For "comment" actions, use specific mark codes like "M1", "A1", "B1", etc.
+      - CRITICAL: For "cross" actions, use "M0", "A0", "B0", etc. to indicate marks not achieved.
 
       EXAMPLES:
       - For "|v| = 28/5 = 5.6ms^-1" you might create:
@@ -64,9 +73,15 @@ export class MarkingInstructionService {
       systemPrompt += `
       You will be provided with the problem and a structured list of the student's solution steps. Your task is to apply specific marking annotations to each step based on mathematical correctness.
 
-      CRITICAL OUTPUT RULES:
-      - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
-      - Output MUST strictly follow this format:
+      **CRITICAL OUTPUT RULES:**
+
+      Your entire response will be passed directly into a JSON parser.
+      The parser will fail if there are ANY extraneous characters or formatting.
+      Your response MUST begin with the character { and end with the character }.
+      Do not include any explanation or introductory text.
+      Return only the raw, valid JSON object.
+
+      Output MUST strictly follow this format:
 
       {
         "annotations": [
@@ -74,17 +89,21 @@ export class MarkingInstructionService {
             "textMatch": "exact text from OCR that this annotation applies to",
             "step_id": "step_#", // REQUIRED: match to the provided steps by step_id
             "action": "tick|cross|comment",
-            "text": "comment text",
+            "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|comment text",
             "reasoning": "Brief explanation of why this annotation was chosen"
           }
         ]
       }
 
       ANNOTATION RULES:
-      -Use "tick" for correct steps.
-      -Use "cross" for mathematically incorrect steps.
-      -Use "comment" for minor errors (e.g., spelling mistakes, poor notation) that do not invalidate the overall method.
-      -Your reasoning must be specific and directly related to the correctness of the step.
+      - Use "tick" for correct, minor steps that do not correspond to a specific mark.
+      - Use "cross" for incorrect steps or calculations.
+      - Use "comment" to award marks (e.g., "M1", "A1").
+      - The "text" field MUST be one of the following: "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or a brief "comment text".
+      - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
+      - CRITICAL: For "tick" actions, use "comment text" as the text field (this is correct).
+      - CRITICAL: For "comment" actions, use specific mark codes like "M1", "A1", "B1", etc.
+      - CRITICAL: For "cross" actions, use "M0", "A0", "B0", etc. to indicate marks not achieved.
       - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
       - You MUST include the correct step_id for each annotation by matching the text to the provided steps.`;
     }
@@ -109,8 +128,8 @@ export class MarkingInstructionService {
 
     try {
       const { JsonUtils } = await import('./JsonUtils');
-      JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
-      return { annotations: responseText, usageTokens }; // Return raw response for LLM3
+      const parsed = JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
+      return { annotations: parsed.annotations || [], usageTokens };
     } catch (error) {
       console.error('❌ LLM2 JSON parsing failed:', error);
       throw new Error(`LLM2 failed to generate valid marking annotations: ${error instanceof Error ? error.message : 'Unknown error'}`);

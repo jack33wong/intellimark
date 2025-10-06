@@ -5,6 +5,8 @@
 
 import sharp from 'sharp';
 import { Annotation, ImageDimensions } from '../types/index.js';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * SVG Overlay Service class
@@ -101,7 +103,11 @@ export class SVGOverlayService {
    */
   private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number): string {
     const [x, y, width, height] = annotation.bbox;
-    const action = annotation.action || 'comment';
+    const action = annotation.action;
+    if (!action) {
+      console.error(`❌ [SVG ERROR] Annotation ${index} missing action field:`, annotation);
+      throw new Error(`Annotation ${index} missing required action field`);
+    }
     const comment = annotation.comment || '';
     const text = annotation.text || '';
     
@@ -117,7 +123,7 @@ export class SVGOverlayService {
     // Create annotation based on type
     switch (action) {
       case 'tick':
-        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text);
         break;
       case 'cross':
         svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text);
@@ -138,31 +144,29 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create tick annotation using random tick symbols with natural variations
+   * Create tick annotation with symbol and text
    */
-  private static createTickAnnotation(x: number, y: number, width: number, height: number): string {
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
-    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
+  private static createTickAnnotation(x: number, y: number, width: number, height: number, text?: string): string {
+    // Position at the end of the bounding box
+    const symbolX = x + width;
+    const textY = y + height - 4; // Bottom of the box
     
-    // Add small random variations for natural look
-    const positionVariation = 3; // ±3 pixels
-    const sizeVariation = 0.2; // ±20% size variation
-    const rotationVariation = 15; // ±15 degrees rotation
+    const symbolSize = Math.max(12, Math.min(width, height) * 0.8);
+    const textSize = Math.max(10, symbolSize * 0.8);
     
-    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
-    const randomY = centerY + baseFontSize/3 + (Math.random() - 0.5) * positionVariation;
-    const randomSize = baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
-    const randomRotation = (Math.random() - 0.5) * rotationVariation;
+    let svg = `
+      <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">✓</text>`;
     
-    // Use simple Unicode symbols that won't be converted to codes
-    const tickSymbols = ['✓', '✓'];
-    const randomTick = tickSymbols[Math.floor(Math.random() * tickSymbols.length)];
+    // Add text after the symbol if provided
+    if (text && text !== 'comment text') {
+      const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
+      svg += `
+        <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+              font-family="Arial, sans-serif" font-size="${textSize}" font-weight="bold">${text}</text>`;
+    }
     
-    return `
-      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
-            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomTick}</text>`;
+    return svg;
   }
 
   /**
@@ -176,42 +180,23 @@ export class SVGOverlayService {
     height: number,
     text?: string
   ): string {
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
-    const baseFontSize = Math.max(12, Math.min(width, height) * 1.04);
-  
-    // Random variations for natural look
-    const positionVariation = 3; // ±3 pixels
-    const sizeVariation = 0.2; // ±20% size variation
-    const rotationVariation = 15; // ±15 degrees rotation
-  
-    const randomX = centerX + (Math.random() - 0.5) * positionVariation;
-    const randomY =
-      centerY + baseFontSize / 3 + (Math.random() - 0.5) * positionVariation;
-    const randomSize =
-      baseFontSize * (1 + (Math.random() - 0.5) * sizeVariation);
-    const randomRotation = (Math.random() - 0.5) * rotationVariation;
-  
-    // Use simple Unicode symbols that won't be converted to codes
-    const crossSymbols = ["✗", "✗"];
-    const randomCross =
-      crossSymbols[Math.floor(Math.random() * crossSymbols.length)];
-  
-    // Start SVG with random cross
+    // Position at the end of the bounding box
+    const symbolX = x + width;
+    const textY = y + height - 4; // Bottom of the box
+    
+    const symbolSize = Math.max(12, Math.min(width, height) * 0.8);
+    const textSize = Math.max(10, symbolSize * 0.8);
+    
     let svg = `
-      <text x="${randomX}" y="${randomY}" text-anchor="middle" fill="#ff0000"
-            font-family="Arial, sans-serif" font-size="${randomSize}" font-weight="bold"
-            transform="rotate(${randomRotation} ${randomX} ${randomY})">${randomCross}</text>`;
-  
-    // Add text if provided - bottom-left positioning
-    if (text && text.trim()) {
-      const fontSize = Math.max(12, Math.min(width, height) * 0.6);
-      const textX = x + width + 8; // To the right of the bounding box
-      const textY = y + height - 4; // Bottom-left baseline
-  
+      <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">✗</text>`;
+    
+    // Add text after the symbol if provided
+    if (text && text.trim() && text !== 'comment text') {
+      const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
       svg += `
-        <text x="${textX}" y="${textY}" fill="#ff0000"
-              font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${text}</text>`;
+        <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+              font-family="Arial, sans-serif" font-size="${textSize}" font-weight="bold">${text}</text>`;
     }
   
     return svg;
@@ -248,16 +233,94 @@ export class SVGOverlayService {
   private static createCommentAnnotation(x: number, y: number, width: number, height: number, comment: string, scaleX: number, scaleY: number): string {
     if (!comment) return '';
     
-    // Calculate comment position (use bottom-left of bbox as text start)
-    const commentX = x;
-    const commentY = y + height - 4; // Use bottom-left positioning for text baseline
+    // Calculate comment position (use bottom-right of bbox as text start)
+    const commentX = x + width; // Position text at the END of the bounding box
+    const commentY = y + height - 4; // Use bottom-right positioning for text baseline
     
     // Comment text only (scaled) - no background or rectangle
     // Using Discipuli Britannica font for comments
     const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
-    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" fill="#ff4444" 
+    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" text-anchor="start" fill="#ff4444" 
             font-family="'Lucida Handwriting', 'Lucida Calligraphy', 'Brush Script MT', 'Comic Sans MS', cursive, Arial, sans-serif" 
             font-size="${textFontSize}" font-weight="bold" 
             opacity="0.9">${comment}</text>`;
+  }
+
+  /**
+   * Create debug visualization of math blocks detected by Google Vision
+   * Draws red rectangles around each detected math block and saves to temp folder
+   */
+  static async createMathBlocksDebugImage(
+    imageBuffer: Buffer,
+    mathBlocks: any[],
+    filename: string
+  ): Promise<string> {
+    try {
+      if (!mathBlocks || mathBlocks.length === 0) {
+        console.log('🔍 [DEBUG] No math blocks detected, skipping debug visualization');
+        return '';
+      }
+
+      // Get image metadata
+      const imageMetadata = await sharp(imageBuffer).metadata();
+      const imageWidth = imageMetadata.width || 800;
+      const imageHeight = imageMetadata.height || 600;
+
+      // Create SVG overlay with red rectangles for each math block
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}" style="position: absolute; top: 0; left: 0;">`;
+      
+      mathBlocks.forEach((block, index) => {
+        const coords = block.coordinates;
+        if (coords && coords.x !== undefined && coords.y !== undefined && coords.width && coords.height) {
+          // Red rectangle around math block
+          svg += `<rect x="${coords.x}" y="${coords.y}" width="${coords.width}" height="${coords.height}" 
+                   fill="none" stroke="red" stroke-width="3" opacity="0.8"/>`;
+          
+          // Block number label
+          svg += `<text x="${coords.x + 5}" y="${coords.y + 20}" fill="red" 
+                   font-family="Arial, sans-serif" font-size="16" font-weight="bold">${index + 1}</text>`;
+          
+          // Confidence score
+          const confidence = block.confidence || 0;
+          svg += `<text x="${coords.x + 5}" y="${coords.y + 40}" fill="red" 
+                   font-family="Arial, sans-serif" font-size="12" opacity="0.8">${(confidence * 100).toFixed(1)}%</text>`;
+        }
+      });
+      
+      svg += '</svg>';
+
+      // Create SVG buffer
+      const svgBuffer = Buffer.from(svg);
+
+      // Composite the SVG overlay onto the original image
+      const debugImageBuffer = await sharp(imageBuffer)
+        .composite([
+          {
+            input: svgBuffer,
+            top: 0,
+            left: 0
+          }
+        ])
+        .png()
+        .toBuffer();
+
+      // Ensure temp directory exists
+      const tempDir = path.join(process.cwd(), 'backend', 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      // Save debug image to temp folder
+      const filePath = path.join(tempDir, filename);
+      fs.writeFileSync(filePath, debugImageBuffer);
+
+      console.log(`🔍 [DEBUG] Math blocks visualization saved: ${filePath}`);
+      console.log(`🔍 [DEBUG] Detected ${mathBlocks.length} math blocks`);
+      
+      return filePath;
+    } catch (error) {
+      console.error('❌ Failed to create math blocks debug image:', error);
+      return '';
+    }
   }
 }

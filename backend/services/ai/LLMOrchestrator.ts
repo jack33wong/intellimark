@@ -36,12 +36,79 @@ export class LLMOrchestrator {
     try {
       // Step 0a: Assign step_id to original OCR text first
       const { OCRCleanupService } = await import('./OCRCleanupService.js');
+      
+      // Transform mathBlocks to the expected format for assignStepIds
+      // Handle both data structures: nested boundingBox and flat properties
+      const transformedBoundingBoxes = (processedImage.boundingBoxes || []).map((block: any, index: number) => {
+        // Try multiple nested structures: boundingBox, coordinates, etc.
+        let x = block.boundingBox?.x;
+        let y = block.boundingBox?.y;
+        let width = block.boundingBox?.width;
+        let height = block.boundingBox?.height;
+        let text = block.boundingBox?.text;
+        
+        // If boundingBox structure is missing, try coordinates structure
+        if (x === undefined || y === undefined || width === undefined || height === undefined) {
+          x = block.coordinates?.x;
+          y = block.coordinates?.y;
+          width = block.coordinates?.width;
+          height = block.coordinates?.height;
+          text = block.coordinates?.text;
+        }
+        
+        // If coordinates structure is missing, try flat structure (block.x, block.y, etc.)
+        if (x === undefined || y === undefined || width === undefined || height === undefined) {
+          x = block.x;
+          y = block.y;
+          width = block.width;
+          height = block.height;
+          text = block.text;
+        }
+        
+        // Validate coordinates
+        if (x === undefined || y === undefined || width === undefined || height === undefined) {
+          console.error(`❌ [OCR DEBUG] Block ${index} has invalid coordinates:`, {
+            x, y, width, height,
+            hasBoundingBox: !!block.boundingBox,
+            hasCoordinates: !!block.coordinates,
+            boundingBoxKeys: block.boundingBox ? Object.keys(block.boundingBox) : [],
+            coordinatesKeys: block.coordinates ? Object.keys(block.coordinates) : [],
+            blockKeys: Object.keys(block)
+          });
+          throw new Error(`Block ${index} has invalid coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        // Validate coordinate values
+        if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
+          console.error(`❌ [OCR DEBUG] Block ${index} has NaN coordinates:`, { x, y, width, height });
+          throw new Error(`Block ${index} has NaN coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+          console.error(`❌ [OCR DEBUG] Block ${index} has invalid coordinate values:`, { x, y, width, height });
+          throw new Error(`Block ${index} has invalid coordinate values: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        return {
+          x: Number(x),
+          y: Number(y),
+          width: Number(width),
+          height: Number(height),
+          text: text || block.googleVisionText || block.mathpixLatex || '',
+          confidence: block.confidence || 0
+        };
+      });
+      
+      console.log('🔍 [COORDINATE DEBUG] Transformed bounding boxes before assignStepIds:', transformedBoundingBoxes.map(b => ({
+        x: b.x, y: b.y, width: b.width, height: b.height, text: b.text
+      })));
+      
       const stepAssignmentResult = await OCRCleanupService.assignStepIds(
         model,
         processedImage.ocrText || '',
-        processedImage.boundingBoxes || []
+        transformedBoundingBoxes
       );
-
+      
       // Step 0b: Clean up OCR text while preserving step_id references
       const cleanupResult = await OCRCleanupService.cleanOCRTextWithStepIds(
         model,
@@ -62,12 +129,22 @@ export class LLMOrchestrator {
         // Use JsonUtils for robust JSON cleaning and parsing
         const { JsonUtils } = await import('./JsonUtils');
         
+        if (!cleanupResult.cleanedText || cleanupResult.cleanedText.trim() === '') {
+          throw new Error('OCR cleanup returned empty text');
+        }
+        
         cleanedData = JsonUtils.cleanAndValidateJSON(cleanupResult.cleanedText, 'steps');
         
+        if (!cleanedData.steps || cleanedData.steps.length === 0) {
+          console.error('❌ [OCR DEBUG] No steps found in cleaned data!');
+          console.error('❌ [OCR DEBUG] Full cleaned data structure:', JSON.stringify(cleanedData, null, 2));
+          throw new Error('OCR cleanup failed to extract any steps');
+        }
         
       } catch (error) {
-        console.error('❌ Failed to parse cleaned OCR JSON with JsonUtils:', error);
-        console.error('📄 Raw cleaned text (first 1000 chars):', cleanupResult.cleanedText.substring(0, 1000));
+        console.error('❌ [OCR DEBUG] Failed to parse cleaned OCR JSON with JsonUtils:', error);
+        console.error('❌ [OCR DEBUG] Error details:', error instanceof Error ? error.message : 'Unknown error');
+        console.error('❌ [OCR DEBUG] Raw cleaned text (first 1000 chars):', cleanupResult.cleanedText.substring(0, 1000));
         
         // Try manual parsing as fallback
         try {
@@ -121,12 +198,29 @@ export class LLMOrchestrator {
         })) || []
       };
       
+      if (!cleanDataForMarking.steps || cleanDataForMarking.steps.length === 0) {
+        console.error('❌ [AI DEBUG] No steps available for annotation generation!');
+        console.error('❌ [AI DEBUG] This will cause the AI to generate empty annotations');
+        throw new Error('Cannot generate annotations without steps - OCR cleanup failed');
+      }
+      
+      
       const annotationData = await MarkingInstructionService.generateFromOCR(
         model,
         JSON.stringify(cleanDataForMarking),
         questionDetection
       );
       totalTokens += annotationData.usageTokens || 0;
+      
+      console.log('🔍 [ANNOTATION DEBUG] AI generated annotations count:', annotationData.annotations?.length || 0);
+      
+      if (annotationData.annotations && Array.isArray(annotationData.annotations) && annotationData.annotations.length > 0) {
+        console.log('🔍 [ANNOTATION DEBUG] All annotation texts:', annotationData.annotations.map(a => a.text));
+      } else {
+        console.error('❌ [ANNOTATION DEBUG] Invalid annotations data:', annotationData.annotations);
+        throw new Error('AI failed to generate valid annotations array');
+      }
+      
 
       // Print raw cleaned OCR text from cleanup service
       
@@ -149,11 +243,18 @@ export class LLMOrchestrator {
       
       const placed = await AnnotationMapper.mapAnnotations({
         ocrText: cleanupResult.cleanedText,
-        boundingBoxes: (processedImage.boundingBoxes || []) as any,
+        boundingBoxes: transformedBoundingBoxes, // Use the same transformed bounding boxes
         rawAnnotations: annotationData,
         imageDimensions: processedImage.imageDimensions,
         unifiedLookupTable: unifiedLookupTable // Pass the complete pre-built lookup table
       });
+      
+      console.log('🔍 [FINAL DEBUG] Mapped annotations count:', placed.annotations?.length || 0);
+      if (placed.annotations?.length > 0) {
+        console.log('🔍 [FINAL DEBUG] Final annotation texts:', placed.annotations.map(a => a.text));
+        console.log('🔍 [FINAL DEBUG] First final annotation bbox:', placed.annotations[0].bbox);
+      }
+      
 
       const result: SimpleMarkingInstructions & { usage?: { llmTokens: number } } = { annotations: placed.annotations as any, usage: { llmTokens: totalTokens } };
       return result;

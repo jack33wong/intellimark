@@ -14,8 +14,8 @@ export class OCRCleanupService {
     const steps = boundingBoxes.map((bbox, index) => {
       return {
         unified_step_id: `step_${index + 1}`,
-        text: bbox.googleVisionText || bbox.text || '',
-        bbox: [bbox.coordinates.x, bbox.coordinates.y, bbox.coordinates.width, bbox.coordinates.height]
+        text: bbox.text || '',
+        bbox: [bbox.x, bbox.y, bbox.width, bbox.height]
       };
     });
     
