@@ -97,6 +97,9 @@ const Sidebar: React.FC<SidebarProps> = ({
       const { session: updatedSession } = event.detail;
       if (!updatedSession) return;
 
+      // Only process session updates for authenticated users
+      if (!user?.uid) return;
+
       setChatSessions(prevSessions => {
         const sessionsWithoutTemp = prevSessions.filter(s => !s.id.startsWith('temp-'));
         

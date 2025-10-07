@@ -149,15 +149,15 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
           // Authenticated users get full session data
           simpleSessionService.updateSessionState(data.unifiedSession);
         } else if (data.newMessages) {
-          // Unauthenticated users get new messages to append
-          // Create a temporary session with the new messages
+          // For unauthenticated users, just update the current session without persisting
           const tempSession = {
             id: data.sessionId || `temp-${Date.now()}`,
             title: data.sessionTitle || 'Chat Session',
             messages: data.newMessages,
             sessionStats: {}
           };
-          simpleSessionService.updateSessionState(tempSession);
+          // Only update current session, don't persist to sidebar
+          simpleSessionService.setState({ currentSession: tempSession });
         } else {
           throw new Error(data.error || 'No session data received');
         }
