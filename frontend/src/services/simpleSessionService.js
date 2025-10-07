@@ -219,9 +219,15 @@ class SimpleSessionService {
             totalAnnotations: processingStats.annotations || 0
           };
           
+          // For unauthenticated users: Only update title if it's the first AI response
+          // Keep the original title from the first AI response, don't overwrite on follow-ups
+          const shouldUpdateTitle = !this.state.currentSession.title || 
+                                   this.state.currentSession.title === 'Processing...' ||
+                                   this.state.currentSession.title === 'Chat Session';
+          
           const updatedSession = { 
             ...this.state.currentSession, 
-            title: data.sessionTitle,
+            title: shouldUpdateTitle ? data.sessionTitle : this.state.currentSession.title,
             id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
             sessionStats: sessionStats,
             updatedAt: new Date().toISOString() // Add last updated time

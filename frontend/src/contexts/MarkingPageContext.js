@@ -173,9 +173,15 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
                 totalAnnotations: processingStats.annotations || 0
               };
               
+              // For unauthenticated users: Only update title if it's the first AI response
+              // Keep the original title from the first AI response, don't overwrite on follow-ups
+              const shouldUpdateTitle = !currentSessionAfterUpdate.title || 
+                                       currentSessionAfterUpdate.title === 'Processing...' ||
+                                       currentSessionAfterUpdate.title === 'Chat Session';
+              
               const updatedSession = { 
                 ...currentSessionAfterUpdate, 
-                title: data.sessionTitle,
+                title: shouldUpdateTitle ? data.sessionTitle : currentSessionAfterUpdate.title,
                 id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
                 sessionStats: sessionStats,
                 updatedAt: new Date().toISOString() // Add last updated time
