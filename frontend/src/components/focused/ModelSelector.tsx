@@ -25,9 +25,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const models = [
-    { id: 'auto', name: 'Auto' },
-    { id: 'gemini-pro', name: 'Gemini Pro' },
-    { id: 'gpt-4', name: 'GPT-4' },
+    { id: 'auto', name: 'Auto (Recommended)' },
+    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
   ];
 
   const handleToggle = () => {

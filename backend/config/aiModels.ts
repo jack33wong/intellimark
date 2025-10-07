@@ -53,6 +53,12 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     maxTokens: 8000, // Within gemini-2.0-flash-lite limit of 8192
     temperature: 0.1
   },
+  'gemini-2.0-flash-lite': {
+    name: 'Google Gemini 2.0 Flash Lite',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+    maxTokens: 8192,
+    temperature: 0.1
+  },
   'gemini-2.5-pro': {
     name: 'Google Gemini 2.5 Pro (Latest)',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
@@ -106,7 +112,7 @@ export function isModelSupported(modelType: string): modelType is ModelType {
  * @returns The default model type
  */
 export function getDefaultModel(): ModelType {
-  return 'auto'; // Using auto as default (maps to gemini-2.0-flash-lite)
+  return 'gemini-2.0-flash-lite'; // Return the actual model that 'auto' maps to
 }
 
 /**
@@ -156,6 +162,13 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   
   switch (modelType) {
     case 'auto':
+      return {
+        maxOutputTokens: config.maxTokens,
+        temperature: config.temperature,
+        topP: 0.8,
+        topK: 40
+      };
+    case 'gemini-2.0-flash-lite':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

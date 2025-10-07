@@ -37,7 +37,7 @@ function sanitizeForFirestore(obj: any): any {
 
 // Simple model validation function to avoid import issues
 function validateModelConfig(modelType: string): boolean {
-  const validModels = ['auto', 'gemini-2.5-pro'];
+  const validModels = ['auto', 'gemini-2.0-flash-lite', 'gemini-2.5-pro'];
   return validModels.includes(modelType);
 }
 
@@ -854,7 +854,11 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         confidence: result.processingStats?.confidence || 0,
         modelUsed: result.processingStats?.modelUsed || model,
         apiUsed: result.processingStats?.apiUsed || result.apiUsed,
-        ocrMethod: result.ocrMethod
+        ocrMethod: result.ocrMethod,
+        llmTokens: result.processingStats?.llmTokens || 0,
+        mathpixCalls: result.processingStats?.mathpixCalls || 0,
+        imageSize: result.processingStats?.imageSize || 0,
+        annotations: result.processingStats?.annotations || 0
       }
     };
 

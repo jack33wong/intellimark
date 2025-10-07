@@ -22,6 +22,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
   try {
     const { message, imageData, model = 'auto', sessionId, mode, aiMessageId } = req.body;
     
+    // Use centralized model configuration for 'auto'
+    let resolvedModel = model;
+    if (model === 'auto') {
+      const { getDefaultModel } = await import('../config/aiModels.js');
+      resolvedModel = getDefaultModel();
+    }
     
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
@@ -91,13 +97,16 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let aiResponse: string;
     let apiUsed: string;
     let finalProgressData: any = null;
+    let contextualResult: any = null;
+    const startTime = Date.now();
     
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
-        const aiResult = await AIMarkingService.generateChatResponse(imageData, message, model as any, true);
+        const aiResult = await AIMarkingService.generateChatResponse(imageData, message, resolvedModel as any, true);
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
+        contextualResult = aiResult; // Store for processing stats
       } else {
         // For text-only messages, use contextual response with progress tracking
         const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
@@ -129,8 +138,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // Simulate processing time for "Generating response..." step
         await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
 
-        aiResponse = await AIMarkingService.generateContextualResponse(message, chatHistory, model as any);
-        apiUsed = 'Gemini 2.5 Pro';
+        contextualResult = await AIMarkingService.generateContextualResponse(message, chatHistory, resolvedModel as any);
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
 
         // Complete generating response step
         progressTracker.completeCurrentStep();
@@ -140,6 +150,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
       console.error('❌ AI service failed, using fallback response:', error);
       aiResponse = "I'm here to help with your questions! However, I'm experiencing some technical difficulties right now. Could you please try again?";
       apiUsed = 'Fallback';
+      contextualResult = {
+        response: aiResponse,
+        apiUsed: apiUsed,
+        confidence: 0,
+        usageTokens: 0
+      };
     }
 
     // Create AI message using factory
@@ -150,11 +166,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
       imageData: !isAuthenticated && imageData ? imageData : undefined, // Include imageData for unauthenticated users
       progressData: finalProgressData || createChatProgressData(false),
       processingStats: {
-        modelUsed: model,
+        modelUsed: resolvedModel,
         imageSize: imageData ? imageData.length : 0,
-        apiUsed: apiUsed
+        apiUsed: apiUsed,
+        llmTokens: contextualResult?.usageTokens || 0,
+        mathpixCalls: 0,
+        confidence: contextualResult?.confidence || 0,
+        annotations: 0,
+        processingTimeMs: Date.now() - startTime
       }
     });
+    
 
     // Handle session creation and message storage - only for authenticated users
     if (isAuthenticated) {

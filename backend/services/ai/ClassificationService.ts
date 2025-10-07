@@ -53,21 +53,30 @@ export class ClassificationService {
         };
       }
       
-      if (model === 'auto' || model === 'gemini-2.5-pro') {
+      if (model === 'auto' || model === 'gemini-2.0-flash-lite' || model === 'gemini-2.5-pro') {
         return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt, model);
       } else {
-        throw new Error(`Unsupported model: ${model}. Only Gemini models are supported.`);
+        // Fail fast on our validation errors
+        console.error(`❌ [VALIDATION ERROR] Model validation failed for: ${model}`);
+        console.error(`❌ [ISSUE] Model not included in service validation list`);
+        throw new Error(`Model validation failed: ${model} is not supported by this service. Supported models: auto, gemini-2.0-flash-lite, gemini-2.5-pro`);
       }
     } catch (error) {
-      // Get the actual model endpoint name for logging
+      // Check if this is our validation error (fail fast)
+      if (error instanceof Error && error.message.includes('Model validation failed')) {
+        // This is our validation error - re-throw it as-is
+        throw error;
+      }
+      
+      // This is a Google API error - log with proper context
       const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
       
-      console.error(`❌ [CLASSIFICATION ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [GOOGLE API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-      console.error(`❌ [ERROR DETAILS] ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ [GOOGLE ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);

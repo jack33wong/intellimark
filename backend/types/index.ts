@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.0-flash-lite';
 
 export interface AIModelConfig {
   name: string;
@@ -168,6 +168,7 @@ export interface UnifiedMessage {
   
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
+  imageData?: string; // For unauthenticated users
   fileName?: string;
   
   // Display options

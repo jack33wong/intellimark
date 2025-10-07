@@ -51,7 +51,7 @@ const SessionHeader: React.FC = () => {
 
   const getImageSize = (): string => {
     const stats = currentSession?.sessionStats;
-    if (!stats?.imageSize) return 'N/A';
+    if (!stats?.imageSize || stats.imageSize === 0) return 'N/A';
     const sizeKB = stats.imageSize / 1024;
     if (sizeKB >= 1024) {
       return `${(sizeKB / 1024).toFixed(1)} MB`;

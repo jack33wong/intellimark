@@ -339,6 +339,9 @@ export class MarkHomeworkWithAnswerAuto {
         const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
         logStep3Complete();
         
+        // Collect LLM tokens from AI response
+        totalLLMTokens += aiResponse.usageTokens || 0;
+        
         // Finish progress tracking
         progressTracker.finish();
 
@@ -375,7 +378,7 @@ export class MarkHomeworkWithAnswerAuto {
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
           aiResponse: aiResponse.response,
-          confidence: 0.9,
+          confidence: aiResponse.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
           sessionTitle: sessionTitle,
@@ -383,7 +386,7 @@ export class MarkHomeworkWithAnswerAuto {
           questionDetection: questionDetection,
           processingStats: {
             processingTimeMs: totalProcessingTime,
-            confidence: 0.9,
+            confidence: aiResponse.confidence || 0,
             imageSize: imageData.length,
             llmTokens: totalLLMTokens,
             mathpixCalls: totalMathpixCalls,
@@ -543,7 +546,7 @@ export class MarkHomeworkWithAnswerAuto {
           annotatedImage: annotationResult.annotatedImage,
           message: aiResponse.response,
           aiResponse: aiResponse.response,
-          confidence: 0.9,
+          confidence: processedImage.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
           sessionTitle: questionDetection?.found && questionDetection.match 
