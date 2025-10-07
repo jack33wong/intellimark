@@ -66,6 +66,20 @@ export const useApiProcessor = () => {
 
   const stopAIThinking = useCallback(() => {
     setApiState(prev => ({ ...prev, isAIThinking: false }));
+    
+    // Clean up any orphaned processing messages (defense in depth)
+    const currentSession = simpleSessionService.getCurrentSession() as any;
+    if (currentSession?.messages && Array.isArray(currentSession.messages)) {
+      const filteredMessages = currentSession.messages.filter((msg: any) => 
+        !(msg.role === 'assistant' && msg.isProcessing)
+      );
+      if (filteredMessages.length !== currentSession.messages.length) {
+        simpleSessionService.updateCurrentSessionOnly({
+          ...currentSession,
+          messages: filteredMessages
+        });
+      }
+    }
   }, []);
 
   const handleError = useCallback((error: Error) => {
