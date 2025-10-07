@@ -201,12 +201,24 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     isQuestionOnly = false
   } = options;
 
+  // Determine message type based on content and context
+  let messageType: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
+  if (isQuestionOnly) {
+    messageType = 'question_response';
+  } else if (imageData) {
+    // If there's image data, it's likely a marking response
+    messageType = 'marking_annotated';
+  } else {
+    // Text-only chat response
+    messageType = 'chat';
+  }
+
   return {
     id: messageId || generateAIMessageId(content),
     messageId: messageId || generateAIMessageId(content),
     role: 'assistant',
     content: content,
-    type: isQuestionOnly ? 'question_response' : 'marking_annotated',
+    type: messageType,
     timestamp: new Date().toISOString(),
     imageData: imageData, // Include imageData for unauthenticated users
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),

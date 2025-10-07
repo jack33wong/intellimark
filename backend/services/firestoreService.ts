@@ -150,6 +150,39 @@ function sanitizeFirestoreData(obj: any): any {
 
 export class FirestoreService {
   /**
+   * Determine the appropriate messageType for a session based on existing and new messages
+   * Simple rule: If follow-up message type doesn't match original session type, change to "Mixed"
+   */
+  private static determineSessionMessageType(existingMessages: any[], newMessage: any, existingMessageType: string): 'Marking' | 'Question' | 'Chat' | 'Mixed' {
+    // If session is already Mixed, keep it Mixed
+    if (existingMessageType === 'Mixed') {
+      return 'Mixed';
+    }
+    
+    // Determine what type the new message represents
+    let newMessageCategory: 'Marking' | 'Question' | 'Chat';
+    
+    if (newMessage.type === 'marking_original' || newMessage.type === 'marking_annotated') {
+      newMessageCategory = 'Marking';
+    } else if (newMessage.type === 'question_original' || newMessage.type === 'question_response') {
+      newMessageCategory = 'Question';
+    } else if (newMessage.type === 'chat' || newMessage.type === 'follow_up') {
+      newMessageCategory = 'Chat';
+    } else {
+      // Unknown message type, keep existing type
+      return existingMessageType as 'Marking' | 'Question' | 'Chat';
+    }
+    
+    // If the new message category is different from the existing session type, make it Mixed
+    if (newMessageCategory !== existingMessageType) {
+      return 'Mixed';
+    }
+    
+    // Otherwise, keep the existing message type
+    return existingMessageType as 'Marking' | 'Question' | 'Chat';
+  }
+
+  /**
    * Retrieve marking results by ID
    */
   static async getMarkingResults(resultId: string): Promise<MarkingResultDocument | null> {
@@ -917,11 +950,20 @@ export class FirestoreService {
       
       const sessionData = sessionDoc.data();
       const existingMessages = sessionData?.unifiedMessages || [];
+      const existingMessageType = sessionData?.messageType || 'Chat';
       
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
       
-      // Debug logging before persistence
+      // Determine if the session should become "Mixed" based on message types
+      const newMessageType = this.determineSessionMessageType(existingMessages, sanitizedMessage, existingMessageType);
+      
+      // Log when a session becomes "Mixed"
+      if (newMessageType === 'Mixed' && existingMessageType !== 'Mixed') {
+        console.log(`🔄 [SESSION TYPE CHANGE] Session ${sessionId} changed from "${existingMessageType}" to "Mixed"`);
+        console.log(`🔄 [REASON] Follow-up message type "${sanitizedMessage.type}" doesn't match original session type "${existingMessageType}"`);
+        console.log(`🔄 [NEW MESSAGE TYPE] ${sanitizedMessage.type}`);
+      }
       
       // Add the new message to the array
       const updatedMessages = [...existingMessages, sanitizedMessage];
@@ -929,6 +971,7 @@ export class FirestoreService {
       // Update the session with new message and metadata
       const updateData = {
         unifiedMessages: updatedMessages,
+        messageType: newMessageType, // Update messageType if it should become "Mixed"
         updatedAt: new Date().toISOString(),
         'sessionStats.totalMessages': updatedMessages.length,
         'sessionStats.hasImage': updatedMessages.some((msg: any) => msg.imageLink),

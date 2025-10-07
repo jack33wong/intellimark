@@ -10,7 +10,8 @@ import {
   Star,
   MoreHorizontal,
   Edit3,
-  Heart
+  Heart,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -246,6 +247,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     switch (messageType) {
       case 'Marking': return <BookOpen size={16} />;
       case 'Question': return <Clock size={16} />;
+      case 'Mixed': return <FileText size={16} />;
       default: return <BookOpen size={16} />;
     }
   };

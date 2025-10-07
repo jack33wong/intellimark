@@ -393,6 +393,7 @@ export class MarkHomeworkWithAnswerAuto {
         
         return {
           success: true,
+          isQuestionOnly: true,
           mode: 'Question',
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
@@ -558,6 +559,7 @@ export class MarkHomeworkWithAnswerAuto {
 
         return {
           success: true,
+          isQuestionOnly: false,
           mode: 'Marking',
           extractedText: processedImage.ocrText,
           mathBlocks: processedImage.boundingBoxes,

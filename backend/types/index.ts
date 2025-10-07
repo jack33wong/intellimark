@@ -221,7 +221,7 @@ export interface UnifiedSession {
   title: string;
   messages: UnifiedMessage[];
   userId: string;
-  messageType: 'Marking' | 'Question' | 'Chat';
+  messageType: 'Marking' | 'Question' | 'Chat' | 'Mixed';
   
   // Session timestamps
   createdAt: string;    // When session was created

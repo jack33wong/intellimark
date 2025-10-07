@@ -4,8 +4,10 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const SessionHeader: React.FC = () => {
+  const { user } = useAuth();
   const {
     sessionTitle,
     isFavorite,
@@ -273,15 +275,17 @@ const SessionHeader: React.FC = () => {
             )}
           </div>
           
-          <button 
-            className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
-            onClick={onFavoriteToggle}
-            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </button>
+          {user && (
+            <button 
+              className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
+              onClick={onFavoriteToggle}
+              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </div>
