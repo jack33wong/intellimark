@@ -149,7 +149,7 @@ export class AIMarkingService {
       return {
         response: 'Debug mode: Mock chat response - This is a simulated AI response for testing purposes.',
         apiUsed: 'Debug Mode - Mock Response',
-        confidence: 0.95,
+        confidence: 0.85,
         usageTokens: 150
       };
     }
@@ -350,7 +350,7 @@ Summary:`;
       return {
         response: response.content,
         apiUsed: apiUsed,
-        confidence: 0.95, // Default confidence for AI responses
+        confidence: 0.95, // Default confidence for AI responses (text mode)
         usageTokens: response.usageTokens || 0
       };
     } catch (error) {
@@ -387,7 +387,7 @@ Summary:`;
       
       // Extract usage tokens and confidence
       const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
-      const confidence = 0.95; // Default confidence for AI responses (can be enhanced later)
+      const confidence = 0.85; // Default confidence for AI responses (question mode)
       
       return {
         response: content,

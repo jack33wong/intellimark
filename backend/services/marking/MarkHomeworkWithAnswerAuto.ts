@@ -290,6 +290,12 @@ export class MarkHomeworkWithAnswerAuto {
         stepDescription: 'Determining image type and mode...'
       });
 
+      progressTracker.registerStep('processing_ocr', {
+        stepId: 'processing_ocr',
+        stepName: 'OCR Processing',
+        stepDescription: 'Extracting text from image...'
+      });
+
       progressTracker.registerStep('generating_response', {
         stepId: 'generating_response',
         stepName: 'Generating Response',
@@ -321,7 +327,20 @@ export class MarkHomeworkWithAnswerAuto {
       const isQuestionMode = classification.isQuestionOnly === true;
       
       if (isQuestionMode) {
-        // Question mode: perform question detection internally for proper title, then AI response
+        // Question mode: perform OCR processing to get confidence, then question detection and AI response
+        
+        // OCR Processing (to get confidence value)
+        const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
+        const processOCR = async () => {
+          const { HybridOCRService } = await import('../hybridOCRService');
+          return HybridOCRService.processImage(imageData, {}, debug);
+        };
+        
+        const ocrResult = await progressTracker.withProgress('processing_ocr', processOCR)();
+        logStep3Complete();
+        
+        // Collect Mathpix calls from OCR
+        totalMathpixCalls += ocrResult.usage?.mathpixCalls || 0;
         
         // Question Detection (internal, not shown as a step)
         const detectQuestion = async () => {
@@ -330,14 +349,14 @@ export class MarkHomeworkWithAnswerAuto {
         const questionDetection = await detectQuestion();
         
         // AI Response Generation (visible step)
-        const logStep3Complete = logStep('AI Response Generation', actualModel);
+        const logStep4Complete = logStep('AI Response Generation', actualModel);
         const generateResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
           return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
         };
         
         const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
-        logStep3Complete();
+        logStep4Complete();
         
         // Collect LLM tokens from AI response
         totalLLMTokens += aiResponse.usageTokens || 0;
@@ -378,7 +397,7 @@ export class MarkHomeworkWithAnswerAuto {
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
           aiResponse: aiResponse.response,
-          confidence: aiResponse.confidence || 0,
+          confidence: ocrResult.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
           sessionTitle: sessionTitle,
@@ -386,7 +405,7 @@ export class MarkHomeworkWithAnswerAuto {
           questionDetection: questionDetection,
           processingStats: {
             processingTimeMs: totalProcessingTime,
-            confidence: aiResponse.confidence || 0,
+            confidence: ocrResult.confidence || 0,
             imageSize: imageData.length,
             llmTokens: totalLLMTokens,
             mathpixCalls: totalMathpixCalls,

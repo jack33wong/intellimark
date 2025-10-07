@@ -187,7 +187,18 @@ router.post('/chat', optionalAuth, async (req, res) => {
           title: sessionTitle,
           userId: userId,
           messageType: 'Chat',
-          messages: [userMessage, aiMessage]
+          messages: [userMessage, aiMessage],
+          sessionStats: {
+            totalProcessingTimeMs: contextualResult?.processingTimeMs || (Date.now() - startTime),
+            lastModelUsed: resolvedModel,
+            lastApiUsed: apiUsed,
+            totalLlmTokens: contextualResult?.usageTokens || 0,
+            totalMathpixCalls: 0,
+            totalTokens: contextualResult?.usageTokens || 0,
+            averageConfidence: contextualResult?.confidence || 0,
+            imageSize: imageData ? imageData.length : 0,
+            totalAnnotations: 0
+          }
         });
       } else {
         // Adding to existing session - add both user and AI messages
