@@ -55,14 +55,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let currentSessionId = sessionId;
     let sessionTitle = 'Chat Session';
 
-    // Create user message using factory
-    const userMessage = createUserMessage({
-      content: message || (imageData ? 'Image uploaded' : ''),
-      imageLink: imageLink || (isAuthenticated ? undefined : imageData),
-      imageData: imageData,
-      sessionId: sessionId,
-      model: model
-    });
+    // Create user message using factory (only for authenticated users)
+    let userMessage = null;
+    if (isAuthenticated) {
+      userMessage = createUserMessage({
+        content: message || (imageData ? 'Image uploaded' : ''),
+        imageLink: imageLink, // Only for authenticated users
+        imageData: imageData, // For both authenticated and unauthenticated users
+        sessionId: sessionId,
+        model: model
+      });
+    }
 
     // Session management - use provided sessionId or create new one
     if (!currentSessionId) {
@@ -79,8 +82,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           messages: [userMessage] // Include user message in database
         });
       } else {
-        // For anonymous users, use provided sessionId or create a temporary one
-        currentSessionId = sessionId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // For anonymous users, use provided sessionId or create a permanent one
+        currentSessionId = sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       }
     }
 
@@ -144,7 +147,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
     const aiMessage = createAIMessage({
       content: aiResponse,
       messageId: resolvedAIMessageId,
-      progressData: finalProgressData || createChatProgressData(true),
+      imageData: !isAuthenticated && imageData ? imageData : undefined, // Include imageData for unauthenticated users
+      progressData: finalProgressData || createChatProgressData(false),
       processingStats: {
         modelUsed: model,
         imageSize: imageData ? imageData.length : 0,
@@ -192,34 +196,14 @@ router.post('/chat', optionalAuth, async (req, res) => {
         });
       }
     } else {
-      // For anonymous users, return only new messages (frontend maintains history)
-      const userMessage = {
-        messageId: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user' as const,
-        content: message,
-        type: 'chat_user' as const,
-        timestamp: new Date().toISOString(),
-        imageLink: imageLink || (isAuthenticated ? undefined : imageData),
-        detectedQuestion: { found: false, message: 'Chat message' },
-        processingStats: {
-          processingTimeMs: 0,
-          modelUsed: model,
-          annotations: 0,
-          imageSize: imageData ? imageData.length : 0,
-          confidence: 0,
-          llmTokens: 0,
-          mathpixCalls: 0,
-          ocrMethod: 'Chat'
-        }
-      };
-
-      // For anonymous users, return only new messages for frontend to append
+      // For anonymous users, frontend maintains user messages, backend only provides AI response
+      // No need to create user message - frontend already has it
       sessionData = {
         id: currentSessionId,
         title: sessionTitle,
         userId: userId,
         messageType: 'Chat',
-        messages: [userMessage, aiMessage], // Only new messages
+        messages: [aiMessage], // Only AI message - frontend handles user messages
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         isPastPaper: false
@@ -237,10 +221,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
         unifiedSession: sessionData
       });
     } else {
-      // Anonymous users get only new messages for frontend to append
+      // Anonymous users get only AI message for frontend to append
       res.json({
         success: true,
-        newMessages: sessionData.messages, // Only new messages
+        aiMessage: aiMessage, // Only AI message - frontend handles user messages
         sessionId: currentSessionId,
         sessionTitle: sessionTitle
       });

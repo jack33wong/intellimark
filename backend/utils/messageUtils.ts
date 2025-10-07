@@ -208,6 +208,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     content: content,
     type: isQuestionOnly ? 'question_response' : 'marking_annotated',
     timestamp: new Date().toISOString(),
+    imageData: imageData, // Include imageData for unauthenticated users
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
     progressData: progressData,
     detectedQuestion: { 

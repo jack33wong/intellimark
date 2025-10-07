@@ -148,16 +148,41 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         if (data.unifiedSession) {
           // Authenticated users get full session data
           simpleSessionService.updateSessionState(data.unifiedSession);
-        } else if (data.newMessages) {
-          // For unauthenticated users, just update the current session without persisting
-          const tempSession = {
-            id: data.sessionId || `temp-${Date.now()}`,
-            title: data.sessionTitle || 'Chat Session',
-            messages: data.newMessages,
-            sessionStats: {}
-          };
-          // Only update current session, don't persist to sidebar
-          simpleSessionService.setState({ currentSession: tempSession });
+        } else if (data.aiMessage) {
+          // For unauthenticated users, append only the AI message (user message already in frontend)
+          await addMessage(data.aiMessage);
+          
+          // Update session title and ID in current session (for session header display only)
+          // Don't update sidebar for unauthenticated users
+          if (data.sessionTitle && data.sessionId) {
+            // Get the most current session after addMessage
+            const currentSessionAfterUpdate = simpleSessionService.getCurrentSession();
+            if (currentSessionAfterUpdate) {
+              // Extract processing stats from AI message for task details
+              const processingStats = data.aiMessage?.processingStats || {};
+              const sessionStats = {
+                ...currentSessionAfterUpdate.sessionStats,
+                lastModelUsed: processingStats.modelUsed || 'N/A',
+                totalProcessingTimeMs: processingStats.processingTimeMs || 0,
+                lastApiUsed: processingStats.apiUsed || 'N/A',
+                totalLlmTokens: processingStats.llmTokens || 0,
+                totalMathpixCalls: processingStats.mathpixCalls || 0,
+                totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
+                averageConfidence: processingStats.confidence || 0,
+                imageSize: processingStats.imageSize || 0,
+                totalAnnotations: processingStats.annotations || 0
+              };
+              
+              const updatedSession = { 
+                ...currentSessionAfterUpdate, 
+                title: data.sessionTitle,
+                id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
+                sessionStats: sessionStats,
+                updatedAt: new Date().toISOString() // Add last updated time
+              };
+              simpleSessionService.updateCurrentSessionOnly(updatedSession);
+            }
+          }
         } else {
           throw new Error(data.error || 'No session data received');
         }

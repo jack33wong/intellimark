@@ -68,7 +68,21 @@ class SimpleSessionService {
   
   addMessage = async (message) => {
     const session = this.state.currentSession;
-    const newMessages = [...(session?.messages || []), message];
+    
+    // Check if a message with the same ID already exists (for processing messages)
+    const existingMessages = session?.messages || [];
+    const existingIndex = existingMessages.findIndex(msg => msg.id === message.id);
+    
+    let newMessages;
+    if (existingIndex >= 0) {
+      // Replace existing message (processing message -> final message)
+      newMessages = [...existingMessages];
+      newMessages[existingIndex] = message;
+    } else {
+      // Add new message
+      newMessages = [...existingMessages, message];
+    }
+    
     if (!session) {
       this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionStats: {} } });
     } else {
@@ -150,6 +164,11 @@ class SimpleSessionService {
     this._setAndMergeCurrentSession(session);
   }
 
+  // Update only the current session without affecting sidebar (for unauthenticated users)
+  updateCurrentSessionOnly = (session) => {
+    this.setState({ currentSession: session });
+  }
+
   // Simple method to update just a message in the current session
   updateMessageInCurrentSession = (messageId, updates) => {
     const currentSession = this.state.currentSession;
@@ -169,12 +188,51 @@ class SimpleSessionService {
 
   handleProcessComplete = (data, modelUsed) => {
     try {
-      if (!data.success || !data.unifiedSession) {
+      if (!data.success) {
         throw new Error(data.error || 'Failed to process image');
       }
-      const newSession = this.convertToUnifiedSession(data.unifiedSession);
-      this._setAndMergeCurrentSession(newSession, modelUsed);
-      return newSession;
+      
+      if (data.unifiedSession) {
+        // Authenticated users get full session data
+        const newSession = this.convertToUnifiedSession(data.unifiedSession);
+        this._setAndMergeCurrentSession(newSession, modelUsed);
+        return newSession;
+      } else if (data.aiMessage) {
+        // Unauthenticated users get only AI message - append to current session
+        this.addMessage(data.aiMessage);
+        
+        // Update session title and ID in current session (for session header display only)
+        // Don't update sidebar for unauthenticated users
+        if (data.sessionTitle && this.state.currentSession) {
+          // Extract processing stats from AI message for task details
+          const processingStats = data.aiMessage?.processingStats || {};
+          const sessionStats = {
+            ...this.state.currentSession.sessionStats,
+            lastModelUsed: processingStats.modelUsed || 'N/A',
+            totalProcessingTimeMs: processingStats.processingTimeMs || 0,
+            lastApiUsed: processingStats.apiUsed || 'N/A',
+            totalLlmTokens: processingStats.llmTokens || 0,
+            totalMathpixCalls: processingStats.mathpixCalls || 0,
+            totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
+            averageConfidence: processingStats.confidence || 0,
+            imageSize: processingStats.imageSize || 0,
+            totalAnnotations: processingStats.annotations || 0
+          };
+          
+          const updatedSession = { 
+            ...this.state.currentSession, 
+            title: data.sessionTitle,
+            id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
+            sessionStats: sessionStats,
+            updatedAt: new Date().toISOString() // Add last updated time
+          };
+          this.updateCurrentSessionOnly(updatedSession);
+        }
+        
+        return this.state.currentSession;
+      } else {
+        throw new Error('No session data received');
+      }
     } finally {
       apiControls.stopAIThinking();
       apiControls.stopProcessing();
@@ -217,12 +275,7 @@ class SimpleSessionService {
         model,
         sessionId: sessionId,
         aiMessageId: aiMessageId, // Pass the AI message ID to the backend
-        userMessage: { 
-            id: `user-${Date.now()}`,
-            content: customText || 'I have a question about this image.', 
-            imageData: imageData,
-            sessionId: sessionId
-        }
+        customText: customText || 'I have a question about this image.' // Send raw text, not message object
       };
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single-stream`, {

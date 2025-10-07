@@ -427,7 +427,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
  * @returns {SSE Stream} Real-time progress updates
  */
 router.post('/process-single-stream', optionalAuth, async (req: Request, res: Response) => {
-  let { imageData, model = 'auto', userMessage, debug = false, aiMessageId } = req.body;
+  let { imageData, model = 'auto', customText, debug = false, aiMessageId, sessionId: providedSessionId } = req.body;
 
   if (!imageData) {
     return res.status(400).json({ success: false, error: 'Image data is required' });
@@ -504,7 +504,13 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     }
 
     // Create AI message with separate content and progressData
-    const finalProgressData = result.progressData ? { ...result.progressData, isComplete: true } : null;
+    // Ensure progress data includes all steps and is marked as complete
+    const finalProgressData = result.progressData ? { 
+      ...result.progressData, 
+      isComplete: true,
+      currentStepIndex: result.progressData.allSteps ? result.progressData.allSteps.length - 1 : 0,
+      currentStepDescription: 'Generating response...'
+    } : null;
     
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, result.message, 'marking');
@@ -558,9 +564,20 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       (aiMessage as any).imageData = undefined; // Don't send base64 data for authenticated users
     }
 
-    // Determine session ID (needed for response)
-    const isFollowUp = userMessage?.sessionId && userMessage.sessionId !== 'undefined';
-    let sessionId = userMessage?.sessionId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // ============================================================================
+    // SESSION ID HANDLING: Different logic for authenticated vs unauthenticated users
+    // ============================================================================
+    // AUTHENTICATED USERS: Use provided sessionId for follow-up messages to maintain conversation continuity
+    // UNAUTHENTICATED USERS: Always create new permanent sessionId (no temp- prefix)
+    // ============================================================================
+    let sessionId;
+    if (isAuthenticated && providedSessionId) {
+      // Authenticated users: Use existing session for follow-up messages
+      sessionId = providedSessionId;
+    } else {
+      // Unauthenticated users: Create new permanent session (no temp- prefix)
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
     
     // For authenticated users, persist to database
     if (isAuthenticated) {
@@ -591,9 +608,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         const dbUserMessage = {
           id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: 'user',
-          content: userMessage?.content || 'I have a question about this image. Can you help me understand it?',
+          content: customText || 'I have a question about this image. Can you help me understand it?',
           timestamp: userTimestamp,
-          type: isFollowUp ? 'follow_up' : 'marking_original',
+          type: 'marking_original',
           imageLink: originalImageLink, // For authenticated users
           imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
           fileName: 'uploaded-image.png',
@@ -612,7 +629,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           timestamp: aiTimestamp
         };
 
-        if (isFollowUp) {
+        if (providedSessionId) {
           // For follow-up messages, add to existing session
           try {
             await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
@@ -720,12 +737,12 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       };
     }
 
-    // Send final result (same structure as regular endpoint)
+    // Send final result with consistent format for both authenticated and unauthenticated users
     const finalResult = {
       success: true,
       aiMessage: aiMessage,
       sessionId: sessionId,
-      unifiedSession: completeSession
+      ...(isAuthenticated ? { unifiedSession: completeSession } : { sessionTitle: completeSession.title })
     };
     
     const completeData = { type: 'complete', result: finalResult };
@@ -778,7 +795,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
 /**
 router.post('/process', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  let { imageData, model = 'auto', sessionId, userMessage } = req.body;
+  let { imageData, model = 'auto', sessionId, customText } = req.body;
   
   // Use centralized model configuration for 'auto'
   if (model === 'auto') {
@@ -858,13 +875,8 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             
             // Use the user message passed from frontend
             
-            // Create a new session with both user and AI messages if available
-            const messages = [];
-            if (userMessage) {
-              messages.push(userMessage);
-              
-            }
-            messages.push(aiMessage);
+            // Create a new session with only AI message (user message handled by frontend)
+            const messages = [aiMessage];
             
             await FirestoreService.createUnifiedSessionWithMessages({
               sessionId: sessionId,
@@ -923,11 +935,12 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
           throw new Error(`Failed to add AI message to session: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       } else {
-        // For unauthenticated users, create session with only AI message
+        // For unauthenticated users, frontend maintains user messages, backend only provides AI response
+        // No need to create session - frontend handles session management
         aiSession = {
           id: sessionId,
           title: 'Marking Session',
-          messages: [aiMessage], // Only AI message
+          messages: [aiMessage], // Only AI message - frontend handles user messages
           userId: userId,
           userEmail: userEmail,
           messageType: result.isQuestionOnly ? 'Question' : 'Marking',
@@ -957,12 +970,24 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       throw new Error(`Failed to create AI session: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
-    return res.json({
-      success: true,
-      responseType: 'ai_response',
-      unifiedSession: aiSession,
-      processing: false
-    });
+    // Return consistent response format for both authenticated and unauthenticated users
+    if (isAuthenticated) {
+      return res.json({
+        success: true,
+        responseType: 'ai_response',
+        unifiedSession: aiSession,
+        processing: false
+      });
+    } else {
+      return res.json({
+        success: true,
+        responseType: 'ai_response',
+        aiMessage: aiMessage, // Only AI message for unauthenticated users
+        sessionId: sessionId,
+        sessionTitle: aiSession.title,
+        processing: false
+      });
+    }
 
   } catch (error) {
     console.error('Error in AI processing:', error);
