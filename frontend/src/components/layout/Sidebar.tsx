@@ -11,7 +11,8 @@ import {
   MoreHorizontal,
   Edit3,
   Heart,
-  FileText
+  FileText,
+  MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -45,7 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const { user, getAuthToken, isAdmin } = useAuth();
   const [chatSessions, setChatSessions] = useState<UnifiedSession[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -59,12 +59,10 @@ const Sidebar: React.FC<SidebarProps> = ({
       setChatSessions([]);
       return;
     }
-    setIsLoadingSessions(true);
     try {
       const authToken = await getAuthToken();
       if (!authToken) {
         setSessionsError('Authentication token not available.');
-        setIsLoadingSessions(false);
         return;
       }
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken) as MarkingHistoryResponse;
@@ -80,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       setSessionsError('Failed to load chat sessions');
     } finally {
-      setIsLoadingSessions(false);
+      console.log('✅ Sidebar: Finished loading sessions');
     }
   }, [user?.uid, getAuthToken]);
 
@@ -247,6 +245,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     switch (messageType) {
       case 'Marking': return <BookOpen size={16} />;
       case 'Question': return <Clock size={16} />;
+      case 'Chat': return <MessageSquare size={16} />;
       case 'Mixed': return <FileText size={16} />;
       default: return <BookOpen size={16} />;
     }
@@ -311,9 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <button className={`mark-history-tab ${activeTab === 'favorite' ? 'active' : ''}`} onClick={() => setActiveTab('favorite')}>Favorite</button>
             </div>
             <div className="mark-history-scrollable">
-                {isLoadingSessions ? (
-                    <div>Loading...</div>
-                ) : getFilteredSessions().map((session) => (
+                {getFilteredSessions().map((session) => (
                     <div key={session.id} className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`} onClick={() => handleSessionClick(session)}>
                         <div className="mark-history-icon">{getMessageTypeIcon(session.messageType)}</div>
                         <div className="mark-history-content">
