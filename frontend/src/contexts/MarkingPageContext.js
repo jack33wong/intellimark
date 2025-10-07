@@ -37,7 +37,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   
   const {
     currentSession, chatMessages, sessionTitle, isFavorite, rating,
-    addMessage, clearSession, loadSession, onFavoriteToggle, onRatingChange
+    addMessage, clearSession, loadSession, onFavoriteToggle, onRatingChange, onTitleUpdate
   } = useSessionManager();
 
   const apiProcessor = useApiProcessor();
@@ -284,7 +284,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
-    handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating, onFavoriteToggle, onRatingChange,
+    handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating, onFavoriteToggle, onRatingChange, onTitleUpdate,
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage,
     chatContainerRef,
@@ -298,7 +298,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
-    onFavoriteToggle, onRatingChange, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
+    onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc
   ]);
 

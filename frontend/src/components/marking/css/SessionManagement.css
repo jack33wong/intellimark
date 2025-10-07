@@ -64,7 +64,80 @@
   margin-bottom: 16px;
 }
 
-/* Label-value-item styles are defined in ChatInterface.css */
+/* Exam Paper Section */
+.exam-paper-section {
+  margin-bottom: 16px;
+}
+
+/* Label-Value Item */
+.label-value-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #111827; /* Darker border to match chat input */
+}
+
+.label-value-item:last-child {
+  border-bottom: none;
+}
+
+.label-value-item .label {
+  font-size: 13px;
+  color: #adb5bd; /* Light grey text */
+  font-weight: 500;
+}
+
+.label-value-item .value {
+  font-size: 13px;
+  color: #ffffff; /* White text for contrast */
+  font-weight: 600;
+}
+
+/* Title Edit Container */
+.title-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.title-edit-input {
+  background: #2a2a2b;
+  border: 1px solid #111827;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  outline: none;
+}
+
+.title-edit-input:focus {
+  border-color: var(--text-brand);
+  box-shadow: 0 0 0 2px rgba(127, 0, 255, 0.2);
+}
+
+.edit-title-btn {
+  background: none;
+  border: none;
+  color: var(--icon-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.edit-title-btn:hover {
+  background: rgba(127, 0, 255, 0.1);
+  color: var(--text-brand);
+  opacity: 0.8;
+}
 
 /* Agent and Speed Section */
 .agent-speed-section {
@@ -77,10 +150,18 @@
   border: 1px solid #111827; /* Darker border to match chat input */
 }
 
-.agent-info, .speed-info {
+.agent-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.speed-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .agent-info .label, .speed-info .label {
@@ -170,9 +251,14 @@
 .dropdown-footer .token-count,
 .dropdown-footer .mathpix-count,
 .dropdown-footer .processing-time,
+.dropdown-footer .image-size,
+.dropdown-footer .confidence,
+.dropdown-footer .annotations,
 .dropdown-footer .last-update {
-  flex-direction: column;
-  gap: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
 }
 
 .dropdown-footer .last-update {
@@ -187,6 +273,11 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.dropdown-footer .label::after {
+  content: ":";
+  margin-left: 4px;
 }
 
 .dropdown-footer .value {

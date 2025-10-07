@@ -107,6 +107,21 @@ export const useSessionManager = () => {
     }
   }, [sessionState.currentSession]);
 
+  const onTitleUpdate = useCallback(async (newTitle: string) => {
+    const { currentSession } = sessionState;
+    if (currentSession && newTitle.trim() && newTitle !== currentSession.title) {
+      const updatedSession = { ...currentSession, title: newTitle.trim(), updatedAt: new Date().toISOString() };
+      
+      simpleSessionService.updateSessionState(updatedSession);
+      
+      try {
+        await simpleSessionService.updateSession(currentSession.id, { title: newTitle.trim() });
+      } catch (err) {
+        console.error('Failed to update title:', err);
+      }
+    }
+  }, [sessionState.currentSession]);
+
   return {
     ...sessionState,
     addMessage,
@@ -114,6 +129,7 @@ export const useSessionManager = () => {
     loadSession,
     onFavoriteToggle,
     onRatingChange,
+    onTitleUpdate,
   };
 };
 

@@ -2,9 +2,10 @@
  * Session Header Component (TypeScript)
  * This is the definitive version with the fix for the auto-closing dropdown.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import './css/SessionManagement.css';
 
 const SessionHeader: React.FC = () => {
   const { user } = useAuth();
@@ -14,6 +15,7 @@ const SessionHeader: React.FC = () => {
     onFavoriteToggle,
     rating,
     onRatingChange,
+    onTitleUpdate,
     hoveredRating,
     setHoveredRating,
     showInfoDropdown,
@@ -23,6 +25,8 @@ const SessionHeader: React.FC = () => {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null); // Ref for the toggle button
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(sessionTitle);
 
   const getModelUsed = (): string => {
     const stats = currentSession?.sessionStats;
@@ -70,6 +74,39 @@ const SessionHeader: React.FC = () => {
   const getAnnotations = (): string => {
     const stats = currentSession?.sessionStats;
     return stats?.totalAnnotations?.toString() || 'N/A';
+  };
+
+  const handleEditTitle = () => {
+    setIsEditingTitle(true);
+    setEditedTitle(sessionTitle);
+  };
+
+  const handleSaveTitle = async () => {
+    if (editedTitle.trim() === '' || editedTitle === sessionTitle) {
+      setIsEditingTitle(false);
+      return;
+    }
+    
+    try {
+      await onTitleUpdate(editedTitle.trim());
+      setIsEditingTitle(false);
+    } catch (error) {
+      console.error('Error updating session title:', error);
+      setIsEditingTitle(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedTitle(sessionTitle);
+    setIsEditingTitle(false);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveTitle();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   const getDetectedQuestion = () => {
@@ -172,6 +209,18 @@ const SessionHeader: React.FC = () => {
       
       {displaySession && !displaySession.id.startsWith('temp-') && (
         <div className="session-actions">
+          {user && (
+            <button 
+              className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
+              onClick={onFavoriteToggle}
+              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </button>
+          )}
+          
           <div className="info-dropdown-container">
             <button 
               ref={buttonRef} // Attach ref to the button
@@ -191,7 +240,33 @@ const SessionHeader: React.FC = () => {
                   <div className="dropdown-main-content">
                     <div className="label-value-item">
                       <span className="label">Title:</span>
-                      <span className="value">{sessionTitle}</span>
+                      <div className="title-edit-container">
+                        {isEditingTitle ? (
+                          <input
+                            type="text"
+                            value={editedTitle}
+                            onChange={(e) => setEditedTitle(e.target.value)}
+                            onKeyDown={handleKeyPress}
+                            onBlur={handleSaveTitle}
+                            className="title-edit-input"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="value">{sessionTitle}</span>
+                        )}
+                        {!isEditingTitle && (
+                          <button
+                            onClick={handleEditTitle}
+                            className="edit-title-btn"
+                            title="Edit title"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--icon-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pen-line clickable hover:opacity-80 flex-shrink-0">
+                              <path d="M12 20h9"></path>
+                              <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"></path>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -274,18 +349,6 @@ const SessionHeader: React.FC = () => {
               </div>
             )}
           </div>
-          
-          {user && (
-            <button 
-              className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
-              onClick={onFavoriteToggle}
-              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </button>
-          )}
         </div>
       )}
     </div>
