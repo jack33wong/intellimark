@@ -723,6 +723,97 @@ class MarkHomeworkPage {
       { maxRetries: 1, retryDelay: 2000 }
     );
   }
+
+  // --- Unauthenticated User Testing Methods ---
+
+  /**
+   * Verifies that all images in the chat have base64 sources (for unauthenticated users)
+   * @param {number} expectedCount - Expected number of images (default: all images)
+   */
+  async verifyAllImagesHaveBase64Sources(expectedCount = null) {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying all images have base64 sources (unauthenticated mode)...');
+        
+        // Get all images in the chat
+        const allImages = this.page.locator('.chat-container img, .messages-container img, .main-chat-container img');
+        
+        // Wait for at least one image to be present
+        if (expectedCount === null) {
+          await expect(allImages.first()).toBeVisible({ timeout: 10000 });
+        } else {
+          await expect(allImages).toHaveCount(expectedCount, { timeout: 10000 });
+        }
+        
+        const imageCount = await allImages.count();
+        
+        // Verify each image has base64 source
+        for (let i = 0; i < imageCount; i++) {
+          const image = allImages.nth(i);
+          await expect(image).toBeVisible();
+          
+          // Check that the image source starts with data:image (base64 format)
+          await expect(image).toHaveAttribute('src', /^data:image/);
+        }
+        
+        console.log(`✅ All ${imageCount} images have base64 sources`);
+      },
+      'Verify all images have base64 sources',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verifies that no sidebar chat history items are present (for unauthenticated users)
+   */
+  async verifyNoSidebarChatHistory() {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying no sidebar chat history (unauthenticated mode)...');
+        
+        // Check that sidebar exists but has no chat history items
+        const sidebar = this.page.locator('.sidebar, .app-sidebar');
+        await expect(sidebar).toBeVisible({ timeout: 5000 });
+        
+        // Verify no chat history items are present
+        const chatHistoryItems = this.page.locator('.mark-history-item');
+        const itemCount = await chatHistoryItems.count();
+        expect(itemCount).toBe(0);
+        
+        console.log('✅ No sidebar chat history items found (unauthenticated mode)');
+      },
+      'Verify no sidebar chat history',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
+
+  /**
+   * Verifies that the user is in unauthenticated mode (no auth token)
+   */
+  async verifyUnauthenticatedMode() {
+    return await this.errorReporter.withErrorReporting(
+      async () => {
+        console.log('🔍 Verifying unauthenticated mode...');
+        
+        // Check that no auth token is present
+        const hasAuthToken = await this.page.evaluate(() => {
+          const token = localStorage.getItem('authToken');
+          return token && token.length > 0;
+        });
+        
+        expect(hasAuthToken).toBe(false);
+        
+        // Verify no user profile elements are visible (handle null case)
+        const profileButton = this.page.locator('.profile-button, .user-profile-button, [data-testid="profile-button"]');
+        const isProfileVisible = await profileButton.isVisible().catch(() => false);
+        expect(isProfileVisible).toBe(false);
+        
+        console.log('✅ User is in unauthenticated mode');
+      },
+      'Verify unauthenticated mode',
+      { maxRetries: 1, retryDelay: 2000 }
+    );
+  }
 }
 
 module.exports = MarkHomeworkPage;

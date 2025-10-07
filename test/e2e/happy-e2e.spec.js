@@ -61,6 +61,24 @@ test.describe('Happy Path E2E Tests', () => {
     });
   });
 
+  test('Login and Logout Flow', { timeout: 60000 }, async ({ page }) => {
+    await test.step('Login', async () => {
+      await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
+      await markHomeworkPage.navigateToMarkHomework();
+      await expect(page).toHaveURL(/.*mark-homework/);
+      
+      // Select Auto model for testing
+      await markHomeworkPage.selectModel('auto');
+      console.log('🤖 Using Auto (Gemini 2.0 Flash-Lite) for login/logout testing');
+    });
+
+    await test.step('Logout', async () => {
+      console.log('🔍 Testing logout functionality...');
+      await loginPage.logout();
+      console.log('✅ Logout test completed');
+    });
+  });
+
   test('Complete marking homework flow with database verification', { timeout: 300000 }, async ({ page }) => {
 
     await test.step('Step 1: Login and Navigate', async () => {
@@ -409,6 +427,226 @@ test.describe('Happy Path E2E Tests', () => {
       
       // Capture full page screenshot
       await markHomeworkPage.captureFullPageScreenshot('step7-full-page.jpg');
+    });
+
+    await test.step('Step 8: Logout and Test Unauthenticated Mode', async () => {
+      // Navigate back to upload mode to show the main header with profile button
+      await page.goto('http://localhost:3000/mark-homework');
+      await expect(page).toHaveURL(/.*mark-homework/);
+      
+      // Wait for React app to load
+      await page.waitForLoadState('networkidle');
+      await page.waitForSelector('#root', { timeout: 10000 });
+      await page.waitForTimeout(2000); // Additional wait for React to render
+      
+      // Now logout from authenticated session
+      await loginPage.logout();
+      
+      // Verify logout was successful
+      await markHomeworkPage.verifyUnauthenticatedMode();
+      
+      // Navigate back to mark-homework page
+      await markHomeworkPage.navigateToMarkHomework();
+      await expect(page).toHaveURL(/.*mark-homework/);
+      
+      // Select Auto model for testing
+      await markHomeworkPage.selectModel('auto');
+      console.log('🤖 Using Auto (Gemini 2.0 Flash-Lite) for unauthenticated e2e testing');
+    });
+
+    await test.step('Step 9: Submit Initial Homework (Marking Mode - Unauthenticated)', async () => {
+      await markHomeworkPage.uploadImage(TEST_CONFIG.testImages.q19);
+      await markHomeworkPage.enterText(TEST_CONFIG.testTexts.initial);
+      await markHomeworkPage.sendMessage();
+      
+      // Assert that the user's content appeared correctly
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible();
+      
+      // Note: We'll verify user images are base64 in Step 12
+    });
+
+    await test.step('Step 9.1: Wait for AI Response (First Image - Unauthenticated)', async () => {
+      // Wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
+    });
+
+    await test.step('Step 10: Submit Follow-up Question (Question Mode - Unauthenticated)', async () => {
+      await markHomeworkPage.uploadImage(TEST_CONFIG.testImages.q21);
+      await markHomeworkPage.enterText(TEST_CONFIG.testTexts.followUp);
+      await markHomeworkPage.sendMessage();
+      
+      // Verify follow-up user message
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible();
+      
+      // Note: AI annotated images may still use storage URLs in unauthenticated mode
+      // We'll verify user images specifically in Step 12
+    });
+
+    await test.step('Step 10.1: Wait for AI Response (Second Image - Unauthenticated)', async () => {
+      // Wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
+    });
+
+    await test.step('Step 11: Text-Only Follow-up Mode (Unauthenticated)', async () => {
+      // Clear any file input that might be selected from previous steps
+      await page.evaluate(() => {
+        const fileInputs = document.querySelectorAll('input[type="file"]');
+        fileInputs.forEach(input => {
+          input.value = '';
+        });
+      });
+      
+      await markHomeworkPage.enterText(TEST_CONFIG.testTexts.textOnly);
+      await markHomeworkPage.sendMessage();
+      
+      // Verify text-only user message
+      await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible();
+      
+      // Wait for 6 messages total (3 user + 3 AI responses)
+      await expect(async () => {
+        const allMessages = await page.locator('.chat-message').count();
+        if (allMessages < 6) {
+          throw new Error(`Expected 6 messages, got ${allMessages}`);
+        }
+        return true;
+      }).toPass({ timeout: 120000 });
+      
+      // Wait for the AI message to finish processing and have actual content
+      let processingComplete = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 2 minutes with 2-second intervals
+      
+      while (!processingComplete && attempts < maxAttempts) {
+        attempts++;
+        const aiMessages = markHomeworkPage.aiMessages;
+        const lastAIMessage = aiMessages.last();
+        
+        // Find the last visible AI message instead of just the last one
+        let lastVisibleAIMessage = null;
+        const aiMessageCount = await aiMessages.count();
+        if (aiMessageCount > 0) {
+          for (let i = aiMessageCount - 1; i >= 0; i--) {
+            const msg = aiMessages.nth(i);
+            const msgId = await msg.getAttribute('data-message-id');
+            const isVisible = await msg.isVisible();
+            
+            if (isVisible && msgId && !lastVisibleAIMessage) {
+              lastVisibleAIMessage = msg;
+            }
+          }
+        }
+        
+        // Use the last visible message, or fall back to the last message
+        const messageToCheck = lastVisibleAIMessage || lastAIMessage;
+        const html = await messageToCheck.innerHTML();
+        
+        // Check that processing is complete AND we have actual content
+        const isProcessingComplete = !html.includes('Processing...') && !html.includes('thinking-dots');
+        const hasContent = html.includes('markdown-math-renderer') || 
+                          html.includes('Step') || 
+                          html.includes('answer') ||
+                          html.includes('katex') ||
+                          html.includes('The answer is');
+        
+        if (isProcessingComplete && hasContent) {
+          processingComplete = true;
+        } else {
+          // Wait 2 seconds before next check
+          await page.waitForTimeout(2000);
+        }
+      }
+      
+      if (!processingComplete) {
+        throw new Error('AI response processing did not complete within expected time');
+      }
+      
+      // Verify the AI response contains "4" and is about the math question
+      const aiMessages = markHomeworkPage.aiMessages;
+      const lastAIMessage = aiMessages.last();
+      
+      // Find the last visible AI message
+      let lastVisibleAIMessage = null;
+      const aiMessageCount = await aiMessages.count();
+      if (aiMessageCount > 0) {
+        for (let i = aiMessageCount - 1; i >= 0; i--) {
+          const msg = aiMessages.nth(i);
+          const isVisible = await msg.isVisible();
+          if (isVisible && !lastVisibleAIMessage) {
+            lastVisibleAIMessage = msg;
+            break;
+          }
+        }
+      }
+      
+      const messageToCheck = lastVisibleAIMessage || lastAIMessage;
+      await expect(messageToCheck).toBeVisible();
+      
+      // Wait for the markdown renderer to appear after processing is complete
+      const markdownRenderer = messageToCheck.locator('.markdown-math-renderer.chat-message-renderer');
+      await expect(markdownRenderer).toBeVisible({ timeout: 30000 });
+      
+      // Wait for the content to be fully rendered (not just empty)
+      await expect(async () => {
+        const renderedText = await markdownRenderer.textContent();
+        return renderedText && renderedText.trim().length > 0;
+      }).toPass({ timeout: 15000 });
+      
+      const renderedText = await markdownRenderer.textContent();
+      
+      // Real verification: AI response must contain "4" and be about math addition
+      expect(renderedText).toContain('4');
+      expect(renderedText).toContain('2 + 2 = 4'); // More specific check for the math problem
+      expect(renderedText).not.toContain('sequence');
+      expect(renderedText).not.toContain('follow-up');
+      expect(renderedText).not.toContain('linear');
+      
+      // Verify no image in the AI response (text-only mode)
+      const aiResponseImages = lastAIMessage.locator('img');
+      await expect(aiResponseImages).toHaveCount(0);
+    });
+
+    await test.step('Step 11.1: Wait for AI Response (Text Mode - Unauthenticated)', async () => {
+      // Wait for AI response to complete
+      await markHomeworkPage.waitForAIResponse();
+    });
+
+    await test.step('Step 12: Verify Unauthenticated Mode Characteristics', async () => {
+      // Quick verification of total message count is 6
+      const totalMessages = await page.locator('.chat-message').count();
+      expect(totalMessages).toBe(6);
+      
+      // Note: In unauthenticated mode, the sidebar might still show previous chat history
+      // This is expected behavior as the sidebar doesn't automatically clear on logout
+      const chatHistoryItems = await page.locator('.mark-history-item').count();
+      console.log(`ℹ️  Chat history items found: ${chatHistoryItems} (may include previous authenticated session)`);
+      
+      // Quick verification that user images have base64 sources
+      const userImages = page.locator('.chat-message.user img');
+      const userImageCount = await userImages.count();
+      expect(userImageCount).toBe(2); // 2 user uploaded images
+      
+      // Verify user images have base64 sources
+      for (let i = 0; i < userImageCount; i++) {
+        const userImage = userImages.nth(i);
+        if (await userImage.isVisible()) {
+          const src = await userImage.getAttribute('src');
+          expect(src).toMatch(/^data:image/);
+        }
+      }
+      
+      console.log('✅ Unauthenticated mode verified: 6 messages, user images are base64');
+    });
+
+    await test.step('Step 13: Verify No Database Persistence', async () => {
+      // Quick verification that refreshing the page loses all messages (no persistence)
+      await page.reload();
+      await markHomeworkPage.waitForPageLoad();
+      
+      // After refresh, there should be no messages in the chat
+      const messagesAfterRefresh = await page.locator('.chat-message').count();
+      expect(messagesAfterRefresh).toBe(0);
+      
+      console.log('✅ No database persistence verified: messages lost on refresh');
     });
   });
 });

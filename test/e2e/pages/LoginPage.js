@@ -329,6 +329,71 @@ class LoginPage {
     return this.facebookLoginButton;
   }
 
+  /**
+   * Performs logout by clicking the profile menu and logout button.
+   */
+  async logout() {
+    // Try to find and click profile menu to open dropdown
+    const profileButton = this.page.locator('.profile-button');
+    
+    // Check if profile button exists
+    const profileButtonCount = await profileButton.count();
+    if (profileButtonCount === 0) {
+      throw new Error('Profile button not found - cannot perform logout');
+    }
+    
+    // Debug: Check the current state of the profile button
+    const isProfileVisible = await profileButton.isVisible().catch(() => false);
+    const isInViewport = await this.page.evaluate(() => {
+      const button = document.querySelector('.profile-button');
+      if (!button) return false;
+      const rect = button.getBoundingClientRect();
+      return rect.top >= 0 && rect.left >= 0 && 
+             rect.bottom <= window.innerHeight && 
+             rect.right <= window.innerWidth;
+    });
+    console.log(`🔍 Profile button state - visible: ${isProfileVisible}, in viewport: ${isInViewport}`);
+    
+    // If button is not in viewport, scroll to it
+    if (!isInViewport) {
+      console.log('🔍 Scrolling to profile button...');
+      await profileButton.scrollIntoViewIfNeeded();
+      await this.page.waitForTimeout(1000); // Wait for scroll to complete
+    }
+    
+    // Check if dropdown is already open
+    const dropdown = this.page.locator('.profile-dropdown');
+    const isDropdownOpen = await dropdown.isVisible().catch(() => false);
+    
+    // Only click profile button if dropdown is not already open
+    if (!isDropdownOpen) {
+      // Use page.evaluate to click the button directly in the browser, bypassing Playwright's visibility checks
+      await this.page.evaluate(() => {
+        const profileButton = document.querySelector('.profile-button');
+        if (profileButton) {
+          profileButton.click();
+        }
+      });
+      
+      // Wait for dropdown to appear
+      await expect(dropdown).toBeVisible({ timeout: 5000 });
+    }
+    
+    // Wait for dropdown to appear and click logout button with correct class
+    const logoutButton = this.page.locator('.profile-action.logout');
+    await expect(logoutButton).toBeVisible({ timeout: 5000 });
+    await logoutButton.click();
+    
+    // Wait for Firebase logout to complete and page to redirect
+    await this.page.waitForLoadState('networkidle');
+    
+    // Verify logout was successful by checking for Sign In button
+    const signInButton = this.page.locator('.login-button');
+    await expect(signInButton).toBeVisible({ timeout: 15000 });
+    
+    console.log('✅ Logout completed - Sign In button visible');
+  }
+
   // --- Data Retrieval Methods ---
   // These methods return actual data rather than locators, for when you need the values.
 
