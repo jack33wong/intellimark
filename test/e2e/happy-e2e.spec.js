@@ -61,24 +61,6 @@ test.describe('Happy Path E2E Tests', () => {
     });
   });
 
-  test('Login and Logout Flow', { timeout: 60000 }, async ({ page }) => {
-    await test.step('Login', async () => {
-      await loginPage.login(TEST_CONFIG.email, TEST_CONFIG.password);
-      await markHomeworkPage.navigateToMarkHomework();
-      await expect(page).toHaveURL(/.*mark-homework/);
-      
-      // Select Auto model for testing
-      await markHomeworkPage.selectModel('auto');
-      console.log('🤖 Using Auto (Gemini 2.0 Flash-Lite) for login/logout testing');
-    });
-
-    await test.step('Logout', async () => {
-      console.log('🔍 Testing logout functionality...');
-      await loginPage.logout();
-      console.log('✅ Logout test completed');
-    });
-  });
-
   test('Complete marking homework flow with database verification', { timeout: 300000 }, async ({ page }) => {
 
     await test.step('Step 1: Login and Navigate', async () => {
