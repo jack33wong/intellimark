@@ -225,55 +225,8 @@ test.describe('Happy Path E2E Tests', () => {
         return true;
       }).toPass({ timeout: 120000 });
       
-      // Wait for the AI message to finish processing and have actual content
-      let processingComplete = false;
-      let attempts = 0;
-      const maxAttempts = 60; // 2 minutes with 2-second intervals
-      
-      while (!processingComplete && attempts < maxAttempts) {
-        attempts++;
-        const aiMessages = markHomeworkPage.aiMessages;
-        const lastAIMessage = aiMessages.last();
-        
-        // Find the last visible AI message instead of just the last one
-        let lastVisibleAIMessage = null;
-        const aiMessageCount = await aiMessages.count();
-        if (aiMessageCount > 0) {
-          for (let i = aiMessageCount - 1; i >= 0; i--) {
-            const msg = aiMessages.nth(i);
-            const msgId = await msg.getAttribute('data-message-id');
-            const isVisible = await msg.isVisible();
-            
-            if (isVisible && msgId && !lastVisibleAIMessage) {
-              lastVisibleAIMessage = msg;
-            }
-          }
-        }
-        
-        // Use the last visible message, or fall back to the last message
-        const messageToCheck = lastVisibleAIMessage || lastAIMessage;
-        const html = await messageToCheck.innerHTML();
-        
-        // Check that processing is complete AND we have actual content
-        const isProcessingComplete = !html.includes('Processing...') && !html.includes('thinking-dots');
-        const hasContent = html.includes('markdown-math-renderer') || 
-                          html.includes('Step') || 
-                          html.includes('answer') ||
-                          html.includes('katex') ||
-                          html.includes('The answer is');
-        
-        
-        if (isProcessingComplete && hasContent) {
-          processingComplete = true;
-        } else {
-          // Wait 2 seconds before next check
-          await page.waitForTimeout(2000);
-        }
-      }
-      
-      if (!processingComplete) {
-        throw new Error('AI response processing did not complete within expected time');
-      }
+      // Wait for AI response to complete using improved wait logic
+      await markHomeworkPage.waitForAIResponse();
       
       // Verify the AI response contains "4" and is about the math question
       const aiMessages = markHomeworkPage.aiMessages;
@@ -349,15 +302,10 @@ test.describe('Happy Path E2E Tests', () => {
       // Wait for network to be idle to ensure all API calls are complete
       await page.waitForLoadState('networkidle');
       
-      // Additional delay to ensure database writes are complete
-      await page.waitForTimeout(3000);
-      
+      // Wait for session creation and database writes to complete
       const session = await databaseHelper.waitForSessionCreation(TEST_CONFIG.userId);
       
-      // Add a longer delay to ensure all messages are written to database
-      // The third API call needs time to complete and save to database
-      await page.waitForTimeout(5000);
-      
+      // Use auto-retrying expect instead of hardcoded timeouts
       await expect(async () => {
         const messageCount = await databaseHelper.getMessageCount(session.id);
         expect(messageCount).toBe(6);
@@ -434,10 +382,10 @@ test.describe('Happy Path E2E Tests', () => {
       await page.goto('http://localhost:3000/mark-homework');
       await expect(page).toHaveURL(/.*mark-homework/);
       
-      // Wait for React app to load
+      // Wait for React app to load and render
       await page.waitForLoadState('networkidle');
       await page.waitForSelector('#root', { timeout: 10000 });
-      await page.waitForTimeout(2000); // Additional wait for React to render
+      await expect(page.locator('.profile-button')).toBeVisible({ timeout: 10000 });
       
       // Now logout from authenticated session
       await loginPage.logout();
@@ -511,54 +459,8 @@ test.describe('Happy Path E2E Tests', () => {
         return true;
       }).toPass({ timeout: 120000 });
       
-      // Wait for the AI message to finish processing and have actual content
-      let processingComplete = false;
-      let attempts = 0;
-      const maxAttempts = 60; // 2 minutes with 2-second intervals
-      
-      while (!processingComplete && attempts < maxAttempts) {
-        attempts++;
-        const aiMessages = markHomeworkPage.aiMessages;
-        const lastAIMessage = aiMessages.last();
-        
-        // Find the last visible AI message instead of just the last one
-        let lastVisibleAIMessage = null;
-        const aiMessageCount = await aiMessages.count();
-        if (aiMessageCount > 0) {
-          for (let i = aiMessageCount - 1; i >= 0; i--) {
-            const msg = aiMessages.nth(i);
-            const msgId = await msg.getAttribute('data-message-id');
-            const isVisible = await msg.isVisible();
-            
-            if (isVisible && msgId && !lastVisibleAIMessage) {
-              lastVisibleAIMessage = msg;
-            }
-          }
-        }
-        
-        // Use the last visible message, or fall back to the last message
-        const messageToCheck = lastVisibleAIMessage || lastAIMessage;
-        const html = await messageToCheck.innerHTML();
-        
-        // Check that processing is complete AND we have actual content
-        const isProcessingComplete = !html.includes('Processing...') && !html.includes('thinking-dots');
-        const hasContent = html.includes('markdown-math-renderer') || 
-                          html.includes('Step') || 
-                          html.includes('answer') ||
-                          html.includes('katex') ||
-                          html.includes('The answer is');
-        
-        if (isProcessingComplete && hasContent) {
-          processingComplete = true;
-        } else {
-          // Wait 2 seconds before next check
-          await page.waitForTimeout(2000);
-        }
-      }
-      
-      if (!processingComplete) {
-        throw new Error('AI response processing did not complete within expected time');
-      }
+      // Wait for AI response to complete using improved wait logic
+      await markHomeworkPage.waitForAIResponse();
       
       // Verify the AI response contains "4" and is about the math question
       const aiMessages = markHomeworkPage.aiMessages;
