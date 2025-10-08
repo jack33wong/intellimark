@@ -551,6 +551,13 @@ export class FirestoreService {
 
       // Map messages to ensure frontend compatibility while preserving object references
       const mappedMessages = unifiedMessages.map((msg: any) => {
+        // Debug logging for suggestedFollowUps
+        if (msg.suggestedFollowUps) {
+          console.log('🔍 [FIRESTORE DEBUG] Message has suggestedFollowUps:', msg.suggestedFollowUps);
+        } else {
+          console.log('🔍 [FIRESTORE DEBUG] Message missing suggestedFollowUps, type:', msg.type);
+        }
+        
         // Only modify if absolutely necessary to preserve React component state
         if (!msg.id && msg.messageId) {
           // Add id field if missing - but only if it's actually missing
@@ -953,6 +960,10 @@ export class FirestoreService {
       
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
+      
+      // Debug logging for suggestedFollowUps
+      console.log('🔍 [FIRESTORE DEBUG] Original message suggestedFollowUps:', message.suggestedFollowUps);
+      console.log('🔍 [FIRESTORE DEBUG] Sanitized message suggestedFollowUps:', sanitizedMessage.suggestedFollowUps);
       
       // Determine if the session should become "Mixed" based on message types
       const newMessageType = this.determineSessionMessageType(existingMessages, sanitizedMessage, existingMessageType);
