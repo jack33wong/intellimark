@@ -1020,6 +1020,10 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     }
 
     // Return consistent response format for both authenticated and unauthenticated users
+    console.log('🔍 [DEBUG] Streaming route - Sending response to frontend:');
+    console.log('  - aiMessage.suggestedFollowUps:', (aiMessage as any).suggestedFollowUps);
+    console.log('  - aiSession.isPastPaper:', aiSession.isPastPaper);
+    
     if (isAuthenticated) {
       return res.json({
         success: true,
