@@ -551,6 +551,10 @@ export class FirestoreService {
 
       // Map messages to ensure frontend compatibility while preserving object references
       const mappedMessages = unifiedMessages.map((msg: any) => {
+        // Debug logging for suggestedFollowUps retrieval
+        if (msg.suggestedFollowUps) {
+          console.log('📖 [FIRESTORE] Retrieved message with suggestedFollowUps:', msg.suggestedFollowUps);
+        }
         
         // Only modify if absolutely necessary to preserve React component state
         if (!msg.id && msg.messageId) {
@@ -954,6 +958,11 @@ export class FirestoreService {
       
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
+      
+      // Debug logging for suggestedFollowUps persistence
+      if (message.suggestedFollowUps) {
+        console.log('💾 [FIRESTORE] Saving message with suggestedFollowUps:', message.suggestedFollowUps);
+      }
       
       
       // Determine if the session should become "Mixed" based on message types

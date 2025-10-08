@@ -186,11 +186,24 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             />
           )}
           
-          {!isUser && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && !isAnnotatedImageMessage(message) && (
-            <SuggestedFollowUpButtons 
-              suggestions={message.suggestedFollowUps}
-              onSuggestionClick={handleFollowUpClick}
-            />
+          {/* Show suggested follow-ups for question mode messages */}
+          {!isUser && !isAnnotatedImageMessage(message) && (
+            (!message.suggestedFollowUps || message.suggestedFollowUps.length === 0) && message.type === 'chat' ? (
+              <SuggestedFollowUpButtons 
+                suggestions={[
+                  "Do you want model answer?",
+                  "Do you want marking scheme?", 
+                  "Do you want step-by-step solution?",
+                  "Do you want similar practice questions?"
+                ]}
+                onSuggestionClick={handleFollowUpClick}
+              />
+            ) : message.suggestedFollowUps && message.suggestedFollowUps.length > 0 ? (
+              <SuggestedFollowUpButtons 
+                suggestions={message.suggestedFollowUps}
+                onSuggestionClick={handleFollowUpClick}
+              />
+            ) : null
           )}
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
@@ -207,12 +220,23 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onLoad={onImageLoad}
                 onError={handleImageError}
               />
-              {message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+              {/* Show suggested follow-ups for marking mode messages */}
+              {(!message.suggestedFollowUps || message.suggestedFollowUps.length === 0) && message.type === 'marking_annotated' ? (
+                <SuggestedFollowUpButtons 
+                  suggestions={[
+                    "Do you want model answer?",
+                    "Do you want detailed feedback?", 
+                    "Do you want similar practice questions?",
+                    "Do you want to try another question?"
+                  ]}
+                  onSuggestionClick={handleFollowUpClick}
+                />
+              ) : message.suggestedFollowUps && message.suggestedFollowUps.length > 0 ? (
                 <SuggestedFollowUpButtons 
                   suggestions={message.suggestedFollowUps}
                   onSuggestionClick={handleFollowUpClick}
                 />
-              )}
+              ) : null}
             </div>
           )}
           
