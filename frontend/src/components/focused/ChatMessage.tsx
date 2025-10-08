@@ -16,6 +16,7 @@ import {
 import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
+import FollowUpService from '../../services/followUpService';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 
@@ -69,6 +70,29 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const handleImageError = useCallback(() => {
     setImageError(true);
   }, []);
+
+  const handleFollowUpClick = useCallback(async (suggestion: string) => {
+    try {
+      const context = {
+        messageId: message.id,
+        sessionId: (message as any).sessionId, // TODO: Get sessionId from props or context
+        messageType: message.type,
+        detectedQuestion: message.detectedQuestion
+      };
+      
+      const result = await FollowUpService.handleFollowUp(suggestion, context);
+      
+      if (result.success) {
+        console.log('✅ [FOLLOW-UP] Success:', (result as any).message);
+        // TODO: Handle successful follow-up (e.g., show result, update UI)
+      } else {
+        console.error('❌ [FOLLOW-UP] Failed:', (result as any).error);
+        // TODO: Handle error (e.g., show error message)
+      }
+    } catch (error) {
+      console.error('❌ [FOLLOW-UP] Unexpected error:', error);
+    }
+  }, [message]);
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
@@ -165,10 +189,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           {!isUser && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && !isAnnotatedImageMessage(message) && (
             <SuggestedFollowUpButtons 
               suggestions={message.suggestedFollowUps}
-              onSuggestionClick={(suggestion: string) => {
-                console.log('Follow-up clicked:', suggestion);
-                // TODO: Implement follow-up action
-              }}
+              onSuggestionClick={handleFollowUpClick}
             />
           )}
           
@@ -186,18 +207,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onLoad={onImageLoad}
                 onError={handleImageError}
               />
-              {(() => {
-                console.log('🔍 [DEBUG] Message suggestedFollowUps:', message.suggestedFollowUps);
-                console.log('🔍 [DEBUG] Message suggestedFollowUps length:', message.suggestedFollowUps?.length);
-                return null;
-              })()}
               {message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
                 <SuggestedFollowUpButtons 
                   suggestions={message.suggestedFollowUps}
-                  onSuggestionClick={(suggestion: string) => {
-                    console.log('Follow-up clicked:', suggestion);
-                    // TODO: Implement follow-up action
-                  }}
+                  onSuggestionClick={handleFollowUpClick}
                 />
               )}
             </div>

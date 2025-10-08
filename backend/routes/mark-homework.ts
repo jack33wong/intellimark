@@ -881,9 +881,6 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       }
     };
 
-    // Debug logging
-    console.log('🔍 [DEBUG] Result suggestedFollowUps:', result.suggestedFollowUps);
-    console.log('🔍 [DEBUG] AI Message suggestedFollowUps:', aiMessage.suggestedFollowUps);
 
     // Always create session with only AI message
     let aiSession;

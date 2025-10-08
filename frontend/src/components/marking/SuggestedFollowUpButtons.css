@@ -1,9 +1,9 @@
 .suggested-follow-ups {
   margin-top: 16px;
   padding: 12px 16px;
-  background-color: #f8f9fa;
+  background-color: var(--background-secondary);
   border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid  var(--background-tertiary);
 }
 
 .suggested-follow-ups-header {
@@ -40,8 +40,8 @@
 }
 
 .suggested-follow-up-button:hover {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
+  background-color:  var(--background-menu-white);
+  border-color: var(--background-menu-gray);
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }

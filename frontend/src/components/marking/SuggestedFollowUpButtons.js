@@ -2,21 +2,8 @@ import React from 'react';
 import './SuggestedFollowUpButtons.css';
 
 const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
-  console.log('🔍 [DEBUG] SuggestedFollowUpButtons rendered with suggestions:', suggestions);
-  console.log('🔍 [DEBUG] Suggestions length:', suggestions?.length);
-  console.log('🔍 [DEBUG] Suggestions type:', typeof suggestions);
-  console.log('🔍 [DEBUG] Is array:', Array.isArray(suggestions));
-  
   if (!suggestions || suggestions.length === 0) {
-    console.log('🔍 [DEBUG] No suggestions, returning null');
-    // TEMPORARY: Always render for debugging
-    return (
-      <div className="suggested-follow-ups">
-        <div className="suggested-follow-ups-header">
-          <span className="suggested-follow-ups-title">DEBUG: No suggestions provided</span>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
