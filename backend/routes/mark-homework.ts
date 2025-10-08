@@ -535,6 +535,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       fileName: result.isQuestionOnly ? null : 'annotated-image.png',
       progressData: finalProgressData,
       isQuestionOnly: result.isQuestionOnly,
+      suggestedFollowUps: result.suggestedFollowUps,
       processingStats: {
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
         confidence: result.processingStats?.confidence || 0,

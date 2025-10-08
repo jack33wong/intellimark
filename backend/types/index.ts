@@ -209,6 +209,9 @@ export interface UnifiedMessage {
     isComplete: boolean;
   };
   
+  // Suggested follow-up questions
+  suggestedFollowUps?: string[];
+  
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;

@@ -135,6 +135,7 @@ export interface AIMessageOptions {
   processingStats?: any;
   messageId?: string;
   isQuestionOnly?: boolean;
+  suggestedFollowUps?: string[];
 }
 
 /**
@@ -198,7 +199,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     progressData,
     processingStats,
     messageId,
-    isQuestionOnly = false
+    isQuestionOnly = false,
+    suggestedFollowUps
   } = options;
 
   // Determine message type based on content and context
@@ -243,7 +245,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
       mathpixCalls: 0,
       ocrMethod: 'Chat',
       ...processingStats
-    }
+    },
+    suggestedFollowUps: suggestedFollowUps
   };
 }
 
