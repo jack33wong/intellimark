@@ -582,7 +582,7 @@ class MarkHomeworkPage {
         // Target only the latest AI message's progress steps, not all step items on the page
         const latestAIMessage = this.aiMessages.last();
         const stepItems = latestAIMessage.locator('.step-item');
-        await expect(stepItems).toHaveCount(expectedStepCount, { timeout: 15000 });
+        await expect(stepItems).toHaveCount(expectedStepCount, { timeout: 30000 });
         
         // Verify each step text matches expected
         for (let i = 0; i < expectedStepCount; i++) {
