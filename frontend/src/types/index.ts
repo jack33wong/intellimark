@@ -34,6 +34,9 @@ export interface UnifiedMessage {
       isComplete: boolean;
     };
     
+    // Suggested follow-up questions
+    suggestedFollowUps?: string[];
+    
     // Question detection with full exam paper metadata
     detectedQuestion?: {
       found: boolean;

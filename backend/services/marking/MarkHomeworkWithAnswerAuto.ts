@@ -361,6 +361,14 @@ export class MarkHomeworkWithAnswerAuto {
         // Collect LLM tokens from AI response
         totalLLMTokens += aiResponse.usageTokens || 0;
         
+        // Generate suggested follow-ups for question mode
+        const suggestedFollowUps = [
+          "Do you want model answer?",
+          "Do you want marking scheme?", 
+          "Do you want step-by-step solution?",
+          "Do you want similar practice questions?"
+        ];
+        
         // Finish progress tracking
         progressTracker.finish();
 
@@ -398,6 +406,7 @@ export class MarkHomeworkWithAnswerAuto {
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
           aiResponse: aiResponse.response,
+          suggestedFollowUps: suggestedFollowUps,
           confidence: ocrResult.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
@@ -527,19 +536,13 @@ export class MarkHomeworkWithAnswerAuto {
         const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
         logStep6Complete();
 
-        // Generate final AI response - TEMPORARILY DISABLED
-        const logStep7Complete = logStep('AI Response Generation', actualModel);
-        const generateFinalResponse = async () => {
-          const { AIMarkingService } = await import('../aiMarkingService');
-          const cleanedOcrText = (markingInstructions as any).cleanedOcrText || '';
-          const schemeJson = JSON.stringify(questionDetection.match.markingScheme.questionMarks);
-          
-          return AIMarkingService.generateChatResponse(
-            cleanedOcrText, schemeJson, model, false, debug, undefined, true
-          );
-        };
-        const aiResponse = await markingProgressTracker.withProgress('generating_response', generateFinalResponse)();
-        logStep7Complete();
+        // Generate suggested follow-ups for marking mode
+        const suggestedFollowUps = [
+          "Do you want model answer?",
+          "Do you want detailed feedback?", 
+          "Do you want similar practice questions?",
+          "Do you want to try another question?"
+        ];
 
         // Finish progress tracking
         markingProgressTracker.finish();
@@ -574,8 +577,8 @@ export class MarkHomeworkWithAnswerAuto {
           mathBlocks: processedImage.boundingBoxes,
           markingInstructions: markingInstructions,
           annotatedImage: annotationResult.annotatedImage,
-          message: aiResponse.response,
-          aiResponse: aiResponse.response,
+          message: 'Marking completed - see suggested follow-ups below',
+          suggestedFollowUps: suggestedFollowUps,
           confidence: processedImage.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,

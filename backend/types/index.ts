@@ -298,6 +298,7 @@ export interface MarkHomeworkResponse {
   annotatedImage?: string | null;
   instructions?: MarkingInstructions;
   message?: string;
+  suggestedFollowUps?: string[];
   apiUsed?: string;
   ocrMethod?: string;
   classification?: ImageClassification;

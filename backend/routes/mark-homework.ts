@@ -867,6 +867,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       imageLink: annotatedImageLink, // For authenticated users
       imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
       fileName: 'annotated-image.png',
+      suggestedFollowUps: result.suggestedFollowUps || [],
       processingStats: {
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
         confidence: result.processingStats?.confidence || 0,

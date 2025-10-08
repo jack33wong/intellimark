@@ -15,6 +15,7 @@ import {
 } from '../../utils/sessionUtils';
 import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
+import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 
@@ -161,6 +162,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             />
           )}
           
+          {!isUser && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && !isAnnotatedImageMessage(message) && (
+            <SuggestedFollowUpButtons 
+              suggestions={message.suggestedFollowUps}
+              onSuggestionClick={(suggestion: string) => {
+                console.log('Follow-up clicked:', suggestion);
+                // TODO: Implement follow-up action
+              }}
+            />
+          )}
+          
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
             <div className="homework-annotated-image">
               {(() => {
@@ -175,6 +186,15 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onLoad={onImageLoad}
                 onError={handleImageError}
               />
+              {message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+                <SuggestedFollowUpButtons 
+                  suggestions={message.suggestedFollowUps}
+                  onSuggestionClick={(suggestion: string) => {
+                    console.log('Follow-up clicked:', suggestion);
+                    // TODO: Implement follow-up action
+                  }}
+                />
+              )}
             </div>
           )}
           
