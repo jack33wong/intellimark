@@ -347,6 +347,10 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     };
 
     // Create UnifiedSession for Response 1 (Original Image)
+    console.log('🔍 [DEBUG] Creating unified session:');
+    console.log('  - result.isPastPaper:', result.isPastPaper);
+    console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
+    
     const unifiedSession = {
       id: finalSessionId,
       title: sessionTitle,
@@ -858,6 +862,10 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     }
 
     // Create AI message with separate content and progressData
+    console.log('🔍 [DEBUG] Creating AI message:');
+    console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
+    console.log('  - result.isPastPaper:', result.isPastPaper);
+    
     const aiMessage = {
       id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
       role: 'assistant',

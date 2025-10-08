@@ -189,6 +189,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           )}
           
           {/* Show suggested follow-ups for question mode messages (past papers only) */}
+          {(() => {
+            console.log('🔍 [DEBUG] Question mode suggested follow-ups check:');
+            console.log('  - isUser:', isUser);
+            console.log('  - isAnnotatedImageMessage:', isAnnotatedImageMessage(message));
+            console.log('  - session:', session);
+            console.log('  - session?.isPastPaper:', session?.isPastPaper);
+            console.log('  - message.suggestedFollowUps:', message.suggestedFollowUps);
+            console.log('  - Should show:', !isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper);
+            return null;
+          })()}
           {!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper && (
             <SuggestedFollowUpButtons 
               suggestions={message.suggestedFollowUps || [
@@ -216,6 +226,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onError={handleImageError}
               />
               {/* Show suggested follow-ups for marking mode messages (past papers only) */}
+              {(() => {
+                console.log('🔍 [DEBUG] Marking mode suggested follow-ups check:');
+                console.log('  - session:', session);
+                console.log('  - session?.isPastPaper:', session?.isPastPaper);
+                console.log('  - message.suggestedFollowUps:', message.suggestedFollowUps);
+                console.log('  - Should show:', session?.isPastPaper);
+                return null;
+              })()}
               {session?.isPastPaper && (
                 <SuggestedFollowUpButtons 
                   suggestions={message.suggestedFollowUps || [

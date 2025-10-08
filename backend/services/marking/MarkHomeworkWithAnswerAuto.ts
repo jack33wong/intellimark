@@ -399,10 +399,16 @@ export class MarkHomeworkWithAnswerAuto {
           ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
           : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
         
+        const isPastPaper = questionDetection?.found || false;
+        console.log('🔍 [DEBUG] Question mode - isPastPaper setting:');
+        console.log('  - questionDetection?.found:', questionDetection?.found);
+        console.log('  - isPastPaper:', isPastPaper);
+        console.log('  - suggestedFollowUps:', suggestedFollowUps);
+        
         return {
           success: true,
           isQuestionOnly: true,
-          isPastPaper: questionDetection?.found || false, // Set isPastPaper based on question detection
+          isPastPaper: isPastPaper, // Set isPastPaper based on question detection
           mode: 'Question',
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
@@ -570,10 +576,16 @@ export class MarkHomeworkWithAnswerAuto {
         console.log(`🤖 [MODEL] Used: ${actualModel}`);
         console.log(`✅ [RESULT] Marking mode completed successfully`);
 
+        const isPastPaper = questionDetection?.found || false;
+        console.log('🔍 [DEBUG] Marking mode - isPastPaper setting:');
+        console.log('  - questionDetection?.found:', questionDetection?.found);
+        console.log('  - isPastPaper:', isPastPaper);
+        console.log('  - suggestedFollowUps:', suggestedFollowUps);
+        
         return {
           success: true,
           isQuestionOnly: false,
-          isPastPaper: questionDetection?.found || false, // Set isPastPaper based on question detection
+          isPastPaper: isPastPaper, // Set isPastPaper based on question detection
           mode: 'Marking',
           extractedText: processedImage.ocrText,
           mathBlocks: processedImage.boundingBoxes,
