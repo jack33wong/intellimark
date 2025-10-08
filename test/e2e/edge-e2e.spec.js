@@ -181,8 +181,37 @@ test.describe('Edge Case E2E Tests', () => {
         expect(initialButtonStyle).toContain('rotate(180deg)');
         
         // Send message to trigger AI response
-        await markHomeworkPage.enterText('Test message for dropdown bug detection');
-        await markHomeworkPage.sendMessage();
+        try {
+          await markHomeworkPage.enterText('Test message for dropdown bug detection');
+          await markHomeworkPage.sendMessage();
+        } catch (error) {
+          // Capture screenshot when enterText fails
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const screenshotPath = `/Users/ytwong/github/intellimark/test/e2e/debug-screenshots/EdgeCaseE2E-enterText-failed-${timestamp}.png`;
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          
+          // Log detailed error information
+          console.log('🚨 EnterText Error Details:');
+          console.log(`   Error: ${error.message}`);
+          console.log(`   Screenshot: ${screenshotPath}`);
+          console.log(`   URL: ${page.url()}`);
+          
+          // Check input field state
+          const textInput = page.locator('.main-chat-input').or(page.locator('textarea')).or(page.locator('input[type="text"]')).or(page.locator('.chat-input'));
+          const isEnabled = await textInput.isEnabled().catch(() => false);
+          const isVisible = await textInput.isVisible().catch(() => false);
+          const placeholder = await textInput.getAttribute('placeholder').catch(() => 'N/A');
+          const className = await textInput.getAttribute('class').catch(() => 'N/A');
+          
+          console.log(`   Input field state:`);
+          console.log(`     - Enabled: ${isEnabled}`);
+          console.log(`     - Visible: ${isVisible}`);
+          console.log(`     - Placeholder: ${placeholder}`);
+          console.log(`     - Class: ${className}`);
+          
+          // Re-throw the error to fail the test
+          throw error;
+        }
         
         // Wait a bit before AI response to see if dropdowns close immediately
         await page.waitForTimeout(1000);
