@@ -402,6 +402,7 @@ export class MarkHomeworkWithAnswerAuto {
         return {
           success: true,
           isQuestionOnly: true,
+          isPastPaper: questionDetection?.found || false, // Set isPastPaper based on question detection
           mode: 'Question',
           extractedText: 'Question detected - AI response generated',
           message: aiResponse.response,
@@ -572,6 +573,7 @@ export class MarkHomeworkWithAnswerAuto {
         return {
           success: true,
           isQuestionOnly: false,
+          isPastPaper: questionDetection?.found || false, // Set isPastPaper based on question detection
           mode: 'Marking',
           extractedText: processedImage.ocrText,
           mathBlocks: processedImage.boundingBoxes,
