@@ -2,7 +2,11 @@ import React from 'react';
 import './SuggestedFollowUpButtons.css';
 
 const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
+  console.log('🔍 [DEBUG] SuggestedFollowUpButtons rendered with suggestions:', suggestions);
+  console.log('🔍 [DEBUG] Suggestions length:', suggestions?.length);
+  
   if (!suggestions || suggestions.length === 0) {
+    console.log('🔍 [DEBUG] No suggestions, returning null');
     return null;
   }
 

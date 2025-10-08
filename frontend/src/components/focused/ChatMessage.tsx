@@ -186,6 +186,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onLoad={onImageLoad}
                 onError={handleImageError}
               />
+              {(() => {
+                console.log('🔍 [DEBUG] Message suggestedFollowUps:', message.suggestedFollowUps);
+                console.log('🔍 [DEBUG] Message suggestedFollowUps length:', message.suggestedFollowUps?.length);
+                return null;
+              })()}
               {message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
                 <SuggestedFollowUpButtons 
                   suggestions={message.suggestedFollowUps}
