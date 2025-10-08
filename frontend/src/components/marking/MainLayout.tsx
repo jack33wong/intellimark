@@ -55,6 +55,7 @@ const MainLayout: React.FC = () => {
                   MarkdownMathRenderer={MarkdownMathRenderer}
                   ensureStringContent={ensureStringContent}
                   scrollToBottom={scrollToBottom}
+                  session={currentSession}
                 />
               ))}
               

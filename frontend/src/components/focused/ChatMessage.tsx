@@ -28,6 +28,7 @@ interface ChatMessageProps {
   MarkdownMathRenderer: React.ElementType;
   ensureStringContent: (content: any) => string;
   scrollToBottom?: () => void;
+  session?: any; // Session data to access isPastPaper
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ 
@@ -36,7 +37,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   getImageSrc,
   MarkdownMathRenderer,
   ensureStringContent,
-  scrollToBottom
+  scrollToBottom,
+  session
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   
@@ -186,24 +188,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             />
           )}
           
-          {/* Show suggested follow-ups for question mode messages */}
-          {!isUser && !isAnnotatedImageMessage(message) && (
-            (!message.suggestedFollowUps || message.suggestedFollowUps.length === 0) && message.type === 'chat' ? (
-              <SuggestedFollowUpButtons 
-                suggestions={[
-                  "Do you want model answer?",
-                  "Do you want marking scheme?", 
-                  "Do you want step-by-step solution?",
-                  "Do you want similar practice questions?"
-                ]}
-                onSuggestionClick={handleFollowUpClick}
-              />
-            ) : message.suggestedFollowUps && message.suggestedFollowUps.length > 0 ? (
-              <SuggestedFollowUpButtons 
-                suggestions={message.suggestedFollowUps}
-                onSuggestionClick={handleFollowUpClick}
-              />
-            ) : null
+          {/* Show suggested follow-ups for question mode messages (past papers only) */}
+          {!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper && (
+            <SuggestedFollowUpButtons 
+              suggestions={message.suggestedFollowUps || [
+                "Do you want model answer?",
+                "Do you want marking scheme?", 
+                "Do you want step-by-step solution?",
+                "Do you want similar practice questions?"
+              ]}
+              onSuggestionClick={handleFollowUpClick}
+            />
           )}
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
@@ -220,10 +215,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 onLoad={onImageLoad}
                 onError={handleImageError}
               />
-              {/* Show suggested follow-ups for marking mode messages */}
-              {(!message.suggestedFollowUps || message.suggestedFollowUps.length === 0) && message.type === 'marking_annotated' ? (
+              {/* Show suggested follow-ups for marking mode messages (past papers only) */}
+              {session?.isPastPaper && (
                 <SuggestedFollowUpButtons 
-                  suggestions={[
+                  suggestions={message.suggestedFollowUps || [
                     "Do you want model answer?",
                     "Do you want detailed feedback?", 
                     "Do you want similar practice questions?",
@@ -231,12 +226,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   ]}
                   onSuggestionClick={handleFollowUpClick}
                 />
-              ) : message.suggestedFollowUps && message.suggestedFollowUps.length > 0 ? (
-                <SuggestedFollowUpButtons 
-                  suggestions={message.suggestedFollowUps}
-                  onSuggestionClick={handleFollowUpClick}
-                />
-              ) : null}
+              )}
             </div>
           )}
           
