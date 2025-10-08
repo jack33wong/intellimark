@@ -648,6 +648,11 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         if (providedSessionId) {
           // For follow-up messages, add to existing session
           try {
+            console.log('🔍 [DEBUG] Streaming route - Adding messages to existing session:');
+            console.log('  - result.isPastPaper:', result.isPastPaper);
+            console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
+            console.log('  - dbAiMessage.suggestedFollowUps:', (dbAiMessage as any).suggestedFollowUps);
+            
             await FirestoreService.addMessageToUnifiedSession(sessionId, dbUserMessage);
             await FirestoreService.addMessageToUnifiedSession(sessionId, dbAiMessage);
             } catch (error) {
@@ -676,6 +681,11 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           }
         } else {
           // For initial messages, create new session
+          console.log('🔍 [DEBUG] Streaming route - Creating unified session:');
+          console.log('  - result.isPastPaper:', result.isPastPaper);
+          console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
+          console.log('  - dbAiMessage.suggestedFollowUps:', (dbAiMessage as any).suggestedFollowUps);
+          
           await FirestoreService.createUnifiedSessionWithMessages({
             sessionId: sessionId,
             title: result.sessionTitle || 'Marking Session',
