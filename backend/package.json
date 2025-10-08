@@ -20,7 +20,9 @@
     "test-image-config": "tsx scripts/test-image-config.ts",
     "check-storage-buckets": "tsx scripts/check-storage-buckets.ts",
     "test-image-upload": "tsx scripts/test-image-upload.ts",
-    "test-google-vision": "tsx scripts/test-google-vision.ts"
+    "test-google-vision": "tsx scripts/test-google-vision.ts",
+    "test:ai-response": "tsx scripts/test-ai-response-generation.ts",
+    "list-prompts": "tsx scripts/list-prompts.ts"
   },
   "jest": {
     "testMatch": [

@@ -30,12 +30,14 @@ export class ImageAnnotationService {
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}" style="position: absolute; top: 0; left: 0; pointer-events: none;">`;
     
     annotations.forEach((annotation, index) => {
-      if (annotation.comment) {
-        svg += this.createCommentAnnotation(annotation, imageDimensions, index);
+      if (annotation.text) {
+        const commentSvg = this.createCommentAnnotation(annotation, imageDimensions, index);
+        svg += commentSvg;
       }
     });
 
-    return svg + '</svg>';
+    const finalSvg = svg + '</svg>';
+    return finalSvg;
   }
 
   /**
@@ -50,14 +52,17 @@ export class ImageAnnotationService {
     _imageDimensions: ImageDimensions, 
     index: number
   ): string {
-    if (!annotation.comment) return '';
+    if (!annotation.text) {
+      return '';
+    }
     
-    const commentText = this.breakTextIntoLines(annotation.comment, 50);
+    const commentText = this.breakTextIntoLines(annotation.text, 50);
     let svg = '';
 
     // Add background rectangle for better readability
-    const textWidth = this.estimateTextWidth(annotation.comment, 24);
+    const textWidth = this.estimateTextWidth(annotation.text, 24);
     const textHeight = commentText.length * 28.8;
+    
     
     svg += `<rect 
       x="${annotation.bbox[0] - 5}" 
@@ -189,10 +194,10 @@ export class ImageAnnotationService {
     annotation: Annotation, 
     imageDimensions: ImageDimensions
   ): boolean {
-    if (!annotation.comment) return false;
+    if (!annotation.text) return false;
     
-    const commentWidth = this.estimateTextWidth(annotation.comment, 24);
-    const commentHeight = this.breakTextIntoLines(annotation.comment, 50).length * 28.8;
+    const commentWidth = this.estimateTextWidth(annotation.text, 24);
+    const commentHeight = this.breakTextIntoLines(annotation.text, 50).length * 28.8;
 
     return (
       annotation.bbox[0] >= 0 &&
@@ -215,6 +220,10 @@ export class ImageAnnotationService {
     imageDimensions: ImageDimensions
   ): Promise<ImageAnnotationResult> {
     try {
+      if (annotations) {
+        annotations.forEach((annotation, index) => {
+        });
+      }
 
       // Early exit if there are no annotations to render
       if (!annotations || annotations.length === 0) {
@@ -240,7 +249,7 @@ export class ImageAnnotationService {
       // Convert annotations to ImageAnnotation format
       const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
         position: { x: ann.bbox[0], y: ann.bbox[1] },
-        comment: ann.text || '',
+        comment: ann.text || '', // Legacy field for ImageAnnotation interface
         hasComment: !!ann.text,
         boundingBox: {
           x: ann.bbox[0],
@@ -279,10 +288,10 @@ export class ImageAnnotationService {
     averageCommentLength: number;
   } {
     const totalAnnotations = annotations.length;
-    const totalComments = annotations.filter(a => a.comment).length;
+    const totalComments = annotations.filter(a => a.text).length;
     const totalCommentLength = annotations
-      .filter(a => a.comment)
-      .reduce((sum, a) => sum + (a.comment?.length || 0), 0);
+      .filter(a => a.text)
+      .reduce((sum, a) => sum + (a.text?.length || 0), 0);
 
     return {
       totalAnnotations,

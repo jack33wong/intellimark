@@ -1,6 +1,7 @@
 import type { ModelType } from '../../types/index.js';
+import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
-import { getModelConfig, getDebugMode } from '../../config/aiModels.js';
+import { getModelConfig, getDebugMode, validateModel } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export interface ClassificationResult {
@@ -16,30 +17,8 @@ export class ClassificationService {
     const { ImageUtils } = await import('./ImageUtils.js');
     const compressedImage = await ImageUtils.compressImage(imageData);
 
-    const systemPrompt = `You are an AI assistant that classifies math images and extracts question text.
-
-    Your task is to:
-    1. Determine if an uploaded image contains:
-       A) A math question ONLY (no student work, no answers, just the question/problem)
-       B) A math question WITH student work/answers (homework to be marked)
-    2. Extract the COMPLETE question text from the image, including:
-       - Any context or setup information (e.g., "Here are the first four terms of a sequence: 3, 20, 47, 84")
-       - The actual question or instruction (e.g., "Work out an expression for the nth term")
-       - Any diagrams, tables, or data provided as part of the question
-       
-    IMPORTANT: Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
-
-    CRITICAL OUTPUT RULES:
-    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
-    - Output MUST strictly follow this format:
-
-    {
-      "isQuestionOnly": true/false,
-      "reasoning": "brief explanation of your classification",
-      "extractedQuestionText": "the COMPLETE question text including ALL context, setup information, data, and the actual question/instruction - do NOT extract only the instruction part"
-    }`;
-
-    const userPrompt = `Please classify this uploaded image and extract the question text.`;
+    const systemPrompt = getPrompt('classification.system');
+    const userPrompt = getPrompt('classification.user');
 
     try {
       // Debug mode: Return mock response
@@ -53,17 +32,12 @@ export class ClassificationService {
         };
       }
       
-      if (model === 'auto' || model === 'gemini-2.0-flash-lite' || model === 'gemini-2.5-pro') {
-        return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt, model);
-      } else {
-        // Fail fast on our validation errors
-        console.error(`❌ [VALIDATION ERROR] Model validation failed for: ${model}`);
-        console.error(`❌ [ISSUE] Model not included in service validation list`);
-        throw new Error(`Model validation failed: ${model} is not supported by this service. Supported models: auto, gemini-2.0-flash-lite, gemini-2.5-pro`);
-      }
+      // Validate model using centralized validation
+      const validatedModel = validateModel(model);
+      return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt, validatedModel);
     } catch (error) {
       // Check if this is our validation error (fail fast)
-      if (error instanceof Error && error.message.includes('Model validation failed')) {
+      if (error instanceof Error && error.message.includes('Unsupported model')) {
         // This is our validation error - re-throw it as-is
         throw error;
       }

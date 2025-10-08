@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.0-flash-lite';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash';
 
 export interface AIModelConfig {
   name: string;
@@ -132,8 +132,7 @@ export interface AIModelResponse {
 export interface Annotation {
   action: 'circle' | 'write' | 'tick' | 'cross' | 'underline' | 'comment';
   bbox: [number, number, number, number]; // [x, y, width, height]
-  comment?: string; // Optional for marking actions
-  text?: string; // For comment actions
+  text?: string; // Text content for all annotation types
   reasoning?: string; // Optional explanation/rationale
 }
 

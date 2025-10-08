@@ -1,0 +1,308 @@
+#!/usr/bin/env tsx
+
+/**
+ * Standalone AI Testing Service
+ * 
+ * This service allows you to test both AI response generation and marking instructions
+ * with hardcoded input without needing the full web server. Perfect for prompt iteration and testing.
+ * 
+ * Usage:
+ *   # Test AI Response Generation (Call #2) - Legacy - default model
+ *   npm run test:ai-response
+ *   tsx scripts/test-ai-response-generation.ts response
+ *   
+ *   # Test Model Answer Generation (Call #2) - New - default model
+ *   tsx scripts/test-ai-response-generation.ts model-answer
+ *   
+ *   # Test Marking Instructions (Call #1) - default model
+ *   tsx scripts/test-ai-response-generation.ts marking
+ *   
+ *   # Test both marking and model answer - default model
+ *   tsx scripts/test-ai-response-generation.ts both
+ *   
+ *   # Test all three - default model
+ *   tsx scripts/test-ai-response-generation.ts all
+ *   
+ *   # Use specific model (Gemini 2.5 Pro)
+ *   tsx scripts/test-ai-response-generation.ts model-answer gemini-2.5-pro
+ *   tsx scripts/test-ai-response-generation.ts marking gemini-2.5-pro
+ *   tsx scripts/test-ai-response-generation.ts both gemini-2.5-pro
+ *   tsx scripts/test-ai-response-generation.ts all gemini-2.5-pro
+ *   
+ *   # Available models: auto, gemini-2.5-flash, gemini-2.5-pro
+ */
+
+import { AIMarkingService } from '../services/aiMarkingService.js';
+import { MarkingInstructionService } from '../services/ai/MarkingInstructionService.js';
+import { ModelType } from '../types/index.js';
+import { validateModel, getSupportedModels } from '../config/aiModels.js';
+import { getPromptPaths, getPrompt } from '../config/prompts.js';
+
+// Real production test data
+const TEST_DATA = {
+  // For AI Response Generation (Call #2) - processed OCR text format
+  aiResponseInput: `Question: "Here are the first four terms of a quadratic sequence.
+3 20 47 84
+Work out an expression for the nth term of the sequence."
+
+Diff = 17, 27, 37
+2 Diff = 10
+Construct = -2, 0
+Diff = +2
+b = 2
+c = -2
+5n^2 + 2n - 2`,
+
+  // For Marking Instructions (Call #1) - raw OCR text with step IDs (matches production format)
+  markingInstructionInput: `{"question":"Here are the first four terms of a quadratic sequence.\n3   20   47   84\nWork out an expression for the nth term of the sequence.","steps":[{"unified_step_id":"step_1","bbox":[391,411,602,85],"cleanedText":"Diff = 17, 27, 37"},{"unified_step_id":"step_2","bbox":[485,525,412,65],"cleanedText":"2 Diff = 10"},{"unified_step_id":"step_3","bbox":[372,634,640,76],"cleanedText":"Construct = -2, 0"},{"unified_step_id":"step_4","bbox":[529,739,331,71],"cleanedText":"Diff = +2"},{"unified_step_id":"step_5","bbox":[618,850,146,63],"cleanedText":"b = 2"},{"unified_step_id":"step_6","bbox":[602,962,169,62],"cleanedText":"c = -2"},{"unified_step_id":"step_7","bbox":[430,1067,514,75],"cleanedText":"5n^(2) + 2n - 2"}]}`
+};
+
+// Test configuration
+const TEST_CONFIG = {
+  model: 'gemini-2.5-flash' as ModelType, // Changed to Gemini 2.5 Flash
+  debug: false, // Use real API calls
+  useOcrText: true // This will use the OCR text prompt
+};
+
+async function testAIResponseGeneration() {
+  console.log('🎯 [TEST] AI Response Generation (Call #2) - Legacy');
+  console.log('=' .repeat(50));
+  
+  try {
+    const result = await AIMarkingService.generateChatResponse(
+      TEST_DATA.aiResponseInput,
+      '',
+      TEST_CONFIG.model,
+      false, // isQuestionOnly
+      TEST_CONFIG.debug,
+      undefined, // onProgress
+      TEST_CONFIG.useOcrText
+    );
+    
+    console.log('🤖 [LEGACY RESPONSE]:', result.response);
+    console.log('📊 [TOKENS USED]:', result.usageTokens);
+    
+  } catch (error) {
+    console.error('❌ [AI RESPONSE TEST] Test failed:', error);
+    throw error;
+  }
+}
+
+async function testModelAnswer() {
+  console.log('🎯 [TEST] Model Answer Generation (Call #2) - New');
+  console.log('=' .repeat(50));
+  
+  try {
+    // Show API details before making the call
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const modelConfig = getModelConfig(TEST_CONFIG.model);
+    
+    console.log('🔗 [API URL]:', modelConfig.apiEndpoint);
+    console.log('🤖 [MODEL]:', modelConfig.name);
+    console.log('📊 [MAX TOKENS]:', modelConfig.maxTokens);
+    console.log('🌡️ [TEMPERATURE]:', modelConfig.temperature);
+    console.log('📋 [API VERSION]:', modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1');
+    console.log('=' .repeat(50));
+    
+    // Create mock marking scheme for model answer
+    const mockMarkingScheme = JSON.stringify({
+      "answer": "`$5n^2 + 2n - 4$`",
+      "marks": [
+        {
+          "mark": "M1",
+          "answer": "Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.",
+          "comments": ""
+        },
+        {
+          "mark": "M1dep",
+          "answer": "Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.",
+          "comments": ""
+        },
+        {
+          "mark": "M1dep",
+          "answer": "Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.",
+          "comments": "e.g., `$5(1)^2 + 2(1) + c = 3$`."
+        },
+        {
+          "mark": "A1",
+          "answer": "`$5n^2 + 2n - 4$`",
+          "comments": "oe, terms in any order."
+        }
+      ]
+    });
+    
+    // Show the prompts being used
+    const { getPrompt } = await import('../config/prompts.js');
+    const systemPrompt = getPrompt('modelAnswer.system');
+    const userPrompt = getPrompt('modelAnswer.user', TEST_DATA.markingInstructionInput, mockMarkingScheme);
+    
+    console.log('🔍 [MODEL ANSWER] System Prompt:', systemPrompt);
+    console.log('🔍 [MODEL ANSWER] User Prompt:', userPrompt);
+    console.log('=' .repeat(50));
+    
+    const result = await AIMarkingService.generateChatResponse(
+      TEST_DATA.markingInstructionInput, // OCR text
+      mockMarkingScheme, // marking scheme
+      TEST_CONFIG.model,
+      false, // isQuestionOnly
+      TEST_CONFIG.debug,
+      undefined, // onProgress
+      true // useOcrText
+    );
+    
+    console.log('🤖 [MODEL ANSWER]:', result.response);
+    console.log('📊 [TOKENS USED]:', result.usageTokens);
+    
+  } catch (error) {
+    console.error('❌ [MODEL ANSWER TEST] Test failed:', error);
+    throw error;
+  }
+}
+
+async function testMarkingInstructions() {
+  console.log('🎯 [TEST] Marking Instructions (Call #1)');
+  console.log('=' .repeat(50));
+  
+  try {
+    // Show API details before making the call
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const modelConfig = getModelConfig(TEST_CONFIG.model); // Use the actual model being tested
+    
+    console.log('🔗 [API URL]:', modelConfig.apiEndpoint);
+    console.log('🤖 [MODEL]:', modelConfig.name);
+    console.log('📊 [MAX TOKENS]:', modelConfig.maxTokens);
+    console.log('🌡️ [TEMPERATURE]:', modelConfig.temperature);
+    console.log('📋 [API VERSION]:', modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1');
+    console.log('=' .repeat(50));
+    
+    // Prompts will be logged by the service itself
+    
+    // Create a mock questionDetection object with marking scheme to match production
+    const mockQuestionDetection = {
+      match: {
+        markingScheme: {
+          questionMarks: {
+            "answer": "`$5n^2 + 2n - 4$`",
+            "marks": [
+              {
+                "mark": "M1",
+                "answer": "Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.",
+                "comments": ""
+              },
+              {
+                "mark": "M1dep",
+                "answer": "Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.",
+                "comments": ""
+              },
+              {
+                "mark": "M1dep",
+                "answer": "Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.",
+                "comments": "e.g., `$5(1)^2 + 2(1) + c = 3$`."
+              },
+              {
+                "mark": "A1",
+                "answer": "`$5n^2 + 2n - 4$`",
+                "comments": "oe, terms in any order."
+              }
+            ],
+            "guidance": [
+              {
+                "scenario": "SC2 for `$a=5$` and `$c=-4$`.",
+                "outcome": ""
+              },
+              {
+                "scenario": "SC1 for `$c=-4$`.",
+                "outcome": ""
+              },
+              {
+                "scenario": "Second differences = `$10$` scores M1 even if used incorrectly, e.g., `$10n$`.",
+                "outcome": ""
+              }
+            ]
+          }
+        }
+      }
+    };
+    
+    const result = await MarkingInstructionService.generateFromOCR(
+      TEST_CONFIG.model,
+      TEST_DATA.markingInstructionInput,
+      mockQuestionDetection
+    );
+    
+    console.log('📝 [MARKING INSTRUCTIONS]:', result.annotations);
+    console.log('📊 [TOKENS USED]:', result.usageTokens);
+    
+    // Debug: Check if annotations are empty
+    if (!result.annotations || result.annotations.length === 0) {
+      console.log('⚠️ [DEBUG] No annotations returned - this might indicate a parsing issue');
+      console.log('💡 [TIP] Check the AI response format or JSON parsing logic');
+    }
+    
+  } catch (error) {
+    console.error('❌ [MARKING INSTRUCTIONS TEST] Test failed:', error);
+    throw error;
+  }
+}
+
+async function runTests() {
+  const testType = process.argv[2] || 'response';
+  const modelParam = process.argv[3];
+  
+  // Override model if specified via command line
+  if (modelParam) {
+    try {
+      const validatedModel = validateModel(modelParam);
+      TEST_CONFIG.model = validatedModel;
+      console.log(`🤖 [MODEL OVERRIDE] Using model: ${modelParam}`);
+    } catch (error) {
+      console.error(`❌ [MODEL ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.log(`💡 [SUPPORTED MODELS] ${getSupportedModels().join(', ')}`);
+      process.exit(1);
+    }
+  }
+  
+  try {
+    switch (testType) {
+      case 'response':
+        await testAIResponseGeneration();
+        break;
+      case 'model-answer':
+        await testModelAnswer();
+        break;
+      case 'marking':
+        await testMarkingInstructions();
+        break;
+      case 'both':
+        await testMarkingInstructions();
+        console.log('\n');
+        await testModelAnswer();
+        break;
+      case 'all':
+        await testMarkingInstructions();
+        console.log('\n');
+        await testModelAnswer();
+        console.log('\n');
+        await testAIResponseGeneration();
+        break;
+      default:
+        console.log('❌ Invalid test type. Use: response, model-answer, marking, both, or all');
+        console.log('💡 [USAGE] tsx script.ts [testType] [model]');
+        console.log('   testType: response, model-answer, marking, both, all');
+        console.log(`   model: ${getSupportedModels().join(', ')}`);
+        process.exit(1);
+    }
+    
+    console.log('\n✅ [ALL TESTS] Completed successfully!');
+    
+  } catch (error) {
+    console.error('❌ [TEST FAILED]:', error);
+    process.exit(1);
+  }
+}
+
+// Run the tests
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runTests();
+}
+

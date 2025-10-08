@@ -1,4 +1,5 @@
 import type { ModelType } from '../../types/index.js';
+import { getPrompt } from '../../config/prompts.js';
 
 export class MarkingInstructionService {
   static async generateFromOCR(
@@ -6,61 +7,11 @@ export class MarkingInstructionService {
     ocrText: string,
     questionDetection?: any
   ): Promise<{ annotations: string; usageTokens: number }> {
-    let systemPrompt = `You are an AI assistant that generates marking annotations for student work.`;
-    let userPrompt = `Here is the OCR TEXT:
-
-    ${ocrText}
-    
-    Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`;
+    let systemPrompt = getPrompt('markingInstructions.basic.system');
+    let userPrompt = getPrompt('markingInstructions.basic.user', ocrText);
     
     if (questionDetection?.match?.markingScheme) {
-      systemPrompt += `
-      Your task is to:
-      1. Analyze the student's work from the OCR text
-      2. Generate appropriate marking annotations for different parts of the work
-      3. Provide reasoning for each annotation decision
-
-      **CRITICAL OUTPUT RULES:**
-
-      Your entire response will be passed directly into a JSON parser.
-      The parser will fail if there are ANY extraneous characters or formatting.
-      Your response MUST begin with the character { and end with the character }.
-      Do not include any explanation or introductory text.
-      Return only the raw, valid JSON object.
-
-      Output MUST strictly follow this format:
-
-      {
-        "annotations": [
-          {
-            "textMatch": "exact text from OCR that this annotation applies to",
-            "step_id": "step_#", // REQUIRED when steps with step_id are provided in OCR text
-            "action": "tick|cross|comment",
-            "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|comment text",
-            "reasoning": "Brief explanation of why this annotation was chosen"
-          }
-        ]
-      }
-
-      ANNOTATION RULES:
-      - Use "tick" for correct, minor steps that do not correspond to a specific mark.
-      - Use "cross" for incorrect steps or calculations.
-      - Use "comment" to award marks (e.g., "M1", "A1").
-      - The "text" field MUST be one of the following: "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or a brief "comment text".
-      - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
-      - When the OCR TEXT includes structured steps with step_id, you MUST include the corresponding step_id for each annotation by matching the text.
-      - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
-      - CRITICAL: For "tick" actions, use "comment text" as the text field.
-      - CRITICAL: For "comment" actions, use specific mark codes like "M1", "A1", "B1", etc.
-      - CRITICAL: For "cross" actions, use "M0", "A0", "B0", etc. to indicate marks not achieved.
-
-      EXAMPLES:
-      - For "|v| = 28/5 = 5.6ms^-1" you might create:
-        * A "tick" for correct absolute value notation
-        * A "tick" for correct calculation
-        * A "comment" for "M1" if method is correct
-        * Another "comment" for "A1" if answer is correct
-      Return ONLY the JSON object.`;
+      systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
 
       // Add question detection context if available
       const ms = questionDetection.match.markingScheme.questionMarks as any;
@@ -68,7 +19,7 @@ export class MarkingInstructionService {
         .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"')
         .replace(/\n/g, "\\n");
-      userPrompt += `\n\nMARKING SCHEME CONTEXT:\n"""${schemeJson}"""`;
+      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', ocrText, schemeJson);
     } else {
       systemPrompt += `
       You will be provided with the problem and a structured list of the student's solution steps. Your task is to apply specific marking annotations to each step based on mathematical correctness.
@@ -88,43 +39,33 @@ export class MarkingInstructionService {
           {
             "textMatch": "exact text from OCR that this annotation applies to",
             "step_id": "step_#", // REQUIRED: match to the provided steps by step_id
-            "action": "tick|cross|comment",
-            "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|comment text",
+            "action": "tick|cross",
+            "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
             "reasoning": "Brief explanation of why this annotation was chosen"
           }
         ]
       }
 
       ANNOTATION RULES:
-      - Use "tick" for correct, minor steps that do not correspond to a specific mark.
+      - Use "tick" for correct steps (including working steps and awarded marks like "M1", "A1").
       - Use "cross" for incorrect steps or calculations.
-      - Use "comment" to award marks (e.g., "M1", "A1").
-      - The "text" field MUST be one of the following: "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or a brief "comment text".
+      - The "text" field can contain mark codes like "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or be empty.
       - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
-      - CRITICAL: For "tick" actions, use "comment text" as the text field (this is correct).
-      - CRITICAL: For "comment" actions, use specific mark codes like "M1", "A1", "B1", etc.
-      - CRITICAL: For "cross" actions, use "M0", "A0", "B0", etc. to indicate marks not achieved.
+      - CRITICAL: Both "tick" and "cross" actions can have text labels (mark codes) if applicable.
+      - CRITICAL: If no specific mark code applies, leave the text field empty.
       - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
       - You MUST include the correct step_id for each annotation by matching the text to the provided steps.`;
     }
 
     
-    // Force model to gemini for consistency
-    const actualModel = 'auto';
-    let responseText: string;
-    let usageTokens = 0;
+    // Log prompts and response for production debugging
     
-    if (actualModel === 'auto') {
-      const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', true);
-      responseText = res.content;
-      usageTokens = res.usageTokens;
-    } else {
-      const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro', true);
-      responseText = res.content;
-      usageTokens = res.usageTokens;
-    }
+    // Use the provided model parameter
+    const { ModelProvider } = await import('./ModelProvider.js');
+    const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, true);
+    
+    const responseText = res.content;
+    const usageTokens = res.usageTokens;
 
     try {
       const { JsonUtils } = await import('./JsonUtils');
@@ -132,6 +73,7 @@ export class MarkingInstructionService {
       return { annotations: parsed.annotations || [], usageTokens };
     } catch (error) {
       console.error('❌ LLM2 JSON parsing failed:', error);
+      console.error('❌ Raw response that failed to parse:', responseText);
       throw new Error(`LLM2 failed to generate valid marking annotations: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

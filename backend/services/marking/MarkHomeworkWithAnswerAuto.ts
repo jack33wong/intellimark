@@ -5,7 +5,7 @@
 
 import { questionDetectionService } from '../../services/questionDetectionService.js';
 import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
-import { getDebugMode } from '../../config/aiModels.js';
+import { getDebugMode, getDefaultModel } from '../../config/aiModels.js';
 import { AutoProgressTracker, createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
 
@@ -312,7 +312,7 @@ export class MarkHomeworkWithAnswerAuto {
       logStep1Complete();
 
       // Step 2: Classify image (auto-progress)
-      const actualModel = model === 'auto' ? 'gemini-2.0-flash-lite' : model;
+      const actualModel = model === 'auto' ? getDefaultModel() : model;
       const logStep2Complete = logStep('Image Classification', actualModel);
       const classifyImage = async () => {
         return this.classifyImageWithAI(imageData, model, debug);
@@ -488,8 +488,14 @@ export class MarkHomeworkWithAnswerAuto {
         logStep4Complete();
 
         const logStep5Complete = logStep('Marking Instructions', actualModel);
+        // Add extracted question text to questionDetection for OCR cleanup
+        const questionDetectionWithText = {
+          ...questionDetection,
+          extractedQuestionText: classification.extractedQuestionText
+        };
+        
         const markingInstructions = await this.generateMarkingInstructions(
-          imageData, model, processedImage, questionDetection, debug, markingProgressTracker
+          imageData, model, processedImage, questionDetectionWithText, debug, markingProgressTracker
         );
         logStep5Complete();
         
@@ -521,12 +527,15 @@ export class MarkHomeworkWithAnswerAuto {
         const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
         logStep6Complete();
 
-        // Generate final AI response
+        // Generate final AI response - TEMPORARILY DISABLED
         const logStep7Complete = logStep('AI Response Generation', actualModel);
         const generateFinalResponse = async () => {
           const { AIMarkingService } = await import('../aiMarkingService');
+          const cleanedOcrText = (markingInstructions as any).cleanedOcrText || '';
+          const schemeJson = JSON.stringify(questionDetection.match.markingScheme.questionMarks);
+          
           return AIMarkingService.generateChatResponse(
-            imageData, '', model, false, debug
+            cleanedOcrText, schemeJson, model, false, debug, undefined, true
           );
         };
         const aiResponse = await markingProgressTracker.withProgress('generating_response', generateFinalResponse)();

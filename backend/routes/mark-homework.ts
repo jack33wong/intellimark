@@ -35,10 +35,12 @@ function sanitizeForFirestore(obj: any): any {
 
 // Orchestrator owns inner service types; route stays thin
 
-// Simple model validation function to avoid import issues
+// Import centralized model validation
+import { isModelSupported } from '../config/aiModels.js';
+
+// Simple model validation function using centralized validation
 function validateModelConfig(modelType: string): boolean {
-  const validModels = ['auto', 'gemini-2.0-flash-lite', 'gemini-2.5-pro'];
-  return validModels.includes(modelType);
+  return isModelSupported(modelType);
 }
 
 const router = express.Router();
@@ -102,7 +104,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         onProgress: undefined
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 30 seconds')), 30000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 90 seconds')), 90000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
 
@@ -167,7 +169,9 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         confidence: result.processingStats?.confidence || 0,
         imageSize: result.processingStats?.imageSize || 0,
         modelUsed: result.processingStats?.modelUsed || model,
-        apiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        apiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
         llmTokens: result.processingStats?.llmTokens || 0,
         mathpixCalls: result.processingStats?.mathpixCalls || 0,
         annotations: result.processingStats?.annotations || 0,
@@ -209,7 +213,9 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         totalLlmTokens: result.processingStats?.llmTokens || 0,
         totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
         averageConfidence: result.processingStats?.confidence || 0,
-        lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
         lastModelUsed: result.processingStats?.modelUsed || model,
         totalMessages: 1, // Only user message
         imageSize: result.processingStats?.imageSize || 0,
@@ -246,7 +252,9 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                   totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
                   totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
                   averageConfidence: result.processingStats?.confidence || 0,
-                  lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                  lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
                   lastModelUsed: result.processingStats?.modelUsed || model,
                   totalMessages: 1, // Only user message
                   imageSize: result.processingStats?.imageSize || 0,
@@ -355,7 +363,9 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         totalMessages: 1,
         lastModelUsed: result.processingStats?.modelUsed || model,
         totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
-        lastApiUsed: result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        lastApiUsed: result.apiUsed || (() => {
+          throw new Error('Missing API URL in result - this indicates a service configuration error');
+        })(),
         totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
         totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
         totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -482,7 +492,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           onProgress
         }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 60 seconds')), 60000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 90 seconds')), 90000)
       )
     ]) as any;
 
@@ -525,7 +535,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
         confidence: result.processingStats?.confidence || 0,
         modelUsed: result.processingStats?.modelUsed || model,
-        apiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+        apiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
         ocrMethod: result.ocrMethod || 'Enhanced OCR Processing',
         annotations: result.processingStats?.annotations || 0,
         llmTokens: result.processingStats?.llmTokens || 0,
@@ -646,7 +658,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
               sessionStats: {
                 totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
                 lastModelUsed: result.processingStats?.modelUsed || model,
-                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
                 totalLlmTokens: result.processingStats?.llmTokens || 0,
                 totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
                 totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -668,7 +682,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
             sessionStats: {
               totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
               lastModelUsed: result.processingStats?.modelUsed || model,
-              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
               totalLlmTokens: result.processingStats?.llmTokens || 0,
               totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
               totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -726,7 +742,9 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
         sessionStats: {
           totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
           lastModelUsed: result.processingStats?.modelUsed || model,
-          lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+          lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
           totalLlmTokens: result.processingStats?.llmTokens || 0,
           totalMathpixCalls: result.processingStats?.mathpixCalls || 0,
           totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -892,7 +910,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               sessionStats: {
                 totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
                 lastModelUsed: result.processingStats?.modelUsed || model,
-                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+                lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
                 totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
                 totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
                 totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -922,7 +942,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
               totalMessages: aiMessages.length,
               lastModelUsed: result.processingStats?.modelUsed || model,
               totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
-              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+              lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
               totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
               totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
               totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -957,7 +979,9 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
             totalMessages: 1,
             lastModelUsed: result.processingStats?.modelUsed || model,
             totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
-            lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+            lastApiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+        })(),
             totalLlmTokens: result.processingStats?.llmTokens || 0, // Input tokens
             totalMathpixCalls: result.processingStats?.mathpixCalls || 0, // Mathpix API calls
             totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,

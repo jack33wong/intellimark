@@ -38,20 +38,24 @@ export class SVGOverlayService {
       const originalHeight = imageMetadata.height || imageDimensions.height;
       
 
-      // Use the original image dimensions for burning to maintain quality
-      // The frontend will handle the final display scaling
-      const burnWidth = originalWidth;
+      // Extend the image to the right to provide more space for annotations
+      const extensionWidth = 500; // Add 400px to the right for reasoning text
+      const burnWidth = originalWidth + extensionWidth;
       const burnHeight = originalHeight;
       
 
-      // Create SVG overlay with display dimensions
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, imageDimensions);
+      // Create SVG overlay with extended dimensions (no scaling needed since we're using actual burn dimensions)
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight });
       
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
 
-      // Composite the SVG overlay onto the original image
+      // Extend the image canvas to the right and composite the SVG overlay
       const burnedImageBuffer = await sharp(imageBuffer)
+        .extend({
+          right: extensionWidth,
+          background: { r: 255, g: 255, b: 255, alpha: 1 } // White background for extension
+        })
         .composite([
           {
             input: svgBuffer,
@@ -90,10 +94,17 @@ export class SVGOverlayService {
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
     
     annotations.forEach((annotation, index) => {
-      svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY);
+      try {
+        svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY);
+      } catch (error) {
+        console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
+        console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
+        throw new Error(`Failed to create SVG for annotation ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     });
 
-    return svg + '</svg>';
+    const finalSvg = svg + '</svg>';
+    return finalSvg;
   }
 
   /**
@@ -106,8 +117,9 @@ export class SVGOverlayService {
       console.error(`❌ [SVG ERROR] Annotation ${index} missing action field:`, annotation);
       throw new Error(`Annotation ${index} missing required action field`);
     }
-    const comment = annotation.comment || '';
     const text = annotation.text || '';
+    
+    // FAIL FAST: Log annotation data for debugging
     
     // Scale the bounding box coordinates
     const scaledX = x * scaleX;
@@ -118,25 +130,25 @@ export class SVGOverlayService {
     
     let svg = '';
     
-    // Create annotation based on type
-    switch (action) {
-      case 'tick':
-        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text);
-        break;
-      case 'cross':
-        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text);
-        break;
-      case 'circle':
-        svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
-        break;
-      case 'underline':
-        svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
-        break;
-      case 'comment':
-      default:
-        svg += this.createCommentAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, comment, scaleX, scaleY);
-        break;
-    }
+           // Create annotation based on type
+           const reasoning = (annotation as any).reasoning;
+           switch (action) {
+             case 'tick':
+               svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning);
+               break;
+             case 'cross':
+               svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning);
+               break;
+             case 'circle':
+               svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+               break;
+             case 'underline':
+               svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+               break;
+             default:
+               console.error(`❌ [SVG ERROR] Unknown action type: ${action}`);
+               throw new Error(`Unknown annotation action: ${action}`);
+           }
     
     return svg;
   }
@@ -144,31 +156,11 @@ export class SVGOverlayService {
   /**
    * Create tick annotation with symbol and text
    */
-  private static createTickAnnotation(x: number, y: number, width: number, height: number, text?: string): string {
-    // Position at the end of the bounding box
-    const symbolX = x + width;
-    const textY = y + height - 4; // Bottom of the box
-    
-    const symbolSize = Math.max(12, Math.min(width, height) * 0.8);
-    const textSize = Math.max(10, symbolSize * 0.8);
-    
-    let svg = `
-      <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">✓</text>`;
-    
-    // Add text after the symbol if provided
-    if (text && text !== 'comment text') {
-      const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
-      svg += `
-        <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-              font-family="Arial, sans-serif" font-size="${textSize}" font-weight="bold">${text}</text>`;
-    }
-    
-    return svg;
+  private static createTickAnnotation(x: number, y: number, width: number, height: number, text?: string, reasoning?: string): string {
+    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning);
   }
 
   /**
-
    * Create cross annotation using random cross symbols with natural variations
    */
   private static createCrossAnnotation(
@@ -176,8 +168,17 @@ export class SVGOverlayService {
     y: number,
     width: number,
     height: number,
-    text?: string
+    text?: string,
+    reasoning?: string
   ): string {
+    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning);
+  }
+  
+
+  /**
+   * Create symbol annotation with optional text (unified logic for tick/cross)
+   */
+  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text?: string, reasoning?: string): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
     const textY = y + height - 4; // Bottom of the box
@@ -187,19 +188,26 @@ export class SVGOverlayService {
     
     let svg = `
       <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">✗</text>`;
+            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
     
     // Add text after the symbol if provided
-    if (text && text.trim() && text !== 'comment text') {
+    if (text && text.trim()) {
       const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
       svg += `
         <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
               font-family="Arial, sans-serif" font-size="${textSize}" font-weight="bold">${text}</text>`;
+      
+      // For cross actions, add reasoning after the mark code
+      if (symbol === '✗' && reasoning && reasoning.trim()) {
+        const reasoningX = textX + (text.length * textSize * 0.6) + 20; // More space between mark code and reasoning
+        svg += `
+          <text x="${reasoningX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+                font-family="Arial, sans-serif" font-size="${textSize * 0.6}" font-weight="normal">${reasoning}</text>`;
+      }
     }
-  
+    
     return svg;
   }
-  
 
   /**
    * Create circle annotation
@@ -225,23 +233,5 @@ export class SVGOverlayService {
             stroke="#0066ff" stroke-width="${strokeWidth}" opacity="0.8" stroke-linecap="round"/>`;
   }
 
-  /**
-   * Create comment annotation without background or red rectangle
-   */
-  private static createCommentAnnotation(x: number, y: number, width: number, height: number, comment: string, scaleX: number, scaleY: number): string {
-    if (!comment) return '';
-    
-    // Calculate comment position (use bottom-right of bbox as text start)
-    const commentX = x + width; // Position text at the END of the bounding box
-    const commentY = y + height - 4; // Use bottom-right positioning for text baseline
-    
-    // Comment text only (scaled) - no background or rectangle
-    // Using Discipuli Britannica font for comments
-    const textFontSize = 18 * Math.min(scaleX, scaleY) * 2.1; // 2.1x larger for better visibility
-    return `<text x="${commentX}" y="${commentY - 4 * scaleY}" text-anchor="start" fill="#ff4444" 
-            font-family="'Lucida Handwriting', 'Lucida Calligraphy', 'Brush Script MT', 'Comic Sans MS', cursive, Arial, sans-serif" 
-            font-size="${textFontSize}" font-weight="bold" 
-            opacity="0.9">${comment}</text>`;
-  }
 
 }

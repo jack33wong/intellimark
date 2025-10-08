@@ -163,6 +163,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
             <div className="homework-annotated-image">
+              {(() => {
+                console.log('🔍 [FRONTEND DEBUG] Annotated image src length:', imageSrc?.length || 0);
+                console.log('🔍 [FRONTEND DEBUG] Annotated image src preview:', imageSrc?.substring(0, 100) + '...');
+                return null;
+              })()}
               <img 
                 src={imageSrc}
                 alt="Marked homework"

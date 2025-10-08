@@ -49,13 +49,13 @@ export function setDebugMode(debugMode: boolean) {
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
   'auto': {
     name: 'Auto (Recommended)',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
-    maxTokens: 8000, // Within gemini-2.0-flash-lite limit of 8192
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    maxTokens: 8000, // Within gemini-2.5-flash limit
     temperature: 0.1
   },
-  'gemini-2.0-flash-lite': {
-    name: 'Google Gemini 2.0 Flash Lite',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+  'gemini-2.5-flash': {
+    name: 'Google Gemini 2.5 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
     maxTokens: 8192,
     temperature: 0.1
   },
@@ -98,21 +98,13 @@ export function getModelDisplayName(modelType: ModelType): string {
   return AI_MODELS[modelType]?.name || modelType;
 }
 
-/**
- * Check if a model type is supported
- * @param modelType - The type of AI model to check
- * @returns True if the model is supported
- */
-export function isModelSupported(modelType: string): modelType is ModelType {
-  return modelType in AI_MODELS;
-}
 
 /**
  * Get default model configuration
  * @returns The default model type
  */
 export function getDefaultModel(): ModelType {
-  return 'gemini-2.0-flash-lite'; // Return the actual model that 'auto' maps to
+  return 'gemini-2.5-flash'; // Return the actual model that 'auto' maps to
 }
 
 /**
@@ -135,6 +127,37 @@ export function validateModelConfig(modelType: ModelType): boolean {
 }
 
 /**
+ * Validate and normalize model string to ModelType
+ * @param model - The model string to validate
+ * @returns The validated ModelType
+ * @throws Error if model is not supported
+ */
+export function validateModel(model: string): ModelType {
+  if (!(model in AI_MODELS)) {
+    const supportedModels = Object.keys(AI_MODELS).join(', ');
+    throw new Error(`Unsupported model: ${model}. Supported models: ${supportedModels}`);
+  }
+  return model as ModelType;
+}
+
+/**
+ * Get list of all supported model types
+ * @returns Array of supported ModelType values
+ */
+export function getSupportedModels(): ModelType[] {
+  return Object.keys(AI_MODELS) as ModelType[];
+}
+
+/**
+ * Check if a model is supported
+ * @param model - The model string to check
+ * @returns True if the model is supported
+ */
+export function isModelSupported(model: string): boolean {
+  return model in AI_MODELS;
+}
+
+/**
  * Get model-specific prompt templates
  * @param modelType - The type of AI model
  * @returns Prompt template for the model
@@ -144,6 +167,8 @@ export function getModelPromptTemplate(modelType: ModelType): string {
 
   switch (modelType) {
     case 'auto':
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
+    case 'gemini-2.5-flash':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
     case 'gemini-2.5-pro':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
@@ -168,7 +193,7 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
         topP: 0.8,
         topK: 40
       };
-    case 'gemini-2.0-flash-lite':
+    case 'gemini-2.5-flash':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

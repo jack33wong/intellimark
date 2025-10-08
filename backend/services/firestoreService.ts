@@ -102,7 +102,6 @@ export interface MarkingResultDocument {
     annotations: Array<{
       action: 'tick' | 'circle' | 'underline' | 'comment';
       bbox: [number, number, number, number];
-      comment?: string;
       text?: string;
     }>;
   };

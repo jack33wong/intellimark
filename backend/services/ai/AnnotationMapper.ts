@@ -127,7 +127,7 @@ export class AnnotationMapper {
       }
     }
 
-    // Initial unified step lookup table log removed for cleaner output
+    // Debug logging removed for production
 
     // Helper to compute union bbox from multiple bbox arrays
     const unionFromBboxes = (bboxes: number[][]) => {
@@ -227,15 +227,13 @@ export class AnnotationMapper {
         console.error(`❌ [ANNOTATION ERROR] Missing action field for annotation:`, a);
         throw new Error(`Annotation missing required action field: ${JSON.stringify(a)}`);
       }
-      const textMatch = a.textMatch as string | undefined; const commentText = a.text as string | undefined;
+      const textMatch = a.textMatch as string | undefined; const annotationText = a.text as string | undefined;
       const reasoning = a.reasoning as string | undefined; const stepId = a.step_id as string | undefined;
-      const idSig = `${action}|${textMatch}|${commentText}|${stepId}`;
+      const idSig = `${action}|${textMatch}|${annotationText}|${stepId}`;
       if (sigSet.has(idSig)) continue; sigSet.add(idSig);
 
-      // Require step_id for mapping. If missing, log and skip.
+      // Require step_id for mapping. If missing, skip.
       if (!stepId) {
-        console.error('❌ [ANNOTATION DEBUG] annotation missing step_id; skipping placement');
-        console.error('❌ [ANNOTATION DEBUG] Full annotation object:', a);
         unmatched++;
         continue;
       }
@@ -246,8 +244,6 @@ export class AnnotationMapper {
       // Rely solely on unified bbox derived from step_id (including merged steps)
       const line = unifiedBox;
       if (!line) { 
-        console.error('❌ [ANNOTATION DEBUG] No unified box found for step_id:', stepId);
-        console.error('❌ [ANNOTATION DEBUG] Available lookup keys:', Object.keys(unifiedStepLookup));
         unmatched++; 
         continue; 
       }
@@ -263,7 +259,7 @@ export class AnnotationMapper {
       results.push({
         bbox: finalBbox,
         action,
-        text: commentText,
+        text: annotationText,
         reasoning,
         // Non-typed extra fields for downstream visibility/logging
         step_id: stepId,
@@ -273,14 +269,7 @@ export class AnnotationMapper {
       } as any);
     }
 
-    if (unmatched > 0) {
-      console.error(`❌ [ANNOTATION DEBUG] ${unmatched} annotations were unmatched and skipped`);
-    }
-    
-
-    // Print the final unified step lookup table (after any dynamic additions)
-    for (const [stepId, data] of Object.entries(unifiedStepLookup)) {
-    }
+    // Unmatched annotations are silently skipped
 
     return results;
   }

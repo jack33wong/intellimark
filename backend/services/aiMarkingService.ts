@@ -16,6 +16,8 @@ interface SimpleImageClassification {
 }
 
 import { ModelType } from '../types/index.js';
+import { getPrompt } from '../config/prompts.js';
+import { validateModel } from '../config/aiModels.js';
 
 interface SimpleProcessedImageResult {
   ocrText: string;
@@ -38,8 +40,7 @@ interface SimpleProcessedImageResult {
 interface SimpleAnnotation {
   action: 'circle' | 'write' | 'tick' | 'cross' | 'underline' | 'comment';
   bbox: [number, number, number, number]; // [x, y, width, height]
-  comment?: string; // Optional for marking actions
-  text?: string; // For comment actions
+  text?: string; // Text content for all annotation types
   reasoning?: string; // LLM-provided explanation
 }
 
@@ -133,15 +134,16 @@ export class AIMarkingService {
 
 
   /**
-   * Generate chat response for question-only images
+   * Generate chat response for question-only images or marking feedback from OCR text
    */
   static async generateChatResponse(
-    imageData: string,
+    imageDataOrOcrText: string,
     message: string,
     model: ModelType,
     isQuestionOnly: boolean = true,
     debug: boolean = false,
-    onProgress?: (data: any) => void
+    onProgress?: (data: any) => void,
+    useOcrText: boolean = false
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     
     // Debug mode: Return mock response
@@ -154,55 +156,23 @@ export class AIMarkingService {
       };
     }
     
-    const compressedImage = await this.compressImage(imageData);
+    // Handle both image and OCR text inputs
+    let compressedImage: string | null = null;
+    let ocrText: string | null = null;
+    
+    if (useOcrText) {
+      ocrText = imageDataOrOcrText;
+    } else {
+      compressedImage = await this.compressImage(imageDataOrOcrText);
+    }
     
     const systemPrompt = isQuestionOnly
-      ? `You are an AI tutor helping students with math problems.
-      
-      You will receive an image of a math question and a message from the student.
-      Your task is to provide a clear, step-by-step solution with minimal explanation.
-      
-      RESPONSE FORMAT REQUIREMENTS:
-      - Use Markdown formatting
-      - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
-      - The explanation must start in the next, separate paragraph.
-      - For any inline emphasis, use italics instead of bold
-      - Always put the final, conclusive answer in the very last paragraph
-      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-      
-      RESPONSE GUIDELINES:
-      - Show the solution steps clearly and concisely
-      - Use clear mathematical notation and formatting
-      - Include essential calculations and working
-      - Keep explanations brief and to the point
-      - Focus on the solution method, not detailed teaching
-      - Be direct and efficient
-      
-      Return a clear, step-by-step solution with minimal explanatory text.`
-      : `You are an expert math tutor reviewing a student's work in an image.
-      
-      RESPONSE FORMAT REQUIREMENTS:
-      - Use Markdown formatting.
-      - CRITICAL RULE: Each step of the solution must have a title (e.g., 'Step 1:'). The title must be in its own paragraph with no other text.
-      - The explanation must start in the next, separate paragraph.
-      - Use italics for any inline emphasis, not bold.
-      - Always put the final, conclusive answer in the very last paragraph.
-      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-
-      YOUR TASK:
-      - Adopt the persona of an expert math tutor providing brief, targeted feedback.
-      - Your entire response must be under 150 words.
-      - Do not provide a full step-by-step walkthrough of the correct solution.
-      - Concisely point out the student's single key mistake.
-      - Ask 1-2 follow-up questions to guide the student.`;
+      ? getPrompt('marking.questionOnly.system')
+      : getPrompt('modelAnswer.system')
 
     const userPrompt = isQuestionOnly
-      ? `Student message: "${message}"
-      
-      Please solve this math question step by step. Show the working clearly and concisely.`
-      : `Student message: "${message}"
-      
-      Review the student's work and provide brief feedback with 1-2 follow-up questions.`;
+      ? getPrompt('marking.questionOnly.user', message)
+      : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
 
     try {
       // Call progress callback to indicate AI response generation is starting
@@ -219,17 +189,18 @@ export class AIMarkingService {
         });
       }
       
-      if (model === 'auto' || model === 'gemini-2.0-flash-lite' || model === 'gemini-2.5-pro') {
-        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, model);
+      // Validate model using centralized validation
+      const validatedModel = validateModel(model);
+      
+      // For marking mode, always use text response (model answer)
+      if (!isQuestionOnly) {
+        return await this.callGeminiForTextResponse(ocrText, systemPrompt, userPrompt, validatedModel);
       } else {
-        // Fail fast on our validation errors
-        console.error(`❌ [VALIDATION ERROR] Model validation failed for: ${model}`);
-        console.error(`❌ [ISSUE] Model not included in service validation list`);
-        throw new Error(`Model validation failed: ${model} is not supported by this service. Supported models: auto, gemini-2.0-flash-lite, gemini-2.5-pro`);
+        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, validatedModel);
       }
     } catch (error) {
       // Check if this is our validation error (fail fast)
-      if (error instanceof Error && error.message.includes('Model validation failed')) {
+      if (error instanceof Error && error.message.includes('Unsupported model')) {
         // This is our validation error - re-throw it as-is
         throw error;
       }
@@ -304,26 +275,7 @@ Summary:`;
     contextSummary?: string
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     
-    const systemPrompt = `You are a math solver that provides direct, step-by-step solutions to math problems.
-    
-    You will receive a message from the student and their chat history for context.
-    ALWAYS solve the math problem directly. Do NOT ask questions or ask for clarification.
-    
-    RESPONSE FORMAT REQUIREMENTS:
-    - Use Markdown formatting
-    - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
-    - The explanation must start in the next, separate paragraph.
-    - For any inline emphasis, use italics instead of bold
-    - Always put the final, conclusive answer in the very last paragraph
-    - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-    
-    RESPONSE RULES:
-    - Solve the problem immediately, don't ask questions
-    - Show step-by-step mathematical work
-    - Use clear mathematical notation
-    - Keep explanations minimal and focused
-    - Do NOT ask "Do you want to try another one?" or similar questions
-    - Do NOT ask about preferred methods - just solve it`;
+    const systemPrompt = getPrompt('marking.contextual.system');
 
     // Use context summary if available, otherwise fall back to recent messages
     let contextPrompt = '';
@@ -333,9 +285,7 @@ Summary:`;
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
     }
 
-    const userPrompt = `Math problem: "${message}"${contextPrompt}
-    
-    Solve this problem step by step. Show your work and give the final answer. Do not ask questions.`;
+    const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider.js');
@@ -413,6 +363,61 @@ Summary:`;
         console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
         throw new Error(`API quota exceeded for ${modelName} (${apiVersion}) chat response. Please check your Google Cloud Console for quota limits.`);
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Call Gemini API for text-only responses (no image)
+   */
+  private static async callGeminiForTextResponse(
+    ocrText: string,
+    systemPrompt: string,
+    userPrompt: string,
+    model: ModelType = 'auto'
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+    try {
+      // Debug logs removed for production
+      
+      const { ModelProvider } = await import('./ai/ModelProvider.js');
+      const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
+      
+      // Get dynamic API name based on model
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiUsed = `Google ${modelName} (Service Account)`;
+      
+      // Extract usage tokens and confidence
+      const usageTokens = result.usageTokens || 0;
+      const confidence = 0.85; // Default confidence for AI responses (marking mode)
+      
+      return {
+        response: result.content,
+        apiUsed: apiUsed,
+        confidence: confidence,
+        usageTokens: usageTokens
+      };
+    } catch (error) {
+      console.error('❌ Gemini text response failed:', error);
+      
+      // Check if it's a rate limit error and fail fast
+      const isRateLimitError = error instanceof Error && 
+        (error.message.includes('429') || 
+         error.message.includes('Too Many Requests') ||
+         error.message.includes('rate limit'));
+      
+      if (isRateLimitError) {
+        const { getModelConfig } = await import('../config/aiModels.js');
+        const modelConfig = getModelConfig(model);
+        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+        console.error(`❌ [QUOTA EXCEEDED] ${modelName} (${apiVersion}) quota exceeded for text response`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [ERROR DETAILS] ${error.message}`);
+        throw new Error(`API quota exceeded for ${modelName} (${apiVersion}) text response. Please check your Google Cloud Console for quota limits.`);
       }
       
       throw error;
