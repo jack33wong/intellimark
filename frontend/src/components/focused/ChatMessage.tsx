@@ -199,14 +199,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             console.log('  - Should show:', !isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper);
             return null;
           })()}
-          {!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper && (
+          {!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons 
-              suggestions={message.suggestedFollowUps || [
-                "Do you want model answer?",
-                "Do you want marking scheme?", 
-                "Do you want step-by-step solution?",
-                "Do you want similar practice questions?"
-              ]}
+              suggestions={message.suggestedFollowUps}
               onSuggestionClick={handleFollowUpClick}
             />
           )}
@@ -234,14 +229,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 console.log('  - Should show:', session?.isPastPaper);
                 return null;
               })()}
-              {session?.isPastPaper && (
+              {session?.isPastPaper && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
                 <SuggestedFollowUpButtons 
-                  suggestions={message.suggestedFollowUps || [
-                    "Do you want model answer?",
-                    "Do you want detailed feedback?", 
-                    "Do you want similar practice questions?",
-                    "Do you want to try another question?"
-                  ]}
+                  suggestions={message.suggestedFollowUps}
                   onSuggestionClick={handleFollowUpClick}
                 />
               )}
