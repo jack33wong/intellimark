@@ -310,14 +310,19 @@ export const AI_PROMPTS = {
             Your response MUST strictly follow the style:
             - in markdown format 
             - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
+            - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with proper line breaks. Use double line breaks between major steps.
             - format of the generic example below.
 
             ---
             **GENERIC EXAMPLE OF DESIRED OUTPUT STYLE:**
             *The following is an example for "3x + 5 = 14" to show the required minimalist style. Do NOT solve this problem; use it only as a style guide.*
+                
                 3x = 14 - 5
+                
                 3x = 9
+                
                 x = 3
+                
                 **Answer:** x = 3
             ---
        
