@@ -131,7 +131,71 @@ export class AIMarkingService {
     });
   }
 
+  /**
+   * Generate contextual response for text-based conversations
+   */
+  static async generateContextualResponse(
+    message: string,
+    chatHistory: any[],
+    model: ModelType,
+    contextSummary?: string
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+    
+    const systemPrompt = getPrompt('marking.contextual.system');
 
+    // Use context summary if available, otherwise fall back to recent messages
+    let contextPrompt = '';
+    if (contextSummary) {
+      contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
+    } else if (chatHistory.length > 0) {
+      // For simple math problems, limit context to avoid confusion
+      const isSimpleMath = /^[\d\s\+\-\*\/\(\)\.]+$/.test(message.trim());
+      
+      if (isSimpleMath) {
+        // For simple math, use minimal context (only last 1 message)
+        contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-1).map(item => `${item.role}: ${item.content}`).join('\n')}`;
+      } else {
+        // For complex problems, use normal context (last 3 messages)
+        contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
+      }
+    }
+
+    const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
+
+    // Debug: Log what's being sent to the AI
+    console.log('🔍 [TEXT MODE DEBUG] Input to AI:');
+    console.log('  - message (user input):', message);
+    console.log('  - isSimpleMath:', /^[\d\s\+\-\*\/\(\)\.]+$/.test(message.trim()));
+    console.log('  - chatHistory length:', chatHistory.length);
+    console.log('  - contextPrompt:', contextPrompt);
+    console.log('  - userPrompt:', userPrompt);
+
+    try {
+      const { ModelProvider } = await import('./ai/ModelProvider.js');
+      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
+      
+      // Get dynamic API name based on model
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiUsed = `Google ${modelName} (Service Account)`;
+      
+      return {
+        response: response.content,
+        apiUsed: apiUsed,
+        confidence: 0.95, // Default confidence for AI responses (text mode)
+        usageTokens: response.usageTokens || 0
+      };
+    } catch (error) {
+      console.error('❌ Contextual response generation failed:', error);
+      return {
+        response: 'I apologize, but I encountered an error while processing your message. Please try again.',
+        apiUsed: 'Error',
+        confidence: 0,
+        usageTokens: 0
+      };
+    }
+  }
 
   /**
    * Generate chat response for question-only images or marking feedback from OCR text
@@ -173,6 +237,7 @@ export class AIMarkingService {
     const userPrompt = isQuestionOnly
       ? getPrompt('marking.questionOnly.user', message)
       : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
+
 
     try {
       // Call progress callback to indicate AI response generation is starting
@@ -262,55 +327,6 @@ Summary:`;
     } catch (error) {
       console.error('❌ Context summary generation failed:', error);
       return '';
-    }
-  }
-
-  /**
-   * Generate contextual response for text-based conversations
-   */
-  static async generateContextualResponse(
-    message: string,
-    chatHistory: any[],
-    model: ModelType,
-    contextSummary?: string
-  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
-    
-    const systemPrompt = getPrompt('marking.contextual.system');
-
-    // Use context summary if available, otherwise fall back to recent messages
-    let contextPrompt = '';
-    if (contextSummary) {
-      contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
-    } else if (chatHistory.length > 0) {
-      contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
-    }
-
-    const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
-
-    try {
-      const { ModelProvider } = await import('./ai/ModelProvider.js');
-      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
-      
-      // Get dynamic API name based on model
-      const { getModelConfig } = await import('../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiUsed = `Google ${modelName} (Service Account)`;
-      
-      return {
-        response: response.content,
-        apiUsed: apiUsed,
-        confidence: 0.95, // Default confidence for AI responses (text mode)
-        usageTokens: response.usageTokens || 0
-      };
-    } catch (error) {
-      console.error('❌ Contextual response generation failed:', error);
-      return {
-        response: 'I apologize, but I encountered an error while processing your message. Please try again.',
-        apiUsed: 'Error',
-        confidence: 0,
-        usageTokens: 0
-      };
     }
   }
 

@@ -152,6 +152,7 @@ export interface QuestionDetectionResult {
   found: boolean;
   questionText?: string;
   message?: string;
+  markingScheme?: string;
 }
 
 // Unified Message types (matches frontend)
@@ -185,6 +186,7 @@ export interface UnifiedMessage {
     subject?: string;
     tier?: string;
     year?: string;
+    markingScheme?: string;        // Marking scheme for model answer generation
   };
   
   // Message-specific processing stats
@@ -235,6 +237,9 @@ export interface UnifiedSession {
   
   // Session-specific flags
   isPastPaper?: boolean;
+  
+  // Detected question information (stored at session level for easy access)
+  detectedQuestion?: QuestionDetectionResult;
   
   // Aggregated stats across ALL messages
   sessionStats?: {

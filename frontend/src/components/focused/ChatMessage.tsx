@@ -4,6 +4,7 @@
  */
 import React, { useCallback, useState } from 'react';
 import { Brain } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   isUserMessage, 
   hasImage, 
@@ -16,7 +17,6 @@ import {
 import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
-import FollowUpService from '../../services/followUpService';
 import './ChatMessage.css';
 import { UnifiedMessage } from '../../types';
 
@@ -29,6 +29,8 @@ interface ChatMessageProps {
   ensureStringContent: (content: any) => string;
   scrollToBottom?: () => void;
   session?: any; // Session data to access isPastPaper
+  addMessage?: (message: any) => void; // Function to add messages to chat
+  startAIThinking?: (progressData: any, aiMessageId?: string) => void;
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ 
@@ -38,9 +40,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   MarkdownMathRenderer,
   ensureStringContent,
   scrollToBottom,
-  session
+  session,
+  addMessage,
+  startAIThinking
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
+  const { getAuthToken } = useAuth();
   
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -75,31 +80,88 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const handleFollowUpClick = useCallback(async (suggestion: string) => {
     try {
-      const context = {
-        messageId: message.id,
-        sessionId: (message as any).sessionId, // TODO: Get sessionId from props or context
-        messageType: message.type,
-        detectedQuestion: message.detectedQuestion
+      // Determine mode based on suggestion text
+      let mode = 'chat'; // default
+      if (suggestion.toLowerCase().includes('model answer')) {
+        mode = 'modelanswer';
+      } else if (suggestion.toLowerCase().includes('marking scheme')) {
+        mode = 'markingscheme';
+      } else if (suggestion.toLowerCase().includes('step-by-step')) {
+        mode = 'stepbystep';
+      } else if (suggestion.toLowerCase().includes('similar practice')) {
+        mode = 'similarquestions';
+      } else if (suggestion.toLowerCase().includes('detailed feedback')) {
+        mode = 'detailedfeedback';
+      }
+      
+      // Add user message immediately (same as text mode chat)
+      if (addMessage) {
+        addMessage({
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: suggestion,
+          timestamp: new Date().toISOString(),
+          type: 'chat'
+        });
+      }
+      
+      // Start AI thinking state (same as text mode chat)
+      const textProgressData = {
+        isComplete: false,
+        currentStepDescription: 'AI is thinking...',
+        allSteps: ['AI is thinking...'],
+        currentStepIndex: 0,
       };
       
-      const result = await FollowUpService.handleFollowUp(suggestion, context);
+      // Generate a predictable AI message ID
+      const aiMessageId = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Start AI thinking if function is available
+      if (startAIThinking) {
+        startAIThinking(textProgressData, aiMessageId);
+      }
+      
+      // Send to backend via chat endpoint with mode parameter and source message ID
+      const requestBody = {
+        message: suggestion,
+        sessionId: session?.id,
+        model: 'auto',
+        mode: mode,
+        sourceMessageId: message.id  // Pass the specific message ID that triggered this follow-up
+      };
+      
+      // Get auth token for authentication
+      const authToken = await getAuthToken();
+      const headers: { 'Content-Type': string; 'Authorization'?: string } = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      
+      const response = await fetch('/api/messages/chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+
+      const result = await response.json();
       
       if (result.success) {
-        console.log('✅ [FOLLOW-UP] Success:', (result as any).message);
-        // TODO: Handle successful follow-up (e.g., show result, update UI)
+        // Use the standardized completion handler (same as text mode chat)
+        const { simpleSessionService } = await import('../../services/simpleSessionService.js');
+        simpleSessionService.handleTextChatComplete(result, 'auto');
       } else {
-        console.error('❌ [FOLLOW-UP] Failed:', (result as any).error);
-        // TODO: Handle error (e.g., show error message)
+        console.error('❌ [FOLLOW-UP] Failed:', result.error);
+        alert(`Action failed: ${result.error}`);
       }
     } catch (error) {
       console.error('❌ [FOLLOW-UP] Unexpected error:', error);
     }
-  }, [message]);
+  }, [session?.id, addMessage, startAIThinking]);
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
+
+  // Debug: Print complete message data structure
 
   // Don't render ghost messages
   if (!shouldRenderMessage(message)) {
@@ -190,29 +252,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           
           {/* Show suggested follow-ups for question mode messages (past papers only) */}
           {(() => {
-            console.log('🔍 [DEBUG] Question mode suggested follow-ups check:');
-            console.log('  - isUser:', isUser);
-            console.log('  - isAnnotatedImageMessage:', isAnnotatedImageMessage(message));
-            console.log('  - session:', session);
-            console.log('  - session?.isPastPaper:', session?.isPastPaper);
-            console.log('  - message.suggestedFollowUps:', message.suggestedFollowUps);
-            console.log('  - Should show:', !isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper);
+            if (!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper) {
+            }
             return null;
           })()}
-          {!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+          {!isUser && !isAnnotatedImageMessage(message) && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
             <SuggestedFollowUpButtons 
-              suggestions={message.suggestedFollowUps}
+              suggestions={message.suggestedFollowUps as string[]}
               onSuggestionClick={handleFollowUpClick}
             />
           )}
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
             <div className="homework-annotated-image">
-              {(() => {
-                console.log('🔍 [FRONTEND DEBUG] Annotated image src length:', imageSrc?.length || 0);
-                console.log('🔍 [FRONTEND DEBUG] Annotated image src preview:', imageSrc?.substring(0, 100) + '...');
-                return null;
-              })()}
               <img 
                 src={imageSrc}
                 alt="Marked homework"
@@ -222,16 +274,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               />
               {/* Show suggested follow-ups for marking mode messages (past papers only) */}
               {(() => {
-                console.log('🔍 [DEBUG] Marking mode suggested follow-ups check:');
-                console.log('  - session:', session);
-                console.log('  - session?.isPastPaper:', session?.isPastPaper);
-                console.log('  - message.suggestedFollowUps:', message.suggestedFollowUps);
-                console.log('  - Should show:', session?.isPastPaper);
+                if (session?.isPastPaper) {
+                }
                 return null;
               })()}
-              {session?.isPastPaper && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+              {message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
                 <SuggestedFollowUpButtons 
-                  suggestions={message.suggestedFollowUps}
+                  suggestions={message.suggestedFollowUps as string[]}
                   onSuggestionClick={handleFollowUpClick}
                 />
               )}

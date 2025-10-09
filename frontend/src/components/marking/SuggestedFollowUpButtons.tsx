@@ -1,8 +1,7 @@
 import React from 'react';
-import { MessageCircle, ArrowRight } from 'lucide-react';
 import './SuggestedFollowUpButtons.css';
 
-const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
+const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }: { suggestions?: string[], onSuggestionClick?: (suggestion: string) => void }) => {
   if (!suggestions || suggestions.length === 0) {
     return null;
   }
@@ -19,13 +18,7 @@ const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
             className="suggested-follow-up-button"
             onClick={() => onSuggestionClick && onSuggestionClick(suggestion)}
           >
-            <div className="suggested-follow-up-content">
-              <div className="suggested-follow-up-left">
-                <MessageCircle className="suggested-follow-up-start-icon" />
-                <span className="suggested-follow-up-text">{suggestion}</span>
-              </div>
-              <ArrowRight className="suggested-follow-up-end-icon" />
-            </div>
+            {suggestion}
           </button>
         ))}
       </div>

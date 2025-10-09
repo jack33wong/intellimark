@@ -145,60 +145,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       const data = await response.json();
       
       if (data.success) {
-        if (data.unifiedSession) {
-          // Authenticated users get full session data
-          simpleSessionService.updateSessionState(data.unifiedSession);
-        } else if (data.aiMessage) {
-          // For unauthenticated users, append only the AI message (user message already in frontend)
-          await addMessage(data.aiMessage);
-          
-          // Update session title and ID in current session (for session header display only)
-          // Don't update sidebar for unauthenticated users
-          if (data.sessionTitle && data.sessionId) {
-            // Get the most current session after addMessage
-            const currentSessionAfterUpdate = simpleSessionService.getCurrentSession();
-            if (currentSessionAfterUpdate) {
-              // Extract processing stats from AI message for task details
-              const processingStats = data.aiMessage?.processingStats || {};
-              const sessionStats = {
-                ...currentSessionAfterUpdate.sessionStats,
-                lastModelUsed: processingStats.modelUsed || 'N/A',
-                totalProcessingTimeMs: processingStats.processingTimeMs || 0,
-                lastApiUsed: processingStats.apiUsed || 'N/A',
-                totalLlmTokens: processingStats.llmTokens || 0,
-                totalMathpixCalls: processingStats.mathpixCalls || 0,
-                totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
-                averageConfidence: processingStats.confidence || 0,
-                imageSize: processingStats.imageSize || 0,
-                totalAnnotations: processingStats.annotations || 0
-              };
-              
-              // For unauthenticated users: Only update title if it's the first AI response
-              // Keep the original title from the first AI response, don't overwrite on follow-ups
-              const shouldUpdateTitle = !currentSessionAfterUpdate.title || 
-                                       currentSessionAfterUpdate.title === 'Processing...' ||
-                                       currentSessionAfterUpdate.title === 'Chat Session';
-              
-              const updatedSession = { 
-                ...currentSessionAfterUpdate, 
-                title: shouldUpdateTitle ? data.sessionTitle : currentSessionAfterUpdate.title,
-                id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
-                sessionStats: sessionStats,
-                updatedAt: new Date().toISOString() // Add last updated time
-              };
-              simpleSessionService.updateCurrentSessionOnly(updatedSession);
-            }
-          }
-        } else {
-          throw new Error(data.error || 'No session data received');
-        }
+        // Use the new standardized completion handler
+        simpleSessionService.handleTextChatComplete(data, 'auto');
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
       
-      // Reset the request flag and processing state on success
+      // Reset the request flag on success
       textRequestInProgress.current = false;
-      stopProcessing();
     } catch (err) {
       handleError(err);
       // Stop state only if the initial fetch fails. The service handles success.
@@ -286,7 +240,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
     handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating, onFavoriteToggle, onRatingChange, onTitleUpdate,
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    onSendMessage,
+    onSendMessage, addMessage,
     chatContainerRef,
     scrollToBottom, 
     showScrollButton, 
@@ -294,12 +248,13 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     scrollToNewResponse,
     onFollowUpImage: handleImageAnalysis,
     getImageSrc,
+    startAIThinking,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    onSendMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc
+    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking
   ]);
 
   return (

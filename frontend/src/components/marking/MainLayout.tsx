@@ -31,6 +31,8 @@ const MainLayout: React.FC = () => {
     currentSession,
     handleImageAnalysis,
     onSendMessage,
+    addMessage,
+    startAIThinking,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -56,6 +58,8 @@ const MainLayout: React.FC = () => {
                   ensureStringContent={ensureStringContent}
                   scrollToBottom={scrollToBottom}
                   session={currentSession}
+                  addMessage={addMessage}
+                  startAIThinking={startAIThinking}
                 />
               ))}
               

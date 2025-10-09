@@ -20,7 +20,7 @@ const router = express.Router();
  */
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
-    const { message, imageData, model = 'auto', sessionId, mode, aiMessageId } = req.body;
+    const { message, imageData, model = 'auto', sessionId, mode, aiMessageId, sourceMessageId } = req.body;
     
     // Use centralized model configuration for 'auto'
     let resolvedModel = model;
@@ -32,6 +32,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
+    
     
     // Validate required fields - allow empty message if imageData is provided
     if ((!message || typeof message !== 'string') && !imageData) {
@@ -71,6 +72,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         sessionId: sessionId,
         model: model
       });
+      
     }
 
     // Session management - use provided sessionId or create new one
@@ -100,6 +102,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let contextualResult: any = null;
     const startTime = Date.now();
     
+    console.log('🔍 [MESSAGES] Received request:', { message, sessionId: currentSessionId, model: resolvedModel });
+    
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
@@ -107,8 +111,379 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
+      } else if (mode === 'modelanswer') {
+        // Handle model answer request - access detectedQuestion from session metadata
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
+        // Get session and find the specific message that triggered this follow-up
+        let existingSession = null;
+        let targetMessage = null;
+        
+        if (currentSessionId) {
+          try {
+            existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+            
+            if (sourceMessageId) {
+              // Find the specific message that triggered this follow-up
+              targetMessage = existingSession?.messages?.find((msg: any) => 
+                msg.id === sourceMessageId && msg.detectedQuestion?.found
+              );
+              
+              if (targetMessage) {
+                // Found specific target message
+              } else {
+                // No message found with sourceMessageId
+              }
+            } else {
+              // Fallback: Find the most recent message with detectedQuestion data
+              const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
+                msg.role === 'assistant' && msg.detectedQuestion?.found
+              ) || [];
+              
+              if (messagesWithDetectedQuestion.length > 0) {
+                targetMessage = messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1];
+              }
+            }
+          } catch (error) {
+            console.error('❌ Failed to get session for model answer:', error);
+          }
+        } else {
+          throw new Error('❌ [MODEL ANSWER] No sessionId provided - cannot generate model answer without session context');
+        }
+
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+
+        // Access detectedQuestion from target message
+        if (targetMessage?.detectedQuestion?.found) {
+          
+          // Use model answer prompts with detectedQuestion from target message
+          const { getPrompt } = await import('../config/prompts.js');
+          
+          try {
+            const systemPrompt = getPrompt('modelAnswer.system');
+            const userPrompt = getPrompt('modelAnswer.user', 
+              targetMessage.detectedQuestion.questionText || '', 
+              targetMessage.detectedQuestion.markingScheme || JSON.stringify(targetMessage.detectedQuestion)
+            );
+            
+            // Use the same method as test script - pass raw data, not formatted prompts
+            contextualResult = await AIMarkingService.generateChatResponse(
+              targetMessage.detectedQuestion.questionText || '',  // OCR text (question + steps)
+              targetMessage.detectedQuestion.markingScheme || '',  // marking scheme
+              resolvedModel,
+              false, // isQuestionOnly
+              false, // debug
+              undefined, // onProgress
+              true // useOcrText
+            );
+            
+          } catch (error) {
+            console.error('❌ [MODEL ANSWER] Error:', error);
+            throw error;
+          }
+        } else {
+          throw new Error('❌ [MODEL ANSWER] No detectedQuestion found in any message - cannot generate model answer');
+        }
+        
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
+
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+      } else if (mode === 'markingscheme') {
+        // Handle marking scheme request
+        console.log('🔍 [MARKING SCHEME] Request detected:', message);
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
+        // Get session and find the specific message that triggered this follow-up
+        if (!currentSessionId) {
+          throw new Error('❌ [MARKING SCHEME] No sessionId provided - cannot generate marking scheme without session context');
+        }
+
+        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+        let targetMessage = null;
+        
+        if (sourceMessageId) {
+          // Find the specific message that triggered this follow-up
+          targetMessage = existingSession?.messages?.find((msg: any) => 
+            msg.id === sourceMessageId && msg.detectedQuestion?.found
+          );
+        } else {
+          // Fallback: Find the most recent message with detectedQuestion data
+          const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
+            msg.role === 'assistant' && msg.detectedQuestion?.found
+          ) || [];
+          
+          if (messagesWithDetectedQuestion.length > 0) {
+            targetMessage = messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1];
+          }
+        }
+        
+        if (!targetMessage) {
+          throw new Error('❌ [MARKING SCHEME] No detected question found in target message - cannot generate marking scheme');
+        }
+
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+
+        // Use marking scheme prompt
+        const { getPrompt } = await import('../config/prompts.js');
+        const systemPrompt = getPrompt('markingScheme.system');
+        const userPrompt = getPrompt('markingScheme.user', 
+          targetMessage.detectedQuestion.questionText || '', 
+          targetMessage.detectedQuestion.markingScheme || ''
+        );
+
+        contextualResult = await AIMarkingService.generateChatResponse(
+          targetMessage.detectedQuestion.questionText || '',  // OCR text (question + steps)
+          targetMessage.detectedQuestion.markingScheme || '',  // marking scheme
+          resolvedModel,
+          false, // isQuestionOnly
+          false, // debug
+          undefined, // onProgress
+          true // useOcrText
+        );
+        
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+        
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
+      } else if (mode === 'stepbystep') {
+        // Handle step-by-step solution request
+        console.log('🔍 [STEP-BY-STEP] Request detected:', message);
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
+        // Get session and find the specific message that triggered this follow-up
+        if (!currentSessionId) {
+          throw new Error('❌ [STEP-BY-STEP] No sessionId provided - cannot generate step-by-step solution without session context');
+        }
+
+        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+        let targetMessage = null;
+        
+        if (sourceMessageId) {
+          // Find the specific message that triggered this follow-up
+          targetMessage = existingSession?.messages?.find((msg: any) => 
+            msg.id === sourceMessageId && msg.detectedQuestion?.found
+          );
+        } else {
+          // Fallback: Find the most recent message with detectedQuestion data
+          const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
+            msg.role === 'assistant' && msg.detectedQuestion?.found
+          ) || [];
+          
+          if (messagesWithDetectedQuestion.length > 0) {
+            targetMessage = messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1];
+          }
+        }
+        
+        if (!targetMessage) {
+          throw new Error('❌ [STEP-BY-STEP] No detected question found in target message - cannot generate step-by-step solution');
+        }
+
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+
+        // Use step-by-step prompt
+        const { getPrompt } = await import('../config/prompts.js');
+        const systemPrompt = getPrompt('stepbystep.system');
+        const userPrompt = getPrompt('stepbystep.user', 
+          targetMessage.detectedQuestion.questionText || '', 
+          targetMessage.detectedQuestion.markingScheme || ''
+        );
+
+        contextualResult = await AIMarkingService.generateChatResponse(
+          targetMessage.detectedQuestion.questionText || '',  // OCR text (question + steps)
+          targetMessage.detectedQuestion.markingScheme || '',  // marking scheme
+          resolvedModel,
+          false, // isQuestionOnly
+          false, // debug
+          undefined, // onProgress
+          true // useOcrText
+        );
+        
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+        
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
+      } else if (mode === 'similarquestions') {
+        // Handle similar practice questions request
+        console.log('🔍 [SIMILAR QUESTIONS] Request detected:', message);
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
+        // Get session and find the specific message that triggered this follow-up
+        if (!currentSessionId) {
+          throw new Error('❌ [SIMILAR QUESTIONS] No sessionId provided - cannot generate similar questions without session context');
+        }
+
+        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+        let targetMessage = null;
+        
+        if (sourceMessageId) {
+          // Find the specific message that triggered this follow-up
+          targetMessage = existingSession?.messages?.find((msg: any) => 
+            msg.id === sourceMessageId && msg.detectedQuestion?.found
+          );
+        } else {
+          // Fallback: Find the most recent message with detectedQuestion data
+          const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
+            msg.role === 'assistant' && msg.detectedQuestion?.found
+          ) || [];
+          
+          if (messagesWithDetectedQuestion.length > 0) {
+            targetMessage = messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1];
+          }
+        }
+        
+        if (!targetMessage) {
+          throw new Error('❌ [SIMILAR QUESTIONS] No detected question found in target message - cannot generate similar questions');
+        }
+
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+
+        // Use similar questions prompt
+        const { getPrompt } = await import('../config/prompts.js');
+        const systemPrompt = getPrompt('similarquestions.system');
+        const userPrompt = getPrompt('similarquestions.user', 
+          targetMessage.detectedQuestion.questionText || '', 
+          targetMessage.detectedQuestion.markingScheme || ''
+        );
+
+        contextualResult = await AIMarkingService.generateChatResponse(
+          targetMessage.detectedQuestion.questionText || '',  // OCR text (question + steps)
+          targetMessage.detectedQuestion.markingScheme || '',  // marking scheme
+          resolvedModel,
+          false, // isQuestionOnly
+          false, // debug
+          undefined, // onProgress
+          true // useOcrText
+        );
+        
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+        
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
+      } else if (mode === 'detailedfeedback') {
+        // Handle detailed feedback request
+        console.log('🔍 [DETAILED FEEDBACK] Request detected:', message);
+        const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+          finalProgressData = data;
+        });
+
+        // Start with AI thinking step
+        progressTracker.startStep('ai_thinking');
+
+        // Get session and find the specific message that triggered this follow-up
+        if (!currentSessionId) {
+          throw new Error('❌ [DETAILED FEEDBACK] No sessionId provided - cannot generate detailed feedback without session context');
+        }
+
+        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+        let targetMessage = null;
+        
+        if (sourceMessageId) {
+          // Find the specific message that triggered this follow-up
+          targetMessage = existingSession?.messages?.find((msg: any) => 
+            msg.id === sourceMessageId && msg.detectedQuestion?.found
+          );
+        } else {
+          // Fallback: Find the most recent message with detectedQuestion data
+          const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
+            msg.role === 'assistant' && msg.detectedQuestion?.found
+          ) || [];
+          
+          if (messagesWithDetectedQuestion.length > 0) {
+            targetMessage = messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1];
+          }
+        }
+        
+        if (!targetMessage) {
+          throw new Error('❌ [DETAILED FEEDBACK] No detected question found in target message - cannot generate detailed feedback');
+        }
+
+        // Complete AI thinking step and start generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.startStep('generating_response');
+
+        // Simulate processing time for "Generating response..." step
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
+
+        // Use detailed feedback prompt
+        const { getPrompt } = await import('../config/prompts.js');
+        const systemPrompt = getPrompt('detailedfeedback.system');
+        const userPrompt = getPrompt('detailedfeedback.user', 
+          targetMessage.detectedQuestion.questionText || '', 
+          targetMessage.detectedQuestion.markingScheme || ''
+        );
+
+        contextualResult = await AIMarkingService.generateChatResponse(
+          targetMessage.detectedQuestion.questionText || '',  // OCR text (question + steps)
+          targetMessage.detectedQuestion.markingScheme || '',  // marking scheme
+          resolvedModel,
+          false, // isQuestionOnly
+          false, // debug
+          undefined, // onProgress
+          true // useOcrText
+        );
+        
+        // Complete generating response step
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+        
+        aiResponse = contextualResult.response;
+        apiUsed = contextualResult.apiUsed;
       } else {
         // For text-only messages, use contextual response with progress tracking
+        console.log('🔍 [TEXT MODE DEBUG] Text mode request received:');
+        console.log('  - message (user input):', message);
+        console.log('  - sessionId:', currentSessionId);
+        console.log('  - mode:', mode);
+        
         const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
           finalProgressData = data;
         });
@@ -126,6 +501,13 @@ router.post('/chat', optionalAuth, async (req, res) => {
                 role: msg.role,
                 content: msg.content
               }));
+              
+              // Debug: Log chat history content
+              console.log('🔍 [TEXT MODE DEBUG] Chat history from session:');
+              console.log('  - Total messages:', chatHistory.length);
+              chatHistory.forEach((msg, index) => {
+                console.log(`  - Message ${index}: ${msg.role} - "${msg.content?.substring(0, 100)}..."`);
+              });
             }
           } catch (error) {
           }
@@ -138,7 +520,11 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // Simulate processing time for "Generating response..." step
         await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
 
-        contextualResult = await AIMarkingService.generateContextualResponse(message, chatHistory, resolvedModel as any);
+        contextualResult = await AIMarkingService.generateContextualResponse(
+          message,  // user's message text
+          chatHistory,  // chat history for context
+          resolvedModel
+        );
         aiResponse = contextualResult.response;
         apiUsed = contextualResult.apiUsed;
 
@@ -147,15 +533,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
         progressTracker.finish();
       }
     } catch (error) {
-      console.error('❌ AI service failed, using fallback response:', error);
-      aiResponse = "I'm here to help with your questions! However, I'm experiencing some technical difficulties right now. Could you please try again?";
-      apiUsed = 'Fallback';
-      contextualResult = {
-        response: aiResponse,
-        apiUsed: apiUsed,
-        confidence: 0,
-        usageTokens: 0
-      };
+      console.error('❌ AI service failed:', error);
+      throw error;
     }
 
     // Create AI message using factory
@@ -218,7 +597,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     let sessionData;
     
     if (isAuthenticated) {
-      // Load session data for response
+      // Load session data for response - add small delay to ensure database consistency
       try {
         sessionData = await FirestoreService.getUnifiedSession(currentSessionId);
       } catch (error) {

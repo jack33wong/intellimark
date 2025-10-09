@@ -348,6 +348,13 @@ export class MarkHomeworkWithAnswerAuto {
         };
         const questionDetection = await detectQuestion();
         
+        // Add marking scheme and question text to questionDetection
+        if (questionDetection) {
+          // Store only the questionMarks data in proper structure (matching test data)
+          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
+          questionDetection.questionText = classification.extractedQuestionText || '';
+        }
+        
         // AI Response Generation (visible step)
         const logStep4Complete = logStep('AI Response Generation', actualModel);
         const generateResponse = async () => {
@@ -363,10 +370,8 @@ export class MarkHomeworkWithAnswerAuto {
         
         // Generate suggested follow-ups for question mode
         const suggestedFollowUps = [
-          "Do you want model answer?",
-          "Do you want marking scheme?", 
-          "Do you want step-by-step solution?",
-          "Do you want similar practice questions?"
+          "Provide me a model answer according to the marking scheme.",
+          "Give me similar practice questions."
         ];
         
         // Finish progress tracking
@@ -405,6 +410,12 @@ export class MarkHomeworkWithAnswerAuto {
         console.log('  - isPastPaper:', isPastPaper);
         console.log('  - suggestedFollowUps:', suggestedFollowUps);
         
+        // Add marking scheme and question text to questionDetection (same as marking mode)
+        if (questionDetection) {
+          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
+          questionDetection.questionText = classification.extractedQuestionText || '';
+        }
+        
         return {
           success: true,
           isQuestionOnly: true,
@@ -414,12 +425,14 @@ export class MarkHomeworkWithAnswerAuto {
           message: aiResponse.response,
           aiResponse: aiResponse.response,
           suggestedFollowUps: suggestedFollowUps,
+          ocrCleanedText: ocrResult.text, // Add OCR cleaned text
           confidence: ocrResult.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
           sessionTitle: sessionTitle,
           classification: classification,
           questionDetection: questionDetection,
+          // Remove detectedQuestion from session metadata - will be stored in individual messages
           processingStats: {
             processingTimeMs: totalProcessingTime,
             confidence: ocrResult.confidence || 0,
@@ -502,6 +515,13 @@ export class MarkHomeworkWithAnswerAuto {
         };
         const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
         logStep4Complete();
+        
+        // Add marking scheme and question text to questionDetection
+        if (questionDetection) {
+          // Store only the questionMarks data in proper structure (matching test data)
+          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
+          questionDetection.questionText = classification.extractedQuestionText || '';
+        }
 
         const logStep5Complete = logStep('Marking Instructions', actualModel);
         // Add extracted question text to questionDetection for OCR cleanup
@@ -545,10 +565,9 @@ export class MarkHomeworkWithAnswerAuto {
 
         // Generate suggested follow-ups for marking mode
         const suggestedFollowUps = [
-          "Do you want model answer?",
-          "Do you want detailed feedback?", 
-          "Do you want similar practice questions?",
-          "Do you want to try another question?"
+          "Provide model answer based on the marking scheme.",
+          "Give me detailed feedback.", 
+          "Generate similar practice questions."
         ];
 
         // Finish progress tracking
@@ -593,6 +612,7 @@ export class MarkHomeworkWithAnswerAuto {
           annotatedImage: annotationResult.annotatedImage,
           message: 'Marking completed - see suggested follow-ups below',
           suggestedFollowUps: suggestedFollowUps,
+          ocrCleanedText: processedImage.ocrText, // Add OCR cleaned text
           confidence: processedImage.confidence || 0,
           processingTime: totalProcessingTime,
           progressData: finalProgressData,
@@ -601,6 +621,7 @@ export class MarkHomeworkWithAnswerAuto {
             : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
           classification: classification,
           questionDetection: questionDetection,
+          // Remove detectedQuestion from session metadata - will be stored in individual messages
           processingStats: {
             processingTimeMs: totalProcessingTime,
             confidence: processedImage.confidence || 0,

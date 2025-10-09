@@ -69,6 +69,8 @@ export interface QuestionDetectionResult {
   found: boolean;
   match?: ExamPaperMatch;
   message?: string;
+  markingScheme?: string;
+  questionText?: string;
 }
 
 export class QuestionDetectionService {

@@ -425,10 +425,11 @@ export class FirestoreService {
     messages: any[];
     sessionStats?: any;
     isPastPaper?: boolean;
+    detectedQuestion?: any;
   }): Promise<string> {
     try {
       ensureDbAvailable();
-      const { sessionId, title, userId, messageType, messages, sessionStats } = sessionData;
+      const { sessionId, title, userId, messageType, messages, sessionStats, detectedQuestion } = sessionData;
       
       // Import ImageStorageService
       const { ImageStorageService } = await import('./imageStorageService.js');
@@ -481,6 +482,10 @@ export class FirestoreService {
       }
 
       // Create single session document with nested messages
+      console.log('🔍 [FIRESTORE] Creating session document with detectedQuestion:');
+      console.log('  - detectedQuestion:', detectedQuestion);
+      console.log('  - detectedQuestion?.found:', detectedQuestion?.found);
+      
       const sessionDoc = {
         id: sessionId,
         title,
@@ -491,6 +496,7 @@ export class FirestoreService {
         favorite: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
+        detectedQuestion: detectedQuestion || null,  // Store detectedQuestion in session metadata
         sessionStats: sessionStats || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
@@ -590,6 +596,8 @@ export class FirestoreService {
         updatedAt: sessionData.updatedAt,
         favorite: sessionData.favorite,
         rating: sessionData.rating,
+        isPastPaper: sessionData.isPastPaper,  // Include isPastPaper
+        detectedQuestion: sessionData.detectedQuestion,  // Include detectedQuestion for model answer
         sessionStats: sessionData.sessionStats,
         messages: mappedMessages  // Use mapped messages with id field
       };

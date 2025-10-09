@@ -245,6 +245,65 @@ class SimpleSessionService {
     }
   }
   
+  handleTextChatComplete = (data, modelUsed) => {
+    try {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to process text chat');
+      }
+      
+      if (data.unifiedSession) {
+        // Authenticated users get full session data
+        const newSession = this.convertToUnifiedSession(data.unifiedSession);
+        this._setAndMergeCurrentSession(newSession, modelUsed);
+        return newSession;
+      } else if (data.aiMessage) {
+        // Unauthenticated users get only AI message - append to current session
+        this.addMessage(data.aiMessage);
+        
+        // Update session title and ID in current session (for session header display only)
+        // Don't update sidebar for unauthenticated users
+        if (data.sessionTitle && this.state.currentSession) {
+          // Extract processing stats from AI message for task details
+          const processingStats = data.aiMessage?.processingStats || {};
+          const sessionStats = {
+            ...this.state.currentSession.sessionStats,
+            lastModelUsed: processingStats.modelUsed || 'N/A',
+            totalProcessingTimeMs: processingStats.processingTimeMs || 0,
+            lastApiUsed: processingStats.apiUsed || 'N/A',
+            totalLlmTokens: processingStats.llmTokens || 0,
+            totalMathpixCalls: processingStats.mathpixCalls || 0,
+            totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
+            averageConfidence: processingStats.confidence || 0,
+            imageSize: processingStats.imageSize || 0,
+            totalAnnotations: processingStats.annotations || 0
+          };
+          
+          // For unauthenticated users: Only update title if it's the first AI response
+          // Keep the original title from the first AI response, don't overwrite on follow-ups
+          const shouldUpdateTitle = !this.state.currentSession.title || 
+                                   this.state.currentSession.title === 'Processing...' ||
+                                   this.state.currentSession.title === 'Chat Session';
+          
+          const updatedSession = { 
+            ...this.state.currentSession, 
+            title: shouldUpdateTitle ? data.sessionTitle : this.state.currentSession.title,
+            id: data.sessionId, // Use backend's permanent session ID (no fallback to temp ID)
+            sessionStats: sessionStats,
+            updatedAt: new Date().toISOString() // Add last updated time
+          };
+          this.updateCurrentSessionOnly(updatedSession);
+        }
+        
+        return this.state.currentSession;
+      } else {
+        throw new Error('No session data received');
+      }
+    } finally {
+      apiControls.stopAIThinking();
+      apiControls.stopProcessing();
+    }
+  }
+  
   updateSessionState = (newSessionFromServer, modelUsed = null) => {
     const sessionId = newSessionFromServer.id;
     

@@ -311,25 +311,26 @@ export const AI_PROMPTS = {
             - in markdown format 
             - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
             - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with proper line breaks. Use double line breaks between major steps.
+            - append mark codes to the end of the answer.
             - format of the generic example below.
 
             ---
             **GENERIC EXAMPLE OF DESIRED OUTPUT STYLE:**
             *The following is an example for "3x + 5 = 14" to show the required minimalist style. Do NOT solve this problem; use it only as a style guide.*
                 
-                3x = 14 - 5
+                3x = 14 - 5 [M1]
                 
                 3x = 9
                 
                 x = 3
                 
-                **Answer:** x = 3
+                **Answer:** x = 3 [A1]
             ---
        
         Now, use the provided MARKING SCHEME to generate a model answer for the following QUESTION.
         `,
 
-    user: (ocrText: string, schemeJson: string) => {
+    user: (questionText: string, schemeJson: string) => {
       // Clean up the marking scheme format by removing escaped characters
       let formattedScheme = schemeJson
         .replace(/\\n/g, '\n')           // Convert \n to actual newlines
@@ -337,12 +338,109 @@ export const AI_PROMPTS = {
         .replace(/\\t/g, '  ')           // Convert \t to spaces
         .trim();
       
-      return `Here is the OCR TEXT:
+      return `**QUESTION:**
+${questionText}
 
-      ${ocrText}
+**MARKING SCHEME:**
+${formattedScheme}
+
+Please generate a model answer that would receive full marks according to the marking scheme.`;
+    }
+  },
+
+  // ============================================================================
+  // SUGGESTED FOLLOW-UP PROMPTS
+  // ============================================================================
+  
+  markingScheme: {
+    system: `You are an AI that explains marking schemes for exam questions.
+
+            Your task is to provide a clear explanation of the marking scheme, showing how marks are allocated and what examiners look for.
+            Your response MUST be in markdown format with clear structure.`,
+
+    user: (questionText: string, schemeJson: string) => {
+      let formattedScheme = schemeJson
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '  ')
+        .trim();
       
-      MARKING SCHEME CONTEXT:
-      ${formattedScheme}`;
+      return `**QUESTION:**
+${questionText}
+
+**MARKING SCHEME:**
+${formattedScheme}
+
+Please explain this marking scheme, showing how marks are allocated and what examiners look for.`;
+    }
+  },
+
+  stepbystep: {
+    system: `You are an AI that provides detailed step-by-step solutions to math problems.
+
+            Your task is to provide a comprehensive, educational solution that shows every step clearly.
+            Your response MUST be in markdown format with clear structure.`,
+
+    user: (questionText: string, schemeJson: string) => {
+      let formattedScheme = schemeJson
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '  ')
+        .trim();
+      
+      return `**QUESTION:**
+${questionText}
+
+**MARKING SCHEME:**
+${formattedScheme}
+
+Please provide a detailed step-by-step solution to this problem.`;
+    }
+  },
+
+  similarquestions: {
+    system: `You are an AI that generates similar practice questions for exam preparation.
+
+            Your task is to create 3-5 similar questions that test the same concepts and skills.
+            Your response MUST be in markdown format with clear structure.`,
+
+    user: (questionText: string, schemeJson: string) => {
+      let formattedScheme = schemeJson
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '  ')
+        .trim();
+      
+      return `**ORIGINAL QUESTION:**
+${questionText}
+
+**MARKING SCHEME:**
+${formattedScheme}
+
+Please generate 3-5 similar practice questions that test the same concepts and skills.`;
+    }
+  },
+
+  detailedfeedback: {
+    system: `You are an AI that provides detailed feedback on student work.
+
+            Your task is to provide comprehensive feedback that helps the student understand their mistakes and improve.
+            Your response MUST be in markdown format with clear structure.`,
+
+    user: (questionText: string, schemeJson: string) => {
+      let formattedScheme = schemeJson
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '  ')
+        .trim();
+      
+      return `**QUESTION:**
+${questionText}
+
+**MARKING SCHEME:**
+${formattedScheme}
+
+Please provide detailed feedback on the student's work, explaining mistakes and how to improve.`;
     }
   }
 };

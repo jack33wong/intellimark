@@ -151,7 +151,8 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         paperTitle: result.questionDetection.match?.qualification || '',
         subject: result.questionDetection.match?.qualification || '',
         tier: result.questionDetection.match?.tier || '',
-        year: result.questionDetection.match?.year || ''
+        year: result.questionDetection.match?.year || '',
+        markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
       } : {
         found: false,
         questionText: '',
@@ -162,7 +163,8 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         paperTitle: '',
         subject: '',
         tier: '',
-        year: ''
+        year: '',
+        markingScheme: ''
       },
       processingStats: {
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
@@ -246,6 +248,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
                 messageType: result.isQuestionOnly ? 'Question' : 'Marking',
                 messages: [userMessage], // Only user message for authenticated users
                 isPastPaper: result.isPastPaper || false,
+                // Remove detectedQuestion from session metadata - now stored in individual messages
                 sessionStats: {
                   totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
                   totalTokens: (result.processingStats?.llmTokens || 0) + (result.processingStats?.mathpixCalls || 0) || 0,
@@ -561,7 +564,8 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       paperTitle: result.questionDetection.match?.qualification || '',
       subject: result.questionDetection.match?.qualification || '',
       tier: result.questionDetection.match?.tier || '',
-      year: result.questionDetection.match?.year || ''
+      year: result.questionDetection.match?.year || '',
+      markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
     } : {
       found: false,
       questionText: '',
@@ -572,7 +576,8 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       paperTitle: '',
       subject: '',
       tier: '',
-      year: ''
+      year: '',
+      markingScheme: ''
     };
 
     // Update AI message with image link for authenticated users
@@ -684,6 +689,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           // For initial messages, create new session
           console.log('🔍 [DEBUG] Streaming route - Creating unified session:');
           console.log('  - result.isPastPaper:', result.isPastPaper);
+          console.log('  - result.detectedQuestion:', result.detectedQuestion);
           console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
           console.log('  - dbAiMessage.suggestedFollowUps:', (dbAiMessage as any).suggestedFollowUps);
           
@@ -694,6 +700,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
             messageType: result.isQuestionOnly ? 'Question' : 'Marking',
             messages: [dbUserMessage, dbAiMessage],
             isPastPaper: result.isPastPaper || false,
+            // Remove detectedQuestion from session metadata - now stored in individual messages
             sessionStats: {
               totalProcessingTimeMs: result.processingStats?.processingTimeMs || 0,
               lastModelUsed: result.processingStats?.modelUsed || model,
@@ -721,6 +728,10 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     try {
       const { FirestoreService } = await import('../services/firestoreService.js');
       completeSession = await FirestoreService.getUnifiedSession(sessionId);
+      
+      console.log('🔍 [DEBUG] Database retrieval - Session data sent to frontend:');
+      console.log('  - completeSession.isPastPaper:', completeSession?.isPastPaper);
+      console.log('  - completeSession.messages[1]?.suggestedFollowUps:', completeSession?.messages?.[1]?.suggestedFollowUps);
       
       // Check if session was found
       if (!completeSession) {
@@ -1048,6 +1059,101 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       success: false, 
       error: 'Internal server error in AI processing', 
       details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support' 
+    });
+  }
+});
+
+/**
+ * POST /mark-homework/model-answer
+ * Generate model answer for a question
+ */
+router.post('/model-answer', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { messageId, sessionId } = req.body;
+    
+    if (!messageId || !sessionId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'messageId and sessionId are required' 
+      });
+    }
+
+    const userId = (req as any)?.user?.uid || 'anonymous';
+    const isAuthenticated = !!(req as any)?.user?.uid;
+
+    // Get the session and message data
+    const { FirestoreService } = await import('../services/firestoreService.js');
+    const session = await FirestoreService.getUnifiedSession(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Session not found' 
+      });
+    }
+
+    // Find the message with detectedQuestion data
+    const message = session.messages.find((msg: any) => 
+      msg.messageId === messageId && msg.detectedQuestion?.found
+    );
+
+    if (!message || !message.detectedQuestion?.found) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Question not found or not a past paper' 
+      });
+    }
+
+    // Generate model answer using existing AI service
+    const { AIMarkingService } = await import('../services/aiMarkingService.js');
+    const { getDefaultModel } = await import('../config/aiModels.js');
+    const { getPrompt } = await import('../config/prompts.js');
+    
+    const model = getDefaultModel();
+    const systemPrompt = getPrompt('modelAnswer.system');
+    const userPrompt = getPrompt('modelAnswer.user', 
+      message.detectedQuestion.questionText || '', 
+      message.detectedQuestion.markingScheme || JSON.stringify(message.detectedQuestion)
+    );
+    
+    const result = await AIMarkingService.generateChatResponse(
+      userPrompt,
+      systemPrompt,
+      model
+    );
+
+    // Create AI response message
+    const aiMessage = {
+      id: `model-answer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      role: 'assistant',
+      content: result.response,
+      timestamp: new Date().toISOString(),
+      type: 'model_answer',
+      processingStats: {
+        processingTimeMs: 0, // AI service doesn't return timing
+        modelUsed: model,
+        apiUsed: result.apiUsed || `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+      }
+    };
+
+    // Save to database if authenticated
+    if (isAuthenticated) {
+      await FirestoreService.addMessageToUnifiedSession(sessionId, aiMessage);
+    }
+
+    return res.json({
+      success: true,
+      responseType: 'model_answer',
+      aiMessage: aiMessage,
+      sessionId: sessionId
+    });
+
+  } catch (error) {
+    console.error('Error generating model answer:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate model answer',
+      details: process.env['NODE_ENV'] === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : 'Contact support'
     });
   }
 });

@@ -10,8 +10,6 @@ export class FollowUpService {
    * @param {Object} context - Context including sessionId, messageId, etc.
    */
   static async handleFollowUp(suggestion, context) {
-    console.log('🎯 [FOLLOW-UP] Handling suggestion:', suggestion);
-    console.log('🎯 [FOLLOW-UP] Context:', context);
 
     try {
       // Map suggestion text to action type
@@ -69,25 +67,55 @@ export class FollowUpService {
    * Handle model answer request
    */
   static async handleModelAnswer(context) {
-    console.log('🎯 [FOLLOW-UP] Generating model answer...');
     
-    // TODO: Implement model answer generation
-    // This would call the backend to generate a model answer
-    // For now, return a placeholder response
-    
-    return {
-      success: true,
-      action: 'model_answer',
-      message: 'Model answer generation is coming soon!',
-      data: null
-    };
+    try {
+      const response = await fetch('/api/messages/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: 'Provide model answer?',
+          sessionId: context.sessionId,
+          model: 'auto',
+          mode: 'chat'
+        })
+      });
+      
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        return {
+          success: true,
+          action: 'model_answer',
+          message: 'Chat message created',
+          data: {
+            aiMessage: result.aiMessage
+          }
+        };
+      } else {
+        console.error('❌ [FOLLOW-UP] Chat message creation failed:', result.error);
+        return {
+          success: false,
+          action: 'model_answer',
+          error: result.error
+        };
+      }
+    } catch (error) {
+      console.error('❌ [FOLLOW-UP] Chat message request failed:', error);
+      return {
+        success: false,
+        action: 'model_answer',
+        error: error.message
+      };
+    }
   }
 
   /**
    * Handle detailed feedback request
    */
   static async handleDetailedFeedback(context) {
-    console.log('🎯 [FOLLOW-UP] Generating detailed feedback...');
     
     // TODO: Implement detailed feedback generation
     // This would call the backend to generate more detailed feedback
@@ -104,7 +132,6 @@ export class FollowUpService {
    * Handle marking scheme request
    */
   static async handleMarkingScheme(context) {
-    console.log('🎯 [FOLLOW-UP] Showing marking scheme...');
     
     // TODO: Implement marking scheme display
     // This would show the marking scheme for the question
@@ -121,7 +148,6 @@ export class FollowUpService {
    * Handle step-by-step solution request
    */
   static async handleStepByStepSolution(context) {
-    console.log('🎯 [FOLLOW-UP] Generating step-by-step solution...');
     
     // TODO: Implement step-by-step solution generation
     
@@ -137,7 +163,6 @@ export class FollowUpService {
    * Handle similar practice questions request
    */
   static async handleSimilarPracticeQuestions(context) {
-    console.log('🎯 [FOLLOW-UP] Finding similar practice questions...');
     
     // TODO: Implement similar practice questions search
     
@@ -153,7 +178,6 @@ export class FollowUpService {
    * Handle try another question request
    */
   static async handleTryAnotherQuestion(context) {
-    console.log('🎯 [FOLLOW-UP] Preparing for new question...');
     
     // TODO: Implement new question flow
     // This might clear the current session or navigate to a new question
