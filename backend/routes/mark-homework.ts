@@ -687,11 +687,6 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           }
         } else {
           // For initial messages, create new session
-          console.log('🔍 [DEBUG] Streaming route - Creating unified session:');
-          console.log('  - result.isPastPaper:', result.isPastPaper);
-          console.log('  - result.detectedQuestion:', result.detectedQuestion);
-          console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
-          console.log('  - dbAiMessage.suggestedFollowUps:', (dbAiMessage as any).suggestedFollowUps);
           
           await FirestoreService.createUnifiedSessionWithMessages({
             sessionId: sessionId,
@@ -728,10 +723,6 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
     try {
       const { FirestoreService } = await import('../services/firestoreService.js');
       completeSession = await FirestoreService.getUnifiedSession(sessionId);
-      
-      console.log('🔍 [DEBUG] Database retrieval - Session data sent to frontend:');
-      console.log('  - completeSession.isPastPaper:', completeSession?.isPastPaper);
-      console.log('  - completeSession.messages[1]?.suggestedFollowUps:', completeSession?.messages?.[1]?.suggestedFollowUps);
       
       // Check if session was found
       if (!completeSession) {

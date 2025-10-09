@@ -482,9 +482,6 @@ export class FirestoreService {
       }
 
       // Create single session document with nested messages
-      console.log('🔍 [FIRESTORE] Creating session document with detectedQuestion:');
-      console.log('  - detectedQuestion:', detectedQuestion);
-      console.log('  - detectedQuestion?.found:', detectedQuestion?.found);
       
       const sessionDoc = {
         id: sessionId,
@@ -557,10 +554,6 @@ export class FirestoreService {
 
       // Map messages to ensure frontend compatibility while preserving object references
       const mappedMessages = unifiedMessages.map((msg: any) => {
-        // Debug logging for suggestedFollowUps retrieval
-        if (msg.suggestedFollowUps) {
-          console.log('📖 [FIRESTORE] Retrieved message with suggestedFollowUps:', msg.suggestedFollowUps);
-        }
         
         // Only modify if absolutely necessary to preserve React component state
         if (!msg.id && msg.messageId) {
@@ -978,9 +971,7 @@ export class FirestoreService {
       
       // Log when a session becomes "Mixed"
       if (newMessageType === 'Mixed' && existingMessageType !== 'Mixed') {
-        console.log(`🔄 [SESSION TYPE CHANGE] Session ${sessionId} changed from "${existingMessageType}" to "Mixed"`);
-        console.log(`🔄 [REASON] Follow-up message type "${sanitizedMessage.type}" doesn't match original session type "${existingMessageType}"`);
-        console.log(`🔄 [NEW MESSAGE TYPE] ${sanitizedMessage.type}`);
+        // Session type changed to Mixed
       }
       
       // Add the new message to the array

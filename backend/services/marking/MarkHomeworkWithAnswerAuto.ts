@@ -369,10 +369,8 @@ export class MarkHomeworkWithAnswerAuto {
         totalLLMTokens += aiResponse.usageTokens || 0;
         
         // Generate suggested follow-ups for question mode
-        const suggestedFollowUps = [
-          "Provide me a model answer according to the marking scheme.",
-          "Give me similar practice questions."
-        ];
+        const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
+        const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
         
         // Finish progress tracking
         progressTracker.finish();
@@ -444,7 +442,7 @@ export class MarkHomeworkWithAnswerAuto {
             apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
           },
           apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-        } as MarkHomeworkResponse;
+        } as any;
       } else {
         // Marking mode: full processing pipeline
         // Continue with marking mode steps (no reset needed - using complete flow)
@@ -564,11 +562,8 @@ export class MarkHomeworkWithAnswerAuto {
         logStep6Complete();
 
         // Generate suggested follow-ups for marking mode
-        const suggestedFollowUps = [
-          "Provide model answer based on the marking scheme.",
-          "Give me detailed feedback.", 
-          "Generate similar practice questions."
-        ];
+        const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
+        const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
 
         // Finish progress tracking
         markingProgressTracker.finish();
@@ -596,10 +591,6 @@ export class MarkHomeworkWithAnswerAuto {
         console.log(`✅ [RESULT] Marking mode completed successfully`);
 
         const isPastPaper = questionDetection?.found || false;
-        console.log('🔍 [DEBUG] Marking mode - isPastPaper setting:');
-        console.log('  - questionDetection?.found:', questionDetection?.found);
-        console.log('  - isPastPaper:', isPastPaper);
-        console.log('  - suggestedFollowUps:', suggestedFollowUps);
         
         return {
           success: true,
@@ -633,7 +624,7 @@ export class MarkHomeworkWithAnswerAuto {
             apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
           },
           apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-        } as MarkHomeworkResponse;
+        } as any;
       }
     } catch (error) {
       console.error('Error in MarkHomeworkWithAnswerAuto.run:', error);

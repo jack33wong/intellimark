@@ -162,13 +162,6 @@ export class AIMarkingService {
 
     const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
 
-    // Debug: Log what's being sent to the AI
-    console.log('🔍 [TEXT MODE DEBUG] Input to AI:');
-    console.log('  - message (user input):', message);
-    console.log('  - isSimpleMath:', /^[\d\s\+\-\*\/\(\)\.]+$/.test(message.trim()));
-    console.log('  - chatHistory length:', chatHistory.length);
-    console.log('  - contextPrompt:', contextPrompt);
-    console.log('  - userPrompt:', userPrompt);
 
     try {
       const { ModelProvider } = await import('./ai/ModelProvider.js');

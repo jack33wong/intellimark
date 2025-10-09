@@ -212,7 +212,7 @@ export interface UnifiedMessage {
   };
   
   // Suggested follow-up questions
-  suggestedFollowUps?: string[];
+  suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   
   // Firestore metadata
   createdAt?: string;
@@ -306,7 +306,7 @@ export interface MarkHomeworkResponse {
   annotatedImage?: string | null;
   instructions?: MarkingInstructions;
   message?: string;
-  suggestedFollowUps?: string[];
+  suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   apiUsed?: string;
   ocrMethod?: string;
   classification?: ImageClassification;

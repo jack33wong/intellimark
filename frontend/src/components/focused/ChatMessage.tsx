@@ -78,21 +78,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     setImageError(true);
   }, []);
 
-  const handleFollowUpClick = useCallback(async (suggestion: string) => {
+  const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
-      // Determine mode based on suggestion text
-      let mode = 'chat'; // default
-      if (suggestion.toLowerCase().includes('model answer')) {
-        mode = 'modelanswer';
-      } else if (suggestion.toLowerCase().includes('marking scheme')) {
-        mode = 'markingscheme';
-      } else if (suggestion.toLowerCase().includes('step-by-step')) {
-        mode = 'stepbystep';
-      } else if (suggestion.toLowerCase().includes('similar practice')) {
-        mode = 'similarquestions';
-      } else if (suggestion.toLowerCase().includes('detailed feedback')) {
-        mode = 'detailedfeedback';
-      }
+      // Mode is now passed directly from SuggestedFollowUpButtons
       
       // Add user message immediately (same as text mode chat)
       if (addMessage) {

@@ -32,7 +32,7 @@
   border: none;
   border-radius: 0;
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   text-align: left;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -98,7 +98,7 @@
 }
 
 .suggested-follow-up-text {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font-size: 14px;
   line-height: 22px;
   flex: 1;
