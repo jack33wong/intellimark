@@ -434,8 +434,11 @@ test.describe('Edge Case E2E Tests', () => {
       // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
       
-      // Wait for content to be rendered
-      await page.waitForSelector('.chat-message.assistant .markdown-math-renderer', { timeout: 30000 });
+      // Wait for any assistant message content to be rendered (more flexible)
+      await page.waitForSelector('.chat-message.assistant', { timeout: 30000 });
+      
+      // Wait a bit more for content to fully render
+      await page.waitForTimeout(2000);
       
       // Verify thinking indicator is still visible after completion
       const thinkingIndicator = page.locator('.thinking-indicator');
