@@ -148,11 +148,38 @@ export interface ImageClassification {
   usageTokens?: number;
 }
 
+// Centralized DetectedQuestion interface - single source of truth
+export interface DetectedQuestion {
+  found: boolean;
+  questionText?: string;
+  questionNumber?: string;       // Question number from exam paper
+  subQuestionNumber?: string;    // Optional sub-question number if matched
+  examBoard?: string;
+  examCode?: string;
+  paperTitle?: string;
+  subject?: string;
+  tier?: string;
+  year?: string;
+  marks?: number;                // Total marks for this question
+  markingScheme?: string;        // Marking scheme for model answer generation
+}
+
 export interface QuestionDetectionResult {
   found: boolean;
   questionText?: string;
   message?: string;
   markingScheme?: string;
+  match?: {
+    board: string;
+    qualification: string;
+    paperCode: string;
+    year: string;
+    tier?: string;
+    questionNumber?: string;
+    subQuestionNumber?: string;
+    marks?: number;
+    confidence?: number;
+  };
 }
 
 // Unified Message types (matches frontend)
@@ -173,21 +200,10 @@ export interface UnifiedMessage {
   
   // Display options
   isImageContext?: boolean;
+  isProcessing?: boolean;
   
   // Question detection with full exam paper metadata
-  detectedQuestion?: {
-    found: boolean;
-    questionText?: string;
-    questionNumber?: string;       // Question number from exam paper
-    subQuestionNumber?: string;    // Optional sub-question number if matched
-    examBoard?: string;
-    examCode?: string;
-    paperTitle?: string;
-    subject?: string;
-    tier?: string;
-    year?: string;
-    markingScheme?: string;        // Marking scheme for model answer generation
-  };
+  detectedQuestion?: DetectedQuestion;
   
   // Message-specific processing stats
   processingStats?: {
@@ -239,7 +255,7 @@ export interface UnifiedSession {
   isPastPaper?: boolean;
   
   // Detected question information (stored at session level for easy access)
-  detectedQuestion?: QuestionDetectionResult;
+  detectedQuestion?: DetectedQuestion;
   
   // Aggregated stats across ALL messages
   sessionStats?: {

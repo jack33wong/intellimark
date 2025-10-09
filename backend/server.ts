@@ -3,6 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as dotenv from 'dotenv';
+import swaggerUi from 'swagger-ui-express';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -40,6 +48,35 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Swagger UI setup
+try {
+  const apiSpecPath = path.join(__dirname, 'api-spec.json');
+  if (fs.existsSync(apiSpecPath)) {
+    const apiSpec = JSON.parse(fs.readFileSync(apiSpecPath, 'utf8'));
+    
+    // Serve Swagger UI at /api-docs
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'IntelliMark API Documentation',
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        docExpansion: 'list',
+        filter: true,
+        showExtensions: true,
+        showCommonExtensions: true
+      }
+    }));
+    
+    console.log('📚 Swagger UI available at: http://localhost:5001/api-docs');
+  } else {
+    console.warn('⚠️  API spec not found at:', apiSpecPath);
+    console.warn('   Run: npm run generate-api-spec');
+  }
+} catch (error) {
+  console.error('❌ Failed to setup Swagger UI:', error);
+}
+
 // Import routes
 import authRoutes from './routes/auth.js';
 import markHomeworkRoutes from './routes/mark-homework.js';
@@ -70,6 +107,35 @@ app.use('/api/payment', paymentRoutes);
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// API documentation redirect
+app.get('/docs', (_req, res) => {
+  res.redirect('/api-docs');
+});
+
+app.get('/swagger', (_req, res) => {
+  res.redirect('/api-docs');
+});
+
+// API info endpoint
+app.get('/api', (_req, res) => {
+  res.json({
+    name: 'IntelliMark API',
+    version: '1.0.0',
+    description: 'AI-powered homework marking and question detection API',
+    documentation: {
+      swagger: '/api-docs',
+      health: '/health'
+    },
+    endpoints: {
+      auth: '/api/auth',
+      markHomework: '/api/mark-homework',
+      messages: '/api/messages',
+      admin: '/api/admin',
+      payment: '/api/payment'
+    }
+  });
 });
 
 

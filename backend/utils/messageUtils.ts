@@ -1,10 +1,32 @@
 import crypto from 'crypto';
-import type { UnifiedMessage } from '../types/index.js';
+import type { UnifiedMessage, DetectedQuestion } from '../types/index.js';
 
 /**
  * Consolidated message utilities for backend
  * All message-related functionality in one place
  */
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Create a default DetectedQuestion object using auto-generated type
+ */
+function createDefaultDetectedQuestion(): DetectedQuestion {
+  return {
+    found: false,
+    questionText: '',
+    examBoard: '',
+    examCode: '',
+    paperTitle: '',
+    subject: '',
+    tier: '',
+    year: '',
+    marks: 0,
+    markingScheme: ''
+  };
+}
 
 // ============================================================================
 // CONTENT HASH GENERATION
@@ -163,16 +185,7 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
-    detectedQuestion: { 
-      found: false, 
-      questionText: '',
-      examBoard: '',
-      examCode: '',
-      paperTitle: '',
-      subject: '',
-      tier: '',
-      year: ''
-    },
+    detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {
       processingTimeMs: 0,
       modelUsed: model,
@@ -225,16 +238,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     imageData: imageData, // Include imageData for unauthenticated users
     fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
     progressData: progressData,
-    detectedQuestion: { 
-      found: false, 
-      questionText: '',
-      examBoard: '',
-      examCode: '',
-      paperTitle: '',
-      subject: '',
-      tier: '',
-      year: ''
-    },
+    detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {
       processingTimeMs: 0,
       modelUsed: 'auto',

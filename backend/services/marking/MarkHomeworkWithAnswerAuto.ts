@@ -403,10 +403,6 @@ export class MarkHomeworkWithAnswerAuto {
           : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
         
         const isPastPaper = questionDetection?.found || false;
-        console.log('🔍 [DEBUG] Question mode - isPastPaper setting:');
-        console.log('  - questionDetection?.found:', questionDetection?.found);
-        console.log('  - isPastPaper:', isPastPaper);
-        console.log('  - suggestedFollowUps:', suggestedFollowUps);
         
         // Add marking scheme and question text to questionDetection (same as marking mode)
         if (questionDetection) {

@@ -7,6 +7,7 @@ import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getFirestore } from '../config/firebase.js';
+import { createUserMessage, createAIMessage } from '../utils/messageUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -749,7 +750,8 @@ export class FirestoreService {
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
         tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || ''
+        year: questionDetection.match?.year || '',
+        marks: questionDetection.match?.marks
       } : {
         found: false,
         questionText: '',
@@ -763,28 +765,35 @@ export class FirestoreService {
         year: ''
       };
 
-      // Create original image message
-      const originalMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
+      // Create original image message using centralized factory
+      const originalMessage = createUserMessage({
         content: 'Uploaded homework for marking',
-        timestamp: new Date().toISOString(),
-        type: 'marking_original',
         imageLink: originalImageUrl,
-        detectedQuestion: removeUndefinedValues(detectedQuestion)
-      };
+        sessionId: sessionId,
+        model: 'auto'
+      });
 
-      // Create annotated image message with context summary
+      // Add detectedQuestion data
+      (originalMessage as any).detectedQuestion = removeUndefinedValues(detectedQuestion);
+
+      // Create annotated image message with context summary using centralized factory
       const contextSummary = this.generateMarkingContextSummary(instructions, result);
-      const annotatedMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'assistant',
+      const annotatedMessage = createAIMessage({
         content: contextSummary,
-        timestamp: new Date().toISOString(),
-        type: 'marking_annotated',
-        imageLink: annotatedImageUrl,
-        detectedQuestion: removeUndefinedValues(detectedQuestion)
-      };
+        imageData: null, // We're using imageLink instead
+        fileName: 'annotated-image.png',
+        isQuestionOnly: false,
+        processingStats: {
+          processingTimeMs: 0,
+          modelUsed: 'auto',
+          apiUsed: 'Legacy Session Creation',
+          ocrMethod: 'Legacy Session Creation'
+        }
+      });
+
+      // Add image link and detectedQuestion data
+      (annotatedMessage as any).imageLink = annotatedImageUrl;
+      (annotatedMessage as any).detectedQuestion = removeUndefinedValues(detectedQuestion);
 
       // Add both messages to the session using unified approach
       await this.addMessageToUnifiedSession(sessionId, originalMessage);
@@ -845,7 +854,8 @@ export class FirestoreService {
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
         tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || ''
+        year: questionDetection.match?.year || '',
+        marks: questionDetection.match?.marks
       } : {
         found: false,
         questionText: '',
@@ -859,16 +869,16 @@ export class FirestoreService {
         year: ''
       };
 
-      // Create question image message
-      const questionMessage = {
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        role: 'user',
+      // Create question image message using centralized factory
+      const questionMessage = createUserMessage({
         content: 'Uploaded question for tutoring',
-        timestamp: new Date().toISOString(),
-        type: 'question_original',
         imageLink: originalImageUrl,
-        detectedQuestion: removeUndefinedValues(detectedQuestion)
-      };
+        sessionId: sessionId,
+        model: 'auto'
+      });
+
+      // Add detectedQuestion data
+      (questionMessage as any).detectedQuestion = removeUndefinedValues(detectedQuestion);
 
       // Add message to the session using unified approach
       await this.addMessageToUnifiedSession(sessionId, questionMessage);

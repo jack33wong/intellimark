@@ -8,7 +8,7 @@ import type { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
 import { MarkHomeworkWithAnswerAuto } from '../services/marking/MarkHomeworkWithAnswerAuto.js';
-import { createAIMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
+import { createUserMessage, createAIMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 
 // Get Firestore instance
 admin.firestore();
@@ -130,55 +130,56 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // Create user message - IDENTICAL for both authenticated and unauthenticated users
-    const userMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'user',
+    // Create user message using centralized factory
+    const userMessage = createUserMessage({
       content: 'I have a question about this image. Can you help me understand it?',
-      timestamp: new Date().toISOString(),
-      type: result.isQuestionOnly ? 'question_original' : 'marking_original',
       imageLink: originalImageLink, // Only for authenticated users (null for unauthenticated)
       imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
-      fileName: 'uploaded-image.png',
-      // Add simplified detectedQuestion data 
-      detectedQuestion: result.questionDetection?.found ? {
-        found: true,
-        questionText: result.classification?.extractedQuestionText || '',
-        questionNumber: result.questionDetection.match?.questionNumber || '',
-        subQuestionNumber: result.questionDetection.match?.subQuestionNumber || '',
-        examBoard: result.questionDetection.match?.board || '',
-        examCode: result.questionDetection.match?.paperCode || '',
-        paperTitle: result.questionDetection.match?.qualification || '',
-        subject: result.questionDetection.match?.qualification || '',
-        tier: result.questionDetection.match?.tier || '',
-        year: result.questionDetection.match?.year || '',
-        markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
-      } : {
-        found: false,
-        questionText: '',
-        questionNumber: '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        markingScheme: ''
-      },
-      processingStats: {
-        processingTimeMs: result.processingStats?.processingTimeMs || 0,
-        confidence: result.processingStats?.confidence || 0,
-        imageSize: result.processingStats?.imageSize || 0,
-        modelUsed: result.processingStats?.modelUsed || model,
-        apiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
-          throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
-        })(),
-        llmTokens: result.processingStats?.llmTokens || 0,
-        mathpixCalls: result.processingStats?.mathpixCalls || 0,
-        annotations: result.processingStats?.annotations || 0,
-        ocrMethod: result.ocrMethod || 'hybrid'
-      }
+      sessionId: sessionId,
+      model: model
+    });
+
+    // Add detectedQuestion data to user message
+    (userMessage as any).detectedQuestion = result.questionDetection?.found ? {
+      found: true,
+      questionText: result.classification?.extractedQuestionText || '',
+      questionNumber: result.questionDetection.match?.questionNumber || '',
+      subQuestionNumber: result.questionDetection.match?.subQuestionNumber || '',
+      examBoard: result.questionDetection.match?.board || '',
+      examCode: result.questionDetection.match?.paperCode || '',
+      paperTitle: result.questionDetection.match?.qualification || '',
+      subject: result.questionDetection.match?.qualification || '',
+      tier: result.questionDetection.match?.tier || '',
+      year: result.questionDetection.match?.year || '',
+      marks: result.questionDetection.match?.marks,
+      markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
+    } : {
+      found: false,
+      questionText: '',
+      questionNumber: '',
+      subQuestionNumber: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: '',
+      markingScheme: ''
+    };
+
+    // Update processing stats with actual data
+    (userMessage as any).processingStats = {
+      processingTimeMs: result.processingStats?.processingTimeMs || 0,
+      confidence: result.processingStats?.confidence || 0,
+      imageSize: result.processingStats?.imageSize || 0,
+      modelUsed: result.processingStats?.modelUsed || model,
+      apiUsed: result.processingStats?.apiUsed || result.apiUsed || (() => {
+        throw new Error('Missing API URL in processing stats - this indicates a service configuration error');
+      })(),
+      llmTokens: result.processingStats?.llmTokens || 0,
+      mathpixCalls: result.processingStats?.mathpixCalls || 0,
+      annotations: result.processingStats?.annotations || 0,
+      ocrMethod: result.ocrMethod || 'hybrid'
     };
 
     // Upload annotated image to Firebase Storage if it's a marking result
@@ -565,6 +566,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       subject: result.questionDetection.match?.qualification || '',
       tier: result.questionDetection.match?.tier || '',
       year: result.questionDetection.match?.year || '',
+      marks: result.questionDetection.match?.marks,
       markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
     } : {
       found: false,
@@ -626,24 +628,17 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           originalImageLink = null;
         }
 
-        // Create user message for database (earlier timestamp)
-        const dbUserMessage = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          role: 'user',
+        // Create user message for database using centralized factory
+        const dbUserMessage = createUserMessage({
           content: customText || 'I have a question about this image. Can you help me understand it?',
-          timestamp: userTimestamp,
-          type: 'marking_original',
           imageLink: originalImageLink, // For authenticated users
           imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
-          fileName: 'uploaded-image.png',
-          processingStats: {
-            processingTimeMs: 0,
-            confidence: 0,
-            modelUsed: model,
-            apiUsed: 'User Upload',
-            ocrMethod: 'User Upload'
-          }
-        };
+          sessionId: sessionId,
+          model: model
+        });
+
+        // Override timestamp for database consistency
+        (dbUserMessage as any).timestamp = userTimestamp;
 
         // Update AI message timestamp for database (later timestamp)
         const dbAiMessage = {
@@ -874,20 +869,16 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    // Create AI message with separate content and progressData
+    // Create AI message using centralized factory
     console.log('🔍 [DEBUG] Creating AI message:');
     console.log('  - result.suggestedFollowUps:', result.suggestedFollowUps);
     console.log('  - result.isPastPaper:', result.isPastPaper);
     
-    const aiMessage = {
-      id: `msg-${Date.now() + 1}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'assistant',
+    const aiMessage = createAIMessage({
       content: result.message,
-      timestamp: new Date().toISOString(),
-      type: result.isQuestionOnly ? 'question_response' : 'marking_annotated',
-      imageLink: annotatedImageLink, // For authenticated users
-      imageData: !isAuthenticated && result.annotatedImage ? result.annotatedImage : undefined, // For unauthenticated users
+      imageData: result.annotatedImage || null,
       fileName: 'annotated-image.png',
+      isQuestionOnly: result.isQuestionOnly,
       suggestedFollowUps: result.suggestedFollowUps || [],
       processingStats: {
         processingTimeMs: result.processingStats?.processingTimeMs || 0,
@@ -900,7 +891,15 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
         imageSize: result.processingStats?.imageSize || 0,
         annotations: result.processingStats?.annotations || 0
       }
-    };
+    });
+
+    // Update image link for authenticated users
+    if (isAuthenticated && annotatedImageLink) {
+      (aiMessage as any).imageLink = annotatedImageLink;
+      (aiMessage as any).imageData = undefined; // Don't send base64 data for authenticated users
+    } else if (!isAuthenticated && result.annotatedImage) {
+      (aiMessage as any).imageData = result.annotatedImage; // For unauthenticated users
+    }
 
 
     // Always create session with only AI message
@@ -1113,19 +1112,18 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
       model
     );
 
-    // Create AI response message
-    const aiMessage = {
-      id: `model-answer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      role: 'assistant',
+    // Create AI response message using centralized factory
+    const aiMessage = createAIMessage({
       content: result.response,
-      timestamp: new Date().toISOString(),
-      type: 'model_answer',
       processingStats: {
         processingTimeMs: 0, // AI service doesn't return timing
         modelUsed: model,
         apiUsed: result.apiUsed || `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
       }
-    };
+    });
+
+    // Override type for model answer
+    (aiMessage as any).type = 'model_answer';
 
     // Save to database if authenticated
     if (isAuthenticated) {

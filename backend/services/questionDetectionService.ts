@@ -45,6 +45,7 @@ export interface ExamPaperMatch {
   tier?: string;  // Add tier field
   questionNumber?: string;
   subQuestionNumber?: string;  // Optional sub-question number if matched
+  marks?: number;  // Total marks for this question
   confidence?: number;
   markingScheme?: MarkingSchemeMatch;
 }
@@ -272,6 +273,22 @@ export class QuestionDetectionService {
         const year = metadata.year || examPaper.year || 'Unknown';
         const tier = exam.tier || metadata.tier || '';
         
+        // Extract marks for the matched question
+        let questionMarks: number | undefined = undefined;
+        if (Array.isArray(questions)) {
+          const matchedQuestion = questions.find(q => 
+            (q.question_number || q.number) === bestQuestionMatch
+          );
+          if (matchedQuestion) {
+            questionMarks = matchedQuestion.marks || matchedQuestion.total_marks || matchedQuestion.points;
+          }
+        } else {
+          const questionData = questions[bestQuestionMatch];
+          if (questionData) {
+            questionMarks = questionData.marks || questionData.total_marks || questionData.points;
+          }
+        }
+        
         return {
           board: board,
           qualification: qualification,
@@ -280,6 +297,7 @@ export class QuestionDetectionService {
           tier: tier,
           questionNumber: bestQuestionMatch,
           subQuestionNumber: bestSubQuestionNumber || undefined,
+          marks: questionMarks,
           confidence: bestScore
         };
       }
