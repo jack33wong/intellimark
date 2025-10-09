@@ -41,9 +41,51 @@ function generateOpenAPISpec() {
       }
     ],
     paths: {
-      '/api/mark-homework': {
+      // Mark Homework Routes
+      '/api/mark-homework/upload': {
         post: {
-          summary: 'Mark homework with AI',
+          summary: 'Upload homework image',
+          description: 'Upload an image for homework marking',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    imageData: { type: 'string' },
+                    model: { type: 'string', enum: ['auto', 'gemini-2.5-pro', 'gemini-2.5-flash'] },
+                    sessionId: { type: 'string' }
+                  },
+                  required: ['imageData']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Upload successful',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Image uploaded successfully' },
+                      sessionId: { type: 'string', example: 'session-1234567890' },
+                      imageUrl: { type: 'string', example: 'https://firebasestorage.googleapis.com/v0/b/example.appspot.com/o/images%2Fuploaded.png' }
+                    }
+                  }
+                }
+              }
+            },
+            '400': { $ref: '#/components/responses/ErrorResponse' }
+          }
+        }
+      },
+      '/api/mark-homework/process': {
+        post: {
+          summary: 'Process homework marking',
           description: 'Process uploaded image and generate marking instructions',
           requestBody: {
             required: true,
@@ -66,12 +108,47 @@ function generateOpenAPISpec() {
                 }
               }
             },
-            '400': {
-              description: 'Bad request',
+            '400': { $ref: '#/components/responses/ErrorResponse' }
+          }
+        }
+      },
+      '/api/mark-homework/process-single-stream': {
+        post: {
+          summary: 'Process homework with streaming',
+          description: 'Process homework with real-time streaming response',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    imageData: { type: 'string' },
+                    model: { type: 'string' },
+                    customText: { type: 'string' },
+                    debug: { type: 'boolean' },
+                    aiMessageId: { type: 'string' },
+                    sessionId: { type: 'string' }
+                  },
+                  required: ['imageData']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Streaming response',
               content: {
                 'application/json': {
                   schema: {
-                    $ref: '#/components/schemas/ErrorResponse'
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      responseType: { type: 'string', example: 'streaming' },
+                      sessionId: { type: 'string', example: 'session-1234567890' },
+                      messageId: { type: 'string', example: 'msg-1234567890' },
+                      progressData: { $ref: '#/components/schemas/ProgressData' }
+                    }
                   }
                 }
               }
@@ -79,6 +156,101 @@ function generateOpenAPISpec() {
           }
         }
       },
+      '/api/mark-homework/model-answer': {
+        post: {
+          summary: 'Get model answer',
+          description: 'Get model answer for a specific question',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    messageId: { type: 'string' },
+                    sessionId: { type: 'string' }
+                  },
+                  required: ['messageId', 'sessionId']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Model answer response',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      responseType: { type: 'string', example: 'model_answer' },
+                      aiMessage: { $ref: '#/components/schemas/UnifiedMessage' },
+                      sessionId: { type: 'string', example: 'session-1234567890' },
+                      progressData: { $ref: '#/components/schemas/ProgressData' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/mark-homework/stats': {
+        get: {
+          summary: 'Get marking statistics',
+          description: 'Get statistics about homework marking',
+          responses: {
+            '200': {
+              description: 'Marking statistics',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      stats: {
+                        type: 'object',
+                        properties: {
+                          totalMarkings: { type: 'number', example: 150 },
+                          averageProcessingTime: { type: 'number', example: 2500 },
+                          successRate: { type: 'number', example: 0.95 },
+                          totalSessions: { type: 'number', example: 75 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/mark-homework/health': {
+        get: {
+          summary: 'Mark homework health check',
+          description: 'Health check for mark homework service',
+          responses: {
+            '200': {
+              description: 'Health status',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'OK' },
+                      timestamp: { type: 'string', example: '2024-01-01T00:00:00Z' },
+                      service: { type: 'string', example: 'mark-homework' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+
+      // Messages Routes
       '/api/messages/chat': {
         post: {
           summary: 'Send chat message',
@@ -106,9 +278,673 @@ function generateOpenAPISpec() {
             }
           }
         }
+      },
+      '/api/messages': {
+        post: {
+          summary: 'Create message',
+          description: 'Create a new message',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/UnifiedMessage'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/messages/session/{sessionId}': {
+        get: {
+          summary: 'Get session messages',
+          description: 'Get all messages for a specific session',
+          parameters: [
+            {
+              name: 'sessionId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/messages/sessions/{userId}': {
+        get: {
+          summary: 'Get user sessions',
+          description: 'Get all sessions for a specific user',
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'User sessions',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      sessions: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/UnifiedSession' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/messages/batch': {
+        post: {
+          summary: 'Create multiple messages',
+          description: 'Create multiple messages in batch',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    messages: {
+                      type: 'array',
+                      items: { $ref: '#/components/schemas/UnifiedMessage' }
+                    }
+                  },
+                  required: ['messages']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/messages/session/{sessionId}': {
+        delete: {
+          summary: 'Delete session',
+          description: 'Delete a specific session',
+          parameters: [
+            {
+              name: 'sessionId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        },
+        put: {
+          summary: 'Update session',
+          description: 'Update a specific session',
+          parameters: [
+            {
+              name: 'sessionId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/UnifiedSession'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/messages/stats': {
+        get: {
+          summary: 'Get message statistics',
+          description: 'Get statistics about messages',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+
+      // Auth Routes
+      '/api/auth/test-updated-code': {
+        get: {
+          summary: 'Test auth code',
+          description: 'Test endpoint for updated auth code',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/providers': {
+        get: {
+          summary: 'Get auth providers',
+          description: 'Get available authentication providers',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/social-login': {
+        post: {
+          summary: 'Social login',
+          description: 'Authenticate with social provider',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    idToken: { type: 'string' },
+                    provider: { type: 'string' }
+                  },
+                  required: ['idToken', 'provider']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/profile': {
+        get: {
+          summary: 'Get user profile',
+          description: 'Get current user profile',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'User profile',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      user: {
+                        type: 'object',
+                        properties: {
+                          uid: { type: 'string', example: 'user-1234567890' },
+                          email: { type: 'string', example: 'user@example.com' },
+                          displayName: { type: 'string', example: 'John Doe' },
+                          photoURL: { type: 'string', example: 'https://example.com/photo.jpg' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        put: {
+          summary: 'Update user profile',
+          description: 'Update current user profile',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    displayName: { type: 'string' },
+                    photoURL: { type: 'string' }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/signup': {
+        post: {
+          summary: 'Email signup',
+          description: 'Sign up with email and password',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    email: { type: 'string' },
+                    password: { type: 'string' },
+                    fullName: { type: 'string' }
+                  },
+                  required: ['email', 'password', 'fullName']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/signin': {
+        post: {
+          summary: 'Email signin',
+          description: 'Sign in with email and password',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    email: { type: 'string' },
+                    password: { type: 'string' }
+                  },
+                  required: ['email', 'password']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/check-user': {
+        post: {
+          summary: 'Check if user exists',
+          description: 'Check if a user exists by email',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    email: { type: 'string' }
+                  },
+                  required: ['email']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/auth/logout': {
+        post: {
+          summary: 'Logout user',
+          description: 'Logout current user',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+
+      // Payment Routes
+      '/api/payment/config': {
+        get: {
+          summary: 'Get payment config',
+          description: 'Get Stripe payment configuration',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/create-checkout-session': {
+        post: {
+          summary: 'Create checkout session',
+          description: 'Create Stripe checkout session',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    planId: { type: 'string' },
+                    billingCycle: { type: 'string' },
+                    successUrl: { type: 'string' },
+                    cancelUrl: { type: 'string' },
+                    userId: { type: 'string' }
+                  },
+                  required: ['planId', 'billingCycle', 'successUrl', 'cancelUrl', 'userId']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/create-payment-intent': {
+        post: {
+          summary: 'Create payment intent',
+          description: 'Create Stripe payment intent',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    planId: { type: 'string' },
+                    billingCycle: { type: 'string' },
+                    customerEmail: { type: 'string' },
+                    customerId: { type: 'string' }
+                  },
+                  required: ['planId', 'billingCycle', 'customerEmail', 'customerId']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/create-subscription': {
+        post: {
+          summary: 'Create subscription',
+          description: 'Create Stripe subscription',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    planId: { type: 'string' },
+                    billingCycle: { type: 'string' },
+                    customerEmail: { type: 'string' },
+                    customerId: { type: 'string' }
+                  },
+                  required: ['planId', 'billingCycle', 'customerEmail', 'customerId']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/user-subscription/{userId}': {
+        get: {
+          summary: 'Get user subscription',
+          description: 'Get subscription for a specific user',
+          parameters: [
+            {
+              name: 'userId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/subscription/{id}': {
+        get: {
+          summary: 'Get subscription by ID',
+          description: 'Get subscription by Stripe subscription ID',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/cancel-subscription/{id}': {
+        delete: {
+          summary: 'Cancel subscription',
+          description: 'Cancel a subscription',
+          parameters: [
+            {
+              name: 'id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/payment/webhook': {
+        post: {
+          summary: 'Stripe webhook',
+          description: 'Handle Stripe webhook events',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+
+      // Admin Routes
+      '/api/admin/json/collections/{collectionName}': {
+        get: {
+          summary: 'Get collection data',
+          description: 'Get data from a specific collection',
+          parameters: [
+            {
+              name: 'collectionName',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        },
+        post: {
+          summary: 'Add to collection',
+          description: 'Add data to a specific collection',
+          parameters: [
+            {
+              name: 'collectionName',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/json/collections/markingSchemes': {
+        post: {
+          summary: 'Add marking scheme',
+          description: 'Add a new marking scheme',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    markingSchemeData: { type: 'object' }
+                  },
+                  required: ['markingSchemeData']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/json/collections/{collectionName}/{entryId}': {
+        delete: {
+          summary: 'Delete collection entry',
+          description: 'Delete a specific entry from collection',
+          parameters: [
+            {
+              name: 'collectionName',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            },
+            {
+              name: 'entryId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/json/collections/{collectionName}/clear-all': {
+        delete: {
+          summary: 'Clear collection',
+          description: 'Clear all entries from a collection',
+          parameters: [
+            {
+              name: 'collectionName',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' }
+            }
+          ],
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/json/upload': {
+        post: {
+          summary: 'Upload JSON data',
+          description: 'Upload JSON data to collections',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    data: { type: 'object' }
+                  },
+                  required: ['data']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/clear-all-sessions': {
+        delete: {
+          summary: 'Clear all sessions',
+          description: 'Clear all user sessions',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
+      },
+      '/api/admin/clear-all-marking-results': {
+        delete: {
+          summary: 'Clear all marking results',
+          description: 'Clear all marking results',
+          responses: {
+            '200': { $ref: '#/components/responses/SuccessResponse' }
+          }
+        }
       }
     },
     components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT'
+        }
+      },
+      responses: {
+        SuccessResponse: {
+          description: 'Successful response',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean' }
+                }
+              }
+            }
+          }
+        },
+        ErrorResponse: {
+          description: 'Error response',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/ErrorResponse'
+              }
+            }
+          }
+        }
+      },
       schemas: {
         // Core Types
         DetectedQuestion: {

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts",
-    "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck && cp api-spec.json dist/",
+    "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck && npm run generate-api-with-examples && cp api-spec.json dist/",
     "build:clean": "rm -rf dist && npm run build",
     "build:deploy": "node build-for-deploy.cjs",
     "build:production": "node build-production.cjs",
@@ -19,6 +19,9 @@
     "cleanup-old-marking-results": "tsx scripts/cleanup-old-marking-results.ts",
     "test-image-config": "tsx scripts/test-image-config.ts",
     "generate-api-spec": "tsx scripts/generate-api-spec.ts",
+    "generate-examples": "tsx scripts/generate-examples.ts",
+    "update-responses": "tsx scripts/update-all-responses.ts",
+    "generate-api-with-examples": "npm run generate-api-spec && npm run update-responses && npm run generate-examples",
     "check-storage-buckets": "tsx scripts/check-storage-buckets.ts",
     "test-image-upload": "tsx scripts/test-image-upload.ts",
     "test-google-vision": "tsx scripts/test-google-vision.ts",
@@ -37,6 +40,7 @@
     }
   },
   "dependencies": {
+    "@apidevtools/swagger-parser": "^12.0.0",
     "@google-cloud/firestore": "^7.11.3",
     "@google-cloud/vision": "^4.3.3",
     "@grpc/proto-loader": "^0.8.0",

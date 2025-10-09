@@ -44,14 +44,19 @@ export class SuggestedFollowUpService {
     }
 
     // Setup progress tracking
+    let finalProgressData: any = null;
     const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
-      // Progress data will be set by callback
+      finalProgressData = data;
     });
 
     // Execute the follow-up action
     const result = await this.executeFollowUpAction(mode, targetMessage, model, progressTracker);
     
-    return result;
+    // Ensure progress data is included in result
+    return {
+      ...result,
+      progressData: finalProgressData
+    };
   }
 
   /**
@@ -86,8 +91,6 @@ export class SuggestedFollowUpService {
     model: string, 
     progressTracker: ProgressTracker
   ): Promise<SuggestedFollowUpResult> {
-    let finalProgressData: any = null;
-    
     // Start AI thinking step
     progressTracker.startStep('ai_thinking');
     
@@ -130,7 +133,7 @@ export class SuggestedFollowUpService {
     return {
       response: contextualResult.response,
       apiUsed: contextualResult.apiUsed,
-      progressData: finalProgressData
+      progressData: null // Will be set by the calling method
     };
   }
 

@@ -1094,6 +1094,25 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
       });
     }
 
+    // Set up progress tracking for model answer generation
+    const { ProgressTracker } = await import('../utils/progressTracker.js');
+    const { getStepsForMode } = await import('../utils/progressTracker.js');
+    
+    let finalProgressData: any = null;
+    const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
+      finalProgressData = data;
+    });
+
+    // Start progress tracking
+    progressTracker.startStep('ai_thinking');
+    
+    // Simulate AI thinking time
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Complete AI thinking and start generating response
+    progressTracker.completeCurrentStep();
+    progressTracker.startStep('generating_response');
+
     // Generate model answer using existing AI service
     const { AIMarkingService } = await import('../services/aiMarkingService.js');
     const { getDefaultModel } = await import('../config/aiModels.js');
@@ -1112,6 +1131,10 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
       model
     );
 
+    // Complete the generating response step
+    progressTracker.completeCurrentStep();
+    progressTracker.finish();
+
     // Create AI response message using centralized factory
     const aiMessage = createAIMessage({
       content: result.response,
@@ -1124,6 +1147,9 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
 
     // Override type for model answer
     (aiMessage as any).type = 'model_answer';
+    
+    // Add completed progress data to the message
+    (aiMessage as any).progressData = finalProgressData;
 
     // Save to database if authenticated
     if (isAuthenticated) {
@@ -1134,7 +1160,8 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
       success: true,
       responseType: 'model_answer',
       aiMessage: aiMessage,
-      sessionId: sessionId
+      sessionId: sessionId,
+      progressData: finalProgressData // Include progress data in response
     });
 
   } catch (error) {
