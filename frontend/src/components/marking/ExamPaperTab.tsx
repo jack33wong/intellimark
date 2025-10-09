@@ -3,20 +3,11 @@
  * Displays exam paper details as a tab above AI response messages
  */
 import React from 'react';
+import type { DetectedQuestion } from '../../types';
 import './ExamPaperTab.css';
 
 interface ExamPaperTabProps {
-  detectedQuestion: {
-    found: boolean;
-    examBoard?: string;
-    examCode?: string;
-    paperTitle?: string;
-    subject?: string;
-    tier?: string;
-    year?: string;
-    questionNumber?: string;
-    subQuestionNumber?: string;
-  } | null;
+  detectedQuestion: DetectedQuestion | null;
 }
 
 const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion }) => {
@@ -70,6 +61,9 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion }) => {
         <span className="tab-item">{formatExamInfo()}</span>
         {questionInfo && (
           <span className="tab-item">{questionInfo}</span>
+        )}
+        {detectedQuestion.marks && (
+          <span className="tab-item marks">{detectedQuestion.marks}</span>
         )}
       </div>
     </div>

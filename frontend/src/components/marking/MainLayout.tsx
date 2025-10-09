@@ -15,9 +15,7 @@ import './css/ImageUploadInterface.css';
 
 const MainLayout: React.FC = () => {
   const {
-    pageMode,
     isProcessing,
-    isAIThinking,
     selectedModel,
     onModelChange,
     chatMessages,

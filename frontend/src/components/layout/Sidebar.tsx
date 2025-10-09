@@ -19,7 +19,7 @@ import MarkingHistoryService from '../../services/markingHistoryService';
 import { simpleSessionService } from '../../services/simpleSessionService';
 import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
-import { UnifiedSession } from '../../types';
+import type { UnifiedSession } from '../../types';
 import './Sidebar.css';
 
 // Define the types for the props this component receives from App.tsx
@@ -46,7 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const { user, getAuthToken, isAdmin } = useAuth();
   const [chatSessions, setChatSessions] = useState<UnifiedSession[]>([]);
-  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -62,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     try {
       const authToken = await getAuthToken();
       if (!authToken) {
-        setSessionsError('Authentication token not available.');
+        console.error('Authentication token not available.');
         return;
       }
       const response = await MarkingHistoryService.getMarkingHistoryFromSessions(user.uid, 50, authToken) as MarkingHistoryResponse;
@@ -73,10 +72,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         setChatSessions(sortedSessions);
         sortedSessions.forEach(session => simpleSessionService.updateSidebarSession(session));
       } else {
-        setSessionsError('Failed to load chat sessions');
+        console.error('Failed to load chat sessions');
       }
     } catch (error) {
-      setSessionsError('Failed to load chat sessions');
+      console.error('Failed to load chat sessions:', error);
     } finally {
       console.log('✅ Sidebar: Finished loading sessions');
     }
@@ -129,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => {
       cleanup();
     };
-  }, []);
+  }, [user?.uid]);
   
   useEffect(() => {
     if (editingSessionId && editInputRef.current) {

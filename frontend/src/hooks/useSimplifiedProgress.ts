@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { simpleSessionService } from '../services/simpleSessionService';
-import type { UnifiedSession, UnifiedMessage } from '../types/index';
+import type { UnifiedSession, UnifiedMessage } from '../types';
 
 export interface SimplifiedProgressState {
   isProcessing: boolean;
@@ -73,6 +73,7 @@ export const useSimplifiedProgress = () => {
     // Create processing message
     const processingMessage: UnifiedMessage = {
       id: aiMessageId || `ai-${Date.now()}`,
+      messageId: aiMessageId || `ai-${Date.now()}`,
       role: 'assistant',
       content: '',
       isProcessing: true,

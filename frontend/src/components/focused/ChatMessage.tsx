@@ -18,7 +18,7 @@ import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
 import './ChatMessage.css';
-import { UnifiedMessage } from '../../types';
+import type { UnifiedMessage } from '../../types';
 
 
 interface ChatMessageProps {
@@ -142,7 +142,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     } catch (error) {
       console.error('❌ [FOLLOW-UP] Unexpected error:', error);
     }
-  }, [session?.id, addMessage, startAIThinking]);
+  }, [session?.id, addMessage, startAIThinking, getAuthToken, message.id]);
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);

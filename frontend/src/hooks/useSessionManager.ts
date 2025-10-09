@@ -5,7 +5,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { simpleSessionService } from '../services/simpleSessionService';
-import { UnifiedSession, UnifiedMessage } from '../types';
+import type { UnifiedSession, UnifiedMessage } from '../types';
 
 // Define the shape of the state managed by this hook
 interface SessionState {
@@ -90,7 +90,7 @@ export const useSessionManager = () => {
         console.error('Failed to update favorite status:', err);
       }
     }
-  }, [sessionState.currentSession, sessionState.isFavorite]);
+  }, [sessionState]);
 
   const onRatingChange = useCallback(async (newRating: number) => {
     const { currentSession } = sessionState;
@@ -105,7 +105,7 @@ export const useSessionManager = () => {
         console.error('Failed to update rating:', err);
       }
     }
-  }, [sessionState.currentSession]);
+  }, [sessionState]);
 
   const onTitleUpdate = useCallback(async (newTitle: string) => {
     const { currentSession } = sessionState;
@@ -120,7 +120,7 @@ export const useSessionManager = () => {
         console.error('Failed to update title:', err);
       }
     }
-  }, [sessionState.currentSession]);
+  }, [sessionState]);
 
   return {
     ...sessionState,

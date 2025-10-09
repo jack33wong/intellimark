@@ -29,7 +29,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "generate-types": "openapi-typescript ../backend/api-spec.json --output src/types/api.ts"
   },
   "eslintConfig": {
     "extends": [
@@ -55,6 +56,7 @@
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
     "@types/react-router-dom": "^5.3.3",
+    "openapi-typescript": "^7.9.1",
     "typescript": "^4.9.5"
   }
 }

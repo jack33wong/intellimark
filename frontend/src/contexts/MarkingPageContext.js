@@ -161,7 +161,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       // Reset the request flag on error
       textRequestInProgress.current = false;
     }
-  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError]);
+  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
   
   useEffect(() => {
     if (selectedMarkingResult) {

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { simpleSessionService } from '../services/simpleSessionService';
-import { UnifiedMessage, UnifiedSession } from '../types';
+import type { UnifiedMessage, UnifiedSession } from '../types';
 
 // Define the shape of the API state
 interface ApiState {
@@ -55,6 +55,7 @@ export const useApiProcessor = () => {
     // This ensures React treats processing and final messages as the same component
     const processingMessage: Partial<UnifiedMessage> = {
       id: aiMessageId || `ai-${Date.now()}`,
+      messageId: aiMessageId || `ai-${Date.now()}`,
       role: 'assistant',
       content: '',
       isProcessing: true,
