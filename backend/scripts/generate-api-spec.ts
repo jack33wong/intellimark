@@ -744,6 +744,45 @@ function generateOpenAPISpec() {
           }
         }
       },
+      '/api/payment/create-subscription-after-payment': {
+        post: {
+          summary: 'Create subscription after payment',
+          description: 'Create subscription after successful payment',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    sessionId: { type: 'string' },
+                    userId: { type: 'string' },
+                    email: { type: 'string' }
+                  },
+                  required: ['sessionId', 'userId', 'email']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Subscription created after payment',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      subscriptionId: { type: 'string', example: 'sub_1234567890' },
+                      status: { type: 'string', example: 'active' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       '/api/payment/webhook': {
         post: {
           summary: 'Stripe webhook',
@@ -759,7 +798,20 @@ function generateOpenAPISpec() {
             }
           },
           responses: {
-            '200': { $ref: '#/components/responses/SuccessResponse' }
+            '200': {
+              description: 'Webhook processed',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean', example: true },
+                      message: { type: 'string', example: 'Webhook processed successfully' }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },

@@ -970,12 +970,6 @@ export class FirestoreService {
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
       
-      // Debug logging for suggestedFollowUps persistence
-      if (message.suggestedFollowUps) {
-        console.log('💾 [FIRESTORE] Saving message with suggestedFollowUps:', message.suggestedFollowUps);
-      }
-      
-      
       // Determine if the session should become "Mixed" based on message types
       const newMessageType = this.determineSessionMessageType(existingMessages, sanitizedMessage, existingMessageType);
       
