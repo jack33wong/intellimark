@@ -1043,6 +1043,14 @@ function generateOpenAPISpec() {
             detectedQuestion: {
               $ref: '#/components/schemas/DetectedQuestion'
             },
+            studentScore: {
+              type: 'object',
+              properties: {
+                totalMarks: { type: 'number' },
+                awardedMarks: { type: 'number' },
+                scoreText: { type: 'string' }
+              }
+            },
             processingStats: {
               $ref: '#/components/schemas/ProcessingStats'
             },

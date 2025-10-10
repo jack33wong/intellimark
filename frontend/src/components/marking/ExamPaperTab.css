@@ -34,6 +34,13 @@
   color: var(--function-error);
 }
 
+.tab-item.student-score {
+  color: var(--function-error);
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid var(--function-error);
+  font-weight: bold;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .exam-paper-tab {

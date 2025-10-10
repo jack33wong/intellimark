@@ -152,7 +152,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       tier: result.questionDetection.match?.tier || '',
       year: result.questionDetection.match?.year || '',
       marks: result.questionDetection.match?.marks,
-      markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
+      markingScheme: result.questionDetection.match?.markingScheme?.questionMarks ? JSON.stringify(result.questionDetection.match.markingScheme.questionMarks) : ''
     } : {
       found: false,
       questionText: '',
@@ -567,7 +567,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       tier: result.questionDetection.match?.tier || '',
       year: result.questionDetection.match?.year || '',
       marks: result.questionDetection.match?.marks,
-      markingScheme: result.questionDetection.markingScheme || JSON.stringify(result.questionDetection)
+      markingScheme: result.questionDetection.match?.markingScheme?.questionMarks ? JSON.stringify(result.questionDetection.match.markingScheme.questionMarks) : ''
     } : {
       found: false,
       questionText: '',
@@ -1117,7 +1117,8 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
     const systemPrompt = getPrompt('modelAnswer.system');
     const userPrompt = getPrompt('modelAnswer.user', 
       message.detectedQuestion.questionText || '', 
-      message.detectedQuestion.markingScheme || JSON.stringify(message.detectedQuestion)
+      message.detectedQuestion.markingScheme || JSON.stringify(message.detectedQuestion),
+      message.detectedQuestion.marks // Pass the total marks to the prompt
     );
     
     const result = await AIMarkingService.generateChatResponse(

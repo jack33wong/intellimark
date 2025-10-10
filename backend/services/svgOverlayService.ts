@@ -21,7 +21,8 @@ export class SVGOverlayService {
   static async burnSVGOverlayServerSide(
     originalImageData: string,
     annotations: Annotation[],
-    imageDimensions: ImageDimensions
+    imageDimensions: ImageDimensions,
+    studentScore?: any
   ): Promise<string> {
     try {
       if (!annotations || annotations.length === 0) {
@@ -45,7 +46,7 @@ export class SVGOverlayService {
       
 
       // Create SVG overlay with extended dimensions (no scaling needed since we're using actual burn dimensions)
-      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight });
+      const svgOverlay = this.createSVGOverlay(annotations, burnWidth, burnHeight, { width: burnWidth, height: burnHeight }, studentScore);
       
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
@@ -81,7 +82,7 @@ export class SVGOverlayService {
   /**
    * Create SVG overlay for burning into image
    */
-  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions): string {
+  private static createSVGOverlay(annotations: Annotation[], actualWidth: number, actualHeight: number, originalDimensions: ImageDimensions, studentScore?: any): string {
     if (!annotations || annotations.length === 0) {
       return '';
     }
@@ -102,6 +103,11 @@ export class SVGOverlayService {
         throw new Error(`Failed to create SVG for annotation ${index}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     });
+
+    // Add student score circle if available
+    if (studentScore && studentScore.scoreText) {
+      svg += this.createStudentScoreCircle(studentScore, actualWidth, actualHeight);
+    }
 
     const finalSvg = svg + '</svg>';
     return finalSvg;
@@ -233,5 +239,24 @@ export class SVGOverlayService {
             stroke="#0066ff" stroke-width="${strokeWidth}" opacity="0.8" stroke-linecap="round"/>`;
   }
 
-
+  /**
+   * Create student score circle with hollow red border
+   */
+  private static createStudentScoreCircle(studentScore: any, imageWidth: number, imageHeight: number): string {
+    const scoreText = studentScore.scoreText || '0/0';
+    const circleRadius = 80; // Larger circle
+    const circleX = imageWidth - 120; // Position in top-right area
+    const circleY = 120;
+    
+    // Create hollow red circle with thick border
+    const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
+                   fill="none" stroke="#ff0000" stroke-width="8" opacity="0.9"/>`;
+    
+    // Add score text in red with larger font
+    const text = `<text x="${circleX}" y="${circleY + 20}" 
+                text-anchor="middle" fill="#ff0000" font-family="Arial, sans-serif" 
+                font-size="70" font-weight="bold" stroke="#ffffff" stroke-width="2">${scoreText}</text>`;
+    
+    return circle + text;
+  }
 }

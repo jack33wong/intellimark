@@ -212,12 +212,14 @@ export class ImageAnnotationService {
    * @param originalImage - Base64 encoded original image
    * @param annotations - Array of annotations
    * @param imageDimensions - Dimensions of the original image
+   * @param studentScore - Optional student score to burn into the image
    * @returns Complete annotation result
    */
   static async generateAnnotationResult(
     originalImage: string,
     annotations: Annotation[],
-    imageDimensions: ImageDimensions
+    imageDimensions: ImageDimensions,
+    studentScore?: any
   ): Promise<ImageAnnotationResult> {
     try {
       if (annotations) {
@@ -243,7 +245,8 @@ export class ImageAnnotationService {
       const burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
         originalImage,
         annotations,
-        imageDimensions
+        imageDimensions,
+        studentScore
       );
       
       // Convert annotations to ImageAnnotation format

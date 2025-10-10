@@ -6,7 +6,7 @@ export class MarkingInstructionService {
     model: ModelType,
     ocrText: string,
     questionDetection?: any
-  ): Promise<{ annotations: string; usageTokens: number }> {
+  ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     let systemPrompt = getPrompt('markingInstructions.basic.system');
     let userPrompt = getPrompt('markingInstructions.basic.user', ocrText);
     
@@ -43,7 +43,12 @@ export class MarkingInstructionService {
             "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
             "reasoning": "Brief explanation of why this annotation was chosen"
           }
-        ]
+        ],
+        "studentScore": {
+          "totalMarks": 6,
+          "awardedMarks": 4,
+          "scoreText": "4/6"
+        }
       }
 
       ANNOTATION RULES:
@@ -54,7 +59,13 @@ export class MarkingInstructionService {
       - CRITICAL: Both "tick" and "cross" actions can have text labels (mark codes) if applicable.
       - CRITICAL: If no specific mark code applies, leave the text field empty.
       - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
-      - You MUST include the correct step_id for each annotation by matching the text to the provided steps.`;
+      - You MUST include the correct step_id for each annotation by matching the text to the provided steps.
+
+      SCORING RULES:
+      - Calculate the total marks available for this question (sum of all mark codes like M1, A1, B1, etc.)
+      - Calculate the awarded marks (sum of marks the student actually achieved)
+      - Format the score as "awardedMarks/totalMarks" (e.g., "4/6")
+      - If no marking scheme is available, estimate reasonable marks based on mathematical correctness`;
     }
 
     
@@ -70,7 +81,11 @@ export class MarkingInstructionService {
     try {
       const { JsonUtils } = await import('./JsonUtils');
       const parsed = JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
-      return { annotations: parsed.annotations || [], usageTokens };
+      return { 
+        annotations: parsed.annotations || [], 
+        studentScore: parsed.studentScore,
+        usageTokens 
+      };
     } catch (error) {
       console.error('❌ LLM2 JSON parsing failed:', error);
       console.error('❌ Raw response that failed to parse:', responseText);

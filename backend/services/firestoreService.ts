@@ -791,9 +791,10 @@ export class FirestoreService {
         }
       });
 
-      // Add image link and detectedQuestion data
+      // Add image link, detectedQuestion data, and student score
       (annotatedMessage as any).imageLink = annotatedImageUrl;
       (annotatedMessage as any).detectedQuestion = removeUndefinedValues(detectedQuestion);
+      (annotatedMessage as any).studentScore = instructions.studentScore;
 
       // Add both messages to the session using unified approach
       await this.addMessageToUnifiedSession(sessionId, originalMessage);

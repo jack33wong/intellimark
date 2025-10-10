@@ -113,18 +113,20 @@ export class SuggestedFollowUpService {
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
     const userPrompt = getPrompt(`${config.promptKey}.user`, 
       targetMessage.detectedQuestion.questionText || '', 
-      targetMessage.detectedQuestion.markingScheme || ''
+      targetMessage.detectedQuestion.markingScheme || '',
+      config.promptKey === 'modelAnswer' ? targetMessage.detectedQuestion.marks : undefined
     );
     
-    const contextualResult = await AIMarkingService.generateChatResponse(
-      targetMessage.detectedQuestion.questionText || '',
-      targetMessage.detectedQuestion.markingScheme || '',
-      model as any, // Type assertion for model parameter
-      false, // isQuestionOnly
-      false, // debug
-      undefined, // onProgress
-      true // useOcrText
-    );
+    // Use ModelProvider directly with custom prompts
+    const { ModelProvider } = await import('./ai/ModelProvider.js');
+    const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+    
+    const contextualResult = {
+      response: aiResult.content,
+      apiUsed: `Gemini API (${model})`,
+      confidence: 0.85,
+      usageTokens: aiResult.usageTokens
+    };
     
     // Complete progress tracking
     progressTracker.completeCurrentStep();

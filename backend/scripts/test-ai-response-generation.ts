@@ -17,15 +17,19 @@
  *   # Test Marking Instructions (Call #1) - default model
  *   tsx scripts/test-ai-response-generation.ts marking
  *   
+ *   # Test Marking Scheme Formatting - shows clean bulleted format
+ *   tsx scripts/test-ai-response-generation.ts format
+ *   
  *   # Test both marking and model answer - default model
  *   tsx scripts/test-ai-response-generation.ts both
  *   
- *   # Test all three - default model
+ *   # Test all four - default model
  *   tsx scripts/test-ai-response-generation.ts all
  *   
  *   # Use specific model (Gemini 2.5 Pro)
  *   tsx scripts/test-ai-response-generation.ts model-answer gemini-2.5-pro
  *   tsx scripts/test-ai-response-generation.ts marking gemini-2.5-pro
+ *   tsx scripts/test-ai-response-generation.ts format gemini-2.5-pro
  *   tsx scripts/test-ai-response-generation.ts both gemini-2.5-pro
  *   tsx scripts/test-ai-response-generation.ts all gemini-2.5-pro
  *   
@@ -54,7 +58,12 @@ c = -2
 5n^2 + 2n - 2`,
 
   // For Marking Instructions (Call #1) - raw OCR text with step IDs (matches production format)
-  markingInstructionInput: `{"question":"Here are the first four terms of a quadratic sequence.\n3   20   47   84\nWork out an expression for the nth term of the sequence.","steps":[{"unified_step_id":"step_1","bbox":[391,411,602,85],"cleanedText":"Diff = 17, 27, 37"},{"unified_step_id":"step_2","bbox":[485,525,412,65],"cleanedText":"2 Diff = 10"},{"unified_step_id":"step_3","bbox":[372,634,640,76],"cleanedText":"Construct = -2, 0"},{"unified_step_id":"step_4","bbox":[529,739,331,71],"cleanedText":"Diff = +2"},{"unified_step_id":"step_5","bbox":[618,850,146,63],"cleanedText":"b = 2"},{"unified_step_id":"step_6","bbox":[602,962,169,62],"cleanedText":"c = -2"},{"unified_step_id":"step_7","bbox":[430,1067,514,75],"cleanedText":"5n^(2) + 2n - 2"}]}`
+  markingInstructionInput: `{"question":"Here are the first four terms of a quadratic sequence.\n3   20   47   84\nWork out an expression for the nth term of the sequence.","steps":[{"unified_step_id":"step_1","bbox":[391,411,602,85],"cleanedText":"Diff = 17, 27, 37"},{"unified_step_id":"step_2","bbox":[485,525,412,65],"cleanedText":"2 Diff = 10"},{"unified_step_id":"step_3","bbox":[372,634,640,76],"cleanedText":"Construct = -2, 0"},{"unified_step_id":"step_4","bbox":[529,739,331,71],"cleanedText":"Diff = +2"},{"unified_step_id":"step_5","bbox":[618,850,146,63],"cleanedText":"b = 2"},{"unified_step_id":"step_6","bbox":[602,962,169,62],"cleanedText":"c = -2"},{"unified_step_id":"step_7","bbox":[430,1067,514,75],"cleanedText":"5n^(2) + 2n - 2"}]}`,
+
+  // For Model Answer Generation - clean question text
+  questionText: `Here are the first four terms of a quadratic sequence.
+3   20   47   84
+Work out an expression for the nth term of the sequence.`
 };
 
 // Test configuration
@@ -134,15 +143,18 @@ async function testModelAnswer() {
     // Show the prompts being used
     const { getPrompt } = await import('../config/prompts.js');
     const systemPrompt = getPrompt('modelAnswer.system');
-    const userPrompt = getPrompt('modelAnswer.user', TEST_DATA.markingInstructionInput, mockMarkingScheme);
+    const totalMarks = 4; // Mock total marks for testing
+    const userPrompt = getPrompt('modelAnswer.user', TEST_DATA.questionText, mockMarkingScheme, totalMarks);
     
     console.log('🔍 [MODEL ANSWER] System Prompt:', systemPrompt);
     console.log('🔍 [MODEL ANSWER] User Prompt:', userPrompt);
+    console.log('🔍 [MODEL ANSWER] Total Marks:', totalMarks);
+    console.log('🔍 [MODEL ANSWER] Question Text:', TEST_DATA.questionText);
     console.log('=' .repeat(50));
     
     const result = await AIMarkingService.generateChatResponse(
-      TEST_DATA.markingInstructionInput, // OCR text
-      mockMarkingScheme, // marking scheme
+      userPrompt, // Use the formatted user prompt
+      systemPrompt, // Use the system prompt
       TEST_CONFIG.model,
       false, // isQuestionOnly
       TEST_CONFIG.debug,
@@ -155,6 +167,53 @@ async function testModelAnswer() {
     
   } catch (error) {
     console.error('❌ [MODEL ANSWER TEST] Test failed:', error);
+    throw error;
+  }
+}
+
+async function testMarkingSchemeFormatting() {
+  console.log('🎯 [TEST] Marking Scheme Formatting');
+  console.log('=' .repeat(50));
+  
+  try {
+    // Import the formatting function
+    const { getPrompt } = await import('../config/prompts.js');
+    
+    // Create mock marking scheme
+    const mockMarkingScheme = JSON.stringify({
+      "answer": "`$5n^2 + 2n - 4$`",
+      "marks": [
+        {
+          "mark": "M1",
+          "answer": "Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.",
+          "comments": ""
+        },
+        {
+          "mark": "M1dep",
+          "answer": "Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.",
+          "comments": ""
+        },
+        {
+          "mark": "M1dep",
+          "answer": "Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.",
+          "comments": "e.g., `$5(1)^2 + 2(1) + c = 3$`."
+        },
+        {
+          "mark": "A1",
+          "answer": "`$5n^2 + 2n - 4$`",
+          "comments": "oe, terms in any order."
+        }
+      ]
+    });
+    
+    // Test the formatting by calling the model answer prompt
+    const formattedPrompt = getPrompt('modelAnswer.user', TEST_DATA.questionText, mockMarkingScheme, 4);
+    
+    console.log('📋 [FORMATTED PROMPT WITH CLEAN BULLETS]:');
+    console.log(formattedPrompt);
+    
+  } catch (error) {
+    console.error('❌ [FORMATTING TEST] Test failed:', error);
     throw error;
   }
 }
@@ -273,12 +332,17 @@ async function runTests() {
       case 'marking':
         await testMarkingInstructions();
         break;
+      case 'format':
+        await testMarkingSchemeFormatting();
+        break;
       case 'both':
         await testMarkingInstructions();
         console.log('\n');
         await testModelAnswer();
         break;
       case 'all':
+        await testMarkingSchemeFormatting();
+        console.log('\n');
         await testMarkingInstructions();
         console.log('\n');
         await testModelAnswer();
@@ -286,9 +350,9 @@ async function runTests() {
         await testAIResponseGeneration();
         break;
       default:
-        console.log('❌ Invalid test type. Use: response, model-answer, marking, both, or all');
+        console.log('❌ Invalid test type. Use: response, model-answer, marking, format, both, or all');
         console.log('💡 [USAGE] tsx script.ts [testType] [model]');
-        console.log('   testType: response, model-answer, marking, both, all');
+        console.log('   testType: response, model-answer, marking, format, both, all');
         console.log(`   model: ${getSupportedModels().join(', ')}`);
         process.exit(1);
     }

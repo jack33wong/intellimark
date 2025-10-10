@@ -135,10 +135,11 @@ export class LLMOrchestrator {
         unifiedLookupTable: unifiedLookupTable // Pass the complete pre-built lookup table
       });
 
-      const result: SimpleMarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string } = { 
+      const result: SimpleMarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = { 
         annotations: placed.annotations as any, 
         usage: { llmTokens: totalTokens },
-        cleanedOcrText: cleanupResult.cleanedText
+        cleanedOcrText: cleanupResult.cleanedText,
+        studentScore: annotationData.studentScore
       };
       return result;
     } catch (error) {

@@ -199,7 +199,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
           {!isUser && message.detectedQuestion && message.detectedQuestion.found && (
-            <ExamPaperTab detectedQuestion={message.detectedQuestion} />
+            <ExamPaperTab 
+              detectedQuestion={message.detectedQuestion} 
+              studentScore={message.studentScore}
+            />
           )}
           
                   {showProgressDetails && message.progressData?.allSteps && (

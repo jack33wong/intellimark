@@ -138,6 +138,11 @@ export interface Annotation {
 
 export interface MarkingInstructions {
   annotations: Annotation[];
+  studentScore?: {
+    totalMarks: number;
+    awardedMarks: number;
+    scoreText: string;
+  };
 }
 
 export interface ImageClassification {
@@ -204,6 +209,13 @@ export interface UnifiedMessage {
   
   // Question detection with full exam paper metadata
   detectedQuestion?: DetectedQuestion;
+  
+  // Student score for marking messages
+  studentScore?: {
+    totalMarks: number;
+    awardedMarks: number;
+    scoreText: string;
+  };
   
   // Message-specific processing stats
   processingStats?: {
@@ -330,6 +342,11 @@ export interface MarkHomeworkResponse {
   sessionId?: string;
   sessionTitle?: string;
   isPastPaper?: boolean;
+  studentScore?: {
+    totalMarks: number;
+    awardedMarks: number;
+    scoreText: string;
+  };
   processingStats?: {
     processingTimeMs?: number;
     confidence?: number;

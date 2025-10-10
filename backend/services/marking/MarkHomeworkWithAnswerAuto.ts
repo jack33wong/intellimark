@@ -551,7 +551,8 @@ export class MarkHomeworkWithAnswerAuto {
           return ImageAnnotationService.generateAnnotationResult(
             imageData,
             annotations,
-            processedImage.imageDimensions
+            processedImage.imageDimensions,
+            markingInstructions.studentScore
           );
         };
         const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
@@ -608,6 +609,7 @@ export class MarkHomeworkWithAnswerAuto {
             : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
           classification: classification,
           questionDetection: questionDetection,
+          studentScore: markingInstructions.studentScore, // Add student score to response
           // Remove detectedQuestion from session metadata - will be stored in individual messages
           processingStats: {
             processingTimeMs: totalProcessingTime,

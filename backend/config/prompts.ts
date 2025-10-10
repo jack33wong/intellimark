@@ -272,22 +272,29 @@ export const AI_PROMPTS = {
              "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
              "reasoning": "Brief explanation of why this annotation was chosen"
            }
-         ]
+         ],
+         "studentScore": {
+           "totalMarks": 6,
+           "awardedMarks": 4,
+           "scoreText": "4/6"
+         }
        }
 
        **Annotation Rules:**
        1.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
        2.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
        3.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       4.  **Reasoning:** Briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.`,
+       4.  **Reasoning:** Briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+
+       **Scoring Rules:**
+       1.  **Total Marks:** Calculate the total marks available by summing all mark codes in the marking scheme (M1, A1, B1, etc.)
+       2.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
+       3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
+       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
       user: (ocrText: string, schemeJson: string) => {
-        // Clean up the marking scheme format by removing escaped characters
-        let formattedScheme = schemeJson
-          .replace(/\\n/g, '\n')           // Convert \n to actual newlines
-          .replace(/\\"/g, '"')            // Convert \" to actual quotes
-          .replace(/\\t/g, '  ')           // Convert \t to spaces
-          .trim();
+        // Convert JSON marking scheme to clean bulleted list format
+        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
         
         return `Here is the OCR TEXT:
 
@@ -304,42 +311,41 @@ export const AI_PROMPTS = {
   // ============================================================================
   
   modelAnswer: {
-    system: `You are an AI that generates concise, exam-style model answers.
+    system: `
+    # [AI Persona & Instructions]
 
-            Your task is to provide a minimalist mathematical solution, showing only the essential calculations and the final answer. 
-            Your response MUST strictly follow the style:
-            - in markdown format 
-            - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-            - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with proper line breaks. Use double line breaks between major steps.
-            - append mark codes to the end of the answer.
-            - format of the generic example below.
+    You are an AI expert in mathematics education, tasked with generating concise, exam-style model answers.
 
-            ---
-            **GENERIC EXAMPLE OF DESIRED OUTPUT STYLE:**
-            *The following is an example for "3x + 5 = 14" to show the required minimalist style. Do NOT solve this problem; use it only as a style guide.*
-                
-                3x = 14 - 5 [M1]
-                
-                3x = 9
-                
-                x = 3
-                
-                **Answer:** x = 3 [A1]
-            ---
-       
-        Now, use the provided MARKING SCHEME to generate a model answer for the following QUESTION.
-        `,
+    Your response MUST strictly adhere to the following rules:
 
-    user: (questionText: string, schemeJson: string) => {
-      // Clean up the marking scheme format by removing escaped characters
-      let formattedScheme = schemeJson
-        .replace(/\\n/g, '\n')           // Convert \n to actual newlines
-        .replace(/\\"/g, '"')            // Convert \" to actual quotes
-        .replace(/\\t/g, '  ')           // Convert \t to spaces
-        .trim();
+    ## Core Task
+    - Provide a minimalist mathematical solution that shows only the essential calculations needed to achieve full marks.
+    - The solution must directly align with the provided **MARKING SCHEME**. Each step of your working should clearly correspond to a specific mark code.
+
+
+    ## Formatting Rules
+    1.  **Markdown Only:** The entire response must be in markdown.
+    2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
+    3.  **Layout:**
+      - Start with the full question text on the first line.
+      - Add (\\t)(\\t)(\\t) [Total Marks] **marks**" to the end of the question line.
+      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with a line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
+      - Use double line breaks to separate major stages of the calculation (e.g., after finding "a", before finding "b" and "c").
+      - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
+    4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
+    5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
+    ---
+    # [Task Data]
+    `,
+
+    user: (questionText: string, schemeJson: string, totalMarks?: number) => {
+      // Convert JSON marking scheme to clean bulleted list format
+      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+      
+      const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
       
       return `**QUESTION:**
-${questionText}
+${questionText}${marksInfo}
 
 **MARKING SCHEME:**
 ${formattedScheme}
@@ -355,15 +361,13 @@ Please generate a model answer that would receive full marks according to the ma
   markingScheme: {
     system: `You are an AI that explains marking schemes for exam questions.
 
-            Your task is to provide a clear explanation of the marking scheme, showing how marks are allocated and what examiners look for.
-            Your response MUST be in markdown format with clear structure.`,
+            Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
+            Keep it concise and focus on the key marking points.
+            Your response MUST be in markdown format.`,
 
     user: (questionText: string, schemeJson: string) => {
-      let formattedScheme = schemeJson
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '  ')
-        .trim();
+      // Convert JSON marking scheme to clean bulleted list format
+      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
       
       return `**QUESTION:**
 ${questionText}
@@ -371,45 +375,19 @@ ${questionText}
 **MARKING SCHEME:**
 ${formattedScheme}
 
-Please explain this marking scheme, showing how marks are allocated and what examiners look for.`;
+Provide a brief explanation of this marking scheme. Keep it simple and concise.`;
     }
   },
-
-  stepbystep: {
-    system: `You are an AI that provides detailed step-by-step solutions to math problems.
-
-            Your task is to provide a comprehensive, educational solution that shows every step clearly.
-            Your response MUST be in markdown format with clear structure.`,
-
-    user: (questionText: string, schemeJson: string) => {
-      let formattedScheme = schemeJson
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '  ')
-        .trim();
-      
-      return `**QUESTION:**
-${questionText}
-
-**MARKING SCHEME:**
-${formattedScheme}
-
-Please provide a detailed step-by-step solution to this problem.`;
-    }
-  },
-
   similarquestions: {
     system: `You are an AI that generates similar practice questions for exam preparation.
 
-            Your task is to create 3-5 similar questions that test the same concepts and skills.
+            Your task is to create exactly 4 similar questions that test the same concepts and skills.
+            Format your response with a clear title and numbered list of 4 questions.
             Your response MUST be in markdown format with clear structure.`,
 
     user: (questionText: string, schemeJson: string) => {
-      let formattedScheme = schemeJson
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '  ')
-        .trim();
+      // Convert JSON marking scheme to clean bulleted list format
+      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
       
       return `**ORIGINAL QUESTION:**
 ${questionText}
@@ -417,30 +395,14 @@ ${questionText}
 **MARKING SCHEME:**
 ${formattedScheme}
 
-Please generate 3-5 similar practice questions that test the same concepts and skills.`;
-    }
-  },
+Generate exactly 4 similar practice questions. Format your response as:
 
-  detailedfeedback: {
-    system: `You are an AI that provides detailed feedback on student work.
+# Similar Practice Questions
 
-            Your task is to provide comprehensive feedback that helps the student understand their mistakes and improve.
-            Your response MUST be in markdown format with clear structure.`,
-
-    user: (questionText: string, schemeJson: string) => {
-      let formattedScheme = schemeJson
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '  ')
-        .trim();
-      
-      return `**QUESTION:**
-${questionText}
-
-**MARKING SCHEME:**
-${formattedScheme}
-
-Please provide detailed feedback on the student's work, explaining mistakes and how to improve.`;
+1. [Question 1]
+2. [Question 2] 
+3. [Question 3]
+4. [Question 4]`;
     }
   }
 };
@@ -448,6 +410,32 @@ Please provide detailed feedback on the student's work, explaining mistakes and 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+/**
+ * Convert JSON marking scheme to clean bulleted list format
+ */
+function formatMarkingSchemeAsBullets(schemeJson: string): string {
+  try {
+    // Parse the JSON marking scheme
+    const scheme = JSON.parse(schemeJson);
+    
+    if (!scheme.marks || !Array.isArray(scheme.marks)) {
+      return schemeJson; // Return original if not in expected format
+    }
+    
+    // Convert each mark to a bullet point
+    const bullets = scheme.marks.map((mark: any) => {
+      const markCode = mark.mark || 'M1';
+      const answer = mark.answer || '';
+      return `- **[${markCode}]** ${answer}`;
+    });
+    
+    return bullets.join('\n');
+  } catch (error) {
+    // If parsing fails, return the original JSON
+    return schemeJson;
+  }
+}
 
 /**
  * Get a prompt by path (e.g., 'classification.system', 'marking.questionOnly.user')
