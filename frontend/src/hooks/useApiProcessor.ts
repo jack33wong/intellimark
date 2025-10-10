@@ -122,11 +122,11 @@ export const useApiProcessor = () => {
     }
   }, []);
 
-  const processImageAPI = useCallback(async (imageData: string, model: string, mode: string, customText?: string, aiMessageId?: string) => {
+  const processImageAPI = useCallback(async (imageData: string, model: string, mode: string, customText?: string, aiMessageId?: string, originalFileName?: string) => {
     try {
       // 👇 FIX: Use a type assertion `as any` for the callback as well to resolve the type mismatch.
       const result = await simpleSessionService.processImageWithProgress(
-        imageData, model, mode, customText as any, updateProgress as any, aiMessageId as any
+        imageData, model, mode, customText as any, updateProgress as any, aiMessageId as any, originalFileName as any
       );
       return result;
     } catch (error) {

@@ -260,7 +260,7 @@ export const AI_PROMPTS = {
        system: `You are an AI assistant that converts student work and a marking scheme into a specific JSON format for annotations.
        Your sole purpose is to generate a valid JSON object. Your entire response MUST start with { and end with }, with no other text.
 
-       Use the provided "MARKING SCHEME CONTEXT" to evaluate the student's work in the "OCR TEXT". For each relevant step in the student's work, create a corresponding annotation object in your response.
+       Use the provided "MARKING SCHEME CONTEXT" to evaluate the student's work in the "OCR TEXT". For EACH AND EVERY step in the student's work, create a corresponding annotation object in your response.
 
        **CRITICAL: Your response MUST follow this exact format:**
        {
@@ -281,27 +281,29 @@ export const AI_PROMPTS = {
        }
 
        **Annotation Rules:**
-       1.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
-       2.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       3.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       4.  **Reasoning:** Briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
+       2.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
+       3.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       4.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
+       5.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
-       1.  **Total Marks:** Calculate the total marks available by summing all mark codes in the marking scheme (M1, A1, B1, etc.)
-       2.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
-       3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
-       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
+       1.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
+       2.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
+       3.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
-      user: (ocrText: string, schemeJson: string) => {
+      user: (ocrText: string, schemeJson: string, totalMarks?: number) => {
         // Convert JSON marking scheme to clean bulleted list format
         const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+        
+        const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
         
         return `Here is the OCR TEXT:
 
       ${ocrText}
       
       MARKING SCHEME CONTEXT:
-      ${formattedScheme}`;
+      ${formattedScheme}${marksInfo}`;
       }
     }
   },
@@ -328,10 +330,9 @@ export const AI_PROMPTS = {
     2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
     3.  **Layout:**
       - Start with the full question text on the first line.
-      - Add (\\t)(\\t)(\\t) [Total Marks] **marks**" to the end of the question line.
+      - Add (\\t)(\\t)(\\t) [6 marks] to the end of the question line.
       - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with a line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
-      - Use double line breaks to separate major stages of the calculation (e.g., after finding "a", before finding "b" and "c").
-      - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
+      - each marking code step should have at 1 to 3 steps    
     4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
     5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
     ---
@@ -397,7 +398,7 @@ ${formattedScheme}
 
 Generate exactly 4 similar practice questions. Format your response as:
 
-# Similar Practice Questions
+Similar Practice Questions
 
 1. [Question 1]
 2. [Question 2] 

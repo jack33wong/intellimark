@@ -74,6 +74,18 @@
   border-radius: 10px;
 }
 
+.suggested-follow-up-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.suggested-follow-up-button:disabled:hover {
+  background-color: transparent;
+  transform: none;
+  box-shadow: none;
+}
+
 .suggested-follow-up-content {
   display: flex;
   align-items: center;

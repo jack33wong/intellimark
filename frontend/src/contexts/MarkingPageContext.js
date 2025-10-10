@@ -214,7 +214,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       };
       
       startAIThinking(imageProgressData, imageAiMessageId);
-      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId);
+      await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name);
       clearFile();
     } catch (err) {
       console.error('Error in image analysis flow:', err);

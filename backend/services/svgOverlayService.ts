@@ -7,9 +7,59 @@ import sharp from 'sharp';
 import { Annotation, ImageDimensions } from '../types/index.js';
 
 /**
+ * SVG Overlay Service Configuration
+ */
+export interface SVGOverlayConfig {
+  fontFamily: string;
+  extensionWidth: number;
+  fontSizes: {
+    reasoning: number;
+    tick: number;
+    cross: number;
+    markingSchemeCode: number;
+    studentScore: number;
+  };
+}
+
+/**
  * SVG Overlay Service class
  */
 export class SVGOverlayService {
+  
+  /**
+   * Centralized configuration for SVG overlay styling
+   */
+  private static CONFIG: SVGOverlayConfig = {
+    fontFamily: "'Lucida Handwriting','Comic Neue', 'Comic Sans MS', cursive, Arial, sans-serif",
+    extensionWidth: 600,     // White space extension for reasoning text
+    fontSizes: {
+      reasoning: 30,         // Reasoning text size (same as marking codes)
+      tick: 50,              // Tick symbol size
+      cross: 50,             // Cross symbol size
+      markingSchemeCode: 50,  // Mark codes like M1, A1, etc.
+      studentScore: 70       // Student score text (e.g., "4/6")
+    }
+  };
+
+  /**
+   * Update the SVG overlay configuration
+   * @param config Partial configuration to update
+   */
+  static updateConfig(config: Partial<SVGOverlayConfig>): void {
+    if (config.fontFamily) {
+      this.CONFIG.fontFamily = config.fontFamily;
+    }
+    if (config.fontSizes) {
+      this.CONFIG.fontSizes = { ...this.CONFIG.fontSizes, ...config.fontSizes };
+    }
+  }
+
+  /**
+   * Get the current SVG overlay configuration
+   */
+  static getConfig(): SVGOverlayConfig {
+    return { ...this.CONFIG };
+  }
 
 
 
@@ -40,7 +90,7 @@ export class SVGOverlayService {
       
 
       // Extend the image to the right to provide more space for annotations
-      const extensionWidth = 500; // Add 400px to the right for reasoning text
+      const extensionWidth = this.CONFIG.extensionWidth; // Use configured extension width
       const burnWidth = originalWidth + extensionWidth;
       const burnHeight = originalHeight;
       
@@ -189,26 +239,28 @@ export class SVGOverlayService {
     const symbolX = x + width;
     const textY = y + height - 4; // Bottom of the box
     
-    const symbolSize = Math.max(12, Math.min(width, height) * 0.8);
-    const textSize = Math.max(10, symbolSize * 0.8);
+    // Use configured font sizes directly (simple and predictable)
+    const symbolSize = symbol === '✓' ? this.CONFIG.fontSizes.tick : this.CONFIG.fontSizes.cross;
+    const textSize = this.CONFIG.fontSizes.markingSchemeCode;
     
     let svg = `
       <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-            font-family="Arial, sans-serif" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
+            font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
     
     // Add text after the symbol if provided
     if (text && text.trim()) {
       const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
       svg += `
         <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-              font-family="Arial, sans-serif" font-size="${textSize}" font-weight="bold">${text}</text>`;
+              font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${text}</text>`;
       
-      // For cross actions, add reasoning after the mark code
+      // Add reasoning text only for cross actions (wrong steps)
       if (symbol === '✗' && reasoning && reasoning.trim()) {
         const reasoningX = textX + (text.length * textSize * 0.65) + 20; // More space between mark code and reasoning
+        const reasoningSize = this.CONFIG.fontSizes.reasoning; // Use the configured size directly
         svg += `
           <text x="${reasoningX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-                font-family="Arial, sans-serif" font-size="${textSize * 0.6}" font-weight="normal">${reasoning}</text>`;
+                font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${reasoning}</text>`;
       }
     }
     
@@ -252,10 +304,10 @@ export class SVGOverlayService {
     const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
                    fill="none" stroke="#ff0000" stroke-width="8" opacity="0.9"/>`;
     
-    // Add score text in red with larger font
+    // Add score text using configured font family and size
     const text = `<text x="${circleX}" y="${circleY + 20}" 
-                text-anchor="middle" fill="#ff0000" font-family="Arial, sans-serif" 
-                font-size="70" font-weight="bold" stroke="#ffffff" stroke-width="2">${scoreText}</text>`;
+                text-anchor="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
+                font-size="${this.CONFIG.fontSizes.studentScore}" font-weight="bold" stroke="#ffffff" stroke-width="2">${scoreText}</text>`;
     
     return circle + text;
   }

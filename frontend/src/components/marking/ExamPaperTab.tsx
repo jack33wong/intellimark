@@ -66,7 +66,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
           <span className="tab-item">{questionInfo}</span>
         )}
         {detectedQuestion.marks && (
-          <span className="tab-item marks">{detectedQuestion.marks}</span>
+          <span className="tab-item marks">{detectedQuestion.marks} marks</span>
         )}
         {studentScore && studentScore.scoreText && (
           <span className="tab-item student-score">{studentScore.scoreText}</span>

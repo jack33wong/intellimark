@@ -58,7 +58,7 @@ c = -2
 5n^2 + 2n - 2`,
 
   // For Marking Instructions (Call #1) - raw OCR text with step IDs (matches production format)
-  markingInstructionInput: `{"question":"Here are the first four terms of a quadratic sequence.\n3   20   47   84\nWork out an expression for the nth term of the sequence.","steps":[{"unified_step_id":"step_1","bbox":[391,411,602,85],"cleanedText":"Diff = 17, 27, 37"},{"unified_step_id":"step_2","bbox":[485,525,412,65],"cleanedText":"2 Diff = 10"},{"unified_step_id":"step_3","bbox":[372,634,640,76],"cleanedText":"Construct = -2, 0"},{"unified_step_id":"step_4","bbox":[529,739,331,71],"cleanedText":"Diff = +2"},{"unified_step_id":"step_5","bbox":[618,850,146,63],"cleanedText":"b = 2"},{"unified_step_id":"step_6","bbox":[602,962,169,62],"cleanedText":"c = -2"},{"unified_step_id":"step_7","bbox":[430,1067,514,75],"cleanedText":"5n^(2) + 2n - 2"}]}`,
+  markingInstructionInput: `{"question":"Here are the first four terms of a quadratic sequence.\\n3   20   47   84\\nWork out an expression for the nth term of the sequence.","steps":[{"unified_step_id":"step_1","bbox":[391,411,602,85],"cleanedText":"Diff = 17, 27, 37"},{"unified_step_id":"step_2","bbox":[485,525,412,65],"cleanedText":"2 Diff = 10"},{"unified_step_id":"step_3","bbox":[372,634,640,76],"cleanedText":"Construct = -2, 0"},{"unified_step_id":"step_4","bbox":[529,739,331,71],"cleanedText":"Diff = +2"},{"unified_step_id":"step_5","bbox":[618,850,146,63],"cleanedText":"b = 2"},{"unified_step_id":"step_6","bbox":[602,962,169,62],"cleanedText":"c = -2"},{"unified_step_id":"step_7","bbox":[430,1067,514,75],"cleanedText":"5n^(2) + 2n - 2"}]}`,
 
   // For Model Answer Generation - clean question text
   questionText: `Here are the first four terms of a quadratic sequence.
@@ -239,6 +239,7 @@ async function testMarkingInstructions() {
     // Create a mock questionDetection object with marking scheme to match production
     const mockQuestionDetection = {
       match: {
+        marks: 4, // Add total marks
         markingScheme: {
           questionMarks: {
             "answer": "`$5n^2 + 2n - 4$`",

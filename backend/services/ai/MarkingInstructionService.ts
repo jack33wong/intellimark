@@ -7,19 +7,31 @@ export class MarkingInstructionService {
     ocrText: string,
     questionDetection?: any
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
+    // Parse and format OCR text if it's JSON
+    let formattedOcrText = ocrText;
+    try {
+      const parsedOcr = JSON.parse(ocrText);
+      if (parsedOcr.question && parsedOcr.steps) {
+        // Format the OCR text nicely
+        formattedOcrText = `Question: ${parsedOcr.question}\n\nStudent's Work:\n${parsedOcr.steps.map((step: any, index: number) => 
+          `${index + 1}. [${step.unified_step_id}] ${step.cleanedText}`
+        ).join('\n')}`;
+      }
+    } catch (error) {
+      // If parsing fails, use original text
+      formattedOcrText = ocrText;
+    }
+
     let systemPrompt = getPrompt('markingInstructions.basic.system');
-    let userPrompt = getPrompt('markingInstructions.basic.user', ocrText);
+    let userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
     
     if (questionDetection?.match?.markingScheme) {
       systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
 
       // Add question detection context if available
       const ms = questionDetection.match.markingScheme.questionMarks as any;
-      const schemeJson = JSON.stringify(ms, null, 2)
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, "\\n");
-      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', ocrText, schemeJson);
+      const schemeJson = JSON.stringify(ms, null, 2);
+      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', formattedOcrText, schemeJson, questionDetection.match.marks);
     } else {
       systemPrompt += `
       You will be provided with the problem and a structured list of the student's solution steps. Your task is to apply specific marking annotations to each step based on mathematical correctness.
@@ -70,6 +82,8 @@ export class MarkingInstructionService {
 
     
     // Log prompts and response for production debugging
+    console.log('🔍 [MARKING INSTRUCTION] User Prompt:');
+    console.log(userPrompt);
     
     // Use the provided model parameter
     const { ModelProvider } = await import('./ModelProvider.js');
@@ -77,6 +91,10 @@ export class MarkingInstructionService {
     
     const responseText = res.content;
     const usageTokens = res.usageTokens;
+    
+    // Log AI response
+    console.log('🔍 [MARKING INSTRUCTION] AI Response:');
+    console.log(responseText);
 
     try {
       const { JsonUtils } = await import('./JsonUtils');

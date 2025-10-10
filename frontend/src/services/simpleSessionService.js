@@ -327,7 +327,7 @@ class SimpleSessionService {
     }
   }
 
-  processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) => {
+  processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) => {
     try {
       const authToken = await this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
@@ -340,7 +340,8 @@ class SimpleSessionService {
         model,
         sessionId: sessionId,
         aiMessageId: aiMessageId, // Pass the AI message ID to the backend
-        customText: customText || 'I have a question about this image.' // Send raw text, not message object
+        customText: customText || 'I have a question about this image.', // Send raw text, not message object
+        originalFileName: originalFileName // Send original filename to backend
       };
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single-stream`, {

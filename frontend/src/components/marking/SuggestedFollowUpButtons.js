@@ -2,7 +2,7 @@ import React from 'react';
 import { MessageCircle, ArrowRight } from 'lucide-react';
 import './SuggestedFollowUpButtons.css';
 
-const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
+const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick, disabled = false }) => {
   if (!suggestions || suggestions.length === 0) {
     return null;
   }
@@ -22,7 +22,13 @@ const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }) => {
             <button
               key={index}
               className="suggested-follow-up-button"
-              onClick={() => onSuggestionClick && onSuggestionClick(suggestionText, suggestionMode)}
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent event bubbling to parent elements
+                if (!disabled) {
+                  onSuggestionClick && onSuggestionClick(suggestionText, suggestionMode);
+                }
+              }}
             >
               <div className="suggested-follow-up-content">
                 <div className="suggested-follow-up-left">

@@ -155,6 +155,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
+  
+  // Check if any message in the session is currently processing
+  const isAnyMessageProcessing = session?.messages?.some((msg: any) => msg.isProcessing === true) || false;
   const timestamp = getMessageTimestamp(message);
   const imageSrc = getImageSrc(message);
 
@@ -260,19 +263,22 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             <SuggestedFollowUpButtons 
               suggestions={message.suggestedFollowUps as string[]}
               onSuggestionClick={handleFollowUpClick}
+              disabled={isAnyMessageProcessing}
             />
           )}
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
-            <div className="homework-annotated-image" onClick={handleImageClick}>
-              <img 
-                src={imageSrc}
-                alt="Marked homework"
-                className="annotated-image"
-                onLoad={onImageLoad}
-                onError={handleImageError}
-              />
-              {/* Show suggested follow-ups for marking mode messages (past papers only) */}
+            <>
+              <div className="homework-annotated-image" onClick={handleImageClick}>
+                <img 
+                  src={imageSrc}
+                  alt="Marked homework"
+                  className="annotated-image"
+                  onLoad={onImageLoad}
+                  onError={handleImageError}
+                />
+              </div>
+              {/* Show suggested follow-ups for marking mode messages (past papers only) - OUTSIDE image clickable area */}
               {(() => {
                 if (session?.isPastPaper) {
                 }
@@ -282,9 +288,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 <SuggestedFollowUpButtons 
                   suggestions={message.suggestedFollowUps as string[]}
                   onSuggestionClick={handleFollowUpClick}
+                  disabled={isAnyMessageProcessing}
                 />
               )}
-            </div>
+            </>
           )}
           
           {isUser && content && (

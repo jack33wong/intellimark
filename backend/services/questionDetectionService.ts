@@ -195,6 +195,7 @@ export class QuestionDetectionService {
       // Try to match with each question in the exam paper
       // Handle both array and object structures
       let bestSubQuestionNumber = '';
+      let bestMatchedQuestion: any = null;
       
       if (Array.isArray(questions)) {
         // Handle array structure: questions = [{ question_number: "1", question_text: "...", sub_questions: [...] }]
@@ -208,6 +209,7 @@ export class QuestionDetectionService {
             if (similarity > bestScore) {
               bestScore = similarity;
               bestQuestionMatch = questionNumber;
+              bestMatchedQuestion = question;
               bestSubQuestionNumber = ''; // Reset sub-question
               
               // Check for sub-questions
@@ -240,6 +242,7 @@ export class QuestionDetectionService {
             if (similarity > bestScore) {
               bestScore = similarity;
               bestQuestionMatch = questionNumber;
+              bestMatchedQuestion = questionData;
               bestSubQuestionNumber = ''; // Reset sub-question
               
               // Check for sub-questions in object structure
@@ -274,20 +277,10 @@ export class QuestionDetectionService {
         const tier = exam.tier || metadata.tier || '';
         
         // Extract marks for the matched question
-        let questionMarks: number | undefined = undefined;
-        if (Array.isArray(questions)) {
-          const matchedQuestion = questions.find(q => 
-            (q.question_number || q.number) === bestQuestionMatch
-          );
-          if (matchedQuestion) {
-            questionMarks = matchedQuestion.marks || matchedQuestion.total_marks || matchedQuestion.points;
-          }
-        } else {
-          const questionData = questions[bestQuestionMatch];
-          if (questionData) {
-            questionMarks = questionData.marks || questionData.total_marks || questionData.points;
-          }
+        if (!bestMatchedQuestion) {
+          throw new Error(`Question ${bestQuestionMatch} not found in exam paper`);
         }
+        const questionMarks = bestMatchedQuestion.marks;
         
         return {
           board: board,

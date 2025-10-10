@@ -77,7 +77,7 @@ const router = express.Router();
  * });
  */
 router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
-  let { imageData, model = 'auto', sessionId: providedSessionId } = req.body;
+  let { imageData, model = 'auto', sessionId: providedSessionId, originalFileName } = req.body;
   
   // Use centralized model configuration for 'auto'
   if (model === 'auto') {
@@ -135,6 +135,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
       content: 'I have a question about this image. Can you help me understand it?',
       imageLink: originalImageLink, // Only for authenticated users (null for unauthenticated)
       imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
+      originalFileName: originalFileName,
       sessionId: sessionId,
       model: model
     });
@@ -445,7 +446,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
  * @returns {SSE Stream} Real-time progress updates
  */
 router.post('/process-single-stream', optionalAuth, async (req: Request, res: Response) => {
-  let { imageData, model = 'auto', customText, debug = false, aiMessageId, sessionId: providedSessionId } = req.body;
+  let { imageData, model = 'auto', customText, debug = false, aiMessageId, sessionId: providedSessionId, originalFileName } = req.body;
 
   if (!imageData) {
     return res.status(400).json({ success: false, error: 'Image data is required' });
@@ -536,7 +537,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
       content: result.message,
       messageId: result.messageId || resolvedAIMessageId,
       imageData: result.annotatedImage || null,
-      fileName: result.isQuestionOnly ? null : 'annotated-image.png',
+      originalFileName: originalFileName,
       progressData: finalProgressData,
       isQuestionOnly: result.isQuestionOnly,
       suggestedFollowUps: result.suggestedFollowUps,
@@ -633,6 +634,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           content: customText || 'I have a question about this image. Can you help me understand it?',
           imageLink: originalImageLink, // For authenticated users
           imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
+          originalFileName: originalFileName,
           sessionId: sessionId,
           model: model
         });
@@ -820,7 +822,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
 /**
 router.post('/process', optionalAuth, async (req: Request, res: Response) => {
   // Log usage for monitoring and documentation
-  let { imageData, model = 'auto', sessionId, customText } = req.body;
+  let { imageData, model = 'auto', sessionId, customText, originalFileName } = req.body;
   
   // Use centralized model configuration for 'auto'
   if (model === 'auto') {
@@ -872,7 +874,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const aiMessage = createAIMessage({
       content: result.message,
       imageData: result.annotatedImage || null,
-      fileName: 'annotated-image.png',
+      originalFileName: originalFileName,
       isQuestionOnly: result.isQuestionOnly,
       suggestedFollowUps: result.suggestedFollowUps || [],
       processingStats: {

@@ -144,6 +144,8 @@ export interface UserMessageOptions {
   content: string;
   imageLink?: string;
   imageData?: string;
+  fileName?: string;
+  originalFileName?: string;
   sessionId?: string;
   model?: string;
   messageId?: string;
@@ -153,6 +155,7 @@ export interface AIMessageOptions {
   content: string;
   imageData?: string;
   fileName?: string;
+  originalFileName?: string;
   progressData?: any;
   processingStats?: any;
   messageId?: string;
@@ -170,6 +173,8 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     content,
     imageLink,
     imageData,
+    fileName,
+    originalFileName,
     sessionId,
     model = 'auto',
     messageId
@@ -185,6 +190,7 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
+    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : null),
     detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {
       processingTimeMs: 0,
@@ -209,6 +215,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     content,
     imageData,
     fileName,
+    originalFileName,
     progressData,
     processingStats,
     messageId,
@@ -236,7 +243,9 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     type: messageType,
     timestamp: new Date().toISOString(),
     imageData: imageData, // Include imageData for unauthenticated users
-    fileName: fileName || (isQuestionOnly ? null : 'annotated-image.png'),
+    fileName: fileName || (originalFileName 
+      ? (isQuestionOnly ? originalFileName : `annotated_${originalFileName}`)
+      : (isQuestionOnly ? null : 'annotated-image.png')),
     progressData: progressData,
     detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {

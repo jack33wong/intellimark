@@ -1,7 +1,7 @@
 import React from 'react';
 import './SuggestedFollowUpButtons.css';
 
-const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }: { suggestions?: string[], onSuggestionClick?: (suggestion: string) => void }) => {
+const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick, disabled = false }: { suggestions?: string[], onSuggestionClick?: (suggestion: string) => void, disabled?: boolean }) => {
   if (!suggestions || suggestions.length === 0) {
     return null;
   }
@@ -16,7 +16,13 @@ const SuggestedFollowUpButtons = ({ suggestions = [], onSuggestionClick }: { sug
           <button
             key={index}
             className="suggested-follow-up-button"
-            onClick={() => onSuggestionClick && onSuggestionClick(suggestion)}
+            disabled={disabled}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent event bubbling to parent elements
+              if (!disabled) {
+                onSuggestionClick && onSuggestionClick(suggestion);
+              }
+            }}
           >
             {suggestion}
           </button>
