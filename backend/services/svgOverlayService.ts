@@ -205,7 +205,7 @@ export class SVGOverlayService {
       
       // For cross actions, add reasoning after the mark code
       if (symbol === '✗' && reasoning && reasoning.trim()) {
-        const reasoningX = textX + (text.length * textSize * 0.6) + 20; // More space between mark code and reasoning
+        const reasoningX = textX + (text.length * textSize * 0.65) + 20; // More space between mark code and reasoning
         svg += `
           <text x="${reasoningX}" y="${textY}" text-anchor="start" fill="#ff0000" 
                 font-family="Arial, sans-serif" font-size="${textSize * 0.6}" font-weight="normal">${reasoning}</text>`;

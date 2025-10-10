@@ -14,7 +14,6 @@ interface ImageModeModalProps {
   onClose: () => void;
   images: SessionImage[];
   initialImageIndex: number;
-  onScrollPositionRestore?: () => void;
 }
 
 const ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 175, 200];
@@ -24,8 +23,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
   isOpen,
   onClose,
   images,
-  initialImageIndex,
-  onScrollPositionRestore
+  initialImageIndex
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(initialImageIndex);
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM);
@@ -80,19 +78,16 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentImageIndex, zoomLevel]);
 
   const currentImage = images[currentImageIndex];
 
   const handleClose = useCallback(() => {
     // Restore scroll position
-    if (onScrollPositionRestore) {
-      onScrollPositionRestore();
-    } else {
-      window.scrollTo(0, scrollPositionRef.current);
-    }
+    window.scrollTo(0, scrollPositionRef.current);
     onClose();
-  }, [onClose, onScrollPositionRestore]);
+  }, [onClose]);
 
   const navigateToPrevious = useCallback(() => {
     if (images.length > 1) {
@@ -128,9 +123,6 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
     });
   }, []);
 
-  const handleZoomChange = useCallback((level: number) => {
-    setZoomLevel(level);
-  }, []);
 
   const handleImageClick = useCallback((index: number) => {
     setCurrentImageIndex(index);
@@ -315,13 +307,6 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
         )}
       </div>
 
-      {/* Navigation hints */}
-      {images.length > 1 && (
-        <div className="navigation-hints">
-          <span>Use ← → arrow keys to navigate</span>
-          <span>Use + - keys to zoom</span>
-        </div>
-      )}
     </div>
   );
 };

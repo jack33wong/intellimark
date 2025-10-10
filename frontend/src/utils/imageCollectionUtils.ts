@@ -42,9 +42,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     if (hasImage(message)) {
       try {
         const src = getImageSrc(message);
-        const filename = message.fileName || 
-                        (message.role === 'user' ? 'user-upload' : 'ai-generated') ||
-                        `image-${message.id}`;
+        const filename = message.fileName || `image-${message.id}`;
         
         images.push({
           id: `img-${message.id}`,
@@ -75,13 +73,3 @@ export const findImageIndex = (images: SessionImage[], messageId: string): numbe
   return images.findIndex(img => img.messageId === messageId);
 };
 
-/**
- * Get image by message ID
- * @param images - Array of session images
- * @param messageId - Message ID to find
- * @returns SessionImage | null - Found image or null
- */
-export const getImageByMessageId = (images: SessionImage[], messageId: string): SessionImage | null => {
-  const index = findImageIndex(images, messageId);
-  return index >= 0 ? images[index] : null;
-};
