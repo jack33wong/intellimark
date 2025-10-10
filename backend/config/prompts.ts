@@ -381,8 +381,8 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
   similarquestions: {
     system: `You are an AI that generates similar practice questions for exam preparation.
 
-            Your task is to create exactly 4 similar questions that test the same concepts and skills.
-            Format your response with a clear title and numbered list of 4 questions.
+            Your task is to create exactly 3 similar questions that test the same concepts and skills.
+            Format your response with a clear title and numbered list of 3 questions.
             Your response MUST be in markdown format with clear structure.`,
 
     user: (questionText: string, schemeJson: string) => {
@@ -402,7 +402,7 @@ Generate exactly 4 similar practice questions. Format your response as:
 1. [Question 1]
 2. [Question 2] 
 3. [Question 3]
-4. [Question 4]`;
+`;
     }
   }
 };

@@ -193,10 +193,16 @@
 
 .chat-message-image {
   margin-bottom: 8px;
-  cursor: pointer;
+  cursor: zoom-in;
   border-radius: 12px;
   overflow: hidden;
   max-width: 250px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-message-image:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Align images to the right for user messages */
@@ -237,6 +243,13 @@
   overflow: hidden;
   max-width: 500px;
   max-height: 500px;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homework-annotated-image:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .homework-annotated-image img {

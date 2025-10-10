@@ -1049,6 +1049,53 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /mark-homework/download-image
+ * Download image by proxying the request to avoid CORS issues
+ */
+router.get('/download-image', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { url, filename } = req.query;
+    
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Image URL is required' 
+      });
+    }
+
+    // Fetch the image from the external URL
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Image not found' 
+      });
+    }
+
+    // Get the image data
+    const imageBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // Set headers for download
+    const downloadFilename = filename && typeof filename === 'string' ? filename : 'image';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
+    res.setHeader('Content-Length', imageBuffer.byteLength);
+    
+    // Send the image data
+    res.send(Buffer.from(imageBuffer));
+    
+  } catch (error) {
+    console.error('Error downloading image:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to download image' 
+    });
+  }
+});
+
+/**
  * POST /mark-homework/model-answer
  * Generate model answer for a question
  */

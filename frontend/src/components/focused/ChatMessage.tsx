@@ -17,6 +17,8 @@ import {
 import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
+import ImageModeModal from '../common/ImageModeModal';
+import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
 import './ChatMessage.css';
 import type { UnifiedMessage } from '../../types';
 
@@ -45,6 +47,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   startAIThinking
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
+  const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken } = useAuth();
   
   // Inline function to avoid Jest import issues
@@ -77,6 +80,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const handleImageError = useCallback(() => {
     setImageError(true);
   }, []);
+
+  const handleImageClick = useCallback(() => {
+    if (hasImage(message) && !imageError) {
+      setIsImageModeOpen(true);
+    }
+  }, [message, imageError]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
@@ -255,7 +264,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           )}
           
           {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
-            <div className="homework-annotated-image">
+            <div className="homework-annotated-image" onClick={handleImageClick}>
               <img 
                 src={imageSrc}
                 alt="Marked homework"
@@ -286,7 +295,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         </div>
         
         {isUser && hasImage(message) && imageSrc && !imageError && (
-          <div className="chat-message-image">
+          <div className="chat-message-image" onClick={handleImageClick}>
             <img 
               src={imageSrc}
               alt="Uploaded"
@@ -309,6 +318,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           </div>
         )}
       </div>
+
+      {/* Image Mode Modal */}
+      {isImageModeOpen && session && (
+        <ImageModeModal
+          isOpen={isImageModeOpen}
+          onClose={() => setIsImageModeOpen(false)}
+          images={getSessionImages(session)}
+          initialImageIndex={findImageIndex(getSessionImages(session), message.id)}
+        />
+      )}
     </div>
   );
 });
