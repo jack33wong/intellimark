@@ -56,9 +56,27 @@ export class ModelProvider {
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
         generationConfig: { 
           temperature: 0, 
-          maxOutputTokens: 8000,
+          maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig(model).maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" })
-        } // Use centralized config
+        }, // Use centralized config
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_NONE"
+          }
+        ]
       })
     });
     
@@ -80,7 +98,13 @@ export class ModelProvider {
 
   private static extractGeminiTextContent(result: any): string {
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) throw new Error('No content in Gemini response');
+    if (!content) {
+      const finishReason = result.candidates?.[0]?.finishReason;
+      if (finishReason === 'MAX_TOKENS') {
+        throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
+      }
+      throw new Error('No content in Gemini response');
+    }
     return content;
   }
 

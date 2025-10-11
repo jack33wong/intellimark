@@ -526,10 +526,10 @@
   padding-left: 25px;
 }
 
-/* Annotated images can be slightly larger */
+/* Annotated images can be slightly larger - maintain original orientation */
 .annotated-image {
   max-width: 500px;
-  max-height: 500px;
+  max-height: none; /* Remove height constraint to maintain aspect ratio */
   border-radius: 8px;
 }
 

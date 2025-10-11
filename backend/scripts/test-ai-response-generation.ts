@@ -66,6 +66,23 @@ c = -2
 Work out an expression for the nth term of the sequence.`
 };
 
+// Geometry test data for question detection only
+const GEOMETRY_TEST_DATA = {
+  // For Question Detection - clean question text only
+  questionText: `The diagram shows a plan of Jason's garden.
+ABCO and DEFO are rectangles.
+CDO is a right-angled triangle.
+AFO is a sector of a circle with centre O and angle AOF = 90°.
+
+[Diagram description: A composite shape representing a garden plan. It consists of a rectangle ABCO with AB = 11m and BC = 7m. A rectangle DEFO with DE = 7m and EF = 9m. A right-angled triangle CDO. A sector of a circle AFO with centre O and angle AOF = 90°. The dimensions shown are AB = 11m, BC = 7m, EF = 9m, DE = 7m. Right angles are indicated at B, C, E, and at O for the sector AOF.]
+
+Jason is going to cover his garden with grass seed.
+Each bag of grass seed covers 14 m² of garden.
+Each bag of grass seed costs £10.95
+
+Work out how much it will cost Jason to buy all the bags of grass seed he needs.`
+};
+
 // Test configuration
 const TEST_CONFIG = {
   model: 'gemini-2.5-flash' as ModelType, // Changed to Gemini 2.5 Flash
@@ -219,7 +236,7 @@ async function testMarkingSchemeFormatting() {
 }
 
 async function testMarkingInstructions() {
-  console.log('🎯 [TEST] Marking Instructions (Call #1)');
+  console.log('🎯 [TEST] Marking Instructions (Call #1) - Algebra');
   console.log('=' .repeat(50));
   
   try {
@@ -305,6 +322,58 @@ async function testMarkingInstructions() {
   }
 }
 
+async function testQuestionDetection() {
+  console.log('🎯 [TEST] Question Detection - Geometry');
+  console.log('=' .repeat(50));
+  
+  try {
+    // Show API details before making the call
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const modelConfig = getModelConfig(TEST_CONFIG.model);
+    
+    console.log('🔗 [API URL]:', modelConfig.apiEndpoint);
+    console.log('🤖 [MODEL]:', modelConfig.name);
+    console.log('📊 [MAX TOKENS]:', modelConfig.maxTokens);
+    console.log('🌡️ [TEMPERATURE]:', modelConfig.temperature);
+    console.log('📋 [API VERSION]:', modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1');
+    console.log('=' .repeat(50));
+    
+    // Test question detection with geometry question
+    console.log('📝 [QUESTION TEXT]:');
+    console.log(GEOMETRY_TEST_DATA.questionText);
+    console.log('=' .repeat(50));
+    
+    // Import and test the actual question detection service
+    const { questionDetectionService } = await import('../services/questionDetectionService.js');
+    
+    console.log('🔍 [TESTING] Calling questionDetectionService.detectQuestion...');
+    
+    const detectionResult = await questionDetectionService.detectQuestion(
+      GEOMETRY_TEST_DATA.questionText
+    );
+    
+    console.log('📊 [DETECTION RESULT]:');
+    console.log(JSON.stringify(detectionResult, null, 2));
+    
+    if (detectionResult.found && detectionResult.match) {
+      console.log('✅ [SUCCESS] Question detected successfully!');
+      console.log('📋 [QUESTION NUMBER]:', detectionResult.match.questionNumber);
+      console.log('📋 [SUB QUESTION]:', detectionResult.match.subQuestionNumber || 'None');
+      console.log('📋 [MARKS]:', detectionResult.match.marks);
+      console.log('📋 [CONFIDENCE]:', detectionResult.match.confidence);
+    } else {
+      console.log('❌ [FAILED] Question detection failed - no match found');
+      console.log('💡 [DEBUG] Check the question text format and exam paper database');
+    }
+    
+  } catch (error) {
+    console.error('❌ [QUESTION DETECTION TEST] Test failed:', error);
+    console.error('🔍 [ERROR DETAILS]:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('📋 [STACK TRACE]:', error instanceof Error ? error.stack : 'No stack trace');
+    throw error;
+  }
+}
+
 async function runTests() {
   const testType = process.argv[2] || 'response';
   const modelParam = process.argv[3];
@@ -333,6 +402,9 @@ async function runTests() {
       case 'marking':
         await testMarkingInstructions();
         break;
+      case 'question-detection':
+        await testQuestionDetection();
+        break;
       case 'format':
         await testMarkingSchemeFormatting();
         break;
@@ -344,6 +416,8 @@ async function runTests() {
       case 'all':
         await testMarkingSchemeFormatting();
         console.log('\n');
+        await testQuestionDetection();
+        console.log('\n');
         await testMarkingInstructions();
         console.log('\n');
         await testModelAnswer();
@@ -351,9 +425,9 @@ async function runTests() {
         await testAIResponseGeneration();
         break;
       default:
-        console.log('❌ Invalid test type. Use: response, model-answer, marking, format, both, or all');
+        console.log('❌ Invalid test type. Use: response, model-answer, marking, question-detection, format, both, or all');
         console.log('💡 [USAGE] tsx script.ts [testType] [model]');
-        console.log('   testType: response, model-answer, marking, format, both, all');
+        console.log('   testType: response, model-answer, marking, question-detection, format, both, all');
         console.log(`   model: ${getSupportedModels().join(', ')}`);
         process.exit(1);
     }

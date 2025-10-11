@@ -256,7 +256,7 @@
   width: 100%;
   height: auto;
   max-width: 500px;
-  max-height: 500px;
+  max-height: none; /* Remove height constraint to maintain aspect ratio */
   display: block;
   object-fit: contain;
   border-radius: 8px;

@@ -392,8 +392,11 @@ export class QuestionDetectionService {
   private calculateSimilarity(str1: string, str2: string): number {
     if (!str1 || !str2) return 0;
 
-    // Normalize strings
+    // Enhanced normalization - remove diagram descriptions and extra details
     const normalize = (str: string) => str.toLowerCase()
+      .replace(/\[.*?\]/g, '') // Remove [diagram description] blocks
+      .replace(/diagram description.*?\./g, '') // Remove diagram descriptions
+      .replace(/supplementary info.*?\./g, '') // Remove supplementary info
       .replace(/[^\w\s]/g, '') // Remove punctuation
       .replace(/\s+/g, ' ') // Normalize whitespace
       .trim();
@@ -402,6 +405,13 @@ export class QuestionDetectionService {
     const norm2 = normalize(str2);
 
     if (norm1 === norm2) return 1.0;
+
+    // Extract key phrases that should match
+    const keyPhrases1 = this.extractKeyPhrases(norm1);
+    const keyPhrases2 = this.extractKeyPhrases(norm2);
+
+    // Calculate key phrase similarity (higher weight)
+    const keyPhraseScore = this.calculateKeyPhraseSimilarity(keyPhrases1, keyPhrases2);
 
     // Word-based similarity with fuzzy matching (Levenshtein)
     const words1 = norm1.split(' ');
@@ -472,8 +482,82 @@ export class QuestionDetectionService {
     }
     const orderScore = totalWords === 0 ? 0 : longestRun / totalWords;
 
-    // Combine scores
-    return Math.max(wordSimilarity, orderScore);
+    // Combine scores with weighted approach
+    // Key phrases get 40% weight, word similarity gets 40%, order gets 20%
+    const combinedScore = (keyPhraseScore * 0.4) + (wordSimilarity * 0.4) + (orderScore * 0.2);
+    
+    return Math.max(combinedScore, wordSimilarity, orderScore);
+  }
+
+  /**
+   * Extract key phrases from question text that are important for matching
+   */
+  private extractKeyPhrases(text: string): string[] {
+    const phrases: string[] = [];
+    
+    // Common question patterns
+    const patterns = [
+      /work out how much/g,
+      /work out the/g,
+      /find the/g,
+      /calculate the/g,
+      /show that/g,
+      /prove that/g,
+      /solve the/g,
+      /write down/g,
+      /draw a/g,
+      /complete the/g
+    ];
+    
+    for (const pattern of patterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        phrases.push(...matches);
+      }
+    }
+    
+    // Extract numbers and units
+    const numberPatterns = [
+      /\d+\s*m²/g,
+      /\d+\s*£/g,
+      /\d+\s*pounds/g,
+      /\d+\s*per\s+\w+/g,
+      /\d+\s*bags/g,
+      /\d+\s*seeds/g
+    ];
+    
+    for (const pattern of numberPatterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        phrases.push(...matches);
+      }
+    }
+    
+    return phrases.map(p => p.toLowerCase().trim());
+  }
+
+  /**
+   * Calculate similarity based on key phrases
+   */
+  private calculateKeyPhraseSimilarity(phrases1: string[], phrases2: string[]): number {
+    if (phrases1.length === 0 && phrases2.length === 0) return 1.0;
+    if (phrases1.length === 0 || phrases2.length === 0) return 0.0;
+    
+    let matchedPhrases = 0;
+    const usedPhrases2: Set<number> = new Set();
+    
+    for (const phrase1 of phrases1) {
+      for (let i = 0; i < phrases2.length; i++) {
+        if (usedPhrases2.has(i)) continue;
+        if (phrase1 === phrases2[i]) {
+          matchedPhrases++;
+          usedPhrases2.add(i);
+          break;
+        }
+      }
+    }
+    
+    return matchedPhrases / Math.max(phrases1.length, phrases2.length);
   }
 
   /**

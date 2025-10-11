@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ZoomIn, ZoomOut, Download } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, Download, RotateCw } from 'lucide-react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
 import './ImageModeModal.css';
 
@@ -27,6 +27,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
 }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(initialImageIndex);
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM);
+  const [rotation, setRotation] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -40,9 +41,10 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
     }
   }, [isOpen]);
 
-  // Reset zoom when switching images
+  // Reset zoom and rotation when switching images
   useEffect(() => {
     setZoomLevel(DEFAULT_ZOOM);
+    setRotation(0);
     setImageError(false);
     setIsLoading(true);
   }, [currentImageIndex]);
@@ -72,6 +74,11 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
         case '-':
           e.preventDefault();
           zoomOut();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          rotate();
           break;
       }
     };
@@ -121,6 +128,10 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
         ? ZOOM_LEVELS[currentIndex - 1] 
         : prev;
     });
+  }, []);
+
+  const rotate = useCallback(() => {
+    setRotation(prev => (prev + 90) % 360);
   }, []);
 
 
@@ -221,6 +232,19 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
           {/* Separator */}
           <div className="control-separator" />
 
+          {/* Rotate button */}
+          <button
+            type="button"
+            className="rotate-btn"
+            onClick={rotate}
+            aria-label="Rotate image"
+          >
+            <RotateCw size={20} />
+          </button>
+
+          {/* Separator */}
+          <div className="control-separator" />
+
           {/* Download button */}
           <button
             type="button"
@@ -272,7 +296,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
               alt={currentImage.alt}
               className="main-image"
               style={{
-                transform: `scale(${zoomLevel / 100})`,
+                transform: `scale(${zoomLevel / 100}) rotate(${rotation}deg)`,
                 transformOrigin: 'center center'
               }}
               onLoad={handleImageLoad}

@@ -104,9 +104,14 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         onProgress: undefined
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 90 seconds')), 90000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 180 seconds')), 180000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
+
+    // Check if result is an error (timeout case)
+    if (result instanceof Error) {
+      throw result; // Re-throw the timeout error immediately
+    }
 
     // Create full session data with messages
     // Use provided sessionId for follow-up images, or create new one
@@ -501,9 +506,14 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           onProgress
         }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 90 seconds')), 90000)
+        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 180 seconds')), 180000)
       )
     ]) as any;
+
+    // Check if result is an error (timeout case)
+    if (result instanceof Error) {
+      throw result; // Re-throw the timeout error immediately
+    }
 
     // Upload annotated image to Firebase Storage if it's a marking result
     let annotatedImageLink;

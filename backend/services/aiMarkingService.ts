@@ -642,7 +642,8 @@ Summary:`;
    * Compress image data to reduce API payload size
    */
   private static async compressImage(imageData: string): Promise<string> {
-    const { ImageUtils } = await import('./ai/ImageUtils');
-    return ImageUtils.compressImage(imageData);
+    // Image enhancement is now handled in ClassificationService
+    // Return original image data to avoid double processing
+    return imageData;
   }
 }

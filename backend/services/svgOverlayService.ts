@@ -11,7 +11,6 @@ import { Annotation, ImageDimensions } from '../types/index.js';
  */
 export interface SVGOverlayConfig {
   fontFamily: string;
-  extensionWidth: number;
   fontSizes: {
     reasoning: number;
     tick: number;
@@ -31,7 +30,6 @@ export class SVGOverlayService {
    */
   private static CONFIG: SVGOverlayConfig = {
     fontFamily: "'Lucida Handwriting','Comic Neue', 'Comic Sans MS', cursive, Arial, sans-serif",
-    extensionWidth: 600,     // White space extension for reasoning text
     fontSizes: {
       reasoning: 30,         // Reasoning text size (same as marking codes)
       tick: 50,              // Tick symbol size
@@ -89,9 +87,8 @@ export class SVGOverlayService {
       const originalHeight = imageMetadata.height || imageDimensions.height;
       
 
-      // Extend the image to the right to provide more space for annotations
-      const extensionWidth = this.CONFIG.extensionWidth; // Use configured extension width
-      const burnWidth = originalWidth + extensionWidth;
+      // Use original image dimensions (no extension to maintain orientation)
+      const burnWidth = originalWidth;
       const burnHeight = originalHeight;
       
 
@@ -101,12 +98,8 @@ export class SVGOverlayService {
       // Create SVG buffer
       const svgBuffer = Buffer.from(svgOverlay);
 
-      // Extend the image canvas to the right and composite the SVG overlay
+      // Composite the SVG overlay directly onto the original image (no extension)
       const burnedImageBuffer = await sharp(imageBuffer)
-        .extend({
-          right: extensionWidth,
-          background: { r: 255, g: 255, b: 255, alpha: 1 } // White background for extension
-        })
         .composite([
           {
             input: svgBuffer,
@@ -114,11 +107,11 @@ export class SVGOverlayService {
             left: 0
           }
         ])
-        .png()
+        .jpeg({ quality: 85, progressive: true })
         .toBuffer();
 
       // Convert back to base64 data URL
-      const burnedImageData = `data:image/png;base64,${burnedImageBuffer.toString('base64')}`;
+      const burnedImageData = `data:image/jpeg;base64,${burnedImageBuffer.toString('base64')}`;
       
       
       return burnedImageData;
@@ -232,6 +225,29 @@ export class SVGOverlayService {
   
 
   /**
+   * Break text into 2 lines for better fit within image bounds
+   */
+  private static breakTextIntoTwoLines(text: string, maxCharsPerLine: number = 25): string[] {
+    if (text.length <= maxCharsPerLine) {
+      return [text];
+    }
+    
+    // Find the best break point (space or punctuation)
+    let breakPoint = maxCharsPerLine;
+    for (let i = maxCharsPerLine; i >= Math.floor(maxCharsPerLine * 0.7); i--) {
+      if (text[i] === ' ' || text[i] === ',' || text[i] === '.' || text[i] === ';') {
+        breakPoint = i;
+        break;
+      }
+    }
+    
+    const line1 = text.substring(0, breakPoint).trim();
+    const line2 = text.substring(breakPoint).trim();
+    
+    return [line1, line2];
+  }
+
+  /**
    * Create symbol annotation with optional text (unified logic for tick/cross)
    */
   private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text?: string, reasoning?: string): string {
@@ -254,13 +270,19 @@ export class SVGOverlayService {
         <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
               font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${text}</text>`;
       
-      // Add reasoning text only for cross actions (wrong steps)
+      // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
       if (symbol === '✗' && reasoning && reasoning.trim()) {
-        const reasoningX = textX + (text.length * textSize * 0.65) + 20; // More space between mark code and reasoning
+        const reasoningLines = this.breakTextIntoTwoLines(reasoning, 20); // Break at ~20 characters
+        const reasoningX = x + width - 10; // Top right corner with 10px spacing from edge
         const reasoningSize = this.CONFIG.fontSizes.reasoning; // Use the configured size directly
-        svg += `
-          <text x="${reasoningX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-                font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${reasoning}</text>`;
+        const lineHeight = reasoningSize + 2; // Small spacing between lines
+        
+        reasoningLines.forEach((line, index) => {
+          const reasoningY = y + 15 + (index * lineHeight); // Position at top of block with 15px spacing
+          svg += `
+            <text x="${reasoningX}" y="${reasoningY}" text-anchor="end" fill="#ff0000" 
+                  font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
+        });
       }
     }
     

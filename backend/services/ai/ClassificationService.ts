@@ -15,7 +15,10 @@ export interface ClassificationResult {
 export class ClassificationService {
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false): Promise<ClassificationResult> {
     const { ImageUtils } = await import('./ImageUtils.js');
+    
+    console.log('🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...');
     const compressedImage = await ImageUtils.compressImage(imageData);
+    console.log('✅ [CLASSIFICATION] Image enhancement completed');
 
     const systemPrompt = getPrompt('classification.system');
     const userPrompt = getPrompt('classification.user');
@@ -75,6 +78,16 @@ export class ClassificationService {
     try {
       const accessToken = await this.getGeminiAccessToken();
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
+      
+      // Check if response is HTML (error page)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        const htmlContent = await response.text();
+        console.error('❌ [CLASSIFICATION] Received HTML response instead of JSON:');
+        console.error('❌ [CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
+        throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
+      }
+      
       const result = await response.json() as any;
       const content = this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
@@ -149,8 +162,33 @@ export class ClassificationService {
           { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
         ]
       }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
+      generationConfig: { 
+        temperature: 0.1, 
+        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
+      }, // Use centralized config
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_NONE"
+        }
+      ]
     };
+    
+    // Debug logging to show safety settings being sent
+    console.log('🔍 [CLASSIFICATION DEBUG] Safety settings being sent:');
+    console.log(JSON.stringify(requestBody.safetySettings, null, 2));
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -206,7 +244,28 @@ export class ClassificationService {
             { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
           ]
         }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 8000 } // Use centralized config
+        generationConfig: { 
+        temperature: 0.1, 
+        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
+      }, // Use centralized config
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_NONE"
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_NONE"
+        }
+      ]
       })
     });
     
@@ -221,10 +280,52 @@ export class ClassificationService {
   }
 
   private static extractGeminiContent(result: any): string {
+    // Check if result is an error response (HTML)
+    if (typeof result === 'string' && result.includes('<')) {
+      console.error('❌ [CLASSIFICATION] Received HTML error response instead of JSON:');
+      console.error('❌ [CLASSIFICATION] HTML content:', result.substring(0, 200) + '...');
+      throw new Error('Gemini API returned HTML error response instead of JSON. Check API key and endpoint.');
+    }
+    
+    // Check if result has the expected structure
+    if (!result || !result.candidates || !Array.isArray(result.candidates)) {
+      console.error('❌ [CLASSIFICATION] Unexpected response structure:');
+      console.error('❌ [CLASSIFICATION] Full response:', JSON.stringify(result, null, 2));
+      throw new Error('Gemini API returned unexpected response structure.');
+    }
+    
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!content) {
-      throw new Error('No content in Gemini response');
+      const finishReason = result.candidates?.[0]?.finishReason;
+      
+      // Check for detailed safety feedback in promptFeedback
+      if (result.promptFeedback) {
+        console.error('🔍 [CLASSIFICATION] Detailed safety feedback:');
+        console.error('🔍 [CLASSIFICATION] promptFeedback:', JSON.stringify(result.promptFeedback, null, 2));
+        
+        if (result.promptFeedback.blockReason) {
+          console.error('🔍 [CLASSIFICATION] Block reason:', result.promptFeedback.blockReason);
+        }
+        if (result.promptFeedback.safetyRatings) {
+          console.error('🔍 [CLASSIFICATION] Safety ratings:', JSON.stringify(result.promptFeedback.safetyRatings, null, 2));
+        }
+      }
+      
+      if (finishReason === 'MAX_TOKENS') {
+        throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
+      }
+      if (finishReason === 'RECITATION') {
+        const safetyDetails = result.promptFeedback ? `\nSafety details: ${JSON.stringify(result.promptFeedback, null, 2)}` : '';
+        throw new Error(`Gemini blocked the response due to content safety filters. The image may contain content that violates safety guidelines.${safetyDetails}`);
+      }
+      if (finishReason === 'SAFETY') {
+        const safetyDetails = result.promptFeedback ? `\nSafety details: ${JSON.stringify(result.promptFeedback, null, 2)}` : '';
+        throw new Error(`Gemini blocked the response due to safety concerns. Please try with a different image.${safetyDetails}`);
+      }
+      console.error('❌ [CLASSIFICATION] Unexpected finish reason:', finishReason);
+      console.error('❌ [CLASSIFICATION] Full response:', JSON.stringify(result, null, 2));
+      throw new Error(`No content in Gemini response. Finish reason: ${finishReason}`);
     }
     
     return content;
@@ -241,7 +342,19 @@ export class ClassificationService {
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
-    const parsed = JSON.parse(cleanContent);
+    // Debug logging to see what we're getting
+    console.log('🔍 [CLASSIFICATION DEBUG] Raw cleanContent:', cleanContent.substring(0, 200) + '...');
+    console.log('🔍 [CLASSIFICATION DEBUG] Full Gemini result:', JSON.stringify(result, null, 2));
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanContent);
+    } catch (error) {
+      console.error('❌ [CLASSIFICATION] JSON Parse Error:');
+      console.error('❌ [CLASSIFICATION] Content that failed to parse:', cleanContent);
+      console.error('❌ [CLASSIFICATION] Parse error:', error);
+      throw new Error(`Failed to parse Gemini response as JSON. Content: ${cleanContent.substring(0, 100)}...`);
+    }
     
     // Get dynamic API name based on model
     const { getModelConfig } = await import('../../config/aiModels.js');
