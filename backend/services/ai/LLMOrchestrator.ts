@@ -35,12 +35,31 @@ export class LLMOrchestrator {
       
       // Transform mathBlocks to the expected format for assignStepIds
       // Handle both data structures: nested boundingBox and flat properties
+      console.log('🔍 [DEBUG] LLMOrchestrator received boundingBoxes:', processedImage.boundingBoxes?.length || 0);
+      if (processedImage.boundingBoxes && processedImage.boundingBoxes.length > 0) {
+        console.log('🔍 [DEBUG] First block structure:', JSON.stringify(processedImage.boundingBoxes[0], null, 2));
+      }
+      
       const transformedBoundingBoxes = (processedImage.boundingBoxes || []).map((block: any, index: number) => {
-        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
-        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
-        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
-        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
-        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
+        // Handle the new OptimizedOCRService format: {x, y, width, height} directly on block
+        let x = block.x;
+        let y = block.y;
+        let width = block.width;
+        let height = block.height;
+        let text = block.text;
+        
+        // Debug: Log the raw block data for the first few blocks
+        if (index < 3) {
+          console.log(`🔍 [DEBUG] Block ${index} raw data:`, {
+            x: block.x,
+            y: block.y,
+            width: block.width,
+            height: block.height,
+            text: block.text?.substring(0, 30) + '...',
+            hasBoundingBox: !!block.boundingBox,
+            boundingBoxKeys: block.boundingBox ? Object.keys(block.boundingBox) : []
+          });
+        }
         
         // Validate coordinates
         if (x === undefined || y === undefined || width === undefined || height === undefined) {
@@ -72,14 +91,36 @@ export class LLMOrchestrator {
       );
       
       // Step 0b: Clean up OCR text while preserving step_id references
-      // Include the extracted question text from classification if available
+      // NOTE: Since we now filter blocks in Step 3, we can skip AI cleanup here to avoid duplication
       const extractedQuestionText = inputs.questionDetection?.extractedQuestionText || '';
-      const cleanupResult = await OCRCleanupService.cleanOCRTextWithStepIds(
-        model,
-        stepAssignmentResult.originalWithStepIds,
-        extractedQuestionText
-      );
-      let totalTokens = cleanupResult.usageTokens || 0;
+      let cleanupResult;
+      let totalTokens = 0;
+      
+      // Skip AI cleanup if blocks were already filtered in Step 3
+      if (inputs.processedImage?.boundingBoxes && inputs.processedImage.boundingBoxes.length < 20) {
+        console.log('📊 [SKIP AI CLEANUP] Blocks already filtered in Step 3, formatting OCR text');
+        
+        // Format raw OCR text into the expected JSON structure
+        const rawOcrText = inputs.processedImage.ocrText || '';
+        const formattedOcrData = {
+          question: extractedQuestionText || "Unknown question",
+          steps: inputs.processedImage.boundingBoxes.map((bbox, index) => ({
+            unified_step_id: `step_${index + 1}`,
+            bbox: [bbox.x, bbox.y, bbox.x + bbox.width, bbox.y + bbox.height],
+            cleanedText: rawOcrText.split('\n')[index] || `Step ${index + 1}`
+          }))
+        };
+        
+        cleanupResult = { cleanedText: JSON.stringify(formattedOcrData) };
+      } else {
+        console.log('📊 [AI CLEANUP] Running AI-based question/answer separation');
+        cleanupResult = await OCRCleanupService.cleanOCRTextWithStepIds(
+          model,
+          stepAssignmentResult.originalWithStepIds,
+          extractedQuestionText
+        );
+        totalTokens = cleanupResult.usageTokens || 0;
+      }
 
       // Parse the step assignment result (not used in current implementation)
       try {

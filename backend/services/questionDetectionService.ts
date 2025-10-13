@@ -96,7 +96,10 @@ export class QuestionDetectionService {
     extractedQuestionText: string
   ): Promise<QuestionDetectionResult> {
     try {
+      console.log(`🔍 [QUESTION DETECTION SERVICE] Starting detection with text: "${extractedQuestionText}"`);
+      
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
+        console.log(`❌ [QUESTION DETECTION SERVICE] No question text provided`);
         return {
           found: false,
           message: 'No question text provided'
@@ -105,8 +108,10 @@ export class QuestionDetectionService {
 
       // Get all exam papers from database
       const examPapers = await this.getAllExamPapers();
+      console.log(`🔍 [QUESTION DETECTION SERVICE] Found ${examPapers.length} exam papers in database`);
       
       if (examPapers.length === 0) {
+        console.log(`❌ [QUESTION DETECTION SERVICE] No exam papers found in database`);
         return {
           found: false,
           message: 'No exam papers found in database'
@@ -126,10 +131,15 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
+        console.log(`✅ [QUESTION DETECTION SERVICE] Found match with confidence ${bestScore}: ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.year})`);
+        
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
+          console.log(`✅ [QUESTION DETECTION SERVICE] Found marking scheme for the match`);
+        } else {
+          console.log(`⚠️ [QUESTION DETECTION SERVICE] No marking scheme found for the match`);
         }
         
         return {
@@ -139,6 +149,7 @@ export class QuestionDetectionService {
         };
       }
 
+      console.log(`❌ [QUESTION DETECTION SERVICE] No matching exam paper found (best score: ${bestScore})`);
       return {
         found: false,
         message: 'No matching exam paper found'

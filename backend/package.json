@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts",
+    "dev:no-restart": "cross-env NODE_OPTIONS=--no-deprecation tsx --tsconfig tsconfig.dev.json server.ts",
     "build": "tsc --project tsconfig.json --noEmitOnError false --skipLibCheck && npm run generate-api-with-examples && cp api-spec.json dist/",
     "build:clean": "rm -rf dist && npm run build",
     "build:deploy": "node build-for-deploy.cjs",

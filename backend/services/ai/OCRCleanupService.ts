@@ -33,25 +33,34 @@ export class OCRCleanupService {
     extractedQuestionText?: string
   ): Promise<{ cleanedText: string; usageTokens: number }> {
     const systemPrompt = getPrompt('ocrCleanup.withStepIds.system');
-
     const userPrompt = getPrompt('ocrCleanup.withStepIds.user', originalWithStepIds, extractedQuestionText);
 
     let responseText: string;
     let usageTokens = 0;
-    model = 'auto';
-    if (model === 'auto') {
-      const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', true); // ✅ Force JSON response
-      responseText = res.content;
-      usageTokens = res.usageTokens;
-    } else {
-      const { ModelProvider } = await import('./ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro', true); // ✅ Force JSON response
-      responseText = res.content;
-      usageTokens = res.usageTokens;
-    }
+    
+    try {
+      if (model === 'auto') {
+        const { ModelProvider } = await import('./ModelProvider.js');
+        const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', true); // ✅ Force JSON response
+        responseText = res.content;
+        usageTokens = res.usageTokens;
+      } else {
+        const { ModelProvider } = await import('./ModelProvider.js');
+        const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro', true); // ✅ Force JSON response
+        responseText = res.content;
+        usageTokens = res.usageTokens;
+      }
 
-    return { cleanedText: responseText, usageTokens };
+      // Enhanced debugging for OCR cleanup response
+      console.log('🔍 [OCR CLEANUP] Response length:', responseText.length);
+      console.log('🔍 [OCR CLEANUP] First 300 chars:', responseText.substring(0, 300));
+      console.log('🔍 [OCR CLEANUP] Last 300 chars:', responseText.substring(Math.max(0, responseText.length - 300)));
+
+      return { cleanedText: responseText, usageTokens };
+    } catch (error) {
+      console.error('❌ [OCR CLEANUP] Failed to clean OCR text:', error);
+      throw error;
+    }
   }
 
   /**

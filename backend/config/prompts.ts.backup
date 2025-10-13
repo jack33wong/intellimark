@@ -7,42 +7,7 @@
 
 export const AI_PROMPTS = {
   // ============================================================================
-  // TEXT ANALYSIS PROMPTS (Used by ClassificationService when analyzing raw OCR text)
-  // FIX: Added this section to resolve "Error: Prompt not found: textAnalysis.system"
-  // ============================================================================
-  textAnalysis: {
-    system: `You are an AI assistant analyzing raw OCR text extracted from an image.
-
-    Your task is to determine the MODE of the image based on the text content and extract the QUESTION TEXT.
-
-    MODE Definitions:
-    - question: The text contains ONLY a question, instructions, or problem statement. There is no significant student work or answers.
-    - marking: The text contains BOTH a question AND student work/answers.
-
-    QUESTION TEXT Extraction Rules:
-    - Extract the complete question, including context, instructions, and data.
-    - Do NOT include student answers or working in the questionText field.
-
-    CRITICAL OUTPUT RULES:
-    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations.
-    - Output MUST strictly follow this format:
-
-    {
-      "mode": "question|marking|unknown",
-      "questionText": "The extracted question text",
-      "confidence": 0.0-1.0,
-      "reasoning": "Brief explanation for the mode classification"
-    }`,
-    user: (visionText: string) => `Analyze the following raw OCR text and determine the mode and question text:
-
-    --- RAW OCR TEXT START ---
-    ${visionText}
-    --- RAW OCR TEXT END ---
-    `
-  },
-
-  // ============================================================================
-  // CLASSIFICATION SERVICE PROMPTS (Legacy Image-based Classification)
+  // CLASSIFICATION SERVICE PROMPTS
   // ============================================================================
   
   classification: {
@@ -73,48 +38,7 @@ export const AI_PROMPTS = {
   },
 
   // ============================================================================
-  // MODERN TEXT-BASED MARKING PIPELINE PROMPT (Security Bypass Compatible)
-  // (Preserved from previous fix)
-  // ============================================================================
-  textBasedMarking: {
-      // The system prompt is minimal as the user prompt contains detailed instructions.
-      system: `Follow the instructions precisely and respond ONLY with the required JSON format.`,
-
-      // This user prompt definition replicates the robust structure required for the modern pipeline.
-      user: (questionText: string, studentWorkFormatted: string, totalMarks: number = 5) => {
-        let prompt = "";
-
-        prompt += "You are an expert marking assistant. Your task is to analyze a student's work and provide feedback in a structured JSON format.\n\n";
-        
-        // Critical Instructions for the AI
-        prompt += "**CRITICAL INSTRUCTIONS:**\n";
-        prompt += "1.  You MUST analyze EVERY step provided in the \"Student's Work\". Do not skip any.\n";
-        prompt += "2.  For EACH step, you MUST create a corresponding annotation object in your JSON response.\n";
-        prompt += "3.  Each annotation object MUST include the exact 'step_id' from the student's work. This is mandatory for linking your feedback.\n";
-        prompt += "4.  If a step is irrelevant, contains scribbles, or is not part of the mathematical solution, you MUST still create an annotation for it. For such cases, set the 'action' to 'cross', the 'text' to '', and the 'reasoning' to a brief explanation like \"Irrelevant calculation\" or \"Scribbles detected\".\n";
-        prompt += "5.  Your entire response MUST be a single, valid JSON object and nothing else. An empty \"annotations\" array is not an acceptable response.\n\n";
-
-        prompt += "**Input Data:**\n\n";
-        prompt += `* **Question:**\n   """\n   ${questionText}\n   """\n\n`;
-
-        // NOTE: If you integrate the marking scheme context later, it should be added here.
-
-        prompt += "* **Student's Work:**\n   \"\"\"\n";
-        prompt += `   ${studentWorkFormatted}\n`;
-        prompt += "   \"\"\"\n\n";
-
-        // Define the Required JSON Output Format
-        // Dynamically insert the totalMarks based on the detection result or default to 5.
-        prompt += "**Required JSON Output Format:**\n";
-        prompt += `{\n  "annotations": [\n    {\n      "step_id": "step_1",\n      "textMatch": "The text of the student's work from that step",\n      "action": "tick or cross",\n      "text": "Your marking code (e.g., M1, A1, B1)",\n      "reasoning": "A concise explanation for your decision."\n    }\n  ],\n  "studentScore": {\n    "totalMarks": ${totalMarks},\n    "awardedMarks": 0,\n    "scoreText": "0/${totalMarks}"\n  }\n}\n`;
-
-        return prompt;
-      }
-  },
-
-
-  // ============================================================================
-  // AI MARKING SERVICE PROMPTS (Legacy/Other Modes)
+  // AI MARKING SERVICE PROMPTS
   // ============================================================================
   
   marking: {
@@ -403,9 +327,9 @@ export const AI_PROMPTS = {
     1.  **Markdown Only:** The entire response must be in markdown.
     2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
     3.  **Layout:**
-     - Start with the full question text on the first line. add three tabs, then the total marks in bold (e.g., 4 **Marks**).
-     - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with a line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
-     - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
+      - Start with the full question text on the first line. add three tabs, then the total marks in bold (e.g., 4 **Marks**).
+      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with a line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
+      - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
     4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
     5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
     ---
@@ -518,32 +442,18 @@ export function getPrompt(path: string, ...args: any[]): string {
   const keys = path.split('.');
   let prompt: any = AI_PROMPTS;
   
-  // Robust traversal of the prompt object
   for (const key of keys) {
-    if (prompt && typeof prompt === 'object' && key in prompt) {
-        prompt = prompt[key];
-    } else {
-        // If the key is not found at the current level, throw the error.
-        console.error(`Prompt path segment not found: ${key} in path ${path}`);
-        throw new Error(`Prompt not found: ${path}`);
+    prompt = prompt[key];
+    if (prompt === undefined) {
+      throw new Error(`Prompt not found: ${path}`);
     }
   }
   
-  // Ensure the final result is valid
-  if (prompt === undefined || prompt === null) {
-      throw new Error(`Prompt resolved to undefined or null: ${path}`);
-  }
-
   if (typeof prompt === 'function') {
     return prompt(...args);
   }
   
-  if (typeof prompt === 'string') {
-      return prompt;
-  }
-
-  // If the final result is neither a string nor a function, the configuration is invalid
-  throw new Error(`Invalid prompt format at path: ${path}`);
+  return prompt;
 }
 
 /**

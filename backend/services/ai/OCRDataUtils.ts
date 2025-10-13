@@ -32,6 +32,44 @@ export class OCRDataUtils {
         throw new Error('OCR cleanup returned empty text');
       }
 
+      // Enhanced debugging for JSON parsing issues
+      console.log('🔍 [OCR PARSE] Attempting to parse OCR cleanup data...');
+      console.log('🔍 [OCR PARSE] Text length:', cleanedOcrText.length);
+      console.log('🔍 [OCR PARSE] First 200 chars:', cleanedOcrText.substring(0, 200));
+      console.log('🔍 [OCR PARSE] Last 200 chars:', cleanedOcrText.substring(Math.max(0, cleanedOcrText.length - 200)));
+
+      // Check if JSON appears to be truncated
+      const openBraces = (cleanedOcrText.match(/\{/g) || []).length;
+      const closeBraces = (cleanedOcrText.match(/\}/g) || []).length;
+      const openBrackets = (cleanedOcrText.match(/\[/g) || []).length;
+      const closeBrackets = (cleanedOcrText.match(/\]/g) || []).length;
+      
+      console.log('🔍 [OCR PARSE] Brace balance: {', openBraces, '} vs }', closeBraces);
+      console.log('🔍 [OCR PARSE] Bracket balance: [', openBrackets, '] vs ]', closeBrackets);
+      
+      if (openBraces !== closeBraces || openBrackets !== closeBrackets) {
+        console.error('❌ [OCR PARSE] JSON appears to be truncated - unbalanced braces/brackets');
+        console.error('❌ [OCR PARSE] Attempting to fix truncated JSON...');
+        
+        // Try to fix truncated JSON by adding missing closing brackets
+        let fixedJson = cleanedOcrText;
+        const missingCloseBraces = openBraces - closeBraces;
+        const missingCloseBrackets = openBrackets - closeBrackets;
+        
+        // Add missing closing brackets first
+        for (let i = 0; i < missingCloseBrackets; i++) {
+          fixedJson += ']';
+        }
+        
+        // Add missing closing braces
+        for (let i = 0; i < missingCloseBraces; i++) {
+          fixedJson += '}';
+        }
+        
+        console.log('🔍 [OCR PARSE] Fixed JSON length:', fixedJson.length);
+        cleanedOcrText = fixedJson;
+      }
+
       const cleanedData = JSON.parse(cleanedOcrText);
       
       if (!cleanedData.steps || !Array.isArray(cleanedData.steps) || cleanedData.steps.length === 0) {
@@ -39,6 +77,8 @@ export class OCRDataUtils {
         console.error('❌ [OCR PARSE] Full cleaned data structure:', JSON.stringify(cleanedData, null, 2));
         throw new Error('OCR cleanup failed to extract any steps');
       }
+
+      console.log('✅ [OCR PARSE] Successfully parsed OCR data with', cleanedData.steps.length, 'steps');
 
       return {
         question: cleanedData.question || '',
@@ -50,7 +90,8 @@ export class OCRDataUtils {
       };
     } catch (error) {
       console.error('❌ [OCR PARSE] Failed to parse OCR cleanup data:', error);
-      console.error('❌ [OCR PARSE] Raw text that failed to parse:', cleanedOcrText?.substring(0, 500));
+      console.error('❌ [OCR PARSE] Raw text that failed to parse:', cleanedOcrText?.substring(0, 1000));
+      console.error('❌ [OCR PARSE] Text length:', cleanedOcrText?.length);
       throw new Error(`OCR data parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

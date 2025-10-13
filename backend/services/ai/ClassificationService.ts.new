@@ -1,9 +1,9 @@
 import { ImageAnnotatorClient } from '@google-cloud/vision';
 import { ModelProvider } from './ModelProvider.js';
-import type { ModelType } from '../../types/index.js';
+import type { ModelType, ImageClassification } from '../../types/index.js';
 
 export interface TextAnalysisResult {
-  mode: 'question' | 'marking' | 'unknown';
+  mode: 'question' | 'marking';
   questionText: string;
   confidence: number;
   reasoning: string;
@@ -18,70 +18,8 @@ export interface VisionResult {
   passAText: string;
 }
 
-// Define the ImageClassification interface expected by MarkHomeworkWithAnswerAuto
-// This ensures the service returns the structure required by the orchestrator.
-export interface ImageClassification {
-    isQuestionOnly: boolean;
-    extractedQuestionText: string;
-    confidence: number;
-    reasoning: string;
-    usageTokens?: number;
-    visionData?: Partial<VisionResult>;
-    mode: 'question' | 'marking' | 'unknown';
-}
-
-
 export class ClassificationService {
   private static readonly RESIZE_FACTOR = 2;
-
-  /**
-   * FIX: Added this method to resolve "TypeError: ClassificationService.classifyImage is not a function".
-   * Classify the image to determine if it's a question only or contains student work (Marking mode).
-   * This is the main entry point expected by the MarkHomeworkWithAnswerAuto orchestrator.
-   */
-  public static async classifyImage(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
-    if (debug) {
-        console.log("🚀 [CLASSIFICATION SERVICE] Starting image classification (via classifyImage)...");
-    }
-
-    try {
-        // Utilize the existing detailed analysis method
-        const { textAnalysis, visionResult } = await this.extractTextAndAnalyze(imageData, model);
-
-        const isQuestionOnly = textAnalysis.mode === 'question';
-
-        if (debug) {
-            console.log(`✅ [CLASSIFICATION SERVICE] Classification complete. Mode: ${textAnalysis.mode}, Confidence: ${textAnalysis.confidence.toFixed(2)}`);
-            console.log(`💬 [CLASSIFICATION SERVICE] Reasoning: ${textAnalysis.reasoning}`);
-        }
-
-        // Map the results to the ImageClassification interface
-        return {
-            isQuestionOnly: isQuestionOnly,
-            extractedQuestionText: textAnalysis.questionText,
-            confidence: textAnalysis.confidence,
-            reasoning: textAnalysis.reasoning,
-            usageTokens: textAnalysis.usageTokens,
-            mode: textAnalysis.mode,
-            visionData: {
-                passAText: visionResult.passAText,
-                // Include other vision data if needed by consumers
-            }
-        };
-    } catch (error) {
-        console.error('❌ [CLASSIFICATION SERVICE] Failed during image classification:', error);
-        // Provide a fallback response in case of failure
-        return {
-            isQuestionOnly: false, // Assume marking mode if classification fails to avoid blocking the pipeline
-            extractedQuestionText: '',
-            confidence: 0,
-            reasoning: 'Image classification failed due to an internal error.',
-            usageTokens: 0,
-            mode: 'unknown'
-        };
-    }
-  }
-
 
   /**
    * Perform Google Vision text extraction with 3-pass approach
@@ -263,8 +201,8 @@ export class ClassificationService {
       console.log('🔍 [TEXT ANALYSIS] Analyzing text with Gemini...');
       const textAnalysis = await this.analyzeTextForMode(visionResult.passAText, model);
       console.log('✅ [TEXT ANALYSIS] Text analysis completed');
-    
-    return {
+
+      return {
         textAnalysis,
         visionResult
       };
@@ -274,4 +212,31 @@ export class ClassificationService {
     }
   }
 
+  /**
+   * Backward compatibility method for old API
+   * Maps new implementation to old ClassificationService interface
+   */
+  static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, preProcessedImage?: string): Promise<ImageClassification> {
+    try {
+      // Use the new implementation
+      const result = await this.extractTextAndAnalyze(imageData, model);
+      
+      // Map new format to old format for backward compatibility
+      return {
+        isQuestionOnly: result.textAnalysis.mode === 'question',
+        reasoning: result.textAnalysis.reasoning,
+        extractedQuestionText: result.textAnalysis.questionText,
+        usageTokens: result.textAnalysis.usageTokens
+      };
+    } catch (error) {
+      console.error('❌ [CLASSIFICATION] Failed to classify image:', error);
+      // Return fallback response for backward compatibility
+      return {
+        isQuestionOnly: false,
+        reasoning: 'Classification failed, defaulting to marking mode',
+        extractedQuestionText: '',
+        usageTokens: 0
+      };
+    }
+  }
 }

@@ -1,11 +1,21 @@
 /**
- * MarkHomeworkWithAnswer with Auto Progress Tracking
- * Non-breaking: maintains same interface as original but with automatic progress tracking
+ * MarkHomeworkWithAnswerAuto.ts
+ *
+ * The main orchestrator updated to use the MODERN, OPTIMIZED pipeline flow
+ * (ImageUtils -> OcrService -> OptimizedOCRService -> AIMarkingService)
+ * while preserving original class methods for backward compatibility.
  */
 
+// --- Core Service Imports for the New Pipeline ---
+import { ImageUtils } from '../ai/ImageUtils.js';
+import { OcrService } from '../ai/OcrService.js';
+import { OptimizedOCRService } from '../ai/OptimizedOCRService.js';
+import { AIMarkingService } from '../aiMarkingService.js';
+
+// --- Original Service Imports & Config ---
 import { questionDetectionService } from '../../services/questionDetectionService.js';
-import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
-import { getDebugMode, getDefaultModel } from '../../config/aiModels.js';
+import { ImageAnnotationService } from '../../services/ImageAnnotationService.js';
+import { getDebugMode, getDefaultModel, getModelConfig } from '../../config/aiModels.js';
 import { AutoProgressTracker, createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
 
@@ -18,7 +28,8 @@ import type {
 } from '../../types/index.js';
 import type { QuestionDetectionResult } from '../../services/questionDetectionService.js';
 
-// Debug mode helper function
+// --- Helper Functions (Preserved and Normalized) ---
+
 async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
   if (debug) {
     const debugMode = getDebugMode();
@@ -26,136 +37,338 @@ async function simulateApiDelay(operation: string, debug: boolean = false): Prom
   }
 }
 
-// Common function to convert full subject names to short forms
 function getShortSubjectName(qualification: string): string {
   const subjectMap: { [key: string]: string } = {
-    'MATHEMATICS': 'MATHS',
-    'PHYSICS': 'PHYSICS',
-    'CHEMISTRY': 'CHEMISTRY',
-    'BIOLOGY': 'BIOLOGY',
-    'ENGLISH': 'ENGLISH',
-    'ENGLISH LITERATURE': 'ENG LIT',
-    'HISTORY': 'HISTORY',
-    'GEOGRAPHY': 'GEOGRAPHY',
-    'FRENCH': 'FRENCH',
-    'SPANISH': 'SPANISH',
-    'GERMAN': 'GERMAN',
-    'COMPUTER SCIENCE': 'COMP SCI',
-    'ECONOMICS': 'ECONOMICS',
-    'PSYCHOLOGY': 'PSYCHOLOGY',
-    'SOCIOLOGY': 'SOCIOLOGY',
-    'BUSINESS STUDIES': 'BUSINESS',
-    'ART': 'ART',
-    'DESIGN AND TECHNOLOGY': 'D&T',
-    'MUSIC': 'MUSIC',
-    'PHYSICAL EDUCATION': 'PE',
-    // Handle reverse mappings for short forms that might be in database
-    'CHEM': 'CHEMISTRY',
-    'PHYS': 'PHYSICS'
+    'MATHEMATICS': 'MATHS', 'PHYSICS': 'PHYSICS', 'CHEMISTRY': 'CHEMISTRY', 'BIOLOGY': 'BIOLOGY',
+    'ENGLISH': 'ENGLISH', 'ENGLISH LITERATURE': 'ENG LIT', 'HISTORY': 'HISTORY', 'GEOGRAPHY': 'GEOGRAPHY',
+    'FRENCH': 'FRENCH', 'SPANISH': 'SPANISH', 'GERMAN': 'GERMAN', 'COMPUTER SCIENCE': 'COMP SCI',
+    'ECONOMICS': 'ECONOMICS', 'PSYCHOLOGY': 'PSYCHOLOGY', 'SOCIOLOGY': 'SOCIOLOGY',
+    'BUSINESS STUDIES': 'BUSINESS', 'ART': 'ART', 'DESIGN AND TECHNOLOGY': 'D&T',
+    'MUSIC': 'MUSIC', 'PHYSICAL EDUCATION': 'PE', 'CHEM': 'CHEMISTRY', 'PHYS': 'PHYSICS'
   };
-  
   const upperQualification = qualification.toUpperCase();
   return subjectMap[upperQualification] || qualification;
 }
 
-// Common function to generate session titles for non-past-paper images
 function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
     const questionText = extractedQuestionText.trim();
-    
-    // Handle cases where extraction failed
-    if (questionText.toLowerCase().includes('unable to extract') || 
-        questionText.toLowerCase().includes('no text detected') ||
-        questionText.toLowerCase().includes('extraction failed')) {
+    if (questionText.toLowerCase().includes('unable to extract') || questionText.toLowerCase().includes('no text detected') || questionText.toLowerCase().includes('extraction failed')) {
       return `${mode} - ${new Date().toLocaleDateString()}`;
     }
-    
-    // Use the truncated question text directly - much simpler and more reliable
-    const truncatedText = questionText.length > 30 
-      ? questionText.substring(0, 30) + '...' 
-      : questionText;
-    const result = `${mode} - ${truncatedText}`;
-    return result;
+    const truncatedText = questionText.length > 30 ? questionText.substring(0, 30) + '...' : questionText;
+    return `${mode} - ${truncatedText}`;
   } else {
-    // Fallback when no question text is extracted
-    const result = `${mode} - ${new Date().toLocaleDateString()}`;
-    return result;
+    return `${mode} - ${new Date().toLocaleDateString()}`;
   }
 }
 
 /**
- * Auto-progress version of MarkHomeworkWithAnswer
- * Uses automatic progress tracking instead of manual step management
+ * Helper function to ensure bounding boxes/math blocks are always in array format.
+ */
+function normalizeBoundingBoxes(boundingBoxes: any): any[] {
+    if (Array.isArray(boundingBoxes)) {
+        return boundingBoxes;
+    }
+    if (typeof boundingBoxes === 'object' && boundingBoxes !== null) {
+        console.log("🔧 [DATA NORMALIZATION] Converting boundingBoxes object map to array for compatibility.");
+        return Object.values(boundingBoxes);
+    }
+    return [];
+}
+
+
+/**
+ * The final, corrected implementation of the main orchestrator class using the modern pipeline.
  */
 export class MarkHomeworkWithAnswerAuto {
+
+  // --- NEW, REFACTORED `run` METHOD (Modern Pipeline) ---
+
   /**
-   * Classify image using AI
+   * The main entry point for the homework marking process.
+   * This orchestrates the entire pipeline from raw image to final marked result.
+   */
+  public static async run({
+    imageData,
+    model = 'gemini-2.5-pro',
+    onProgress,
+    debug = false
+  }: {
+    imageData: string;
+    model?: ModelType;
+    onProgress?: (data: any) => void;
+    debug?: boolean;
+  }): Promise<MarkHomeworkResponse> {
+    const startTime = Date.now();
+    console.log("🚀 [PIPELINE START] Beginning homework marking process (Modern Pipeline)...");
+
+    const actualModel = model === 'auto' ? getDefaultModel() : model;
+    const modelConfig = getModelConfig(actualModel);
+    const apiUsed = modelConfig.apiEndpoint;
+
+    // Initialize the Progress Tracker (Simplified structure for the modern flow)
+    const progressTracker = createAutoProgressTracker(getStepsForMode('marking'), (data) => {
+      if (onProgress) onProgress(data);
+    });
+    
+    // Register the steps that align with the modern pipeline stages
+    progressTracker.registerStep('analyzing_image', { stepName: 'Image Preparation', stepDescription: 'Correcting orientation and analyzing...' });
+    progressTracker.registerStep('extracting_text', { stepName: 'Text Extraction', stepDescription: 'Extracting raw text...' });
+    progressTracker.registerStep('processing_ocr', { stepName: 'Student Work Analysis', stepDescription: 'Filtering, grouping, and enhancing work...' });
+    progressTracker.registerStep('detecting_question', { stepName: 'Question Detection', stepDescription: 'Identifying question and marking scheme...' });
+    progressTracker.registerStep('generating_feedback', { stepName: 'AI Marking & Annotation', stepDescription: 'Generating feedback and creating annotated image...' });
+
+
+    let totalLLMTokens = 0;
+    let totalMathpixCalls = 0;
+
+    try {
+      // STAGE 1: Prepare Visually Correct Image (Fixes Orientation Issues)
+      const stage1 = async () => {
+        const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+        const rawImageBuffer = Buffer.from(base64Data, 'base64');
+        return ImageUtils.prepareImage(rawImageBuffer);
+      };
+      const { correctedBuffer, dimensions } = await progressTracker.withProgress('analyzing_image', stage1)();
+      
+      // Convert corrected buffer back to base64 for the final annotation base layer
+      const correctedImageData = `data:image/jpeg;base64,${correctedBuffer.toString('base64')}`;
+
+      // STAGE 2: Perform Raw OCR
+      const stage2 = async () => OcrService.extractRawBlocks(correctedBuffer);
+      const rawOcrBlocks = await progressTracker.withProgress('extracting_text', stage2)();
+
+      // STAGE 3: Process Student Work (Fixes Extraction, Grouping, and Mathpix Optimization)
+      const stage3 = async () => OptimizedOCRService.process(rawOcrBlocks, correctedBuffer, dimensions);
+      const processedResult = await progressTracker.withProgress('processing_ocr', stage3)();
+
+      totalMathpixCalls += processedResult.usage?.mathpixCalls || 0;
+
+      // Normalize the output (ensures array format)
+      const studentWorkSteps = normalizeBoundingBoxes(processedResult.boundingBoxes);
+
+      // Determine Mode based on results
+      const isQuestionMode = studentWorkSteps.length < 2; // Heuristic threshold
+
+      // STAGE 4: Question Detection
+      const stage4 = async () => {
+        // Use the question text extracted during the OptimizedOCRService processing
+        const textToDetect = processedResult.questionText || OcrService.getFullTextFromBlocks(rawOcrBlocks);
+        return questionDetectionService.detectQuestion(textToDetect);
+      };
+      const questionDetection = await progressTracker.withProgress('detecting_question', stage4)();
+
+      
+      // --- MODE HANDLING ---
+
+      if (isQuestionMode) {
+        // Question Mode Flow
+        console.log("❓ [PIPELINE] Question mode detected. Generating AI response...");
+        
+        // Generate a helpful response (e.g., solution or guidance)
+        const generateResponse = async () => {
+            // We use the text-based approach even in question mode for security bypass compatibility.
+            const questionContext = processedResult.questionText || OcrService.getFullTextFromBlocks(rawOcrBlocks);
+
+            return AIMarkingService.generateChatResponse(
+                questionContext, // Pass the extracted text
+                '', // No specific user message initially
+                actualModel, 
+                true, // isQuestionOnly = true
+                debug,
+                undefined,
+                true // useOcrText = true (Security Bypass)
+            );
+        };
+        
+        const aiResponse = await progressTracker.withProgress('generating_feedback', generateResponse)();
+        totalLLMTokens += aiResponse.usageTokens || 0;
+
+        // Finalize Question Mode Response
+        progressTracker.finish();
+        const totalProcessingTime = Date.now() - startTime;
+        console.log(`✅ [PIPELINE END] Question mode completed in ${(totalProcessingTime / 1000).toFixed(1)}s.`);
+
+        const sessionTitle = questionDetection?.found && questionDetection.match
+            ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)}...`
+            : generateNonPastPaperTitle(processedResult.questionText, 'Question');
+
+        return { 
+            success: true, 
+            isQuestionOnly: true,
+            isPastPaper: questionDetection?.found || false,
+            mode: 'Question', 
+            message: aiResponse.response,
+            aiResponse: aiResponse.response,
+            processingTime: totalProcessingTime,
+            sessionTitle: sessionTitle,
+            questionDetection: questionDetection,
+            mathBlocks: studentWorkSteps,
+            confidence: processedResult.confidence,
+            processingStats: {
+                processingTimeMs: totalProcessingTime,
+                confidence: processedResult.confidence,
+                imageSize: imageData.length,
+                llmTokens: totalLLMTokens,
+                mathpixCalls: totalMathpixCalls,
+                modelUsed: actualModel,
+                apiUsed: apiUsed,
+            },
+        } as any;
+
+      } else {
+        // Marking Mode Flow
+        console.log("📊 [PIPELINE] Marking mode detected. Proceeding with AI analysis...");
+
+        // STAGE 5: AI Marking & Annotation (Fixes Security Bypass)
+        const stage5 = async () => {
+            // 1. Construct the prompt using the text-based approach
+            const { systemPrompt, userPrompt } = AIMarkingService.constructMarkingPrompt(
+                processedResult, 
+                processedResult.questionText, 
+                questionDetection
+            );
+            
+            // 2. Generate instructions from the prompt
+            const markingInstructions = await AIMarkingService.generateMarkingInstructionsFromPrompt(
+                systemPrompt, 
+                userPrompt, 
+                actualModel
+            );
+
+            // 3. Generate the final annotated image
+            const annotationResult = await ImageAnnotationService.generateAnnotationResult(
+                correctedImageData, // CRITICAL: Use the correctly oriented image data
+                markingInstructions.annotations,
+                studentWorkSteps, // Pass the normalized array with coordinates
+                dimensions, // Pass the corrected dimensions
+                markingInstructions.studentScore
+            );
+            
+            return { markingInstructions, annotationResult };
+        };
+
+        const { markingInstructions, annotationResult } = await progressTracker.withProgress('generating_feedback', stage5)();
+        totalLLMTokens += markingInstructions.usageTokens || 0;
+
+        // Finalize Marking Mode Response
+        progressTracker.finish();
+        const totalProcessingTime = Date.now() - startTime;
+        console.log(`✅ [PIPELINE END] Homework marking completed in ${(totalProcessingTime / 1000).toFixed(1)}s.`);
+
+        const sessionTitle = questionDetection?.found && questionDetection.match
+            ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)}...`
+            : generateNonPastPaperTitle(processedResult.questionText, 'Marking');
+
+        return {
+            success: true,
+            isQuestionOnly: false,
+            isPastPaper: questionDetection?.found || false,
+            mode: 'Marking',
+            extractedText: processedResult.text,
+            mathBlocks: studentWorkSteps,
+            markingInstructions: markingInstructions,
+            annotatedImage: annotationResult.annotatedImage,
+            message: 'Marking completed.',
+            suggestedFollowUps: [], // Placeholder
+            ocrCleanedText: processedResult.text,
+            confidence: processedResult.confidence,
+            processingTime: totalProcessingTime,
+            sessionTitle: sessionTitle,
+            questionDetection: questionDetection,
+            studentScore: markingInstructions.studentScore,
+            apiUsed: apiUsed,
+            processingStats: {
+                processingTimeMs: totalProcessingTime,
+                confidence: processedResult.confidence,
+                imageSize: imageData.length,
+                llmTokens: totalLLMTokens,
+                mathpixCalls: totalMathpixCalls,
+                annotations: annotationResult.annotations?.length || 0,
+                modelUsed: actualModel,
+                apiUsed: apiUsed,
+            },
+        } as any;
+      }
+
+    } catch (error) {
+      console.error('❌ [PIPELINE FAILED] A critical error occurred:', error);
+      if (progressTracker && typeof progressTracker.fail === 'function') {
+          progressTracker.fail(error instanceof Error ? error.message : "An unknown error occurred.");
+      }
+      throw error;
+    }
+  }
+
+  // --- PRESERVED ORIGINAL METHODS FOR BACKWARD COMPATIBILITY (DEPRECATED) ---
+  
+  /**
+   * @deprecated Use the modern pipeline via the run method.
    */
   private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
+    console.warn("⚠️  [DEPRECATED] `classifyImageWithAI` was called. This functionality is now integrated into the modern pipeline flow.");
+    // We must still implement it in case external code calls it directly.
     const { ClassificationService } = await import('../ai/ClassificationService.js');
     return ClassificationService.classifyImage(imageData, model, debug);
   }
 
   /**
-   * Public method to get full hybrid OCR result with proper sorting for testing
+   * @deprecated Use OptimizedOCRService instead.
    */
   public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
+    console.error("❌ [DEPRECATED] `getHybridOCRResult` was called. This legacy method is known to cause issues with orientation and extraction. The pipeline should use OptimizedOCRService instead.");
+    // If this must be supported, it requires significant refactoring of HybridOCRService itself.
     const { HybridOCRService } = await import('../hybridOCRService.js');
+    const hybridResult = await HybridOCRService.processImage(imageData, { enablePreprocessing: true, mathThreshold: 0.10, ...options }, debug);
 
-    const hybridResult = await HybridOCRService.processImage(imageData, {
-      enablePreprocessing: true,
-      mathThreshold: 0.10,
-      ...options
-    }, debug);
-
-    // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
-    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
-      const aY = a.coordinates.y;
-      const aHeight = a.coordinates.height;
-      const aBottom = aY + aHeight;
-      const bY = b.coordinates.y;
-      const bHeight = b.coordinates.height;
-      const bBottom = bY + bHeight;
-      
-      // Check if boxes are on the same line (overlap vertically by 30% or more)
-      const overlapThreshold = 0.3;
-      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
-      
-      if (verticalOverlap > 0) {
-        // Calculate overlap ratio for both boxes
-        const aOverlapRatio = verticalOverlap / aHeight;
-        const bOverlapRatio = verticalOverlap / bHeight;
-        
-        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
-          // If boxes are on the same line, sort by x-coordinate (left to right)
-          return a.coordinates.x - b.coordinates.x;
+    // Basic normalization for compatibility if called directly
+    const normalizedMathBlocks = normalizeBoundingBoxes(hybridResult.mathBlocks);
+    // Basic sorting (simple top-to-bottom, left-to-right)
+    const sortedMathBlocks = [...normalizedMathBlocks].sort((a, b) => {
+        if (!a.coordinates || !b.coordinates) return 0;
+        if (Math.abs(a.coordinates.y - b.coordinates.y) > 10) {
+            return a.coordinates.y - b.coordinates.y;
         }
-      }
-      
-      // Otherwise, sort by y-coordinate (top to bottom)
-      return aY - bY;
+        return a.coordinates.x - b.coordinates.x;
     });
 
     return {
-      ...hybridResult,
-      mathBlocks: sortedMathBlocks
+        ...hybridResult,
+        mathBlocks: sortedMathBlocks
     };
   }
 
   /**
-   * Process image with real OCR (auto-progress version)
+   * @deprecated Use the modern pipeline via the run method.
    */
   private static async processImageWithRealOCR(
     imageData: string, 
     debug: boolean = false,
     progressTracker?: AutoProgressTracker
   ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
+    console.error("❌ [DEPRECATED] `processImageWithRealOCR` was called. This method uses the legacy HybridOCRService.");
+
     const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
       const hybridResult = await this.getHybridOCRResult(imageData, {}, debug);
       
+      // Normalize the structure for downstream compatibility (as implemented previously)
+      const normalizedBoundingBoxes = (hybridResult.mathBlocks || []).map((block: any, index: number) => {
+        return {
+            text: block.text || block.content || '', 
+            step_id: block.step_id || block.id || `step_${index + 1}`,
+            x: block.coordinates?.x,
+            y: block.coordinates?.y,
+            width: block.coordinates?.width,
+            height: block.coordinates?.height,
+            coordinates: block.coordinates, 
+            confidence: block.confidence,
+        };
+      });
+
       return {
         ocrText: hybridResult.text,
-        boundingBoxes: hybridResult.mathBlocks || [],
+        boundingBoxes: normalizedBoundingBoxes,
         imageDimensions: hybridResult.dimensions,
         confidence: hybridResult.confidence,
         mathpixCalls: hybridResult.usage?.mathpixCalls || 0
@@ -169,7 +382,7 @@ export class MarkHomeworkWithAnswerAuto {
   }
 
   /**
-   * Generate marking instructions (auto-progress version)
+   * @deprecated Use the modern pipeline via the run method.
    */
   private static async generateMarkingInstructions(
     imageData: string,
@@ -179,454 +392,22 @@ export class MarkHomeworkWithAnswerAuto {
     debug: boolean = false,
     progressTracker?: AutoProgressTracker
   ): Promise<MarkingInstructions> {
+    console.warn("⚠️  [DEPRECATED] `generateMarkingInstructions` (static helper) was called. This is handled within the modern pipeline flow.");
+
     const generateInstructions = async (): Promise<MarkingInstructions> => {
-      const { AIMarkingService } = await import('../aiMarkingService.js');
-      
-      return AIMarkingService.generateMarkingInstructions(
-        imageData,
-        model,
-        processedImage,
-        questionDetection
-      );
+        // This method now acts as a wrapper around the logic implemented in AIMarkingService
+        const { AIMarkingService } = await import('../aiMarkingService.js');
+        return AIMarkingService.generateMarkingInstructions(
+            imageData,
+            model,
+            processedImage,
+            questionDetection
+        );
     };
 
     if (progressTracker) {
       return progressTracker.withProgress('generating_feedback', generateInstructions)();
     }
     return generateInstructions();
-  }
-
-  /**
-   * Main run method with auto-progress tracking
-   */
-  public static async run({
-    imageData,
-    model = 'gemini-2.5-pro',
-    onProgress,
-    debug = false
-  }: {
-    imageData: string;
-    model?: ModelType;
-    onProgress?: (data: any) => void;
-    debug?: boolean;
-  }): Promise<MarkHomeworkResponse> {
-    
-    // Timing tracking for performance analysis
-    const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
-    let currentStep = 0;
-    let totalSteps = 0;
-    let modeSteps: string[] = []; // Track steps for current mode
-    
-    // Token and API call tracking
-    let totalLLMTokens = 0;
-    let totalMathpixCalls = 0;
-    
-    const logStep = (stepName: string, modelInfo: string) => {
-      currentStep++;
-      const startTime = Date.now();
-      stepTimings[stepName] = { start: startTime };
-      
-      // Log step completion with duration
-      const logStepComplete = (subSteps?: { [key: string]: number }) => {
-        const timing = stepTimings[stepName];
-        if (timing) {
-          timing.duration = Date.now() - timing.start;
-          timing.subSteps = subSteps;
-          const duration = (timing.duration / 1000).toFixed(1);
-          
-          // Use actual total steps for current mode
-          const actualTotalSteps = modeSteps.length;
-          const progress = `[${currentStep}/${actualTotalSteps}]`;
-          const paddedName = stepName.padEnd(25); // Fixed 25-character width for all step names
-          const durationStr = `[${duration}s]`;
-          const modelStr = `(${modelInfo})`;
-          console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
-          
-          if (subSteps) {
-            Object.entries(subSteps).forEach(([subStep, subDuration]) => {
-              const subDurationStr = (subDuration / 1000).toFixed(1);
-              console.log(`   └─ ${subStep}: [${subDurationStr}s]`);
-            });
-          }
-        }
-      };
-      
-      return logStepComplete;
-    };
-    const startTime = Date.now();
-
-    try {
-      // Create auto-progress tracker
-      let finalProgressData: any = null;
-      
-      // Set up for complete flow (question mode + potential marking mode)
-      modeSteps = [
-        'Image Analysis', 
-        'Image Classification', 
-        'Question Detection', 
-        'OCR Processing', 
-        'Marking Instructions', 
-        'Burn Overlay', 
-        'AI Response Generation'
-      ];
-      totalSteps = modeSteps.length;
-      currentStep = 0; // Reset step counter
-      
-      const progressTracker = createAutoProgressTracker(getStepsForMode('question'), (data) => {
-        finalProgressData = data;
-        if (onProgress) onProgress(data);
-      });
-
-      // Register steps for auto-progress tracking
-      progressTracker.registerStep('analyzing_image', {
-        stepId: 'analyzing_image',
-        stepName: 'Analyzing Image',
-        stepDescription: 'Analyzing image structure and content...'
-      });
-
-      progressTracker.registerStep('classifying_image', {
-        stepId: 'classifying_image',
-        stepName: 'Classifying Image',
-        stepDescription: 'Determining image type and mode...'
-      });
-
-      progressTracker.registerStep('processing_ocr', {
-        stepId: 'processing_ocr',
-        stepName: 'OCR Processing',
-        stepDescription: 'Extracting text from image...'
-      });
-
-      progressTracker.registerStep('generating_response', {
-        stepId: 'generating_response',
-        stepName: 'Generating Response',
-        stepDescription: 'Generating AI response...'
-      });
-
-      // Step 1: Analyze image (auto-progress)
-      const logStep1Complete = logStep('Image Analysis', 'google-vision');
-      const analyzeImage = async () => {
-        await simulateApiDelay('Image Analysis', debug);
-        return { analyzed: true };
-      };
-      await progressTracker.withProgress('analyzing_image', analyzeImage)();
-      logStep1Complete();
-
-      // Step 2: Classify image (auto-progress)
-      const actualModel = model === 'auto' ? getDefaultModel() : model;
-      const logStep2Complete = logStep('Image Classification', actualModel);
-      const classifyImage = async () => {
-        return this.classifyImageWithAI(imageData, model, debug);
-      };
-      const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
-      logStep2Complete();
-      
-      // Collect LLM tokens from classification
-      totalLLMTokens += classification.usageTokens || 0;
-
-      // Determine if this is question mode or marking mode
-      const isQuestionMode = classification.isQuestionOnly === true;
-      
-      if (isQuestionMode) {
-        // Question mode: perform OCR processing to get confidence, then question detection and AI response
-        
-        // OCR Processing (to get confidence value)
-        const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-        const processOCR = async () => {
-          const { HybridOCRService } = await import('../hybridOCRService');
-          return HybridOCRService.processImage(imageData, {}, debug);
-        };
-        
-        const ocrResult = await progressTracker.withProgress('processing_ocr', processOCR)();
-        logStep3Complete();
-        
-        // Collect Mathpix calls from OCR
-        totalMathpixCalls += ocrResult.usage?.mathpixCalls || 0;
-        
-        // Question Detection (internal, not shown as a step)
-        const detectQuestion = async () => {
-          return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
-        };
-        const questionDetection = await detectQuestion();
-        
-        // Add marking scheme and question text to questionDetection
-        if (questionDetection) {
-          // Store only the questionMarks data in proper structure (matching test data)
-          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
-          questionDetection.questionText = classification.extractedQuestionText || '';
-        }
-        
-        // AI Response Generation (visible step)
-        const logStep4Complete = logStep('AI Response Generation', actualModel);
-        const generateResponse = async () => {
-          const { AIMarkingService } = await import('../aiMarkingService');
-          return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
-        };
-        
-        const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
-        logStep4Complete();
-        
-        // Collect LLM tokens from AI response
-        totalLLMTokens += aiResponse.usageTokens || 0;
-        
-        // Generate suggested follow-ups for question mode
-        const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
-        const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
-        
-        // Finish progress tracking
-        progressTracker.finish();
-
-        const totalProcessingTime = Date.now() - startTime;
-        
-        // Performance Summary
-        const totalTime = totalProcessingTime / 1000;
-        console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
-        
-        // Calculate step percentages
-        const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
-        if (stepEntries.length > 0) {
-          stepEntries
-            .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
-            .forEach(([stepName, timing]) => {
-              const duration = (timing.duration || 0) / 1000;
-              const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
-              const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
-              console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
-            });
-        }
-        
-        console.log(`🤖 [MODEL] Used: ${actualModel}`);
-        console.log(`✅ [RESULT] Question mode completed successfully`);
-        
-        // Generate session title based on question detection result
-        const sessionTitle = questionDetection?.found && questionDetection.match 
-          ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
-          : generateNonPastPaperTitle(classification.extractedQuestionText, 'Question');
-        
-        const isPastPaper = questionDetection?.found || false;
-        
-        // Add marking scheme and question text to questionDetection (same as marking mode)
-        if (questionDetection) {
-          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
-          questionDetection.questionText = classification.extractedQuestionText || '';
-        }
-        
-        return {
-          success: true,
-          isQuestionOnly: true,
-          isPastPaper: isPastPaper, // Set isPastPaper based on question detection
-          mode: 'Question',
-          extractedText: 'Question detected - AI response generated',
-          message: aiResponse.response,
-          aiResponse: aiResponse.response,
-          suggestedFollowUps: suggestedFollowUps,
-          ocrCleanedText: ocrResult.text, // Add OCR cleaned text
-          confidence: ocrResult.confidence || 0,
-          processingTime: totalProcessingTime,
-          progressData: finalProgressData,
-          sessionTitle: sessionTitle,
-          classification: classification,
-          questionDetection: questionDetection,
-          // Remove detectedQuestion from session metadata - will be stored in individual messages
-          processingStats: {
-            processingTimeMs: totalProcessingTime,
-            confidence: ocrResult.confidence || 0,
-            imageSize: imageData.length,
-            llmTokens: totalLLMTokens,
-            mathpixCalls: totalMathpixCalls,
-            annotations: 0,
-            modelUsed: actualModel,
-            apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-          },
-          apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-        } as any;
-      } else {
-        // Marking mode: full processing pipeline
-        // Continue with marking mode steps (no reset needed - using complete flow)
-        
-        // Switch to marking mode steps
-        const markingProgressTracker = createAutoProgressTracker(getStepsForMode('marking'), (data) => {
-          finalProgressData = data;
-          if (onProgress) onProgress(data);
-        });
-
-        // Register marking mode steps
-        markingProgressTracker.registerStep('analyzing_image', {
-          stepId: 'analyzing_image',
-          stepName: 'Analyzing Image',
-          stepDescription: 'Analyzing image structure and content...'
-        });
-
-        markingProgressTracker.registerStep('classifying_image', {
-          stepId: 'classifying_image',
-          stepName: 'Classifying Image',
-          stepDescription: 'Determining image type and mode...'
-        });
-
-        markingProgressTracker.registerStep('detecting_question', {
-          stepId: 'detecting_question',
-          stepName: 'Detecting Question',
-          stepDescription: 'Identifying question structure...'
-        });
-
-        markingProgressTracker.registerStep('extracting_text', {
-          stepId: 'extracting_text',
-          stepName: 'Extracting Text',
-          stepDescription: 'Extracting text and math expressions...'
-        });
-
-        markingProgressTracker.registerStep('generating_feedback', {
-          stepId: 'generating_feedback',
-          stepName: 'Generating Feedback',
-          stepDescription: 'Creating marking instructions...'
-        });
-
-        markingProgressTracker.registerStep('creating_annotations', {
-          stepId: 'creating_annotations',
-          stepName: 'Creating Annotations',
-          stepDescription: 'Generating visual annotations...'
-        });
-
-        markingProgressTracker.registerStep('generating_response', {
-          stepId: 'generating_response',
-          stepName: 'Generating Response',
-          stepDescription: 'Generating final AI response...'
-        });
-
-        // Execute marking mode pipeline with auto-progress
-        // Skip steps 1-2 (already completed in question mode)
-        // Step 3: OCR Processing (extract text first)
-        const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-        const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
-        logStep3Complete();
-        
-        // Collect Mathpix calls from OCR processing
-        totalMathpixCalls += processedImage.mathpixCalls || 0;
-
-        // Step 4: Question Detection (use extracted text)
-        const logStep4Complete = logStep('Question Detection', 'question-detection');
-        const detectQuestion = async () => {
-          return questionDetectionService.detectQuestion(classification.extractedQuestionText || '');
-        };
-        const questionDetection = await markingProgressTracker.withProgress('detecting_question', detectQuestion)();
-        logStep4Complete();
-        
-        // Add marking scheme and question text to questionDetection
-        if (questionDetection) {
-          // Store only the questionMarks data in proper structure (matching test data)
-          questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
-          questionDetection.questionText = classification.extractedQuestionText || '';
-        }
-
-        const logStep5Complete = logStep('Marking Instructions', actualModel);
-        // Add extracted question text to questionDetection for OCR cleanup
-        const questionDetectionWithText = {
-          ...questionDetection,
-          extractedQuestionText: classification.extractedQuestionText
-        };
-        
-        const markingInstructions = await this.generateMarkingInstructions(
-          imageData, model, processedImage, questionDetectionWithText, debug, markingProgressTracker
-        );
-        logStep5Complete();
-        
-        // Collect LLM tokens from marking instructions
-        totalLLMTokens += (markingInstructions as any).usage?.llmTokens || 0;
-
-        // Create annotations and annotated image
-        const logStep6Complete = logStep('Burn Overlay', 'image-processing');
-        const createAnnotations = async () => {
-          if (!markingInstructions.annotations || markingInstructions.annotations.length === 0) {
-            return {
-              originalImage: imageData,
-              annotatedImage: imageData,
-              annotations: [],
-              svgOverlay: ''
-            };
-          }
-
-          // Use the AI-generated annotations directly - they already have correct actions and text
-          const annotations = markingInstructions.annotations;
-
-          // Generate the actual annotated image
-          return ImageAnnotationService.generateAnnotationResult(
-            imageData,
-            annotations,
-            processedImage.imageDimensions,
-            markingInstructions.studentScore
-          );
-        };
-        const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
-        logStep6Complete();
-
-        // Generate suggested follow-ups for marking mode
-        const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
-        const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
-
-        // Finish progress tracking
-        markingProgressTracker.finish();
-
-        const totalProcessingTime = Date.now() - startTime;
-        
-        // Performance Summary
-        const totalTime = totalProcessingTime / 1000;
-        console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
-        
-        // Calculate step percentages
-        const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
-        if (stepEntries.length > 0) {
-          stepEntries
-            .sort((a, b) => (b[1].duration || 0) - (a[1].duration || 0))
-            .forEach(([stepName, timing]) => {
-              const duration = (timing.duration || 0) / 1000;
-              const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
-              const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
-              console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
-            });
-        }
-        
-        console.log(`🤖 [MODEL] Used: ${actualModel}`);
-        console.log(`✅ [RESULT] Marking mode completed successfully`);
-
-        const isPastPaper = questionDetection?.found || false;
-        
-        return {
-          success: true,
-          isQuestionOnly: false,
-          isPastPaper: isPastPaper, // Set isPastPaper based on question detection
-          mode: 'Marking',
-          extractedText: processedImage.ocrText,
-          mathBlocks: processedImage.boundingBoxes,
-          markingInstructions: markingInstructions,
-          annotatedImage: annotationResult.annotatedImage,
-          message: 'Marking completed - see suggested follow-ups below',
-          suggestedFollowUps: suggestedFollowUps,
-          ocrCleanedText: processedImage.ocrText, // Add OCR cleaned text
-          confidence: processedImage.confidence || 0,
-          processingTime: totalProcessingTime,
-          progressData: finalProgressData,
-          sessionTitle: questionDetection?.found && questionDetection.match 
-            ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
-            : generateNonPastPaperTitle(processedImage.ocrText, 'Marking'),
-          classification: classification,
-          questionDetection: questionDetection,
-          studentScore: markingInstructions.studentScore, // Add student score to response
-          // Remove detectedQuestion from session metadata - will be stored in individual messages
-          processingStats: {
-            processingTimeMs: totalProcessingTime,
-            confidence: processedImage.confidence || 0,
-            imageSize: imageData.length,
-            llmTokens: totalLLMTokens,
-            mathpixCalls: totalMathpixCalls,
-            annotations: processedImage.boundingBoxes?.length || 0,
-            modelUsed: actualModel,
-            apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-          },
-          apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-        } as any;
-      }
-    } catch (error) {
-      console.error('Error in MarkHomeworkWithAnswerAuto.run:', error);
-      throw error;
-    }
   }
 }
