@@ -323,7 +323,7 @@ export class MarkingPipeline {
    * Public method to get full hybrid OCR result with proper sorting for testing
    */
   public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
-    const { HybridOCRService } = await import('./hybridOCRService.js');
+    const { HybridOCRService } = await import('../ocr/hybridOCRService.js');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -402,7 +402,7 @@ export class MarkingPipeline {
     classification?: any
   ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
-      const { OCRPipeline } = await import('./OCRPipeline.js');
+      const { OCRPipeline } = await import('../ocr/OCRPipeline.js');
       // Pass questionDetection to OCRPipeline for OCR cleanup
       const questionDetectionForOCR = {
         extractedQuestionText: classification.extractedQuestionText
