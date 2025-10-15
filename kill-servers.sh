@@ -1,29 +1,22 @@
 #!/bin/bash
 
 # Kill servers script for Intellimark development
-# Kills processes running on ports 3000 (frontend) and 5001 (backend)
+# Kills backend processes running on port 5001 and related processes
 
-echo "🔄 Killing servers on ports 3000 and 5001..."
-
-# Kill frontend server (port 3000)
-echo "📱 Killing frontend server (port 3000)..."
-lsof -ti:3000 | xargs kill -9 2>/dev/null || echo "No process found on port 3000"
+echo "🔄 Killing backend servers on port 5001..."
 
 # Kill backend server (port 5001)
 echo "🔧 Killing backend server (port 5001)..."
 lsof -ti:5001 | xargs kill -9 2>/dev/null || echo "No process found on port 5001"
 
-echo "✅ Servers killed successfully!"
-echo "💡 You can now start fresh servers with:"
-echo "   Frontend: cd frontend && npm start"
-echo "   Backend: cd backend && npx tsx server.ts"
+# Kill nodemon processes that might be managing the server
+echo "🔄 Killing nodemon processes..."
+pkill -f "nodemon.*server.ts" 2>/dev/null || echo "No nodemon processes found"
 
+# Kill any tsx processes running server.ts
+echo "🔄 Killing tsx server processes..."
+pkill -f "tsx.*server.ts" 2>/dev/null || echo "No tsx server processes found"
 
-
-
-
-
-
-
-
-
+echo "✅ Backend servers killed successfully!"
+echo "💡 You can now start fresh backend server with:"
+echo "   Backend: npm run dev"

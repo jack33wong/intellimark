@@ -220,7 +220,7 @@ export class MarkingPipeline {
     // Skip steps 1-2 (already completed in question mode)
     // Step 3: OCR Processing (extract text first)
     const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-    const processedImage = await this.processImageWithRealOCR(imageData, debug, markingProgressTracker);
+    const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker);
     logStep3Complete();
     
     // Collect Mathpix calls from OCR processing
@@ -393,6 +393,34 @@ export class MarkingPipeline {
         imageDimensions: hybridResult.dimensions,
         confidence: hybridResult.confidence,
         mathpixCalls: hybridResult.usage?.mathpixCalls || 0
+      };
+    };
+
+    if (progressTracker) {
+      return progressTracker.withProgress('extracting_text', processImage)();
+    }
+    return processImage();
+  }
+
+  /**
+   * Process image with OCRPipeline (auto-progress version)
+   * This method uses the new OCRPipeline for centralized OCR processing
+   */
+  private static async processImageWithOCRPipeline(
+    imageData: string, 
+    debug: boolean = false,
+    progressTracker?: AutoProgressTracker
+  ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
+    const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
+      const { OCRPipeline } = await import('./OCRPipeline.js');
+      const ocrResult = await OCRPipeline.processImage(imageData, {}, debug);
+      
+      return {
+        ocrText: ocrResult.ocrText,
+        boundingBoxes: ocrResult.boundingBoxes,
+        imageDimensions: ocrResult.imageDimensions,
+        confidence: ocrResult.confidence,
+        mathpixCalls: ocrResult.mathpixCalls || 0
       };
     };
 
