@@ -495,3 +495,6 @@ Step processing_ocr not found in configuration
 🤖 [MODEL] Used: gemini-2.5-flash
 ✅ [RESULT] Question mode completed successfully
 ❌ Session session-1760522342116-shliatwxx not found in database
+📚 Swagger UI available at: http://localhost:5001/api-docs
+❌ Port 5001 is already in use. Please kill the process using port 5001 and try again.
+❌ Only port 5001 is allowed for backend development.
