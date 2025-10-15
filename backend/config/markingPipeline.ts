@@ -1,5 +1,5 @@
 import { LLMOrchestrator } from '../services/marking/LLMOrchestrator.js';
-import { AnnotationMapper } from '../services/marking/AnnotationMapper.js';
+import { AnnotationMapper } from '../utils/AnnotationMapper.js';
 import { ClassificationService } from '../services/marking/ClassificationService.js';
 import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
 

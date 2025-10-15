@@ -89,7 +89,7 @@ export class LLMOrchestrator {
       }
 
       // Parse the cleaned OCR data using utility
-      const { OCRDataUtils } = await import('./OCRDataUtils');
+      const { OCRDataUtils } = await import('../../utils/OCRDataUtils');
       const cleanDataForMarking = OCRDataUtils.extractDataForMarking(cleanupResult.cleanedText);
 
       // Step 1: Generate raw annotations from cleaned OCR text
@@ -112,7 +112,7 @@ export class LLMOrchestrator {
       }
 
       // Step 2: Map annotations to coordinates using pre-built unified lookup table
-      const { AnnotationMapper } = await import('./AnnotationMapper');
+      const { AnnotationMapper } = await import('../../utils/AnnotationMapper');
       
       // Build the complete unified lookup table from cleaned data
       const unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
