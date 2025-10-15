@@ -220,7 +220,7 @@ export class MarkingPipeline {
     // Skip steps 1-2 (already completed in question mode)
     // Step 3: OCR Processing (extract text first)
     const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-    const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker);
+    const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker, classification);
     logStep3Complete();
     
     // Collect Mathpix calls from OCR processing
@@ -409,19 +409,28 @@ export class MarkingPipeline {
   private static async processImageWithOCRPipeline(
     imageData: string, 
     debug: boolean = false,
-    progressTracker?: AutoProgressTracker
+    progressTracker?: AutoProgressTracker,
+    classification?: any
   ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
       const { OCRPipeline } = await import('./OCRPipeline.js');
-      const ocrResult = await OCRPipeline.processImage(imageData, {}, debug);
+      // Pass questionDetection to OCRPipeline for OCR cleanup
+      const questionDetectionForOCR = {
+        extractedQuestionText: classification.extractedQuestionText
+      };
+      const ocrResult = await OCRPipeline.processImage(imageData, {}, debug, 'auto', questionDetectionForOCR);
       
       return {
         ocrText: ocrResult.ocrText,
         boundingBoxes: ocrResult.boundingBoxes,
         imageDimensions: ocrResult.imageDimensions,
         confidence: ocrResult.confidence,
-        mathpixCalls: ocrResult.mathpixCalls || 0
-      };
+        mathpixCalls: ocrResult.mathpixCalls || 0,
+        // Pass through OCR cleanup results
+        cleanedOcrText: ocrResult.cleanedOcrText,
+        cleanDataForMarking: ocrResult.cleanDataForMarking,
+        unifiedLookupTable: ocrResult.unifiedLookupTable
+      } as any;
     };
 
     if (progressTracker) {

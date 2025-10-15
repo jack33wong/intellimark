@@ -13,6 +13,10 @@ export interface OCRResult extends ProcessedImageResult {
   mathpixCalls?: number;
   processingTime?: number;
   rawResponse?: any;
+  // OCR cleanup results
+  cleanedOcrText?: string;
+  cleanDataForMarking?: any;
+  unifiedLookupTable?: Record<string, { bbox: number[]; cleanedText: string }>;
 }
 
 /**
@@ -31,7 +35,7 @@ export class OCRPipeline {
     imageData: string,
     options: OCROptions = {},
     debug: boolean = false,
-    model: string = 'auto',
+    model: any = 'auto',
     questionDetection?: any
   ): Promise<OCRResult> {
     const startTime = Date.now();
@@ -79,7 +83,73 @@ export class OCRPipeline {
         mathBlocks: sortedMathBlocks
       };
 
-      // Step 3: Return exact same data structure as processImageWithRealOCR
+      // Step 3: OCR Cleanup (moved from LLMOrchestrator)
+      const { OCRCleanupService } = await import('./OCRCleanupService.js');
+      
+      // Transform mathBlocks to the expected format for assignStepIds
+      const transformedBoundingBoxes = (sortedHybridResult.mathBlocks || []).map((block: any, index: number) => {
+        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
+        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
+        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
+        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
+        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
+        
+        // Validate coordinates
+        if (x === undefined || y === undefined || width === undefined || height === undefined) {
+          throw new Error(`Block ${index} has invalid coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
+          throw new Error(`Block ${index} has NaN coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+          throw new Error(`Block ${index} has invalid coordinate values: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        return {
+          x: Number(x),
+          y: Number(y),
+          width: Number(width),
+          height: Number(height),
+          text: text || block.googleVisionText || block.mathpixLatex || '',
+          confidence: block.confidence || 0
+        };
+      });
+      
+      // Step 3a: Assign step IDs
+      const stepAssignmentResult = await OCRCleanupService.assignStepIds(
+        model,
+        sortedHybridResult.text || '',
+        transformedBoundingBoxes
+      );
+      
+      // Step 3b: Clean up OCR text while preserving step_id references
+      const extractedQuestionText = questionDetection?.extractedQuestionText || '';
+      const cleanupResult = await OCRCleanupService.cleanOCRTextWithStepIds(
+        model,
+        stepAssignmentResult.originalWithStepIds,
+        extractedQuestionText
+      );
+      
+      // Step 3c: Extract data for marking
+      const { OCRDataUtils } = await import('../../utils/OCRDataUtils');
+      const cleanDataForMarking = OCRDataUtils.extractDataForMarking(cleanupResult.cleanedText);
+      
+      // Step 3d: Build unified lookup table
+      const unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
+      if (cleanDataForMarking.steps && Array.isArray(cleanDataForMarking.steps)) {
+        for (const step of cleanDataForMarking.steps) {
+          if (step.unified_step_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
+            unifiedLookupTable[step.unified_step_id] = {
+              bbox: step.bbox,
+              cleanedText: step.cleanedText || ''
+            };
+          }
+        }
+      }
+
+      // Step 4: Return comprehensive OCR result
       const processingTime = Date.now() - startTime;
       
       return {
@@ -89,7 +159,11 @@ export class OCRPipeline {
         confidence: sortedHybridResult.confidence,
         mathpixCalls: sortedHybridResult.usage?.mathpixCalls || 0,
         processingTime,
-        rawResponse: sortedHybridResult.rawResponse
+        rawResponse: sortedHybridResult.rawResponse,
+        // OCR cleanup results
+        cleanedOcrText: cleanupResult.cleanedText,
+        cleanDataForMarking,
+        unifiedLookupTable
       };
       
     } catch (error) {
