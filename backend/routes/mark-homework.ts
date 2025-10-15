@@ -7,7 +7,7 @@ import * as express from 'express';
 import type { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import admin from 'firebase-admin';
-import { MarkHomeworkWithAnswerAuto } from '../services/marking/MarkHomeworkWithAnswerAuto.js';
+import { MarkingPipeline } from '../services/marking/MarkingPipeline.js';
 import { createUserMessage, createAIMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 
 // Get Firestore instance
@@ -97,14 +97,14 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
     
     // Add timeout to prevent hanging
     const result = await Promise.race([
-      MarkHomeworkWithAnswerAuto.run({
+      MarkingPipeline.run({
         imageData,
         model,
         debug: false,
         onProgress: undefined
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 180 seconds')), 180000)
+        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
 
@@ -499,14 +499,14 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
 
     // Process the image with auto-progress tracking
       const result = await Promise.race([
-        MarkHomeworkWithAnswerAuto.run({
+        MarkingPipeline.run({
           imageData,
           model,
           debug,
           onProgress
         }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkHomeworkWithAnswerAuto.run() timeout after 180 seconds')), 180000)
+        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
       )
     ]) as any;
 
@@ -850,7 +850,7 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
     const isAuthenticated = !!(req as any)?.user?.uid;
 
     // Process the image for AI response
-    const result = await MarkHomeworkWithAnswerAuto.run({
+    const result = await MarkingPipeline.run({
       imageData,
       model,
       debug: false,

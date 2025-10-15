@@ -39,7 +39,9 @@ export class ImageUtils {
         // Tweak 3: Add normalize to restore natural contrast across the whole image.
         .normalize() 
         .modulate({
-          contrast: 1.05 // A very slight contrast boost
+          brightness: 1.0,
+          saturation: 1.0,
+          hue: 0
         })
         .sharpen()
         .jpeg({ quality: 90, progressive: true })
