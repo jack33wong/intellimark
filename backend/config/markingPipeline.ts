@@ -1,7 +1,7 @@
-import { LLMOrchestrator } from '../services/ai/LLMOrchestrator.js';
-import { AnnotationMapper } from '../services/ai/AnnotationMapper.js';
+import { LLMOrchestrator } from '../services/marking/LLMOrchestrator.js';
+import { AnnotationMapper } from '../services/marking/AnnotationMapper.js';
 import { ClassificationService } from '../services/ai/ClassificationService.js';
-import { MarkingInstructionService } from '../services/ai/MarkingInstructionService.js';
+import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
 
 export interface MarkingPipeline {
   orchestrator: typeof LLMOrchestrator;

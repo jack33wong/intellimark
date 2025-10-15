@@ -3,7 +3,7 @@
  * Contains utility functions for progress tracking, question detection, performance logging, and session management
  */
 
-import { questionDetectionService } from '../../services/questionDetectionService.js';
+import { questionDetectionService } from './questionDetectionService.js';
 import { createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
 

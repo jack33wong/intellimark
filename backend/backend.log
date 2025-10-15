@@ -3,3 +3,495 @@
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
 📚 Swagger UI available at: http://localhost:5001/api-docs
+[1/7] Image Analysis            [0.0s] (google-vision)
+🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T09-56-48-291Z.jpg
+✅ [CLASSIFICATION] Image enhancement completed
+🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
+[
+  {
+    "category": "HARM_CATEGORY_HARASSMENT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_HATE_SPEECH",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+    "threshold": "BLOCK_NONE"
+  }
+]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
+  "isQuestionOnly": false,
+  "reasoning": "The image contains the math question along with calculations and the final answer, which constitutes student work.",
+  "extractedQuestionText": "Here are t...
+🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 571,
+    "candidatesTokenCount": 82,
+    "totalTokenCount": 1017,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 313
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 258
+      }
+    ],
+    "thoughtsTokenCount": 364
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "5W_vaNibEY2cvdIPlpzwwAM"
+}
+[2/7] Image Classification      [5.4s] (gemini-2.5-flash)
+📝 [MODE] Marking mode detected - using full pipeline
+🔄 [OCR Processing] Starting google-vision + mathpix...
+✅ [OCR Processing] Completed in 4.4s
+🔄 [Question Detection] Starting question-detection...
+✅ [Question Detection] Completed in 0.2s
+🔄 [Marking Instructions] Starting gemini-2.5-flash...
+🔍 [MARKING INSTRUCTION] User Prompt:
+Here is the OCR TEXT:
+
+      Question: Here are the first four terms of a quadratic sequence.
+3 20 47 84
+Work out an expression for the nth term of the sequence.
+
+Student's Work:
+1. [step_1] Diff = 17, 27, 37
+2. [step_2] 2 Diff = 10
+3. [step_3] Construct = -2, 0
+4. [step_4] Diff = +2
+5. [step_5] b = 2
+6. [step_6] c = -2
+7. [step_7] 5n^(2) + 2n - 2
+      
+      MARKING SCHEME CONTEXT:
+      - **[M1]** Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.
+- **[M1dep]** Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.
+- **[M1dep]** Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.
+- **[A1]** `$5n^2 + 2n - 4$`
+**TOTAL MARKS:** 4
+🔍 [MARKING INSTRUCTION] AI Response:
+{
+  "annotations": [
+    {
+      "textMatch": "Diff = 17, 27, 37",
+      "step_id": "step_1",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "2 Diff = 10",
+      "step_id": "step_2",
+      "action": "tick",
+      "text": "M1",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Construct = -2, 0",
+      "step_id": "step_3",
+      "action": "tick",
+      "text": "M1dep",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Diff = +2",
+      "step_id": "step_4",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "b = 2",
+      "step_id": "step_5",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "c = -2",
+      "step_id": "step_6",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "Incorrect value for c; should be -4 based on the linear part."
+    },
+    {
+      "textMatch": "5n^(2) + 2n - 2",
+      "step_id": "step_7",
+      "action": "cross",
+      "text": "A0",
+      "reasoning": "Final expression is incorrect due to the wrong c value."
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 2,
+    "scoreText": "2/4"
+  }
+}
+✅ [Marking Instructions] Completed in 30.7s
+🔄 [Burn Overlay] Starting image-processing...
+✅ [Burn Overlay] Completed in 0.3s
+📊 [PERFORMANCE] Total processing time: [41.0s]
+   - Marking Instructions     : 75% [30.7s]
+   - Image Classification     : 13% [5.4s]
+   - OCR Processing           : 11% [4.4s]
+   - Burn Overlay             : 1% [0.3s]
+   - Question Detection       : 1% [0.2s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Marking mode completed successfully
+[1/7] Image Analysis            [0.0s] (google-vision)
+🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T09-57-39-822Z.jpg
+✅ [CLASSIFICATION] Image enhancement completed
+🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
+[
+  {
+    "category": "HARM_CATEGORY_HARASSMENT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_HATE_SPEECH",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+    "threshold": "BLOCK_NONE"
+  }
+]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
+  "isQuestionOnly": true,
+  "reasoning": "The image contains only the math question text without any student work, annotations, or answers.",
+  "extractedQuestionText": "Magana decides to put £500 i...
+🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only the math question text without any student work, annotations, or answers.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 571,
+    "candidatesTokenCount": 97,
+    "totalTokenCount": 888,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 313
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 258
+      }
+    ],
+    "thoughtsTokenCount": 220
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "FnDvaM6_L7K8vdIPvPbfkAM"
+}
+[2/7] Image Classification      [3.2s] (gemini-2.5-flash)
+📝 [MODE] Question mode detected - using simplified pipeline
+🔄 [OCR Processing] Starting google-vision + mathpix...
+Step processing_ocr not found in configuration
+✅ [OCR Processing] Completed in 1.0s
+🔄 [AI Response Generation] Starting gemini-2.5-flash...
+✅ [AI Response Generation] Completed in 6.6s
+📊 [PERFORMANCE] Total processing time: [11.2s]
+   - AI Response Generation   : 59% [6.6s]
+   - Image Classification     : 29% [3.2s]
+   - OCR Processing           : 9% [1.0s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Question mode completed successfully
+[1/7] Image Analysis            [0.0s] (google-vision)
+🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T09-58-13-435Z.jpg
+✅ [CLASSIFICATION] Image enhancement completed
+🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
+[
+  {
+    "category": "HARM_CATEGORY_HARASSMENT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_HATE_SPEECH",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+    "threshold": "BLOCK_NONE"
+  }
+]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
+  "isQuestionOnly": false,
+  "reasoning": "The image contains the math question along with calculations and the final answer, which constitutes student work.",
+  "extractedQuestionText": "Here are t...
+🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3   20   47   84\\nWork out an expression for the nth term of the sequence.\"\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 571,
+    "candidatesTokenCount": 82,
+    "totalTokenCount": 1036,
+    "cachedContentTokenCount": 352,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 313
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 258
+      }
+    ],
+    "cacheTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 193
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 159
+      }
+    ],
+    "thoughtsTokenCount": 383
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "OXDvaKnYMqeSxN8PqMHkqQ0"
+}
+[2/7] Image Classification      [4.7s] (gemini-2.5-flash)
+📝 [MODE] Marking mode detected - using full pipeline
+🔄 [OCR Processing] Starting google-vision + mathpix...
+✅ [OCR Processing] Completed in 3.6s
+🔄 [Question Detection] Starting question-detection...
+✅ [Question Detection] Completed in 0.2s
+🔄 [Marking Instructions] Starting gemini-2.5-flash...
+🔍 [MARKING INSTRUCTION] User Prompt:
+Here is the OCR TEXT:
+
+      Question: Here are the first four terms of a quadratic sequence.
+3   20   47   84
+Work out an expression for the nth term of the sequence.
+
+Student's Work:
+1. [step_1] Diff = 17, 27, 37
+2. [step_2] 2 Diff = 10
+3. [step_3] Construct = -2, 0
+4. [step_4] Diff = +2
+5. [step_5] b = 2
+6. [step_6] c = -2
+7. [step_7] 5n^2 + 2n - 2
+      
+      MARKING SCHEME CONTEXT:
+      - **[M1]** Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.
+- **[M1dep]** Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.
+- **[M1dep]** Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.
+- **[A1]** `$5n^2 + 2n - 4$`
+**TOTAL MARKS:** 4
+🔍 [MARKING INSTRUCTION] AI Response:
+{
+  "annotations": [
+    {
+      "textMatch": "Diff = 17, 27, 37",
+      "step_id": "step_1",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "2 Diff = 10",
+      "step_id": "step_2",
+      "action": "tick",
+      "text": "M1",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Construct = -2, 0",
+      "step_id": "step_3",
+      "action": "tick",
+      "text": "M1dep",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Diff = +2",
+      "step_id": "step_4",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "b = 2",
+      "step_id": "step_5",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "c = -2",
+      "step_id": "step_6",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "Incorrect value for c; expected -4 based on the marking scheme."
+    },
+    {
+      "textMatch": "5n^2 + 2n - 2",
+      "step_id": "step_7",
+      "action": "cross",
+      "text": "A0",
+      "reasoning": "Incorrect final expression due to an error in the constant term."
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 2,
+    "scoreText": "2/4"
+  }
+}
+✅ [Marking Instructions] Completed in 29.4s
+🔄 [Burn Overlay] Starting image-processing...
+✅ [Burn Overlay] Completed in 0.2s
+📊 [PERFORMANCE] Total processing time: [38.1s]
+   - Marking Instructions     : 77% [29.4s]
+   - Image Classification     : 12% [4.7s]
+   - OCR Processing           : 9% [3.6s]
+   - Question Detection       : 1% [0.2s]
+   - Burn Overlay             : 1% [0.2s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Marking mode completed successfully
+❌ Session session-1760522331292-ntie401ff not found in database
+[1/7] Image Analysis            [0.0s] (google-vision)
+🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T09-58-51-837Z.jpg
+✅ [CLASSIFICATION] Image enhancement completed
+🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
+[
+  {
+    "category": "HARM_CATEGORY_HARASSMENT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_HATE_SPEECH",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "threshold": "BLOCK_NONE"
+  },
+  {
+    "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+    "threshold": "BLOCK_NONE"
+  }
+]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
+  "isQuestionOnly": true,
+  "reasoning": "The image contains only a math question without any student work or answers.",
+  "extractedQuestionText": "Magana decides to put £500 into an account that p...
+🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only a math question without any student work or answers.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 571,
+    "candidatesTokenCount": 93,
+    "totalTokenCount": 879,
+    "cachedContentTokenCount": 538,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 313
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 258
+      }
+    ],
+    "cacheTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 295
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 243
+      }
+    ],
+    "thoughtsTokenCount": 215
+  },
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "XnDvaNrwLq-_vdIPxbCEkA0"
+}
+[2/7] Image Classification      [3.2s] (gemini-2.5-flash)
+📝 [MODE] Question mode detected - using simplified pipeline
+🔄 [OCR Processing] Starting google-vision + mathpix...
+Step processing_ocr not found in configuration
+✅ [OCR Processing] Completed in 1.0s
+🔄 [AI Response Generation] Starting gemini-2.5-flash...
+✅ [AI Response Generation] Completed in 6.0s
+📊 [PERFORMANCE] Total processing time: [10.3s]
+   - AI Response Generation   : 58% [6.0s]
+   - Image Classification     : 31% [3.2s]
+   - OCR Processing           : 10% [1.0s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Question mode completed successfully
+❌ Session session-1760522342116-shliatwxx not found in database

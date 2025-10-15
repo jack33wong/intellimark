@@ -4,7 +4,7 @@
  */
 
 import sharp from 'sharp';
-import { Annotation, ImageDimensions } from '../types/index.js';
+import { Annotation, ImageDimensions } from '../../types/index.js';
 
 /**
  * SVG Overlay Service Configuration

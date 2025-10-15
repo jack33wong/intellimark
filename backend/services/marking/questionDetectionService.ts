@@ -3,7 +3,7 @@
  * Matches extracted question text with exam papers in the database
  */
 
-import { getFirestore } from '../config/firebase.js';
+import { getFirestore } from '../../config/firebase.js';
 
 // Common function to convert full subject names to short forms
 function getShortSubjectName(qualification: string): string {

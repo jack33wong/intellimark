@@ -9,7 +9,7 @@ import {
   ImageAnnotationResult, 
   ImageDimensions, 
   BoundingBox 
-} from '../types/index.js';
+} from '../../types/index.js';
 import { SVGOverlayService } from './svgOverlayService.js';
 
 /**

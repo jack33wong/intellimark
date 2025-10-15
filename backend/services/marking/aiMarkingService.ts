@@ -4,8 +4,8 @@
  */
 
 import * as path from 'path';
-import { getModelConfig } from '../config/aiModels.js';
-import { ErrorHandler } from '../utils/errorHandler.js';
+import { getModelConfig } from '../../config/aiModels.js';
+import { ErrorHandler } from '../../utils/errorHandler.js';
 
 // Define types inline to avoid import issues
 interface SimpleImageClassification {
@@ -15,9 +15,9 @@ interface SimpleImageClassification {
   extractedQuestionText?: string;
 }
 
-import { ModelType } from '../types/index.js';
-import { getPrompt } from '../config/prompts.js';
-import { validateModel } from '../config/aiModels.js';
+import { ModelType } from '../../types/index.js';
+import { getPrompt } from '../../config/prompts.js';
+import { validateModel } from '../../config/aiModels.js';
 
 interface SimpleProcessedImageResult {
   ocrText: string;
@@ -89,7 +89,7 @@ export class AIMarkingService {
     imageData: string, 
     model: ModelType
   ): Promise<SimpleImageClassification> {
-    const { ClassificationService } = await import('./ai/ClassificationService');
+      const { ClassificationService } = await import('../ai/ClassificationService');
     return ClassificationService.classifyImage(imageData, model);
   }
 
@@ -108,7 +108,7 @@ export class AIMarkingService {
   ): Promise<{
     annotations: string; // Raw AI response as string
   }> {
-    const { MarkingInstructionService } = await import('./ai/MarkingInstructionService');
+      const { MarkingInstructionService } = await import('./MarkingInstructionService');
     return MarkingInstructionService.generateFromOCR(model, ocrText, questionDetection);
   }
 
@@ -122,7 +122,7 @@ export class AIMarkingService {
     processedImage?: SimpleProcessedImageResult,
     questionDetection?: SimpleQuestionDetectionResult
   ): Promise<SimpleMarkingInstructions> {
-    const { LLMOrchestrator } = await import('./ai/LLMOrchestrator');
+      const { LLMOrchestrator } = await import('./LLMOrchestrator');
     return LLMOrchestrator.executeMarking({
       imageData,
       model,
@@ -164,11 +164,11 @@ export class AIMarkingService {
 
 
     try {
-      const { ModelProvider } = await import('./ai/ModelProvider.js');
+      const { ModelProvider } = await import('../ai/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       
       // Get dynamic API name based on model
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiUsed = `Google ${modelName} (Service Account)`;
@@ -264,7 +264,7 @@ export class AIMarkingService {
       }
       
       // This is a Google API error - log with proper context
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
@@ -310,7 +310,7 @@ Summary:`;
 
     try {
       // Use Gemini for context summary generation
-      const { ModelProvider } = await import('./ai/ModelProvider.js');
+      const { ModelProvider } = await import('../ai/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(
         'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
         summaryPrompt,
@@ -339,7 +339,7 @@ Summary:`;
       const content = this.extractGeminiChatContent(result);
       
       // Get dynamic API name based on model
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiUsed = `Google ${modelName} (Service Account)`;
@@ -364,7 +364,7 @@ Summary:`;
          error.message.includes('rate limit'));
       
       if (isRateLimitError) {
-        const { getModelConfig } = await import('../config/aiModels.js');
+        const { getModelConfig } = await import('../../config/aiModels.js');
         const modelConfig = getModelConfig(model);
         const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
         const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
@@ -390,11 +390,11 @@ Summary:`;
     try {
       // Debug logs removed for production
       
-      const { ModelProvider } = await import('./ai/ModelProvider.js');
+      const { ModelProvider } = await import('../ai/ModelProvider.js');
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
       
       // Get dynamic API name based on model
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiUsed = `Google ${modelName} (Service Account)`;
@@ -419,7 +419,7 @@ Summary:`;
          error.message.includes('rate limit'));
       
       if (isRateLimitError) {
-        const { getModelConfig } = await import('../config/aiModels.js');
+        const { getModelConfig } = await import('../../config/aiModels.js');
         const modelConfig = getModelConfig(model);
         const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
         const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
@@ -446,7 +446,7 @@ Summary:`;
       const content = this.extractGeminiChatContent(result);
       
       // Get dynamic API name based on model
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(modelType as ModelType);
       const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
       const apiUsed = `Google ${modelName} (Service Account)`;
@@ -493,7 +493,7 @@ Summary:`;
     model: ModelType = 'gemini-2.5-pro'
   ): Promise<Response> {
     // Use centralized model configuration
-    const { getModelConfig } = await import('../config/aiModels.js');
+        const { getModelConfig } = await import('../../config/aiModels.js');
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
@@ -525,7 +525,7 @@ Summary:`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      const { getModelConfig } = await import('../config/aiModels.js');
+      const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
@@ -549,7 +549,7 @@ Summary:`;
     modelType: string = 'auto'
   ): Promise<Response> {
     // Use centralized model configuration
-    const { getModelConfig } = await import('../config/aiModels.js');
+        const { getModelConfig } = await import('../../config/aiModels.js');
     const config = getModelConfig(modelType as any);
     const endpoint = config.apiEndpoint;
     

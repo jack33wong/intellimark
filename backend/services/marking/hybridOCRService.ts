@@ -7,8 +7,8 @@
 import sharp from 'sharp';
 import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
 // Inline MathDetectionService and MathpixService functionality
-import { getDebugMode } from '../config/aiModels.js';
-import type { ProcessedVisionResult } from '../types/index.js';
+import { getDebugMode } from '../../config/aiModels.js';
+import type { ProcessedVisionResult } from '../../types/index.js';
 
 // Type aliases for robust recognition
 type IBlock = protos.google.cloud.vision.v1.IBlock;

@@ -3,10 +3,10 @@
  * Centralizes common logic for model answer, marking scheme, step-by-step, etc.
  */
 
-import { FirestoreService } from './firestoreService.js';
+import { FirestoreService } from '../firestoreService.js';
 import { AIMarkingService } from './aiMarkingService.js';
-import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
-import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../config/suggestedFollowUpConfig.js';
+import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
+import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../../config/suggestedFollowUpConfig.js';
 
 export interface SuggestedFollowUpRequest {
   mode: string;
@@ -108,7 +108,7 @@ export class SuggestedFollowUpService {
     await new Promise(resolve => setTimeout(resolve, config.processingDelayMs));
     
     // Get prompts and execute AI call
-    const { getPrompt } = await import('../config/prompts.js');
+    const { getPrompt } = await import('../../config/prompts.js');
     
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
     const userPrompt = getPrompt(`${config.promptKey}.user`, 
@@ -118,7 +118,7 @@ export class SuggestedFollowUpService {
     );
     
     // Use ModelProvider directly with custom prompts
-    const { ModelProvider } = await import('./ai/ModelProvider.js');
+    const { ModelProvider } = await import('../ai/ModelProvider.js');
     const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
     
     const contextualResult = {

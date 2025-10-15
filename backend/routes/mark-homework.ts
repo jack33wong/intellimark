@@ -1168,7 +1168,7 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
     progressTracker.startStep('generating_response');
 
     // Generate model answer using existing AI service
-    const { AIMarkingService } = await import('../services/aiMarkingService.js');
+    const { AIMarkingService } = await import('../services/marking/aiMarkingService.js');
     const { getDefaultModel } = await import('../config/aiModels.js');
     const { getPrompt } = await import('../config/prompts.js');
     

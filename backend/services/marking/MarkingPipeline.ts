@@ -3,8 +3,8 @@
  * Handles the complete marking workflow from image analysis to annotated results
  */
 
-import { questionDetectionService } from '../../services/questionDetectionService.js';
-import { ImageAnnotationService } from '../../services/imageAnnotationService.js';
+import { questionDetectionService } from './questionDetectionService.js';
+import { ImageAnnotationService } from './imageAnnotationService.js';
 import { getDebugMode, getDefaultModel } from '../../config/aiModels.js';
 import { AutoProgressTracker, createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
@@ -25,7 +25,7 @@ import type {
   MarkingInstructions,
   ModelType
 } from '../../types/index.js';
-import type { QuestionDetectionResult } from '../../services/questionDetectionService.js';
+import type { QuestionDetectionResult } from './questionDetectionService.js';
 
 // Debug mode helper function
 async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
@@ -90,7 +90,7 @@ export class MarkingPipeline {
     // OCR Processing (to get confidence value)
     const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
     const processOCR = async () => {
-      const { HybridOCRService } = await import('../hybridOCRService');
+      const { HybridOCRService } = await import('./hybridOCRService');
       return HybridOCRService.processImage(imageData, {}, debug);
     };
     
@@ -106,7 +106,7 @@ export class MarkingPipeline {
     // AI Response Generation (visible step)
     const logStep4Complete = logStep('AI Response Generation', actualModel);
     const generateResponse = async () => {
-      const { AIMarkingService } = await import('../aiMarkingService');
+      const { AIMarkingService } = await import('./aiMarkingService');
       return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
     };
     
@@ -334,7 +334,7 @@ export class MarkingPipeline {
    * Public method to get full hybrid OCR result with proper sorting for testing
    */
   public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
-    const { HybridOCRService } = await import('../hybridOCRService.js');
+    const { HybridOCRService } = await import('./hybridOCRService.js');
 
     const hybridResult = await HybridOCRService.processImage(imageData, {
       enablePreprocessing: true,
@@ -414,7 +414,7 @@ export class MarkingPipeline {
     progressTracker?: AutoProgressTracker
   ): Promise<MarkingInstructions> {
     const generateInstructions = async (): Promise<MarkingInstructions> => {
-      const { AIMarkingService } = await import('../aiMarkingService.js');
+      const { AIMarkingService } = await import('./aiMarkingService.js');
       
       return AIMarkingService.generateMarkingInstructions(
         imageData,

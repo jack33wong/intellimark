@@ -6,7 +6,7 @@
 import express from 'express';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { AIMarkingService } from '../services/aiMarkingService.js';
+import { AIMarkingService } from '../services/marking/aiMarkingService.js';
 import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';
@@ -112,7 +112,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         contextualResult = aiResult; // Store for processing stats
       } else if (isFollowUpMode(mode)) {
         // Handle all follow-up requests using the centralized service
-        const { SuggestedFollowUpService } = await import('../services/suggestedFollowUpService.js');
+        const { SuggestedFollowUpService } = await import('../services/marking/suggestedFollowUpService.js');
         
         const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
           mode,
