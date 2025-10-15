@@ -5,7 +5,7 @@
 📚 Swagger UI available at: http://localhost:5001/api-docs
 [1/7] Image Analysis            [0.0s] (google-vision)
 🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
-🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-11-25-141Z.jpg
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-18-42-681Z.jpg
 ✅ [CLASSIFICATION] Image enhancement completed
 🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
 [
@@ -28,15 +28,15 @@
 ]
 🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
   "isQuestionOnly": false,
-  "reasoning": "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-  "extractedQuestionText": "Here are t...
+  "reasoning": "The image contains the math question along with detailed student work and the final answer for finding the nth term of the sequence.",
+  "extractedQuestion...
 🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
   "candidates": [
     {
       "content": {
         "parts": [
           {
-            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
+            "text": "```json\n{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with detailed student work and the final answer for finding the nth term of the sequence.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}\n```"
           }
         ],
         "role": "model"
@@ -47,8 +47,8 @@
   ],
   "usageMetadata": {
     "promptTokenCount": 571,
-    "candidatesTokenCount": 82,
-    "totalTokenCount": 1014,
+    "candidatesTokenCount": 92,
+    "totalTokenCount": 927,
     "promptTokensDetails": [
       {
         "modality": "TEXT",
@@ -59,12 +59,12 @@
         "tokenCount": 258
       }
     ],
-    "thoughtsTokenCount": 361
+    "thoughtsTokenCount": 264
   },
   "modelVersion": "gemini-2.5-flash",
-  "responseId": "UHPvaLv0OqDonsEPsrOZuQo"
+  "responseId": "BnXvaJrBD62_vdIP9snRmA0"
 }
-[2/7] Image Classification      [4.2s] (gemini-2.5-flash)
+[2/7] Image Classification      [4.0s] (gemini-2.5-flash)
 📝 [MODE] Marking mode detected - using full pipeline
 🔄 [OCR Processing] Starting google-vision + mathpix...
 ✅ [OCR Processing] Completed in 3.9s
@@ -108,14 +108,14 @@ Student's Work:
       "step_id": "step_2",
       "action": "tick",
       "text": "M1",
-      "reasoning": ""
+      "reasoning": "Correctly finds the second difference, earning M1."
     },
     {
       "textMatch": "Construct = -2, 0",
       "step_id": "step_3",
       "action": "tick",
       "text": "M1dep",
-      "reasoning": ""
+      "reasoning": "Correctly subtracts 5n^2 from terms to find the start of the linear part."
     },
     {
       "textMatch": "Diff = +2",
@@ -136,14 +136,14 @@ Student's Work:
       "step_id": "step_6",
       "action": "cross",
       "text": "M0",
-      "reasoning": "Incorrect value for c; should be -4 based on the linear part."
+      "reasoning": "Incorrectly finds c; should be -4. M1dep for finding c is not awarded."
     },
     {
       "textMatch": "5n^(2) + 2n - 2",
       "step_id": "step_7",
       "action": "cross",
       "text": "A0",
-      "reasoning": "Final expression is incorrect due to the wrong c value."
+      "reasoning": "Final expression is incorrect due to error in c. A1 is not awarded."
     }
   ],
   "studentScore": {
@@ -152,12 +152,12 @@ Student's Work:
     "scoreText": "2/4"
   }
 }
-✅ [Marking Instructions] Completed in 27.7s
+✅ [Marking Instructions] Completed in 25.7s
 🔄 [Burn Overlay] Starting image-processing...
 ✅ [Burn Overlay] Completed in 0.3s
-📊 [PERFORMANCE] Total processing time: [36.4s]
-   - Marking Instructions     : 76% [27.7s]
-   - Image Classification     : 12% [4.2s]
+📊 [PERFORMANCE] Total processing time: [34.0s]
+   - Marking Instructions     : 75% [25.7s]
+   - Image Classification     : 12% [4.0s]
    - OCR Processing           : 11% [3.9s]
    - Burn Overlay             : 1% [0.3s]
    - Question Detection       : 1% [0.2s]
@@ -165,7 +165,7 @@ Student's Work:
 ✅ [RESULT] Marking mode completed successfully
 [1/7] Image Analysis            [0.0s] (google-vision)
 🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
-🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-12-16-667Z.jpg
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-19-34-225Z.jpg
 ✅ [CLASSIFICATION] Image enhancement completed
 🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
 [
@@ -188,15 +188,15 @@ Student's Work:
 ]
 🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
   "isQuestionOnly": true,
-  "reasoning": "The image contains only the math question text, with no student work, answers, or extraneous markings.",
-  "extractedQuestionText": "Magana decides to put £...
+  "reasoning": "The image contains only the math question text without any student work, annotations, or answers.",
+  "extractedQuestionText": "Magana decides to put £500 i...
 🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
   "candidates": [
     {
       "content": {
         "parts": [
           {
-            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only the math question text, with no student work, answers, or extraneous markings.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
+            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only the math question text without any student work, annotations, or answers.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
           }
         ],
         "role": "model"
@@ -207,8 +207,8 @@ Student's Work:
   ],
   "usageMetadata": {
     "promptTokenCount": 571,
-    "candidatesTokenCount": 99,
-    "totalTokenCount": 890,
+    "candidatesTokenCount": 97,
+    "totalTokenCount": 888,
     "promptTokensDetails": [
       {
         "modality": "TEXT",
@@ -222,24 +222,24 @@ Student's Work:
     "thoughtsTokenCount": 220
   },
   "modelVersion": "gemini-2.5-flash",
-  "responseId": "g3PvaOuzBJv7nsEPwtyCoA8"
+  "responseId": "OXXvaNqBJcmMxN8P4bmyiA0"
 }
-[2/7] Image Classification      [2.6s] (gemini-2.5-flash)
+[2/7] Image Classification      [3.5s] (gemini-2.5-flash)
 📝 [MODE] Question mode detected - using simplified pipeline
 🔄 [OCR Processing] Starting google-vision + mathpix...
 Step processing_ocr not found in configuration
-✅ [OCR Processing] Completed in 1.1s
+✅ [OCR Processing] Completed in 1.2s
 🔄 [AI Response Generation] Starting gemini-2.5-flash...
-✅ [AI Response Generation] Completed in 6.0s
-📊 [PERFORMANCE] Total processing time: [9.9s]
-   - AI Response Generation   : 61% [6.0s]
-   - Image Classification     : 26% [2.6s]
-   - OCR Processing           : 11% [1.1s]
+✅ [AI Response Generation] Completed in 11.8s
+📊 [PERFORMANCE] Total processing time: [16.8s]
+   - AI Response Generation   : 71% [11.8s]
+   - Image Classification     : 21% [3.5s]
+   - OCR Processing           : 7% [1.2s]
 🤖 [MODEL] Used: gemini-2.5-flash
 ✅ [RESULT] Question mode completed successfully
 [1/7] Image Analysis            [0.0s] (google-vision)
 🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
-🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-12-49-358Z.jpg
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-20-13-051Z.jpg
 ✅ [CLASSIFICATION] Image enhancement completed
 🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
 [
@@ -262,15 +262,15 @@ Step processing_ocr not found in configuration
 ]
 🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
   "isQuestionOnly": false,
-  "reasoning": "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-  "extractedQuestionText": "Here are t...
+  "reasoning": "The image contains the math question along with calculations and a final answer, which constitutes student work.",
+  "extractedQuestionText": "Here are the...
 🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
   "candidates": [
     {
       "content": {
         "parts": [
           {
-            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
+            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and a final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
           }
         ],
         "role": "model"
@@ -282,8 +282,7 @@ Step processing_ocr not found in configuration
   "usageMetadata": {
     "promptTokenCount": 571,
     "candidatesTokenCount": 82,
-    "totalTokenCount": 1015,
-    "cachedContentTokenCount": 352,
+    "totalTokenCount": 1010,
     "promptTokensDetails": [
       {
         "modality": "TEXT",
@@ -294,22 +293,12 @@ Step processing_ocr not found in configuration
         "tokenCount": 258
       }
     ],
-    "cacheTokensDetails": [
-      {
-        "modality": "IMAGE",
-        "tokenCount": 159
-      },
-      {
-        "modality": "TEXT",
-        "tokenCount": 193
-      }
-    ],
-    "thoughtsTokenCount": 362
+    "thoughtsTokenCount": 357
   },
   "modelVersion": "gemini-2.5-flash",
-  "responseId": "pXPvaJuUHvjBkdUP7PS8wAc"
+  "responseId": "YHXvaPfIAuKVxN8P84GjkA0"
 }
-[2/7] Image Classification      [4.5s] (gemini-2.5-flash)
+[2/7] Image Classification      [3.3s] (gemini-2.5-flash)
 📝 [MODE] Marking mode detected - using full pipeline
 🔄 [OCR Processing] Starting google-vision + mathpix...
 ✅ [OCR Processing] Completed in 3.5s
@@ -397,21 +386,22 @@ Student's Work:
     "scoreText": "2/4"
   }
 }
-✅ [Marking Instructions] Completed in 27.9s
+✅ [Marking Instructions] Completed in 31.2s
 🔄 [Burn Overlay] Starting image-processing...
 ✅ [Burn Overlay] Completed in 0.2s
-📊 [PERFORMANCE] Total processing time: [36.3s]
-   - Marking Instructions     : 77% [27.9s]
-   - Image Classification     : 12% [4.5s]
-   - OCR Processing           : 10% [3.5s]
+📊 [PERFORMANCE] Total processing time: [38.5s]
+   - Marking Instructions     : 81% [31.2s]
+   - OCR Processing           : 9% [3.5s]
+   - Image Classification     : 9% [3.3s]
+   - Burn Overlay             : 1% [0.2s]
    - Question Detection       : 1% [0.2s]
-   - Burn Overlay             : 0% [0.2s]
+   - Image Analysis           : 0% [0.0s]
 🤖 [MODEL] Used: gemini-2.5-flash
 ✅ [RESULT] Marking mode completed successfully
-❌ Session session-1760523205354-u1zqj54x5 not found in database
+❌ Session session-1760523651237-limb7mwwb not found in database
 [1/7] Image Analysis            [0.0s] (google-vision)
 🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...
-🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-13-26-116Z.jpg
+🔍 [IMAGE UTILS] Saved processed image: /Users/ytwong/github/intellimark/backend/debug-images/enhanced-final-v2-2025-10-15T10-20-51-972Z.jpg
 ✅ [CLASSIFICATION] Image enhancement completed
 🔍 [CLASSIFICATION DEBUG] Safety settings being sent:
 [
@@ -434,15 +424,15 @@ Student's Work:
 ]
 🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
   "isQuestionOnly": true,
-  "reasoning": "The image contains only the math question text without any student work, annotations, or answers.",
-  "extractedQuestionText": "Magana decides to put £500 i...
+  "reasoning": "The image contains only a math problem statement without any student work, annotations, or answers.",
+  "extractedQuestionText": "Magana decides to put £500...
 🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
   "candidates": [
     {
       "content": {
         "parts": [
           {
-            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only the math question text without any student work, annotations, or answers.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
+            "text": "{\n  \"isQuestionOnly\": true,\n  \"reasoning\": \"The image contains only a math problem statement without any student work, annotations, or answers.\",\n  \"extractedQuestionText\": \"Magana decides to put £500 into an account that pays compound interest.\\nShe wants to have at least £560 in the account after 3 years.\\nWork out to 1 decimal place the minimum annual interest rate she needs.\"\n}"
           }
         ],
         "role": "model"
@@ -454,7 +444,8 @@ Student's Work:
   "usageMetadata": {
     "promptTokenCount": 571,
     "candidatesTokenCount": 97,
-    "totalTokenCount": 888,
+    "totalTokenCount": 962,
+    "cachedContentTokenCount": 538,
     "promptTokensDetails": [
       {
         "modality": "TEXT",
@@ -465,36 +456,32 @@ Student's Work:
         "tokenCount": 258
       }
     ],
-    "thoughtsTokenCount": 220
+    "cacheTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 295
+      },
+      {
+        "modality": "IMAGE",
+        "tokenCount": 243
+      }
+    ],
+    "thoughtsTokenCount": 294
   },
   "modelVersion": "gemini-2.5-flash",
-  "responseId": "yXPvaJL_A5WC7M8PnNWNgQ8"
+  "responseId": "h3XvaMuIL-WMvdIPg-vuuAM"
 }
-[2/7] Image Classification      [3.0s] (gemini-2.5-flash)
+[2/7] Image Classification      [3.9s] (gemini-2.5-flash)
 📝 [MODE] Question mode detected - using simplified pipeline
 🔄 [OCR Processing] Starting google-vision + mathpix...
 Step processing_ocr not found in configuration
-✅ [OCR Processing] Completed in 1.0s
+✅ [OCR Processing] Completed in 0.9s
 🔄 [AI Response Generation] Starting gemini-2.5-flash...
-✅ [AI Response Generation] Completed in 5.5s
-📊 [PERFORMANCE] Total processing time: [9.6s]
-   - AI Response Generation   : 57% [5.5s]
-   - Image Classification     : 31% [3.0s]
-   - OCR Processing           : 10% [1.0s]
+✅ [AI Response Generation] Completed in 7.0s
+📊 [PERFORMANCE] Total processing time: [12.0s]
+   - AI Response Generation   : 58% [7.0s]
+   - Image Classification     : 33% [3.9s]
+   - OCR Processing           : 8% [0.9s]
 🤖 [MODEL] Used: gemini-2.5-flash
 ✅ [RESULT] Question mode completed successfully
-❌ Session session-1760523215698-2kq11axg8 not found in database
-📚 Swagger UI available at: http://localhost:5001/api-docs
-❌ Port 5001 is already in use. Please kill the process using port 5001 and try again.
-❌ Only port 5001 is allowed for backend development.
-📚 Swagger UI available at: http://localhost:5001/api-docs
-❌ Port 5001 is already in use. Please kill the process using port 5001 and try again.
-❌ Only port 5001 is allowed for backend development.
-📚 Swagger UI available at: http://localhost:5001/api-docs
-📚 Swagger UI available at: http://localhost:5001/api-docs
-❌ Port 5001 is already in use. Please kill the process using port 5001 and try again.
-❌ Only port 5001 is allowed for backend development.
-📚 Swagger UI available at: http://localhost:5001/api-docs
-📚 Swagger UI available at: http://localhost:5001/api-docs
-❌ Port 5001 is already in use. Please kill the process using port 5001 and try again.
-❌ Only port 5001 is allowed for backend development.
+❌ Session session-1760523663924-4lfghz9a9 not found in database
