@@ -451,14 +451,14 @@ export class MarkingPipeline {
     progressTracker?: AutoProgressTracker
   ): Promise<MarkingInstructions> {
     const generateInstructions = async (): Promise<MarkingInstructions> => {
-      const { AIMarkingService } = await import('./MarkingServiceLocator.js');
+      const { MarkingInstructionService } = await import('./MarkingInstructionService.js');
       
-      return AIMarkingService.generateMarkingInstructions(
+      return MarkingInstructionService.executeMarking({
         imageData,
         model,
         processedImage,
         questionDetection
-      );
+      });
     };
 
     if (progressTracker) {

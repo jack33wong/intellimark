@@ -1,10 +1,8 @@
-import { LLMOrchestrator } from '../services/marking/LLMOrchestrator.js';
 import { AnnotationMapper } from '../utils/AnnotationMapper.js';
 import { ClassificationService } from '../services/marking/ClassificationService.js';
 import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
 
 export interface MarkingPipeline {
-  orchestrator: typeof LLMOrchestrator;
   annotationMapper: typeof AnnotationMapper;
   classification: typeof ClassificationService;
   markingInstruction: typeof MarkingInstructionService;
@@ -12,7 +10,6 @@ export interface MarkingPipeline {
 
 export function buildMarkingPipeline(): MarkingPipeline {
   return {
-    orchestrator: LLMOrchestrator,
     annotationMapper: AnnotationMapper,
     classification: ClassificationService,
     markingInstruction: MarkingInstructionService

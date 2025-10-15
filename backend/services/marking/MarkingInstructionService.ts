@@ -1,7 +1,89 @@
-import type { ModelType } from '../../types/index.js';
+import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 
+export interface MarkingInputs {
+  imageData: string;
+  model: ModelType;
+  processedImage: ProcessedImageResult;
+  questionDetection?: any;
+}
+
 export class MarkingInstructionService {
+  /**
+   * Execute complete marking flow - moved from LLMOrchestrator
+   */
+  static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
+    const { imageData: _imageData, model, processedImage, questionDetection } = inputs;
+
+    // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
+
+    try {
+      // Get cleaned OCR data from OCRPipeline (now includes all OCR cleanup)
+      const cleanDataForMarking = (processedImage as any).cleanDataForMarking;
+      const cleanedOcrText = (processedImage as any).cleanedOcrText;
+      const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
+      
+      if (!cleanDataForMarking || !cleanDataForMarking.steps || cleanDataForMarking.steps.length === 0) {
+        throw new Error('Cannot generate annotations without steps - OCR cleanup failed in OCRPipeline');
+      }
+
+      // Step 1: Generate raw annotations from cleaned OCR text
+      const annotationData = await this.generateFromOCR(
+        model,
+        JSON.stringify(cleanDataForMarking),
+        questionDetection
+      );
+      
+      if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
+        throw new Error('AI failed to generate valid annotations array');
+      }
+
+      // Step 2: Map annotations to coordinates using pre-built unified lookup table
+      const { AnnotationMapper } = await import('../../utils/AnnotationMapper');
+      
+      // Transform bounding boxes for annotation mapping
+      const transformedBoundingBoxes = (processedImage.boundingBoxes || []).map((block: any, index: number) => {
+        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
+        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
+        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
+        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
+        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
+        
+        return {
+          x: Number(x),
+          y: Number(y),
+          width: Number(width),
+          height: Number(height),
+          text: text || block.googleVisionText || block.mathpixLatex || '',
+          confidence: block.confidence || 0
+        };
+      });
+      
+      const placed = await AnnotationMapper.mapAnnotations({
+        ocrText: cleanedOcrText,
+        boundingBoxes: transformedBoundingBoxes,
+        rawAnnotations: annotationData,
+        imageDimensions: processedImage.imageDimensions,
+        unifiedLookupTable: unifiedLookupTable
+      });
+
+      const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = { 
+        annotations: placed.annotations as any, 
+        usage: { llmTokens: annotationData.usageTokens || 0 },
+        cleanedOcrText: cleanedOcrText,
+        studentScore: annotationData.studentScore
+      };
+      return result;
+    } catch (error) {
+      console.error('❌ Marking flow failed:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      // Throw the real error instead of failing silently
+      throw new Error(`Marking flow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   static async generateFromOCR(
     model: ModelType,
     ocrText: string,
@@ -22,66 +104,11 @@ export class MarkingInstructionService {
       formattedOcrText = ocrText;
     }
 
-    let systemPrompt = getPrompt('markingInstructions.basic.system');
-    let userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
-    
-    if (questionDetection?.match?.markingScheme) {
-      systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
-
-      // Add question detection context if available
-      const ms = questionDetection.match.markingScheme.questionMarks as any;
-      const schemeJson = JSON.stringify(ms, null, 2);
-      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', formattedOcrText, schemeJson, questionDetection.match.marks);
-    } else {
-      systemPrompt += `
-      You will be provided with the problem and a structured list of the student's solution steps. Your task is to apply specific marking annotations to each step based on mathematical correctness.
-
-      **CRITICAL OUTPUT RULES:**
-
-      Your entire response will be passed directly into a JSON parser.
-      The parser will fail if there are ANY extraneous characters or formatting.
-      Your response MUST begin with the character { and end with the character }.
-      Do not include any explanation or introductory text.
-      Return only the raw, valid JSON object.
-
-      Output MUST strictly follow this format:
-
-      {
-        "annotations": [
-          {
-            "textMatch": "exact text from OCR that this annotation applies to",
-            "step_id": "step_#", // REQUIRED: match to the provided steps by step_id
-            "action": "tick|cross",
-            "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
-            "reasoning": "Brief explanation of why this annotation was chosen"
-          }
-        ],
-        "studentScore": {
-          "totalMarks": 6,
-          "awardedMarks": 4,
-          "scoreText": "4/6"
-        }
-      }
-
-      ANNOTATION RULES:
-      - Use "tick" for correct steps (including working steps and awarded marks like "M1", "A1").
-      - Use "cross" for incorrect steps or calculations.
-      - The "text" field can contain mark codes like "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or be empty.
-      - "M0", "A0", etc. MUST be used with a "cross" action when a mark is not achieved due to an error.
-      - CRITICAL: Both "tick" and "cross" actions can have text labels (mark codes) if applicable.
-      - CRITICAL: If no specific mark code applies, leave the text field empty.
-      - You MUST only create annotations for text found in the OCR TEXT. DO NOT hallucinate text that is not present.
-      - You MUST include the correct step_id for each annotation by matching the text to the provided steps.
-
-      SCORING RULES:
-      - Calculate the total marks available for this question (sum of all mark codes like M1, A1, B1, etc.)
-      - Calculate the awarded marks (sum of marks the student actually achieved)
-      - Format the score as "awardedMarks/totalMarks" (e.g., "4/6")
-      - If no marking scheme is available, estimate reasonable marks based on mathematical correctness`;
-    }
+    const systemPrompt = getPrompt('markingInstructions.basic.system');
+    const userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
 
     
-    // Log prompts and response for production debugging
+    // Log prompts and response for debugging
     console.log('🔍 [MARKING INSTRUCTION] User Prompt:');
     console.log(userPrompt);
     
@@ -95,7 +122,7 @@ export class MarkingInstructionService {
     // Log AI response
     console.log('🔍 [MARKING INSTRUCTION] AI Response:');
     console.log(responseText);
-
+   
     try {
       const { JsonUtils } = await import('../../utils/JsonUtils');
       const parsed = JsonUtils.cleanAndValidateJSON(responseText, 'annotations');

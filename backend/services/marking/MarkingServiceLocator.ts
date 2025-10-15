@@ -42,8 +42,8 @@ export class AIMarkingService {
     processedImage?: ProcessedImageResult,
     questionDetection?: any
   ): Promise<MarkingInstructions> {
-      const { LLMOrchestrator } = await import('./LLMOrchestrator');
-    return LLMOrchestrator.executeMarking({
+      const { MarkingInstructionService } = await import('./MarkingInstructionService');
+    return MarkingInstructionService.executeMarking({
       imageData,
       model,
       processedImage: processedImage || ({} as ProcessedImageResult),
