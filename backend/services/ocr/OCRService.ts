@@ -1,7 +1,7 @@
 /**
- * Hybrid OCR Service
- * Orchestrates Google Cloud Vision API with Mathpix for optimal OCR results
- * Uses robust three-pass recognition strategy for maximum accuracy
+ * OCR Service
+ * Complete OCR pipeline that orchestrates Google Cloud Vision API with Mathpix
+ * Includes robust three-pass recognition, math block processing, and OCR cleanup
  */
 
 import sharp from 'sharp';
@@ -12,7 +12,7 @@ import { detectMathBlocks, getCropOptions, type MathBlock } from './MathDetectio
 import { GoogleVisionService } from './GoogleVisionService.js';
 import type { DetectedBlock } from './BlockClusteringService.js';
 
-export interface HybridOCRResult {
+export interface OCRResult {
   text: string;
   boundingBoxes: any[];
   confidence: number;
@@ -26,12 +26,16 @@ export interface HybridOCRResult {
   processingTime: number;
   rawResponse?: any;
   usage?: { mathpixCalls: number };
+  // OCR cleanup results (from OCRPipeline)
+  cleanedOcrText?: string;
+  cleanDataForMarking?: any;
+  unifiedLookupTable?: Record<string, { bbox: number[]; cleanedText: string }>;
 }
 
 // Re-export MathBlock type for backward compatibility
 export type { MathBlock } from './MathDetectionService.js';
 
-export interface HybridOCROptions {
+export interface OCROptions {
   enablePreprocessing?: boolean;
   mathThreshold?: number;
   minMathBlockSize?: number;
@@ -40,8 +44,8 @@ export interface HybridOCROptions {
   dbscanMinPts?: number;
 }
 
-export class HybridOCRService {
-  private static readonly DEFAULT_OPTIONS: Required<HybridOCROptions> = {
+export class OCRService {
+  private static readonly DEFAULT_OPTIONS: Required<OCROptions> = {
     enablePreprocessing: true,
     mathThreshold: 0.35,
     minMathBlockSize: 20,
@@ -52,15 +56,21 @@ export class HybridOCRService {
 
 
   /**
-   * Process image with hybrid OCR approach using robust three-pass recognition
+   * Process image through complete OCR pipeline
+   * Includes Google Vision recognition, Mathpix processing, and OCR cleanup
    * @param imageData - Base64 encoded image data
    * @param options - Processing options
+   * @param debug - Debug mode flag
+   * @param model - Model type for processing
+   * @param questionDetection - Question detection data for cleanup
    */
   static async processImage(
     imageData: string,
-    options: HybridOCROptions = {},
-    debug: boolean = false
-  ): Promise<HybridOCRResult> {
+    options: OCROptions = {},
+    debug: boolean = false,
+    model: any = 'auto',
+    questionDetection?: any
+  ): Promise<OCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     
@@ -248,23 +258,126 @@ export class HybridOCRService {
       // No Mathpix available, use Google Vision results directly
     }
 
-    // Step 4: Combine results
+    // Step 4: Sort math blocks with intelligent sorting (from OCRPipeline)
+    const sortedMathBlocks = [...mathBlocks].sort((a, b) => {
+      const aY = a.coordinates.y;
+      const aHeight = a.coordinates.height;
+      const aBottom = aY + aHeight;
+      const bY = b.coordinates.y;
+      const bHeight = b.coordinates.height;
+      const bBottom = bY + bHeight;
+      
+      // Check if boxes are on the same line (overlap vertically by 30% or more)
+      const overlapThreshold = 0.3;
+      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+      
+      if (verticalOverlap > 0) {
+        // Calculate overlap ratio for both boxes
+        const aOverlapRatio = verticalOverlap / aHeight;
+        const bOverlapRatio = verticalOverlap / bHeight;
+        
+        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+          // If boxes are on the same line, sort by x-coordinate (left to right)
+          return a.coordinates.x - b.coordinates.x;
+        }
+      }
+      
+      // Otherwise, sort by y-coordinate (top to bottom)
+      return aY - bY;
+    });
+
+    // Step 5: OCR Cleanup (from OCRPipeline)
+    let cleanedOcrText = '';
+    let cleanDataForMarking: any = null;
+    let unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
+
+    try {
+      const { OCRCleanupService } = await import('./OCRCleanupService.js');
+      
+      // Transform mathBlocks to the expected format for assignStepIds
+      const transformedBoundingBoxes = (sortedMathBlocks || []).map((block: any, index: number) => {
+        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
+        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
+        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
+        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
+        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
+        
+        // Validate coordinates
+        if (x === undefined || y === undefined || width === undefined || height === undefined) {
+          throw new Error(`Block ${index} has invalid coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)) {
+          throw new Error(`Block ${index} has NaN coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        if (x < 0 || y < 0 || width <= 0 || height <= 0) {
+          throw new Error(`Block ${index} has invalid coordinate values: x=${x}, y=${y}, width=${width}, height=${height}`);
+        }
+        
+        return {
+          x: Number(x),
+          y: Number(y),
+          width: Number(width),
+          height: Number(height),
+          text: text || block.googleVisionText || block.mathpixLatex || '',
+          confidence: block.confidence || 0
+        };
+      });
+      
+      // Step 5a: Assign step IDs
+      const stepAssignmentResult = await OCRCleanupService.assignStepIds(
+        model,
+        mathBlocks.map(block => block.googleVisionText || block.mathpixLatex || '').join('\n'),
+        transformedBoundingBoxes
+      );
+      
+      // Step 5b: Clean up OCR text while preserving step_id references
+      const extractedQuestionText = questionDetection?.extractedQuestionText || '';
+      const cleanupResult = await OCRCleanupService.cleanOCRTextWithStepIds(
+        model,
+        stepAssignmentResult.originalWithStepIds,
+        extractedQuestionText
+      );
+      
+      // Step 5c: Extract data for marking
+      const { OCRDataUtils } = await import('../../utils/OCRDataUtils');
+      cleanDataForMarking = OCRDataUtils.extractDataForMarking(cleanupResult.cleanedText);
+      
+      // Step 5d: Build unified lookup table
+      if (cleanDataForMarking.steps && Array.isArray(cleanDataForMarking.steps)) {
+        for (const step of cleanDataForMarking.steps) {
+          if (step.unified_step_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
+            unifiedLookupTable[step.unified_step_id] = {
+              bbox: step.bbox,
+              cleanedText: step.cleanedText || ''
+            };
+          }
+        }
+      }
+
+      cleanedOcrText = cleanupResult.cleanedText;
+    } catch (cleanupError) {
+      console.warn('⚠️ OCR cleanup failed, using raw results:', cleanupError);
+      // Continue with raw results if cleanup fails
+    }
+
+    // Step 6: Combine results
     const processingTime = Date.now() - startTime;
     
-
-    // Create final result from math blocks
-    const finalText = mathBlocks.map(block => block.googleVisionText || block.mathpixLatex || '').join('\n');
-    const finalBoundingBoxes = mathBlocks.map(block => ({
+    // Create final result from sorted math blocks
+    const finalText = sortedMathBlocks.map(block => block.googleVisionText || block.mathpixLatex || '').join('\n');
+    const finalBoundingBoxes = sortedMathBlocks.map(block => ({
       text: block.googleVisionText || block.mathpixLatex || '',
       x: block.coordinates.x,
       y: block.coordinates.y,
       width: block.coordinates.width,
       height: block.coordinates.height,
-      confidence: block.mathpixConfidence || block.confidence  // Use Mathpix confidence if available, fail fast if missing
+      confidence: block.mathpixConfidence || block.confidence
     }));
 
-    const finalConfidence = mathBlocks.reduce((sum, block) => sum + (block.mathpixConfidence || block.confidence), 0) / mathBlocks.length;
-    const finalSymbols = mathBlocks.map(block => ({
+    const finalConfidence = sortedMathBlocks.reduce((sum, block) => sum + (block.mathpixConfidence || block.confidence), 0) / sortedMathBlocks.length;
+    const finalSymbols = sortedMathBlocks.map(block => ({
       text: block.googleVisionText || block.mathpixLatex || '',
       boundingBox: [
         block.coordinates.x,
@@ -284,14 +397,18 @@ export class HybridOCRService {
       confidence: finalConfidence,
       dimensions,
       symbols: finalSymbols,
-      mathBlocks: mathBlocks,
+      mathBlocks: sortedMathBlocks,
       processingTime,
       rawResponse: {
         detectedBlocks,
         // Expose pre-cluster blocks for visualization
         preClusterBlocks
       },
-      usage: { mathpixCalls }
+      usage: { mathpixCalls },
+      // OCR cleanup results
+      cleanedOcrText,
+      cleanDataForMarking,
+      unifiedLookupTable
     };
   }
 
@@ -318,7 +435,7 @@ export class HybridOCRService {
   }
 
   /**
-   * Check if hybrid OCR is available
+   * Check if OCR service is available
    */
   static isAvailable(): boolean {
     return !!process.env.GOOGLE_APPLICATION_CREDENTIALS && MathpixService.isAvailable();

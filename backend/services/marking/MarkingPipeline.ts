@@ -323,9 +323,9 @@ export class MarkingPipeline {
    * Public method to get full hybrid OCR result with proper sorting for testing
    */
   public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
-    const { HybridOCRService } = await import('../ocr/hybridOCRService.js');
+    const { OCRService } = await import('../ocr/OCRService.js');
 
-    const hybridResult = await HybridOCRService.processImage(imageData, {
+    const hybridResult = await OCRService.processImage(imageData, {
       enablePreprocessing: true,
       mathThreshold: 0.10,
       ...options
@@ -402,19 +402,19 @@ export class MarkingPipeline {
     classification?: any
   ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
     const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
-      const { OCRPipeline } = await import('../ocr/OCRPipeline.js');
+      const { OCRService } = await import('../ocr/OCRService.js');
       // Pass questionDetection to OCRPipeline for OCR cleanup
       const questionDetectionForOCR = {
         extractedQuestionText: classification.extractedQuestionText
       };
-      const ocrResult = await OCRPipeline.processImage(imageData, {}, debug, 'auto', questionDetectionForOCR);
+      const ocrResult = await OCRService.processImage(imageData, {}, debug, 'auto', questionDetectionForOCR);
       
       return {
-        ocrText: ocrResult.ocrText,
+        ocrText: ocrResult.text,
         boundingBoxes: ocrResult.boundingBoxes,
-        imageDimensions: ocrResult.imageDimensions,
+        imageDimensions: ocrResult.dimensions,
         confidence: ocrResult.confidence,
-        mathpixCalls: ocrResult.mathpixCalls || 0,
+        mathpixCalls: ocrResult.usage?.mathpixCalls || 0,
         // Pass through OCR cleanup results
         cleanedOcrText: ocrResult.cleanedOcrText,
         cleanDataForMarking: ocrResult.cleanDataForMarking,
