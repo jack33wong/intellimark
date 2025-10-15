@@ -40,12 +40,12 @@ export class OCRCleanupService {
     let usageTokens = 0;
     model = 'auto';
     if (model === 'auto') {
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', true); // ✅ Force JSON response
       responseText = res.content;
       usageTokens = res.usageTokens;
     } else {
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro', true); // ✅ Force JSON response
       responseText = res.content;
       usageTokens = res.usageTokens;
@@ -69,12 +69,12 @@ export class OCRCleanupService {
     let usageTokens = 0;
     
     if (model === 'auto') {
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       responseText = res.content;
       usageTokens = res.usageTokens;
     } else {
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'gemini-2.5-pro');
       responseText = res.content;
       usageTokens = res.usageTokens;

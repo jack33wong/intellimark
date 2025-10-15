@@ -86,7 +86,7 @@ export class MarkingInstructionService {
     console.log(userPrompt);
     
     // Use the provided model parameter
-    const { ModelProvider } = await import('../ai/ModelProvider.js');
+    const { ModelProvider } = await import('../../utils/ModelProvider.js');
     const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, true);
     
     const responseText = res.content;
@@ -97,7 +97,7 @@ export class MarkingInstructionService {
     console.log(responseText);
 
     try {
-      const { JsonUtils } = await import('../ai/JsonUtils');
+      const { JsonUtils } = await import('../../utils/JsonUtils');
       const parsed = JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
       return { 
         annotations: parsed.annotations || [], 

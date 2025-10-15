@@ -1,4 +1,4 @@
-import type { ModelType } from '../../types/index.js';
+import type { ModelType } from '../types/index.js';
 import * as path from 'path';
 
 export class ModelProvider {
@@ -42,7 +42,7 @@ export class ModelProvider {
     forceJsonResponse: boolean = false
   ): Promise<Response> {
     // Use centralized model configuration
-    const { getModelConfig } = await import('../../config/aiModels.js');
+    const { getModelConfig } = await import('../config/aiModels.js');
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
     
@@ -56,7 +56,7 @@ export class ModelProvider {
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
         generationConfig: { 
           temperature: 0, 
-          maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig(model).maxTokens,
+          maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" })
         }, // Use centralized config
         safetySettings: [
@@ -81,7 +81,7 @@ export class ModelProvider {
     });
     
     if (!response.ok) {
-      const { getModelConfig } = await import('../../config/aiModels.js');
+      const { getModelConfig } = await import('../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';

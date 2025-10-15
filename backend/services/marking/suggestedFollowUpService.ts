@@ -118,7 +118,7 @@ export class SuggestedFollowUpService {
     );
     
     // Use ModelProvider directly with custom prompts
-    const { ModelProvider } = await import('../ai/ModelProvider.js');
+    const { ModelProvider } = await import('../../utils/ModelProvider.js');
     const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
     
     const contextualResult = {

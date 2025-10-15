@@ -14,7 +14,7 @@ export interface ClassificationResult {
 
 export class ClassificationService {
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false): Promise<ClassificationResult> {
-    const { ImageUtils } = await import('../ai/ImageUtils.js');
+    const { ImageUtils } = await import('../../utils/ImageUtils.js');
     
     console.log('🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...');
     const compressedImage = await ImageUtils.compressImage(imageData);

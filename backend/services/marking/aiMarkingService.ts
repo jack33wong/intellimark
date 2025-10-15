@@ -164,7 +164,7 @@ export class AIMarkingService {
 
 
     try {
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       
       // Get dynamic API name based on model
@@ -310,7 +310,7 @@ Summary:`;
 
     try {
       // Use Gemini for context summary generation
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(
         'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
         summaryPrompt,
@@ -390,7 +390,7 @@ Summary:`;
     try {
       // Debug logs removed for production
       
-      const { ModelProvider } = await import('../ai/ModelProvider.js');
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
       
       // Get dynamic API name based on model
