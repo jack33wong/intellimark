@@ -6,7 +6,7 @@
 import express from 'express';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { AIMarkingService } from '../services/marking/aiMarkingService.js';
+import { AIMarkingService } from '../services/marking/MarkingServiceLocator.js';
 import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';

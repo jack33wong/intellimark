@@ -7,79 +7,17 @@ import * as path from 'path';
 import { getModelConfig } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
-// Define types inline to avoid import issues
-interface SimpleImageClassification {
-  isQuestionOnly: boolean;
-  reasoning: string;
-  apiUsed: string;
-  extractedQuestionText?: string;
-}
 
-import { ModelType } from '../../types/index.js';
+import { 
+  ModelType, 
+  ImageClassification, 
+  ProcessedImageResult, 
+  Annotation, 
+  MarkingInstructions 
+} from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 import { validateModel } from '../../config/aiModels.js';
 
-interface SimpleProcessedImageResult {
-  ocrText: string;
-  boundingBoxes: Array<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    text: string;
-    confidence?: number;
-  }>;
-  confidence: number;
-  imageDimensions: {
-    width: number;
-    height: number;
-  };
-  isQuestion?: boolean;
-}
-
-interface SimpleAnnotation {
-  action: 'circle' | 'write' | 'tick' | 'cross' | 'underline' | 'comment';
-  bbox: [number, number, number, number]; // [x, y, width, height]
-  text?: string; // Text content for all annotation types
-  reasoning?: string; // LLM-provided explanation
-}
-
-interface SimpleMarkingInstructions {
-  annotations: SimpleAnnotation[];
-}
-
-// Minimal local types to pass question detection + mark scheme context without importing
-interface SimpleMarkingScheme {
-  id: string;
-  examDetails: {
-    board: string;
-    qualification: string;
-    paperCode: string;
-    tier: string;
-    paper: string;
-    date: string;
-  };
-  questionMarks?: any;
-  totalQuestions: number;
-  totalMarks: number;
-  confidence?: number;
-}
-
-interface SimpleExamPaperMatch {
-  board: string;
-  qualification: string;
-  paperCode: string;
-  year: string;
-  questionNumber?: string;
-  confidence?: number;
-  markingScheme?: SimpleMarkingScheme;
-}
-
-interface SimpleQuestionDetectionResult {
-  found: boolean;
-  match?: SimpleExamPaperMatch;
-  message?: string;
-}
 
 export class AIMarkingService {
   /**
@@ -88,29 +26,11 @@ export class AIMarkingService {
   static async classifyImage(
     imageData: string, 
     model: ModelType
-  ): Promise<SimpleImageClassification> {
+  ): Promise<ImageClassification> {
       const { ClassificationService } = await import('./ClassificationService');
     return ClassificationService.classifyImage(imageData, model);
   }
 
-  // Legacy per-line annotation generation removed
-
-  // Legacy per-line coordinate calculation removed
-
-
-  /**
-   * NEW LLM2: Generate marking annotations based on final OCR text only (no coordinates)
-   */
-  static async generateMarkingAnnotationsFromText(
-    model: ModelType,
-    ocrText: string,
-    questionDetection?: SimpleQuestionDetectionResult
-  ): Promise<{
-    annotations: string; // Raw AI response as string
-  }> {
-      const { MarkingInstructionService } = await import('./MarkingInstructionService');
-    return MarkingInstructionService.generateFromOCR(model, ocrText, questionDetection);
-  }
 
 
   /**
@@ -119,14 +39,14 @@ export class AIMarkingService {
   static async generateMarkingInstructions(
     imageData: string, 
     model: ModelType, 
-    processedImage?: SimpleProcessedImageResult,
-    questionDetection?: SimpleQuestionDetectionResult
-  ): Promise<SimpleMarkingInstructions> {
+    processedImage?: ProcessedImageResult,
+    questionDetection?: any
+  ): Promise<MarkingInstructions> {
       const { LLMOrchestrator } = await import('./LLMOrchestrator');
     return LLMOrchestrator.executeMarking({
       imageData,
       model,
-      processedImage: processedImage || ({} as SimpleProcessedImageResult),
+      processedImage: processedImage || ({} as ProcessedImageResult),
       questionDetection
     });
   }
@@ -220,7 +140,8 @@ export class AIMarkingService {
     if (useOcrText) {
       ocrText = imageDataOrOcrText;
     } else {
-      compressedImage = await this.compressImage(imageDataOrOcrText);
+      const { ImageUtils } = await import('../../utils/ImageUtils.js');
+      compressedImage = await ImageUtils.compressImage(imageDataOrOcrText);
     }
     
     const systemPrompt = isQuestionOnly
@@ -282,46 +203,6 @@ export class AIMarkingService {
     }
   }
 
-  /**
-   * Generate context summary from chat history
-   */
-  static async generateContextSummary(chatHistory: any[]): Promise<string> {
-    if (chatHistory.length === 0) {
-      return '';
-    }
-
-
-    const conversationText = chatHistory.map(item => 
-      `${item.role}: ${item.content}`
-    ).join('\n');
-
-    const summaryPrompt = `Please provide a concise summary of the following conversation. Focus on:
-1. The main topic/subject being discussed
-2. Key questions asked by the user
-3. Important information or solutions provided
-4. Current state of the conversation
-
-Keep the summary under 200 words and maintain context for future responses.
-
-Conversation:
-${conversationText}
-
-Summary:`;
-
-    try {
-      // Use Gemini for context summary generation
-      const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const response = await ModelProvider.callGeminiText(
-        'You are a helpful assistant that creates concise conversation summaries. Focus on key points and maintain context for future interactions.',
-        summaryPrompt,
-        'auto'
-      );
-      return response.content.trim();
-    } catch (error) {
-      console.error('❌ Context summary generation failed:', error);
-      return '';
-    }
-  }
 
   /**
    * Call Gemini API for chat response with image
@@ -638,12 +519,4 @@ Summary:`;
 
   // Text-only response helpers removed; use ModelProvider instead
 
-  /**
-   * Compress image data to reduce API payload size
-   */
-  private static async compressImage(imageData: string): Promise<string> {
-    // Image enhancement is now handled in ClassificationService
-    // Return original image data to avoid double processing
-    return imageData;
-  }
 }

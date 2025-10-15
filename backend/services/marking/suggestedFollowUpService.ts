@@ -4,7 +4,7 @@
  */
 
 import { FirestoreService } from '../firestoreService.js';
-import { AIMarkingService } from './aiMarkingService.js';
+import { AIMarkingService } from './MarkingServiceLocator.js';
 import { ProgressTracker, getStepsForMode } from '../../utils/progressTracker.js';
 import { getSuggestedFollowUpConfig, isValidSuggestedFollowUpMode } from '../../config/suggestedFollowUpConfig.js';
 

@@ -106,7 +106,7 @@ export class MarkingPipeline {
     // AI Response Generation (visible step)
     const logStep4Complete = logStep('AI Response Generation', actualModel);
     const generateResponse = async () => {
-      const { AIMarkingService } = await import('./aiMarkingService');
+      const { AIMarkingService } = await import('./MarkingServiceLocator');
       return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
     };
     
@@ -414,7 +414,7 @@ export class MarkingPipeline {
     progressTracker?: AutoProgressTracker
   ): Promise<MarkingInstructions> {
     const generateInstructions = async (): Promise<MarkingInstructions> => {
-      const { AIMarkingService } = await import('./aiMarkingService.js');
+      const { AIMarkingService } = await import('./MarkingServiceLocator.js');
       
       return AIMarkingService.generateMarkingInstructions(
         imageData,
