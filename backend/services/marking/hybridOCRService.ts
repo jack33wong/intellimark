@@ -1,43 +1,16 @@
 /**
  * Hybrid OCR Service
- * Combines Google Cloud Vision API with Mathpix for optimal OCR results
+ * Orchestrates Google Cloud Vision API with Mathpix for optimal OCR results
  * Uses robust three-pass recognition strategy for maximum accuracy
  */
 
 import sharp from 'sharp';
-import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
-// Inline MathDetectionService and MathpixService functionality
 import { getDebugMode } from '../../config/aiModels.js';
 import type { ProcessedVisionResult } from '../../types/index.js';
-
-// Type aliases for robust recognition
-type IBlock = protos.google.cloud.vision.v1.IBlock;
-type IVertex = protos.google.cloud.vision.v1.IVertex;
-
-// Inline MathBlock interface from MathDetectionService
-export interface MathBlock {
-  googleVisionText: string;
-  mathpixLatex?: string;
-  confidence: number;              // Google Vision confidence (NEVER modified)
-  mathpixConfidence?: number;      // NEW: Mathpix confidence (only set after Mathpix)
-  mathLikenessScore: number;
-  coordinates: { x: number; y: number; width: number; height: number };
-  suspicious?: boolean;
-}
-
-interface DetectedBlock {
-  source: string;
-  blockIndex: number;
-  text?: string | null;
-  confidence?: number | null;
-  geometry: {
-    width: number;
-    height: number;
-    boundingBox: IVertex[];
-    minX: number;
-    minY: number;
-  };
-}
+import { MathpixService } from './MathpixService.js';
+import { detectMathBlocks, getCropOptions, type MathBlock } from './MathDetectionService.js';
+import { GoogleVisionService } from './GoogleVisionService.js';
+import type { DetectedBlock } from './BlockClusteringService.js';
 
 export interface HybridOCRResult {
   text: string;
@@ -55,169 +28,8 @@ export interface HybridOCRResult {
   usage?: { mathpixCalls: number };
 }
 
-// Inline MathDetectionService functionality
-function scoreMathLikeness(text: string): number {
-  const t = text || "";
-  if (!t.trim()) return 0;
-
-  // Check if it's clearly an English word/phrase (exclude these)
-  const englishWordPattern = /^[a-zA-Z\s]+$/;
-  if (englishWordPattern.test(t.trim()) && t.length > 3) {
-    const commonEnglishWords = [
-      'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-      'question', 'answer', 'find', 'calculate', 'solve', 'show', 'prove', 'given'
-    ];
-    
-    const words = t.toLowerCase().split(/\s+/);
-    const isCommonEnglish = words.every(word => commonEnglishWords.includes(word));
-    if (isCommonEnglish) {
-      return 0; // Exclude common English words
-    }
-  }
-
-  // Mathematical features
-  const features = [
-    /[=≠≈≤≥]/g,                    // Equality/inequality symbols
-    /[+\-×÷*/]/g,                  // Basic operators
-    /\b\d+\b/g,                    // Numbers
-    /[()\[\]{}]/g,                 // Brackets
-    /\|.*\|/g,                     // Absolute value
-    /√|∑|∫|π|θ|λ|α|β|γ|δ|ε|ζ|η|θ|ι|κ|λ|μ|ν|ξ|ο|π|ρ|σ|τ|υ|φ|χ|ψ|ω/g, // Greek letters
-    /\b\w\^\d/g,                   // Exponents
-    /\b\w_\d/g,                    // Subscripts
-    /\b(sin|cos|tan|log|ln|exp|sqrt|abs|max|min|lim|sum|prod|int)\b/g, // Functions
-    /\b(infinity|∞|inf)\b/g,       // Infinity
-    /\b(pi|e|phi|gamma|alpha|beta|theta|lambda|mu|sigma|omega)\b/g, // Constants
-    /\b(and|or|not|implies|iff|forall|exists)\b/g, // Logic
-    /\b(if|then|else|when|where|given|let|assume|suppose|prove|show|find|solve|calculate)\b/g // Math words
-  ];
-
-  let score = 0;
-  for (const feature of features) {
-    const matches = t.match(feature);
-    if (matches) {
-      score += matches.length * 0.1;
-    }
-  }
-
-  return Math.min(1, score);
-}
-
-function detectMathBlocks(vision: ProcessedVisionResult | null, threshold = 0.35): MathBlock[] {
-  if (!vision) return [];
-
-  const candidateBoxes = vision.boundingBoxes || [];
-  const blocks: MathBlock[] = [];
-  
-  for (const b of candidateBoxes) {
-    const score = scoreMathLikeness(b.text || "");
-    if (score >= threshold) {
-      const pipes = (b.text.match(/\|/g) || []).length;
-      const suspicious = pipes === 1 || ((b.text.match(/[+\-×÷*/=]/g) || []).length > 2 && !(b.text.match(/\d/g) || []).length);
-
-      const finalConfidence = b.confidence || vision.confidence || score;
-
-      blocks.push({
-        googleVisionText: b.text,
-        confidence: finalConfidence,
-        mathLikenessScore: score,
-        coordinates: { x: b.x, y: b.y, width: b.width, height: b.height },
-        suspicious
-      });
-    }
-  }
-  return blocks;
-}
-
-function getCropOptions(coords: { x: number; y: number; width: number; height: number }) {
-  return {
-    left: Math.max(0, Math.floor(coords.x)),
-    top: Math.max(0, Math.floor(coords.y)),
-    width: Math.max(1, Math.floor(coords.width)),
-    height: Math.max(1, Math.floor(coords.height))
-  };
-}
-
-// Inline MathpixService functionality
-class InlineMathpixService {
-  private static readonly API_URL = 'https://api.mathpix.com/v3/text';
-  private static readonly DEFAULT_OPTIONS: any = {
-    formats: ['latex_styled'],
-    include_latex: true,
-    include_mathml: false,
-    include_asciimath: false
-  };
-
-  static isAvailable(): boolean {
-    return !!(process.env.MATHPIX_APP_ID && process.env.MATHPIX_API_KEY);
-  }
-
-  static getServiceStatus() {
-    const appId = process.env.MATHPIX_APP_ID;
-    const appKey = process.env.MATHPIX_API_KEY;
-    
-    if (!appId || !appKey) {
-      return {
-        available: false,
-        configured: false,
-        error: 'Mathpix credentials not configured'
-      };
-    }
-
-    return {
-      available: true,
-      configured: true
-    };
-  }
-
-  static async processImage(imageBuffer: Buffer, options: any = {}, debug: boolean = false): Promise<any> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
-    
-    if (debug) {
-      const debugMode = getDebugMode();
-      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
-      return {
-        latex_styled: 'Debug mode: Mock LaTeX expression',
-        confidence: 0.95
-      };
-    }
-    
-    if (!this.isAvailable()) {
-      return {
-        error: 'Mathpix service not available'
-      };
-    }
-
-    const appId = process.env.MATHPIX_APP_ID!;
-    const appKey = process.env.MATHPIX_API_KEY!;
-    
-    const imageBase64 = imageBuffer.toString('base64');
-    const headers = {
-      'app_id': appId,
-      'app_key': appKey,
-      'Content-Type': 'application/json'
-    };
-
-    const body = {
-      src: `data:image/png;base64,${imageBase64}`,
-      formats: opts.formats,
-      include_latex: opts.include_latex,
-      include_mathml: opts.include_mathml,
-      include_asciimath: opts.include_asciimath
-    };
-
-    try {
-      const axios = await import('axios');
-      const response = await axios.default.post(this.API_URL, body, { headers });
-      return response.data;
-    } catch (error: any) {
-      console.error(`❌ [MATHPIX API ERROR] ${error.response?.data || error.message}`);
-      return {
-        error: error.response?.data?.error || error.message || 'Unknown Mathpix API error'
-      };
-    }
-  }
-}
+// Re-export MathBlock type for backward compatibility
+export type { MathBlock } from './MathDetectionService.js';
 
 export interface HybridOCROptions {
   enablePreprocessing?: boolean;
@@ -238,367 +50,6 @@ export class HybridOCRService {
     dbscanMinPts: 2
   };
 
-  // Configuration for robust recognition
-  private static readonly RESIZE_FACTOR = 2;
-  private static readonly LINE_GROUP_TOLERANCE_Y = 10; // pixels tolerance to group words into same line
-
-  /**
-   * Helper method to preprocess images with Sharp operations
-   */
-  private static async preprocessImage(
-    imageBuffer: Buffer, 
-    operations: ('grayscale' | 'normalize' | 'sharpen' | 'threshold')[]
-  ): Promise<Buffer> {
-    const metadata = await sharp(imageBuffer).metadata();
-    let processor = sharp(imageBuffer)
-      .resize((metadata.width || 0) * this.RESIZE_FACTOR);
-    
-    operations.forEach(op => {
-      switch(op) {
-        case 'grayscale': processor = processor.grayscale(); break;
-        case 'normalize': processor = processor.normalize(); break;
-        case 'sharpen': processor = processor.sharpen(); break;
-        case 'threshold': processor = processor.threshold(); break;
-      }
-    });
-    
-    return processor.toBuffer();
-  }
-
-  /**
-   * Helper method to handle Google Vision pass errors
-   */
-  private static handleVisionPassError(passName: string, error: any): void {
-    console.error(`❌ [GOOGLE VISION] ${passName} failed:`, error);
-  }
-
-  /**
-   * Helper method to get image metadata
-   */
-  private static async getImageMetadata(imageBuffer: Buffer): Promise<{ width: number; height: number }> {
-    const metadata = await sharp(imageBuffer).metadata();
-    return { width: metadata.width || 0, height: metadata.height || 0 };
-  }
-
-  /**
-   * Merge overlapping blocks into unified clusters. Uses simple rectangle intersection.
-   * Repeats until no merges occur or a safety iteration cap is reached.
-   */
-  private static mergeOverlappingBlocks(blocks: DetectedBlock[]): DetectedBlock[] {
-    const intersects = (a: DetectedBlock, b: DetectedBlock): boolean => {
-      const ax1 = a.geometry.minX;
-      const ay1 = a.geometry.minY;
-      const ax2 = a.geometry.minX + a.geometry.width;
-      const ay2 = a.geometry.minY + a.geometry.height;
-      const bx1 = b.geometry.minX;
-      const by1 = b.geometry.minY;
-      const bx2 = b.geometry.minX + b.geometry.width;
-      const by2 = b.geometry.minY + b.geometry.height;
-      return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
-    };
-
-    const mergeTwo = (a: DetectedBlock, b: DetectedBlock): DetectedBlock => {
-      const minX = Math.min(a.geometry.minX, b.geometry.minX);
-      const minY = Math.min(a.geometry.minY, b.geometry.minY);
-      const maxX = Math.max(a.geometry.minX + a.geometry.width, b.geometry.minX + b.geometry.width);
-      const maxY = Math.max(a.geometry.minY + a.geometry.height, b.geometry.minY + b.geometry.height);
-      const mergedWidth = Math.round(maxX - minX);
-      const mergedHeight = Math.round(maxY - minY);
-      const text = [a.text || '', b.text || ''].filter(Boolean).join(' ').trim();
-      const confidence = (((a.confidence || 0) + (b.confidence || 0)) / (2)) || 0;
-      return {
-        source: `${a.source}|${b.source}|merged`,
-        blockIndex: Math.min(a.blockIndex, b.blockIndex),
-        text,
-        confidence,
-        geometry: {
-          width: mergedWidth,
-          height: mergedHeight,
-          boundingBox: [
-            { x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }
-          ],
-          minX,
-          minY
-        }
-      } as DetectedBlock;
-    };
-
-    // Work on a copy
-    let current = [...blocks];
-    let changed = true;
-    let iterations = 0;
-    const MAX_ITERATIONS = 20;
-    while (changed && iterations < MAX_ITERATIONS) {
-      changed = false;
-      iterations++;
-      const result: DetectedBlock[] = [];
-      const used = new Set<number>();
-      for (let i = 0; i < current.length; i++) {
-        if (used.has(i)) continue;
-        let mergedBlock = current[i];
-        for (let j = i + 1; j < current.length; j++) {
-          if (used.has(j)) continue;
-          if (intersects(mergedBlock, current[j])) {
-            mergedBlock = mergeTwo(mergedBlock, current[j]);
-            used.add(j);
-            changed = true;
-          }
-        }
-        used.add(i);
-        result.push(mergedBlock);
-      }
-      current = result;
-    }
-    // Reindex blockIndex for stability
-    current.forEach((b, idx) => (b.blockIndex = idx + 1));
-    return current;
-  }
-
-  /**
-   * Helper function to calculate width and height from bounding box vertices.
-   */
-  private static getBlockGeometry(block: IBlock, scale = 1) {
-    const vertices = block.boundingBox?.vertices;
-    if (!vertices || vertices.length < 4) {
-      console.warn('⚠️ Block has invalid vertices:', vertices);
-      return { width: 0, height: 0, boundingBox: [], minX: 0, minY: 0 };
-    }
-    
-    const xCoords = vertices.map(v => (v.x || 0) / scale);
-    const yCoords = vertices.map(v => (v.y || 0) / scale);
-    const minX = Math.min(...xCoords);
-    const maxX = Math.max(...xCoords);
-    const minY = Math.min(...yCoords);
-    const maxY = Math.max(...yCoords);
-
-    const result = { 
-      width: Math.round(maxX - minX), 
-      height: Math.round(maxY - minY), 
-      boundingBox: vertices.map(v => ({ x: Math.round((v.x || 0) / scale), y: Math.round((v.y || 0) / scale) })),
-      minX: Math.round(minX), 
-      minY: Math.round(minY) 
-    };
-
-    // Debug logging for NaN values
-    if (isNaN(result.minX) || isNaN(result.minY) || isNaN(result.width) || isNaN(result.height)) {
-      console.warn('⚠️ NaN coordinates detected:', {
-        vertices,
-        xCoords,
-        yCoords,
-        minX, maxX, minY, maxY,
-        result
-      });
-    }
-
-    return result;
-  }
-
-
-  /**
-   * Process a FullTextAnnotation into DetectedBlock[] using line-aware parsing with fallback.
-   */
-  private static processTextAnnotation(
-    fullTextAnnotation: any,
-    source: string,
-    scale: number = 1
-  ): DetectedBlock[] {
-    const detectedBlocks: DetectedBlock[] = [];
-    if (!fullTextAnnotation || !fullTextAnnotation.pages) return detectedBlocks;
-
-    fullTextAnnotation.pages.forEach(page => {
-      page.blocks?.forEach((block, blockIndex) => {
-        block.paragraphs?.forEach((paragraph, paragraphIndex) => {
-          // Prefer Vision API detected lines if available
-          const paragraphAny: any = paragraph as any;
-          const lines = paragraphAny?.lines as any[] | undefined;
-          if (lines && lines.length > 0) {
-            lines.forEach(line => {
-              const lineText = line.words?.map(w => w.symbols?.map(s => s.text).join('')).join(' ');
-              if (line.boundingBox) {
-                // Calculate average confidence from words if line confidence is not available
-                let confidence = line.confidence;
-                if (!confidence && line.words && line.words.length > 0) {
-                  const wordConfidences = line.words.map(w => w.confidence).filter(c => c !== undefined && c !== null);
-                  if (wordConfidences.length > 0) {
-                    confidence = wordConfidences.reduce((sum, c) => sum + c, 0) / wordConfidences.length;
-                  }
-                }
-                
-                
-                detectedBlocks.push({
-                  source,
-                  blockIndex: detectedBlocks.length + 1,
-                  text: lineText,
-                  confidence: confidence,
-                  geometry: this.getBlockGeometry(line as unknown as protos.google.cloud.vision.v1.IBlock, scale)
-                });
-              }
-            });
-          } else {
-            // Fallback: group words into lines by Y proximity
-            const allWords: protos.google.cloud.vision.v1.IWord[] = paragraph.words || [];
-            const wordsWithPos = allWords.map(w => ({
-              word: w,
-              minY: w.boundingBox?.vertices?.[0]?.y || 0,
-              minX: w.boundingBox?.vertices?.[0]?.x || 0
-            }));
-
-            wordsWithPos.sort((a, b) => {
-              if (Math.abs(a.minY - b.minY) <= this.LINE_GROUP_TOLERANCE_Y) return a.minX - b.minX;
-              return a.minY - b.minY;
-            });
-
-            let currentLine: typeof wordsWithPos = [];
-            const flushLine = () => {
-              if (currentLine.length === 0) return;
-              const minX = Math.min(...currentLine.map(x => x.word.boundingBox?.vertices?.[0]?.x || 0));
-              const minY = Math.min(...currentLine.map(x => x.word.boundingBox?.vertices?.[0]?.y || 0));
-              const maxX = Math.max(...currentLine.map(x => x.word.boundingBox?.vertices?.[2]?.x || 0));
-              const maxY = Math.max(...currentLine.map(x => x.word.boundingBox?.vertices?.[2]?.y || 0));
-              const lineText = currentLine.map(x => x.word.symbols?.map(s => s.text).join('')).join(' ');
-              detectedBlocks.push({
-                source,
-                blockIndex: detectedBlocks.length + 1,
-                text: lineText,
-                confidence: currentLine.reduce((sum, x) => sum + (x.word.confidence || 0), 0) / currentLine.length,
-                geometry: this.getBlockGeometry({
-                  boundingBox: { vertices: [
-                    { x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }
-                  ] as unknown as IVertex[] }
-                } as unknown as protos.google.cloud.vision.v1.IBlock, scale)
-              });
-              currentLine = [];
-            };
-
-            for (let i = 0; i < wordsWithPos.length; i++) {
-              const entry = wordsWithPos[i];
-              if (currentLine.length === 0) {
-                currentLine.push(entry);
-              } else {
-                const lastY = currentLine[currentLine.length - 1].minY;
-                if (Math.abs(entry.minY - lastY) <= this.LINE_GROUP_TOLERANCE_Y) {
-                  currentLine.push(entry);
-                } else {
-                  flushLine();
-                  currentLine.push(entry);
-                }
-              }
-            }
-            flushLine();
-          }
-        });
-      });
-    });
-
-    return detectedBlocks;
-  }
-
-  /**
-   * Perform robust three-pass Google Vision recognition
-   */
-  private static async performRobustRecognition(
-    imageBuffer: Buffer,
-    opts: Required<HybridOCROptions>
-  ): Promise<{ finalBlocks: DetectedBlock[]; preClusterBlocks: DetectedBlock[] }> {
-    const client = new ImageAnnotatorClient();
-    const allBlocks: DetectedBlock[] = [];
-
-    // Pass A: Clean Scan for Completeness
-    try {
-      const [resultA] = await client.textDetection(imageBuffer);
-      allBlocks.push(...this.processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan'));
-    } catch (error) {
-      this.handleVisionPassError('Pass A', error);
-    }
-
-    // Pass B: Enhanced Scan for Accuracy
-    try {
-      const preprocessedBufferB = await this.preprocessImage(imageBuffer, ['grayscale', 'normalize']);
-      const [resultB] = await client.textDetection(preprocessedBufferB);
-      allBlocks.push(...this.processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', this.RESIZE_FACTOR));
-    } catch (error) {
-      this.handleVisionPassError('Pass B', error);
-    }
-
-    // Pass C: Aggressive Scan for Edge Cases
-    try {
-      const preprocessedBufferC = await this.preprocessImage(imageBuffer, ['sharpen', 'threshold']);
-      const [resultC] = await client.textDetection(preprocessedBufferC);
-      allBlocks.push(...this.processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', this.RESIZE_FACTOR));
-    } catch (error) {
-      this.handleVisionPassError('Pass C', error);
-    }
-
-    // Keep a copy of raw detected blocks prior to clustering for visualization/debugging
-    const preClusterBlocks: DetectedBlock[] = allBlocks.slice();
-
-    // Cluster results using DBSCAN (center-point clustering)
-    const { DBSCAN } = await import('density-clustering') as unknown as { DBSCAN: new () => any };
-    const algo: any = new (DBSCAN as any)();
-
-    const points: Array<[number, number]> = allBlocks.map(b => [
-      b.geometry.minX + b.geometry.width / 2,
-      b.geometry.minY + b.geometry.height / 2
-    ]);
-
-    const clusters: number[][] = algo.run(points, opts.dbscanEpsPx, opts.dbscanMinPts);
-    const noise: number[] = algo.noise || [];
-
-    const finalBlocks: DetectedBlock[] = [];
-
-    // Convert clusters to merged blocks
-    clusters.forEach((idxs, clusterIdx) => {
-      if (!Array.isArray(idxs) || idxs.length === 0) return;
-      const members = idxs.map(i => allBlocks[i]);
-
-      const minX = Math.min(...members.map(m => m.geometry.minX));
-      const minY = Math.min(...members.map(m => m.geometry.minY));
-      const maxX = Math.max(...members.map(m => m.geometry.minX + m.geometry.width));
-      const maxY = Math.max(...members.map(m => m.geometry.minY + m.geometry.height));
-
-      const mergedWidth = Math.round(maxX - minX);
-      const mergedHeight = Math.round(maxY - minY);
-
-      const text = members
-        .slice()
-        .sort((a, b) => (a.geometry.minY - b.geometry.minY) || (a.geometry.minX - b.geometry.minX))
-        .map(m => (m.text || '').trim())
-        .filter(Boolean)
-        .join(' ');
-
-      const avgConfidence = members.reduce((sum, m) => sum + (m.confidence || 0), 0) / members.length;
-
-      finalBlocks.push({
-        source: 'dbscan_cluster',
-        blockIndex: clusterIdx + 1,
-        text,
-        confidence: avgConfidence,
-        geometry: {
-          width: mergedWidth,
-          height: mergedHeight,
-          boundingBox: [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }],
-          minX,
-          minY
-        }
-      });
-    });
-
-    // Include noise points as individual blocks (optional but useful)
-    noise.forEach((i, nIdx) => {
-      const b = allBlocks[i];
-      finalBlocks.push({
-        ...b,
-        source: `${b.source}|noise`
-      });
-    });
-
-    finalBlocks.forEach((block, index) => block.blockIndex = index + 1);
-
-    // Post-process: merge overlapping cluster boxes for cleaner regions
-    const mergedClusters = this.mergeOverlappingBlocks(finalBlocks);
-
-    return { finalBlocks: mergedClusters, preClusterBlocks };
-  }
 
   /**
    * Process image with hybrid OCR approach using robust three-pass recognition
@@ -641,7 +92,7 @@ export class HybridOCRService {
     let preClusterBlocks: DetectedBlock[] = [];
     
     try {
-      const robust = await this.performRobustRecognition(imageBuffer, opts);
+      const robust = await GoogleVisionService.performRobustRecognition(imageBuffer, opts.dbscanEpsPx, opts.dbscanMinPts);
       detectedBlocks = robust.finalBlocks;
       preClusterBlocks = robust.preClusterBlocks;
       
@@ -674,7 +125,7 @@ export class HybridOCRService {
 
 
       // Get image dimensions
-      visionResult.dimensions = await this.getImageMetadata(imageBuffer);
+      visionResult.dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
 
       // Step 2: Detect math blocks from robust recognition results
       mathBlocks = detectMathBlocks(visionResult);
@@ -684,13 +135,13 @@ export class HybridOCRService {
       console.error(`❌ [ERROR DETAILS]`, error);
       
       // Fallback to Mathpix-only processing
-      if (InlineMathpixService.isAvailable()) {
+      if (MathpixService.isAvailable()) {
         try {
           const imageBuffer = Buffer.from(imageData.split(',')[1], 'base64');
-          const mathpixResult = await InlineMathpixService.processImage(imageBuffer, {}, debug);
+          const mathpixResult = await MathpixService.processImage(imageBuffer, {}, debug);
           console.log('✅ [OCR PROCESSING] Mathpix fallback completed');
           if (mathpixResult.latex_styled) {
-            const dimensions = await this.getImageMetadata(imageBuffer);
+            const dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
             
             // Create a minimal result structure for Mathpix-only processing
             const visionResult: ProcessedVisionResult = {
@@ -721,7 +172,7 @@ export class HybridOCRService {
 
     // Step 3: Process math blocks with Mathpix if available
     let mathpixCalls = 0;
-    if (mathBlocks.length > 0 && InlineMathpixService.isAvailable()) {
+    if (mathBlocks.length > 0 && MathpixService.isAvailable()) {
       try {
         // Dedupe by bbox signature and prioritize suspicious or high-score blocks
         const seen = new Set<string>();
@@ -762,7 +213,7 @@ export class HybridOCRService {
                 .toBuffer();
               
               // Process with Mathpix
-              const mathpixResult = await InlineMathpixService.processImage(croppedBuffer, {}, debug);
+              const mathpixResult = await MathpixService.processImage(croppedBuffer, {}, debug);
               mathpixCalls += 1;
               
               if (mathpixResult.latex_styled && !mathpixResult.error) {
@@ -825,7 +276,7 @@ export class HybridOCRService {
     }));
 
     // Get image dimensions
-    const dimensions = await this.getImageMetadata(imageBuffer);
+    const dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
     
     return {
       text: finalText,
@@ -853,7 +304,7 @@ export class HybridOCRService {
     hybrid: boolean;
     robustRecognition: boolean;
   } {
-    const mathpixStatus = InlineMathpixService.getServiceStatus();
+    const mathpixStatus = MathpixService.getServiceStatus();
     
     // Check if Google Vision credentials are available
     const googleVisionAvailable = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -870,7 +321,7 @@ export class HybridOCRService {
    * Check if hybrid OCR is available
    */
   static isAvailable(): boolean {
-    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS && InlineMathpixService.isAvailable();
+    return !!process.env.GOOGLE_APPLICATION_CREDENTIALS && MathpixService.isAvailable();
   }
 }
 
