@@ -89,7 +89,7 @@ export class AIMarkingService {
     imageData: string, 
     model: ModelType
   ): Promise<SimpleImageClassification> {
-      const { ClassificationService } = await import('../ai/ClassificationService');
+      const { ClassificationService } = await import('./ClassificationService');
     return ClassificationService.classifyImage(imageData, model);
   }
 

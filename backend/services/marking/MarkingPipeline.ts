@@ -326,7 +326,7 @@ export class MarkingPipeline {
    * Classify image using AI
    */
   private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
-    const { ClassificationService } = await import('../ai/ClassificationService.js');
+    const { ClassificationService } = await import('./ClassificationService.js');
     return ClassificationService.classifyImage(imageData, model, debug);
   }
 
