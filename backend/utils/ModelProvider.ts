@@ -11,7 +11,7 @@ export class ModelProvider {
     return { content, usageTokens };
   }
 
-  private static async getGeminiAccessToken(): Promise<string> {
+  static async getGeminiAccessToken(): Promise<string> {
     const { GoogleAuth } = await import('google-auth-library');
     
     const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
@@ -96,7 +96,7 @@ export class ModelProvider {
     return response;
   }
 
-  private static extractGeminiTextContent(result: any): string {
+  static extractGeminiTextContent(result: any): string {
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!content) {
       const finishReason = result.candidates?.[0]?.finishReason;

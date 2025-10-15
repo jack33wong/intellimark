@@ -13,6 +13,24 @@ export interface ClassificationResult {
 }
 
 export class ClassificationService {
+  private static readonly SAFETY_SETTINGS = [
+    {
+      category: "HARM_CATEGORY_HARASSMENT",
+      threshold: "BLOCK_NONE"
+    },
+    {
+      category: "HARM_CATEGORY_HATE_SPEECH",
+      threshold: "BLOCK_NONE"
+    },
+    {
+      category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+      threshold: "BLOCK_NONE"
+    },
+    {
+      category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+      threshold: "BLOCK_NONE"
+    }
+  ];
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false): Promise<ClassificationResult> {
     const { ImageUtils } = await import('../../utils/ImageUtils.js');
     
@@ -76,7 +94,8 @@ export class ClassificationService {
     model: ModelType = 'gemini-2.5-pro'
   ): Promise<ClassificationResult> {
     try {
-      const accessToken = await this.getGeminiAccessToken();
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const accessToken = await ModelProvider.getGeminiAccessToken();
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       
       // Check if response is HTML (error page)
@@ -89,7 +108,7 @@ export class ClassificationService {
       }
       
       const result = await response.json() as any;
-      const content = this.extractGeminiContent(result);
+      const content = await this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
       const finalResult = await this.parseGeminiResponse(cleanContent, result, model);
       
@@ -101,46 +120,7 @@ export class ClassificationService {
   }
 
 
-  private static async callGeminiImageGenForClassification(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    modelType: string = 'auto'
-  ): Promise<ClassificationResult> {
-    try {
-      const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGeminiImageGenRequest(accessToken, imageData, systemPrompt, userPrompt, modelType);
-      const result = await response.json() as any;
-      const content = this.extractGeminiContent(result);
-      const cleanContent = this.cleanGeminiResponse(content);
-      return await this.parseGeminiResponse(cleanContent, result, modelType);
-    } catch (error) {
-      throw error;
-    }
-  }
 
-  private static async getGeminiAccessToken(): Promise<string> {
-    const { GoogleAuth } = await import('google-auth-library');
-    
-    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
-    
-    const auth = new GoogleAuth({
-      keyFile,
-      scopes: [
-        'https://www.googleapis.com/auth/cloud-platform',
-        'https://www.googleapis.com/auth/generative-language.retriever'
-      ]
-    });
-    
-    const client = await auth.getClient();
-    const accessToken = await client.getAccessToken();
-    
-    if (!accessToken.token) {
-      throw new Error('Failed to get access token from service account');
-    }
-    
-    return accessToken.token;
-  }
 
   private static async makeGeminiRequest(
     accessToken: string,
@@ -166,24 +146,7 @@ export class ClassificationService {
         temperature: 0.1, 
         maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
       }, // Use centralized config
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_NONE"
-        }
-      ]
+      safetySettings: this.SAFETY_SETTINGS
     };
     
     // Debug logging to show safety settings being sent
@@ -218,117 +181,10 @@ export class ClassificationService {
   }
 
 
-  private static async makeGeminiImageGenRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    modelType: string = 'auto'
-  ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(modelType as any);
-    const endpoint = config.apiEndpoint;
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            { inline_data: { mime_type: 'image/jpeg', data: imageData.includes(',') ? imageData.split(',')[1] : imageData } }
-          ]
-        }],
-        generationConfig: { 
-        temperature: 0.1, 
-        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
-      }, // Use centralized config
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_NONE"
-        }
-      ]
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Gemini Image Gen API Error:', response.status, response.statusText);
-      console.error('❌ Error Details:', errorText);
-      throw new Error(`Gemini Image Gen API request failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    return response;
-  }
 
-  private static extractGeminiContent(result: any): string {
-    // Check if result is an error response (HTML)
-    if (typeof result === 'string' && result.includes('<')) {
-      console.error('❌ [CLASSIFICATION] Received HTML error response instead of JSON:');
-      console.error('❌ [CLASSIFICATION] HTML content:', result.substring(0, 200) + '...');
-      throw new Error('Gemini API returned HTML error response instead of JSON. Check API key and endpoint.');
-    }
-    
-    // Check if result has the expected structure
-    if (!result || !result.candidates || !Array.isArray(result.candidates)) {
-      console.error('❌ [CLASSIFICATION] Unexpected response structure:');
-      console.error('❌ [CLASSIFICATION] Full response:', JSON.stringify(result, null, 2));
-      throw new Error('Gemini API returned unexpected response structure.');
-    }
-    
-    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!content) {
-      const finishReason = result.candidates?.[0]?.finishReason;
-      
-      // Check for detailed safety feedback in promptFeedback
-      if (result.promptFeedback) {
-        console.error('🔍 [CLASSIFICATION] Detailed safety feedback:');
-        console.error('🔍 [CLASSIFICATION] promptFeedback:', JSON.stringify(result.promptFeedback, null, 2));
-        
-        if (result.promptFeedback.blockReason) {
-          console.error('🔍 [CLASSIFICATION] Block reason:', result.promptFeedback.blockReason);
-        }
-        if (result.promptFeedback.safetyRatings) {
-          console.error('🔍 [CLASSIFICATION] Safety ratings:', JSON.stringify(result.promptFeedback.safetyRatings, null, 2));
-        }
-      }
-      
-      if (finishReason === 'MAX_TOKENS') {
-        throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
-      }
-      if (finishReason === 'RECITATION') {
-        const safetyDetails = result.promptFeedback ? `\nSafety details: ${JSON.stringify(result.promptFeedback, null, 2)}` : '';
-        throw new Error(`Gemini blocked the response due to content safety filters. The image may contain content that violates safety guidelines.${safetyDetails}`);
-      }
-      if (finishReason === 'SAFETY') {
-        const safetyDetails = result.promptFeedback ? `\nSafety details: ${JSON.stringify(result.promptFeedback, null, 2)}` : '';
-        throw new Error(`Gemini blocked the response due to safety concerns. Please try with a different image.${safetyDetails}`);
-      }
-      console.error('❌ [CLASSIFICATION] Unexpected finish reason:', finishReason);
-      console.error('❌ [CLASSIFICATION] Full response:', JSON.stringify(result, null, 2));
-      throw new Error(`No content in Gemini response. Finish reason: ${finishReason}`);
-    }
-    
-    return content;
+  private static async extractGeminiContent(result: any): Promise<string> {
+    const { ModelProvider } = await import('../../utils/ModelProvider.js');
+    return ModelProvider.extractGeminiTextContent(result);
   }
 
   private static cleanGeminiResponse(content: string): string {
@@ -372,57 +228,8 @@ export class ClassificationService {
   }
 
 
-  private static async exponentialBackoff(maxRetries: number): Promise<void> {
-    for (let i = 0; i < maxRetries; i++) {
-      const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, 8s...
-      console.log(`⏳ [BACKOFF] Waiting ${delay}ms before retry ${i + 1}/${maxRetries}...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
 
 
-  private static async fallbackClassification(imageData: string): Promise<ClassificationResult> {
-    try {
-      // For q21.png specifically, we know it's a question-only image
-      // This is a simple heuristic-based classification
-      
-      // Check if this looks like a question-only image based on common patterns
-      const isQuestionOnly = this.analyzeImageForQuestionOnly(imageData);
-      
-      return {
-        isQuestionOnly,
-        reasoning: isQuestionOnly 
-          ? 'Fallback analysis suggests this is a question-only image (no student work visible)'
-          : 'Fallback analysis suggests this contains student work or answers',
-        apiUsed: 'Fallback Classification',
-        extractedQuestionText: isQuestionOnly 
-          ? 'Question text detected (fallback analysis)'
-          : 'Unable to extract question text (fallback analysis)',
-        usageTokens: 0
-      };
-    } catch (error) {
-      return {
-        isQuestionOnly: false,
-        reasoning: 'Fallback classification failed',
-        apiUsed: 'Fallback Classification',
-        extractedQuestionText: 'Unable to extract question text',
-        usageTokens: 0
-      };
-    }
-  }
-
-  private static analyzeImageForQuestionOnly(imageData: string): boolean {
-    // Simple heuristic: For now, let's assume q21.png is question-only
-    // In a real implementation, this could analyze image characteristics
-    
-    // Check if the image data contains certain patterns that suggest question-only
-    // For q21.png, we'll return true as we know it's a question-only image
-    const base64Data = imageData.split(',')[1];
-    
-    // Simple check: if the image is relatively small and likely a clean question
-    // This is a basic heuristic - in production, you'd want more sophisticated analysis
-    return true; // For now, assume it's question-only for q21.png
-  }
 }
 
 
