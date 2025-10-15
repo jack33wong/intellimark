@@ -240,8 +240,45 @@ export class HybridOCRService {
 
   // Configuration for robust recognition
   private static readonly RESIZE_FACTOR = 2;
-  private static readonly IOU_THRESHOLD = 0.7;
   private static readonly LINE_GROUP_TOLERANCE_Y = 10; // pixels tolerance to group words into same line
+
+  /**
+   * Helper method to preprocess images with Sharp operations
+   */
+  private static async preprocessImage(
+    imageBuffer: Buffer, 
+    operations: ('grayscale' | 'normalize' | 'sharpen' | 'threshold')[]
+  ): Promise<Buffer> {
+    const metadata = await sharp(imageBuffer).metadata();
+    let processor = sharp(imageBuffer)
+      .resize((metadata.width || 0) * this.RESIZE_FACTOR);
+    
+    operations.forEach(op => {
+      switch(op) {
+        case 'grayscale': processor = processor.grayscale(); break;
+        case 'normalize': processor = processor.normalize(); break;
+        case 'sharpen': processor = processor.sharpen(); break;
+        case 'threshold': processor = processor.threshold(); break;
+      }
+    });
+    
+    return processor.toBuffer();
+  }
+
+  /**
+   * Helper method to handle Google Vision pass errors
+   */
+  private static handleVisionPassError(passName: string, error: any): void {
+    console.error(`❌ [GOOGLE VISION] ${passName} failed:`, error);
+  }
+
+  /**
+   * Helper method to get image metadata
+   */
+  private static async getImageMetadata(imageBuffer: Buffer): Promise<{ width: number; height: number }> {
+    const metadata = await sharp(imageBuffer).metadata();
+    return { width: metadata.width || 0, height: metadata.height || 0 };
+  }
 
   /**
    * Merge overlapping blocks into unified clusters. Uses simple rectangle intersection.
@@ -356,22 +393,6 @@ export class HybridOCRService {
     return result;
   }
 
-  /**
-   * Calculates the Intersection over Union (IoU) of two bounding boxes.
-   */
-  private static calculateIoU(boxA: {minX: number, minY: number, width: number, height: number}, boxB: {minX: number, minY: number, width: number, height: number}): number {
-    const xA = Math.max(boxA.minX, boxB.minX);
-    const yA = Math.max(boxA.minY, boxB.minY);
-    const xB = Math.min(boxA.minX + boxA.width, boxB.minX + boxB.width);
-    const yB = Math.min(boxA.minY + boxA.height, boxB.minY + boxB.height);
-
-    const intersectionArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
-    const boxAArea = boxA.width * boxA.height;
-    const boxBArea = boxB.width * boxB.height;
-    
-    const iou = intersectionArea / (boxAArea + boxBArea - intersectionArea);
-    return isNaN(iou) ? 0 : iou;
-  }
 
   /**
    * Process a FullTextAnnotation into DetectedBlock[] using line-aware parsing with fallback.
@@ -487,35 +508,25 @@ export class HybridOCRService {
       const [resultA] = await client.textDetection(imageBuffer);
       allBlocks.push(...this.processTextAnnotation(resultA.fullTextAnnotation, 'pass_A_clean_scan'));
     } catch (error) {
-      console.error('❌ [GOOGLE VISION] Pass A failed:', error);
+      this.handleVisionPassError('Pass A', error);
     }
 
     // Pass B: Enhanced Scan for Accuracy
     try {
-      const originalMetadata = await sharp(imageBuffer).metadata();
-      const preprocessedBufferB = await sharp(imageBuffer)
-        .resize((originalMetadata.width || 0) * this.RESIZE_FACTOR)
-        .grayscale()
-        .normalize()
-        .toBuffer();
+      const preprocessedBufferB = await this.preprocessImage(imageBuffer, ['grayscale', 'normalize']);
       const [resultB] = await client.textDetection(preprocessedBufferB);
       allBlocks.push(...this.processTextAnnotation(resultB.fullTextAnnotation, 'pass_B_enhanced_scan', this.RESIZE_FACTOR));
     } catch (error) {
-      console.error('❌ [GOOGLE VISION] Pass B failed:', error);
+      this.handleVisionPassError('Pass B', error);
     }
 
     // Pass C: Aggressive Scan for Edge Cases
     try {
-      const originalMetadata = await sharp(imageBuffer).metadata();
-      const preprocessedBufferC = await sharp(imageBuffer)
-        .resize((originalMetadata.width || 0) * this.RESIZE_FACTOR)
-        .sharpen()
-        .threshold()
-        .toBuffer();
+      const preprocessedBufferC = await this.preprocessImage(imageBuffer, ['sharpen', 'threshold']);
       const [resultC] = await client.textDetection(preprocessedBufferC);
       allBlocks.push(...this.processTextAnnotation(resultC.fullTextAnnotation, 'pass_C_aggressive_scan', this.RESIZE_FACTOR));
     } catch (error) {
-      console.error('❌ [GOOGLE VISION] Pass C failed:', error);
+      this.handleVisionPassError('Pass C', error);
     }
 
     // Keep a copy of raw detected blocks prior to clustering for visualization/debugging
@@ -602,10 +613,6 @@ export class HybridOCRService {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     
-    // Sub-step timing removed for cleaner logs
-
-    // Debug mode logging
-
     // Check debug mode - return mock response if enabled
     if (debug) {
       // Simulate processing delay
@@ -665,28 +672,9 @@ export class HybridOCRService {
         }))
       };
 
-      // Debug logging for hybrid OCR results
-      if (visionResult.boundingBoxes.length > 0) {
-      }
-      
-      // Debug: Print raw JSON from Google Vision before Mathpix processing
-      //   detectedBlocks: detectedBlocks.map(block => ({
-      //     source: block.source,
-      //     text: block.text,
-      //     confidence: block.confidence,
-      //     geometry: block.geometry
-      //   })),
-      //   visionResult: {
-      //     text: visionResult.text,
-      //     boundingBoxes: visionResult.boundingBoxes,
-      //     confidence: visionResult.confidence,
-      //     dimensions: visionResult.dimensions
-      //   }
-      // }, null, 2));
 
       // Get image dimensions
-      const metadata = await sharp(imageBuffer).metadata();
-      visionResult.dimensions = { width: metadata.width || 0, height: metadata.height || 0 };
+      visionResult.dimensions = await this.getImageMetadata(imageBuffer);
 
       // Step 2: Detect math blocks from robust recognition results
       mathBlocks = detectMathBlocks(visionResult);
@@ -702,14 +690,14 @@ export class HybridOCRService {
           const mathpixResult = await InlineMathpixService.processImage(imageBuffer, {}, debug);
           console.log('✅ [OCR PROCESSING] Mathpix fallback completed');
           if (mathpixResult.latex_styled) {
-            const metadata = await sharp(imageBuffer).metadata();
+            const dimensions = await this.getImageMetadata(imageBuffer);
             
             // Create a minimal result structure for Mathpix-only processing
             const visionResult: ProcessedVisionResult = {
               text: mathpixResult.latex_styled || '',
               boundingBoxes: [],
               confidence: mathpixResult.confidence || 0.5,
-              dimensions: { width: metadata.width || 0, height: metadata.height || 0 },
+              dimensions,
               symbols: []
             };
             
@@ -837,13 +825,13 @@ export class HybridOCRService {
     }));
 
     // Get image dimensions
-    const metadata = await sharp(imageBuffer).metadata();
+    const dimensions = await this.getImageMetadata(imageBuffer);
     
     return {
       text: finalText,
       boundingBoxes: finalBoundingBoxes,
       confidence: finalConfidence,
-      dimensions: { width: metadata.width || 0, height: metadata.height || 0 },
+      dimensions,
       symbols: finalSymbols,
       mathBlocks: mathBlocks,
       processingTime,
