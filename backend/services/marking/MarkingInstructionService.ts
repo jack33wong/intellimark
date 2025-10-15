@@ -104,8 +104,17 @@ export class MarkingInstructionService {
       formattedOcrText = ocrText;
     }
 
-    const systemPrompt = getPrompt('markingInstructions.basic.system');
-    const userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
+    let systemPrompt = getPrompt('markingInstructions.basic.system');
+    let userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
+    
+    if (questionDetection?.match?.markingScheme) {
+      systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
+
+      // Add question detection context if available
+      const ms = questionDetection.match.markingScheme.questionMarks as any;
+      const schemeJson = JSON.stringify(ms, null, 2);
+      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', formattedOcrText, schemeJson, questionDetection.match.marks);
+    }
 
     
     // Log prompts and response for debugging

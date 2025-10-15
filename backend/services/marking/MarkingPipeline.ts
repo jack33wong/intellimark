@@ -87,18 +87,7 @@ export class MarkingPipeline {
       if (onProgress) onProgress(data);
     });
 
-    // OCR Processing (to get confidence value)
-    const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-    const processOCR = async () => {
-      const { HybridOCRService } = await import('./hybridOCRService');
-      return HybridOCRService.processImage(imageData, {}, debug);
-    };
-    
-    const ocrResult = await progressTracker.withProgress('processing_ocr', processOCR)();
-    logStep3Complete();
-    
-    // Collect Mathpix calls from OCR
-    totalMathpixCalls += ocrResult.usage?.mathpixCalls || 0;
+    // OCR Processing removed from question mode - not needed for AI response generation
     
     // Question Detection (internal, not shown as a step)
     const questionDetection = await performQuestionDetection(classification.extractedQuestionText);
@@ -148,8 +137,8 @@ export class MarkingPipeline {
       message: aiResponse.response,
       aiResponse: aiResponse.response,
       suggestedFollowUps: suggestedFollowUps,
-      ocrCleanedText: ocrResult.text, // Add OCR cleaned text
-      confidence: ocrResult.confidence || 0,
+      ocrCleanedText: '', // No OCR processing in question mode
+      confidence: 0, // No OCR confidence in question mode
       processingTime: totalProcessingTime,
       progressData: finalProgressData,
       sessionTitle: sessionTitle,
@@ -158,10 +147,10 @@ export class MarkingPipeline {
       // Remove detectedQuestion from session metadata - will be stored in individual messages
       processingStats: {
         processingTimeMs: totalProcessingTime,
-        confidence: ocrResult.confidence || 0,
+        confidence: 0, // No OCR confidence in question mode
         imageSize: imageData.length,
         llmTokens: totalLLMTokens,
-        mathpixCalls: totalMathpixCalls,
+        mathpixCalls: 0, // No Mathpix calls in question mode
         annotations: 0,
         modelUsed: actualModel,
         apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
@@ -531,16 +520,8 @@ export class MarkingPipeline {
       let finalProgressData: any = null;
       
       // Set up for complete flow (question mode + potential marking mode)
-      modeSteps = [
-        'Image Analysis', 
-        'Image Classification', 
-        'Question Detection', 
-        'OCR Processing', 
-        'Marking Instructions', 
-        'Burn Overlay', 
-        'AI Response Generation'
-      ];
-      totalSteps = modeSteps.length;
+      // modeSteps will be set based on the detected mode
+      totalSteps = 0; // Will be set based on mode
       currentStep = 0; // Reset step counter
       
       const progressTracker = setupQuestionModeProgressTracker((data) => {
@@ -575,6 +556,13 @@ export class MarkingPipeline {
       if (isQuestionMode) {
         // Question mode: simplified pipeline
         console.log('📝 [MODE] Question mode detected - using simplified pipeline');
+        modeSteps = [
+          'Image Analysis', 
+          'Image Classification', 
+          'Question Detection', 
+          'AI Response Generation'
+        ];
+        totalSteps = modeSteps.length;
         return this.processQuestionMode({
           imageData,
           model,
@@ -590,6 +578,16 @@ export class MarkingPipeline {
       } else {
         // Marking mode: full processing pipeline
         console.log('📝 [MODE] Marking mode detected - using full pipeline');
+        modeSteps = [
+          'Image Analysis', 
+          'Image Classification', 
+          'Question Detection', 
+          'OCR Processing', 
+          'Marking Instructions', 
+          'Burn Overlay', 
+          'AI Response Generation'
+        ];
+        totalSteps = modeSteps.length;
         return this.processMarkingMode({
           imageData,
           model,
