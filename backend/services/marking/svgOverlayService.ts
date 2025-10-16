@@ -31,7 +31,7 @@ export class SVGOverlayService {
   private static CONFIG: SVGOverlayConfig = {
     fontFamily: "'Lucida Handwriting','Comic Neue', 'Comic Sans MS', cursive, Arial, sans-serif",
     fontSizes: {
-      reasoning: 30,         // Reasoning text size (same as marking codes)
+      reasoning: 22,         // Reasoning text size (same as marking codes)
       tick: 50,              // Tick symbol size
       cross: 50,             // Cross symbol size
       markingSchemeCode: 50,  // Mark codes like M1, A1, etc.
@@ -272,15 +272,15 @@ export class SVGOverlayService {
       
       // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
       if (symbol === '✗' && reasoning && reasoning.trim()) {
-        const reasoningLines = this.breakTextIntoTwoLines(reasoning, 20); // Break at ~20 characters
-        const reasoningX = x + width - 10; // Top right corner with 10px spacing from edge
+        const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
+        const reasoningX = textX + textSize + 30; // Start right after marking code with 10px spacing
         const reasoningSize = this.CONFIG.fontSizes.reasoning; // Use the configured size directly
         const lineHeight = reasoningSize + 2; // Small spacing between lines
         
         reasoningLines.forEach((line, index) => {
-          const reasoningY = y + 15 + (index * lineHeight); // Position at top of block with 15px spacing
+          const reasoningY = textY - 20 + (index * lineHeight); // Position at same Y level as marking code, then below for second line
           svg += `
-            <text x="${reasoningX}" y="${reasoningY}" text-anchor="end" fill="#ff0000" 
+            <text x="${reasoningX}" y="${reasoningY}" text-anchor="start" fill="#ff0000" 
                   font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
         });
       }
