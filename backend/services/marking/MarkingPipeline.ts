@@ -15,7 +15,11 @@ import {
   setupMarkingModeProgressTracker,
   performQuestionDetection,
   logPerformanceSummary,
-  generateSessionTitle
+  generateSessionTitle,
+  simulateApiDelay,
+  getSuggestedFollowUps,
+  setupProgressTrackerWithCallback,
+  logCommonSteps
 } from './MarkingHelpers.js';
 
 import type {
@@ -27,13 +31,6 @@ import type {
 } from '../../types/index.js';
 import type { QuestionDetectionResult } from './questionDetectionService.js';
 
-// Debug mode helper function
-async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
-  if (debug) {
-    const debugMode = getDebugMode();
-    await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
-  }
-}
 
 
 /**
@@ -54,7 +51,8 @@ export class MarkingPipeline {
     stepTimings,
     totalLLMTokens,
     totalMathpixCalls,
-    startTime
+    startTime,
+    logStep
   }: {
     imageData: string;
     model: ModelType;
@@ -66,48 +64,42 @@ export class MarkingPipeline {
     totalLLMTokens: number;
     totalMathpixCalls: number;
     startTime: number;
+    logStep: (stepName: string, modelInfo: string) => () => void;
   }): Promise<MarkHomeworkResponse> {
     let finalProgressData: any = null;
 
-    const logStep = (stepName: string, modelInfo: string) => {
-      const start = Date.now();
-      stepTimings[stepName] = { start };
-      console.log(`🔄 [${stepName}] Starting ${modelInfo}...`);
-      
-      return () => {
-        const duration = Date.now() - start;
-        stepTimings[stepName].duration = duration;
-        console.log(`✅ [${stepName}] Completed in ${(duration / 1000).toFixed(1)}s`);
-      };
-    };
-
     // Setup progress tracking
-    const progressTracker = setupQuestionModeProgressTracker((data) => {
+    const progressTracker = setupProgressTrackerWithCallback('question', (data) => {
       finalProgressData = data;
       if (onProgress) onProgress(data);
     });
 
-    // OCR Processing removed from question mode - not needed for AI response generation
-    
-    // Question Detection (internal, not shown as a step)
+    // Steps 1 & 2 already logged in main run method with proper timing
+
+    // Step 3: Question Detection
+    const logStep3Complete = logStep('Question Detection', 'question-detection');
+    stepTimings['question_detection'] = { start: Date.now() };
     const questionDetection = await performQuestionDetection(classification.extractedQuestionText);
+    stepTimings['question_detection'].duration = Date.now() - stepTimings['question_detection'].start;
+    logStep3Complete();
     
-    // AI Response Generation (visible step)
+    // Step 4: AI Response Generation
     const logStep4Complete = logStep('AI Response Generation', actualModel);
+    stepTimings['generating_response'] = { start: Date.now() };
     const generateResponse = async () => {
       const { AIMarkingService } = await import('./MarkingServiceLocator');
       return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
     };
     
     const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
+    stepTimings['generating_response'].duration = Date.now() - stepTimings['generating_response'].start;
     logStep4Complete();
     
     // Collect LLM tokens from AI response
     totalLLMTokens += aiResponse.usageTokens || 0;
     
     // Generate suggested follow-ups for question mode
-    const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
-    const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
+    const suggestedFollowUps = await getSuggestedFollowUps();
     
     // Finish progress tracking
     progressTracker.finish();
@@ -172,7 +164,8 @@ export class MarkingPipeline {
     stepTimings,
     totalLLMTokens,
     totalMathpixCalls,
-    startTime
+    startTime,
+    logStep
   }: {
     imageData: string;
     model: ModelType;
@@ -184,32 +177,23 @@ export class MarkingPipeline {
     totalLLMTokens: number;
     totalMathpixCalls: number;
     startTime: number;
+    logStep: (stepName: string, modelInfo: string) => () => void;
   }): Promise<MarkHomeworkResponse> {
     let finalProgressData: any = null;
 
-    const logStep = (stepName: string, modelInfo: string) => {
-      const start = Date.now();
-      stepTimings[stepName] = { start };
-      console.log(`🔄 [${stepName}] Starting ${modelInfo}...`);
-      
-      return () => {
-        const duration = Date.now() - start;
-        stepTimings[stepName].duration = duration;
-        console.log(`✅ [${stepName}] Completed in ${(duration / 1000).toFixed(1)}s`);
-      };
-    };
-
     // Setup progress tracking
-    const markingProgressTracker = setupMarkingModeProgressTracker((data) => {
+    const markingProgressTracker = setupProgressTrackerWithCallback('marking', (data) => {
       finalProgressData = data;
       if (onProgress) onProgress(data);
     });
 
-    // Execute marking mode pipeline with auto-progress
-    // Skip steps 1-2 (already completed in question mode)
+    // Steps 1 & 2 already logged in main run method with proper timing
+
     // Step 3: OCR Processing (extract text first)
     const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
+    stepTimings['extracting_text'] = { start: Date.now() };
     const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker, classification);
+    stepTimings['extracting_text'].duration = Date.now() - stepTimings['extracting_text'].start;
     logStep3Complete();
     
     // Collect Mathpix calls from OCR processing
@@ -217,12 +201,15 @@ export class MarkingPipeline {
 
     // Step 4: Question Detection (use extracted text)
     const logStep4Complete = logStep('Question Detection', 'question-detection');
+    stepTimings['detecting_question'] = { start: Date.now() };
     const questionDetection = await markingProgressTracker.withProgress('detecting_question', async () => {
       return performQuestionDetection(classification.extractedQuestionText);
     })();
+    stepTimings['detecting_question'].duration = Date.now() - stepTimings['detecting_question'].start;
     logStep4Complete();
 
     const logStep5Complete = logStep('Marking Instructions', actualModel);
+    stepTimings['generating_feedback'] = { start: Date.now() };
     // Add extracted question text to questionDetection for OCR cleanup
     const questionDetectionWithText = {
       ...questionDetection,
@@ -232,6 +219,7 @@ export class MarkingPipeline {
     const markingInstructions = await this.generateMarkingInstructions(
       imageData, model, processedImage, questionDetectionWithText, debug, markingProgressTracker
     );
+    stepTimings['generating_feedback'].duration = Date.now() - stepTimings['generating_feedback'].start;
     logStep5Complete();
     
     // Collect LLM tokens from marking instructions
@@ -239,6 +227,7 @@ export class MarkingPipeline {
 
     // Create annotations and annotated image
     const logStep6Complete = logStep('Burn Overlay', 'image-processing');
+    stepTimings['creating_annotations'] = { start: Date.now() };
     const createAnnotations = async () => {
       if (!markingInstructions.annotations || markingInstructions.annotations.length === 0) {
         return {
@@ -261,11 +250,26 @@ export class MarkingPipeline {
       );
     };
     const annotationResult = await markingProgressTracker.withProgress('creating_annotations', createAnnotations)();
+    stepTimings['creating_annotations'].duration = Date.now() - stepTimings['creating_annotations'].start;
     logStep6Complete();
 
+    // Step 7: AI Response Generation
+    const logStep7Complete = logStep('AI Response Generation', actualModel);
+    stepTimings['generating_response'] = { start: Date.now() };
+    const generateResponse = async () => {
+      const { AIMarkingService } = await import('./MarkingServiceLocator');
+      return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
+    };
+    
+    const aiResponse = await markingProgressTracker.withProgress('generating_response', generateResponse)();
+    stepTimings['generating_response'].duration = Date.now() - stepTimings['generating_response'].start;
+    logStep7Complete();
+    
+    // Collect LLM tokens from AI response
+    totalLLMTokens += aiResponse.usageTokens || 0;
+
     // Generate suggested follow-ups for marking mode
-    const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
-    const suggestedFollowUps = DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
+    const suggestedFollowUps = await getSuggestedFollowUps();
 
     // Finish progress tracking
     markingProgressTracker.finish();
@@ -314,82 +318,12 @@ export class MarkingPipeline {
   /**
    * Classify image using AI
    */
-  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false): Promise<ImageClassification> {
+  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ImageClassification> {
     const { ClassificationService } = await import('./ClassificationService.js');
-    return ClassificationService.classifyImage(imageData, model, debug);
+    return ClassificationService.classifyImage(imageData, model, debug, fileName);
   }
 
-  /**
-   * Public method to get full hybrid OCR result with proper sorting for testing
-   */
-  public static async getHybridOCRResult(imageData: string, options?: any, debug: boolean = false): Promise<any> {
-    const { OCRService } = await import('../ocr/OCRService.js');
 
-    const hybridResult = await OCRService.processImage(imageData, {
-      enablePreprocessing: true,
-      mathThreshold: 0.10,
-      ...options
-    }, debug);
-
-    // Sort math blocks with intelligent sorting (y-coordinate + x-coordinate for overlapping boxes)
-    const sortedMathBlocks = [...hybridResult.mathBlocks].sort((a, b) => {
-      const aY = a.coordinates.y;
-      const aHeight = a.coordinates.height;
-      const aBottom = aY + aHeight;
-      const bY = b.coordinates.y;
-      const bHeight = b.coordinates.height;
-      const bBottom = bY + bHeight;
-      
-      // Check if boxes are on the same line (overlap vertically by 30% or more)
-      const overlapThreshold = 0.3;
-      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
-      
-      if (verticalOverlap > 0) {
-        // Calculate overlap ratio for both boxes
-        const aOverlapRatio = verticalOverlap / aHeight;
-        const bOverlapRatio = verticalOverlap / bHeight;
-        
-        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
-          // If boxes are on the same line, sort by x-coordinate (left to right)
-          return a.coordinates.x - b.coordinates.x;
-        }
-      }
-      
-      // Otherwise, sort by y-coordinate (top to bottom)
-      return aY - bY;
-    });
-
-    return {
-      ...hybridResult,
-      mathBlocks: sortedMathBlocks
-    };
-  }
-
-  /**
-   * Process image with real OCR (auto-progress version)
-   */
-  private static async processImageWithRealOCR(
-    imageData: string, 
-    debug: boolean = false,
-    progressTracker?: AutoProgressTracker
-  ): Promise<ProcessedImageResult & { mathpixCalls?: number }> {
-    const processImage = async (): Promise<ProcessedImageResult & { mathpixCalls?: number }> => {
-      const hybridResult = await this.getHybridOCRResult(imageData, {}, debug);
-      
-      return {
-        ocrText: hybridResult.text,
-        boundingBoxes: hybridResult.mathBlocks || [],
-        imageDimensions: hybridResult.dimensions,
-        confidence: hybridResult.confidence,
-        mathpixCalls: hybridResult.usage?.mathpixCalls || 0
-      };
-    };
-
-    if (progressTracker) {
-      return progressTracker.withProgress('extracting_text', processImage)();
-    }
-    return processImage();
-  }
 
   /**
    * Process image with OCRPipeline (auto-progress version)
@@ -461,14 +395,16 @@ export class MarkingPipeline {
    */
   public static async run({
     imageData,
-    model = 'gemini-2.5-pro',
+    model = 'auto',
     onProgress,
-    debug = false
+    debug = false,
+    fileName
   }: {
     imageData: string;
     model?: ModelType;
     onProgress?: (data: any) => void;
     debug?: boolean;
+    fileName?: string;
   }): Promise<MarkHomeworkResponse> {
     
     // Timing tracking for performance analysis
@@ -481,39 +417,9 @@ export class MarkingPipeline {
     let totalLLMTokens = 0;
     let totalMathpixCalls = 0;
     
-    const logStep = (stepName: string, modelInfo: string) => {
-      currentStep++;
-      const startTime = Date.now();
-      stepTimings[stepName] = { start: startTime };
-      
-      // Log step completion with duration
-      const logStepComplete = (subSteps?: { [key: string]: number }) => {
-        const timing = stepTimings[stepName];
-        if (timing) {
-          timing.duration = Date.now() - timing.start;
-          timing.subSteps = subSteps;
-          const duration = (timing.duration / 1000).toFixed(1);
-          
-          // Use actual total steps for current mode
-          const actualTotalSteps = modeSteps.length;
-          const progress = `[${currentStep}/${actualTotalSteps}]`;
-          const paddedName = stepName.padEnd(25); // Fixed 25-character width for all step names
-          const durationStr = `[${duration}s]`;
-          const modelStr = `(${modelInfo})`;
-          console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
-          
-          if (subSteps) {
-            Object.entries(subSteps).forEach(([subStep, subDuration]) => {
-              const subDurationStr = (subDuration / 1000).toFixed(1);
-              console.log(`   └─ ${subStep}: [${subDurationStr}s]`);
-            });
-          }
-        }
-      };
-      
-      return logStepComplete;
-    };
     const startTime = Date.now();
+
+    // Simple step logging will be created after mode detection
 
     try {
       // Create auto-progress tracker
@@ -530,28 +436,33 @@ export class MarkingPipeline {
       });
 
       // Step 1: Analyze image (auto-progress)
-      const logStep1Complete = logStep('Image Analysis', 'google-vision');
       const analyzeImage = async () => {
         await simulateApiDelay('Image Analysis', debug);
         return { analyzed: true };
       };
+      stepTimings['analyzing_image'] = { start: Date.now() };
       await progressTracker.withProgress('analyzing_image', analyzeImage)();
-      logStep1Complete();
+      stepTimings['analyzing_image'].duration = Date.now() - stepTimings['analyzing_image'].start;
 
       // Step 2: Classify image (auto-progress)
       const actualModel = model === 'auto' ? getDefaultModel() : model;
-      const logStep2Complete = logStep('Image Classification', actualModel);
       const classifyImage = async () => {
-        return this.classifyImageWithAI(imageData, model, debug);
+        return this.classifyImageWithAI(imageData, model, debug, fileName);
       };
+      stepTimings['classifying_image'] = { start: Date.now() };
       const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
-      logStep2Complete();
+      stepTimings['classifying_image'].duration = Date.now() - stepTimings['classifying_image'].start;
       
       // Collect LLM tokens from classification
       totalLLMTokens += classification.usageTokens || 0;
 
       // Determine if this is question mode or marking mode
       const isQuestionMode = classification.isQuestionOnly === true;
+      
+      // Log the first two steps here where timing is actually tracked
+      const totalStepsForMode = isQuestionMode ? 4 : 7;
+      console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [google-vision]`);
+      console.log(`[2/${totalStepsForMode}] Image Classification      [${(stepTimings['classifying_image'].duration / 1000).toFixed(1)}s] [${actualModel}]`);
       
       if (isQuestionMode) {
         // Question mode: simplified pipeline
@@ -563,6 +474,11 @@ export class MarkingPipeline {
           'AI Response Generation'
         ];
         totalSteps = modeSteps.length;
+        
+        // Create simple step logger with correct total steps
+        const { createStepLogger } = await import('./MarkingHelpers.js');
+        const stepLogger = createStepLogger(totalSteps);
+        
         return this.processQuestionMode({
           imageData,
           model,
@@ -573,7 +489,8 @@ export class MarkingPipeline {
           stepTimings,
           totalLLMTokens,
           totalMathpixCalls,
-          startTime
+          startTime,
+          logStep: stepLogger.logStep
         });
       } else {
         // Marking mode: full processing pipeline
@@ -588,6 +505,11 @@ export class MarkingPipeline {
           'AI Response Generation'
         ];
         totalSteps = modeSteps.length;
+        
+        // Create simple step logger with correct total steps
+        const { createStepLogger } = await import('./MarkingHelpers.js');
+        const stepLogger = createStepLogger(totalSteps);
+        
         return this.processMarkingMode({
           imageData,
           model,
@@ -598,7 +520,8 @@ export class MarkingPipeline {
           stepTimings,
           totalLLMTokens,
           totalMathpixCalls,
-          startTime
+          startTime,
+          logStep: stepLogger.logStep
         });
       }
     } catch (error) {

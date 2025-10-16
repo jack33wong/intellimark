@@ -6,6 +6,36 @@
 import { questionDetectionService } from './questionDetectionService.js';
 import { createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
+import { getDebugMode } from '../../config/aiModels.js';
+
+// Debug mode helper function
+export async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
+  if (debug) {
+    const debugMode = getDebugMode();
+    await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
+  }
+}
+
+// Simple step logging helper
+export function createStepLogger(totalSteps: number) {
+  let currentStep = 0;
+  
+  return {
+    logStep: (stepName: string, modelInfo: string) => {
+      currentStep++;
+      const startTime = Date.now();
+      
+      return () => {
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+        const progress = `[${currentStep}/${totalSteps}]`;
+        const paddedName = stepName.padEnd(25);
+        const durationStr = `[${duration}s]`;
+        const modelStr = `[${modelInfo}]`;
+        console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
+      };
+    }
+  };
+}
 
 // Common function to convert full subject names to short forms
 export function getShortSubjectName(qualification: string): string {
@@ -194,4 +224,27 @@ export function generateSessionTitle(questionDetection: any, extractedQuestionTe
   return questionDetection?.found && questionDetection.match 
     ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
     : generateNonPastPaperTitle(extractedQuestionText, mode);
+}
+
+// Helper function to get suggested follow-ups
+export async function getSuggestedFollowUps() {
+  const { DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS } = await import('../../config/suggestedFollowUpConfig.js');
+  return DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS;
+}
+
+// Helper function to setup progress tracker with common callback
+export function setupProgressTrackerWithCallback(mode: 'question' | 'marking', onProgress?: (data: any) => void) {
+  const setupFunction = mode === 'question' ? setupQuestionModeProgressTracker : setupMarkingModeProgressTracker;
+  return setupFunction((data) => {
+    if (onProgress) onProgress(data);
+  });
+}
+
+// Helper function to log common steps (Image Analysis and Image Classification)
+export function logCommonSteps(logStep: (stepName: string, modelInfo: string) => () => void, actualModel: string) {
+  const logStep1Complete = logStep('Image Analysis', 'google-vision');
+  logStep1Complete();
+
+  const logStep2Complete = logStep('Image Classification', actualModel);
+  logStep2Complete();
 }

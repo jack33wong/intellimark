@@ -101,7 +101,8 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         imageData,
         model,
         debug: false,
-        onProgress: undefined
+        onProgress: undefined,
+        fileName: originalFileName
       }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
@@ -503,7 +504,8 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           imageData,
           model,
           debug,
-          onProgress
+          onProgress,
+          fileName: originalFileName
         }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
@@ -854,7 +856,8 @@ router.post('/process', optionalAuth, async (req: Request, res: Response) => {
       imageData,
       model,
       debug: false,
-      onProgress: undefined
+      onProgress: undefined,
+      fileName: originalFileName
     }) as any; // Type assertion to fix TypeScript errors
 
     // Upload annotated image to Firebase Storage if it's a marking result
