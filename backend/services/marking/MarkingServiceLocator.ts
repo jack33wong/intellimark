@@ -87,7 +87,8 @@ export class MarkingServiceLocator {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       
-      const modelInfo = await this.getModelInfo(model);
+      const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
@@ -138,7 +139,7 @@ export class MarkingServiceLocator {
       ocrText = imageDataOrOcrText;
     } else {
       const { ImageUtils } = await import('../../utils/ImageUtils.js');
-      compressedImage = await ImageUtils.compressImage(imageDataOrOcrText);
+      compressedImage = await ImageUtils.preProcess(imageDataOrOcrText);
     }
     
     const systemPrompt = isQuestionOnly
@@ -182,7 +183,8 @@ export class MarkingServiceLocator {
       }
       
       // This is a Google API error - log with proper context
-      const modelInfo = await this.getModelInfo(model);
+      const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
       
       console.error(`❌ [GOOGLE API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
@@ -214,7 +216,8 @@ export class MarkingServiceLocator {
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
-      const modelInfo = await this.getModelInfo(model);
+      const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
@@ -228,7 +231,8 @@ export class MarkingServiceLocator {
       
       const errorInfo = ErrorHandler.analyzeError(error);
       if (errorInfo.isRateLimit) {
-        const modelInfo = await this.getModelInfo(model);
+        const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
         console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for chat response`);
         console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
@@ -252,7 +256,8 @@ export class MarkingServiceLocator {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
       
-      const modelInfo = await this.getModelInfo(model);
+      const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
@@ -266,7 +271,8 @@ export class MarkingServiceLocator {
       
       const errorInfo = ErrorHandler.analyzeError(error);
       if (errorInfo.isRateLimit) {
-        const modelInfo = await this.getModelInfo(model);
+        const { getModelInfo } = await import('../../config/aiModels.js');
+      const modelInfo = getModelInfo(model);
         console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for text response`);
         console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
@@ -276,10 +282,6 @@ export class MarkingServiceLocator {
       throw error;
     }
   }
-
-
-
-
   private static async makeGeminiChatRequest(
     accessToken: string,
     imageData: string,
@@ -287,7 +289,8 @@ export class MarkingServiceLocator {
     userPrompt: string,
     model: ModelType = 'gemini-2.5-pro'
   ): Promise<Response> {
-    const modelInfo = await this.getModelInfo(model);
+    const { getModelInfo } = await import('../../config/aiModels.js');
+    const modelInfo = getModelInfo(model);
     
     const response = await fetch(modelInfo.config.apiEndpoint, {
       method: 'POST',
@@ -328,11 +331,6 @@ export class MarkingServiceLocator {
 
     return response;
   }
-
-
-
-
-
   private static extractGeminiChatContent(result: any): string {
     // Check if this is an error response first
     if (result.error) {
@@ -373,15 +371,5 @@ export class MarkingServiceLocator {
   }
 
 
-  /**
-   * Helper method to extract model information
-   */
-  private static async getModelInfo(model: ModelType) {
-    const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(model);
-    const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-    const apiVersion = config.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-    return { config, modelName, apiVersion };
-  }
 
 }

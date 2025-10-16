@@ -5,11 +5,11 @@ import sharp from 'sharp';
  */
 export class ImageUtils {
   /**
-   * Enhance image quality by programmatically removing shadows.
+   * Preprocess image quality by programmatically removing shadows, enhancing contrast, and optimizing for AI processing.
    * @param imageData Base64 image data
-   * @returns Enhanced base64 image data
+   * @returns Preprocessed base64 image data
    */
-  static async compressImage(imageData: string): Promise<string> {
+  static async preProcess(imageData: string): Promise<string> {
     try {
       const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
       const imageBuffer = Buffer.from(base64Data, 'base64');

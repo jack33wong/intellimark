@@ -213,3 +213,15 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
       };
   }
 }
+
+/**
+ * Get detailed model information including name, version, and configuration
+ * @param modelType - The type of AI model
+ * @returns Object containing model configuration, name, and API version
+ */
+export function getModelInfo(modelType: ModelType): { config: AIModelConfig; modelName: string; apiVersion: string } {
+  const config = getModelConfig(modelType);
+  const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
+  const apiVersion = config.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+  return { config, modelName, apiVersion };
+}

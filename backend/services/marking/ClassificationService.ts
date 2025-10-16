@@ -31,12 +31,16 @@ export class ClassificationService {
       threshold: "BLOCK_NONE"
     }
   ];
-  static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
-    const { ImageUtils } = await import('../../utils/ImageUtils.js');
-    
-    const compressedImage = await ImageUtils.compressImage(imageData);
+  static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string, skipPreprocessing: boolean = false): Promise<ClassificationResult> {
     const systemPrompt = getPrompt('classification.system');
     const userPrompt = getPrompt('classification.user');
+    
+    // Only preprocess if not already preprocessed
+    let processedImage = imageData;
+    if (!skipPreprocessing) {
+      const { ImageUtils } = await import('../../utils/ImageUtils.js');
+      processedImage = await ImageUtils.preProcess(imageData);
+    }
 
     try {
       // Hardcoded test data: Only trigger for specific filename
@@ -52,7 +56,7 @@ export class ClassificationService {
       
       // Normal Gemini call for all other files
       const validatedModel = validateModel(model);
-      return await this.callGeminiForClassification(compressedImage, systemPrompt, userPrompt, validatedModel);
+      return await this.callGeminiForClassification(processedImage, systemPrompt, userPrompt, validatedModel);
     } catch (error) {
       // Check if this is our validation error (fail fast)
       if (error instanceof Error && error.message.includes('Unsupported model')) {

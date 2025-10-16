@@ -275,9 +275,9 @@ export class MarkingPipeline {
   /**
    * Classify image using AI
    */
-  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ImageClassification> {
+  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false, fileName?: string, skipPreprocessing: boolean = false): Promise<ImageClassification> {
     const { ClassificationService } = await import('./ClassificationService.js');
-    return ClassificationService.classifyImage(imageData, model, debug, fileName);
+    return ClassificationService.classifyImage(imageData, model, debug, fileName, skipPreprocessing);
   }
 
 
@@ -392,19 +392,23 @@ export class MarkingPipeline {
         if (onProgress) onProgress(data);
       });
 
-      // Step 1: Analyze image (auto-progress)
-      const analyzeImage = async () => {
-        await simulateApiDelay('Image Analysis', debug);
-        return { analyzed: true };
+      // Step 1: Preprocess image with Sharp library (shadow removal, enhancement, compression)
+      const preprocessImage = async () => {
+        const { ImageUtils } = await import('../../utils/ImageUtils.js');
+        const preprocessedImageData = await ImageUtils.preProcess(imageData);
+        return { preprocessedImageData };
       };
       stepTimings['analyzing_image'] = { start: Date.now() };
-      await progressTracker.withProgress('analyzing_image', analyzeImage)();
+      const preprocessingResult = await progressTracker.withProgress('analyzing_image', preprocessImage)();
       stepTimings['analyzing_image'].duration = Date.now() - stepTimings['analyzing_image'].start;
+      
+      // Use preprocessed image for subsequent steps
+      const processedImageData = preprocessingResult.preprocessedImageData;
 
-      // Step 2: Classify image (auto-progress)
+      // Step 2: Classify image (auto-progress) - use preprocessed image
       const actualModel = model === 'auto' ? getDefaultModel() : model;
       const classifyImage = async () => {
-        return this.classifyImageWithAI(imageData, model, debug, fileName);
+        return this.classifyImageWithAI(processedImageData, model, debug, fileName, true); // Skip preprocessing since already done
       };
       stepTimings['classifying_image'] = { start: Date.now() };
       const classification = await progressTracker.withProgress('classifying_image', classifyImage)();
@@ -437,7 +441,7 @@ export class MarkingPipeline {
         const stepLogger = createStepLogger(totalSteps);
         
         return this.processQuestionMode({
-          imageData,
+          imageData: processedImageData, // Use preprocessed image
           model,
           classification,
           actualModel,
@@ -468,7 +472,7 @@ export class MarkingPipeline {
         const stepLogger = createStepLogger(totalSteps);
         
         return this.processMarkingMode({
-          imageData,
+          imageData: processedImageData, // Use preprocessed image
           model,
           classification,
           actualModel,
