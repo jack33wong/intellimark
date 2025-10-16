@@ -105,7 +105,7 @@ router.post('/upload', optionalAuth, async (req: Request, res: Response) => {
         fileName: originalFileName
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
+        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 360 seconds')), 360000)
       )
     ]) as any; // Type assertion to fix TypeScript errors
 
@@ -508,7 +508,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
           fileName: originalFileName
         }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 180 seconds')), 180000)
+        setTimeout(() => reject(new Error('MarkingPipeline.run() timeout after 360 seconds')), 360000)
       )
     ]) as any;
 
@@ -1171,7 +1171,7 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
     progressTracker.startStep('generating_response');
 
     // Generate model answer using existing AI service
-    const { AIMarkingService } = await import('../services/marking/MarkingServiceLocator.js');
+    const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
     const { getDefaultModel } = await import('../config/aiModels.js');
     const { getPrompt } = await import('../config/prompts.js');
     
@@ -1183,7 +1183,7 @@ router.post('/model-answer', optionalAuth, async (req: Request, res: Response) =
       message.detectedQuestion.marks // Pass the total marks to the prompt
     );
     
-    const result = await AIMarkingService.generateChatResponse(
+    const result = await MarkingServiceLocator.generateChatResponse(
       userPrompt,
       systemPrompt,
       model

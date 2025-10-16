@@ -19,7 +19,7 @@ import { getPrompt } from '../../config/prompts.js';
 import { validateModel } from '../../config/aiModels.js';
 
 
-export class AIMarkingService {
+export class MarkingServiceLocator {
   /**
    * Classify image as question-only or question+answer
    */
@@ -87,11 +87,8 @@ export class AIMarkingService {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
       
-      // Get dynamic API name based on model
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiUsed = `Google ${modelName} (Service Account)`;
+      const modelInfo = await this.getModelInfo(model);
+      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
         response: response.content,
@@ -185,18 +182,15 @@ export class AIMarkingService {
       }
       
       // This is a Google API error - log with proper context
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      const modelInfo = await this.getModelInfo(model);
       
-      console.error(`❌ [GOOGLE API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [GOOGLE API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
       console.error(`❌ [GOOGLE ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`);
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
-      console.log(ErrorHandler.getLogMessage(error, `chat response model: ${actualModelName}`));
+      console.log(ErrorHandler.getLogMessage(error, `chat response model: ${modelInfo.modelName}`));
       
       // Fail fast - no fallbacks
       throw error;
@@ -214,45 +208,31 @@ export class AIMarkingService {
     model: ModelType = 'auto'
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
-      const accessToken = await this.getGeminiAccessToken();
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const accessToken = await ModelProvider.getGeminiAccessToken();
       const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
       
-      // Get dynamic API name based on model
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiUsed = `Google ${modelName} (Service Account)`;
-      
-      // Extract usage tokens and confidence
-      const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
-      const confidence = 0.85; // Default confidence for AI responses (question mode)
+      const modelInfo = await this.getModelInfo(model);
+      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
         response: content,
         apiUsed: apiUsed,
-        confidence: confidence,
-        usageTokens: usageTokens
+        confidence: 0.85, // Default confidence for AI responses (question mode)
+        usageTokens: (result.usageMetadata?.totalTokenCount as number) || 0
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
       
-      // Check if it's a rate limit error and fail fast
-      const isRateLimitError = error instanceof Error && 
-        (error.message.includes('429') || 
-         error.message.includes('Too Many Requests') ||
-         error.message.includes('rate limit'));
-      
-      if (isRateLimitError) {
-        const { getModelConfig } = await import('../../config/aiModels.js');
-        const modelConfig = getModelConfig(model);
-        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-        console.error(`❌ [QUOTA EXCEEDED] ${modelName} (${apiVersion}) quota exceeded for chat response`);
-        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      const errorInfo = ErrorHandler.analyzeError(error);
+      if (errorInfo.isRateLimit) {
+        const modelInfo = await this.getModelInfo(model);
+        console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for chat response`);
+        console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
-        throw new Error(`API quota exceeded for ${modelName} (${apiVersion}) chat response. Please check your Google Cloud Console for quota limits.`);
+        throw new Error(`API quota exceeded for ${modelInfo.modelName} (${modelInfo.apiVersion}) chat response. Please check your Google Cloud Console for quota limits.`);
       }
       
       throw error;
@@ -269,102 +249,36 @@ export class AIMarkingService {
     model: ModelType = 'auto'
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
-      // Debug logs removed for production
-      
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
       
-      // Get dynamic API name based on model
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiUsed = `Google ${modelName} (Service Account)`;
-      
-      // Extract usage tokens and confidence
-      const usageTokens = result.usageTokens || 0;
-      const confidence = 0.85; // Default confidence for AI responses (marking mode)
+      const modelInfo = await this.getModelInfo(model);
+      const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
       
       return {
         response: result.content,
         apiUsed: apiUsed,
-        confidence: confidence,
-        usageTokens: usageTokens
+        confidence: 0.85, // Default confidence for AI responses (marking mode)
+        usageTokens: result.usageTokens || 0
       };
     } catch (error) {
       console.error('❌ Gemini text response failed:', error);
       
-      // Check if it's a rate limit error and fail fast
-      const isRateLimitError = error instanceof Error && 
-        (error.message.includes('429') || 
-         error.message.includes('Too Many Requests') ||
-         error.message.includes('rate limit'));
-      
-      if (isRateLimitError) {
-        const { getModelConfig } = await import('../../config/aiModels.js');
-        const modelConfig = getModelConfig(model);
-        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-        console.error(`❌ [QUOTA EXCEEDED] ${modelName} (${apiVersion}) quota exceeded for text response`);
-        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      const errorInfo = ErrorHandler.analyzeError(error);
+      if (errorInfo.isRateLimit) {
+        const modelInfo = await this.getModelInfo(model);
+        console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for text response`);
+        console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
-        throw new Error(`API quota exceeded for ${modelName} (${apiVersion}) text response. Please check your Google Cloud Console for quota limits.`);
+        throw new Error(`API quota exceeded for ${modelInfo.modelName} (${modelInfo.apiVersion}) text response. Please check your Google Cloud Console for quota limits.`);
       }
       
       throw error;
     }
   }
 
-  private static async callGeminiImageGenForChatResponse(
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    modelType: string = 'auto'
-  ): Promise<{ response: string; apiUsed: string }> {
-    try {
-      const accessToken = await this.getGeminiAccessToken();
-      const response = await this.makeGeminiImageGenChatRequest(accessToken, imageData, systemPrompt, userPrompt, modelType);
-      const result = await response.json() as any;
-      const content = this.extractGeminiChatContent(result);
-      
-      // Get dynamic API name based on model
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(modelType as ModelType);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
-      const apiUsed = `Google ${modelName} (Service Account)`;
-      
-      return {
-        response: content,
-        apiUsed
-      };
-    } catch (error) {
-      console.error('❌ Gemini Image Gen chat response failed:', error);
-      throw error;
-    }
-  }
 
 
-  private static async getGeminiAccessToken(): Promise<string> {
-    const { GoogleAuth } = await import('google-auth-library');
-    
-    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
-    
-    const auth = new GoogleAuth({
-      keyFile,
-      scopes: [
-        'https://www.googleapis.com/auth/cloud-platform',
-        'https://www.googleapis.com/auth/generative-language.retriever'
-      ]
-    });
-    
-    const client = await auth.getClient();
-    const accessToken = await client.getAccessToken();
-    
-    if (!accessToken.token) {
-      throw new Error('Failed to get access token from service account');
-    }
-    
-    return accessToken.token;
-  }
 
   private static async makeGeminiChatRequest(
     accessToken: string,
@@ -373,12 +287,9 @@ export class AIMarkingService {
     userPrompt: string,
     model: ModelType = 'gemini-2.5-pro'
   ): Promise<Response> {
-    // Use centralized model configuration
-        const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(model);
-    const endpoint = config.apiEndpoint;
+    const modelInfo = await this.getModelInfo(model);
     
-    const response = await fetch(endpoint, {
+    const response = await fetch(modelInfo.config.apiEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -399,82 +310,27 @@ export class AIMarkingService {
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 8000, // Use centralized config
+          maxOutputTokens: modelInfo.config.maxTokens, // Use centralized config
         }
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
       
-      console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
       console.error(`❌ [ERROR DETAILS] ${errorText}`);
       
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
-    }
-
-    return response;
-  }
-
-  private static async makeGeminiImageGenChatRequest(
-    accessToken: string,
-    imageData: string,
-    systemPrompt: string,
-    userPrompt: string,
-    modelType: string = 'auto'
-  ): Promise<Response> {
-    // Use centralized model configuration
-        const { getModelConfig } = await import('../../config/aiModels.js');
-    const config = getModelConfig(modelType as any);
-    const endpoint = config.apiEndpoint;
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: imageData.split(',')[1]
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8000, // Use centralized config
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini Image Gen API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${modelInfo.modelName} (${modelInfo.apiVersion}) - ${errorText}`);
     }
 
     return response;
   }
 
 
-  private static async exponentialBackoff(maxRetries: number): Promise<void> {
-    for (let i = 0; i < maxRetries; i++) {
-      const delay = Math.pow(2, i) * 1000; // 1s, 2s, 4s, 8s...
-      console.log(`⏳ [BACKOFF] Waiting ${delay}ms before retry ${i + 1}/${maxRetries}...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
+
 
 
   private static extractGeminiChatContent(result: any): string {
@@ -517,6 +373,15 @@ export class AIMarkingService {
   }
 
 
-  // Text-only response helpers removed; use ModelProvider instead
+  /**
+   * Helper method to extract model information
+   */
+  private static async getModelInfo(model: ModelType) {
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig(model);
+    const modelName = config.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+    const apiVersion = config.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+    return { config, modelName, apiVersion };
+  }
 
 }

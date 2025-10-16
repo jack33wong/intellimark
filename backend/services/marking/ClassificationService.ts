@@ -34,10 +34,7 @@ export class ClassificationService {
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
     const { ImageUtils } = await import('../../utils/ImageUtils.js');
     
-    console.log('🔍 [CLASSIFICATION] Enhancing image quality before sending to Gemini...');
     const compressedImage = await ImageUtils.compressImage(imageData);
-    console.log('✅ [CLASSIFICATION] Image enhancement completed');
-
     const systemPrompt = getPrompt('classification.system');
     const userPrompt = getPrompt('classification.user');
 
@@ -149,9 +146,6 @@ export class ClassificationService {
       safetySettings: this.SAFETY_SETTINGS
     };
     
-    // Debug logging to show safety settings being sent
-    console.log('🔍 [CLASSIFICATION DEBUG] Safety settings being sent:');
-    console.log(JSON.stringify(requestBody.safetySettings, null, 2));
     
     const response = await fetch(endpoint, {
       method: 'POST',

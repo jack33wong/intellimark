@@ -3,7 +3,7 @@ import type { Annotation } from '../types/index.js';
 /**
  * AnnotationMapper
  * Thin wrapper that will host bbox alignment logic.
- * Initially, delegates to AIMarkingService.calculateAnnotationCoordinatesProgrammatically
+ * Initially, delegates to MarkingServiceLocator.calculateAnnotationCoordinatesProgrammatically
  * to avoid any behavior change.
  */
 export class AnnotationMapper {

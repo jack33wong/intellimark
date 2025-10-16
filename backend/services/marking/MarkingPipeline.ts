@@ -88,8 +88,8 @@ export class MarkingPipeline {
     const logStep4Complete = logStep('AI Response Generation', actualModel);
     stepTimings['generating_response'] = { start: Date.now() };
     const generateResponse = async () => {
-      const { AIMarkingService } = await import('./MarkingServiceLocator');
-      return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
+      const { MarkingServiceLocator } = await import('./MarkingServiceLocator');
+      return MarkingServiceLocator.generateChatResponse(imageData, '', model, true, debug);
     };
     
     const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
@@ -232,8 +232,8 @@ export class MarkingPipeline {
     const logStep7Complete = logStep('AI Response Generation', actualModel);
     stepTimings['generating_response'] = { start: Date.now() };
     const generateResponse = async () => {
-      const { AIMarkingService } = await import('./MarkingServiceLocator');
-      return AIMarkingService.generateChatResponse(imageData, '', model, true, debug);
+      const { MarkingServiceLocator } = await import('./MarkingServiceLocator');
+      return MarkingServiceLocator.generateChatResponse(imageData, '', model, true, debug);
     };
     
     const aiResponse = await markingProgressTracker.withProgress('generating_response', generateResponse)();

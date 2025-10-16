@@ -6,7 +6,7 @@
 import express from 'express';
 import { FirestoreService } from '../services/firestoreService.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
-import { AIMarkingService } from '../services/marking/MarkingServiceLocator.js';
+import { MarkingServiceLocator } from '../services/marking/MarkingServiceLocator.js';
 import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';
@@ -106,7 +106,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
-        const aiResult = await AIMarkingService.generateChatResponse(imageData, message, resolvedModel as any, true);
+        const aiResult = await MarkingServiceLocator.generateChatResponse(imageData, message, resolvedModel as any, true);
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
@@ -157,7 +157,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         // Simulate processing time for "Generating response..." step
         await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5 seconds
 
-        contextualResult = await AIMarkingService.generateContextualResponse(
+        contextualResult = await MarkingServiceLocator.generateContextualResponse(
           message,  // user's message text
           chatHistory,  // chat history for context
           resolvedModel
