@@ -275,9 +275,9 @@ export class MarkingPipeline {
   /**
    * Classify image using AI
    */
-  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false, fileName?: string, skipPreprocessing: boolean = false): Promise<ImageClassification> {
+  private static async classifyImageWithAI(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ImageClassification> {
     const { ClassificationService } = await import('./ClassificationService.js');
-    return ClassificationService.classifyImage(imageData, model, debug, fileName, skipPreprocessing);
+    return ClassificationService.classifyImage(imageData, model, debug, fileName);
   }
 
 
@@ -408,7 +408,7 @@ export class MarkingPipeline {
       // Step 2: Classify image (auto-progress) - use preprocessed image
       const actualModel = model === 'auto' ? getDefaultModel() : model;
       const classifyImage = async () => {
-        return this.classifyImageWithAI(processedImageData, model, debug, fileName, true); // Skip preprocessing since already done
+        return this.classifyImageWithAI(processedImageData, model, debug, fileName);
       };
       stepTimings['classifying_image'] = { start: Date.now() };
       const classification = await progressTracker.withProgress('classifying_image', classifyImage)();

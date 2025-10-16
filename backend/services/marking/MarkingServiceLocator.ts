@@ -27,8 +27,12 @@ export class MarkingServiceLocator {
     imageData: string, 
     model: ModelType
   ): Promise<ImageClassification> {
-      const { ClassificationService } = await import('./ClassificationService');
-    return ClassificationService.classifyImage(imageData, model);
+    // Preprocess image before classification
+    const { ImageUtils } = await import('../../utils/ImageUtils.js');
+    const preprocessedImage = await ImageUtils.preProcess(imageData);
+    
+    const { ClassificationService } = await import('./ClassificationService');
+    return ClassificationService.classifyImage(preprocessedImage, model);
   }
 
 

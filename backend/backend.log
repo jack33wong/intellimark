@@ -13,7 +13,7 @@
       "content": {
         "parts": [
           {
-            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n\\n3 20 47 84\\n\\nWork out an expression for the nth term of the sequence.\"\n}"
+            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
           }
         ],
         "role": "model"
@@ -24,8 +24,8 @@
   ],
   "usageMetadata": {
     "promptTokenCount": 571,
-    "candidatesTokenCount": 86,
-    "totalTokenCount": 991,
+    "candidatesTokenCount": 82,
+    "totalTokenCount": 967,
     "promptTokensDetails": [
       {
         "modality": "TEXT",
@@ -36,98 +36,11 @@
         "tokenCount": 258
       }
     ],
-    "thoughtsTokenCount": 334
+    "thoughtsTokenCount": 314
   },
   "modelVersion": "gemini-2.5-flash",
-  "responseId": "1eTwaNb4OsL9vdIPyILa2QY"
+  "responseId": "KPjwaLj3OZSokdUP8J3xyQY"
 }
 [1/7] Image Analysis            [0.3s] [google-vision]
-[2/7] Image Classification      [4.5s] [gemini-2.5-flash]
+[2/7] Image Classification      [4.4s] [gemini-2.5-flash]
 📝 [MODE] Marking mode detected - using full pipeline
-[1/7] OCR Processing            [10.4s] [google-vision + mathpix]
-[2/7] Question Detection        [0.2s] [question-detection]
-🔍 [MARKING INSTRUCTION] User Prompt:
-Here is the OCR TEXT:
-
-      Question: Here are the first four terms of a quadratic sequence.
-
-3 20 47 84
-
-Work out an expression for the nth term of the sequence.
-
-Student's Work:
-1. [step_1] Diff = 17, 27, 37
-2. [step_2] 2 Diff = 10
-3. [step_3] Construct = -2, 0
-4. [step_4] Diff = +2
-5. [step_5] b = 2
-6. [step_6] c = -2
-7. [step_7] 5n^2 + 2n - 2
-      
-      MARKING SCHEME CONTEXT:
-      - **[M1]** Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.
-- **[M1dep]** Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.
-- **[M1dep]** Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.
-- **[A1]** `$5n^2 + 2n - 4$`
-**TOTAL MARKS:** 4
-🔍 [MARKING INSTRUCTION] AI Response:
-{
-  "annotations": [
-    {
-      "textMatch": "Diff = 17, 27, 37",
-      "step_id": "step_1",
-      "action": "tick",
-      "text": "",
-      "reasoning": ""
-    },
-    {
-      "textMatch": "2 Diff = 10",
-      "step_id": "step_2",
-      "action": "tick",
-      "text": "M1",
-      "reasoning": ""
-    },
-    {
-      "textMatch": "Construct = -2, 0",
-      "step_id": "step_3",
-      "action": "tick",
-      "text": "M1dep",
-      "reasoning": ""
-    },
-    {
-      "textMatch": "Diff = +2",
-      "step_id": "step_4",
-      "action": "tick",
-      "text": "",
-      "reasoning": ""
-    },
-    {
-      "textMatch": "b = 2",
-      "step_id": "step_5",
-      "action": "tick",
-      "text": "",
-      "reasoning": ""
-    },
-    {
-      "textMatch": "c = -2",
-      "step_id": "step_6",
-      "action": "cross",
-      "text": "M0",
-      "reasoning": "Incorrect value for c; should be -4 based on the linear sequence 2n-4."
-    },
-    {
-      "textMatch": "5n^2 + 2n - 2",
-      "step_id": "step_7",
-      "action": "cross",
-      "text": "A0",
-      "reasoning": "Final expression is incorrect due to an error in the constant term c."
-    }
-  ],
-  "studentScore": {
-    "totalMarks": 4,
-    "awardedMarks": 2,
-    "scoreText": "2/4"
-  }
-}
-[3/7] Marking Instructions      [16.7s] [gemini-2.5-flash]
-[4/7] Burn Overlay              [0.3s] [image-processing]
