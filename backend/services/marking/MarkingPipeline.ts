@@ -19,7 +19,8 @@ import {
   simulateApiDelay,
   getSuggestedFollowUps,
   setupProgressTrackerWithCallback,
-  logCommonSteps
+  logCommonSteps,
+  buildMarkingResponse
 } from './MarkingHelpers.js';
 
 import type {
@@ -109,46 +110,20 @@ export class MarkingPipeline {
     // Performance Summary
     logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'Question');
     
-    // Generate session title based on question detection result
-    const sessionTitle = generateSessionTitle(questionDetection, classification.extractedQuestionText || '', 'Question');
-    
-    const isPastPaper = questionDetection?.found || false;
-    
-    // Add marking scheme and question text to questionDetection (same as marking mode)
-    if (questionDetection) {
-      questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
-      questionDetection.questionText = classification.extractedQuestionText || '';
-    }
-
-    return {
-      success: true,
-      isQuestionOnly: true,
-      isPastPaper: isPastPaper, // Set isPastPaper based on question detection
+    // Build and return response using helper function
+    return buildMarkingResponse({
       mode: 'Question',
-      extractedText: 'Question detected - AI response generated',
-      message: aiResponse.response,
-      aiResponse: aiResponse.response,
-      suggestedFollowUps: suggestedFollowUps,
-      ocrCleanedText: '', // No OCR processing in question mode
-      confidence: 0, // No OCR confidence in question mode
-      processingTime: totalProcessingTime,
-      progressData: finalProgressData,
-      sessionTitle: sessionTitle,
-      classification: classification,
-      questionDetection: questionDetection,
-      // Remove detectedQuestion from session metadata - will be stored in individual messages
-      processingStats: {
-        processingTimeMs: totalProcessingTime,
-        confidence: 0, // No OCR confidence in question mode
-        imageSize: imageData.length,
-        llmTokens: totalLLMTokens,
-        mathpixCalls: 0, // No Mathpix calls in question mode
-        annotations: 0,
-        modelUsed: actualModel,
-        apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-      },
-      apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-    } as any;
+      imageData,
+      classification,
+      questionDetection,
+      actualModel,
+      totalProcessingTime,
+      totalLLMTokens,
+      totalMathpixCalls,
+      finalProgressData,
+      suggestedFollowUps,
+      aiResponse
+    });
   }
 
   /**
@@ -279,40 +254,22 @@ export class MarkingPipeline {
     // Performance Summary
     logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'Marking');
 
-    const isPastPaper = questionDetection?.found || false;
-    
-    return {
-      success: true,
-      isQuestionOnly: false,
-      isPastPaper: isPastPaper, // Set isPastPaper based on question detection
+    // Build and return response using helper function
+    return buildMarkingResponse({
       mode: 'Marking',
-      extractedText: processedImage.ocrText,
-      mathBlocks: processedImage.boundingBoxes,
-      markingInstructions: markingInstructions,
-      annotatedImage: annotationResult.annotatedImage,
-      message: 'Marking completed - see suggested follow-ups below',
-      suggestedFollowUps: suggestedFollowUps,
-      ocrCleanedText: processedImage.ocrText, // Add OCR cleaned text
-      confidence: processedImage.confidence || 0,
-      processingTime: totalProcessingTime,
-      progressData: finalProgressData,
-      sessionTitle: generateSessionTitle(questionDetection, processedImage.ocrText, 'Marking'),
-      classification: classification,
-      questionDetection: questionDetection,
-      studentScore: markingInstructions.studentScore, // Add student score to response
-      // Remove detectedQuestion from session metadata - will be stored in individual messages
-      processingStats: {
-        processingTimeMs: totalProcessingTime,
-        confidence: processedImage.confidence || 0,
-        imageSize: imageData.length,
-        llmTokens: totalLLMTokens,
-        mathpixCalls: totalMathpixCalls,
-        annotations: processedImage.boundingBoxes?.length || 0,
-        modelUsed: actualModel,
-        apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-      },
-      apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
-    } as any;
+      imageData,
+      classification,
+      questionDetection,
+      actualModel,
+      totalProcessingTime,
+      totalLLMTokens,
+      totalMathpixCalls,
+      finalProgressData,
+      suggestedFollowUps,
+      processedImage,
+      markingInstructions,
+      annotationResult
+    });
   }
 
   /**

@@ -248,3 +248,111 @@ export function logCommonSteps(logStep: (stepName: string, modelInfo: string) =>
   const logStep2Complete = logStep('Image Classification', actualModel);
   logStep2Complete();
 }
+
+// Helper function to build response object for both question and marking modes
+export function buildMarkingResponse({
+  mode,
+  imageData,
+  classification,
+  questionDetection,
+  actualModel,
+  totalProcessingTime,
+  totalLLMTokens,
+  totalMathpixCalls,
+  finalProgressData,
+  suggestedFollowUps,
+  // Question mode specific
+  aiResponse,
+  // Marking mode specific
+  processedImage,
+  markingInstructions,
+  annotationResult
+}: {
+  mode: 'Question' | 'Marking';
+  imageData: string;
+  classification: any;
+  questionDetection: any;
+  actualModel: string;
+  totalProcessingTime: number;
+  totalLLMTokens: number;
+  totalMathpixCalls: number;
+  finalProgressData: any;
+  suggestedFollowUps: any;
+  // Question mode specific
+  aiResponse?: any;
+  // Marking mode specific
+  processedImage?: any;
+  markingInstructions?: any;
+  annotationResult?: any;
+}): any {
+  const isPastPaper = questionDetection?.found || false;
+  const isQuestionMode = mode === 'Question';
+  
+  // Add marking scheme and question text to questionDetection
+  if (questionDetection) {
+    questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
+    questionDetection.questionText = classification.extractedQuestionText || '';
+  }
+
+  // Build base response object
+  const baseResponse = {
+    success: true,
+    isQuestionOnly: isQuestionMode,
+    isPastPaper: isPastPaper,
+    mode: mode,
+    processingTime: totalProcessingTime,
+    progressData: finalProgressData,
+    sessionTitle: generateSessionTitle(
+      questionDetection, 
+      isQuestionMode ? classification.extractedQuestionText || '' : processedImage?.ocrText || '', 
+      mode
+    ),
+    classification: classification,
+    questionDetection: questionDetection,
+    suggestedFollowUps: suggestedFollowUps,
+    processingStats: {
+      processingTimeMs: totalProcessingTime,
+      imageSize: imageData.length,
+      llmTokens: totalLLMTokens,
+      modelUsed: actualModel,
+      apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
+    },
+    apiUsed: `https://generativelanguage.googleapis.com/v1beta/models/${actualModel}:generateContent`
+  };
+
+  // Add mode-specific fields
+  if (isQuestionMode) {
+    return {
+      ...baseResponse,
+      extractedText: 'Question detected - AI response generated',
+      message: aiResponse?.response || '',
+      aiResponse: aiResponse?.response || '',
+      ocrCleanedText: '', // No OCR processing in question mode
+      confidence: 0, // No OCR confidence in question mode
+      processingStats: {
+        ...baseResponse.processingStats,
+        confidence: 0, // No OCR confidence in question mode
+        mathpixCalls: 0, // No Mathpix calls in question mode
+        annotations: 0
+      }
+    };
+  } else {
+    return {
+      ...baseResponse,
+      extractedText: processedImage?.ocrText || '',
+      mathBlocks: processedImage?.boundingBoxes || [],
+      markingInstructions: markingInstructions,
+      annotatedImage: annotationResult?.annotatedImage || '',
+      message: 'Marking completed - see suggested follow-ups below',
+      ocrCleanedText: processedImage?.ocrText || '',
+      confidence: processedImage?.confidence || 0,
+      studentScore: markingInstructions?.studentScore,
+      processingStats: {
+        ...baseResponse.processingStats,
+        confidence: processedImage?.confidence || 0,
+        mathpixCalls: totalMathpixCalls,
+        annotations: processedImage?.boundingBoxes?.length || 0
+      }
+    };
+  }
+}

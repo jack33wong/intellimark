@@ -278,7 +278,7 @@ export class SVGOverlayService {
         const lineHeight = reasoningSize + 2; // Small spacing between lines
         
         reasoningLines.forEach((line, index) => {
-          const reasoningY = textY - 20 + (index * lineHeight); // Position at same Y level as marking code, then below for second line
+          const reasoningY = textY - 22 + (index * lineHeight); // Position at same Y level as marking code, then below for second line
           svg += `
             <text x="${reasoningX}" y="${reasoningY}" text-anchor="start" fill="#ff0000" 
                   font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
