@@ -189,9 +189,7 @@ export class ClassificationService {
   }
 
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
-    // Debug logging to see what we're getting
-    console.log('🔍 [CLASSIFICATION DEBUG] Raw cleanContent:', cleanContent.substring(0, 200) + '...');
-    console.log('🔍 [CLASSIFICATION DEBUG] Full Gemini result:', JSON.stringify(result, null, 2));
+    // Debug logging will be moved to after step completion
     
     let parsed;
     try {

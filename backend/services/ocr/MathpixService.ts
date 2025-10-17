@@ -1,17 +1,26 @@
 /**
  * Mathpix Service
- * Handles Mathpix API operations for mathematical expression recognition
+ * Handles Mathpix API operations for mathematical expression recognition using v3/text endpoint.
  */
 
 import { getDebugMode } from '../../config/aiModels.js';
 
 export class MathpixService {
+  // Revert to the v3/text endpoint
   private static readonly API_URL = 'https://api.mathpix.com/v3/text';
+  
+  // Define default options structure for v3/text.
+  // We use top-level flags as shown in the primary documentation examples.
   private static readonly DEFAULT_OPTIONS: any = {
-    formats: ['latex_styled'],
-    include_latex: true,
-    include_mathml: false,
-    include_asciimath: false
+    formats: ['latex_styled', 'text'],
+    include_line_data: false, 
+    is_handwritten: false,
+    disable_array_detection: false,
+    data_options: {
+        include_latex: true,
+        include_mathml: false,
+        include_asciimath: false
+    }
   };
 
   static isAvailable(): boolean {
@@ -36,22 +45,35 @@ export class MathpixService {
     };
   }
 
+  /**
+   * Process image using the v3/text endpoint (JSON payload).
+   */
   static async processImage(imageBuffer: Buffer, options: any = {}, debug: boolean = false): Promise<any> {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
+    // Robustly merge options for v3/text.
+    const opts = { 
+        // Merge top-level defaults
+        ...this.DEFAULT_OPTIONS, 
+        // Merge top-level overrides from caller (e.g., options.is_handwritten = true)
+        ...options,
+        // Merge data_options specifically
+        data_options: {
+            ...this.DEFAULT_OPTIONS.data_options,
+            ...(options.data_options || {})
+        }
+    };
     
     if (debug) {
       const debugMode = getDebugMode();
       await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
       return {
         latex_styled: 'Debug mode: Mock LaTeX expression',
-        confidence: 0.95
+        confidence: 0.95,
+        line_data: [] // Mock line data
       };
     }
     
     if (!this.isAvailable()) {
-      return {
-        error: 'Mathpix service not available'
-      };
+      return { error: 'Mathpix service not available' };
     }
 
     const appId = process.env.MATHPIX_APP_ID!;
@@ -65,21 +87,28 @@ export class MathpixService {
     };
 
     const body = {
-      src: `data:image/png;base64,${imageBase64}`,
-      formats: opts.formats,
-      include_latex: opts.include_latex,
-      include_mathml: opts.include_mathml,
-      include_asciimath: opts.include_asciimath
+      // Assuming JPEG format standardized by ImageUtils
+      src: `data:image/jpeg;base64,${imageBase64}`,
+      ...opts
     };
 
     try {
+      // DIAGNOSTIC LOGGING
+      console.log('🔍 [MATHPIX DEBUG] Sending request to v3/text. include_line_data:', opts.include_line_data, 'is_handwritten:', opts.is_handwritten, 'Disable Arrays:', opts.disable_array_detection);
+      
       const axios = await import('axios');
+      // The v3/text POST processes synchronously and returns the full result.
       const response = await axios.default.post(this.API_URL, body, { headers });
       return response.data;
+
     } catch (error: any) {
-      console.error(`❌ [MATHPIX API ERROR] ${error.response?.data || error.message}`);
+      console.error(`❌ [MATHPIX API ERROR] Status: ${error.response?.status}`);
+      const errorDetails = error.response?.data || error.message;
+      console.error(`❌ [MATHPIX API ERROR Details]`, errorDetails);
+      
+      const errorMessage = typeof errorDetails === 'object' ? (errorDetails.error || error.message) : errorDetails;
       return {
-        error: error.response?.data?.error || error.message || 'Unknown Mathpix API error'
+        error: errorMessage || 'Unknown Mathpix API error'
       };
     }
   }

@@ -27,12 +27,8 @@ export class MarkingServiceLocator {
     imageData: string, 
     model: ModelType
   ): Promise<ImageClassification> {
-    // Preprocess image before classification
-    const { ImageUtils } = await import('../../utils/ImageUtils.js');
-    const preprocessedImage = await ImageUtils.preProcess(imageData);
-    
     const { ClassificationService } = await import('./ClassificationService');
-    return ClassificationService.classifyImage(preprocessedImage, model);
+    return ClassificationService.classifyImage(imageData, model);
   }
 
 
@@ -142,8 +138,7 @@ export class MarkingServiceLocator {
     if (useOcrText) {
       ocrText = imageDataOrOcrText;
     } else {
-      const { ImageUtils } = await import('../../utils/ImageUtils.js');
-      compressedImage = await ImageUtils.preProcess(imageDataOrOcrText);
+      compressedImage = imageDataOrOcrText;
     }
     
     const systemPrompt = isQuestionOnly

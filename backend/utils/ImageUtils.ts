@@ -4,58 +4,81 @@ import sharp from 'sharp';
  * ImageUtils - Enhanced image processing for better AI classification
  */
 export class ImageUtils {
+
   /**
-   * Preprocess image quality by programmatically removing shadows, enhancing contrast, and optimizing for AI processing.
-   * @param imageData Base64 image data
-   * @returns Preprocessed base64 image data
+   * Normalizes the image orientation based on EXIF data and optimizes encoding.
+   * (Implementation remains the same as previous successful turns)
    */
-  static async preProcess(imageData: string): Promise<string> {
+  static async normalizeOrientation(imageData: string): Promise<string> {
     try {
+      const startTime = Date.now();
       const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
-      // STEP 1: Create a more precise and less intense shadow mask.
-      const shadowMask = await sharp(imageBuffer)
-        .greyscale()
-        .negate()
-        // Tweak 1: Reduce the blur for a tighter, more accurate mask.
-        .blur(20) 
-        // Tweak 2: Use a gentler linear adjustment to avoid over-brightening.
-        .linear(1.2, -20) 
+      const normalizedBuffer = await sharp(imageBuffer)
+        .rotate()
+        .jpeg({ quality: 95, progressive: true })
         .toBuffer();
 
-      // STEP 2: Composite the mask onto the original image.
-      const shadowRemovedBuffer = await sharp(imageBuffer)
-        .composite([{
-          input: shadowMask,
-          blend: 'screen'
-        }])
-        .toBuffer();
-        
-      // STEP 3: Final adjustments for clarity and contrast.
-      const finalBuffer = await sharp(shadowRemovedBuffer)
-        // Tweak 3: Add normalize to restore natural contrast across the whole image.
-        .normalize() 
+      const normalizedBase64 = normalizedBuffer.toString('base64');
+      const normalizedDataUrl = `data:image/jpeg;base64,${normalizedBase64}`;
+
+      console.log(`✅ [IMAGE UTILS] Orientation normalized and optimized in ${(Date.now() - startTime) / 1000}s`);
+      return normalizedDataUrl;
+
+    } catch (error) {
+      console.error('❌ [IMAGE UTILS] Error normalizing orientation, returning original:', error);
+      return imageData;
+    }
+  }
+
+  /**
+   * Preprocess image quality using techniques optimized for handwriting recognition.
+   * Aims to remove shadows and normalize background without making handwriting look like print.
+   * Assumes input image orientation is already normalized.
+   * @param imageData Base64 image data (Normalized orientation, Color JPEG)
+   * @returns Preprocessed base64 image data (Color JPEG)
+   */
+  static async preProcess(imageData: string): Promise<string> {
+    try {
+      const startTime = Date.now();
+      const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      // Strategy: Gentle background normalization and contrast enhancement.
+      // We avoid CLAHE and aggressive Grayscaling which caused Mathpix misclassification.
+
+      // 1. Normalize: Stretches the histogram to use the full dynamic range.
+      // 2. Gamma Correction: Adjust mid-tones (values > 1 lighten mid-tones), helpful for shadows.
+      // 3. Modulate: Slightly increase brightness and saturation.
+      
+      const processedBuffer = await sharp(imageBuffer)
+        .normalize()
+        .gamma(1.1) // Lighten mid-tones slightly (e.g., 1.1 to 1.2)
         .modulate({
-          brightness: 1.0,
-          saturation: 1.0,
-          hue: 0
+          brightness: 1.05, // Slight brightness boost
+          saturation: 1.1   // Slight saturation boost (preserves ink color characteristics)
         })
+        .toBuffer();
+
+      // 4. Final optimization
+      const finalBuffer = await sharp(processedBuffer)
+        // Light sharpening
         .sharpen()
-        .jpeg({ quality: 90, progressive: true })
+        .jpeg({ quality: 85, progressive: true })
         .toBuffer();
 
       const enhancedBase64 = finalBuffer.toString('base64');
       const enhancedDataUrl = `data:image/jpeg;base64,${enhancedBase64}`;
       
+      // Updated logging message to reflect the new strategy
+      console.log(`✅ [IMAGE UTILS] Pre-processing completed (Handwriting Optimized: Normalize, Gamma, Modulate) in ${(Date.now() - startTime) / 1000}s`);
       return enhancedDataUrl;
       
     } catch (error) {
-      console.error('❌ [IMAGE UTILS] Error enhancing image:', error);
+      console.error('❌ [IMAGE UTILS] Error enhancing image, returning original:', error);
+      // Fallback to original image if processing fails
       return imageData;
     }
   }
-
 }
-
-

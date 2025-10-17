@@ -130,6 +130,7 @@ export class MarkingPipeline {
    * Process marking mode pipeline
    */
   private static async processMarkingMode({
+    originalImageData,
     imageData,
     model,
     classification,
@@ -142,6 +143,7 @@ export class MarkingPipeline {
     startTime,
     logStep
   }: {
+    originalImageData: string;
     imageData: string;
     model: ModelType;
     classification: ImageClassification;
@@ -206,8 +208,8 @@ export class MarkingPipeline {
     const createAnnotations = async () => {
       if (!markingInstructions.annotations || markingInstructions.annotations.length === 0) {
         return {
-          originalImage: imageData,
-          annotatedImage: imageData,
+          originalImage: originalImageData,
+          annotatedImage: originalImageData,
           annotations: [],
           svgOverlay: ''
         };
@@ -216,9 +218,10 @@ export class MarkingPipeline {
       // Use the AI-generated annotations directly - they already have correct actions and text
       const annotations = markingInstructions.annotations;
 
-      // Generate the actual annotated image
+      // CRUCIAL CHANGE: Generate the annotated image using the ORIGINAL image data.
+      // Coordinates align because ImageUtils.preProcess normalized orientation without resizing/cropping.
       return ImageAnnotationService.generateAnnotationResult(
-        imageData,
+        originalImageData,
         annotations,
         processedImage.imageDimensions,
         markingInstructions.studentScore
@@ -257,7 +260,7 @@ export class MarkingPipeline {
     // Build and return response using helper function
     return buildMarkingResponse({
       mode: 'Marking',
-      imageData,
+      imageData: originalImageData,
       classification,
       questionDetection,
       actualModel,
@@ -379,6 +382,15 @@ export class MarkingPipeline {
     // Simple step logging will be created after mode detection
 
     try {
+      // --- Step 0: Normalize Orientation (CRITICAL FIX) ---
+      // Ensure the base image is correctly oriented before any other processing.
+      const normalizationStart = Date.now();
+      const { ImageUtils } = await import('../../utils/ImageUtils.js');
+      const normalizedImageData = await ImageUtils.normalizeOrientation(imageData);
+      stepTimings['normalization'] = { start: normalizationStart, duration: Date.now() - normalizationStart };
+
+      // normalizedImageData is now the source of truth for the color image.
+
       // Create auto-progress tracker
       let finalProgressData: any = null;
       
@@ -392,17 +404,17 @@ export class MarkingPipeline {
         if (onProgress) onProgress(data);
       });
 
-      // Step 1: Preprocess image with Sharp library (shadow removal, enhancement, compression)
+      // Step 1: Preprocess image (Analyze Image)
       const preprocessImage = async () => {
-        const { ImageUtils } = await import('../../utils/ImageUtils.js');
-        const preprocessedImageData = await ImageUtils.preProcess(imageData);
+        // Use the normalized image as input for pre-processing
+        const preprocessedImageData = await ImageUtils.preProcess(normalizedImageData);
         return { preprocessedImageData };
       };
       stepTimings['analyzing_image'] = { start: Date.now() };
       const preprocessingResult = await progressTracker.withProgress('analyzing_image', preprocessImage)();
       stepTimings['analyzing_image'].duration = Date.now() - stepTimings['analyzing_image'].start;
       
-      // Use preprocessed image for subsequent steps
+      // Use preprocessed image for subsequent analysis steps
       const processedImageData = preprocessingResult.preprocessedImageData;
 
       // Step 2: Classify image (auto-progress) - use preprocessed image
@@ -420,10 +432,14 @@ export class MarkingPipeline {
       // Determine if this is question mode or marking mode
       const isQuestionMode = classification.isQuestionOnly === true;
       
-      // Log the first two steps here where timing is actually tracked
+      // Log the first two steps immediately after they complete
       const totalStepsForMode = isQuestionMode ? 4 : 7;
-      console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [google-vision]`);
+      // Updated log source for Step 1 to reflect image processing
+      console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [image-processing]`);
       console.log(`[2/${totalStepsForMode}] Image Classification      [${(stepTimings['classifying_image'].duration / 1000).toFixed(1)}s] [${actualModel}]`);
+      
+      // Print classification debug info after step completion
+      console.log('🔍 [CLASSIFICATION DEBUG] Raw cleanContent:', classification.extractedQuestionText?.substring(0, 200) + '...');
       
       if (isQuestionMode) {
         // Question mode: simplified pipeline
@@ -472,7 +488,8 @@ export class MarkingPipeline {
         const stepLogger = createStepLogger(totalSteps);
         
         return this.processMarkingMode({
-          imageData: processedImageData, // Use preprocessed image
+          originalImageData: normalizedImageData, // Pass the normalized color image
+          imageData: processedImageData, // Pass the pre-processed (grayscale/enhanced) image
           model,
           classification,
           actualModel,

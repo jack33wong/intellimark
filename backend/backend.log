@@ -3,44 +3,347 @@
 > cross-env NODE_OPTIONS=--no-deprecation nodemon --exec tsx --tsconfig tsconfig.dev.json server.ts
 
 📚 Swagger UI available at: http://localhost:5001/api-docs
-🔍 [CLASSIFICATION DEBUG] Raw cleanContent: {
-  "isQuestionOnly": false,
-  "reasoning": "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-  "extractedQuestionText": "Here are t...
-🔍 [CLASSIFICATION DEBUG] Full Gemini result: {
-  "candidates": [
+✅ [IMAGE UTILS] Orientation normalized and optimized in 0.396s
+✅ [IMAGE UTILS] Pre-processing completed (Handwriting Optimized: Normalize, Gamma, Modulate) in 0.719s
+[1/7] Image Analysis            [0.7s] [image-processing]
+[2/7] Image Classification      [0.0s] [gemini-2.5-flash]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: Question 4.
+
+The diagram shows a plan of Jason's garden.
+
+ABCO and DEFO are rectangles.
+CDO is a right-angled triangle.
+AFO is a sector of a circle with centre O and angle AOF = 90°
+
+Jason is going to...
+📝 [MODE] Marking mode detected - using full pipeline
+✅ [OCR PROCESSING] Attempting Mathpix First strategy (v3/text).
+🔍 [MATHPIX DEBUG] Sending request to v3/text. include_line_data: true is_handwritten: true Disable Arrays: true
+✅ [OCR PROCESSING] Mathpix First strategy successful. Raw lines detected: 18
+🔍 [OCR DIAGNOSTIC] Structure of first Mathpix line_data item: {
+  "type": "text",
+  "cnt": [
+    [
+      479,
+      284
+    ],
+    [
+      1540,
+      284
+    ],
+    [
+      1540,
+      356
+    ],
+    [
+      479,
+      356
+    ]
+  ],
+  "included": true,
+  "conversion_output": true,
+  "is_printed": true,
+  "is_handwritten": false,
+  "id": "51f3a94b328549f4885a348371a0d412",
+  "text": "4 The diagram shows a plan of Jason's garden.",
+  "after_hyphen": false,
+  "confidence": 1,
+  "confidence_rate": 1
+}
+⚠️ [OCR CLEANUP] Could not find question text boundary (fuzzy match failed). Treating all content as student work.
+🔍 [OCR POST-PROCESSING] Detected merged lines (\\). Splitting.
+⚠️ [OCR FILTERING] Ignoring noise in margin. Text: 
+⚠️ [OCR FILTERING] Ignoring noise in margin. Text: 
+\( \left\|\left\|\left\|\left\|\left\|_{P}\right\|\right\|_{6}\right\|\right\|_{8}\right\|\left\|\left\|_{2}\right\|\right\|_{3}\| \|\left\|_{A}\right\|\left\|_{0}\right\|\left\|_{6}\right\|\left\|_{2}\right\|\left\|_{4}\right\|\| \| \)
+✅ [OCR PROCESSING] Segmentation and Post-processing complete. Final student work lines: 15.
+[1/7] OCR Processing            [4.6s] [google-vision + mathpix]
+[2/7] Question Detection        [0.2s] [question-detection]
+🔍 [MARKING INSTRUCTION] User Prompt:
+Here is the OCR TEXT:
+
+      Question: Unknown question
+
+Student's Work:
+1. [step_1] 4 The diagram shows a plan of Jason's garden.
+2. [step_2] 
+\( A B C O \) and \( D E F O \) are rectangles.
+3. [step_3] 
+\( C D O \) is a right-angled triangle.
+4. [step_4] 
+\( A F O \) is a sector of a circle with centre \( O \) and angle \( A O F=90^{\circ} \)
+5. [step_5] 
+
+Jason is going to cover his garden with grass seed.
+6. [step_6] 
+Each bag of grass seed covers \( 14 \mathrm{~m}^{2} \) of garden.
+7. [step_7] 
+Each bag of grass seed costs \( £ 10.95 \)
+8. [step_8] 
+Work out how much it will cost Jason to buy all the bags of grass seed he needs.
+9. [step_9] 9 \times 7=63
+10. [step_10] \frac{9 \times+1}{2}=49.5
+11. [step_11] \frac{\pi \times 7^{2}}{4}=157.1
+12. [step_12] 11 \times 7=77
+13. [step_13] 
+
+17
+14. [step_14] 
+
+(Total for Question 4 is 5 marks)
+15. [step_15] 
+6
+      
+      MARKING SCHEME CONTEXT:
+      - **[P1]** For correctly finding the area of at least three sections.
+- **[P1]** For a method to find the total area for all four sections.
+- **[P1]** For a method to find the number of bags required.
+- **[P1]** For method to find the cost.
+- **[A1]** $186.15$
+**TOTAL MARKS:** 5
+🔍 [MARKING INSTRUCTION] AI Response:
+{
+  "annotations": [
     {
-      "content": {
-        "parts": [
-          {
-            "text": "{\n  \"isQuestionOnly\": false,\n  \"reasoning\": \"The image contains the math question along with calculations and the final answer, which constitutes student work.\",\n  \"extractedQuestionText\": \"Here are the first four terms of a quadratic sequence.\\n3 20 47 84\\nWork out an expression for the nth term of the sequence.\"\n}"
-          }
-        ],
-        "role": "model"
-      },
-      "finishReason": "STOP",
-      "index": 0
+      "textMatch": "4 The diagram shows a plan of Jason's garden.",
+      "step_id": "step_1",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "\\( A B C O \\) and \\( D E F O \\) are rectangles.",
+      "step_id": "step_2",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "\\( C D O \\) is a right-angled triangle.",
+      "step_id": "step_3",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "\\( A F O \\) is a sector of a circle with centre \\( O \\) and angle \\( A O F=90^{\\circ} \\)",
+      "step_id": "step_4",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Jason is going to cover his garden with grass seed.",
+      "step_id": "step_5",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Each bag of grass seed covers \\( 14 \\mathrm{~m}^{2} \\) of garden.",
+      "step_id": "step_6",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Each bag of grass seed costs \\( £ 10.95 \\)",
+      "step_id": "step_7",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "Work out how much it will cost Jason to buy all the bags of grass seed he needs.",
+      "step_id": "step_8",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "9 \\times 7=63",
+      "step_id": "step_9",
+      "action": "tick",
+      "text": "M1",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "\\frac{9 \\times+1}{2}=49.5",
+      "step_id": "step_10",
+      "action": "tick",
+      "text": "M0",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "\\frac{\\pi \\times 7^{2}}{4}=157.1",
+      "step_id": "step_11",
+      "action": "cross",
+      "text": "A0",
+      "reasoning": "Incorrect calculation for sector area."
+    },
+    {
+      "textMatch": "11 \\times 7=77",
+      "step_id": "step_12",
+      "action": "tick",
+      "text": "M0",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "17",
+      "step_id": "step_13",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "No clear mathematical operation or context."
+    },
+    {
+      "textMatch": "(Total for Question 4 is 5 marks)",
+      "step_id": "step_14",
+      "action": "tick",
+      "text": "",
+      "reasoning": ""
+    },
+    {
+      "textMatch": "6",
+      "step_id": "step_15",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "No clear mathematical operation or context."
     }
   ],
-  "usageMetadata": {
-    "promptTokenCount": 571,
-    "candidatesTokenCount": 82,
-    "totalTokenCount": 967,
-    "promptTokensDetails": [
-      {
-        "modality": "TEXT",
-        "tokenCount": 313
-      },
-      {
-        "modality": "IMAGE",
-        "tokenCount": 258
-      }
-    ],
-    "thoughtsTokenCount": 314
-  },
-  "modelVersion": "gemini-2.5-flash",
-  "responseId": "KPjwaLj3OZSokdUP8J3xyQY"
+  "studentScore": {
+    "totalMarks": 5,
+    "awardedMarks": 1,
+    "scoreText": "1/5"
+  }
 }
-[1/7] Image Analysis            [0.3s] [google-vision]
-[2/7] Image Classification      [4.4s] [gemini-2.5-flash]
+[3/7] Marking Instructions      [46.1s] [gemini-2.5-flash]
+[4/7] Burn Overlay              [1.0s] [image-processing]
+[5/7] AI Response Generation    [22.1s] [gemini-2.5-flash]
+📊 [PERFORMANCE] Total processing time: [75.2s]
+   - generating_feedback      : 61% [46.1s]
+   - generating_response      : 29% [22.1s]
+   - extracting_text          : 6% [4.6s]
+   - creating_annotations     : 1% [1.0s]
+   - analyzing_image          : 1% [0.7s]
+   - normalization            : 1% [0.4s]
+   - detecting_question       : 0% [0.2s]
+   - classifying_image        : 0% [0.0s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Marking mode completed successfully
+✅ [IMAGE UTILS] Orientation normalized and optimized in 0.051s
+✅ [IMAGE UTILS] Pre-processing completed (Handwriting Optimized: Normalize, Gamma, Modulate) in 0.121s
+[1/7] Image Analysis            [0.1s] [image-processing]
+[2/7] Image Classification      [4.2s] [gemini-2.5-flash]
+🔍 [CLASSIFICATION DEBUG] Raw cleanContent: Here are the first four terms of a quadratic sequence.
+3 20 47 84
+Work out an expression for the nth term of the sequence....
 📝 [MODE] Marking mode detected - using full pipeline
+✅ [OCR PROCESSING] Attempting Mathpix First strategy (v3/text).
+🔍 [MATHPIX DEBUG] Sending request to v3/text. include_line_data: true is_handwritten: true Disable Arrays: true
+✅ [OCR PROCESSING] Mathpix First strategy successful. Raw lines detected: 4
+🔍 [OCR DIAGNOSTIC] Structure of first Mathpix line_data item: {
+  "type": "text",
+  "cnt": [
+    [
+      46,
+      23
+    ],
+    [
+      1193,
+      23
+    ],
+    [
+      1193,
+      86
+    ],
+    [
+      46,
+      86
+    ]
+  ],
+  "included": true,
+  "conversion_output": true,
+  "is_printed": true,
+  "is_handwritten": false,
+  "id": "aa65f341c5d44445853522005de26733",
+  "text": "Here are the first four terms of a quadratic sequence.",
+  "after_hyphen": false,
+  "confidence": 1,
+  "confidence_rate": 1
+}
+⚠️ [OCR CLEANUP] Could not find question text boundary (fuzzy match failed). Treating all content as student work.
+⚠️ [OCR FILTERING] Ignoring noise in margin. Text: Here are the first four terms of a quadratic sequence.
+⚠️ [OCR FILTERING] Ignoring noise in margin. Text: 
+\[
+\begin{array}{c}
+\text { Diff }=17,27,37 \\
+2 \text { Diff }=10 \\
+\text { Construct }=-2,0 \\
+\text { Diff }=+2 \\
+b=2 \\
+c=-2 \\
+5 n^{\wedge}(2)+2 n-2
+\end{array}
+\]
+✅ [OCR PROCESSING] Segmentation and Post-processing complete. Final student work lines: 2.
+[1/7] OCR Processing            [1.0s] [google-vision + mathpix]
+[2/7] Question Detection        [0.2s] [question-detection]
+🔍 [MARKING INSTRUCTION] User Prompt:
+Here is the OCR TEXT:
+
+      Question: Unknown question
+
+Student's Work:
+1. [step_1] 
+\[
+\begin{array}{llll}
+3 & 20 & 47 & 84
+\end{array}
+\]
+2. [step_2] 
+
+Work out an expression for the \( n \)th term of the sequence.
+      
+      MARKING SCHEME CONTEXT:
+      - **[M1]** Finds second differences = `$10$` or `$a=5$` or `$5n^2$`.
+- **[M1dep]** Subtracts `$5n^2$` from terms to find linear part, e.g., `$3 - 5(1^2) = -2$` and `$20 - 5(2^2)=0$` OR sets up simultaneous equations for a and b.
+- **[M1dep]** Finds `$c=-4$` by substituting known `$a=5$` and `$b=2$`.
+- **[A1]** `$5n^2 + 2n - 4$`
+**TOTAL MARKS:** 4
+🔍 [MARKING INSTRUCTION] AI Response:
+{
+  "annotations": [
+    {
+      "textMatch": "3 20 47 84",
+      "step_id": "step_1",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "No working shown to find differences or 'a' value, as required for M1."
+    },
+    {
+      "textMatch": "Work out an expression for the \\( n \\)th term of the sequence.",
+      "step_id": "step_2",
+      "action": "cross",
+      "text": "M0",
+      "reasoning": "This is the question prompt, not student work, so no marks can be awarded."
+    }
+  ],
+  "studentScore": {
+    "totalMarks": 4,
+    "awardedMarks": 0,
+    "scoreText": "0/4"
+  }
+}
+[3/7] Marking Instructions      [14.8s] [gemini-2.5-flash]
+[4/7] Burn Overlay              [0.2s] [image-processing]
+[5/7] AI Response Generation    [17.4s] [gemini-2.5-flash]
+📊 [PERFORMANCE] Total processing time: [37.9s]
+   - generating_response      : 46% [17.4s]
+   - generating_feedback      : 39% [14.8s]
+   - classifying_image        : 11% [4.2s]
+   - extracting_text          : 3% [1.0s]
+   - detecting_question       : 1% [0.2s]
+   - creating_annotations     : 0% [0.2s]
+   - analyzing_image          : 0% [0.1s]
+   - normalization            : 0% [0.1s]
+🤖 [MODEL] Used: gemini-2.5-flash
+✅ [RESULT] Marking mode completed successfully
