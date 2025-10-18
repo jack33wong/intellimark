@@ -17,8 +17,8 @@ export async function simulateApiDelay(operation: string, debug: boolean = false
 }
 
 // Simple step logging helper
-export function createStepLogger(totalSteps: number) {
-  let currentStep = 0;
+export function createStepLogger(totalSteps: number, startStep: number = 0) {
+  let currentStep = startStep;
   
   return {
     logStep: (stepName: string, modelInfo: string) => {

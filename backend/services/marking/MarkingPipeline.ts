@@ -441,9 +441,9 @@ export class MarkingPipeline {
         ];
         totalSteps = modeSteps.length;
         
-        // Create simple step logger with correct total steps
+        // Create simple step logger with correct total steps, starting from step 3
         const { createStepLogger } = await import('./MarkingHelpers.js');
-        const stepLogger = createStepLogger(totalSteps);
+        const stepLogger = createStepLogger(totalSteps, 2); // Start from step 3 (0-indexed, so 2)
         
         return this.processQuestionMode({
           imageData: processedImageData, // Use preprocessed image
@@ -472,9 +472,9 @@ export class MarkingPipeline {
         ];
         totalSteps = modeSteps.length;
         
-        // Create simple step logger with correct total steps
+        // Create simple step logger with correct total steps, starting from step 3
         const { createStepLogger } = await import('./MarkingHelpers.js');
-        const stepLogger = createStepLogger(totalSteps);
+        const stepLogger = createStepLogger(totalSteps, 2); // Start from step 3 (0-indexed, so 2)
         
         return this.processMarkingMode({
           originalImageData: normalizedImageData, // Pass the normalized color image
