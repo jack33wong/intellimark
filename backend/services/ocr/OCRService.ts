@@ -131,35 +131,29 @@ export class OCRService {
 
   // --- NEW: Helper for boundary detection using fuzzy matching ---
   private static findBoundaryByFuzzyMatch(
-    ocrLines: Array<any>, 
+    ocrLines: Array<any>,
     questionText: string | undefined
   ): number {
     console.log('🔧 [OCR BOUNDARY] Attempting fuzzy match boundary detection.');
-    
+
     if (!questionText || questionText.trim().length === 0) {
-      console.warn('  -> No question text provided. Falling back: treating all as student work.');
-      return 0; // Fallback: Assume everything is student work if no question text
+      console.warn('  -> No question text provided. Treating all as student work.');
+      return 0; // Keep this initial fallback
     }
 
-    // Split question text into lines for matching
     const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
     if (questionLines.length === 0) {
        console.warn('  -> Question text was empty after splitting. Falling back.');
        return 0;
     }
 
-    const SIMILARITY_THRESHOLD = 0.80; // How similar lines must be to be considered a match
+    const SIMILARITY_THRESHOLD = 0.80;
     let lastMatchIndex = -1;
 
-    // Iterate through each line detected by OCR
     for (let i = 0; i < ocrLines.length; i++) {
         const ocrLineText = ocrLines[i].latex_styled || ocrLines[i].text || '';
         if (!ocrLineText.trim()) continue;
-
-        // Find the best match for this OCR line within the question text lines
         const bestMatch = stringSimilarity.findBestMatch(ocrLineText, questionLines);
-        
-        // If the best match is strong enough, update the last known index of question text
         if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD) {
             console.log(`  -> Found potential question line match at index ${i} (Similarity: ${bestMatch.bestMatch.rating.toFixed(2)}): "${ocrLineText.substring(0,60)}..."`);
             lastMatchIndex = i;
@@ -168,16 +162,39 @@ export class OCRService {
 
     let boundaryIndex = 0;
     if (lastMatchIndex !== -1) {
-        // Assume student work starts *after* the last line that matched the question text
+        // Fuzzy match succeeded
         boundaryIndex = lastMatchIndex + 1;
-        console.log(`  -> Boundary set at index ${boundaryIndex} (after last strong match).`);
+        console.log(`  -> Boundary set at index ${boundaryIndex} (after last strong fuzzy match).`);
     } else {
-        console.warn('  -> No strong match found between OCR lines and question text. Falling back: treating all as student work.');
-        boundaryIndex = 0; // Fallback if no lines matched confidently
+        // ========================= START OF FIX =========================
+        // Fuzzy match failed, attempt Keyword Fallback
+        console.warn('  -> Fuzzy match failed. Attempting keyword fallback boundary detection.');
+        const instructionKeywords = ['work out', 'calculate', 'explain', 'show that', 'find the', 'write down'];
+        let lastInstructionIndex = -1;
+        // Search backwards through all lines for the last instruction
+        for (let i = ocrLines.length - 1; i >= 0; i--) {
+            const text = (ocrLines[i].latex_styled || ocrLines[i].text || '').toLowerCase();
+            // Check for keywords, ensure it's likely prose (more than 2 words), and lacks '='
+            if (text.split(/\s+/).length > 2 && !text.includes('=') && instructionKeywords.some(kw => text.includes(kw))) {
+                lastInstructionIndex = i;
+                console.log(`  -> Keyword Fallback: Found potential last instruction at index ${i}: "${ocrLines[i].text?.substring(0,60)}..."`);
+                break; // Found the last instruction line
+            }
+        }
+
+        if (lastInstructionIndex !== -1) {
+            // Keyword fallback succeeded
+            boundaryIndex = lastInstructionIndex + 1;
+            console.log(`  -> Keyword Fallback: Boundary set at index ${boundaryIndex}.`);
+        } else {
+            // Both fuzzy and keyword failed - absolute fallback
+            console.warn('  -> Keyword fallback also failed. Treating all as student work.');
+            boundaryIndex = 0;
+        }
+        // ========================== END OF FIX ==========================
     }
 
-    // Ensure boundary index is within bounds
-    boundaryIndex = Math.min(boundaryIndex, ocrLines.length); 
+    boundaryIndex = Math.min(boundaryIndex, ocrLines.length);
     console.log(`✅ [OCR BOUNDARY] Final boundary index determined: ${boundaryIndex}`);
     return boundaryIndex;
   }
@@ -434,21 +451,54 @@ export class OCRService {
              }
         });
 
-        // 3. APPLY INCLUSIONARY FILTER to the ungrouped student work
+        // APPLY FILTER WITH CORRECT ORDER
         const studentWorkLines = ungroupedLines.filter(line => {
             const text = line.latex_styled || line.text || '';
             const trimmedText = text.trim();
-            if (!trimmedText) return false;
+            if (!trimmedText) return false; // Discard empty lines
 
-            // --- Explicit Discard Rules (New) ---
+            // --- 1. Explicit Discard Rules ---
             const lowerCaseText = trimmedText.toLowerCase();
-            if (lowerCaseText.includes("total for question") || /^\d+$/.test(lowerCaseText)) { // Discard footers and simple page numbers
-                 console.log(`🗑️ [OCR FILTERING] Discarding footer/metadata line: "${text}"`);
+            if (lowerCaseText.includes("total for question")) {
+                 console.log(`🗑️ [OCR FILTERING - Rule 1] Discarding footer: "${text}"`);
                  return false;
             }
-            // --- End of Explicit Discard ---
+            // Stricter check for standalone numbers (likely page numbers/metadata)
+            if (/^\s*\d+\s*$/.test(trimmedText) && trimmedText.length <= 3) { // Allow longer numbers
+                 console.log(`🗑️ [OCR FILTERING - Rule 1] Discarding likely page number/metadata: "${text}"`);
+                 return false;
+            }
+             // Discard barcode/noise lines explicitly if possible (using confidence if available?)
+             // Example: if (line.confidence < 0.3 && text.length > 10 && !trimmedText.includes('=')) { return false; }
 
-            // --- Margin Filtering ---
+
+            // --- 2. Inclusionary Rules ---
+            // Rule 2a: Keep if it contains an equals sign.
+            if (trimmedText.includes('=')) {
+                return true; // Definitely student work
+            }
+            // Rule 2b: Keep if it's a math expression (number + operator/variable).
+            const hasNumber = /\d/.test(trimmedText);
+            const hasOperatorOrVariable = /[+\-^*/÷×nxyz£$€]/.test(trimmedText);
+            if (hasNumber && hasOperatorOrVariable) {
+                 // Additional check: Ensure it doesn't look like long prose accidentally matching
+                 const wordCount = trimmedText.split(/\s+/).length;
+                 if (wordCount < 7) { // Heuristic: Keep shorter math expressions
+                     return true; // Likely student work (final answer etc.)
+                 }
+            }
+            // Rule 2c: Keep if it's just a standalone number or currency amount.
+            const isSingleNumOrCurrency = /^\s*[£$€]?[\d.,]+\s*$/.test(trimmedText.replace(/\\text\{.*?\}/g, ''));
+            if (isSingleNumOrCurrency) {
+                // Heuristic: Avoid keeping very large numbers that might be noise/IDs unless they follow an equals
+                 if (trimmedText.length < 10) { // Avoid overly long standalone numbers
+                     return true; // Likely student work (intermediate/final answer)
+                 }
+            }
+
+            // --- If it hasn't been KEPT yet, proceed to checks for DISCARDING ambiguous lines ---
+
+            // --- 3. Margin Filtering (Only for lines not kept above) ---
             const coords = this.extractBoundingBox(line);
              if (coords) {
                 const marginThresholdVertical = 0.05;
@@ -457,22 +507,14 @@ export class OCRService {
                     coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) ||
                     coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal)
                 ) {
-                    console.log(`🗑️ [OCR FILTERING] Discarding margin noise: "${text}"`);
-                    return false;
+                    console.log(`🗑️ [OCR FILTERING - Rule 3] Discarding ambiguous margin noise: "${text}"`);
+                    return false; // Discard ambiguous lines near margin
                 }
             }
 
-            // --- Inclusionary Rules ---
-            if (trimmedText.includes('=')) return true; // Keep equations
-            const hasNumber = /\d/.test(trimmedText);
-            const hasOperatorOrVariable = /[+\-^*/÷×nxyz]/.test(trimmedText);
-            if (hasNumber && hasOperatorOrVariable) return true; // Keep math expressions
-            // Adjusted single number rule slightly for robustness
-            const isSingleNumber = /^\s*£?[\d.,]+\s*$/.test(trimmedText.replace(/\\text\{.*?\}/g, ''));
-            if (isSingleNumber) return true; // Keep standalone numbers (answers/intermediate steps)
-
-            console.log(`🗑️ [OCR FILTERING] Discarding ambiguous line: "${text}"`);
-            return false;
+            // --- 4. Discard Remaining Ambiguous Prose ---
+            console.log(`🗑️ [OCR FILTERING - Rule 4] Discarding ambiguous line (failed inclusion rules): "${text}"`);
+            return false; // Discard anything else that didn't pass inclusion
         });
 
         // PREPARE FINAL MATHBLOCKS

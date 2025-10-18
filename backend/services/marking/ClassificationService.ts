@@ -41,7 +41,7 @@ export class ClassificationService {
         return {
           isQuestionOnly: false,
           reasoning: "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-          extractedQuestionText: "Question 4.\n\nThe diagram shows a plan of Jason's garden.\n\nABCO and DEFO are rectangles.\nCDO is a right-angled triangle.\nAFO is a sector of a circle with centre O and angle AOF = 90°\n\nJason is going to cover his garden with grass seed. Each bag of grass seed covers 14m2 of garden. Each bag of grass seed costs £10.95.\n\nWork out how much it will cost Jason to buy all the bags of grass seed he needs.",
+          extractedQuestionText: "The diagram shows a plan of Jason's garden. [A composite shape is shown, described as: ABCO and DEFO are rectangles. CDO is a right-angled triangle. AFO is a sector of a circle with centre O and angle AOF = 90°. Dimensions are given: AB = 11m, BC = 7m, ED = 7m, FE = 9m.] Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.",
           apiUsed: "Hardcoded Test Data",
           usageTokens: 0
         };

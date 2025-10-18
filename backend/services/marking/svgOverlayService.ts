@@ -18,6 +18,11 @@ export interface SVGOverlayConfig {
     markingSchemeCode: number;
     studentScore: number;
   };
+  // Y Position Configuration (as percentages of block height)
+  yPositions: {
+    baseYOffset: number;    // % of block height from bottom
+    reasoningYOffset: number; // % of block height offset from baseY
+  };
 }
 
 /**
@@ -36,6 +41,11 @@ export class SVGOverlayService {
       cross: 50,             // Cross symbol size
       markingSchemeCode: 50,  // Mark codes like M1, A1, etc.
       studentScore: 70       // Student score text (e.g., "4/6")
+    },
+    // Y Position Configuration (as percentages of block height)
+    yPositions: {
+      baseYOffset: -20,    // -2% of block height from bottom (equivalent to -4px for 200px block)
+      reasoningYOffset: -11  // -11% of block height offset from baseY (equivalent to -22px for 200px block)
     }
   };
 
@@ -49,6 +59,9 @@ export class SVGOverlayService {
     }
     if (config.fontSizes) {
       this.CONFIG.fontSizes = { ...this.CONFIG.fontSizes, ...config.fontSizes };
+    }
+    if (config.yPositions) {
+      this.CONFIG.yPositions = { ...this.CONFIG.yPositions, ...config.yPositions };
     }
   }
 
@@ -253,7 +266,9 @@ export class SVGOverlayService {
   private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text?: string, reasoning?: string): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
-    const textY = y + height - 4; // Bottom of the box
+    // Calculate base Y position using configurable percentage offset
+    const baseYOffsetPixels = (height * this.CONFIG.yPositions.baseYOffset) / 100;
+    const textY = y + height + baseYOffsetPixels;
     
     // Use configured font sizes directly (simple and predictable)
     const symbolSize = symbol === '✓' ? this.CONFIG.fontSizes.tick : this.CONFIG.fontSizes.cross;
@@ -278,7 +293,9 @@ export class SVGOverlayService {
         const lineHeight = reasoningSize + 2; // Small spacing between lines
         
         reasoningLines.forEach((line, index) => {
-          const reasoningY = textY - 22 + (index * lineHeight); // Position at same Y level as marking code, then below for second line
+          // Calculate reasoning Y position using configurable percentage offset
+          const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
+          const reasoningY = textY + reasoningYOffsetPixels + (index * lineHeight);
           svg += `
             <text x="${reasoningX}" y="${reasoningY}" text-anchor="start" fill="#ff0000" 
                   font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
