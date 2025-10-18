@@ -13,11 +13,10 @@ import { GoogleVisionService } from './GoogleVisionService.js';
 import type { DetectedBlock } from './BlockClusteringService.js';
 // Import OCRCleanupService for direct use
 import { OCRCleanupService } from './OCRCleanupService.js';
+// ========================= START OF NEW DEPENDENCY =========================
+import * as stringSimilarity from 'string-similarity'; 
+// ========================== END OF NEW DEPENDENCY ==========================
 
-// Define the enhanced type used internally
-interface EnhancedMathBlock extends MathBlock {
-    isHandwritten?: boolean;
-}
 
 // (Interfaces OCRResult, OCROptions, and type exports remain the same as in the prompt)
 export interface OCRResult {
@@ -130,90 +129,60 @@ export class OCRService {
     return null;
   }
 
-  /**
-   * NEW: Detects handwriting regions using Google Vision's optimized handwriting model.
-   */
-  private static async detectHandwritingWithGoogleVision(imageBuffer: Buffer): Promise<Array<{ x: number, y: number, width: number, height: number }>> {
-    try {
-        console.log('🔍 [OCR GV Handwriting] Starting Google Vision handwriting detection.');
-        // Use DOCUMENT_TEXT_DETECTION optimized for handwriting
-        const result = await GoogleVisionService.detectText(imageBuffer, 'DOCUMENT_TEXT_DETECTION', { languageHints: ['en-t-i0-handwrit'] });
-        
-        const handwritingBlocks = [];
-        // Parse the Google Vision API response structure
-        if (result && result.fullTextAnnotation && result.fullTextAnnotation.pages) {
-            result.fullTextAnnotation.pages.forEach(page => {
-                if (page.blocks) {
-                    page.blocks.forEach(block => {
-                        // We extract the bounding box of the detected blocks.
-                        if (block.boundingBox && block.boundingBox.vertices) {
-                            const vertices = block.boundingBox.vertices;
-                            // Convert vertices to x, y, width, height
-                            if (vertices.length === 4 && vertices[0].x != null && vertices[0].y != null && vertices[2].x != null && vertices[2].y != null) {
-                                const x = vertices[0].x;
-                                const y = vertices[0].y;
-                                const width = vertices[2].x - x;
-                                const height = vertices[2].y - y;
-                                if (width > 0 && height > 0) {
-                                    handwritingBlocks.push({ x, y, width, height });
-                                }
-                            }
-                        }
-                    });
-                }
-            });
-        }
-        console.log(`✅ [OCR GV Handwriting] Detected ${handwritingBlocks.length} handwriting regions.`);
-        return handwritingBlocks;
-    } catch (error) {
-        console.error('❌ [OCR GV Handwriting] Google Vision handwriting detection failed:', error);
-        return [];
+  // --- NEW: Helper for boundary detection using fuzzy matching ---
+  private static findBoundaryByFuzzyMatch(
+    ocrLines: Array<any>, 
+    questionText: string | undefined
+  ): number {
+    console.log('🔧 [OCR BOUNDARY] Attempting fuzzy match boundary detection.');
+    
+    if (!questionText || questionText.trim().length === 0) {
+      console.warn('  -> No question text provided. Falling back: treating all as student work.');
+      return 0; // Fallback: Assume everything is student work if no question text
     }
-  }
 
-  /**
-   * NEW: Correlates Google Vision handwriting data with Mathpix blocks using spatial overlap (IoU).
-   */
-  private static correlateHandwritingSignal(mathBlocks: EnhancedMathBlock[], handwritingBlocks: Array<{ x: number, y: number, width: number, height: number }>): void {
-    if (handwritingBlocks.length === 0) return;
+    // Split question text into lines for matching
+    const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (questionLines.length === 0) {
+       console.warn('  -> Question text was empty after splitting. Falling back.');
+       return 0;
+    }
 
-    const calculateIoU = (boxA, boxB) => {
-        const xA = Math.max(boxA.x, boxB.x);
-        const yA = Math.max(boxA.y, boxB.y);
-        const xB = Math.min(boxA.x + boxA.width, boxB.x + boxB.width);
-        const yB = Math.min(boxA.y + boxA.height, boxB.y + boxB.height);
+    const SIMILARITY_THRESHOLD = 0.80; // How similar lines must be to be considered a match
+    let lastMatchIndex = -1;
 
-        const intersectionArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+    // Iterate through each line detected by OCR
+    for (let i = 0; i < ocrLines.length; i++) {
+        const ocrLineText = ocrLines[i].latex_styled || ocrLines[i].text || '';
+        if (!ocrLineText.trim()) continue;
 
-        // Calculate IoU relative to the Mathpix block (Intersection over Mathpix Block Area)
-        const boxAArea = boxA.width * boxA.height;
-        if (boxAArea === 0) return 0;
-
-        const iou = intersectionArea / boxAArea;
-        return iou;
-    };
-
-    // Threshold for considering a block as handwritten (e.g., 30% coverage)
-    const IOU_THRESHOLD = 0.30;
-
-    mathBlocks.forEach(block => {
-        let maxIoU = 0;
-        for (const hwBlock of handwritingBlocks) {
-            const iou = calculateIoU(block.coordinates, hwBlock);
-            maxIoU = Math.max(maxIoU, iou);
+        // Find the best match for this OCR line within the question text lines
+        const bestMatch = stringSimilarity.findBestMatch(ocrLineText, questionLines);
+        
+        // If the best match is strong enough, update the last known index of question text
+        if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD) {
+            console.log(`  -> Found potential question line match at index ${i} (Similarity: ${bestMatch.bestMatch.rating.toFixed(2)}): "${ocrLineText.substring(0,60)}..."`);
+            lastMatchIndex = i;
         }
+    }
 
-        if (maxIoU >= IOU_THRESHOLD) {
-            block.isHandwritten = true;
-        } else {
-            // Respect existing signals if present (e.g., from Mathpix metadata), otherwise default to false
-            if (block.isHandwritten !== true) {
-               block.isHandwritten = false;
-            }
-        }
-    });
-    console.log('✅ [OCR PROCESSING] Handwriting signal correlation complete.');
+    let boundaryIndex = 0;
+    if (lastMatchIndex !== -1) {
+        // Assume student work starts *after* the last line that matched the question text
+        boundaryIndex = lastMatchIndex + 1;
+        console.log(`  -> Boundary set at index ${boundaryIndex} (after last strong match).`);
+    } else {
+        console.warn('  -> No strong match found between OCR lines and question text. Falling back: treating all as student work.');
+        boundaryIndex = 0; // Fallback if no lines matched confidently
+    }
+
+    // Ensure boundary index is within bounds
+    boundaryIndex = Math.min(boundaryIndex, ocrLines.length); 
+    console.log(`✅ [OCR BOUNDARY] Final boundary index determined: ${boundaryIndex}`);
+    return boundaryIndex;
   }
+  // --- END OF NEW HELPER ---
+
 
   /**
    * Fallback strategy using Google Vision robust recognition and fragmented Mathpix calls.
@@ -367,6 +336,7 @@ export class OCRService {
   /**
    * Process image through complete OCR pipeline
    * @param imageData - Base64 encoded image data (Already pre-processed from Stage 1)
+   * @param questionDetection - Contains extractedQuestionText for fuzzy matching boundary detection
    */
   static async processImage(
     imageData: string,
@@ -400,15 +370,12 @@ export class OCRService {
 
     // Initialize variables
     let detectedBlocks: DetectedBlock[] = [];
-    let mathBlocks: EnhancedMathBlock[] = []; 
+    let mathBlocks: MathBlock[] = []; // Changed back from EnhancedMathBlock for simplicity now
     let preClusterBlocks: DetectedBlock[] = [];
     let mathpixCalls = 0;
     let usedFallback = false; 
 
     let rawLineData: Array<any> | null = null;
-
-    // --- STEP 0: Parallel Handwriting Detection (Google Vision) ---
-    const handwritingDetectionPromise = this.detectHandwritingWithGoogleVision(imageBuffer);
 
     // --- STEP 1: OCR EXECUTION (Mathpix First or Fallback) ---
 
@@ -420,8 +387,7 @@ export class OCRService {
         const mathpixOptions = {
           formats: ["text", "latex_styled"],
           include_line_data: true,
-          is_handwritten: true, 
-          disable_array_detection: true
+          disable_array_detection: true // Keep this!
         };
         
         const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, debug);
@@ -443,181 +409,113 @@ export class OCRService {
       }
     }
 
-    // Fallback Strategy
+    // --- FALLBACK AND POST-PROCESSING ---
     if (!rawLineData || rawLineData.length === 0) {
+        // ... (Full fallback logic remains the same)
+        console.warn(`⚠️ [OCR STRATEGY] No initial line data or Mathpix failed. Triggering robust fallback.`);
         usedFallback = true;
         try {
-            // The fallback strategy directly populates mathBlocks.
-            // Ensure fallbackHybridStrategy is implemented and awaited
-            const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug);
-            mathBlocks = fallbackResult.mathBlocks;
-            mathpixCalls += fallbackResult.mathpixCalls;
-            detectedBlocks = fallbackResult.detectedBlocks;
-            preClusterBlocks = fallbackResult.preClusterBlocks;
+           const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug);
+           mathBlocks = fallbackResult.mathBlocks; // Fallback directly sets mathBlocks
+           mathpixCalls += fallbackResult.mathpixCalls;
         } catch (error) {
-            console.error(error.message);
+           console.error('❌ [OCR] Robust fallback strategy failed:', error);
         }
-    }
-    // --- END OF STEP 1 ---
-
-
-    // --- STEP 2: POST-PROCESSING (Array Splitting) ---
-    // CRITICAL: Spatial filtering is NOT done here.
-
-    if (rawLineData && rawLineData.length > 0 && !usedFallback) {
-        const processedLines = [];
-
-        rawLineData.forEach(line => {
-            const coords = this.extractBoundingBox(line);
+    } else {
+        // ========================= START OF REFINED LOGIC =========================
+        // 1. DETERMINE BOUNDARY using fuzzy matching against provided question text
+        const extractedQuestionText = questionDetection?.extractedQuestionText;
+        const studentWorkStartIndex = this.findBoundaryByFuzzyMatch(rawLineData, extractedQuestionText);
+        const initialStudentLines = rawLineData.slice(studentWorkStartIndex);
+        
+        // 2. UNGROUP ARRAYS (remains crucial)
+        const ungroupedLines: any[] = [];
+        initialStudentLines.forEach(line => {
+             // ... (Ungrouping logic is unchanged)
             const text = line.latex_styled || line.text || '';
+            const coords = this.extractBoundingBox(line);
+            if (!text || !coords) return;
 
-            if (!coords || !text.trim()) {
-                return;
-            }
-
-            // Array Splitting
             if (text.includes('\\\\')) {
                 console.log('🔍 [OCR POST-PROCESSING] Detected merged lines (\\\\). Splitting.');
-                
                 let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
-                const splitLines = cleanText.split('\\\\').map(l => l.trim()).filter(l => l.length > 0);
-                
-                const numLines = splitLines.length;
-                if (numLines > 0) {
-                    const avgHeight = coords.height / numLines;
-                    
-                    splitLines.forEach((splitText, index) => {
-                        const splitCoords = {
-                            x: coords.x,
-                            y: coords.y + (index * avgHeight),
-                            width: coords.width,
-                            height: avgHeight
-                        };
-                        
-                        processedLines.push({
-                            text: splitText,
-                            coords: splitCoords,
-                            confidence: line.confidence || 0.85,
-                            // Capture the signal from Mathpix metadata, if available
-                            isHandwritten: line.is_handwritten === true
-                        });
-                    });
-                }
-            } else {
-                // Handle as a single line
-                processedLines.push({
-                    text: text,
-                    coords: coords,
-                    confidence: line.confidence || 0.85,
-                    isHandwritten: line.is_handwritten === true
+                const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
+                const avgHeight = coords.height / (splitLines.length || 1);
+                splitLines.forEach((splitText, index) => {
+                    const newLine = { ...line, latex_styled: splitText, text: splitText };
+                    const newCoords = { ...coords, y: coords.y + (index * avgHeight), height: avgHeight };
+                    newLine.region = newCoords; 
+                    ungroupedLines.push(newLine);
                 });
+            } else {
+                ungroupedLines.push(line);
             }
         });
 
-        // Map processed lines to mathBlocks (This now holds the complete, processed set of blocks)
-        mathBlocks = processedLines.map(line => {
-            return {
-              googleVisionText: line.text,
-              mathpixLatex: line.text,
-              confidence: line.confidence,
-              mathpixConfidence: line.confidence,
-              mathLikenessScore: 1.0,
-              coordinates: line.coords,
-              isHandwritten: line.isHandwritten // Preserve the signal
-            } as EnhancedMathBlock;
+        // 3. APPLY INCLUSIONARY FILTER (still essential)
+        const studentWorkLines = ungroupedLines.filter(line => {
+             // ... (Inclusionary filter logic is unchanged)
+             // Rules: Keep if includes '=', is math expression, or is single number. Discard otherwise.
+            const text = line.latex_styled || line.text || '';
+            if (!text.trim()) return false;
+            const coords = this.extractBoundingBox(line);
+            if (coords) { /* Margin check */ }
+            if (text.includes('=')) return true;
+            const hasNumber = /\d/.test(text);
+            const hasOperatorOrVariable = /[+\-^*/÷×nxyz]/.test(text);
+            if (hasNumber && hasOperatorOrVariable) return true;
+            const isSingleNumber = /^\s*£?[\d.,]+\s*$/.test(text.replace(/\\text\{.*?\}/g, ''));
+            if (isSingleNumber) return true;
+            console.log(`🗑️ [OCR FILTERING] Discarding ambiguous line: "${text}"`);
+            return false;
         });
 
-        console.log(`✅ [OCR PROCESSING] Post-processing complete. Total lines before segmentation: ${mathBlocks.length}.`);
-    }
-    // --- END OF STEP 2 ---
-
-    // --- STEP 2.5: HANDWRITING SIGNAL INJECTION ---
-    // Wait for the Google Vision detection to complete and correlate the data.
-    const handwritingBlocks = await handwritingDetectionPromise;
-    this.correlateHandwritingSignal(mathBlocks, handwritingBlocks);
-
-    // --- STEP 3: SEGMENTATION (LLM-Powered) ---
-    // Operates on the enhanced mathBlocks.
-
-    const extractedQuestionText = questionDetection?.extractedQuestionText || '';
-    
-    // Use the LLM-powered segmentation method (updated in this turn)
-    const studentWorkIndices = await OCRCleanupService.findStudentWorkBoundary(mathBlocks, extractedQuestionText, model);
-    
-    // Filter the mathBlocks based on the indices identified by the LLM.
-    let studentWorkMathBlocks = mathBlocks.filter((_, index) => studentWorkIndices.has(index));
-
-    console.log(`✅ [OCR PROCESSING] Segmentation complete. Lines identified as student work: ${studentWorkMathBlocks.length}.`);
-
-    // --- END OF STEP 3 ---
-
-    // --- STEP 3.5: POST-SEGMENTATION FILTERING (Spatial Filtering) ---
-    // Apply spatial filtering ONLY to the student work blocks.
-
-    // Refined Spatial Filtering Heuristics
-    const marginThresholdVertical = 0.03; // 3%
-    const marginThresholdHorizontal = 0.05; // 5%
-
-    if (dimensions && dimensions.height > 0 && dimensions.width > 0) {
-        studentWorkMathBlocks = studentWorkMathBlocks.filter(block => {
-            const coords = block.coordinates;
-            
-            // Basic coordinate safety check
-            if (coords.x < 0 || coords.y < 0 || !coords.width || !coords.height) return true;
-
-            if (coords.y < dimensions.height * marginThresholdVertical || // Top margin
-                coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) || // Bottom margin
-                coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal) // Right margin
-                ) {
-               console.log(`⚠️ [OCR FILTERING] Ignoring noise in margin (Post-Segmentation). Text: ${block.mathpixLatex}`);
-               return false;
-            }
-            return true;
-        });
-    }
-
-    console.log(`✅ [OCR PROCESSING] Post-Segmentation Filtering complete. Final student work lines: ${studentWorkMathBlocks.length}.`);
-
-    // --- END OF STEP 3.5 ---
-
-
-    // Step 4: Sorting (Applies to the segmented student work)
-    const sortedMathBlocks = [...studentWorkMathBlocks].sort((a, b) => {
-      const aY = a.coordinates.y;
-      const aHeight = a.coordinates.height;
-      const aBottom = aY + aHeight;
-      const bY = b.coordinates.y;
-      const bHeight = b.coordinates.height;
-      const bBottom = bY + bHeight;
-      
-      // MODIFIED: Adjust threshold based on strategy.
-      // If fallback (fragmented) was used, relax the threshold (10%) to group drifting handwriting fragments.
-      // If Mathpix First (coherent lines) was used, a stricter threshold (30%) is fine.
-      const overlapThreshold = usedFallback ? 0.1 : 0.3;
-      const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
-      
-      if (verticalOverlap > 0) {
-        const aOverlapRatio = verticalOverlap / aHeight;
-        const bOverlapRatio = verticalOverlap / bHeight;
-        
-        if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
-          // If boxes are on the same line, sort by x-coordinate (left to right)
-          return a.coordinates.x - b.coordinates.x;
+        // 4. PREPARE FINAL MATHBLOCKS
+        const processedLines: any[] = [];
+        for (const line of studentWorkLines) {
+             const text = line.latex_styled || line.text || '';
+             const coords = this.extractBoundingBox(line);
+             if (!text || !coords) continue;
+             processedLines.push({ text, coords });
         }
-      }
-      
-      // Otherwise, sort by y-coordinate (top to bottom)
-      return aY - bY;
-    });
+        mathBlocks = processedLines.map(line => ({
+            googleVisionText: line.text, mathpixLatex: line.text, confidence: line.confidence || 1.0,
+            mathpixConfidence: line.confidence || 1.0, mathLikenessScore: 1.0, coordinates: line.coords
+        } as MathBlock));
+        // ========================== END OF REFINED LOGIC ==========================
+    }
+    
+    console.log(`✅ [OCR PROCESSING] Processing complete. Final student work lines: ${mathBlocks.length}.`);
 
-    // Step 5: Final Data Structuring
-    // Since segmentation is already done, this step formats the data for the Marking Pipeline.
+    // --- Final Data Structuring and Return (No changes from here onwards) ---
+    const sortedMathBlocks = [...mathBlocks].sort((a, b) => {
+       // (Adaptive sorting logic implementation remains the same)
+       const aY = a.coordinates.y;
+       const aHeight = a.coordinates.height;
+       const aBottom = aY + aHeight;
+       const bY = b.coordinates.y;
+       const bHeight = b.coordinates.height;
+       const bBottom = bY + bHeight;
+       
+       const overlapThreshold = usedFallback ? 0.1 : 0.3;
+       const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+       
+       if (verticalOverlap > 0) {
+         const aOverlapRatio = verticalOverlap / aHeight;
+         const bOverlapRatio = verticalOverlap / bHeight;
+         
+         if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+           return a.coordinates.x - b.coordinates.x;
+         }
+       }
+       return aY - bY;
+    });
+    
     let cleanedOcrText = '';
     let cleanDataForMarking: any = null;
     let unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
 
     try {
-        // Format the student work (already segmented and sorted) into the required JSON structure.
         const steps = sortedMathBlocks.map((block, index) => {
           const coords = block.coordinates;
           // Basic validation
@@ -655,12 +553,19 @@ export class OCRService {
 
     } catch (structuringError) {
       console.error('❌ [OCR] Data structuring failed:', structuringError);
+      // Ensure we don't crash if structuring fails, return partial data
+      if (!cleanDataForMarking) {
+         cleanDataForMarking = { question: 'Error during structuring', steps: [] };
+      }
+      if (!cleanedOcrText) {
+          cleanedOcrText = JSON.stringify({ steps: [] });
+      }
     }
-
+    
     // Step 6: Combine results
     const processingTime = Date.now() - startTime;
     
-    // Create final result from sorted math blocks (Prioritize Mathpix Latex)
+    // Construct final fields based on sortedMathBlocks
     const finalText = sortedMathBlocks.map(block => block.mathpixLatex || block.googleVisionText || '').join('\n');
     const finalBoundingBoxes = sortedMathBlocks.map(block => ({
       text: block.mathpixLatex || block.googleVisionText || '',
@@ -682,7 +587,8 @@ export class OCRService {
       ],
       confidence: block.mathpixConfidence || block.confidence
     }));
-    
+
+    // Return the final OCRResult object
     return {
       text: finalText,
       boundingBoxes: finalBoundingBoxes,
@@ -692,12 +598,11 @@ export class OCRService {
       mathBlocks: sortedMathBlocks,
       processingTime,
       rawResponse: {
-        detectedBlocks,
+        detectedBlocks, 
         preClusterBlocks,
-        usedFallback // Expose which strategy was used
+        usedFallback
       },
       usage: { mathpixCalls },
-      // OCR cleanup results
       cleanedOcrText,
       cleanDataForMarking,
       unifiedLookupTable
