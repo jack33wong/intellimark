@@ -104,11 +104,6 @@ export const QUESTION_MODE_STEPS: StepConfig[] = [
     id: 'classifying_image',
     name: 'Classifying Image',
     description: 'Classifying image...'
-  },
-  {
-    id: 'generating_response',
-    name: 'Generating Response',
-    description: 'Generating response...'
   }
 ];
 
@@ -142,11 +137,6 @@ export const MARKING_MODE_STEPS: StepConfig[] = [
     id: 'creating_annotations',
     name: 'Creating Annotations',
     description: 'Creating annotations...'
-  },
-  {
-    id: 'generating_response',
-    name: 'Generating Response',
-    description: 'Generating response...'
   }
 ];
 

@@ -84,20 +84,8 @@ export class MarkingPipeline {
     stepTimings['question_detection'].duration = Date.now() - stepTimings['question_detection'].start;
     logStep3Complete();
     
-    // Step 4: AI Response Generation
-    const logStep4Complete = logStep('AI Response Generation', actualModel);
-    stepTimings['generating_response'] = { start: Date.now() };
-    const generateResponse = async () => {
-      const { MarkingServiceLocator } = await import('./MarkingServiceLocator');
-      return MarkingServiceLocator.generateChatResponse(imageData, '', model, true, debug);
-    };
-    
-    const aiResponse = await progressTracker.withProgress('generating_response', generateResponse)();
-    stepTimings['generating_response'].duration = Date.now() - stepTimings['generating_response'].start;
-    logStep4Complete();
-    
-    // Collect LLM tokens from AI response
-    totalLLMTokens += aiResponse.usageTokens || 0;
+    // Step 4: AI Response Generation - REMOVED
+    // AI Response Generation has been removed for performance optimization
     
     // Generate suggested follow-ups for question mode
     const suggestedFollowUps = await getSuggestedFollowUps();
@@ -121,8 +109,7 @@ export class MarkingPipeline {
       totalLLMTokens,
       totalMathpixCalls,
       finalProgressData,
-      suggestedFollowUps,
-      aiResponse
+      suggestedFollowUps
     });
   }
 
@@ -231,20 +218,8 @@ export class MarkingPipeline {
     stepTimings['creating_annotations'].duration = Date.now() - stepTimings['creating_annotations'].start;
     logStep6Complete();
 
-    // Step 7: AI Response Generation
-    const logStep7Complete = logStep('AI Response Generation', actualModel);
-    stepTimings['generating_response'] = { start: Date.now() };
-    const generateResponse = async () => {
-      const { MarkingServiceLocator } = await import('./MarkingServiceLocator');
-      return MarkingServiceLocator.generateChatResponse(imageData, '', model, true, debug);
-    };
-    
-    const aiResponse = await markingProgressTracker.withProgress('generating_response', generateResponse)();
-    stepTimings['generating_response'].duration = Date.now() - stepTimings['generating_response'].start;
-    logStep7Complete();
-    
-    // Collect LLM tokens from AI response
-    totalLLMTokens += aiResponse.usageTokens || 0;
+    // Step 7: AI Response Generation - REMOVED
+    // AI Response Generation has been removed for performance optimization
 
     // Generate suggested follow-ups for marking mode
     const suggestedFollowUps = await getSuggestedFollowUps();

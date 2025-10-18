@@ -343,134 +343,139 @@ export class OCRService {
     options: OCROptions = {},
     debug: boolean = false,
     model: any = 'auto',
-    questionDetection?: any
+    questionDetection?: any // Contains extractedQuestionText
   ): Promise<OCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
-    
-    // Check debug mode (Existing logic)
-    if (debug) {
-      const debugMode = getDebugMode();
-      await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
-      return {
-        text: 'Debug mode: Mock OCR text recognition',
-        boundingBoxes: [],
-        confidence: 0.95,
-        dimensions: { width: 800, height: 600 },
-        symbols: [],
-        mathBlocks: [],
-        processingTime: Date.now() - startTime,
-        rawResponse: null
-      };
-    }
 
     const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
     const dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
 
-    // Initialize variables
     let detectedBlocks: DetectedBlock[] = [];
-    let mathBlocks: MathBlock[] = []; // Changed back from EnhancedMathBlock for simplicity now
+    let mathBlocks: MathBlock[] = [];
     let preClusterBlocks: DetectedBlock[] = [];
     let mathpixCalls = 0;
-    let usedFallback = false; 
-
+    let usedFallback = false;
     let rawLineData: Array<any> | null = null;
 
-    // --- STEP 1: OCR EXECUTION (Mathpix First or Fallback) ---
-
-    // Primary Strategy (Mathpix First)
+    // --- PRIMARY STRATEGY: Mathpix First (v3/text) ---
     if (MathpixService.isAvailable()) {
       try {
         console.log('✅ [OCR PROCESSING] Attempting Mathpix First strategy (v3/text).');
-        
         const mathpixOptions = {
           formats: ["text", "latex_styled"],
           include_line_data: true,
-          disable_array_detection: true // Keep this!
+          disable_array_detection: true
         };
-        
         const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, debug);
         mathpixCalls += 1;
-
         if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
             rawLineData = mathpixResult.line_data;
             console.log('✅ [OCR PROCESSING] Mathpix First strategy successful. Raw lines detected:', rawLineData.length);
-             // DIAGNOSTIC LOGGING
-            console.log('🔍 [OCR DIAGNOSTIC] Structure of first Mathpix line_data item:', JSON.stringify(rawLineData[0], null, 2));
-        } else if (mathpixResult.error) {
-           console.error('❌ [OCR] Mathpix processing reported error:', mathpixResult.error);
         } else {
             console.log('⚠️ [OCR] Mathpix v3/text returned no line data.');
+            rawLineData = null; // Ensure fallback is triggered
         }
-
       } catch (error) {
         console.error('❌ [OCR] Error during Mathpix First strategy (v3/text):', error);
+         rawLineData = null; // Ensure fallback on error
       }
     }
+    // --- End of Primary Strategy ---
+
 
     // --- FALLBACK AND POST-PROCESSING ---
+
+    // ========================= START OF MODIFICATION =========================
+    // MODIFIED: Trigger fallback ONLY if the initial Mathpix call failed completely.
     if (!rawLineData || rawLineData.length === 0) {
-        // ... (Full fallback logic remains the same)
-        console.warn(`⚠️ [OCR STRATEGY] No initial line data or Mathpix failed. Triggering robust fallback.`);
+        console.warn(`⚠️ [OCR STRATEGY] No valid line data from initial Mathpix call. Triggering robust fallback.`);
         usedFallback = true;
         try {
            const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug);
            mathBlocks = fallbackResult.mathBlocks; // Fallback directly sets mathBlocks
            mathpixCalls += fallbackResult.mathpixCalls;
+           // Also capture detectedBlocks and preClusterBlocks if needed for rawResponse
+           detectedBlocks = fallbackResult.detectedBlocks;
+           preClusterBlocks = fallbackResult.preClusterBlocks;
         } catch (error) {
            console.error('❌ [OCR] Robust fallback strategy failed:', error);
+           mathBlocks = []; // Ensure mathBlocks is empty on complete failure
         }
+    // ========================== END OF MODIFICATION ==========================
+
     } else {
-        // ========================= START OF REFINED LOGIC =========================
-        // 1. DETERMINE BOUNDARY using fuzzy matching against provided question text
+        // PRIMARY PATH: Mathpix succeeded, now process the result.
         const extractedQuestionText = questionDetection?.extractedQuestionText;
         const studentWorkStartIndex = this.findBoundaryByFuzzyMatch(rawLineData, extractedQuestionText);
         const initialStudentLines = rawLineData.slice(studentWorkStartIndex);
-        
-        // 2. UNGROUP ARRAYS (remains crucial)
+
+        // UNGROUP ARRAYS
         const ungroupedLines: any[] = [];
         initialStudentLines.forEach(line => {
-             // ... (Ungrouping logic is unchanged)
-            const text = line.latex_styled || line.text || '';
-            const coords = this.extractBoundingBox(line);
-            if (!text || !coords) return;
+             const text = line.latex_styled || line.text || '';
+             const coords = this.extractBoundingBox(line);
+             if (!text || !coords) return;
 
-            if (text.includes('\\\\')) {
-                console.log('🔍 [OCR POST-PROCESSING] Detected merged lines (\\\\). Splitting.');
-                let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
-                const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
-                const avgHeight = coords.height / (splitLines.length || 1);
-                splitLines.forEach((splitText, index) => {
-                    const newLine = { ...line, latex_styled: splitText, text: splitText };
-                    const newCoords = { ...coords, y: coords.y + (index * avgHeight), height: avgHeight };
-                    newLine.region = newCoords; 
-                    ungroupedLines.push(newLine);
-                });
-            } else {
-                ungroupedLines.push(line);
-            }
+             if (text.includes('\\\\')) {
+                 console.log('🔍 [OCR POST-PROCESSING] Detected merged lines (\\\\). Splitting.');
+                 let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
+                 const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
+                 const avgHeight = coords.height / (splitLines.length || 1);
+                 splitLines.forEach((splitText, index) => {
+                     const newLine = { ...line, latex_styled: splitText, text: splitText };
+                     const newCoords = { ...coords, y: coords.y + (index * avgHeight), height: avgHeight };
+                     newLine.region = newCoords; // Store coords for extraction
+                     ungroupedLines.push(newLine);
+                 });
+             } else {
+                 ungroupedLines.push(line);
+             }
         });
 
-        // 3. APPLY INCLUSIONARY FILTER (still essential)
+        // 3. APPLY INCLUSIONARY FILTER to the ungrouped student work
         const studentWorkLines = ungroupedLines.filter(line => {
-             // ... (Inclusionary filter logic is unchanged)
-             // Rules: Keep if includes '=', is math expression, or is single number. Discard otherwise.
             const text = line.latex_styled || line.text || '';
-            if (!text.trim()) return false;
+            const trimmedText = text.trim();
+            if (!trimmedText) return false;
+
+            // --- Explicit Discard Rules (New) ---
+            const lowerCaseText = trimmedText.toLowerCase();
+            if (lowerCaseText.includes("total for question") || /^\d+$/.test(lowerCaseText)) { // Discard footers and simple page numbers
+                 console.log(`🗑️ [OCR FILTERING] Discarding footer/metadata line: "${text}"`);
+                 return false;
+            }
+            // --- End of Explicit Discard ---
+
+            // --- Margin Filtering ---
             const coords = this.extractBoundingBox(line);
-            if (coords) { /* Margin check */ }
-            if (text.includes('=')) return true;
-            const hasNumber = /\d/.test(text);
-            const hasOperatorOrVariable = /[+\-^*/÷×nxyz]/.test(text);
-            if (hasNumber && hasOperatorOrVariable) return true;
-            const isSingleNumber = /^\s*£?[\d.,]+\s*$/.test(text.replace(/\\text\{.*?\}/g, ''));
-            if (isSingleNumber) return true;
+             if (coords) {
+                const marginThresholdVertical = 0.05;
+                const marginThresholdHorizontal = 0.10;
+                if (coords.y < dimensions.height * marginThresholdVertical ||
+                    coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) ||
+                    coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal)
+                ) {
+                    console.log(`🗑️ [OCR FILTERING] Discarding margin noise: "${text}"`);
+                    return false;
+                }
+            }
+
+            // --- Inclusionary Rules ---
+            if (trimmedText.includes('=')) return true; // Keep equations
+            const hasNumber = /\d/.test(trimmedText);
+            const hasOperatorOrVariable = /[+\-^*/÷×nxyz]/.test(trimmedText);
+            if (hasNumber && hasOperatorOrVariable) return true; // Keep math expressions
+            // Adjusted single number rule slightly for robustness
+            const isSingleNumber = /^\s*£?[\d.,]+\s*$/.test(trimmedText.replace(/\\text\{.*?\}/g, ''));
+            if (isSingleNumber) return true; // Keep standalone numbers (answers/intermediate steps)
+
             console.log(`🗑️ [OCR FILTERING] Discarding ambiguous line: "${text}"`);
             return false;
         });
 
-        // 4. PREPARE FINAL MATHBLOCKS
+        // PREPARE FINAL MATHBLOCKS
         const processedLines: any[] = [];
         for (const line of studentWorkLines) {
              const text = line.latex_styled || line.text || '';
@@ -482,35 +487,30 @@ export class OCRService {
             googleVisionText: line.text, mathpixLatex: line.text, confidence: line.confidence || 1.0,
             mathpixConfidence: line.confidence || 1.0, mathLikenessScore: 1.0, coordinates: line.coords
         } as MathBlock));
-        // ========================== END OF REFINED LOGIC ==========================
     }
-    
+
     console.log(`✅ [OCR PROCESSING] Processing complete. Final student work lines: ${mathBlocks.length}.`);
 
     // --- Final Data Structuring and Return (No changes from here onwards) ---
     const sortedMathBlocks = [...mathBlocks].sort((a, b) => {
-       // (Adaptive sorting logic implementation remains the same)
        const aY = a.coordinates.y;
        const aHeight = a.coordinates.height;
        const aBottom = aY + aHeight;
        const bY = b.coordinates.y;
        const bHeight = b.coordinates.height;
        const bBottom = bY + bHeight;
-       
        const overlapThreshold = usedFallback ? 0.1 : 0.3;
        const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
-       
        if (verticalOverlap > 0) {
          const aOverlapRatio = verticalOverlap / aHeight;
          const bOverlapRatio = verticalOverlap / bHeight;
-         
          if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
            return a.coordinates.x - b.coordinates.x;
          }
        }
        return aY - bY;
     });
-    
+
     let cleanedOcrText = '';
     let cleanDataForMarking: any = null;
     let unifiedLookupTable: Record<string, { bbox: number[]; cleanedText: string }> = {};
@@ -518,94 +518,48 @@ export class OCRService {
     try {
         const steps = sortedMathBlocks.map((block, index) => {
           const coords = block.coordinates;
-          // Basic validation
-          if (!coords || isNaN(coords.x) || isNaN(coords.y) || isNaN(coords.width) || isNaN(coords.height)) {
-              return null;
-          }
-
+          if (!coords || isNaN(coords.x) || isNaN(coords.y) || isNaN(coords.width) || isNaN(coords.height)) return null;
           const text = block.mathpixLatex || block.googleVisionText || '';
-
           return {
-            unified_step_id: `step_${index + 1}`, // Assign new step IDs starting from 1
-            text: text,
-            cleanedText: text, 
+            unified_step_id: `step_${index + 1}`, text: text, cleanedText: text,
             bbox: [coords.x, coords.y, coords.width, coords.height]
           };
         }).filter(step => step !== null && step.text.trim().length > 0);
-        
         cleanedOcrText = JSON.stringify({ steps });
-
-        // Extract data for marking (Parsing the JSON)
         const { OCRDataUtils } = await import('../../utils/OCRDataUtils');
         cleanDataForMarking = OCRDataUtils.extractDataForMarking(cleanedOcrText);
-        
-        // Build unified lookup table
         if (cleanDataForMarking.steps && Array.isArray(cleanDataForMarking.steps)) {
             for (const step of cleanDataForMarking.steps) {
               if (step.unified_step_id && step.bbox && Array.isArray(step.bbox) && step.bbox.length === 4) {
-                unifiedLookupTable[step.unified_step_id] = {
-                  bbox: step.bbox,
-                  cleanedText: step.cleanedText || ''
-                };
+                unifiedLookupTable[step.unified_step_id] = { bbox: step.bbox, cleanedText: step.cleanedText || '' };
               }
             }
         }
-
     } catch (structuringError) {
       console.error('❌ [OCR] Data structuring failed:', structuringError);
-      // Ensure we don't crash if structuring fails, return partial data
-      if (!cleanDataForMarking) {
-         cleanDataForMarking = { question: 'Error during structuring', steps: [] };
-      }
-      if (!cleanedOcrText) {
-          cleanedOcrText = JSON.stringify({ steps: [] });
-      }
+      if (!cleanDataForMarking) cleanDataForMarking = { question: 'Error during structuring', steps: [] };
+      if (!cleanedOcrText) cleanedOcrText = JSON.stringify({ steps: [] });
     }
-    
-    // Step 6: Combine results
+
     const processingTime = Date.now() - startTime;
-    
-    // Construct final fields based on sortedMathBlocks
     const finalText = sortedMathBlocks.map(block => block.mathpixLatex || block.googleVisionText || '').join('\n');
     const finalBoundingBoxes = sortedMathBlocks.map(block => ({
       text: block.mathpixLatex || block.googleVisionText || '',
-      x: block.coordinates.x,
-      y: block.coordinates.y,
-      width: block.coordinates.width,
-      height: block.coordinates.height,
+      x: block.coordinates.x, y: block.coordinates.y, width: block.coordinates.width, height: block.coordinates.height,
       confidence: block.mathpixConfidence || block.confidence
     }));
-
     const finalConfidence = sortedMathBlocks.length > 0 ? sortedMathBlocks.reduce((sum, block) => sum + (block.mathpixConfidence || block.confidence), 0) / sortedMathBlocks.length : 0;
     const finalSymbols = sortedMathBlocks.map(block => ({
       text: block.mathpixLatex || block.googleVisionText || '',
-      boundingBox: [
-        block.coordinates.x,
-        block.coordinates.y,
-        block.coordinates.width,
-        block.coordinates.height
-      ],
+      boundingBox: [ block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height ],
       confidence: block.mathpixConfidence || block.confidence
     }));
 
-    // Return the final OCRResult object
     return {
-      text: finalText,
-      boundingBoxes: finalBoundingBoxes,
-      confidence: finalConfidence,
-      dimensions,
-      symbols: finalSymbols,
-      mathBlocks: sortedMathBlocks,
-      processingTime,
-      rawResponse: {
-        detectedBlocks, 
-        preClusterBlocks,
-        usedFallback
-      },
-      usage: { mathpixCalls },
-      cleanedOcrText,
-      cleanDataForMarking,
-      unifiedLookupTable
+      text: finalText, boundingBoxes: finalBoundingBoxes, confidence: finalConfidence, dimensions,
+      symbols: finalSymbols, mathBlocks: sortedMathBlocks, processingTime,
+      rawResponse: { detectedBlocks, preClusterBlocks, usedFallback },
+      usage: { mathpixCalls }, cleanedOcrText, cleanDataForMarking, unifiedLookupTable
     };
   }
 

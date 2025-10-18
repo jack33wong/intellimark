@@ -50,19 +50,19 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
   'auto': {
     name: 'Auto (Recommended)',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-    maxTokens: 32000,
+    maxTokens: 64000,
     temperature: 0.1
   },
   'gemini-2.5-flash': {
     name: 'Google Gemini 2.5 Flash',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-    maxTokens: 32000,
+    maxTokens: 64000,
     temperature: 0.1
   },
   'gemini-2.5-pro': {
     name: 'Google Gemini 2.5 Pro (Latest)',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
-    maxTokens: 32000,
+    maxTokens: 64000,
     temperature: 0.1
   }
 };
