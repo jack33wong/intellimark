@@ -2,11 +2,13 @@
  * Image Mode Modal Component
  * 
  * Full-screen image viewer with zoom controls, download, and thumbnail navigation
+ * Simplified with single useImageMode hook
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Download, RotateCw } from 'lucide-react';
 import type { SessionImage } from '../../utils/imageCollectionUtils';
+import { useImageMode } from '../../hooks/useImageMode';
 import './ImageModeModal.css';
 
 interface ImageModeModalProps {
@@ -16,23 +18,68 @@ interface ImageModeModalProps {
   initialImageIndex: number;
 }
 
-const ZOOM_LEVELS = [25, 50, 75, 100, 125, 150, 175, 200];
-const DEFAULT_ZOOM = 100;
-
 const ImageModeModal: React.FC<ImageModeModalProps> = ({
   isOpen,
   onClose,
   images,
   initialImageIndex
 }) => {
-  const [currentImageIndex, setCurrentImageIndex] = useState(initialImageIndex);
-  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM);
-  const [rotation, setRotation] = useState(0);
-  const [imageError, setImageError] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = React.useState(initialImageIndex);
   const imageRef = useRef<HTMLImageElement>(null);
   const scrollPositionRef = useRef<number>(0);
+
+  // Use single hook for all functionality
+  const {
+    zoomLevel,
+    isDragging,
+    imageError,
+    isLoading,
+    isDownloading,
+    zoomIn,
+    zoomOut,
+    rotate,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    handleImageLoad,
+    handleImageError,
+    handleDownload,
+    calculateTransform,
+    canZoomIn,
+    canZoomOut
+  } = useImageMode({ isOpen, currentImageIndex });
+
+  const currentImage = images[currentImageIndex];
+
+  const handleClose = useCallback(() => {
+    window.scrollTo(0, scrollPositionRef.current);
+    onClose();
+  }, [onClose]);
+
+  const navigateToPrevious = useCallback(() => {
+    if (images.length > 1) {
+      setCurrentImageIndex(prev => 
+        prev === 0 ? images.length - 1 : prev - 1
+      );
+    }
+  }, [images.length]);
+
+  const navigateToNext = useCallback(() => {
+    if (images.length > 1) {
+      setCurrentImageIndex(prev => 
+        prev === images.length - 1 ? 0 : prev + 1
+      );
+    }
+  }, [images.length]);
+
+  const handleImageClick = useCallback((index: number) => {
+    setCurrentImageIndex(index);
+  }, []);
+
+  const onDownload = useCallback(async () => {
+    if (!currentImage) return;
+    await handleDownload(currentImage);
+  }, [currentImage, handleDownload]);
 
   // Store scroll position when opening
   useEffect(() => {
@@ -40,14 +87,6 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
       scrollPositionRef.current = window.scrollY;
     }
   }, [isOpen]);
-
-  // Reset zoom and rotation when switching images
-  useEffect(() => {
-    setZoomLevel(DEFAULT_ZOOM);
-    setRotation(0);
-    setImageError(false);
-    setIsLoading(true);
-  }, [currentImageIndex]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -85,117 +124,22 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, currentImageIndex, zoomLevel]);
+  }, [isOpen, currentImageIndex, zoomLevel, zoomIn, zoomOut, rotate, handleClose, navigateToNext, navigateToPrevious]);
 
-  const currentImage = images[currentImageIndex];
+  // Handle mouse drag events
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const handleClose = useCallback(() => {
-    // Restore scroll position
-    window.scrollTo(0, scrollPositionRef.current);
-    onClose();
-  }, [onClose]);
-
-  const navigateToPrevious = useCallback(() => {
-    if (images.length > 1) {
-      setCurrentImageIndex(prev => 
-        prev === 0 ? images.length - 1 : prev - 1
-      );
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
     }
-  }, [images.length]);
 
-  const navigateToNext = useCallback(() => {
-    if (images.length > 1) {
-      setCurrentImageIndex(prev => 
-        prev === images.length - 1 ? 0 : prev + 1
-      );
-    }
-  }, [images.length]);
-
-  const zoomIn = useCallback(() => {
-    setZoomLevel(prev => {
-      const currentIndex = ZOOM_LEVELS.indexOf(prev);
-      return currentIndex < ZOOM_LEVELS.length - 1 
-        ? ZOOM_LEVELS[currentIndex + 1] 
-        : prev;
-    });
-  }, []);
-
-  const zoomOut = useCallback(() => {
-    setZoomLevel(prev => {
-      const currentIndex = ZOOM_LEVELS.indexOf(prev);
-      return currentIndex > 0 
-        ? ZOOM_LEVELS[currentIndex - 1] 
-        : prev;
-    });
-  }, []);
-
-  const rotate = useCallback(() => {
-    setRotation(prev => (prev + 90) % 360);
-  }, []);
-
-
-  const handleImageClick = useCallback((index: number) => {
-    setCurrentImageIndex(index);
-  }, []);
-
-  const handleDownload = useCallback(async () => {
-    if (!currentImage || isDownloading) return;
-
-    setIsDownloading(true);
-
-    try {
-      // For base64 data URLs, use the fetch approach
-      if (currentImage.src.startsWith('data:')) {
-        const response = await fetch(currentImage.src);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = currentImage.filename || 'image';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // For Firebase Storage URLs and other external URLs, use backend proxy
-        const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-        const downloadUrl = `${backendUrl}/api/mark-homework/download-image?url=${encodeURIComponent(currentImage.src)}&filename=${encodeURIComponent(currentImage.filename || 'image')}`;
-        
-        // Create a temporary link to trigger download
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = currentImage.filename || 'image';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (error) {
-      console.error('Failed to download image:', error);
-      // Fallback: open in new tab so user can right-click and save
-      const link = document.createElement('a');
-      link.href = currentImage.src;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } finally {
-      setIsDownloading(false);
-    }
-  }, [currentImage, isDownloading]);
-
-  const handleImageLoad = useCallback(() => {
-    setIsLoading(false);
-    setImageError(false);
-  }, []);
-
-  const handleImageError = useCallback(() => {
-    setIsLoading(false);
-    setImageError(true);
-  }, []);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isOpen, isDragging, handleMouseMove, handleMouseUp]);
 
   if (!isOpen || !currentImage) {
     return null;
@@ -212,7 +156,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
               type="button"
               className="zoom-btn"
               onClick={zoomOut}
-              disabled={zoomLevel === ZOOM_LEVELS[0]}
+              disabled={!canZoomOut}
               aria-label="Zoom out"
             >
               <ZoomOut size={20} />
@@ -222,7 +166,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
               type="button"
               className="zoom-btn"
               onClick={zoomIn}
-              disabled={zoomLevel === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+              disabled={!canZoomIn}
               aria-label="Zoom in"
             >
               <ZoomIn size={20} />
@@ -249,7 +193,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
           <button
             type="button"
             className="download-btn"
-            onClick={handleDownload}
+            onClick={onDownload}
             disabled={isDownloading}
             aria-label="Download image"
           >
@@ -283,7 +227,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
           {imageError && (
             <div className="image-error">
               <span>❌ Image failed to load</span>
-              <button onClick={() => setImageError(false)}>
+              <button onClick={() => window.location.reload()}>
                 Try again
               </button>
             </div>
@@ -296,11 +240,12 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
               alt={currentImage.alt}
               className="main-image"
               style={{
-                transform: `scale(${zoomLevel / 100}) rotate(${rotation}deg)`,
+                transform: calculateTransform(),
                 transformOrigin: 'center center'
               }}
               onLoad={handleImageLoad}
               onError={handleImageError}
+              onMouseDown={handleMouseDown}
               draggable={false}
             />
           )}
