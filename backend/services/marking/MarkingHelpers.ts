@@ -261,6 +261,8 @@ export function buildMarkingResponse({
   totalMathpixCalls,
   finalProgressData,
   suggestedFollowUps,
+  // Question mode specific
+  aiResponse,
   // Marking mode specific
   processedImage,
   markingInstructions,
@@ -276,6 +278,8 @@ export function buildMarkingResponse({
   totalMathpixCalls: number;
   finalProgressData: any;
   suggestedFollowUps: any;
+  // Question mode specific
+  aiResponse?: any;
   // Marking mode specific
   processedImage?: any;
   markingInstructions?: any;
@@ -321,8 +325,8 @@ export function buildMarkingResponse({
     return {
       ...baseResponse,
       extractedText: 'Question detected - ready for analysis',
-      message: '', // AI response generation removed for performance
-      aiResponse: '', // AI response generation removed for performance
+      message: aiResponse?.response || '', // AI response for question mode
+      aiResponse: aiResponse?.response || '', // AI response for question mode
       ocrCleanedText: '', // No OCR processing in question mode
       confidence: 0, // No OCR confidence in question mode
       processingStats: {

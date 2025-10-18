@@ -84,8 +84,21 @@ export class MarkingPipeline {
     stepTimings['question_detection'].duration = Date.now() - stepTimings['question_detection'].start;
     logStep3Complete();
     
-    // Step 4: AI Response Generation - REMOVED
-    // AI Response Generation has been removed for performance optimization
+    // Step 4: AI Response Generation
+    const logStep4Complete = logStep('AI Response Generation', actualModel);
+    stepTimings['generating_response'] = { start: Date.now() };
+    const aiResponse = await progressTracker.withProgress('generating_response', async () => {
+      const { MarkingServiceLocator } = await import('./MarkingServiceLocator.js');
+      return MarkingServiceLocator.generateChatResponse(
+        imageData, 
+        classification.extractedQuestionText || '', 
+        model, 
+        true, // isQuestionOnly
+        debug
+      );
+    })();
+    stepTimings['generating_response'].duration = Date.now() - stepTimings['generating_response'].start;
+    logStep4Complete();
     
     // Generate suggested follow-ups for question mode
     const suggestedFollowUps = await getSuggestedFollowUps();
@@ -104,6 +117,7 @@ export class MarkingPipeline {
       imageData,
       classification,
       questionDetection,
+      aiResponse,
       actualModel,
       totalProcessingTime,
       totalLLMTokens,
@@ -408,7 +422,7 @@ export class MarkingPipeline {
       const isQuestionMode = classification.isQuestionOnly === true;
       
       // Log the first two steps immediately after they complete
-      const totalStepsForMode = isQuestionMode ? 3 : 7;
+      const totalStepsForMode = isQuestionMode ? 4 : 7;
       // Updated log source for Step 1 to reflect image processing
       console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [image-processing]`);
       console.log(`[2/${totalStepsForMode}] Image Classification      [${(stepTimings['classifying_image'].duration / 1000).toFixed(1)}s] [${actualModel}]`);
@@ -422,7 +436,8 @@ export class MarkingPipeline {
         modeSteps = [
           'Image Analysis', 
           'Image Classification', 
-          'Question Detection'
+          'Question Detection', 
+          'AI Response Generation'
         ];
         totalSteps = modeSteps.length;
         
