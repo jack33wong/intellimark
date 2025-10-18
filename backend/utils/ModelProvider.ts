@@ -103,7 +103,13 @@ export class ModelProvider {
       if (finishReason === 'MAX_TOKENS') {
         throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
       }
-      throw new Error('No content in Gemini response');
+      
+      // Extract meaningful error from Gemini response
+      const errorMessage = result.error?.message || 
+                          finishReason || 
+                          result.promptFeedback?.blockReason ||
+                          'No content in Gemini response';
+      throw new Error(`Gemini API error: ${errorMessage}`);
     }
     return content;
   }

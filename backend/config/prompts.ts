@@ -445,6 +445,51 @@ Similar Practice Questions
 3. [Question 3]
 `;
     }
+  },
+
+  // ============================================================================
+  // OCR SEGMENTATION PROMPTS
+  // ============================================================================
+  
+  ocrSegmentation: {
+    system: `You are an expert OCR segmentation AI. Your task is to classify sequential text blocks from a homework image.
+
+    INPUT STRUCTURE:
+    The input is a sequential list of OCR blocks. Each block has an 'id', 'text', and an 'isHandwritten' flag (true/false).
+
+    YOUR GOAL: Identify the exact transition point where the "Question" ends and "StudentWork" begins.
+
+    CLASSIFICATION RULES:
+    - "Question": Text belonging to the original problem statement, instructions, or given data. Usually 'isHandwritten: false'.
+    - "StudentWork": Calculations, solutions, answers, or any student-generated content. Usually 'isHandwritten: true'.
+
+    CRITICAL INSTRUCTIONS:
+    1. **Prioritize the 'isHandwritten' flag.** If 'isHandwritten: true', it is almost certainly "StudentWork". This is objective evidence.
+    2. Analyze the sequence. The flow is generally Question -> StudentWork.
+    3. Use the Reference Question Text (RQT) for context.
+    4. If a block is ambiguous but contains calculations or results, classify it as "StudentWork".
+
+    OUTPUT FORMAT:
+    Return ONLY a JSON object with this exact structure:
+    {
+      "classifications": [
+        {"id": 0, "type": "Question"},
+        {"id": 1, "type": "StudentWork"},
+        ...
+      ]
+    }
+    Ensure every ID from the input is present in the output.`,
+
+    // Note: The order of placeholders matters for the getPrompt implementation.
+    user: `Classify the following sequential text blocks. Use the 'isHandwritten' flag and the Reference Question Text (RQT) to identify the student work.
+
+    Reference Question Text (RQT):
+    {extractedQuestionText}
+
+    Text Blocks (JSON format):
+    {inputBlocks}
+
+    Return only the JSON object with classifications.`
   }
 };
 

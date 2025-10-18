@@ -1,127 +1,91 @@
 import type { ModelType } from '../../types/index.js';
-// Ensure this dependency is installed: npm install string-similarity
-import { compareTwoStrings } from 'string-similarity';
+// We no longer need LLM dependencies (getPrompt, ModelProvider) or string-similarity for this service.
 
-/**
- * Helper function to normalize text for robust comparison (Whitelist approach).
- */
-const normalizeText = (text: string): string => {
-  if (!text) return "";
-  
-  let normalized = text;
+// Import MathBlock type definition (ensure path is correct)
+import type { MathBlock } from './MathDetectionService.js'; 
 
-  // 1. Strip LaTeX delimiters
-  normalized = normalized.replace(/\\\(|\\\)|\\\[|\\\]|\\\$|\$/g, "");
-
-  // 2. Handle specific LaTeX symbols/commands
-  normalized = normalized.replace(/\\text\{(.*?)\}/g, "$1");
-  normalized = normalized.replace(/\\circ|\^\{\\circ\}|\\degree|°/g, "");
-
-  // 3. Strip common LaTeX math commands
-  normalized = normalized.replace(/\\(frac|times|pi|sqrt)\b/g, "");
-  
-  // 4. Remove remaining LaTeX syntax elements
-  normalized = normalized.replace(/[\{\}\^_\\]/g, "");
-
-  // 5. Final Normalization: Keep only alphanumeric characters and convert to lowercase.
-  normalized = normalized.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  
-  return normalized;
-};
-
-/**
- * Helper function to preprocess the extracted question text (Remove prefixes).
- * CRITICAL FIX: Removes the word "Question" but retains the question number for alignment.
- */
-const preprocessQuestionText = (text: string): string => {
-    if (!text) return "";
-    
-    // Remove the word "Question" or "Q" followed by optional space at the start of the string.
-    // Case-insensitive matching.
-    // This changes "Question 4. The diagram..." to "4. The diagram..."
-    let processed = text.replace(/^\s*(Question|Q)[\s]*/i, '').trim();
-
-    // We intentionally DO NOT remove the leading number (e.g., "4.")
-    // as the OCR output (Mathpix) also typically includes this number.
-    
-    return processed;
+// Define the enhanced type used internally
+interface EnhancedMathBlock extends MathBlock {
+    isHandwritten?: boolean;
 }
-
 
 export class OCRCleanupService {
   
   /**
-   * Deterministically segments OCR text by identifying the boundary between the question and student work.
-   * This function operates on the raw Mathpix lineData structure.
+   * Segments OCR text using a deterministic algorithm based on the injected handwriting signals.
+   * Implements the "Switching Heuristic" for robust segmentation of mixed content.
    * 
-   * @param rawLineData - The raw line_data array from the Mathpix response.
-   * @param extractedQuestionText - The known question text from the Classification stage.
-   * @returns The index in rawLineData where the student work begins (the first block AFTER the question ends).
+   * @param mathBlocks - The array of EnhancedMathBlock objects (post-processed and signal-injected).
+   * @param extractedQuestionText - (Not used in this deterministic approach, but kept for interface consistency).
+   * @param model - (Not used).
+   * @returns A Set containing the indices of mathBlocks that belong to the student's work.
    */
   static async findStudentWorkBoundary(
-    rawLineData: Array<any>,
-    extractedQuestionText?: string
-  ): Promise<number> {
+    mathBlocks: Array<EnhancedMathBlock>,
+    extractedQuestionText: string | undefined,
+    model: ModelType = 'auto'
+  ): Promise<Set<number>> {
     
-    // 1. Prepare the question text
-    const preprocessedQuestion = preprocessQuestionText(extractedQuestionText || "");
-    const normalizedQuestion = normalizeText(preprocessedQuestion);
+    console.log('🔧 [OCR CLEANUP] Initiating Deterministic Signal-Based Segmentation.');
+
+    const studentWorkIndices = new Set<number>();
+    let hasSwitchedToStudentWork = false;
+
+    for (let i = 0; i < mathBlocks.length; i++) {
+        const block = mathBlocks[i];
+        const text = block.mathpixLatex || block.googleVisionText || '';
+
+        // Skip empty blocks for segmentation logic, but include them if context is already StudentWork.
+        if (text.trim().length === 0) {
+            if (hasSwitchedToStudentWork) {
+                studentWorkIndices.add(i);
+            }
+            continue;
+        }
+
+        // Determine the classification based on the Switching Heuristic
+        if (hasSwitchedToStudentWork) {
+            // Once switched, all subsequent blocks are StudentWork.
+            studentWorkIndices.add(i);
+        } else {
+            // Check the objective signal (injected by OCRService using Google Vision correlation)
+            if (block.isHandwritten === true) {
+                // This is the first definitive handwriting block. Switch the context.
+                hasSwitchedToStudentWork = true;
+                studentWorkIndices.add(i);
+                console.log(`➡️ [OCR CLEANUP] Switching context to StudentWork at index ${i}.`);
+            } else {
+                // Block is Print (isHandwritten: false or undefined) and context has not switched.
+                // Classified as Question (by exclusion).
+            }
+        }
+    }
     
-    let accumulatedOcrText = "";
-    let boundaryIndex = -1; // Index of the last block containing the question
-
-    const MIN_LENGTH_THRESHOLD = 20;
-    // A threshold of 90% is robust now that alignment is fixed and architecture is correct.
-    const SIMILARITY_THRESHOLD = 0.90; 
-
-    // 2. Identify the boundary using fuzzy matching.
-    if (normalizedQuestion.length > MIN_LENGTH_THRESHOLD) {
-        for (let i = 0; i < rawLineData.length; i++) {
-          // Extract text from the raw lineData structure
-          const lineText = rawLineData[i].latex_styled || rawLineData[i].text || '';
-          const blockText = normalizeText(lineText);
-          
-          accumulatedOcrText += blockText;
-
-          // Calculate the similarity
-          // We compare the question against a substring of the OCR text slightly longer than the question itself.
-          const relevantOcrSubstring = accumulatedOcrText.substring(0, normalizedQuestion.length + 100); // Add buffer
-          
-          const similarity = compareTwoStrings(normalizedQuestion, relevantOcrSubstring);
-
-          if (similarity >= SIMILARITY_THRESHOLD) {
-            boundaryIndex = i;
-            console.log(`✅ [OCR CLEANUP] Fuzzy match successful (Similarity: ${(similarity * 100).toFixed(2)}%). Boundary at index ${boundaryIndex}.`);
-            break;
-          }
+    // Fallback: If no switch occurred (e.g., fully printed submission or GV failure), 
+    // we conservatively treat everything as potential student work to avoid data loss.
+    if (!hasSwitchedToStudentWork && mathBlocks.length > 0) {
+        // This check specifically addresses the scenario where NO handwriting was detected at all.
+        if (studentWorkIndices.size === 0) {
+           console.warn('⚠️ [OCR CLEANUP] No handwriting transition detected. Falling back to treating all content as student work.');
+           return new Set(mathBlocks.map((_, index) => index));
         }
     }
 
-    // 3. Determine the starting index of the student work.
-    if (boundaryIndex !== -1) {
-      // Student work starts after the block where the question ended.
-      return boundaryIndex + 1;
-    } else {
-      // Fallback behavior
-      if (normalizedQuestion.length > MIN_LENGTH_THRESHOLD) {
-        console.warn("⚠️ [OCR CLEANUP] Could not find question text boundary (fuzzy match failed). Treating all content as student work.");
-        // Diagnostic Logging (optional)
-      }
-      return 0; // Start from the beginning
-    }
+    console.log(`✅ [OCR CLEANUP] Deterministic Segmentation successful. Identified ${studentWorkIndices.size} blocks as student work.`);
+    return studentWorkIndices;
   }
 
 
-  // DEPRECATED METHODS (Stubs remain)
+  // DEPRECATED METHODS (Stubs remain as previously defined)
 
   /**
-   * @deprecated Use findStudentWorkBoundary and structure data in OCRService instead.
+   * @deprecated
    */
   static async deterministicCleanupAndAssignSteps(
     boundingBoxes: Array<any>,
     extractedQuestionText?: string
   ): Promise<{ cleanedText: string; usageTokens: number }> {
-     throw new Error("deterministicCleanupAndAssignSteps is deprecated. The architecture has changed to segment before post-processing.");
+     throw new Error("deterministicCleanupAndAssignSteps is deprecated.");
   }
 
   /**

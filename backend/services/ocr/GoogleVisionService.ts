@@ -1,11 +1,12 @@
 /**
  * Google Vision Service
- * Handles Google Cloud Vision API operations
+ * Handles Google Cloud Vision API operations, including standard text detection and robust recognition.
  */
 
 import sharp from 'sharp';
 import { ImageAnnotatorClient, protos } from '@google-cloud/vision';
 import type { DetectedBlock } from './BlockClusteringService.js';
+import type { ProcessedVisionResult } from '../../types/index.js';
 
 // Type aliases for robust recognition
 type IBlock = protos.google.cloud.vision.v1.IBlock;
@@ -15,6 +16,27 @@ export class GoogleVisionService {
   // Configuration for robust recognition
   private static readonly RESIZE_FACTOR = 2;
   private static readonly LINE_GROUP_TOLERANCE_Y = 10; // pixels tolerance to group words into same line
+
+  /**
+   * NEW: Performs standard text detection using the specified feature type and context.
+   * This is used for handwriting detection signal injection.
+   */
+  static async detectText(imageBuffer: Buffer, featureType: 'TEXT_DETECTION' | 'DOCUMENT_TEXT_DETECTION' = 'DOCUMENT_TEXT_DETECTION', imageContext: any = {}): Promise<any> {
+    const client = new ImageAnnotatorClient();
+    const request = {
+      image: { content: imageBuffer },
+      features: [{ type: featureType }],
+      imageContext: imageContext,
+    };
+
+    try {
+      const [result] = await client.annotateImage(request);
+      return result;
+    } catch (error) {
+      console.error('❌ [GOOGLE VISION API] Error during detectText:', error);
+      throw error;
+    }
+  }
 
   /**
    * Helper method to preprocess images with Sharp operations

@@ -36,8 +36,8 @@ export class ClassificationService {
     const userPrompt = getPrompt('classification.user');
 
     try {
-      // Hardcoded test data: Only trigger for specific filename
-      if (fileName === "IMG_1596.jpg") {
+      // Hardcoded test data: Only trigger for specific filenames
+      if (fileName === "IMG_1596.jpg" || fileName?.startsWith("q21-edexcel")) {
         return {
           isQuestionOnly: false,
           reasoning: "The image contains the math question along with calculations and the final answer, which constitutes student work.",

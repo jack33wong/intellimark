@@ -1,7 +1,6 @@
 /**
  * OCR Service
- * Complete OCR pipeline utilizing a "Mathpix First" strategy with Google Cloud Vision fallback.
- * Includes layout analysis, math recognition, spatial filtering, and OCR cleanup.
+ * Implements Enhanced Hybrid Architecture: Extract -> Post-process -> Inject Signal -> Segment -> Filter
  */
 
 import sharp from 'sharp';
@@ -14,6 +13,11 @@ import { GoogleVisionService } from './GoogleVisionService.js';
 import type { DetectedBlock } from './BlockClusteringService.js';
 // Import OCRCleanupService for direct use
 import { OCRCleanupService } from './OCRCleanupService.js';
+
+// Define the enhanced type used internally
+interface EnhancedMathBlock extends MathBlock {
+    isHandwritten?: boolean;
+}
 
 // (Interfaces OCRResult, OCROptions, and type exports remain the same as in the prompt)
 export interface OCRResult {
@@ -124,6 +128,91 @@ export class OCRService {
     }
 
     return null;
+  }
+
+  /**
+   * NEW: Detects handwriting regions using Google Vision's optimized handwriting model.
+   */
+  private static async detectHandwritingWithGoogleVision(imageBuffer: Buffer): Promise<Array<{ x: number, y: number, width: number, height: number }>> {
+    try {
+        console.log('🔍 [OCR GV Handwriting] Starting Google Vision handwriting detection.');
+        // Use DOCUMENT_TEXT_DETECTION optimized for handwriting
+        const result = await GoogleVisionService.detectText(imageBuffer, 'DOCUMENT_TEXT_DETECTION', { languageHints: ['en-t-i0-handwrit'] });
+        
+        const handwritingBlocks = [];
+        // Parse the Google Vision API response structure
+        if (result && result.fullTextAnnotation && result.fullTextAnnotation.pages) {
+            result.fullTextAnnotation.pages.forEach(page => {
+                if (page.blocks) {
+                    page.blocks.forEach(block => {
+                        // We extract the bounding box of the detected blocks.
+                        if (block.boundingBox && block.boundingBox.vertices) {
+                            const vertices = block.boundingBox.vertices;
+                            // Convert vertices to x, y, width, height
+                            if (vertices.length === 4 && vertices[0].x != null && vertices[0].y != null && vertices[2].x != null && vertices[2].y != null) {
+                                const x = vertices[0].x;
+                                const y = vertices[0].y;
+                                const width = vertices[2].x - x;
+                                const height = vertices[2].y - y;
+                                if (width > 0 && height > 0) {
+                                    handwritingBlocks.push({ x, y, width, height });
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        console.log(`✅ [OCR GV Handwriting] Detected ${handwritingBlocks.length} handwriting regions.`);
+        return handwritingBlocks;
+    } catch (error) {
+        console.error('❌ [OCR GV Handwriting] Google Vision handwriting detection failed:', error);
+        return [];
+    }
+  }
+
+  /**
+   * NEW: Correlates Google Vision handwriting data with Mathpix blocks using spatial overlap (IoU).
+   */
+  private static correlateHandwritingSignal(mathBlocks: EnhancedMathBlock[], handwritingBlocks: Array<{ x: number, y: number, width: number, height: number }>): void {
+    if (handwritingBlocks.length === 0) return;
+
+    const calculateIoU = (boxA, boxB) => {
+        const xA = Math.max(boxA.x, boxB.x);
+        const yA = Math.max(boxA.y, boxB.y);
+        const xB = Math.min(boxA.x + boxA.width, boxB.x + boxB.width);
+        const yB = Math.min(boxA.y + boxA.height, boxB.y + boxB.height);
+
+        const intersectionArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+
+        // Calculate IoU relative to the Mathpix block (Intersection over Mathpix Block Area)
+        const boxAArea = boxA.width * boxA.height;
+        if (boxAArea === 0) return 0;
+
+        const iou = intersectionArea / boxAArea;
+        return iou;
+    };
+
+    // Threshold for considering a block as handwritten (e.g., 30% coverage)
+    const IOU_THRESHOLD = 0.30;
+
+    mathBlocks.forEach(block => {
+        let maxIoU = 0;
+        for (const hwBlock of handwritingBlocks) {
+            const iou = calculateIoU(block.coordinates, hwBlock);
+            maxIoU = Math.max(maxIoU, iou);
+        }
+
+        if (maxIoU >= IOU_THRESHOLD) {
+            block.isHandwritten = true;
+        } else {
+            // Respect existing signals if present (e.g., from Mathpix metadata), otherwise default to false
+            if (block.isHandwritten !== true) {
+               block.isHandwritten = false;
+            }
+        }
+    });
+    console.log('✅ [OCR PROCESSING] Handwriting signal correlation complete.');
   }
 
   /**
@@ -305,26 +394,25 @@ export class OCRService {
       };
     }
 
-    // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
     const imageBuffer = Buffer.from(base64Data, 'base64');
-
-    // Get image dimensions (needed for spatial filtering)
     const dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
 
     // Initialize variables
     let detectedBlocks: DetectedBlock[] = [];
-    let mathBlocks: MathBlock[] = [];
+    let mathBlocks: EnhancedMathBlock[] = []; 
     let preClusterBlocks: DetectedBlock[] = [];
     let mathpixCalls = 0;
     let usedFallback = false; 
 
-    // NEW: Variable to hold the raw output from Mathpix
-    let rawLineData: Array<any> | null = null; // Flag to track strategy (for sorting heuristics)
+    let rawLineData: Array<any> | null = null;
 
+    // --- STEP 0: Parallel Handwriting Detection (Google Vision) ---
+    const handwritingDetectionPromise = this.detectHandwritingWithGoogleVision(imageBuffer);
 
-    // --- PRIMARY STRATEGY: Mathpix First (v3/text) ---
-    // Goal: Obtain rawLineData.
+    // --- STEP 1: OCR EXECUTION (Mathpix First or Fallback) ---
+
+    // Primary Strategy (Mathpix First)
     if (MathpixService.isAvailable()) {
       try {
         console.log('✅ [OCR PROCESSING] Attempting Mathpix First strategy (v3/text).');
@@ -332,7 +420,6 @@ export class OCRService {
         const mathpixOptions = {
           formats: ["text", "latex_styled"],
           include_line_data: true,
-          // Best effort configuration
           is_handwritten: true, 
           disable_array_detection: true
         };
@@ -355,67 +442,36 @@ export class OCRService {
         console.error('❌ [OCR] Error during Mathpix First strategy (v3/text):', error);
       }
     }
-    // --- End of Primary Strategy ---
 
-    // --- FALLBACK STRATEGY ---
-    // If primary strategy yielded no raw data, use the fallback.
+    // Fallback Strategy
     if (!rawLineData || rawLineData.length === 0) {
         usedFallback = true;
         try {
+            // The fallback strategy directly populates mathBlocks.
+            // Ensure fallbackHybridStrategy is implemented and awaited
             const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug);
             mathBlocks = fallbackResult.mathBlocks;
-            mathpixCalls += fallbackResult.mathpixCalls; // Add calls made during fallback
+            mathpixCalls += fallbackResult.mathpixCalls;
             detectedBlocks = fallbackResult.detectedBlocks;
             preClusterBlocks = fallbackResult.preClusterBlocks;
         } catch (error) {
-            // Handle the critical failure if both strategies failed (error thrown from fallbackHybridStrategy)
             console.error(error.message);
-            // Depending on requirements, you might want to throw the error here or return a partial/empty result.
         }
     }
-    // --- End of Fallback ---
+    // --- END OF STEP 1 ---
 
 
-    // --- SEGMENTATION AND POST-PROCESSING (For Mathpix First Strategy) ---
-    // If we have rawLineData, we must segment and then process (split arrays, filter).
-    // This block is skipped if the fallback strategy was used (as mathBlocks are already populated).
+    // --- STEP 2: POST-PROCESSING (Array Splitting) ---
+    // CRITICAL: Spatial filtering is NOT done here.
+
     if (rawLineData && rawLineData.length > 0 && !usedFallback) {
-        
-        // 1. Segmentation (Deterministic Cleanup)
-        const extractedQuestionText = questionDetection?.extractedQuestionText || '';
-        // Use the updated OCRCleanupService method to find the boundary
-        const studentWorkStartIndex = await OCRCleanupService.findStudentWorkBoundary(rawLineData, extractedQuestionText);
-        
-        // Slice the array to get only the student work lines
-        const studentWorkLines = rawLineData.slice(studentWorkStartIndex);
-
-        // 2. Post-processing (Filtering and Array Splitting)
         const processedLines = [];
 
-        studentWorkLines.forEach(line => {
+        rawLineData.forEach(line => {
             const coords = this.extractBoundingBox(line);
             const text = line.latex_styled || line.text || '';
 
-            if (!coords) {
-                console.warn('⚠️ [OCR PROCESSING] Line extracted without coordinates:', text);
-                return;
-            }
-
-            // Spatial Noise Filtering
-            const marginThresholdVertical = 0.05; 
-            const marginThresholdHorizontal = 0.10; 
-
-            if (dimensions && dimensions.height && dimensions.width) {
-                if (coords.y < dimensions.height * marginThresholdVertical || // Top margin
-                    coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) || // Bottom margin
-                    coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal) // Right margin
-                    ) {
-                   console.log(`⚠️ [OCR FILTERING] Ignoring noise in margin. Text: ${text}`);
-                   return;
-                }
-            }
-
-            if (!text.trim()) {
+            if (!coords || !text.trim()) {
                 return;
             }
 
@@ -423,7 +479,6 @@ export class OCRService {
             if (text.includes('\\\\')) {
                 console.log('🔍 [OCR POST-PROCESSING] Detected merged lines (\\\\). Splitting.');
                 
-                // Clean and split the text
                 let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
                 const splitLines = cleanText.split('\\\\').map(l => l.trim()).filter(l => l.length > 0);
                 
@@ -431,7 +486,6 @@ export class OCRService {
                 if (numLines > 0) {
                     const avgHeight = coords.height / numLines;
                     
-                    // Heuristic coordinate division
                     splitLines.forEach((splitText, index) => {
                         const splitCoords = {
                             x: coords.x,
@@ -443,7 +497,9 @@ export class OCRService {
                         processedLines.push({
                             text: splitText,
                             coords: splitCoords,
-                            confidence: line.confidence || 0.85
+                            confidence: line.confidence || 0.85,
+                            // Capture the signal from Mathpix metadata, if available
+                            isHandwritten: line.is_handwritten === true
                         });
                     });
                 }
@@ -452,12 +508,13 @@ export class OCRService {
                 processedLines.push({
                     text: text,
                     coords: coords,
-                    confidence: line.confidence || 0.85
+                    confidence: line.confidence || 0.85,
+                    isHandwritten: line.is_handwritten === true
                 });
             }
         });
 
-        // Map processed lines to mathBlocks
+        // Map processed lines to mathBlocks (This now holds the complete, processed set of blocks)
         mathBlocks = processedLines.map(line => {
             return {
               googleVisionText: line.text,
@@ -465,17 +522,67 @@ export class OCRService {
               confidence: line.confidence,
               mathpixConfidence: line.confidence,
               mathLikenessScore: 1.0,
-              coordinates: line.coords
-            } as MathBlock;
+              coordinates: line.coords,
+              isHandwritten: line.isHandwritten // Preserve the signal
+            } as EnhancedMathBlock;
         });
 
-        console.log(`✅ [OCR PROCESSING] Segmentation and Post-processing complete. Final student work lines: ${mathBlocks.length}.`);
+        console.log(`✅ [OCR PROCESSING] Post-processing complete. Total lines before segmentation: ${mathBlocks.length}.`);
     }
-    // --- End of Segmentation and Post-processing ---
+    // --- END OF STEP 2 ---
+
+    // --- STEP 2.5: HANDWRITING SIGNAL INJECTION ---
+    // Wait for the Google Vision detection to complete and correlate the data.
+    const handwritingBlocks = await handwritingDetectionPromise;
+    this.correlateHandwritingSignal(mathBlocks, handwritingBlocks);
+
+    // --- STEP 3: SEGMENTATION (LLM-Powered) ---
+    // Operates on the enhanced mathBlocks.
+
+    const extractedQuestionText = questionDetection?.extractedQuestionText || '';
+    
+    // Use the LLM-powered segmentation method (updated in this turn)
+    const studentWorkIndices = await OCRCleanupService.findStudentWorkBoundary(mathBlocks, extractedQuestionText, model);
+    
+    // Filter the mathBlocks based on the indices identified by the LLM.
+    let studentWorkMathBlocks = mathBlocks.filter((_, index) => studentWorkIndices.has(index));
+
+    console.log(`✅ [OCR PROCESSING] Segmentation complete. Lines identified as student work: ${studentWorkMathBlocks.length}.`);
+
+    // --- END OF STEP 3 ---
+
+    // --- STEP 3.5: POST-SEGMENTATION FILTERING (Spatial Filtering) ---
+    // Apply spatial filtering ONLY to the student work blocks.
+
+    // Refined Spatial Filtering Heuristics
+    const marginThresholdVertical = 0.03; // 3%
+    const marginThresholdHorizontal = 0.05; // 5%
+
+    if (dimensions && dimensions.height > 0 && dimensions.width > 0) {
+        studentWorkMathBlocks = studentWorkMathBlocks.filter(block => {
+            const coords = block.coordinates;
+            
+            // Basic coordinate safety check
+            if (coords.x < 0 || coords.y < 0 || !coords.width || !coords.height) return true;
+
+            if (coords.y < dimensions.height * marginThresholdVertical || // Top margin
+                coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) || // Bottom margin
+                coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal) // Right margin
+                ) {
+               console.log(`⚠️ [OCR FILTERING] Ignoring noise in margin (Post-Segmentation). Text: ${block.mathpixLatex}`);
+               return false;
+            }
+            return true;
+        });
+    }
+
+    console.log(`✅ [OCR PROCESSING] Post-Segmentation Filtering complete. Final student work lines: ${studentWorkMathBlocks.length}.`);
+
+    // --- END OF STEP 3.5 ---
 
 
-    // Step 4: Sort math blocks (Improved Adaptive Heuristics)
-    const sortedMathBlocks = [...mathBlocks].sort((a, b) => {
+    // Step 4: Sorting (Applies to the segmented student work)
+    const sortedMathBlocks = [...studentWorkMathBlocks].sort((a, b) => {
       const aY = a.coordinates.y;
       const aHeight = a.coordinates.height;
       const aBottom = aY + aHeight;
