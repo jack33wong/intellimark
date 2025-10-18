@@ -153,24 +153,24 @@ export class MarkingPipeline {
 
     // Steps 1 & 2 already logged in main run method with proper timing
 
-    // Step 3: OCR Processing (extract text first)
-    const logStep3Complete = logStep('OCR Processing', 'google-vision + mathpix');
-    stepTimings['extracting_text'] = { start: Date.now() };
-    const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker, classification);
-    stepTimings['extracting_text'].duration = Date.now() - stepTimings['extracting_text'].start;
-    logStep3Complete();
-    
-    // Collect Mathpix calls from OCR processing
-    totalMathpixCalls += processedImage.mathpixCalls || 0;
-
-    // Step 4: Question Detection (use extracted text)
-    const logStep4Complete = logStep('Question Detection', 'question-detection');
+    // Step 3: Question Detection (use extracted text)
+    const logStep3Complete = logStep('Question Detection', 'question-detection');
     stepTimings['detecting_question'] = { start: Date.now() };
     const questionDetection = await markingProgressTracker.withProgress('detecting_question', async () => {
       return performQuestionDetection(classification.extractedQuestionText);
     })();
     stepTimings['detecting_question'].duration = Date.now() - stepTimings['detecting_question'].start;
+    logStep3Complete();
+
+    // Step 4: OCR Processing (extract text first)
+    const logStep4Complete = logStep('OCR Processing', 'google-vision + mathpix');
+    stepTimings['extracting_text'] = { start: Date.now() };
+    const processedImage = await this.processImageWithOCRPipeline(imageData, debug, markingProgressTracker, classification);
+    stepTimings['extracting_text'].duration = Date.now() - stepTimings['extracting_text'].start;
     logStep4Complete();
+    
+    // Collect Mathpix calls from OCR processing
+    totalMathpixCalls += processedImage.mathpixCalls || 0;
 
     const logStep5Complete = logStep('Marking Instructions', actualModel);
     stepTimings['generating_feedback'] = { start: Date.now() };

@@ -44,7 +44,7 @@ export class SVGOverlayService {
     },
     // Y Position Configuration (as percentages of block height)
     yPositions: {
-      baseYOffset: -20,    // -2% of block height from bottom (equivalent to -4px for 200px block)
+      baseYOffset: -40,    // -2% of block height from bottom (equivalent to -4px for 200px block)
       reasoningYOffset: -11  // -11% of block height offset from baseY (equivalent to -22px for 200px block)
     }
   };
