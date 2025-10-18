@@ -408,7 +408,7 @@ export class MarkingPipeline {
       const isQuestionMode = classification.isQuestionOnly === true;
       
       // Log the first two steps immediately after they complete
-      const totalStepsForMode = isQuestionMode ? 4 : 7;
+      const totalStepsForMode = isQuestionMode ? 3 : 7;
       // Updated log source for Step 1 to reflect image processing
       console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [image-processing]`);
       console.log(`[2/${totalStepsForMode}] Image Classification      [${(stepTimings['classifying_image'].duration / 1000).toFixed(1)}s] [${actualModel}]`);
@@ -422,8 +422,7 @@ export class MarkingPipeline {
         modeSteps = [
           'Image Analysis', 
           'Image Classification', 
-          'Question Detection', 
-          'AI Response Generation'
+          'Question Detection'
         ];
         totalSteps = modeSteps.length;
         
