@@ -104,6 +104,16 @@ export const QUESTION_MODE_STEPS: StepConfig[] = [
     id: 'classifying_image',
     name: 'Classifying Image',
     description: 'Classifying image...'
+  },
+  {
+    id: 'question_detection',
+    name: 'Question Detection',
+    description: 'Detecting question...'
+  },
+  {
+    id: 'generating_response',
+    name: 'Generating Response',
+    description: 'Generating response...'
   }
 ];
 
