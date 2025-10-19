@@ -107,10 +107,9 @@ test.describe('Happy Path E2E Tests', () => {
           'Detecting question type...',
           'Extracting text and math...',
           'Generating feedback...',
-          'Creating annotations...',
-          'Generating response...'
+          'Creating annotations...'
         ],
-        expectedStepCount: 7
+        expectedStepCount: 6
       });
 
       // Verify progress toggle functionality
@@ -167,9 +166,10 @@ test.describe('Happy Path E2E Tests', () => {
         expectedSteps: [
           'Analyzing image...',
           'Classifying image...',
+          'Detecting question...',
           'Generating response...'
         ],
-        expectedStepCount: 3
+        expectedStepCount: 4
       });
 
       // Verify progress toggle functionality
