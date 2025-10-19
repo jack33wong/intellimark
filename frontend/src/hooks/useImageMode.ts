@@ -176,7 +176,7 @@ export const useImageMode = ({ isOpen, currentImageIndex }: UseImageModeProps): 
       } else {
         // External URL - use backend proxy
         const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
-        const downloadUrl = `${backendUrl}/api/mark-homework/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(image.filename || 'image')}`;
+        const downloadUrl = `${backendUrl}/api/marking/download-image?url=${encodeURIComponent(image.src)}&filename=${encodeURIComponent(image.filename || 'image')}`;
         
         const link = document.createElement('a');
         link.href = downloadUrl;

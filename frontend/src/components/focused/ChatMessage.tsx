@@ -142,7 +142,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       
       if (result.success) {
         // Use the standardized completion handler (same as text mode chat)
-        const { simpleSessionService } = await import('../../services/simpleSessionService.js');
+        const { simpleSessionService } = await import('../../services/markingApiService.js');
         simpleSessionService.handleTextChatComplete(result, 'auto');
       } else {
         console.error('❌ [FOLLOW-UP] Failed:', result.error);

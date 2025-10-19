@@ -3,7 +3,7 @@ import { useImageUpload } from '../hooks/useImageUpload';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useApiProcessor } from '../hooks/useApiProcessor';
 import { useAuth } from './AuthContext';
-import { simpleSessionService } from '../services/simpleSessionService';
+import { simpleSessionService } from '../services/markingApiService';
 import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
 

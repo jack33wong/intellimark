@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { simpleSessionService } from '../services/simpleSessionService';
+import { simpleSessionService } from '../services/markingApiService';
 import type { UnifiedMessage, UnifiedSession } from '../types';
 
 // Define the shape of the API state

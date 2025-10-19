@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { simpleSessionService } from '../services/simpleSessionService';
+import { simpleSessionService } from '../services/markingApiService';
 import type { UnifiedSession, UnifiedMessage } from '../types';
 
 // Define the shape of the state managed by this hook

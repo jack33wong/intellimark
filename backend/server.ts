@@ -79,7 +79,7 @@ try {
 
 // Import routes
 import authRoutes from './routes/auth.js';
-import markHomeworkRoutes from './routes/mark-homework.js';
+import markingApiRoutes from './routes/markingApi.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import messagesRoutes from './routes/messages.js';
@@ -87,8 +87,8 @@ import messagesRoutes from './routes/messages.js';
 // Enable auth routes
 app.use('/api/auth', authRoutes);
 
-// Enable mark question system
-app.use('/api/mark-homework', markHomeworkRoutes);
+// Enable marking API
+app.use('/api/marking', markingApiRoutes);
 
 // Enable admin routes
 app.use('/api/admin', adminRoutes);
@@ -130,7 +130,7 @@ app.get('/api', (_req, res) => {
     },
     endpoints: {
       auth: '/api/auth',
-      markHomework: '/api/mark-homework',
+      marking: '/api/marking',
       messages: '/api/messages',
       admin: '/api/admin',
       payment: '/api/payment'

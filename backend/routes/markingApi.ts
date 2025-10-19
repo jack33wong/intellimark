@@ -24,7 +24,7 @@ function validateModelConfig(modelType: string): boolean {
 const router = express.Router();
 
 /**
- * POST /api/mark-homework/process-single-stream
+ * POST /api/marking/process-single-stream
  * 
  * PURPOSE: SSE endpoint for real-time progress tracking during image processing
  * USED BY: Frontend for progress updates during AI processing
@@ -418,7 +418,7 @@ router.post('/process-single-stream', optionalAuth, async (req: Request, res: Re
 });
 
 /**
- * GET /mark-homework/download-image
+ * GET /marking/download-image
  * Download image by proxying the request to avoid CORS issues
  */
 router.get('/download-image', optionalAuth, async (req: Request, res: Response) => {

@@ -344,7 +344,7 @@ class SimpleSessionService {
         originalFileName: originalFileName // Send original filename to backend
       };
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/mark-homework/process-single-stream`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process-single-stream`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)

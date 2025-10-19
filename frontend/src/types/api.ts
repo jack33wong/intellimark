@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/mark-homework/upload": {
+    "/api/marking/upload": {
         parameters: {
             query?: never;
             header?: never;
@@ -62,7 +62,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mark-homework/process": {
+    "/api/marking/process": {
         parameters: {
             query?: never;
             header?: never;
@@ -106,7 +106,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mark-homework/process-single-stream": {
+    "/api/marking/process-single-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -166,7 +166,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mark-homework/model-answer": {
+    "/api/marking/model-answer": {
         parameters: {
             query?: never;
             header?: never;
@@ -221,7 +221,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mark-homework/stats": {
+    "/api/marking/stats": {
         parameters: {
             query?: never;
             header?: never;
@@ -273,7 +273,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mark-homework/health": {
+    "/api/marking/health": {
         parameters: {
             query?: never;
             header?: never;
@@ -304,7 +304,7 @@ export interface paths {
                             status?: string;
                             /** @example 2024-01-01T00:00:00Z */
                             timestamp?: string;
-                            /** @example mark-homework */
+                            /** @example marking */
                             service?: string;
                         };
                     };

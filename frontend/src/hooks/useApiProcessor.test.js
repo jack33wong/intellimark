@@ -1,10 +1,10 @@
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import * as apiProcessorHook from './useApiProcessor';
-import { simpleSessionService } from '../services/simpleSessionService';
+import { simpleSessionService } from '../services/markingApiService';
 
 // Mock the service dependency
-jest.mock('../services/simpleSessionService', () => ({
+jest.mock('../services/markingApiService', () => ({
   simpleSessionService: {
     processImageWithProgress: jest.fn(),
     addMessage: jest.fn(),
