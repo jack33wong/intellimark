@@ -505,9 +505,181 @@
   cursor: not-allowed;
 }
 
+/* ============================================================================
+   MULTI-IMAGE PREVIEW STYLES (Same style as single image)
+   ============================================================================ */
+
+.multi-image-preview-container {
+  position: relative;
+  width: 100%;
+}
+
+
+.multi-image-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 12px 4px 0; /* Add right padding to prevent button clipping */
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+
+.multi-image-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.multi-image-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.multi-image-scroll::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.multi-image-item {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 80px;
+}
+
+.multi-image-item .followup-preview-image {
+  max-width: 200px;
+  max-height: 150px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid var(--text-brand);
+}
+
+.multi-image-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #dc3545;
+  color: white;
+  border: none;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.multi-image-remove:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
+.multi-image-label {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
 /* Mobile responsive - follow-up input bar takes full width when sidebar is hidden */
 @media (max-width: 768px) {
   .followup-chat-input-bar {
     left: 0; /* Full width on mobile */
   }
+  
+  .multi-image-item .followup-preview-image {
+    max-width: 150px;
+    max-height: 120px;
+  }
+}
+
+/* PDF Preview styles */
+.pdf-preview-container {
+  position: relative;
+  display: inline-block;
+  max-width: 320px;
+  border: 1px solid var(--text-tertiary);
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.pdf-preview-content {
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-icon-wrapper {
+  flex-shrink: 0;
+}
+
+.pdf-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdf-icon-svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+.pdf-file-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.pdf-file-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-file-type {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pdf-remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.pdf-remove-btn:hover {
+  background: #c82333;
+  transform: scale(1.1);
 }
