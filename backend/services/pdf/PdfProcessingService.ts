@@ -3,7 +3,7 @@
  * Converts uploaded PDF buffers into page images (base64 data URLs) for downstream processing.
  */
 
-import { fromBuffer, type PDF2PicOptions } from "pdf2pic";
+import { fromBuffer } from "pdf2pic";
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,7 +41,7 @@ export class PdfProcessingService {
    */
   static async convertPdfToImages(
     pdfBuffer: Buffer,
-    options: Partial<PDF2PicOptions> = {}
+    options: any = {}
   ): Promise<StandardizedPage[]> {
     console.log('🔧 [PDF Processing] Starting PDF to image conversion (High Density, Calculated Dimensions)...');
     const startTime = Date.now();
@@ -72,7 +72,7 @@ export class PdfProcessingService {
       console.error('❌ [PDF Processing] Failed to read PDF dimensions with pdf-lib:', pdfErr);
     }
 
-    const defaultOptions: PDF2PicOptions = {
+    const defaultOptions: any = {
       density: TARGET_DENSITY,
       format: "png",
       quality: 100,
@@ -82,7 +82,7 @@ export class PdfProcessingService {
       height: targetHeight
     };
 
-    const conversionOptions: PDF2PicOptions = { ...defaultOptions, ...options } as PDF2PicOptions;
+    const conversionOptions: any = { ...defaultOptions, ...options };
     const convert = fromBuffer(pdfBuffer, conversionOptions as any);
 
     try {

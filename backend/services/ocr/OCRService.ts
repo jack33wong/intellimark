@@ -62,7 +62,7 @@ export class OCRService {
    * Helper function to robustly extract bounding box from various Mathpix v3/text line_data formats.
    * (This is the robust version that handles 'cnt')
    */
-  private static extractBoundingBox(line: any): { x: number, y: number, width: number, height: number } | null {
+  public static extractBoundingBox(line: any): { x: number, y: number, width: number, height: number } | null {
     const region = line.region;
 
     const isValidNumber = (val: any): boolean => val != null && !isNaN(Number(val));
@@ -606,7 +606,7 @@ export class OCRService {
     return {
       text: finalText, boundingBoxes: finalBoundingBoxes, confidence: finalConfidence, dimensions,
       symbols: finalSymbols, mathBlocks: sortedMathBlocks, processingTime,
-      rawResponse: { detectedBlocks, preClusterBlocks, usedFallback },
+      rawResponse: { detectedBlocks, preClusterBlocks, usedFallback, rawLineData },
       usage: { mathpixCalls }, cleanedOcrText, cleanDataForMarking, unifiedLookupTable
     };
   }

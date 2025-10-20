@@ -6,6 +6,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import * as stringSimilarity from 'string-similarity';
 import { optionalAuth } from '../middleware/auth.js';
 import { runOriginalSingleImagePipeline } from './originalPipeline.js';
 import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
@@ -13,6 +14,250 @@ import sharp from 'sharp';
 import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection } from '../utils/sseUtils.js';
 import { createAIMessage } from '../utils/messageUtils.js';
+import { OCRService } from '../services/ocr/OCRService.js';
+import { ClassificationService } from '../services/marking/ClassificationService.js';
+import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
+import { SVGOverlayService } from '../services/marking/svgOverlayService.js';
+
+// Types for multi-page processing
+interface StandardizedPage {
+  pageIndex: number;
+  imageData: string;
+  originalFileName?: string;
+  width?: number;
+  height?: number;
+}
+
+interface PageOcrResult {
+  pageIndex: number;
+  ocrData: any;
+  classificationText?: string;
+}
+
+// Types for segmentation
+interface MathBlock {
+  googleVisionText: string;
+  mathpixLatex?: string;
+  confidence: number;
+  mathpixConfidence?: number;
+  mathLikenessScore: number;
+  coordinates: { x: number; y: number; width: number; height: number };
+  suspicious?: boolean;
+  pageIndex?: number;
+  globalBlockId?: string;
+}
+
+interface MarkingTask {
+  questionNumber: number | string;
+  mathBlocks: MathBlock[];
+  markingScheme: any;
+  sourcePages: number[];
+}
+
+interface QuestionResult {
+  questionNumber: number | string;
+  score: any;
+  annotations: any[];
+  feedback?: string;
+}
+
+// --- Helper: Find Boundary using Fuzzy Match (with added logging) ---
+const findBoundaryByFuzzyMatch = (
+  ocrLines: Array<any>, // Expect objects with globalIndex, pageIndex, text/latex_styled
+  questionText: string | undefined
+): number => {
+  console.log('🔧 [SEGMENTATION - BOUNDARY] Attempting fuzzy match boundary detection across all lines.');
+  
+  if (!questionText || questionText.trim().length === 0) {
+    console.log('  -> No question text provided, processing all lines');
+    return 0;
+  }
+  
+  const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
+  if (questionLines.length === 0) {
+    console.log('  -> No valid question lines after processing, processing all lines');
+    return 0;
+  }
+
+  const SIMILARITY_THRESHOLD = 0.80;
+  let lastMatchIndex = -1;
+  console.log(`[DEBUG] Comparing ${ocrLines.length} OCR lines against ${questionLines.length} question lines.`);
+
+  for (let i = 0; i < ocrLines.length; i++) {
+    const ocrLineText = ocrLines[i]?.latex_styled || ocrLines[i]?.text || '';
+    const trimmedOcrText = ocrLineText.trim();
+    if (!trimmedOcrText) continue;
+
+    const bestMatch = stringSimilarity.findBestMatch(trimmedOcrText, questionLines);
+    // --- DEBUG LOG ---
+    console.log(`[DEBUG] Fuzzy Match: OCR Line ${i} (Page ${ocrLines[i]?.pageIndex}) "${trimmedOcrText.substring(0, 40)}..." -> Best Q Match: "${bestMatch.bestMatch.target.substring(0, 40)}..." (Rating: ${bestMatch.bestMatch.rating.toFixed(2)})`);
+    // ---------------
+
+    if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD) {
+      console.log(`  -> [DEBUG] STRONG MATCH FOUND at index ${i}`);
+      lastMatchIndex = i; // Keep track of the *last* strong match
+    }
+  } // End loop
+
+  let boundaryIndex = 0;
+  if (lastMatchIndex !== -1) {
+    boundaryIndex = lastMatchIndex + 1;
+    console.log(`  -> Boundary set at global index ${boundaryIndex} (after last strong fuzzy match).`);
+  } else {
+    console.warn('  -> Fuzzy match failed. Attempting keyword fallback.');
+    const instructionKeywords = ['work out', 'calculate', 'explain', 'show that', 'find the', 'write down'];
+    let lastInstructionIndex = -1;
+    for (let i = ocrLines.length - 1; i >= 0; i--) {
+      const text = (ocrLines[i]?.latex_styled || ocrLines[i]?.text || '').toLowerCase();
+      const containsKeyword = instructionKeywords.some(kw => text.includes(kw));
+      const hasEquals = text.includes('=');
+      const wordCount = text.split(/\s+/).length;
+      // --- DEBUG LOG ---
+      console.log(`[DEBUG] Keyword Check: Line ${i} "${text.substring(0, 40)}..." | HasKeyword: ${containsKeyword} | HasEquals: ${hasEquals} | WordCount: ${wordCount}`);
+      // ---------------
+      if (wordCount > 2 && containsKeyword && !hasEquals) {
+        lastInstructionIndex = i;
+        console.log(`  -> Keyword Fallback: Found potential last instruction at global index ${i}`);
+        break;
+      }
+    }
+    if (lastInstructionIndex !== -1) {
+      boundaryIndex = lastInstructionIndex + 1;
+      console.log(`  -> Keyword Fallback: Boundary set at global index ${boundaryIndex}.`);
+    } else {
+       console.warn('  -> Keyword fallback also failed. Treating all as student work.');
+       boundaryIndex = 0;
+    }
+  }
+  boundaryIndex = Math.min(boundaryIndex, ocrLines.length);
+  console.log(`✅ [SEGMENTATION - BOUNDARY] Final boundary index determined globally: ${boundaryIndex}`);
+  return boundaryIndex;
+};
+
+// --- Refined Segmentation Logic (with added logging) ---
+const segmentOcrResultsByQuestion = (
+  allPagesOcrData: PageOcrResult[],
+  globalQuestionText?: string
+): MarkingTask[] => {
+  console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
+  // --- DEBUG LOG ---
+  console.log(`[DEBUG] Received ${allPagesOcrData.length} page results.`);
+  // ---------------
+
+  if (allPagesOcrData.length === 0) {
+    console.log(`[SEGMENTATION] No OCR data available`);
+    return [];
+  }
+
+  // 1. Consolidate ALL raw lines and processed math blocks
+  let allRawLinesForBoundary: Array<any & { pageIndex: number; globalIndex: number }> = [];
+  let allMathBlocksForContent: Array<MathBlock & { pageIndex: number; globalBlockId: string }> = [];
+  let lineCounter = 0;
+  let blockCounter = 0;
+
+  allPagesOcrData.forEach((pageResult, pageIdx) => {
+    const rawLines = pageResult.ocrData?.rawResponse?.rawLineData || [];
+    // --- DEBUG LOG ---
+    console.log(`[DEBUG] Page ${pageIdx}: Found ${rawLines.length} raw lines, ${pageResult.ocrData?.mathBlocks?.length || 0} processed blocks.`);
+    // ---------------
+    rawLines.forEach((line) => {
+      const globalIndex = lineCounter++;
+      allRawLinesForBoundary.push({ ...line, pageIndex: pageResult.pageIndex, globalIndex });
+      // --- DEBUG LOG ---
+      // console.log(`[DEBUG] Raw Line ${globalIndex} (Page ${pageResult.pageIndex}): "${(line.latex_styled || line.text || '').substring(0,50)}..."`);
+      // ---------------
+    });
+    
+    const mathBlocks = pageResult.ocrData?.mathBlocks || [];
+    mathBlocks.forEach((block) => {
+       const globalBlockId = `block_${blockCounter++}`;
+       allMathBlocksForContent.push({ ...block, pageIndex: pageResult.pageIndex, globalBlockId });
+       // --- DEBUG LOG ---
+       // console.log(`[DEBUG] Processed Block ${globalBlockId} (Page ${pageResult.pageIndex}, Coords: ${JSON.stringify(block.coordinates)}): "${(block.mathpixLatex || block.googleVisionText || '').substring(0,50)}..."`);
+       // ---------------
+    });
+  });
+  console.log(`  -> Consolidated ${allRawLinesForBoundary.length} raw lines and ${allMathBlocksForContent.length} processed math blocks.`);
+
+  if (allRawLinesForBoundary.length === 0) {
+    console.log(`[SEGMENTATION] No raw lines available for segmentation`);
+    return [];
+  }
+
+  // --- 2. Determine Boundary ---
+  const boundaryGlobalIndex = findBoundaryByFuzzyMatch(allRawLinesForBoundary, globalQuestionText);
+
+  // --- 3. Filter Math Blocks based on Boundary ---
+  let startYThreshold = -Infinity; // Default to include everything from page 0
+  let startPageThreshold = 0;      // Default to include page 0
+
+  if (boundaryGlobalIndex > 0 && boundaryGlobalIndex < allRawLinesForBoundary.length) {
+    const boundaryLine = allRawLinesForBoundary[boundaryGlobalIndex];
+    // ========================= START OF FIX =========================
+    // Use the SAME extractBoundingBox helper used elsewhere
+    const boundaryCoords = OCRService.extractBoundingBox(boundaryLine);
+    // ========================== END OF FIX ==========================
+
+    if (boundaryCoords) {
+      startYThreshold = boundaryCoords.y;
+      startPageThreshold = boundaryLine.pageIndex;
+      console.log(`  -> Boundary corresponds to Page ${startPageThreshold}, starting at Y-coordinate ~ ${startYThreshold}`);
+    } else {
+       console.warn(`  -> Could not extract coordinates for boundary line index ${boundaryGlobalIndex}. Applying boundary page threshold only.`);
+       // Fallback: If coords fail, still use the page index but include everything on that page
+       startPageThreshold = boundaryLine.pageIndex;
+       startYThreshold = -Infinity; // Include all Y coords on the boundary page onwards
+    }
+  } else if (boundaryGlobalIndex === allRawLinesForBoundary.length && allRawLinesForBoundary.length > 0) {
+     console.warn(`  -> Boundary detected after all lines. No student work blocks will be included.`);
+     startYThreshold = Infinity;
+     startPageThreshold = allPagesOcrData.length;
+  } // else boundaryIndex is 0, defaults (0, -Infinity) are correct
+
+  // Rest of filtering logic remains the same...
+  const studentWorkBlocks = allMathBlocksForContent.filter(block => {
+    if (!block.coordinates) return false;
+    const pageCheck = block.pageIndex >= startPageThreshold;
+    // Ensure Y check allows blocks *on* the start page if Y coord >= threshold
+    const yCheck = block.pageIndex > startPageThreshold || (block.pageIndex === startPageThreshold && block.coordinates.y >= startYThreshold);
+    const shouldKeep = pageCheck && yCheck;
+    console.log(`[DEBUG] Filtering Block ${block.globalBlockId} (Page ${block.pageIndex}, Y: ${block.coordinates.y}): PageCheck(${pageCheck}), YCheck(${yCheck}) -> Keep: ${shouldKeep}`);
+    return shouldKeep;
+  });
+  console.log(`  -> Filtered down to ${studentWorkBlocks.length} student work blocks based on boundary.`);
+
+  // --- 4. Group by Question (Simplified: Assumes Single Question) ---
+  const tasks: MarkingTask[] = [];
+  if (studentWorkBlocks.length > 0) {
+    const questionNumber = 1; // Placeholder for single question
+    const sourcePages = [...new Set(studentWorkBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
+    
+    // Sort blocks by page, then Y-coordinate for proper ordering
+    studentWorkBlocks.sort((a, b) => {
+      if (a.pageIndex !== b.pageIndex) {
+        return a.pageIndex - b.pageIndex;
+      }
+      const aY = a.coordinates.y;
+      const bY = b.coordinates.y;
+      return aY - bY;
+    });
+    
+    const markingTask: MarkingTask = {
+      questionNumber,
+      mathBlocks: studentWorkBlocks,
+      markingScheme: null, // Will be populated in Step 5
+      sourcePages
+    };
+    
+    tasks.push(markingTask);
+    console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${studentWorkBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
+  } else {
+    console.warn(`[SEGMENTATION] No student work blocks remained after boundary filtering.`);
+  }
+
+  console.log(`✅ [SEGMENTATION] Created ${tasks.length} marking task(s).`);
+  return tasks;
+};
 
 // --- Configure Multer ---
 const upload = multer({ 
@@ -25,18 +270,6 @@ const upload = multer({
 
 const router = express.Router();
 
-/**
- * Send SSE update helper function
- */
-function sendSseUpdate(res: Response, data: any): void {
-  try {
-    const sseData = `data: ${JSON.stringify(data)}\n\n`;
-    res.write(sseData);
-  } catch (error) {
-    console.error('❌ SSE write error:', error);
-    throw error;
-  }
-}
 
 /**
  * POST /api/marking/process
@@ -93,6 +326,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     
     sendSseUpdate(res, { submissionId, stage: 'INPUT_VALIDATION', status: 'DONE', message: `Input validated (${isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image'}).` });
+
+    // --- Declare standardizedPages at proper scope ---
+    let standardizedPages: StandardizedPage[] = [];
 
     // --- Conditional Routing (PDF first) ---
     if (isPdf) {
@@ -171,7 +407,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             ...req.body,
             originalFileName: files[0].originalname || 'document.pdf'
           }
-        };
+        } as Request;
         
         await runOriginalSingleImagePipeline(singleFileData, modifiedReq, res, submissionId, {
           originalFileType: 'pdf',
@@ -181,23 +417,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         return;
       }
 
-      // Multi-page PDF – Preprocessing (placeholder path)
-      console.log(`[SUBMISSION ${submissionId}] Multi-page PDF detected. Proceeding with multi-page logic.`);
-      sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'PROCESSING', message: `Preprocessing ${standardizedPages.length} image(s)...` });
-      const preprocessedImageDatas = await Promise.all(
-        standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
-      );
-      await Promise.all(standardizedPages.map(async (page, i) => {
-        page.imageData = preprocessedImageDatas[i];
-        const base64Data = page.imageData.split(',')[1];
-        if (!base64Data) return;
-        const imageBuffer = Buffer.from(base64Data, 'base64');
-        const metadata = await sharp(imageBuffer).metadata();
-        page.width = metadata.width || 0;
-        page.height = metadata.height || 0;
-      }));
-      sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'DONE', message: 'Preprocessing complete.' });
-
+      // Multi-page PDF – Continue to common processing logic
+      console.log(`[SUBMISSION ${submissionId}] Multi-page PDF detected (${standardizedPages.length} pages). Proceeding with multi-page logic.`);
+      
       // One-line dimension logs per page
       standardizedPages.forEach((p: any) => {
         const ratio = p.height ? (p.width / p.height).toFixed(3) : '0.000';
@@ -212,10 +434,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           p.height = p.height || 0;
         }
       });
-
-      // Placeholder end for multi-page PDF
-      sendSseUpdate(res, { submissionId, stage: 'TODO', status: 'DONE', message: `Multi-page PDF preprocessing complete. Further processing not yet fully implemented.` });
-      res.end();
 
     } else if (isSingleImage) {
       // --- Route to Original Single Image Pipeline ---
@@ -241,7 +459,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const modifiedReq = {
         ...req,
         body: originalRequestBody
-      };
+      } as Request;
 
       // Call the original single image pipeline
       // This function handles everything: preprocessing, OCR, classification, marking, annotation, DB persistence, final SSE message + res.end()
@@ -250,50 +468,157 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Note: runOriginalSingleImagePipeline MUST eventually call res.end()
 
     } else if (isMultipleImages) {
-      // --- Route to New Multi-File/PDF Pipeline (Placeholder for now) ---
-      console.log(`[SUBMISSION ${submissionId}] Routing to new multi-file/PDF pipeline.`);
-      sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: 'Preparing multi-image processing...' });
+      // --- Multi-Image Path ---
+      console.log(`[SUBMISSION ${submissionId}] Routing to new multi-image pipeline.`);
+      sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: `Preparing multi-image processing...` });
 
-      // Standardize input pages from images
-      const standardizedPages = files.map((file, index) => ({
-        pageIndex: index,
-        imageData: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-        originalFileName: file.originalname
+      // 1. Collect Images & Extract Dimensions in Parallel
+      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'PROCESSING', message: `Extracting dimensions for ${files.length} images...` });
+      standardizedPages = await Promise.all(files.map(async (file, index): Promise<StandardizedPage | null> => {
+        if (!file.mimetype.startsWith('image/')) return null;
+        try {
+          const metadata = await sharp(file.buffer).metadata();
+          if (!metadata.width || !metadata.height) return null;
+          console.log(`[DIMENSIONS - MultiImg Path] Extracted dimensions for image ${index}: ${metadata.width}x${metadata.height}`);
+          return {
+            pageIndex: index,
+            imageData: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+            originalFileName: file.originalname,
+            width: metadata.width,
+            height: metadata.height
+          };
+        } catch (imgDimError) { 
+          console.warn(`[DIMENSIONS - MultiImg Path] Failed to extract dimensions for image ${index}:`, imgDimError);
+          return null; 
+        }
       }));
-      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'DONE', message: `Processed ${standardizedPages.length} image(s).` });
-
-      // Send placeholder COMPLETE event for Multi-image path until remaining stages are implemented
-      console.log(`[SUBMISSION ${submissionId}] Reached end of implemented stages for Multiple Images. Sending placeholder complete event.`);
-      const sessionTitleMulti = `Multiple Images Submission Placeholder`;
-      const placeholderAiMessageMulti = createAIMessage({
-        content: `Preprocessing complete for ${standardizedPages.length} image(s). Full marking for multi-file submissions is under development.`,
-        messageId: `placeholder-${submissionId}`,
-        isQuestionOnly: false,
-        processingStats: { apiUsed: 'placeholder' }
-      });
-      let finalResultPayloadMulti: any;
-      if (isAuthenticated) {
-        const placeholderUnifiedSessionMulti = {
-          id: submissionId,
-          title: sessionTitleMulti,
-          userId: userId,
-          messageType: 'Marking',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          messages: [placeholderAiMessageMulti],
-          sessionStats: {}
-        };
-        finalResultPayloadMulti = { success: true, unifiedSession: placeholderUnifiedSessionMulti, sessionId: submissionId };
-      } else {
-        finalResultPayloadMulti = { success: true, aiMessage: placeholderAiMessageMulti, sessionId: submissionId, sessionTitle: sessionTitleMulti };
-      }
-      sendSseUpdate(res, { type: 'complete', result: finalResultPayloadMulti }, true);
-      res.end();
+      standardizedPages = standardizedPages.filter((page): page is StandardizedPage => page !== null);
+      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'DONE', message: `Collected ${standardizedPages.length} image(s).` });
 
     } else {
       // This case should technically be caught by initial validation, but belt-and-suspenders.
       throw new Error("Unhandled submission type.");
     }
+
+    // --- Guard against empty standardization ---
+    if (standardizedPages.length === 0) {
+      throw new Error('Standardization failed: No processable pages/images found.');
+    }
+
+    // --- Preprocessing (Common for Multi-Page PDF & Multi-Image) ---
+    sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'PROCESSING', message: `Preprocessing ${standardizedPages.length} image(s)...` });
+    const preprocessedImageDatas = await Promise.all(
+      standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
+    );
+    standardizedPages.forEach((page, i) => page.imageData = preprocessedImageDatas[i]);
+    sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'DONE', message: 'Image preprocessing complete.' });
+
+    // ========================= START: IMPLEMENT STAGE 2 =========================
+    // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
+    sendSseUpdate(res, { submissionId, stage: 'OCR_CLASSIFY', status: 'PROCESSING', message: `Running OCR & Classification on ${standardizedPages.length} pages...` });
+
+    // --- Perform Initial Classification ---
+    // Using simple approach: Classify first page for global context
+    const globalQuestionText = standardizedPages.length > 0
+      ? (await ClassificationService.classifyImage(standardizedPages[0].imageData, 'auto', false, standardizedPages[0].originalFileName)).extractedQuestionText
+      : undefined;
+    console.log(`🔍 [CLASSIFICATION] Extracted Global Question Text: ${globalQuestionText ? `"${globalQuestionText.substring(0, 100)}..."` : 'None'}`);
+
+    // --- Run OCR on each page in parallel ---
+    const pageProcessingPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
+      console.log(`⚡ [OCR Parallel] Starting OCR for page ${page.pageIndex}...`);
+      const ocrResult = await OCRService.processImage(
+        page.imageData, {}, false, 'auto',
+        { extractedQuestionText: globalQuestionText }
+      );
+      console.log(`⚡ [OCR Parallel] Finished OCR for page ${page.pageIndex}.`);
+      return {
+        pageIndex: page.pageIndex,
+        ocrData: ocrResult,
+        classificationText: globalQuestionText // Pass down for segmentation
+      };
+    });
+
+    const allPagesOcrData: PageOcrResult[] = await Promise.all(pageProcessingPromises);
+    sendSseUpdate(res, { submissionId, stage: 'OCR_CLASSIFY', status: 'DONE', message: 'OCR & Classification complete.' });
+    // ========================== END: IMPLEMENT STAGE 2 ==========================
+
+    // ========================= START: IMPLEMENT STAGE 3 =========================
+    // --- Stage 3: Consolidation & Segmentation ---
+    sendSseUpdate(res, { submissionId, stage: 'SEGMENTATION', status: 'PROCESSING', message: 'Segmenting work by question...' });
+
+    // Call the segmentation function
+    const markingTasks: MarkingTask[] = segmentOcrResultsByQuestion(
+      allPagesOcrData,
+      globalQuestionText
+    );
+
+    // Handle case where no student work is found
+    if (markingTasks.length === 0) {
+      sendSseUpdate(res, { submissionId, stage: 'SEGMENTATION', status: 'DONE', message: 'Segmentation complete. No student work found to mark.' });
+      const inputType = isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image';
+      const finalOutput = { 
+        submissionId, 
+        resultsByQuestion: [], 
+        annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
+        outputFormat: isPdf ? 'pdf' : 'images' 
+      };
+      sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
+      res.end();
+      return; // Exit early
+    }
+    sendSseUpdate(res, { submissionId, stage: 'SEGMENTATION', status: 'DONE', message: `Segmentation complete. Identified student work for ${markingTasks.length} question(s).` });
+    // ========================== END: IMPLEMENT STAGE 3 ==========================
+
+    // --- TEMPORARY Placeholder for Stages 4 & 5 ---
+    // We now have 'markingTasks'. The next step (Step 5) will refactor the marking logic.
+    console.log(`[SUBMISSION ${submissionId}] Reached end of implemented stages (Segmentation complete). Sending placeholder complete event.`);
+
+    // Create a summary message indicating segmentation success
+    const inputType = isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image';
+    const summaryContent = `Segmentation successful. Found work for ${markingTasks.length} question(s) across ${standardizedPages.length} pages/images. Ready for marking. (Full implementation pending)`;
+    const placeholderAiMessage = createAIMessage({ 
+      content: summaryContent, 
+      messageId: `placeholder-${submissionId}`, 
+      isQuestionOnly: false, 
+      processingStats: { apiUsed: "placeholder" } 
+    });
+    
+    let finalResultPayload: any;
+    const sessionTitle = `${inputType} Segmentation Complete`;
+    
+    if (isAuthenticated) {
+      const placeholderUnifiedSession = {
+        id: submissionId,
+        title: sessionTitle,
+        userId: userId,
+        messageType: 'Marking',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [placeholderAiMessage],
+        sessionStats: {
+          totalProcessingTimeMs: 0,
+          lastModelUsed: 'auto',
+          lastApiUsed: 'placeholder',
+          totalLlmTokens: 0,
+          totalMathpixCalls: 0,
+          totalTokens: 0,
+          averageConfidence: 0,
+          imageSize: 0,
+          totalAnnotations: 0
+        }
+      };
+      finalResultPayload = { success: true, unifiedSession: placeholderUnifiedSession, sessionId: submissionId };
+    } else {
+      finalResultPayload = { 
+        success: true, 
+        aiMessage: placeholderAiMessage, 
+        sessionId: submissionId, 
+        sessionTitle: sessionTitle 
+      };
+    }
+    sendSseUpdate(res, { type: 'complete', result: finalResultPayload }, true);
+    res.end();
 
   } catch (error) {
     console.error(`❌ [SUBMISSION ${submissionId}] Processing failed:`, error);
