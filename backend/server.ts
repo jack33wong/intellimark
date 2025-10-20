@@ -79,7 +79,7 @@ try {
 
 // Import routes
 import authRoutes from './routes/auth.js';
-import markingApiRoutes from './routes/markingApi.js';
+import markingRouter from './routes/markingRouter.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import messagesRoutes from './routes/messages.js';
@@ -88,7 +88,7 @@ import messagesRoutes from './routes/messages.js';
 app.use('/api/auth', authRoutes);
 
 // Enable marking API
-app.use('/api/marking', markingApiRoutes);
+app.use('/api/marking', markingRouter);
 
 // Enable admin routes
 app.use('/api/admin', adminRoutes);

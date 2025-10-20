@@ -330,24 +330,50 @@ class SimpleSessionService {
   processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) => {
     try {
       const authToken = await this.getAuthToken();
-      const headers = { 'Content-Type': 'application/json' };
+      const headers = {};
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       
       const sessionId = this.state.currentSession?.id?.startsWith('temp-') ? null : this.state.currentSession?.id;
 
-      const requestBody = {
-        imageData,
-        model,
-        sessionId: sessionId,
-        aiMessageId: aiMessageId, // Pass the AI message ID to the backend
-        customText: customText || 'I have a question about this image.', // Send raw text, not message object
-        originalFileName: originalFileName // Send original filename to backend
-      };
+      // Convert base64 image data to Blob for multipart/form-data upload
+      const base64Data = imageData.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process-single-stream`, {
+      // Determine file extension from imageData or originalFileName
+      let fileExtension = 'jpg';
+      if (originalFileName) {
+        const ext = originalFileName.split('.').pop()?.toLowerCase();
+        if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+          fileExtension = ext;
+        }
+      } else if (imageData.includes('data:image/png')) {
+        fileExtension = 'png';
+      } else if (imageData.includes('data:image/gif')) {
+        fileExtension = 'gif';
+      } else if (imageData.includes('data:image/webp')) {
+        fileExtension = 'webp';
+      }
+      
+      const blob = new Blob([byteArray], { type: `image/${fileExtension}` });
+      const file = new File([blob], originalFileName || `image.${fileExtension}`, { type: `image/${fileExtension}` });
+
+      // Create FormData for multipart/form-data upload
+      const formData = new FormData();
+      formData.append('files', file);
+      formData.append('model', model);
+      if (sessionId) formData.append('sessionId', sessionId);
+      if (aiMessageId) formData.append('aiMessageId', aiMessageId);
+      if (customText) formData.append('customText', customText);
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: formData
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
