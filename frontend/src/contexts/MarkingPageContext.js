@@ -42,7 +42,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
 
   const apiProcessor = useApiProcessor();
   const { isProcessing, isAIThinking, error, ...progressProps } = apiProcessor;
-  const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, handleError } = apiProcessor;
+  const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
   
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating } = state;
@@ -224,6 +224,67 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       stopProcessing();
     }
   }, [selectedFile, selectedModel, processImage, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, clearFile, handleError]);
+
+  const handleMultiImageAnalysis = useCallback(async (files = [], customText = null) => {
+    if (!files || files.length === 0) return;
+    try {
+      startProcessing();
+      
+      // Process files to get image data for display
+      const processImage = async (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+      
+      const imageDataArray = await Promise.all(files.map(processImage));
+      
+      // Create optimistic message for multi-image upload with actual image data
+      const optimisticMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: customText || `I have uploaded ${files.length} image(s) for analysis.`,
+        timestamp: new Date().toISOString(),
+        imageData: imageDataArray[0], // Show first image as primary
+        imageDataArray: imageDataArray, // Store all images
+        fileName: files.length === 1 ? files[0].name : `${files.length} files`,
+        isMultiImage: true,
+        fileCount: files.length,
+        originalFiles: files.map(f => ({ name: f.name, type: f.type }))
+      };
+      await addMessage(optimisticMessage);
+      dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
+      
+      // Generate unique AI message ID for multi-image processing
+      const multiImageAiMessageId = createAIMessageId(`multi-${Date.now()}`);
+      
+      const multiImageProgressData = {
+        isComplete: false,
+        currentStepDescription: `Processing ${files.length} image(s)...`,
+        allSteps: [
+          'Input Validation',
+          'Standardization', 
+          'Preprocessing',
+          'OCR & Classification',
+          'Segmentation',
+          'Marking',
+          'Output Generation'
+        ],
+        currentStepIndex: 0,
+      };
+      
+      startAIThinking(multiImageProgressData, multiImageAiMessageId);
+      await processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId);
+    } catch (err) {
+      console.error('Error in multi-image analysis flow:', err);
+      handleError(err);
+      stopAIThinking();
+      stopProcessing();
+    }
+  }, [selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
   
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;
@@ -247,12 +308,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     hasNewResponse, 
     scrollToNewResponse,
     onFollowUpImage: handleImageAnalysis,
+    onAnalyzeMultiImage: handleMultiImageAnalysis,
+    onFollowUpMultiImage: handleMultiImageAnalysis,
     getImageSrc,
     startAIThinking,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
-    handleModelChange, handleImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
+    handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking
   ]);

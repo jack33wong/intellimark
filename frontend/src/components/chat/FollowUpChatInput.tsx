@@ -15,6 +15,8 @@ interface FollowUpChatInputProps {
   onAnalyzeImage: (file: File, text: string) => Promise<void>;
   onFollowUpImage: (file: File, text: string) => Promise<void>;
   onSendMessage: (text: string) => Promise<void>;
+  onAnalyzeMultiImage?: (files: File[], text: string) => Promise<void>;
+  onFollowUpMultiImage?: (files: File[], text: string) => Promise<void>;
 }
 
 const FollowUpChatInput: React.FC<FollowUpChatInputProps> = (props) => {

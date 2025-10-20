@@ -135,6 +135,18 @@ export const useApiProcessor = () => {
     }
   }, [updateProgress, handleError]);
 
+  const processMultiImageAPI = useCallback(async (files: File[], model: string, mode: string, customText?: string, aiMessageId?: string) => {
+    try {
+      const result = await simpleSessionService.processMultiImageWithProgress(
+        files, model, mode, customText as any, updateProgress as any, aiMessageId as any
+      );
+      return result;
+    } catch (error) {
+      handleError(error as Error);
+      throw error;
+    }
+  }, [updateProgress, handleError]);
+
   const setShowProgressDetails = useCallback((show: boolean) => {
     setApiState(prev => ({ ...prev, showProgressDetails: show }));
   }, []);
@@ -148,6 +160,7 @@ export const useApiProcessor = () => {
     handleError,
     updateProgress,
     processImageAPI,
+    processMultiImageAPI,
     setShowProgressDetails,
   };
 };

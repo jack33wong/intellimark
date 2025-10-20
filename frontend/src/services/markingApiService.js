@@ -350,7 +350,135 @@ class SimpleSessionService {
     }
   }
 
-  processImageWithProgress = async (imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) => {
+  async processMultiImageWithProgress(files, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null) {
+    try {
+      const authToken = localStorage.getItem('authToken');
+      const headers = {};
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+
+      // Create FormData for multipart/form-data upload with multiple files
+      const formData = new FormData();
+      
+      // Add all files to the FormData under the 'files' key
+      files.forEach((file, index) => {
+        formData.append('files', file);
+        console.log(`📁 Added file ${index + 1}/${files.length}: ${file.name} (${file.type})`);
+      });
+      
+      // Add other form data
+      formData.append('model', model);
+      if (aiMessageId) formData.append('aiMessageId', aiMessageId);
+      if (customText) formData.append('customText', customText);
+      
+      console.log(`🚀 Sending ${files.length} files to /api/marking/process`);
+      
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      const processChunk = (chunk) => {
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              console.log('📡 Multi-image SSE data:', data);
+              
+              if (onProgress) {
+                // Transform the data to match the expected progress structure
+                const progressData = {
+                  currentStepDescription: data.message || 'Processing...',
+                  allSteps: [
+                    'Input Validation',
+                    'Standardization', 
+                    'Preprocessing',
+                    'OCR & Classification',
+                    'Segmentation',
+                    'Marking',
+                    'Output Generation'
+                  ],
+                  currentStepIndex: getStepIndex(data.stage),
+                  isComplete: data.type === 'complete' || data.stage === 'TODO'
+                };
+                onProgress(progressData);
+              }
+              
+              // Handle completion
+              if (data.type === 'complete') {
+                console.log('✅ Multi-image processing complete');
+                return true; // Signal completion
+              }
+              
+              // Handle errors
+              if (data.type === 'error' || data.stage === 'ERROR') {
+                console.error('❌ Multi-image processing error:', data);
+                return true; // Signal completion
+              }
+            } catch (parseError) {
+              console.warn('⚠️ Failed to parse SSE data:', parseError);
+            }
+          }
+        }
+        return false; // Continue processing
+      };
+
+      // Helper function to map stage to step index
+      const getStepIndex = (stage) => {
+        const stageMap = {
+          'START': 0,
+          'INPUT_VALIDATION': 0,
+          'ROUTING': 0,
+          'STANDARDIZATION': 1,
+          'PREPROCESSING': 2,
+          'OCR_CLASSIFY': 3,
+          'DIMENSIONS': 1,
+          'TODO': 4,
+          'ERROR': -1
+        };
+        return stageMap[stage] || 0;
+      };
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            if (buffer) processChunk(buffer);
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (processChunk(line)) {
+              // Explicitly close the reader when processing is complete
+              reader.releaseLock();
+              return;
+            }
+          }
+        }
+      } finally {
+        // Ensure reader is always released
+        if (reader.locked) {
+          reader.releaseLock();
+        }
+      }
+    } catch (error) {
+      console.error('❌ Multi-image processing error:', error);
+      throw error;
+    }
+  }
+
+  async processImageWithProgress(imageData, model = 'auto', mode = 'marking', customText = null, onProgress = null, aiMessageId = null, originalFileName = null) {
     try {
       const authToken = await this.getAuthToken();
       const headers = {};

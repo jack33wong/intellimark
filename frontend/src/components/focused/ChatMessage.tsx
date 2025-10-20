@@ -18,6 +18,7 @@ import { useDropdownState } from '../../hooks/useDropdownState';
 import ExamPaperTab from '../marking/ExamPaperTab';
 import SuggestedFollowUpButtons from '../marking/SuggestedFollowUpButtons';
 import ImageModeModal from '../common/ImageModeModal';
+import SimpleImageGallery from '../common/SimpleImageGallery';
 import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
 import './ChatMessage.css';
 import type { UnifiedMessage } from '../../types';
@@ -165,6 +166,34 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     const name = getOriginalFileName();
     return typeof name === 'string' && name.toLowerCase().endsWith('.pdf');
   };
+
+  const isMultiImageMessage = () => {
+    return (message as any)?.isMultiImage === true && (message as any)?.fileCount > 1;
+  };
+
+  const getMultiImageData = useCallback(() => {
+    return (message as any)?.imageDataArray || [];
+  }, [message]);
+
+  const handleMultiImageClick = useCallback((index: number) => {
+    const imageDataArray = getMultiImageData();
+    if (imageDataArray.length > 0) {
+      // Convert image data array to SessionImage format for ImageModeModal
+      const sessionImages = imageDataArray.map((imageData: string, idx: number) => ({
+        id: `multi-${message.id}-${idx}`,
+        src: imageData,
+        alt: `Uploaded image ${idx + 1}`,
+        type: 'uploaded' as const
+      }));
+      
+      // Open ImageModeModal with the selected image
+      setIsImageModeOpen(true);
+      // Store the images and initial index for the modal
+      (window as any).__currentSessionImages = sessionImages;
+      (window as any).__currentImageIndex = index;
+    }
+  }, [message.id, getMultiImageData]);
+
   
   // Check if any message in the session is currently processing
   const isAnyMessageProcessing = session?.messages?.some((msg: any) => msg.isProcessing === true) || false;
@@ -312,14 +341,24 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         </div>
         
         {isUser && hasImage(message) && imageSrc && !imageError && (
-          <div className="chat-message-image" onClick={handleImageClick}>
-            <img 
-              src={imageSrc}
-              alt="Uploaded"
-              className="content-image"
-              onLoad={onImageLoad}
-              onError={handleImageError}
-            />
+          <div className="chat-message-image">
+            {isMultiImageMessage() ? (
+              <SimpleImageGallery
+                images={getMultiImageData()}
+                onImageClick={handleMultiImageClick}
+                className="multi-image-gallery"
+              />
+            ) : (
+              <div onClick={handleImageClick}>
+                <img 
+                  src={imageSrc}
+                  alt="Uploaded"
+                  className="content-image"
+                  onLoad={onImageLoad}
+                  onError={handleImageError}
+                />
+              </div>
+            )}
           </div>
         )}
         
@@ -388,12 +427,20 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       </div>
 
       {/* Image Mode Modal */}
-      {isImageModeOpen && session && (
+      {isImageModeOpen && (
         <ImageModeModal
           isOpen={isImageModeOpen}
           onClose={() => setIsImageModeOpen(false)}
-          images={getSessionImages(session)}
-          initialImageIndex={findImageIndex(getSessionImages(session), message.id)}
+          images={
+            isMultiImageMessage() 
+              ? (window as any).__currentSessionImages || []
+              : session ? getSessionImages(session) : []
+          }
+          initialImageIndex={
+            isMultiImageMessage()
+              ? (window as any).__currentImageIndex || 0
+              : session ? findImageIndex(getSessionImages(session), message.id) : 0
+          }
         />
       )}
     </div>

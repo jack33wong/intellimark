@@ -28,6 +28,8 @@ const MainLayout: React.FC = () => {
     scrollToNewResponse,
     currentSession,
     handleImageAnalysis,
+    onAnalyzeMultiImage,
+    onFollowUpMultiImage,
     onSendMessage,
     addMessage,
     startAIThinking,
@@ -85,6 +87,8 @@ const MainLayout: React.FC = () => {
                 isProcessing={isProcessing}
                 onAnalyzeImage={handleImageAnalysis}
                 onFollowUpImage={handleImageAnalysis}
+                onAnalyzeMultiImage={onAnalyzeMultiImage}
+                onFollowUpMultiImage={onFollowUpMultiImage}
                 onSendMessage={onSendMessage}
                 mode={isFollowUp ? 'follow-up' : 'first-time'}
             />
