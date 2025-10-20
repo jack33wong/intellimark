@@ -8,6 +8,11 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { optionalAuth } from '../middleware/auth.js';
 import { runOriginalSingleImagePipeline } from './originalPipeline.js';
+import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
+import sharp from 'sharp';
+import { ImageUtils } from '../utils/ImageUtils.js';
+import { sendSseUpdate, closeSseConnection } from '../utils/sseUtils.js';
+import { createAIMessage } from '../utils/messageUtils.js';
 
 // --- Configure Multer ---
 const upload = multer({ 
@@ -54,10 +59,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
   });
   
   // Send initial message
-  sendSseUpdate(res, { stage: 'START', message: 'Processing started', submissionId });
+  sendSseUpdate(res, { submissionId, stage: 'START', status: 'PROCESSING', message: 'Processing started' });
 
   try {
     const files = req.files as Express.Multer.File[];
+    // Determine authentication status early
+    const userId = (req as any)?.user?.uid || null;
+    const isAuthenticated = !!userId;
 
     // --- Input Validation ---
     if (!files || files.length === 0) {
@@ -65,16 +73,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       throw new Error('No files were uploaded.');
     }
     
-    sendSseUpdate(res, { 
-      stage: 'INPUT_VALIDATION', 
-      status: 'PROCESSING', 
-      message: `Received ${files.length} file(s). Validating...` 
-    });
+    sendSseUpdate(res, { submissionId, stage: 'INPUT_VALIDATION', status: 'PROCESSING', message: `Received ${files.length} file(s). Validating...` });
 
-    // --- Input Type Detection ---
-    const isSingleImage = files.length === 1 && files[0].mimetype.startsWith('image/');
-    const isMultipleImages = files.length > 1 && files.every(f => f.mimetype.startsWith('image/'));
-    const isPdf = files.length === 1 && files[0].mimetype === 'application/pdf';
+    // --- Input Type Detection (Prioritize PDF) ---
+    const firstMime = files[0]?.mimetype || 'unknown';
+    console.log(`[MIME CHECK] Received ${files.length} file(s). First mimetype: ${firstMime}`);
+    const isPdf = files.length === 1 && firstMime === 'application/pdf';
+    const isSingleImage = files.length === 1 && !isPdf && firstMime.startsWith('image/');
+    const isMultipleImages = files.length > 1 && files.every(f => {
+      const ok = f.mimetype?.startsWith('image/');
+      if (!ok) console.warn(`[MIME CHECK] Non-image file detected in multi-upload: ${f.mimetype}`);
+      return ok;
+    });
 
     if (!isSingleImage && !isMultipleImages && !isPdf) {
       // Handle invalid combinations (e.g., multiple PDFs, mixed types)
@@ -82,23 +92,138 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       throw new Error('Invalid file submission: Please upload a single PDF, a single image, or multiple images.');
     }
     
-    sendSseUpdate(res, { 
-      stage: 'INPUT_VALIDATION', 
-      status: 'DONE', 
-      message: `Input validated (${isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image'}).` 
-    });
+    sendSseUpdate(res, { submissionId, stage: 'INPUT_VALIDATION', status: 'DONE', message: `Input validated (${isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image'}).` });
 
-    // --- Conditional Routing ---
-    if (isSingleImage) {
-      // --- Route to Original Single Image Pipeline ---
-      console.log(`[SUBMISSION ${submissionId}] Routing to original single image pipeline.`);
-      sendSseUpdate(res, { 
-        stage: 'ROUTING', 
-        status: 'PROCESSING', 
-        message: 'Processing as single image...' 
+    // --- Conditional Routing (PDF first) ---
+    if (isPdf) {
+      // --- Route to PDF Pipeline ---
+      console.log(`[SUBMISSION ${submissionId}] PDF detected. Routing to PDF pipeline.`);
+      sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: `Preparing PDF processing...` });
+
+      // Stage 1: Standardization
+      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'PROCESSING', message: 'Converting PDF...' });
+      const pdfBuffer = files[0].buffer;
+      const standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
+      if (standardizedPages.length === 0) throw new Error('PDF conversion yielded no pages.');
+      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'DONE', message: `Converted PDF to ${standardizedPages.length} pages.` });
+
+      // Dimension extraction after conversion (reliable via sharp on buffers)
+      sendSseUpdate(res, { submissionId, stage: 'DIMENSIONS', status: 'PROCESSING', message: `Extracting dimensions for ${standardizedPages.length} converted page(s)...` });
+      try {
+        await Promise.all(standardizedPages.map(async (page, i) => {
+          const base64Data = page.imageData.split(',')[1];
+          if (!base64Data) {
+            console.warn(`[DIMENSIONS - PDF Path] Invalid base64 data for page ${i}, skipping.`);
+            page.width = 0; page.height = 0; return;
+          }
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          const metadata = await sharp(imageBuffer).metadata();
+          if (!metadata.width || !metadata.height) {
+            console.warn(`[DIMENSIONS - PDF Path] Sharp failed to get valid dimensions for page ${i}.`);
+          }
+          page.width = metadata.width || 0;
+          page.height = metadata.height || 0;
+          console.log(`[DIMENSIONS - PDF Path] Extracted dimensions for page ${i}: ${page.width}x${page.height}`);
+        }));
+        sendSseUpdate(res, { submissionId, stage: 'DIMENSIONS', status: 'DONE', message: 'Dimension extraction complete.' });
+      } catch (dimensionError) {
+        console.error('❌ Error during PDF dimension extraction:', dimensionError);
+        throw new Error(`Failed during PDF dimension extraction: ${dimensionError instanceof Error ? dimensionError.message : 'Unknown error'}`);
+      }
+
+      // TEMP: Single-page PDF → treat as single image
+      if (standardizedPages.length === 1) {
+        console.log(`[SUBMISSION ${submissionId}] Single-page PDF detected. Routing to original single image pipeline after conversion.`);
+        sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: 'Processing as single converted page...' });
+        
+        // Upload original PDF to storage for authenticated users or create data URL for unauthenticated users
+        let originalPdfLink = null;
+        let originalPdfDataUrl = null;
+        
+        if (isAuthenticated) {
+          try {
+            const { ImageStorageService } = await import('../services/imageStorageService.js');
+            const sessionId = req.body.sessionId || submissionId;
+            const originalFileName = files[0].originalname || 'document.pdf';
+            originalPdfLink = await ImageStorageService.uploadPdf(
+              `data:application/pdf;base64,${pdfBuffer.toString('base64')}`,
+              userId || 'anonymous',
+              sessionId,
+              originalFileName
+            );
+            console.log(`[PDF CONTEXT] Original PDF uploaded: ${originalPdfLink}`);
+          } catch (error) {
+            console.error('❌ Failed to upload original PDF:', error);
+            originalPdfLink = null;
+          }
+        } else {
+          // For unauthenticated users, create a data URL
+          originalPdfDataUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+          console.log(`[PDF CONTEXT] Created PDF data URL for unauthenticated user`);
+        }
+        
+        const singleFileData = standardizedPages[0].imageData;
+        
+        // Create a modified request object with the original PDF filename
+        const modifiedReq = {
+          ...req,
+          body: {
+            ...req.body,
+            originalFileName: files[0].originalname || 'document.pdf'
+          }
+        };
+        
+        await runOriginalSingleImagePipeline(singleFileData, modifiedReq, res, submissionId, {
+          originalFileType: 'pdf',
+          originalPdfLink: originalPdfLink,
+          originalPdfDataUrl: originalPdfDataUrl
+        });
+        return;
+      }
+
+      // Multi-page PDF – Preprocessing (placeholder path)
+      console.log(`[SUBMISSION ${submissionId}] Multi-page PDF detected. Proceeding with multi-page logic.`);
+      sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'PROCESSING', message: `Preprocessing ${standardizedPages.length} image(s)...` });
+      const preprocessedImageDatas = await Promise.all(
+        standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
+      );
+      await Promise.all(standardizedPages.map(async (page, i) => {
+        page.imageData = preprocessedImageDatas[i];
+        const base64Data = page.imageData.split(',')[1];
+        if (!base64Data) return;
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        const metadata = await sharp(imageBuffer).metadata();
+        page.width = metadata.width || 0;
+        page.height = metadata.height || 0;
+      }));
+      sendSseUpdate(res, { submissionId, stage: 'PREPROCESSING', status: 'DONE', message: 'Preprocessing complete.' });
+
+      // One-line dimension logs per page
+      standardizedPages.forEach((p: any) => {
+        const ratio = p.height ? (p.width / p.height).toFixed(3) : '0.000';
+        console.log(`[DIM] page=${p.pageIndex} size=${p.width}x${p.height} ratio=${ratio}`);
       });
 
+      // Fallback warning if any page still lacks dimensions
+      standardizedPages.forEach((p: any, i: number) => {
+        if (!p.width || !p.height) {
+          console.warn(`[DIMENSIONS] Dimensions for page ${i} not set during standardization. Extraction needed (TODO).`);
+          p.width = p.width || 0;
+          p.height = p.height || 0;
+        }
+      });
+
+      // Placeholder end for multi-page PDF
+      sendSseUpdate(res, { submissionId, stage: 'TODO', status: 'DONE', message: `Multi-page PDF preprocessing complete. Further processing not yet fully implemented.` });
+      res.end();
+
+    } else if (isSingleImage) {
+      // --- Route to Original Single Image Pipeline ---
+      console.log(`[SUBMISSION ${submissionId}] Routing to original single image pipeline.`);
+      sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: 'Processing as single image...' });
+
       // Convert file buffer to base64 data URL
+      console.log(`[MIME CHECK] Single image mimetype: ${files[0].mimetype}`);
       const singleFileData = `data:${files[0].mimetype};base64,${files[0].buffer.toString('base64')}`;
 
       // Convert multipart form data to the format expected by the original pipeline
@@ -124,28 +249,46 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Note: runOriginalSingleImagePipeline MUST eventually call res.end()
 
-    } else if (isMultipleImages || isPdf) {
+    } else if (isMultipleImages) {
       // --- Route to New Multi-File/PDF Pipeline (Placeholder for now) ---
       console.log(`[SUBMISSION ${submissionId}] Routing to new multi-file/PDF pipeline.`);
-      sendSseUpdate(res, { 
-        stage: 'ROUTING', 
-        status: 'PROCESSING', 
-        message: `Preparing ${isPdf ? 'PDF' : 'multi-image'} processing...` 
-      });
+      sendSseUpdate(res, { submissionId, stage: 'ROUTING', status: 'PROCESSING', message: 'Preparing multi-image processing...' });
 
-      // **** PLACEHOLDER for Stages 1-5 ****
-      // We will implement PDF conversion, parallel OCR, segmentation, etc. here later.
-      // For now, just send a temporary completion message.
-      sendSseUpdate(res, {
-        stage: 'TODO',
-        status: 'DONE',
-        message: `Multi-file/PDF processing not yet fully implemented. Input received.`,
-        submissionId: submissionId,
-        fileCount: files.length,
-        inputType: isPdf ? 'PDF' : 'Multiple Images'
+      // Standardize input pages from images
+      const standardizedPages = files.map((file, index) => ({
+        pageIndex: index,
+        imageData: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+        originalFileName: file.originalname
+      }));
+      sendSseUpdate(res, { submissionId, stage: 'STANDARDIZATION', status: 'DONE', message: `Processed ${standardizedPages.length} image(s).` });
+
+      // Send placeholder COMPLETE event for Multi-image path until remaining stages are implemented
+      console.log(`[SUBMISSION ${submissionId}] Reached end of implemented stages for Multiple Images. Sending placeholder complete event.`);
+      const sessionTitleMulti = `Multiple Images Submission Placeholder`;
+      const placeholderAiMessageMulti = createAIMessage({
+        content: `Preprocessing complete for ${standardizedPages.length} image(s). Full marking for multi-file submissions is under development.`,
+        messageId: `placeholder-${submissionId}`,
+        isQuestionOnly: false,
+        processingStats: { apiUsed: 'placeholder' }
       });
-      
-      res.end(); // End the connection for now
+      let finalResultPayloadMulti: any;
+      if (isAuthenticated) {
+        const placeholderUnifiedSessionMulti = {
+          id: submissionId,
+          title: sessionTitleMulti,
+          userId: userId,
+          messageType: 'Marking',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [placeholderAiMessageMulti],
+          sessionStats: {}
+        };
+        finalResultPayloadMulti = { success: true, unifiedSession: placeholderUnifiedSessionMulti, sessionId: submissionId };
+      } else {
+        finalResultPayloadMulti = { success: true, aiMessage: placeholderAiMessageMulti, sessionId: submissionId, sessionTitle: sessionTitleMulti };
+      }
+      sendSseUpdate(res, { type: 'complete', result: finalResultPayloadMulti }, true);
+      res.end();
 
     } else {
       // This case should technically be caught by initial validation, but belt-and-suspenders.

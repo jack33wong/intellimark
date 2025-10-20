@@ -149,6 +149,8 @@ export interface UserMessageOptions {
   sessionId?: string;
   model?: string;
   messageId?: string;
+  originalFileType?: 'pdf';
+  originalPdfLink?: string | null;
 }
 
 export interface AIMessageOptions {
@@ -177,7 +179,9 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     originalFileName,
     sessionId,
     model = 'auto',
-    messageId
+    messageId,
+    originalFileType,
+    originalPdfLink
   } = options;
 
   return {
@@ -186,11 +190,11 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     id: messageId || generateUserMessageId(content, Date.now()),
     messageId: messageId || generateUserMessageId(content, Date.now()),
     role: 'user',
-    content: content || (imageData ? 'Image uploaded' : ''),
+    content: content || (imageData ? 'Image uploaded' : (originalFileType === 'pdf' ? 'PDF uploaded' : '')),
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
-    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : null),
+    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null)),
     detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {
       processingTimeMs: 0,
@@ -201,7 +205,12 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
       llmTokens: 0,
       mathpixCalls: 0,
       ocrMethod: 'Chat'
-    }
+    },
+    // Add PDF context if applicable
+    ...(originalFileType === 'pdf' ? {
+      originalFileType: 'pdf',
+      originalPdfLink: originalPdfLink
+    } : {})
   };
 }
 

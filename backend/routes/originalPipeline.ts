@@ -16,7 +16,12 @@ export async function runOriginalSingleImagePipeline(
   imageData: string,
   req: Request,
   res: Response,
-  submissionId: string
+  submissionId: string,
+  pdfContext?: {
+    originalFileType: 'pdf';
+    originalPdfLink: string | null;
+    originalPdfDataUrl?: string | null;
+  }
 ): Promise<void> {
   let { model = 'auto', customText, debug = false, aiMessageId, sessionId: providedSessionId, originalFileName } = req.body;
 
@@ -179,30 +184,53 @@ export async function runOriginalSingleImagePipeline(
       const userTimestamp = new Date(baseTime - 2000).toISOString(); // 2 seconds earlier
       const aiTimestamp = new Date(baseTime).toISOString(); // Current time
       
-      // Upload original image to Firebase Storage for authenticated users only
-      let originalImageLink;
-      const { ImageStorageService } = await import('../services/imageStorageService.js');
-      try {
-        originalImageLink = await ImageStorageService.uploadImage(
-          imageData,
-          userId || 'anonymous',
-          sessionId,
-          'original'
-        );
-      } catch (error) {
-        console.error('❌ Failed to upload original image:', error);
-        originalImageLink = null;
+      // Handle original file upload based on context
+      let originalImageLink = null;
+      let originalPdfLink = null;
+      
+      if (pdfContext?.originalFileType === 'pdf') {
+        // For PDF context, use the provided originalPdfLink for authenticated users
+        // or create a data URL for unauthenticated users
+        if (isAuthenticated) {
+          originalPdfLink = pdfContext.originalPdfLink;
+          console.log(`[PDF CONTEXT] Using provided originalPdfLink: ${originalPdfLink}`);
+        } else {
+          // For unauthenticated users, we need to create a data URL from the original PDF
+          // This should be passed from the router
+          originalPdfLink = (pdfContext as any)?.originalPdfDataUrl || null;
+          console.log(`[PDF CONTEXT] Using PDF data URL for unauthenticated user`);
+        }
+      } else {
+        // For regular images, upload to storage
+        const { ImageStorageService } = await import('../services/imageStorageService.js');
+        try {
+          originalImageLink = await ImageStorageService.uploadImage(
+            imageData,
+            userId || 'anonymous',
+            sessionId,
+            'original'
+          );
+        } catch (error) {
+          console.error('❌ Failed to upload original image:', error);
+          originalImageLink = null;
+        }
       }
 
       // Create user message for database using centralized factory
       const { createUserMessage } = await import('../utils/messageUtils.js');
       const dbUserMessage = createUserMessage({
         content: customText || 'I have a question about this image. Can you help me understand it?',
-        imageLink: originalImageLink, // For authenticated users
+        imageLink: originalImageLink, // For authenticated users with images
         imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
         originalFileName: originalFileName,
         sessionId: sessionId,
-        model: model
+        model: model,
+        // Add PDF context if applicable
+        ...(pdfContext?.originalFileType === 'pdf' ? {
+          originalFileType: 'pdf',
+          originalPdfLink: originalPdfLink,
+          originalPdfDataUrl: (pdfContext as any)?.originalPdfDataUrl
+        } : {})
       });
 
       // Override timestamp for database consistency

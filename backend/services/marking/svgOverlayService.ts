@@ -11,13 +11,15 @@ import { Annotation, ImageDimensions } from '../../types/index.js';
  */
 export interface SVGOverlayConfig {
   fontFamily: string;
-  fontSizes: {
+  // Base font sizes for a reference image height; actual sizes will scale from these
+  baseFontSizes: {
     reasoning: number;
     tick: number;
     cross: number;
     markingSchemeCode: number;
     studentScore: number;
   };
+  baseReferenceHeight: number;
   // Y Position Configuration (as percentages of block height)
   yPositions: {
     baseYOffset: number;    // % of block height from bottom
@@ -35,17 +37,18 @@ export class SVGOverlayService {
    */
   private static CONFIG: SVGOverlayConfig = {
     fontFamily: "'Lucida Handwriting','Comic Neue', 'Comic Sans MS', cursive, Arial, sans-serif",
-    fontSizes: {
-      reasoning: 22,         // Reasoning text size (same as marking codes)
-      tick: 50,              // Tick symbol size
-      cross: 50,             // Cross symbol size
-      markingSchemeCode: 50,  // Mark codes like M1, A1, etc.
-      studentScore: 70       // Student score text (e.g., "4/6")
+    baseFontSizes: {
+      reasoning: 22,
+      tick: 50,
+      cross: 50,
+      markingSchemeCode: 50,
+      studentScore: 70
     },
+    baseReferenceHeight: 2400,
     // Y Position Configuration (as percentages of block height)
     yPositions: {
-      baseYOffset: -40,    // -2% of block height from bottom (equivalent to -4px for 200px block)
-      reasoningYOffset: -11  // -11% of block height offset from baseY (equivalent to -22px for 200px block)
+      baseYOffset: -40,
+      reasoningYOffset: -11
     }
   };
 
@@ -57,8 +60,15 @@ export class SVGOverlayService {
     if (config.fontFamily) {
       this.CONFIG.fontFamily = config.fontFamily;
     }
-    if (config.fontSizes) {
-      this.CONFIG.fontSizes = { ...this.CONFIG.fontSizes, ...config.fontSizes };
+    if ((config as any).fontSizes) {
+      // Backward-compat: if old fontSizes provided, map to baseFontSizes
+      this.CONFIG.baseFontSizes = { ...this.CONFIG.baseFontSizes, ...(config as any).fontSizes };
+    }
+    if (config.baseFontSizes) {
+      this.CONFIG.baseFontSizes = { ...this.CONFIG.baseFontSizes, ...config.baseFontSizes };
+    }
+    if (config.baseReferenceHeight) {
+      this.CONFIG.baseReferenceHeight = config.baseReferenceHeight;
     }
     if (config.yPositions) {
       this.CONFIG.yPositions = { ...this.CONFIG.yPositions, ...config.yPositions };
@@ -101,6 +111,7 @@ export class SVGOverlayService {
       
 
       // Use original image dimensions (no extension to maintain orientation)
+      console.log(`[BURN-IN] input size=${originalWidth}x${originalHeight}`);
       const burnWidth = originalWidth;
       const burnHeight = originalHeight;
       
@@ -125,6 +136,11 @@ export class SVGOverlayService {
 
       // Convert back to base64 data URL
       const burnedImageData = `data:image/jpeg;base64,${burnedImageBuffer.toString('base64')}`;
+      
+      try {
+        const outMeta = await sharp(burnedImageBuffer).metadata();
+        console.log(`[BURN-OUT] output size=${outMeta.width}x${outMeta.height}`);
+      } catch {}
       
       
       return burnedImageData;
@@ -152,7 +168,7 @@ export class SVGOverlayService {
     
     annotations.forEach((annotation, index) => {
       try {
-        svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY);
+        svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualHeight);
       } catch (error) {
         console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
         console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
@@ -172,7 +188,7 @@ export class SVGOverlayService {
   /**
    * Create annotation SVG element based on type
    */
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number): string {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualHeight: number): string {
     const [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
@@ -196,10 +212,10 @@ export class SVGOverlayService {
            const reasoning = (annotation as any).reasoning;
            switch (action) {
              case 'tick':
-               svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning);
+               svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualHeight);
                break;
              case 'cross':
-               svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning);
+               svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualHeight);
                break;
              case 'circle':
                svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -218,8 +234,8 @@ export class SVGOverlayService {
   /**
    * Create tick annotation with symbol and text
    */
-  private static createTickAnnotation(x: number, y: number, width: number, height: number, text?: string, reasoning?: string): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning);
+  private static createTickAnnotation(x: number, y: number, width: number, height: number, text: string | undefined, reasoning: string | undefined, actualHeight: number): string {
+    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning, actualHeight);
   }
 
   /**
@@ -230,10 +246,11 @@ export class SVGOverlayService {
     y: number,
     width: number,
     height: number,
-    text?: string,
-    reasoning?: string
+    text: string | undefined,
+    reasoning: string | undefined,
+    actualHeight: number
   ): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning);
+    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning, actualHeight);
   }
   
 
@@ -263,16 +280,17 @@ export class SVGOverlayService {
   /**
    * Create symbol annotation with optional text (unified logic for tick/cross)
    */
-  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text?: string, reasoning?: string): string {
+  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualHeight: number): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
     // Calculate base Y position using configurable percentage offset
     const baseYOffsetPixels = (height * this.CONFIG.yPositions.baseYOffset) / 100;
     const textY = y + height + baseYOffsetPixels;
     
-    // Use configured font sizes directly (simple and predictable)
-    const symbolSize = symbol === '✓' ? this.CONFIG.fontSizes.tick : this.CONFIG.fontSizes.cross;
-    const textSize = this.CONFIG.fontSizes.markingSchemeCode;
+    // Scale font sizes relative to actual image height
+    const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
+    const symbolSize = Math.max(20, Math.round((symbol === '✓' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
+    const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
     
     let svg = `
       <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
@@ -288,8 +306,8 @@ export class SVGOverlayService {
       // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
       if (symbol === '✗' && reasoning && reasoning.trim()) {
         const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
-        const reasoningX = textX + textSize + 30; // Start right after marking code with 10px spacing
-        const reasoningSize = this.CONFIG.fontSizes.reasoning; // Use the configured size directly
+        const reasoningX = textX + textSize + 30; // Start right after marking code with spacing
+        const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
         const lineHeight = reasoningSize + 2; // Small spacing between lines
         
         reasoningLines.forEach((line, index) => {
@@ -335,18 +353,22 @@ export class SVGOverlayService {
    */
   private static createStudentScoreCircle(studentScore: any, imageWidth: number, imageHeight: number): string {
     const scoreText = studentScore.scoreText || '0/0';
-    const circleRadius = 80; // Larger circle
-    const circleX = imageWidth - 120; // Position in top-right area
-    const circleY = 120;
+    const scaleFactor = imageHeight / this.CONFIG.baseReferenceHeight;
+    const baseRadius = 80;
+    const circleRadius = Math.max(40, Math.round(baseRadius * scaleFactor));
+    const scoreFontSize = Math.max(30, Math.round(this.CONFIG.baseFontSizes.studentScore * scaleFactor));
+    const strokeWidth = Math.max(4, Math.round(8 * scaleFactor));
     
-    // Create hollow red circle with thick border
+    const circleX = imageWidth - (circleRadius + 40 * scaleFactor);
+    const circleY = circleRadius + 40 * scaleFactor;
+    
     const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
-                   fill="none" stroke="#ff0000" stroke-width="8" opacity="0.9"/>`;
+                   fill="none" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
     
-    // Add score text using configured font family and size
-    const text = `<text x="${circleX}" y="${circleY + 20}" 
-                text-anchor="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
-                font-size="${this.CONFIG.fontSizes.studentScore}" font-weight="bold" stroke="#ffffff" stroke-width="2">${scoreText}</text>`;
+    const textYAdjust = scoreFontSize * 0.35;
+    const text = `<text x="${circleX}" y="${circleY + textYAdjust}" 
+                text-anchor="middle" dominant-baseline="middle" fill="#ff0000" font-family="${this.CONFIG.fontFamily}" 
+                font-size="${scoreFontSize}" font-weight="bold">${scoreText}</text>`;
     
     return circle + text;
   }

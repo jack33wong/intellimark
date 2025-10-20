@@ -57,15 +57,23 @@ export class ClassificationService {
         throw error;
       }
       
-      // This is a Google API error - log with proper context
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-      
-      console.error(`❌ [GOOGLE API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-      console.error(`❌ [GOOGLE ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Google API error handling (suppress detailed logs for known RECITATION case)
+      const errMsg = (error instanceof Error ? error.message : String(error));
+      const isRecitation = errMsg.toUpperCase().includes('RECITATION');
+      let actualModelName = 'unknown';
+      let apiVersion = 'v1';
+      if (isRecitation) {
+        // Minimal logging for known issue
+        console.error('❌ [GOOGLE API ERROR] Gemini API error: RECITATION');
+      } else {
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        const modelConfig = getModelConfig(model);
+        actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || (model as string);
+        apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+        console.error(`❌ [GOOGLE API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [GOOGLE ERROR] ${errMsg}`);
+      }
       
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
@@ -76,7 +84,39 @@ export class ClassificationService {
         throw new Error(`API quota exceeded for ${actualModelName} (${apiVersion}). Please check your Google Cloud Console for quota limits.`);
       }
       
-      // Fail fast - no fallbacks
+      // Fallback only for specific Gemini "RECITATION" style errors
+      const message = errMsg.toLowerCase();
+      const shouldFallback = message.includes('recitation') || message.includes('promptfeedback') || message.includes('blockreason');
+      const { isOpenAIConfigured } = await import('../../config/aiModels.js');
+      if (shouldFallback && isOpenAIConfigured()) {
+        try {
+          console.warn('⚠️ [CLASSIFICATION] Gemini RECITATION-style error detected. Falling back to OpenAI.');
+          const systemPrompt = getPrompt('classificationOpenAI.system');
+          const userPrompt = getPrompt('classificationOpenAI.user');
+          const { ModelProvider } = await import('../../utils/ModelProvider.js');
+          // Pass the image as data URL so OpenAI vision-capable models can see it
+          const openai = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData);
+          let parsed;
+          try {
+            parsed = JSON.parse(openai.content);
+          } catch (parseErr) {
+            console.error('❌ [CLASSIFICATION FALLBACK] OpenAI JSON parse failed:', parseErr);
+            throw new Error('OpenAI fallback returned non-JSON content');
+          }
+          return {
+            isQuestionOnly: !!parsed.isQuestionOnly,
+            reasoning: parsed.reasoning || 'OpenAI fallback classification',
+            extractedQuestionText: parsed.extractedQuestionText || '',
+            apiUsed: `OpenAI ${openai.modelName}`,
+            usageTokens: openai.usageTokens || 0
+          };
+        } catch (fallbackErr) {
+          console.error('❌ [CLASSIFICATION FALLBACK] OpenAI fallback failed:', fallbackErr);
+          throw error; // surface original Gemini error
+        }
+      }
+
+      // Fail fast otherwise - no fallback
       throw error;
     }
   }

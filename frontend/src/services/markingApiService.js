@@ -191,6 +191,29 @@ class SimpleSessionService {
       if (!data.success) {
         throw new Error(data.error || 'Failed to process image');
       }
+      // Handle PDF output without navigating or causing reloads
+      if (data.outputFormat === 'pdf' && data.annotatedOutput) {
+        // Create a lightweight assistant message with a file card style hint
+        const pdfMessage = {
+          id: `ai-${Date.now()}`,
+          role: 'assistant',
+          content: 'PDF generated. Click to open.',
+          timestamp: new Date().toISOString(),
+          type: 'marking_annotated',
+          // Pass through a data URL for user-initiated open in UI (avoid window.location assignment)
+          pdfDataUrl: typeof data.annotatedOutput === 'string' && data.annotatedOutput.startsWith('data:application/pdf')
+            ? data.annotatedOutput
+            : `data:application/pdf;base64,${data.annotatedOutput}`,
+          originalFileName: 'annotated.pdf',
+          isProcessing: false
+        };
+        // Append to current session as an AI message
+        this.addMessage(pdfMessage);
+        // Stop spinners
+        apiControls.stopAIThinking();
+        apiControls.stopProcessing();
+        return this.state.currentSession;
+      }
       
       if (data.unifiedSession) {
         // Authenticated users get full session data
@@ -335,8 +358,10 @@ class SimpleSessionService {
       
       const sessionId = this.state.currentSession?.id?.startsWith('temp-') ? null : this.state.currentSession?.id;
 
-      // Convert base64 image data to Blob for multipart/form-data upload
-      const base64Data = imageData.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+      // Convert base64 data URL (image/pdf) to Blob for multipart/form-data upload
+      const dataUrlParts = imageData.split(',');
+      const hasDataUrlPrefix = imageData.startsWith('data:') && dataUrlParts.length === 2;
+      const base64Data = hasDataUrlPrefix ? dataUrlParts[1] : imageData; // Use raw if no prefix
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
@@ -344,23 +369,31 @@ class SimpleSessionService {
       }
       const byteArray = new Uint8Array(byteNumbers);
       
-      // Determine file extension from imageData or originalFileName
-      let fileExtension = 'jpg';
-      if (originalFileName) {
-        const ext = originalFileName.split('.').pop()?.toLowerCase();
-        if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-          fileExtension = ext;
-        }
-      } else if (imageData.includes('data:image/png')) {
-        fileExtension = 'png';
-      } else if (imageData.includes('data:image/gif')) {
-        fileExtension = 'gif';
-      } else if (imageData.includes('data:image/webp')) {
-        fileExtension = 'webp';
+      // Determine mimetype and filename from originalFileName or data URL
+      let mimeType = 'image/jpeg';
+      let fileName = originalFileName || 'upload.jpg';
+      const lowerName = (originalFileName || '').toLowerCase();
+
+      // Prefer explicit PDF
+      if (lowerName.endsWith('.pdf') || imageData.includes('data:application/pdf')) {
+        mimeType = 'application/pdf';
+        fileName = originalFileName || 'document.pdf';
+      } else if (imageData.includes('data:image/png') || lowerName.endsWith('.png')) {
+        mimeType = 'image/png';
+        fileName = originalFileName || 'image.png';
+      } else if (imageData.includes('data:image/webp') || lowerName.endsWith('.webp')) {
+        mimeType = 'image/webp';
+        fileName = originalFileName || 'image.webp';
+      } else if (imageData.includes('data:image/gif') || lowerName.endsWith('.gif')) {
+        mimeType = 'image/gif';
+        fileName = originalFileName || 'image.gif';
+      } else if (imageData.includes('data:image/jpeg') || imageData.includes('data:image/jpg') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+        mimeType = 'image/jpeg';
+        fileName = originalFileName || 'image.jpg';
       }
-      
-      const blob = new Blob([byteArray], { type: `image/${fileExtension}` });
-      const file = new File([blob], originalFileName || `image.${fileExtension}`, { type: `image/${fileExtension}` });
+
+      const blob = new Blob([byteArray], { type: mimeType });
+      const file = new File([blob], fileName, { type: mimeType });
 
       // Create FormData for multipart/form-data upload
       const formData = new FormData();
@@ -387,6 +420,18 @@ class SimpleSessionService {
               if (line.startsWith('data: ')) {
                   try {
                       const data = JSON.parse(line.slice(6));
+                      // Treat TODO and ERROR stages as terminal for multi-file/PDF placeholder flows
+                      if (data && data.stage === 'TODO') {
+                          if (onProgress) onProgress(data);
+                          // Ensure UI exits processing state for placeholder terminal stage
+                          try { apiControls.stopAIThinking(); } catch(_) {}
+                          try { apiControls.stopProcessing(); } catch(_) {}
+                          return true; // Stop reading further; backend will have ended the stream
+                      }
+                      if (data && data.stage === 'ERROR') {
+                          // Surface error to caller and stop
+                          throw new Error(data.message || 'Processing error');
+                      }
                       if (data.type === 'complete') {
                           this.handleProcessComplete(data.result, model);
                           return true;
@@ -399,17 +444,28 @@ class SimpleSessionService {
           return false;
       };
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-            if (buffer) processChunk(buffer);
-            break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+              if (buffer) processChunk(buffer);
+              break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+              if (processChunk(line)) {
+                  // Explicitly close the reader when processing is complete
+                  reader.releaseLock();
+                  return;
+              }
+          }
         }
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-            if (processChunk(line)) return;
+      } finally {
+        // Ensure reader is always released
+        if (reader.locked) {
+          reader.releaseLock();
         }
       }
     } catch (error) {

@@ -114,6 +114,58 @@ export class ModelProvider {
     return content;
   }
 
+  // ----------------------------------------------------------------------------
+  // OpenAI Chat Completions (fallback)
+  // ----------------------------------------------------------------------------
+  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string): Promise<{ content: string; usageTokens: number; modelName: string }> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    const { getOpenAIEndpoint, getOpenAIModelName } = await import('../config/aiModels.js');
+    const endpoint = getOpenAIEndpoint();
+    const model = getOpenAIModelName();
+
+    // Build messages. If imageData is provided, use array content with image_url per OpenAI vision design
+    const userContent = imageData
+      ? [
+          { type: 'text', text: userPrompt },
+          { type: 'image_url', image_url: { url: imageData } }
+        ]
+      : userPrompt;
+
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent }
+    ];
+
+    const body = {
+      model,
+      messages,
+      temperature: 0,
+      response_format: { type: 'json_object' }
+    } as any;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
+    }
+
+    const json = await response.json() as any;
+    const content = json.choices?.[0]?.message?.content || '';
+    const usageTokens = json.usage?.total_tokens || 0;
+    return { content, usageTokens, modelName: model };
+  }
+
 }
 
 

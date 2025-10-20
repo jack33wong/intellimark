@@ -155,6 +155,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
+  const getOriginalFileName = () => (message as any)?.originalFileName || (message as any)?.fileName || 'PDF';
+  const isPdfMessage = () => {
+    // Check for explicit PDF type first
+    if ((message as any)?.originalFileType === 'pdf') {
+      return true;
+    }
+    // Fallback to filename detection
+    const name = getOriginalFileName();
+    return typeof name === 'string' && name.toLowerCase().endsWith('.pdf');
+  };
   
   // Check if any message in the session is currently processing
   const isAnyMessageProcessing = session?.messages?.some((msg: any) => msg.isProcessing === true) || false;
@@ -314,8 +324,59 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         )}
         
         {hasImage(message) && imageError && (
-          <div className="chat-message-image-error">
-            <span>📷 Image failed to load</span>
+          isPdfMessage() ? (
+            <div 
+              className="chat-message-file-card" 
+              role="button" 
+              aria-label="Uploaded PDF"
+              onClick={() => {
+                const pdfLink = (message as any)?.originalPdfLink;
+                const pdfDataUrl = (message as any)?.originalPdfDataUrl;
+                
+                if (pdfLink) {
+                  // For authenticated users - open the stored PDF link
+                  window.open(pdfLink, '_blank');
+                } else if (pdfDataUrl) {
+                  // For unauthenticated users - open the data URL
+                  window.open(pdfDataUrl, '_blank');
+                } else {
+                  console.warn('No PDF link or data URL available for this message');
+                }
+              }}
+            >
+              <span className="pdf-badge">PDF</span>
+              <span className="file-name">{getOriginalFileName()}</span>
+            </div>
+          ) : (
+            <div className="chat-message-image-error">
+              <span>📷 Image failed to load</span>
+            </div>
+          )
+        )}
+
+        {/* Show a file card for PDFs even if no image is present */}
+        {!hasImage(message) && isPdfMessage() && (
+          <div 
+            className="chat-message-file-card" 
+            role="button" 
+            aria-label="Uploaded PDF"
+            onClick={() => {
+              const pdfLink = (message as any)?.originalPdfLink;
+              const pdfDataUrl = (message as any)?.originalPdfDataUrl;
+              
+              if (pdfLink) {
+                // For authenticated users - open the stored PDF link
+                window.open(pdfLink, '_blank');
+              } else if (pdfDataUrl) {
+                // For unauthenticated users - open the data URL
+                window.open(pdfDataUrl, '_blank');
+              } else {
+                console.warn('No PDF link or data URL available for this message');
+              }
+            }}
+          >
+            <span className="pdf-badge">PDF</span>
+            <span className="file-name">{getOriginalFileName()}</span>
           </div>
         )}
         

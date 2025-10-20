@@ -12,8 +12,16 @@ export class ImageUtils {
   static async normalizeOrientation(imageData: string): Promise<string> {
     try {
       const startTime = Date.now();
-      const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
-      const imageBuffer = Buffer.from(base64Data, 'base64');
+      console.log(`[DEBUG] Mime type received: ${imageData.substring(0, imageData.indexOf(';'))}`);
+      let imageBuffer: Buffer;
+      if (imageData.startsWith('data:')) {
+        const base64Data = imageData.split(',')[1];
+        console.log(`[DEBUG] Extracted base64 prefix (first 50 chars): ${base64Data?.substring(0, 50)}`);
+        if (!base64Data) throw new Error('Invalid data URL format');
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageData, 'base64');
+      }
 
       const normalizedBuffer = await sharp(imageBuffer)
         .rotate()
@@ -42,8 +50,14 @@ export class ImageUtils {
   static async preProcess(imageData: string): Promise<string> {
     try {
       const startTime = Date.now();
-      const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
-      const imageBuffer = Buffer.from(base64Data, 'base64');
+      let imageBuffer: Buffer;
+      if (imageData.startsWith('data:')) {
+        const base64Data = imageData.split(',')[1];
+        if (!base64Data) throw new Error('Invalid data URL format');
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageData, 'base64');
+      }
 
       // Strategy: Gentle background normalization and contrast enhancement.
       // We avoid CLAHE and aggressive Grayscaling which caused Mathpix misclassification.

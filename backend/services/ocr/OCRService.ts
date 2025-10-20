@@ -365,8 +365,14 @@ export class OCRService {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
-    const imageBuffer = Buffer.from(base64Data, 'base64');
+    let imageBuffer: Buffer;
+    if (imageData.startsWith('data:')) {
+      const base64Data = imageData.split(',')[1];
+      if (!base64Data) throw new Error('Invalid data URL format for OCR input');
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      imageBuffer = Buffer.from(imageData, 'base64');
+    }
     const dimensions = await GoogleVisionService.getImageMetadata(imageBuffer);
 
     let detectedBlocks: DetectedBlock[] = [];

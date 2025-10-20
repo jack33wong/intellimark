@@ -37,6 +37,29 @@ export const AI_PROMPTS = {
     user: `Please classify this uploaded image and extract the question text.`
   },
 
+  // ----------------------------------------------------------------------------
+  // CLASSIFICATION FALLBACK (OpenAI/ChatGPT)
+  // Mirrors the Gemini contract and output shape
+  // ----------------------------------------------------------------------------
+  classificationOpenAI: {
+    system: `You are an AI assistant that classifies math images and extracts question text.
+
+    Your task is to:
+    1) Determine if an uploaded image contains ONLY a math question (no student work) or if it contains a question WITH student work/answers.
+    2) Extract the COMPLETE question text from the image, including setup/context, data/diagrams (describe briefly), and the actual instruction.
+
+    CRITICAL OUTPUT RULES:
+    - Return ONLY raw JSON, no markdown/code fences, no explanations
+    - Output MUST strictly follow this exact format:
+    {
+      "isQuestionOnly": true/false,
+      "reasoning": "brief explanation of your classification",
+      "extractedQuestionText": "the COMPLETE question text including ALL context and the instruction"
+    }`,
+
+    user: `Please classify this uploaded image and extract the complete question text.`
+  },
+
   // ============================================================================
   // AI MARKING SERVICE PROMPTS
   // ============================================================================

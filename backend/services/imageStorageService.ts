@@ -17,6 +17,68 @@ export class ImageStorageService {
   }
 
   /**
+   * Upload a PDF to Firebase Storage
+   */
+  static async uploadPdf(
+    pdfData: string, 
+    userId: string, 
+    sessionId: string, 
+    originalFileName: string
+  ): Promise<string> {
+    try {
+      // Get configuration
+      const config = getImageStorageConfig();
+      
+      // Generate unique filename
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substr(2, 9);
+      const fileExtension = originalFileName.toLowerCase().endsWith('.pdf') ? '.pdf' : '.pdf';
+      const filename = `pdf-${timestamp}-${random}${fileExtension}`;
+      
+      // Create storage reference
+      const storageRef = this.getStorage().bucket(config.bucketName).file(`${config.filenamePrefix}/${userId}/${sessionId}/${filename}`);
+      
+      // Convert base64 to buffer
+      const base64Data = pdfData.replace(/^data:application\/pdf;base64,/, '');
+      const pdfBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Validate file size (PDFs can be larger than images)
+      const maxPdfSizeMB = 50; // 50MB limit for PDFs
+      const sizeMB = pdfBuffer.length / (1024 * 1024);
+      if (sizeMB > maxPdfSizeMB) {
+        throw new Error(`PDF too large: ${sizeMB.toFixed(2)}MB (max: ${maxPdfSizeMB}MB)`);
+      }
+      
+      // Upload PDF
+      await storageRef.save(pdfBuffer, {
+        metadata: {
+          contentType: 'application/pdf',
+          metadata: {
+            userId,
+            sessionId,
+            fileType: 'pdf',
+            originalFileName,
+            uploadedAt: new Date().toISOString(),
+            sizeMB: sizeMB.toFixed(2)
+          }
+        }
+      });
+      
+      // Get download URL
+      const downloadURL = await storageRef.getSignedUrl({
+        action: 'read',
+        expires: '03-01-2500' // Far future date
+      }).then(urls => urls[0]);
+      
+      console.log(`✅ PDF uploaded successfully: ${filename}`);
+      return downloadURL;
+    } catch (error) {
+      console.error(`❌ Failed to upload PDF to Firebase Storage:`, error);
+      throw new Error(`PDF upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Upload an image to Firebase Storage
    */
   static async uploadImage(

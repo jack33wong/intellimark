@@ -225,3 +225,22 @@ export function getModelInfo(modelType: ModelType): { config: AIModelConfig; mod
   const apiVersion = config.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
   return { config, modelName, apiVersion };
 }
+
+// ----------------------------------------------------------------------------
+// OpenAI (fallback) configuration helpers
+// ----------------------------------------------------------------------------
+
+/** Returns true if OpenAI fallback is configured via env */
+export function isOpenAIConfigured(): boolean {
+  return !!process.env.OPENAI_API_KEY;
+}
+
+/** Get OpenAI model name (from env or default) */
+export function getOpenAIModelName(): string {
+  return process.env.OPENAI_MODEL || 'gpt-4o-mini';
+}
+
+/** Get OpenAI API endpoint for chat completions */
+export function getOpenAIEndpoint(): string {
+  return process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
+}
