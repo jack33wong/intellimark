@@ -82,11 +82,40 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     setImageError(true);
   }, []);
 
-  const handleImageClick = useCallback(() => {
-    if (hasImage(message) && !imageError) {
+  const getMultiImageData = useCallback(() => {
+    return (message as any)?.imageDataArray || [];
+  }, [message]);
+
+  const handleMultiImageClick = useCallback((index: number) => {
+    const imageDataArray = getMultiImageData();
+    if (imageDataArray.length > 0) {
+      // Convert image data array to SessionImage format for ImageModeModal
+      const sessionImages = imageDataArray.map((imageData: string, idx: number) => ({
+        id: `multi-${message.id}-${idx}`,
+        src: imageData,
+        alt: `Uploaded image ${idx + 1}`,
+        type: 'uploaded' as const
+      }));
+      
+      // Open ImageModeModal with the selected image
       setIsImageModeOpen(true);
+      // Store the images and initial index for the modal
+      (window as any).__currentSessionImages = sessionImages;
+      (window as any).__currentImageIndex = index;
     }
-  }, [message, imageError]);
+  }, [message.id, getMultiImageData]);
+
+  const handleImageClick = useCallback(() => {
+    if ((hasImage(message) || (message as any)?.imageDataArray?.length > 0) && !imageError) {
+      // For unified pipeline results with imageDataArray, use multi-image click handler
+      if ((message as any)?.imageDataArray?.length > 0) {
+        handleMultiImageClick(0); // Click on first image
+      } else {
+        // For single image results, use the original logic
+        setIsImageModeOpen(true);
+      }
+    }
+  }, [message, imageError, handleMultiImageClick]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
@@ -168,31 +197,18 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   };
 
   const isMultiImageMessage = () => {
-    return (message as any)?.isMultiImage === true && (message as any)?.fileCount > 1;
+    // Check for user multi-image uploads
+    if ((message as any)?.isMultiImage === true && (message as any)?.fileCount > 1) {
+      return true;
+    }
+    // Check for AI response with annotated images array (including single images)
+    if (message.role === 'assistant' && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 0) {
+      return true;
+    }
+    return false;
   };
 
-  const getMultiImageData = useCallback(() => {
-    return (message as any)?.imageDataArray || [];
-  }, [message]);
 
-  const handleMultiImageClick = useCallback((index: number) => {
-    const imageDataArray = getMultiImageData();
-    if (imageDataArray.length > 0) {
-      // Convert image data array to SessionImage format for ImageModeModal
-      const sessionImages = imageDataArray.map((imageData: string, idx: number) => ({
-        id: `multi-${message.id}-${idx}`,
-        src: imageData,
-        alt: `Uploaded image ${idx + 1}`,
-        type: 'uploaded' as const
-      }));
-      
-      // Open ImageModeModal with the selected image
-      setIsImageModeOpen(true);
-      // Store the images and initial index for the modal
-      (window as any).__currentSessionImages = sessionImages;
-      (window as any).__currentImageIndex = index;
-    }
-  }, [message.id, getMultiImageData]);
 
   
   // Check if any message in the session is currently processing
@@ -231,7 +247,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     <div className="thinking-text">
                       {message.progressData.isComplete ? 'Show thinking' : (message.progressData.currentStepDescription || 'Processing...')}
                     </div>
-                    {message.progressData.allSteps && message.progressData.allSteps.length > 0 && (
+                    {message.progressData?.allSteps && message.progressData.allSteps.length > 0 && (
                       <div className="progress-toggle-container">
                                 <button
                                   className="progress-toggle-button"
@@ -259,7 +275,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   {showProgressDetails && message.progressData?.allSteps && (
              <div className="progress-details-container">
                 <div className="step-list-container">
-                  {(message.progressData.allSteps || []).map((step: any, index: number) => {
+                  {(message.progressData.allSteps || [])
+                    .slice(0, (message.progressData?.currentStepIndex || 0) + 1) // Only show steps up to current
+                    .map((step: any, index: number) => {
                       const stepText = typeof step === 'string' ? step : (step.description || 'Step');
                       const currentStepIndex = message.progressData?.currentStepIndex || 0;
                       const isComplete = message.progressData?.isComplete || false;
@@ -292,21 +310,31 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             />
           )}
           
-          {/* Show suggested follow-ups for question mode messages (past papers only) */}
-          {(() => {
-            if (!isUser && !isAnnotatedImageMessage(message) && session?.isPastPaper) {
-            }
-            return null;
-          })()}
-          {!isUser && !isAnnotatedImageMessage(message) && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
-            <SuggestedFollowUpButtons 
-              suggestions={message.suggestedFollowUps as string[]}
-              onSuggestionClick={handleFollowUpClick}
-              disabled={isAnyMessageProcessing}
-            />
+          {/* Display multi-image annotated results FIRST (before suggested follow-ups) - only if more than 1 image */}
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && (
+            <div className="multi-image-gallery">
+              <SimpleImageGallery
+                images={(message as any).imageDataArray}
+                onImageClick={handleMultiImageClick}
+                className="multi-image-gallery"
+              />
+            </div>
           )}
           
-          {!isUser && isAnnotatedImageMessage(message) && hasImage(message) && imageSrc && !imageError && (
+          {/* Display single annotated image if only 1 image - BEFORE suggested follow-ups */}
+          {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && (
+            <div className="homework-annotated-image" onClick={handleImageClick}>
+              <img 
+                src={(message as any).imageDataArray[0]}
+                alt="Marked homework"
+                className="annotated-image"
+                onLoad={onImageLoad}
+                onError={handleImageError}
+              />
+            </div>
+          )}
+          
+          {!isUser && isAnnotatedImageMessage(message) && (hasImage(message) || (message as any)?.imageDataArray?.length > 0) && imageSrc && !imageError && (
             <>
               <div className="homework-annotated-image" onClick={handleImageClick}>
                 <img 
@@ -317,20 +345,16 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   onError={handleImageError}
                 />
               </div>
-              {/* Show suggested follow-ups for marking mode messages (past papers only) - OUTSIDE image clickable area */}
-              {(() => {
-                if (session?.isPastPaper) {
-                }
-                return null;
-              })()}
-              {message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
-                <SuggestedFollowUpButtons 
-                  suggestions={message.suggestedFollowUps as string[]}
-                  onSuggestionClick={handleFollowUpClick}
-                  disabled={isAnyMessageProcessing}
-                />
-              )}
             </>
+          )}
+          
+          {/* Show suggested follow-ups for any assistant message with detected question and follow-ups */}
+          {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
+            <SuggestedFollowUpButtons 
+              suggestions={message.suggestedFollowUps as string[]}
+              onSuggestionClick={handleFollowUpClick}
+              disabled={isAnyMessageProcessing}
+            />
           )}
           
           {isUser && content && (

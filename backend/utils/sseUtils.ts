@@ -33,4 +33,16 @@ export function closeSseConnection(res: Response): void {
   }
 }
 
+/**
+ * Creates a standardized progress data object for SSE updates
+ */
+export function createProgressData(stepIndex: number, description: string, allSteps: string[], isComplete: boolean = false) {
+  return {
+    currentStepDescription: description,
+    allSteps: allSteps,
+    currentStepIndex: stepIndex,
+    isComplete: isComplete
+  };
+}
+
 

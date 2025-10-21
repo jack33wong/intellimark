@@ -330,7 +330,7 @@ export const AI_PROMPTS = {
 
       ${ocrText}
       
-      Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation.`
+      Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation. Do not generate any feedback text.`
     },
 
     // With marking scheme (when exam paper is detected)

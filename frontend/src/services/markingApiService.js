@@ -52,13 +52,18 @@ class SimpleSessionService {
   }
 
   subscribe = (listener) => {
+    console.log('🔍 [SUBSCRIBE] Adding listener, total listeners:', this.listeners.size + 1);
     this.listeners.add(listener);
     return () => {
+        console.log('🔍 [UNSUBSCRIBE] Removing listener, total listeners:', this.listeners.size - 1);
         this.listeners.delete(listener);
     };
   }
   
-  notifyListeners = () => { this.listeners.forEach(listener => listener(this.state)); }
+  notifyListeners = () => { 
+    console.log('🔍 [NOTIFY LISTENERS] Notifying', this.listeners.size, 'listeners with state:', this.state);
+    this.listeners.forEach(listener => listener(this.state)); 
+  }
   getCurrentSession = () => this.state.currentSession;
   triggerSessionUpdate = (session) => {
     import('../utils/eventManager').then(({ default: EventManager, EVENT_TYPES }) => {
@@ -67,27 +72,42 @@ class SimpleSessionService {
   }
   
   addMessage = async (message) => {
+    console.log('🔍 [ADD MESSAGE DEBUG] Adding message:', message);
+    console.log('🔍 [ADD MESSAGE DEBUG] Message type:', message.type);
+    console.log('🔍 [ADD MESSAGE DEBUG] Message role:', message.role);
+    console.log('🔍 [ADD MESSAGE DEBUG] Has imageDataArray:', !!message.imageDataArray);
+    console.log('🔍 [ADD MESSAGE DEBUG] Has resultsByQuestion:', !!message.resultsByQuestion);
+    
     const session = this.state.currentSession;
+    console.log('🔍 [ADD MESSAGE DEBUG] Current session exists:', !!session);
+    console.log('🔍 [ADD MESSAGE DEBUG] Current session messages count:', session?.messages?.length || 0);
     
     // Check if a message with the same ID already exists (for processing messages)
     const existingMessages = session?.messages || [];
     const existingIndex = existingMessages.findIndex(msg => msg.id === message.id);
+    console.log('🔍 [ADD MESSAGE DEBUG] Existing message index:', existingIndex);
     
     let newMessages;
     if (existingIndex >= 0) {
       // Replace existing message (processing message -> final message)
       newMessages = [...existingMessages];
       newMessages[existingIndex] = message;
+      console.log('🔍 [ADD MESSAGE DEBUG] Replacing existing message at index:', existingIndex);
     } else {
       // Add new message
       newMessages = [...existingMessages, message];
+      console.log('🔍 [ADD MESSAGE DEBUG] Adding new message, total messages:', newMessages.length);
     }
     
     if (!session) {
+      console.log('🔍 [ADD MESSAGE DEBUG] Creating new session');
       this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionStats: {} } });
     } else {
+      console.log('🔍 [ADD MESSAGE DEBUG] Updating existing session');
       this.setState({ currentSession: { ...session, messages: newMessages } });
     }
+    
+    console.log('🔍 [ADD MESSAGE DEBUG] setState completed');
   }
 
   clearSession = () => { this.setState({ currentSession: null }); }
@@ -186,12 +206,120 @@ class SimpleSessionService {
     this.setState({ currentSession: updatedSession });
   }
 
-  handleProcessComplete = (data, modelUsed) => {
+  handleProcessComplete = (data, modelUsed, aiMessageId = null) => {
     try {
-      if (!data.success) {
+      // ========================= START OF DEBUG =========================
+      console.log('🔍 [HANDLE COMPLETE DEBUG] Received data:', data);
+      console.log('🔍 [HANDLE COMPLETE DEBUG] Data type:', typeof data);
+      console.log('🔍 [HANDLE COMPLETE DEBUG] Data keys:', data ? Object.keys(data) : 'null/undefined');
+      console.log('🔍 [HANDLE COMPLETE DEBUG] Model used:', modelUsed);
+      // ========================== END OF DEBUG ==========================
+      
+      // Check for success flag (if present) or assume success if not present
+      if (data.success === false) {
         throw new Error(data.error || 'Failed to process image');
       }
-      // Handle PDF output without navigating or causing reloads
+      
+      // Handle unifiedSession data first (for authenticated users)
+      if (data.unifiedSession) {
+        // Authenticated users get full session data - this triggers sidebar updates
+        const newSession = this.convertToUnifiedSession(data.unifiedSession);
+        this._setAndMergeCurrentSession(newSession, modelUsed);
+        return newSession;
+      }
+      
+      // Handle new multi-image/PDF response structure
+      if (data.annotatedOutput && data.resultsByQuestion) {
+        console.log('✅ [HANDLE COMPLETE] Processing multi-image/PDF results');
+        console.log('📊 Processing multi-image/PDF results:', {
+          annotatedOutputType: Array.isArray(data.annotatedOutput) ? 'array' : typeof data.annotatedOutput,
+          annotatedOutputLength: Array.isArray(data.annotatedOutput) ? data.annotatedOutput.length : 'N/A',
+          resultsByQuestionLength: data.resultsByQuestion.length,
+          outputFormat: data.outputFormat,
+          originalInputType: data.originalInputType
+        });
+        
+        // Create AI message with the same structure as original pipeline
+        const aiMessage = {
+          id: aiMessageId || `ai-${Date.now()}`,
+          role: 'assistant',
+          content: 'Marking completed - see suggested follow-ups below',
+          timestamp: new Date().toISOString(),
+          type: 'marking_annotated',
+          isProcessing: false,
+          // Store the annotated images array
+          imageDataArray: Array.isArray(data.annotatedOutput) ? data.annotatedOutput : [data.annotatedOutput],
+          // Store the detailed results
+          resultsByQuestion: data.resultsByQuestion,
+          // Add detectedQuestion data for exam paper tab
+          detectedQuestion: data.resultsByQuestion.length > 0 ? {
+            found: true,
+            questionText: data.resultsByQuestion[0].feedback || '',
+            questionNumber: data.resultsByQuestion[0].questionNumber || '',
+            subQuestionNumber: '',
+            examBoard: 'Pearson Edexcel', // Default values - should be extracted from detection
+            examCode: '1MA1/2F',
+            paperTitle: 'Mathematics',
+            subject: 'Mathematics',
+            tier: 'Foundation Tier',
+            year: '2022',
+            marks: data.resultsByQuestion[0].score?.totalMarks || 0,
+            markingScheme: ''
+          } : {
+            found: false,
+            questionText: '',
+            questionNumber: '',
+            subQuestionNumber: '',
+            examBoard: '',
+            examCode: '',
+            paperTitle: '',
+            subject: '',
+            tier: '',
+            year: '',
+            marks: 0,
+            markingScheme: ''
+          },
+          // Add suggested follow-ups
+          suggestedFollowUps: [
+            'Provide model answer according to the marking scheme.',
+            'Show marking scheme.',
+            'Similar practice questions.'
+          ],
+          // Store processing metadata
+          processingStats: {
+            apiUsed: 'marking_pipeline',
+            modelUsed: modelUsed || 'auto',
+            annotations: data.resultsByQuestion.reduce((sum, q) => sum + (q.annotations?.length || 0), 0),
+            totalMarks: data.resultsByQuestion.reduce((sum, q) => sum + (q.score?.totalMarks || 0), 0),
+            awardedMarks: data.resultsByQuestion.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0)
+          },
+          // Preserve progress data for thinking text and progress details
+          progressData: {
+            currentStepDescription: 'Marking completed',
+            allSteps: ["Input Validation", "Standardization", "Preprocessing", "OCR & Classification", "Question Detection", "Segmentation", "Marking", "Output Generation"],
+            currentStepIndex: 7, // Output Generation (final step)
+            isComplete: true
+          }
+        };
+        
+        console.log('🔍 [HANDLE COMPLETE DEBUG] Created AI message:', aiMessage);
+        console.log('🔍 [HANDLE COMPLETE DEBUG] AI message keys:', Object.keys(aiMessage));
+        console.log('🔍 [HANDLE COMPLETE DEBUG] imageDataArray length:', aiMessage.imageDataArray?.length);
+        console.log('🔍 [HANDLE COMPLETE DEBUG] resultsByQuestion length:', aiMessage.resultsByQuestion?.length);
+        
+        // Append to current session as an AI message
+        console.log('🔍 [HANDLE COMPLETE DEBUG] About to call addMessage');
+        this.addMessage(aiMessage);
+        console.log('🔍 [HANDLE COMPLETE DEBUG] addMessage completed');
+        
+        // Stop spinners
+        apiControls.stopAIThinking();
+        apiControls.stopProcessing();
+        console.log('🔍 [HANDLE COMPLETE DEBUG] Returning current session:', this.state.currentSession);
+        return this.state.currentSession;
+      }
+      
+      // Handle PDF output without navigating or causing reloads (legacy single PDF)
       if (data.outputFormat === 'pdf' && data.annotatedOutput) {
         // Create a lightweight assistant message with a file card style hint
         const pdfMessage = {
@@ -380,84 +508,68 @@ class SimpleSessionService {
         body: formData
       });
       
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      console.log('🔍 [SSE CONNECTION DEBUG] Response status:', response.status);
+      console.log('🔍 [SSE CONNECTION DEBUG] Response headers:', response.headers);
+      console.log('🔍 [SSE CONNECTION DEBUG] Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔍 [SSE CONNECTION DEBUG] Error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
       const processChunk = (chunk) => {
+        console.log('🔍 [SSE DEBUG] Processing chunk:', chunk);
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const data = JSON.parse(line.slice(6));
-              console.log('📡 Multi-image SSE data:', data);
+              const rawData = line.slice(6);
+              console.log('🔍 [SSE DEBUG] Raw SSE data:', rawData);
+              const data = JSON.parse(rawData);
+              console.log('🔍 [SSE DEBUG] Parsed SSE data:', data);
               
-              if (onProgress) {
-                // Transform the data to match the expected progress structure
-                const progressData = {
-                  currentStepDescription: data.message || 'Processing...',
-                  allSteps: [
-                    'Input Validation',
-                    'Standardization', 
-                    'Preprocessing',
-                    'OCR & Classification',
-                    'Segmentation',
-                    'Marking',
-                    'Output Generation'
-                  ],
-                  currentStepIndex: getStepIndex(data.stage),
-                  isComplete: data.type === 'complete' || data.stage === 'TODO'
-                };
-                onProgress(progressData);
+              // Handle ProgressData format (unified format for all pipelines)
+              if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
+                console.log('✅ [SSE DEBUG] Recognized ProgressData format, calling onProgress');
+                if (onProgress) onProgress(data);
+                return false; // Continue processing
               }
               
-              // Handle completion
+              // Handle completion events
               if (data.type === 'complete') {
-                console.log('✅ Multi-image processing complete');
-                return true; // Signal completion
+                this.handleProcessComplete(data.result, model, aiMessageId);
+                return true;
               }
+              if (data.type === 'error') throw new Error(data.error);
               
-              // Handle errors
-              if (data.type === 'error' || data.stage === 'ERROR') {
-                console.error('❌ Multi-image processing error:', data);
-                return true; // Signal completion
-              }
-            } catch (parseError) {
-              console.warn('⚠️ Failed to parse SSE data:', parseError);
-            }
+              // Fallback: pass any other data to onProgress
+              if (onProgress) onProgress(data);
+            } catch (e) {}
           }
         }
-        return false; // Continue processing
+        return false;
       };
 
-      // Helper function to map stage to step index
-      const getStepIndex = (stage) => {
-        const stageMap = {
-          'START': 0,
-          'INPUT_VALIDATION': 0,
-          'ROUTING': 0,
-          'STANDARDIZATION': 1,
-          'PREPROCESSING': 2,
-          'OCR_CLASSIFY': 3,
-          'DIMENSIONS': 1,
-          'TODO': 4,
-          'ERROR': -1
-        };
-        return stageMap[stage] || 0;
-      };
 
       try {
+        console.log('🔍 [SSE DEBUG] Starting SSE reading loop...');
         while (true) {
           const { done, value } = await reader.read();
+          console.log('🔍 [SSE DEBUG] Read result:', { done, valueLength: value?.length });
           if (done) {
+            console.log('🔍 [SSE DEBUG] SSE stream ended');
             if (buffer) processChunk(buffer);
             break;
           }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
+          console.log('🔍 [SSE DEBUG] Processing', lines.length, 'lines');
           for (const line of lines) {
             if (processChunk(line)) {
               // Explicitly close the reader when processing is complete
@@ -548,20 +660,13 @@ class SimpleSessionService {
               if (line.startsWith('data: ')) {
                   try {
                       const data = JSON.parse(line.slice(6));
-                      // Treat TODO and ERROR stages as terminal for multi-file/PDF placeholder flows
-                      if (data && data.stage === 'TODO') {
+                      // Handle ProgressData format (unified format for all pipelines)
+                      if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
                           if (onProgress) onProgress(data);
-                          // Ensure UI exits processing state for placeholder terminal stage
-                          try { apiControls.stopAIThinking(); } catch(_) {}
-                          try { apiControls.stopProcessing(); } catch(_) {}
-                          return true; // Stop reading further; backend will have ended the stream
-                      }
-                      if (data && data.stage === 'ERROR') {
-                          // Surface error to caller and stop
-                          throw new Error(data.message || 'Processing error');
+                          return false; // Continue processing
                       }
                       if (data.type === 'complete') {
-                          this.handleProcessComplete(data.result, model);
+                          this.handleProcessComplete(data.result, model, aiMessageId);
                           return true;
                       }
                       if (data.type === 'error') throw new Error(data.error);

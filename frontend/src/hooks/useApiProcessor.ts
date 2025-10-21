@@ -111,7 +111,7 @@ export const useApiProcessor = () => {
 
         const progressData = {
           currentStepDescription: data.currentStepDescription || '',
-          allSteps: [...(data.allSteps || [])], // Create a new array to force React re-render
+          allSteps: data.allSteps && data.allSteps.length > 0 ? [...data.allSteps] : (messageToUpdate.progressData?.allSteps || []), // Use new allSteps if available, otherwise preserve existing
           currentStepIndex: data.currentStepIndex || 0,
           isComplete: data.isComplete || false,
         };

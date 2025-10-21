@@ -136,15 +136,24 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         setPreviewImages([]);
       }
     } else if (newFiles.length === 1) {
-      // Single file mode
+      // Single file mode - but treat PDFs as multi-image for proper SSE handling
       const file = newFiles[0];
-      setImageFile(file);
-      setImageFiles([]);
-      setPreviewImages([]);
-      setIsMultiImage(false);
       
-      // Only generate preview for images, not PDFs
-      if (!isPDF(file)) {
+      if (isPDF(file)) {
+        // PDFs go through multi-image path for proper SSE handling
+        setImageFile(null);
+        setImageFiles([file]);
+        setPreviewImage(null);
+        setPreviewImages([]);
+        setIsMultiImage(true);
+      } else {
+        // Regular images go through single image path
+        setImageFile(file);
+        setImageFiles([]);
+        setPreviewImages([]);
+        setIsMultiImage(false);
+        
+        // Generate preview for images
         const reader = new FileReader();
         reader.onload = () => {
           if (typeof reader.result === 'string') {
@@ -152,8 +161,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
           }
         };
         reader.readAsDataURL(file);
-      } else {
-        setPreviewImage(null);
       }
     } else {
       // Multi-file mode (first selection)

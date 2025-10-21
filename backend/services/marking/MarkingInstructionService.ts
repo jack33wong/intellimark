@@ -1,6 +1,30 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 
+// Import the formatting function
+function formatMarkingSchemeAsBullets(schemeJson: string): string {
+  try {
+    // Parse the JSON marking scheme
+    const scheme = JSON.parse(schemeJson);
+    
+    if (!scheme.marks || !Array.isArray(scheme.marks)) {
+      return schemeJson; // Return original if not in expected format
+    }
+    
+    // Convert each mark to a bullet point
+    const bullets = scheme.marks.map((mark: any) => {
+      const markCode = mark.mark || 'M1';
+      const answer = mark.answer || '';
+      return `- **[${markCode}]** ${answer}`;
+    });
+    
+    return bullets.join('\n');
+  } catch (error) {
+    // If parsing fails, return the original JSON
+    return schemeJson;
+  }
+}
+
 export interface MarkingInputs {
   imageData: string;
   model: ModelType;
@@ -20,7 +44,10 @@ export class MarkingInstructionService {
     try {
       // Get cleaned OCR data from OCRPipeline (now includes all OCR cleanup)
       const cleanDataForMarking = (processedImage as any).cleanDataForMarking;
-      const cleanedOcrText = (processedImage as any).cleanedOcrText;
+      // ========================= START OF FIX =========================
+      // Use the plain text OCR text that was passed in, not the JSON format from OCR service
+      const cleanedOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
+      // ========================== END OF FIX ==========================
       const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
       
       if (!cleanDataForMarking || !cleanDataForMarking.steps || cleanDataForMarking.steps.length === 0) {
@@ -28,10 +55,25 @@ export class MarkingInstructionService {
       }
 
       // Step 1: Generate raw annotations from cleaned OCR text
+      // ========================= START OF FIX 2 =========================
+      // Format the marking scheme data for the AI prompt
+      let formattedQuestionDetection = questionDetection;
+      
+      // If we have a marking scheme, format it properly for generateFromOCR
+      if (questionDetection && typeof questionDetection === 'object') {
+        // The questionDetection is already the marking scheme object from the router
+        // We need to format it to match what generateFromOCR expects
+        formattedQuestionDetection = {
+          questionMarks: questionDetection, // The marking scheme is passed directly
+          totalMarks: questionDetection.marks ? questionDetection.marks.length : 0
+        };
+      }
+      // ========================== END OF FIX 2 ==========================
+      
       const annotationData = await this.generateFromOCR(
         model,
-        JSON.stringify(cleanDataForMarking),
-        questionDetection
+        cleanedOcrText, // Use the plain text directly instead of JSON
+        formattedQuestionDetection
       );
       
       if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
@@ -107,13 +149,108 @@ export class MarkingInstructionService {
     let systemPrompt = getPrompt('markingInstructions.basic.system');
     let userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
     
-    if (questionDetection?.match?.markingScheme) {
+    // ========================= START OF DEBUG =========================
+    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection object:");
+    console.log(JSON.stringify(questionDetection, null, 2));
+    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection?.match:", questionDetection?.match);
+    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection?.match?.markingScheme:", questionDetection?.match?.markingScheme);
+    // ========================== END OF DEBUG ==========================
+
+    // ========================= START OF FIX =========================
+    // Check for marking scheme in the correct location
+    const hasMarkingScheme = questionDetection?.questionMarks || questionDetection?.match?.markingScheme;
+    
+    if (hasMarkingScheme) {
+      console.log("✅ [MARKING INSTRUCTION] Using withMarkingScheme prompt");
       systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
 
-      // Add question detection context if available
-      const ms = questionDetection.match.markingScheme.questionMarks as any;
-      const schemeJson = JSON.stringify(ms, null, 2);
-      userPrompt = getPrompt('markingInstructions.withMarkingScheme.user', formattedOcrText, schemeJson, questionDetection.match.marks);
+      // Format marking scheme data into plain text string
+      let markingSchemeContext = "MARKING SCHEME CONTEXT:\n";
+      
+      try {
+        // Try both possible locations for the marking scheme
+        const ms = questionDetection.questionMarks || questionDetection.match?.markingScheme?.questionMarks;
+        console.log("🔍 [MARKING INSTRUCTION DEBUG] ms (questionMarks):", JSON.stringify(ms, null, 2));
+        
+        // Handle the correct structure: ms should be the full marks array from fullexampaper.questions[x].marks
+        if (ms && Array.isArray(ms)) {
+          // ms is the full marks array from fullexampaper.questions[x].marks
+          console.log("🔍 [MARKING INSTRUCTION DEBUG] ms is the full marks array with", ms.length, "items");
+          ms.forEach((markItem: any) => {
+            const markCode = markItem.mark || 'M1';
+            const answer = markItem.answer || markItem.comments || '';
+            markingSchemeContext += `- **[${markCode}]** ${answer}\n`;
+          });
+        }
+        // Fallback: if ms is an object with a marks property (legacy structure)
+        else if (ms && typeof ms === 'object' && ms.marks && Array.isArray(ms.marks)) {
+          console.log("🔍 [MARKING INSTRUCTION DEBUG] Found ms.marks array with", ms.marks.length, "items (legacy structure)");
+          ms.marks.forEach((markItem: any) => {
+            const markCode = markItem.mark || 'M1';
+            const answer = markItem.answer || markItem.comments || '';
+            markingSchemeContext += `- **[${markCode}]** ${answer}\n`;
+          });
+        }
+        // Fallback: try to format as JSON and use the existing function
+        else if (ms && typeof ms === 'object') {
+          console.log("🔍 [MARKING INSTRUCTION DEBUG] Using fallback JSON formatting");
+          const schemeJson = JSON.stringify(ms, null, 2);
+          markingSchemeContext += formatMarkingSchemeAsBullets(schemeJson);
+        } else {
+          console.warn("⚠️ Marking scheme data is missing or invalid.");
+          markingSchemeContext += "No valid scheme provided.\n";
+        }
+        
+        // Add total marks if available
+        // IMPORTANT: Use question-specific marks from fullexampaper.questions[x].marks array
+        let totalMarks = null;
+        
+        // The correct structure: ms should be the full marks array from fullexampaper.questions[x].marks
+        if (ms && Array.isArray(ms)) {
+          // ms is the full marks array - count the number of mark objects
+          totalMarks = ms.length;
+          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Calculated total marks from fullexampaper.questions[x].marks array: ${totalMarks}`);
+        }
+        // Fallback: if ms is an object with a marks property
+        else if (ms && ms.marks && Array.isArray(ms.marks)) {
+          // ms.marks is the full marks array
+          totalMarks = ms.marks.length;
+          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Calculated total marks from ms.marks array: ${totalMarks}`);
+        }
+        // Fallback to other possible locations
+        else if (questionDetection.match?.marks) {
+          totalMarks = questionDetection.match.marks;
+          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Using match.marks: ${totalMarks}`);
+        }
+        // Last resort: use exam-level total (but log a warning)
+        else if (questionDetection.totalMarks) {
+          console.warn(`⚠️ [MARKING INSTRUCTION] Using exam-level total marks (${questionDetection.totalMarks}) instead of question-specific marks. This may be incorrect.`);
+          totalMarks = questionDetection.totalMarks;
+        }
+        
+        if (totalMarks) {
+          markingSchemeContext += `\n**TOTAL MARKS:** ${totalMarks}`;
+        }
+        
+      } catch (error) {
+        console.error("❌ Error formatting marking scheme:", error);
+        markingSchemeContext += "Error formatting marking scheme.\n";
+      }
+      
+      // Create the user prompt with plain text marking scheme
+      userPrompt = `Here is the OCR TEXT:
+
+${formattedOcrText}
+
+${markingSchemeContext}
+
+Please analyze this work based ONLY on the provided MARKING SCHEME CONTEXT and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation. Return ONLY a valid JSON object containing "annotations" and "studentScore". Do not generate any feedback text.`;
+      
+      console.log("🔍 [MARKING INSTRUCTION DEBUG] Final userPrompt (first 1000 chars):");
+      console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? "..." : ""));
+      // ========================== END OF FIX ==========================
+    } else {
+      console.log("❌ [MARKING INSTRUCTION] No marking scheme found, using basic prompt");
     }
 
     
