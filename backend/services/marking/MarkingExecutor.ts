@@ -4,7 +4,6 @@
  */
 
 import { MarkingInstructionService } from './MarkingInstructionService.js';
-import { MarkingServiceLocator } from './MarkingServiceLocator.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { MarkingInstructions, Annotation } from '../../types/index.js';
 import type { MathBlock } from '../ocr/MathDetectionService.js';
@@ -103,6 +102,18 @@ export async function executeMarkingForQuestion(
       questionDetection: task.markingScheme
     });
     
+    // ========================= START: DEBUG MARKING RESULT =========================
+    console.log(`[DEBUG MARKING RESULT] MarkingInstructionService returned:`, {
+      hasAnnotations: !!markingResult.annotations,
+      annotationsLength: markingResult.annotations?.length || 0,
+      hasStudentScore: !!markingResult.studentScore,
+      studentScore: markingResult.studentScore
+    });
+    if (markingResult.annotations && markingResult.annotations.length > 0) {
+      console.log(`[DEBUG MARKING RESULT] First annotation:`, markingResult.annotations[0]);
+    }
+    // ========================== END: DEBUG MARKING RESULT ==========================
+    
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
     // Basic validation of marking result
@@ -110,45 +121,61 @@ export async function executeMarkingForQuestion(
        throw new Error(`MarkingInstructionService returned invalid data for Q${questionId}`);
     }
 
-    // 4. Call AI Response Generation Service (Pass Plain Text if needed)
-    sendSseUpdate(res, createProgressData(6, `Generating feedback for Question ${questionId}...`, MULTI_IMAGE_STEPS));
-    
-    // Use MarkingServiceLocator for response generation
-    const feedbackResult = await MarkingServiceLocator.generateChatResponse(
-      ocrTextForPrompt, // Pass plain text here too if needed by this service
-      'Generate feedback for this student work', // Message
-      'auto', // Model type
-      false, // isQuestionOnly
-      false, // debug
-      undefined, // onProgress
-      true // useOcrText
-    );
-    
-    sendSseUpdate(res, createProgressData(6, `Feedback generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
+    // 4. Skip feedback generation - removed as requested
+    console.log(`✅ [MARKING EXECUTION] Skipping feedback generation for Question ${questionId} as requested.`);
 
-    // 5. Enrich Annotations (Use the stepsDataForMapping array)
-    const enrichedAnnotations: EnrichedAnnotation[] = (markingResult.annotations || []).map(anno => {
-      // Find the original step data using the step_id
-      const originalStep = stepsDataForMapping.find(step => step.unified_step_id === (anno as any).step_id);
-      return {
-        ...anno,
-        bbox: (originalStep?.bbox || [0, 0, 0, 0]) as [number, number, number, number], // Get coords back
-        pageIndex: originalStep?.pageIndex ?? -1 // Get page index back
-      };
-    }).filter(anno => anno.pageIndex !== -1 && anno.bbox.length === 4);
+    // 5. Enrich Annotations
+    console.log(`[ENRICHMENT DEBUG] stepsDataForMapping contains ${stepsDataForMapping.length} steps:`);
+    stepsDataForMapping.forEach((step, index) => {
+      console.log(`  [${index}] unified_step_id: "${step.unified_step_id}", pageIndex: ${step.pageIndex}, bbox: [${step.bbox?.join(', ') || 'none'}]`);
+    });
+    
+    console.log(`[ENRICHMENT DEBUG] AI returned ${markingResult.annotations?.length || 0} annotations:`);
+    (markingResult.annotations || []).forEach((anno, index) => {
+      console.log(`  [${index}] step_id: "${(anno as any).step_id}", action: ${anno.action}, text: ${anno.text}`);
+    });
+    
+    const enrichedAnnotations = (markingResult.annotations || []).map(anno => {
+        
+        // ================== START OF FIX ==================
+        // Trim both IDs to protect against hidden whitespace
+        const aiStepId = (anno as any).step_id?.trim(); 
+        if (!aiStepId) {
+             console.warn(`[ENRICHMENT] AI annotation has missing or empty step_id:`, anno);
+             return null;
+        }
+
+        console.log(`[DEBUG ENRICH] Attempting to find match for AI step_id: "${aiStepId}"`);
+
+        const originalStep = stepsDataForMapping.find(step => 
+            step.unified_step_id?.trim() === aiStepId
+        );
+        // =================== END OF FIX ===================
+        
+        if (!originalStep) {
+             console.warn(`[ENRICHMENT] Could not find original step for step_id: ${aiStepId}`);
+             return null; // Mark for filtering
+        }
+
+        console.log(`[DEBUG ENRICH]   -> Found match! PageIndex: ${originalStep.pageIndex}, BBox: ${originalStep.bbox ? 'Exists' : 'Missing'}`);
+
+        return {
+            ...anno,
+            bbox: (originalStep.bbox || [0, 0, 0, 0]) as [number, number, number, number],
+            pageIndex: originalStep.pageIndex ?? -1
+        };
+    }).filter(anno => anno !== null && anno.pageIndex !== -1 && anno.bbox.length === 4); // Filter out nulls
 
     // 6. Consolidate results for this question
     const score = markingResult.studentScore;
-    const feedback = feedbackResult?.response; // Get response from MarkingServiceLocator
 
-    console.log(`✅ [MARKING EXECUTION] Marking complete for Question ${questionId}. Score: ${score?.scoreText}`);
+    console.log(`✅ [MARKING EXECUTION] Marking complete for Question ${questionId}. Score: ${score?.scoreText}. Found ${enrichedAnnotations.length} valid annotations.`);
     sendSseUpdate(res, createProgressData(6, `Marking complete for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
     return {
       questionNumber: questionId,
       score,
-      annotations: enrichedAnnotations,
-      feedback
+      annotations: enrichedAnnotations
     };
 
   } catch (error) {

@@ -79,17 +79,10 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     if (newFiles.length === 0) return;
     // Block file selection while processing
     if (isProcessing) {
-      console.log('⚠️ Upload blocked: still processing');
       e.target.value = '';
       return;
     }
     
-    console.log('📁 File selection:', {
-      newFiles: newFiles.length,
-      existingImageFile: !!imageFile,
-      existingImageFiles: imageFiles.length,
-      isMultiImage
-    });
 
     // If we already have files and user selects more, add to existing
     if (imageFiles.length > 0 || imageFile) {
@@ -102,7 +95,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       );
       
       if (uniqueNewFiles.length === 0) {
-        console.log('⚠️ All selected files are duplicates, ignoring');
         e.target.value = ''; // Clear the file input
         return;
       }
@@ -244,13 +236,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     const fileToSend = imageFile;
     const filesToSend = imageFiles;
     
-    console.log('🚀 Send click:', {
-      textToSend: textToSend.length,
-      fileToSend: !!fileToSend,
-      filesToSend: filesToSend.length,
-      isMultiImage,
-      canSend: !!(textToSend || fileToSend || filesToSend.length > 0)
-    });
     
     if (!textToSend && !fileToSend && filesToSend.length === 0) return;
 
@@ -261,7 +246,6 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
         handler(filesToSend, textToSend);
       } else {
         // Fallback: Process each file individually using single image handlers
-        console.log('⚠️ Multi-image handlers not available, processing files individually');
         filesToSend.forEach((file, index) => {
           const singleHandler = mode === 'first-time' ? onAnalyzeImage : onFollowUpImage;
           const fileText = filesToSend.length > 1 ? `${textToSend} (File ${index + 1}/${filesToSend.length})` : textToSend;

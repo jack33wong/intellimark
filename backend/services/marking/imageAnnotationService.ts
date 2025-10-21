@@ -24,19 +24,31 @@ export class ImageAnnotationService {
    */
   static createSVGOverlay(annotations: Annotation[], imageDimensions: ImageDimensions): string {
     if (!annotations || annotations.length === 0) {
+      console.log('[SVG DEBUG] No annotations provided');
       return '';
     }
 
+    console.log(`[SVG DEBUG] Processing ${annotations.length} annotations`);
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}" style="position: absolute; top: 0; left: 0; pointer-events: none;">`;
     
+    let processedCount = 0;
     annotations.forEach((annotation, index) => {
-      if (annotation.text) {
+      // ========================= START OF FIX =========================
+      // Process annotations that have either text OR action (tick/cross)
+      if (annotation.text || annotation.action) {
+        console.log(`[SVG DEBUG] Processing annotation ${index}: text="${annotation.text}", action="${annotation.action}"`);
         const commentSvg = this.createCommentAnnotation(annotation, imageDimensions, index);
         svg += commentSvg;
+        processedCount++;
+      } else {
+        console.log(`[SVG DEBUG] Skipping annotation ${index}: no text or action`);
       }
+      // ========================== END OF FIX ==========================
     });
 
+    console.log(`[SVG DEBUG] Processed ${processedCount} out of ${annotations.length} annotations`);
     const finalSvg = svg + '</svg>';
+    console.log(`[SVG DEBUG] Final SVG length: ${finalSvg.length}`);
     return finalSvg;
   }
 
@@ -49,18 +61,38 @@ export class ImageAnnotationService {
    */
   private static createCommentAnnotation(
     annotation: Annotation, 
-    _imageDimensions: ImageDimensions, 
+    imageDimensions: ImageDimensions, 
     index: number
   ): string {
-    if (!annotation.text) {
+    // ========================= START OF FIX =========================
+    // Handle annotations with action (tick/cross) even when text is empty
+    if (!annotation.text && !annotation.action) {
       return '';
     }
     
-    const commentText = this.breakTextIntoLines(annotation.text, 50);
+    // Use action symbol if text is empty
+    const displayText = annotation.text || (annotation.action === 'tick' ? '✓' : annotation.action === 'cross' ? '✗' : '');
+    if (!displayText) {
+      return '';
+    }
+    // ========================== END OF FIX ==========================
+    
+    // ========================= START OF FIX =========================
+    // Handle missing or invalid bbox coordinates
+    if (!annotation.bbox || !Array.isArray(annotation.bbox) || annotation.bbox.length !== 4) {
+      console.warn(`[IMAGE ANNOTATION] Annotation ${index} missing valid bbox coordinates, using default position`);
+      // Use default position (top-right corner with offset based on index)
+      const defaultX = imageDimensions.width - 200;
+      const defaultY = 50 + (index * 80);
+      annotation.bbox = [defaultX, defaultY, 150, 60]; // [x, y, width, height]
+    }
+    // ========================== END OF FIX ==========================
+    
+    const commentText = this.breakTextIntoLines(displayText, 50);
     let svg = '';
 
     // Add background rectangle for better readability
-    const textWidth = this.estimateTextWidth(annotation.text, 24);
+    const textWidth = this.estimateTextWidth(displayText, 24);
     const textHeight = commentText.length * 28.8;
     
     
@@ -196,6 +228,14 @@ export class ImageAnnotationService {
   ): boolean {
     if (!annotation.text) return false;
     
+    // ========================= START OF FIX =========================
+    // Handle missing or invalid bbox coordinates
+    if (!annotation.bbox || !Array.isArray(annotation.bbox) || annotation.bbox.length !== 4) {
+      console.warn(`[IMAGE ANNOTATION] Cannot validate annotation position - missing bbox coordinates`);
+      return false; // Cannot validate without coordinates
+    }
+    // ========================== END OF FIX ==========================
+    
     const commentWidth = this.estimateTextWidth(annotation.text, 24);
     const commentHeight = this.breakTextIntoLines(annotation.text, 50).length * 28.8;
 
@@ -206,6 +246,9 @@ export class ImageAnnotationService {
       annotation.bbox[1] + commentHeight <= imageDimensions.height
     );
   }
+
+  // NOTE: burnSVGOverlayIntoImage method removed - now using SVGOverlayService.burnSVGOverlayServerSide()
+  // which is the same service used by the PDF pipeline and works correctly
 
   /**
    * Generate complete annotation result with SVG overlay
@@ -241,27 +284,57 @@ export class ImageAnnotationService {
       // Create SVG overlay for reference
       const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
       
-      // Burn SVG overlay into the image
-      const burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
-        originalImage,
-        annotations,
-        imageDimensions,
-        studentScore
-      );
+      // ========================= START OF FIX =========================
+      // Use the same SVGOverlayService that works in the PDF pipeline
+      let burnedImage = originalImage;
+      try {
+        if (annotations && annotations.length > 0) {
+          console.log(`[SVG DEBUG] Using SVGOverlayService for single image pipeline (${annotations.length} annotations)`);
+          console.log(`[SVG DEBUG] Student score available:`, !!studentScore, studentScore ? `(${studentScore.scoreText || 'no scoreText'})` : '');
+          const { SVGOverlayService } = await import('../marking/SVGOverlayService.js');
+          burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
+            originalImage,
+            annotations,
+            imageDimensions,
+            studentScore // ✅ Pass the actual student score instead of null
+          );
+          console.log(`✅ [SVG DEBUG] Successfully burned SVG overlay using SVGOverlayService`);
+        } else {
+          console.log(`[SVG DEBUG] No annotations to burn, returning original image`);
+        }
+      } catch (error) {
+        console.error(`❌ [SVG DEBUG] Failed to burn SVG overlay with SVGOverlayService:`, error);
+        console.log(`[SVG DEBUG] Returning original image as fallback`);
+        burnedImage = originalImage;
+      }
+      // ========================== END OF FIX ==========================
       
       // Convert annotations to ImageAnnotation format
-      const imageAnnotations: ImageAnnotation[] = annotations.map(ann => ({
-        position: { x: ann.bbox[0], y: ann.bbox[1] },
-        comment: ann.text || '', // Legacy field for ImageAnnotation interface
-        hasComment: !!ann.text,
-        boundingBox: {
-          x: ann.bbox[0],
-          y: ann.bbox[1],
-          width: ann.bbox[2],
-          height: ann.bbox[3],
-          text: ann.text || ''
+      const imageAnnotations: ImageAnnotation[] = annotations.map(ann => {
+        // ========================= START OF FIX =========================
+        // Handle missing or invalid bbox coordinates
+        if (!ann.bbox || !Array.isArray(ann.bbox) || ann.bbox.length !== 4) {
+          console.warn(`[IMAGE ANNOTATION] Annotation missing valid bbox coordinates, using default position`);
+          // Use default position (top-right corner with offset based on index)
+          const defaultX = imageDimensions.width - 200;
+          const defaultY = 50 + (annotations.indexOf(ann) * 80);
+          ann.bbox = [defaultX, defaultY, 150, 60]; // [x, y, width, height]
         }
-      }));
+        // ========================== END OF FIX ==========================
+        
+        return {
+          position: { x: ann.bbox[0], y: ann.bbox[1] },
+          comment: ann.text || '', // Legacy field for ImageAnnotation interface
+          hasComment: !!ann.text,
+          boundingBox: {
+            x: ann.bbox[0],
+            y: ann.bbox[1],
+            width: ann.bbox[2],
+            height: ann.bbox[3],
+            text: ann.text || ''
+          }
+        };
+      });
 
       
       return {

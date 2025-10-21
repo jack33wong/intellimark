@@ -52,16 +52,13 @@ class SimpleSessionService {
   }
 
   subscribe = (listener) => {
-    console.log('🔍 [SUBSCRIBE] Adding listener, total listeners:', this.listeners.size + 1);
     this.listeners.add(listener);
     return () => {
-        console.log('🔍 [UNSUBSCRIBE] Removing listener, total listeners:', this.listeners.size - 1);
         this.listeners.delete(listener);
     };
   }
   
   notifyListeners = () => { 
-    console.log('🔍 [NOTIFY LISTENERS] Notifying', this.listeners.size, 'listeners with state:', this.state);
     this.listeners.forEach(listener => listener(this.state)); 
   }
   getCurrentSession = () => this.state.currentSession;
@@ -72,42 +69,27 @@ class SimpleSessionService {
   }
   
   addMessage = async (message) => {
-    console.log('🔍 [ADD MESSAGE DEBUG] Adding message:', message);
-    console.log('🔍 [ADD MESSAGE DEBUG] Message type:', message.type);
-    console.log('🔍 [ADD MESSAGE DEBUG] Message role:', message.role);
-    console.log('🔍 [ADD MESSAGE DEBUG] Has imageDataArray:', !!message.imageDataArray);
-    console.log('🔍 [ADD MESSAGE DEBUG] Has resultsByQuestion:', !!message.resultsByQuestion);
-    
     const session = this.state.currentSession;
-    console.log('🔍 [ADD MESSAGE DEBUG] Current session exists:', !!session);
-    console.log('🔍 [ADD MESSAGE DEBUG] Current session messages count:', session?.messages?.length || 0);
     
     // Check if a message with the same ID already exists (for processing messages)
     const existingMessages = session?.messages || [];
     const existingIndex = existingMessages.findIndex(msg => msg.id === message.id);
-    console.log('🔍 [ADD MESSAGE DEBUG] Existing message index:', existingIndex);
     
     let newMessages;
     if (existingIndex >= 0) {
       // Replace existing message (processing message -> final message)
       newMessages = [...existingMessages];
       newMessages[existingIndex] = message;
-      console.log('🔍 [ADD MESSAGE DEBUG] Replacing existing message at index:', existingIndex);
     } else {
       // Add new message
       newMessages = [...existingMessages, message];
-      console.log('🔍 [ADD MESSAGE DEBUG] Adding new message, total messages:', newMessages.length);
     }
     
     if (!session) {
-      console.log('🔍 [ADD MESSAGE DEBUG] Creating new session');
       this.setState({ currentSession: { id: `temp-${Date.now()}`, title: 'Processing...', messages: newMessages, sessionStats: {} } });
     } else {
-      console.log('🔍 [ADD MESSAGE DEBUG] Updating existing session');
       this.setState({ currentSession: { ...session, messages: newMessages } });
     }
-    
-    console.log('🔍 [ADD MESSAGE DEBUG] setState completed');
   }
 
   clearSession = () => { this.setState({ currentSession: null }); }
@@ -230,14 +212,6 @@ class SimpleSessionService {
       
       // Handle new multi-image/PDF response structure
       if (data.annotatedOutput && data.resultsByQuestion) {
-        console.log('✅ [HANDLE COMPLETE] Processing multi-image/PDF results');
-        console.log('📊 Processing multi-image/PDF results:', {
-          annotatedOutputType: Array.isArray(data.annotatedOutput) ? 'array' : typeof data.annotatedOutput,
-          annotatedOutputLength: Array.isArray(data.annotatedOutput) ? data.annotatedOutput.length : 'N/A',
-          resultsByQuestionLength: data.resultsByQuestion.length,
-          outputFormat: data.outputFormat,
-          originalInputType: data.originalInputType
-        });
         
         // Create AI message with the same structure as original pipeline
         const aiMessage = {
@@ -302,20 +276,12 @@ class SimpleSessionService {
           }
         };
         
-        console.log('🔍 [HANDLE COMPLETE DEBUG] Created AI message:', aiMessage);
-        console.log('🔍 [HANDLE COMPLETE DEBUG] AI message keys:', Object.keys(aiMessage));
-        console.log('🔍 [HANDLE COMPLETE DEBUG] imageDataArray length:', aiMessage.imageDataArray?.length);
-        console.log('🔍 [HANDLE COMPLETE DEBUG] resultsByQuestion length:', aiMessage.resultsByQuestion?.length);
-        
         // Append to current session as an AI message
-        console.log('🔍 [HANDLE COMPLETE DEBUG] About to call addMessage');
         this.addMessage(aiMessage);
-        console.log('🔍 [HANDLE COMPLETE DEBUG] addMessage completed');
         
         // Stop spinners
         apiControls.stopAIThinking();
         apiControls.stopProcessing();
-        console.log('🔍 [HANDLE COMPLETE DEBUG] Returning current session:', this.state.currentSession);
         return this.state.currentSession;
       }
       
@@ -492,7 +458,6 @@ class SimpleSessionService {
       // Add all files to the FormData under the 'files' key
       files.forEach((file, index) => {
         formData.append('files', file);
-        console.log(`📁 Added file ${index + 1}/${files.length}: ${file.name} (${file.type})`);
       });
       
       // Add other form data
@@ -500,7 +465,6 @@ class SimpleSessionService {
       if (aiMessageId) formData.append('aiMessageId', aiMessageId);
       if (customText) formData.append('customText', customText);
       
-      console.log(`🚀 Sending ${files.length} files to /api/marking/process`);
       
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/marking/process`, {
         method: 'POST',
@@ -508,13 +472,9 @@ class SimpleSessionService {
         body: formData
       });
       
-      console.log('🔍 [SSE CONNECTION DEBUG] Response status:', response.status);
-      console.log('🔍 [SSE CONNECTION DEBUG] Response headers:', response.headers);
-      console.log('🔍 [SSE CONNECTION DEBUG] Response ok:', response.ok);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('🔍 [SSE CONNECTION DEBUG] Error response:', errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
       
@@ -523,19 +483,15 @@ class SimpleSessionService {
       let buffer = '';
 
       const processChunk = (chunk) => {
-        console.log('🔍 [SSE DEBUG] Processing chunk:', chunk);
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const rawData = line.slice(6);
-              console.log('🔍 [SSE DEBUG] Raw SSE data:', rawData);
               const data = JSON.parse(rawData);
-              console.log('🔍 [SSE DEBUG] Parsed SSE data:', data);
               
               // Handle ProgressData format (unified format for all pipelines)
               if (data && data.currentStepDescription && data.allSteps && typeof data.currentStepIndex === 'number') {
-                console.log('✅ [SSE DEBUG] Recognized ProgressData format, calling onProgress');
                 if (onProgress) onProgress(data);
                 return false; // Continue processing
               }
@@ -557,19 +513,15 @@ class SimpleSessionService {
 
 
       try {
-        console.log('🔍 [SSE DEBUG] Starting SSE reading loop...');
         while (true) {
           const { done, value } = await reader.read();
-          console.log('🔍 [SSE DEBUG] Read result:', { done, valueLength: value?.length });
           if (done) {
-            console.log('🔍 [SSE DEBUG] SSE stream ended');
             if (buffer) processChunk(buffer);
             break;
           }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
-          console.log('🔍 [SSE DEBUG] Processing', lines.length, 'lines');
           for (const line of lines) {
             if (processChunk(line)) {
               // Explicitly close the reader when processing is complete

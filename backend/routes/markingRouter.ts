@@ -6,7 +6,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import * as stringSimilarity from 'string-similarity';
 import { optionalAuth } from '../middleware/auth.js';
 import { runOriginalSingleImagePipeline } from './originalPipeline.js';
 import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
@@ -61,243 +60,85 @@ interface MarkingTask {
 }
 
 
-// --- Helper: Find Boundary using Fuzzy Match (with added logging) ---
-const findBoundaryByFuzzyMatch = (
-  ocrLines: Array<any>, // Expect objects with globalIndex, pageIndex, text/latex_styled
-  questionText: string | undefined
-): number => {
-  console.log('🔧 [SEGMENTATION - BOUNDARY] Attempting fuzzy match boundary detection across all lines.');
-  
-  if (!questionText || questionText.trim().length === 0) {
-    console.log('  -> No question text provided, processing all lines');
-    return 0;
-  }
-  
-  const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
-  if (questionLines.length === 0) {
-    console.log('  -> No valid question lines after processing, processing all lines');
-    return 0;
-  }
-
-  const SIMILARITY_THRESHOLD = 0.80;
-  let lastMatchIndex = -1;
-  console.log(`[DEBUG] Comparing ${ocrLines.length} OCR lines against ${questionLines.length} question lines.`);
-
-  for (let i = 0; i < ocrLines.length; i++) {
-    const ocrLineText = ocrLines[i]?.latex_styled || ocrLines[i]?.text || '';
-    const trimmedOcrText = ocrLineText.trim();
-    if (!trimmedOcrText) continue;
-
-    const bestMatch = stringSimilarity.findBestMatch(trimmedOcrText, questionLines);
-    // --- DEBUG LOG ---
-    console.log(`[DEBUG] Fuzzy Match: OCR Line ${i} (Page ${ocrLines[i]?.pageIndex}) "${trimmedOcrText.substring(0, 40)}..." -> Best Q Match: "${bestMatch.bestMatch.target.substring(0, 40)}..." (Rating: ${bestMatch.bestMatch.rating.toFixed(2)})`);
-    // ---------------
-
-    if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD) {
-      console.log(`  -> [DEBUG] STRONG MATCH FOUND at index ${i}`);
-      lastMatchIndex = i; // Keep track of the *last* strong match
-    }
-  } // End loop
-
-  let boundaryIndex = 0;
-  if (lastMatchIndex !== -1) {
-    boundaryIndex = lastMatchIndex + 1;
-    console.log(`  -> Boundary set at global index ${boundaryIndex} (after last strong fuzzy match).`);
-  } else {
-    console.warn('  -> Fuzzy match failed. Attempting keyword fallback.');
-    const instructionKeywords = ['work out', 'calculate', 'explain', 'show that', 'find the', 'write down'];
-    let lastInstructionIndex = -1;
-    for (let i = ocrLines.length - 1; i >= 0; i--) {
-      const text = (ocrLines[i]?.latex_styled || ocrLines[i]?.text || '').toLowerCase();
-      const containsKeyword = instructionKeywords.some(kw => text.includes(kw));
-      const hasEquals = text.includes('=');
-      const wordCount = text.split(/\s+/).length;
-      // --- DEBUG LOG ---
-      console.log(`[DEBUG] Keyword Check: Line ${i} "${text.substring(0, 40)}..." | HasKeyword: ${containsKeyword} | HasEquals: ${hasEquals} | WordCount: ${wordCount}`);
-      // ---------------
-      if (wordCount > 2 && containsKeyword && !hasEquals) {
-        lastInstructionIndex = i;
-        console.log(`  -> Keyword Fallback: Found potential last instruction at global index ${i}`);
-        break;
-      }
-    }
-    if (lastInstructionIndex !== -1) {
-      boundaryIndex = lastInstructionIndex + 1;
-      console.log(`  -> Keyword Fallback: Boundary set at global index ${boundaryIndex}.`);
-    } else {
-       console.warn('  -> Keyword fallback also failed. Treating all as student work.');
-       boundaryIndex = 0;
-    }
-  }
-  boundaryIndex = Math.min(boundaryIndex, ocrLines.length);
-  console.log(`✅ [SEGMENTATION - BOUNDARY] Final boundary index determined globally: ${boundaryIndex}`);
-  return boundaryIndex;
-};
-
-// --- Refined Segmentation Logic (with added logging) ---
+// --- Simplified Segmentation Logic ---
 const segmentOcrResultsByQuestion = (
   allPagesOcrData: PageOcrResult[],
+  // This is no longer needed for boundary detection, but might be for multi-Q logic
   globalQuestionText?: string,
-  // Pass the map from the Question Detection stage
   detectedSchemesMap?: Map<string, any>
 ): MarkingTask[] => {
   console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
-  // --- DEBUG LOG ---
   console.log(`[DEBUG] Received ${allPagesOcrData.length} page results.`);
-  // ---------------
 
   if (allPagesOcrData.length === 0) {
     console.log(`[SEGMENTATION] No OCR data available`);
     return [];
   }
 
-  // 1. Consolidate ALL raw lines and processed math blocks
-  let allRawLinesForBoundary: Array<any & { pageIndex: number; globalIndex: number }> = [];
+  // 1. Consolidate ALL *processed* math blocks (no raw lines, no re-filtering)
   let allMathBlocksForContent: Array<MathBlock & { pageIndex: number; globalBlockId: string }> = [];
-  let lineCounter = 0;
   let blockCounter = 0;
 
   allPagesOcrData.forEach((pageResult, pageIdx) => {
-    const rawLines = pageResult.ocrData?.rawResponse?.rawLineData || [];
-    // --- DEBUG LOG ---
-    console.log(`[DEBUG] Page ${pageIdx}: Found ${rawLines.length} raw lines, ${pageResult.ocrData?.mathBlocks?.length || 0} processed blocks.`);
-    // ---------------
-    rawLines.forEach((line) => {
-      const globalIndex = lineCounter++;
-      allRawLinesForBoundary.push({ ...line, pageIndex: pageResult.pageIndex, globalIndex });
-      // --- DEBUG LOG ---
-      // console.log(`[DEBUG] Raw Line ${globalIndex} (Page ${pageResult.pageIndex}): "${(line.latex_styled || line.text || '').substring(0,50)}..."`);
-      // ---------------
-    });
-    
     const mathBlocks = pageResult.ocrData?.mathBlocks || [];
+    console.log(`[DEBUG] Page ${pageIdx}: Consolidating ${mathBlocks.length} processed blocks.`);
+    
     mathBlocks.forEach((block) => {
-       const globalBlockId = `block_${blockCounter++}`;
-       allMathBlocksForContent.push({ ...block, pageIndex: pageResult.pageIndex, globalBlockId });
-       // --- DEBUG LOG ---
-       // console.log(`[DEBUG] Processed Block ${globalBlockId} (Page ${pageResult.pageIndex}, Coords: ${JSON.stringify(block.coordinates)}): "${(block.mathpixLatex || block.googleVisionText || '').substring(0,50)}..."`);
-       // ---------------
+       allMathBlocksForContent.push({
+           ...block,
+           pageIndex: pageResult.pageIndex, // Use the pageIndex from the PageOcrResult
+           globalBlockId: `block_${blockCounter++}`
+      });
     });
   });
-  console.log(`  -> Consolidated ${allRawLinesForBoundary.length} raw lines and ${allMathBlocksForContent.length} processed math blocks.`);
+  console.log(`  -> Consolidated ${allMathBlocksForContent.length} processed math blocks.`);
 
-  if (allRawLinesForBoundary.length === 0) {
-    console.log(`[SEGMENTATION] No raw lines available for segmentation`);
+  // 2. Filter out any blocks that might be empty (should be handled by OCRService, but as a safeguard)
+  const studentWorkBlocks = allMathBlocksForContent.filter(block =>
+      (block.mathpixLatex || block.googleVisionText || '').trim().length > 0
+  );
+
+  if (studentWorkBlocks.length === 0) {
+    console.warn(`[SEGMENTATION] No student work blocks found after consolidation.`);
     return [];
   }
 
-  // --- 2. Determine Boundary ---
-  const boundaryGlobalIndex = findBoundaryByFuzzyMatch(allRawLinesForBoundary, globalQuestionText);
-
-  // --- 3. Filter Math Blocks based on Boundary ---
-  let startYThreshold = -Infinity; // Default to include everything from page 0
-  let startPageThreshold = 0;      // Default to include page 0
-
-  if (boundaryGlobalIndex > 0 && boundaryGlobalIndex < allRawLinesForBoundary.length) {
-    const boundaryLine = allRawLinesForBoundary[boundaryGlobalIndex];
-    // ========================= START OF FIX =========================
-    // Use the SAME extractBoundingBox helper used elsewhere
-    const boundaryCoords = OCRService.extractBoundingBox(boundaryLine);
-    // ========================== END OF FIX ==========================
-
-    if (boundaryCoords) {
-      startYThreshold = boundaryCoords.y;
-      startPageThreshold = boundaryLine.pageIndex;
-      console.log(`  -> Boundary corresponds to Page ${startPageThreshold}, starting at Y-coordinate ~ ${startYThreshold}`);
-    } else {
-       console.warn(`  -> Could not extract coordinates for boundary line index ${boundaryGlobalIndex}. Applying boundary page threshold only.`);
-       // Fallback: If coords fail, still use the page index but include everything on that page
-       startPageThreshold = boundaryLine.pageIndex;
-       startYThreshold = -Infinity; // Include all Y coords on the boundary page onwards
-    }
-  } else if (boundaryGlobalIndex === allRawLinesForBoundary.length && allRawLinesForBoundary.length > 0) {
-     console.warn(`  -> Boundary detected after all lines. No student work blocks will be included.`);
-     startYThreshold = Infinity;
-     startPageThreshold = allPagesOcrData.length;
-  } // else boundaryIndex is 0, defaults (0, -Infinity) are correct
-
-  // ========================= START OF FIX =========================
-  const studentWorkBlocks = allMathBlocksForContent.filter(block => {
-    if (!block.coordinates) {
-      console.log(`[DEBUG] Filtering Block ${block.globalBlockId}: Discarding (No Coords)`);
-      return false;
-    }
-
-    // ========================= START OF FIX =========================
-    let shouldKeep = false;
-    // Rule 1: Always keep if the boundary detection failed (index 0).
-    if (boundaryGlobalIndex === 0) {
-      shouldKeep = true;
-    }
-    // Rule 2: Keep if block is on a page strictly AFTER the boundary page.
-    else if (block.pageIndex > startPageThreshold) {
-      shouldKeep = true;
-    }
-    // Rule 3: Keep if block is ON the boundary page AND at or BELOW the boundary Y coordinate.
-    else if (block.pageIndex === startPageThreshold && block.coordinates.y >= startYThreshold) {
-      shouldKeep = true;
-    }
-    // ELSE: Block is on a page before the boundary page, OR
-    //       on the boundary page but above the start Y -> Discard.
-    // (No explicit 'else shouldKeep = false', default is false unless a rule passes)
-    // ========================== END OF FIX ==========================
-
-    console.log(`[DEBUG] Filtering Block ${block.globalBlockId} (Page ${block.pageIndex}, Y: ${block.coordinates.y}) vs Boundary (Index ${boundaryGlobalIndex} -> Page ${startPageThreshold}, Y: ${startYThreshold}) -> Keep: ${shouldKeep}`);
-    return shouldKeep;
-  });
-  console.log(`  -> Filtered down to ${studentWorkBlocks.length} student work blocks based on boundary.`);
-
-  // --- 4. Group by Question (Use Detected Number) ---
+  // 3. Group by Question (Still simplified: Assumes Single Question)
   const tasks: MarkingTask[] = [];
-  if (studentWorkBlocks.length > 0) {
-
-    // ========================= START OF FIX 2 =========================
-    let questionNumber: string | number = "UNKNOWN"; // Default
-    // Attempt to get the question number from the detected schemes map
-    // Simple approach: Assume only one question detected for now
-    if (detectedSchemesMap && detectedSchemesMap.size === 1) {
-         questionNumber = detectedSchemesMap.keys().next().value;
-         console.log(`  -> Using detected question number: ${questionNumber}`);
-    } else if (detectedSchemesMap && detectedSchemesMap.size > 1) {
-         console.warn(`  -> Multiple question schemes detected (${Array.from(detectedSchemesMap.keys()).join(',')}). Using first detected ('${detectedSchemesMap.keys().next().value}') for single task.`);
-         questionNumber = detectedSchemesMap.keys().next().value; // Use first one for now
-    } else {
-        console.warn(`  -> No specific question detected by Question Detection stage. Defaulting to Q1 (placeholder).`);
-        questionNumber = 1; // Fallback to placeholder if detection failed
-    }
-
-    // Scheme is looked up later in the router, just pass the number
-    // ========================== END OF FIX 2 ==========================
-
-    const sourcePages = [...new Set(studentWorkBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
-
-    // ========================= START OF FIX =========================
-    // REMOVED: const markingScheme = getMarkingScheme(questionNumber);
-
-    // Sort blocks by page, then Y-coordinate for proper ordering
-    studentWorkBlocks.sort((a, b) => {
-      if (a.pageIndex !== b.pageIndex) {
-        return a.pageIndex - b.pageIndex;
-      }
-      const aY = a.coordinates.y;
-      const bY = b.coordinates.y;
-      return aY - bY;
-    });
-
-    // Create task WITHOUT the scheme (scheme added in router)
-    tasks.push({
-      questionNumber: questionNumber, // Use detected or fallback number
-      mathBlocks: studentWorkBlocks,
-      markingScheme: null, // Scheme added later
-      sourcePages: sourcePages
-    });
-    // ========================== END OF FIX ==========================
-
-    console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${studentWorkBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
+  
+  // ========================= START OF FIX =========================
+  // Use the detected question number from the map
+  let questionNumber: string | number = "UNKNOWN";
+  if (detectedSchemesMap && detectedSchemesMap.size === 1) {
+       questionNumber = detectedSchemesMap.keys().next().value;
+       console.log(`  -> Using detected question number: ${questionNumber}`);
+  } else if (detectedSchemesMap && detectedSchemesMap.size > 1) {
+       console.warn(`  -> Multiple question schemes detected. Using first: '${detectedSchemesMap.keys().next().value}'`);
+       questionNumber = detectedSchemesMap.keys().next().value;
   } else {
-    console.warn(`[SEGMENTATION] No student work blocks remained after boundary filtering.`);
+      console.warn(`  -> No specific question detected. Defaulting to Q1 (placeholder).`);
+      questionNumber = 1;
   }
+  // ========================== END OF FIX ==========================
 
+  const sourcePages = [...new Set(studentWorkBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
+
+  // Sort blocks by page, then Y-coordinate
+  studentWorkBlocks.sort((a, b) => {
+    if (a.pageIndex !== b.pageIndex) {
+      return a.pageIndex - b.pageIndex;
+    }
+    return (a.coordinates?.y ?? 0) - (b.coordinates?.y ?? 0);
+  });
+
+  tasks.push({
+      questionNumber: questionNumber,
+      mathBlocks: studentWorkBlocks,
+      markingScheme: null, // Scheme is added later in the router
+      sourcePages: sourcePages
+  });
+
+  console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${studentWorkBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
   console.log(`✅ [SEGMENTATION] Created ${tasks.length} preliminary marking task(s) (without schemes).`);
   return tasks;
 };
@@ -614,7 +455,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             questionSpecificMarks = detectionResult.match.markingScheme; // Fallback to entire scheme
         }
         
-        markingSchemesMap.set(questionNumber, questionSpecificMarks);
+        // Store both the marks array AND the total marks value
+        const schemeWithTotalMarks = {
+            questionMarks: questionSpecificMarks,
+            totalMarks: detectionResult.match.marks, // This is the actual total marks (e.g., 5 for Q21)
+            questionNumber: questionNumber
+        };
+        
+        markingSchemesMap.set(questionNumber, schemeWithTotalMarks);
         // ========================== END OF FIX ==========================
     }
 
@@ -694,8 +542,23 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Annotation Grouping ---
     const annotationsByPage: { [pageIndex: number]: EnrichedAnnotation[] } = {};
-    allQuestionResults.forEach(qr => {
-        (qr.annotations || []).forEach(anno => {
+
+    // ========================= START DEBUG LOG =========================
+    console.log("[DEBUG ANNOTATION] Aggregating annotations. allQuestionResults structure:");
+    console.dir(allQuestionResults, { depth: 3 }); // Log the structure of results received from marking
+    // ========================== END DEBUG LOG ==========================
+
+    allQuestionResults.forEach((qr, questionIndex) => {
+        const currentAnnotations = qr.annotations || []; // Ensure array exists
+        // ========================= START DEBUG LOG =========================
+        console.log(`[DEBUG ANNOTATION] Processing QuestionResult ${questionIndex}. Found ${currentAnnotations.length} annotations.`);
+        // ========================== END DEBUG LOG ==========================
+
+        currentAnnotations.forEach((anno, annoIndex) => {
+            // ========================= START DEBUG LOG =========================
+            console.log(`[DEBUG ANNOTATION]   Anno ${annoIndex}: action=${anno.action}, pageIndex=${anno.pageIndex}, bbox=${JSON.stringify(anno.bbox)}`);
+            // ========================== END DEBUG LOG ==========================
+
             if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
                 if (!annotationsByPage[anno.pageIndex]) {
                     annotationsByPage[anno.pageIndex] = [];
@@ -706,6 +569,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             }
         });
     });
+
+    // ========================= START DEBUG LOG =========================
+    console.log("[DEBUG ANNOTATION] Grouping complete. annotationsByPage structure:");
+    // Log keys (page indices) and count per page
+    Object.keys(annotationsByPage).forEach(pageIdx => {
+         console.log(`  -> Page ${pageIdx}: ${annotationsByPage[pageIdx]?.length || 0} annotations`);
+    });
+    if (Object.keys(annotationsByPage).length === 0) {
+         console.warn("  -> annotationsByPage is EMPTY!");
+    }
+    // ========================== END DEBUG LOG ==========================
 
     // --- Calculate Overall Score (Example) ---
     const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
@@ -720,6 +594,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const imageDimensions = { width: page.width, height: page.height };
         // Draw score only on the last page (adjust logic if needed)
         const scoreToDraw = (pageIndex === standardizedPages.length - 1) ? { scoreText: overallScoreText } : undefined;
+
+        // Log exactly what's being sent to the drawing service
+        console.log(`🖌️ [ANNOTATION PREP] Sending ${annotationsForThisPage.length} annotations (Score: ${!!scoreToDraw}) to draw on page ${pageIndex}.`);
 
         // Only call service if there's something to draw
         if (annotationsForThisPage.length > 0 || scoreToDraw) {
@@ -898,8 +775,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Override timestamp for database consistency
       (dbAiMessage as any).timestamp = aiTimestamp;
       
-      // Generate session title
-      const sessionTitle = `Marking Session - ${new Date().toLocaleDateString()}`;
+      // Generate session title using the same smart logic as original pipeline
+      const { generateSessionTitle } = await import('../services/marking/MarkingHelpers.js');
+      
+      // Extract question text from OCR results for title generation
+      let extractedQuestionText = '';
+      if (allPagesOcrData.length > 0) {
+        // Get the first page's OCR text as fallback
+        const firstPageOcr = allPagesOcrData[0];
+        if (firstPageOcr.ocrData?.mathBlocks && firstPageOcr.ocrData.mathBlocks.length > 0) {
+          // Use the first few math blocks as question text
+          extractedQuestionText = firstPageOcr.ocrData.mathBlocks
+            .slice(0, 3)
+            .map(block => block.googleVisionText || block.mathpixLatex || '')
+            .join(' ')
+            .trim();
+        }
+      }
+      
+      const sessionTitle = generateSessionTitle(detectionResult, extractedQuestionText, 'Marking');
       
       // Handle session creation and message storage - only for authenticated users
       if (isAuthenticated) {

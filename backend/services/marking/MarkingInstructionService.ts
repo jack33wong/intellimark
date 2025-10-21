@@ -1,6 +1,107 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 
+// ========================= START: NORMALIZED DATA STRUCTURE =========================
+interface NormalizedMarkingScheme {
+  marks: any[];           // The marking scheme array
+  totalMarks: number;     // Total marks for the question
+  questionNumber: string; // Question identifier
+}
+
+// ========================= START: NORMALIZATION FUNCTION =========================
+function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
+  console.log("🔍 [NORMALIZATION DEBUG] Starting normalization with input:");
+  console.log("  - Input type:", typeof input);
+  console.log("  - Input keys:", input ? Object.keys(input) : 'null/undefined');
+  
+  if (!input || typeof input !== 'object') {
+    console.log("❌ [NORMALIZATION DEBUG] Input is null, undefined, or not an object");
+    return null;
+  }
+  
+  // ========================= SINGLE IMAGE PIPELINE FORMAT =========================
+  if (input.markingScheme && typeof input.markingScheme === 'string') {
+    console.log("✅ [NORMALIZATION DEBUG] Detected single image pipeline format");
+    console.log("  - markingScheme type:", typeof input.markingScheme);
+    console.log("  - markingScheme length:", input.markingScheme.length);
+    console.log("  - match.marks:", input.match?.marks);
+    console.log("  - match.questionNumber:", input.match?.questionNumber);
+    
+    try {
+      const parsed = JSON.parse(input.markingScheme);
+      console.log("  - Parsed markingScheme keys:", Object.keys(parsed));
+      
+      const normalized = {
+        marks: parsed.marks || [],
+        totalMarks: input.match?.marks || 0,
+        questionNumber: input.match?.questionNumber || '1'
+      };
+      
+      console.log("✅ [NORMALIZATION DEBUG] Single image normalization result:");
+      console.log("  - marks array length:", normalized.marks.length);
+      console.log("  - totalMarks:", normalized.totalMarks);
+      console.log("  - questionNumber:", normalized.questionNumber);
+      
+      return normalized;
+    } catch (error) {
+      console.error("❌ [NORMALIZATION DEBUG] Failed to parse markingScheme JSON:", error);
+      return null;
+    }
+  }
+  
+  // ========================= UNIFIED PIPELINE FORMAT =========================
+  if (input.questionMarks && input.totalMarks !== undefined) {
+    console.log("✅ [NORMALIZATION DEBUG] Detected unified pipeline format");
+    console.log("  - questionMarks type:", typeof input.questionMarks);
+    console.log("  - questionMarks keys:", input.questionMarks ? Object.keys(input.questionMarks) : 'null/undefined');
+    console.log("  - totalMarks:", input.totalMarks);
+    console.log("  - questionNumber:", input.questionNumber);
+    
+    // Extract marks array from questionMarks.marks
+    const marksArray = input.questionMarks.marks || [];
+    console.log("  - extracted marks array length:", marksArray.length);
+    
+    const normalized = {
+      marks: Array.isArray(marksArray) ? marksArray : [],
+      totalMarks: input.totalMarks,
+      questionNumber: input.questionNumber || '1'
+    };
+    
+    console.log("✅ [NORMALIZATION DEBUG] Unified pipeline normalization result:");
+    console.log("  - marks array length:", normalized.marks.length);
+    console.log("  - totalMarks:", normalized.totalMarks);
+    console.log("  - questionNumber:", normalized.questionNumber);
+    
+    return normalized;
+  }
+  
+  // ========================= FALLBACK: MATCH OBJECT FORMAT =========================
+  if (input.match?.markingScheme?.questionMarks) {
+    console.log("✅ [NORMALIZATION DEBUG] Detected fallback match object format");
+    console.log("  - match.markingScheme.questionMarks type:", typeof input.match.markingScheme.questionMarks);
+    console.log("  - match.marks:", input.match.marks);
+    console.log("  - match.questionNumber:", input.match.questionNumber);
+    
+    const normalized = {
+      marks: Array.isArray(input.match.markingScheme.questionMarks) ? input.match.markingScheme.questionMarks : [],
+      totalMarks: input.match.marks || 0,
+      questionNumber: input.match.questionNumber || '1'
+    };
+    
+    console.log("✅ [NORMALIZATION DEBUG] Fallback normalization result:");
+    console.log("  - marks array length:", normalized.marks.length);
+    console.log("  - totalMarks:", normalized.totalMarks);
+    console.log("  - questionNumber:", normalized.questionNumber);
+    
+    return normalized;
+  }
+  
+  console.log("❌ [NORMALIZATION DEBUG] No recognized format found");
+  console.log("  - Available properties:", Object.keys(input));
+  return null;
+}
+// ========================== END: NORMALIZATION FUNCTION ==========================
+
 // Import the formatting function
 function formatMarkingSchemeAsBullets(schemeJson: string): string {
   try {
@@ -39,6 +140,7 @@ export class MarkingInstructionService {
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
     const { imageData: _imageData, model, processedImage, questionDetection } = inputs;
 
+
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
 
     try {
@@ -55,62 +157,73 @@ export class MarkingInstructionService {
       }
 
       // Step 1: Generate raw annotations from cleaned OCR text
-      // ========================= START OF FIX 2 =========================
-      // Format the marking scheme data for the AI prompt
-      let formattedQuestionDetection = questionDetection;
+      // ========================= START: CLEAN NORMALIZATION =========================
+      console.log("🔍 [MARKING INSTRUCTION] About to normalize questionDetection:");
+      console.log("  - questionDetection type:", typeof questionDetection);
+      console.log("  - questionDetection:", questionDetection ? 'exists' : 'null/undefined');
       
-      // If we have a marking scheme, format it properly for generateFromOCR
-      if (questionDetection && typeof questionDetection === 'object') {
-        // The questionDetection is already the marking scheme object from the router
-        // We need to format it to match what generateFromOCR expects
-        formattedQuestionDetection = {
-          questionMarks: questionDetection, // The marking scheme is passed directly
-          totalMarks: questionDetection.marks ? questionDetection.marks.length : 0
-        };
+      // Normalize the marking scheme data to a standard format
+      const normalizedScheme = normalizeMarkingScheme(questionDetection);
+      
+      if (normalizedScheme) {
+        console.log("✅ [MARKING INSTRUCTION] Successfully normalized marking scheme");
+        console.log("  - Question Number:", normalizedScheme.questionNumber);
+        console.log("  - Total Marks:", normalizedScheme.totalMarks);
+        console.log("  - Marks Array Length:", normalizedScheme.marks.length);
+      } else {
+        console.log("⚠️ [MARKING INSTRUCTION] No marking scheme found or normalization failed");
+        console.log("  - This will result in using the basic prompt instead of withMarkingScheme");
       }
-      // ========================== END OF FIX 2 ==========================
+      // ========================== END: CLEAN NORMALIZATION ==========================
       
       const annotationData = await this.generateFromOCR(
         model,
         cleanedOcrText, // Use the plain text directly instead of JSON
-        formattedQuestionDetection
+        normalizedScheme // Pass the normalized scheme instead of raw questionDetection
       );
       
       if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
         throw new Error('AI failed to generate valid annotations array');
       }
 
-      // Step 2: Map annotations to coordinates using pre-built unified lookup table
-      const { AnnotationMapper } = await import('../../utils/AnnotationMapper');
+      // ========================= START: ANNOTATION ENRICHMENT =========================
+      // Enrich annotations with bbox coordinates for single image pipeline
+      console.log("🔍 [ANNOTATION ENRICHMENT] Starting enrichment for single image pipeline");
+      console.log(`  - Raw annotations count: ${annotationData.annotations.length}`);
+      console.log(`  - Steps data count: ${cleanDataForMarking.steps.length}`);
       
-      // Transform bounding boxes for annotation mapping
-      const transformedBoundingBoxes = (processedImage.boundingBoxes || []).map((block: any, index: number) => {
-        let x = block.boundingBox?.x || block.coordinates?.x || block.x;
-        let y = block.boundingBox?.y || block.coordinates?.y || block.y;
-        let width = block.boundingBox?.width || block.coordinates?.width || block.width;
-        let height = block.boundingBox?.height || block.coordinates?.height || block.height;
-        let text = block.boundingBox?.text || block.coordinates?.text || block.text;
+      const enrichedAnnotations = annotationData.annotations.map(anno => {
+        const aiStepId = (anno as any).step_id?.trim();
+        if (!aiStepId) {
+          console.warn(`[ENRICHMENT] AI annotation has missing step_id:`, anno);
+          return null;
+        }
         
-        return {
-          x: Number(x),
-          y: Number(y),
-          width: Number(width),
-          height: Number(height),
-          text: text || block.googleVisionText || block.mathpixLatex || '',
-          confidence: block.confidence || 0
-        };
-      });
+        console.log(`[ENRICHMENT] Looking for step_id: "${aiStepId}"`);
+        
+        // Find matching step in cleanDataForMarking.steps
+        const matchingStep = cleanDataForMarking.steps.find((step: any) => 
+          step.unified_step_id?.trim() === aiStepId
+        );
+        
+        if (matchingStep && matchingStep.bbox) {
+          console.log(`[ENRICHMENT] Found match for "${aiStepId}" with bbox: [${matchingStep.bbox.join(', ')}]`);
+          return {
+            ...anno,
+            bbox: matchingStep.bbox as [number, number, number, number],
+            pageIndex: 0 // Single image is always page 0
+          };
+        } else {
+          console.warn(`[ENRICHMENT] No matching step found for "${aiStepId}"`);
+          return null;
+        }
+      }).filter(anno => anno !== null);
       
-      const placed = await AnnotationMapper.mapAnnotations({
-        ocrText: cleanedOcrText,
-        boundingBoxes: transformedBoundingBoxes,
-        rawAnnotations: annotationData,
-        imageDimensions: processedImage.imageDimensions,
-        unifiedLookupTable: unifiedLookupTable
-      });
-
+      console.log(`✅ [ANNOTATION ENRICHMENT] Enriched ${enrichedAnnotations.length} out of ${annotationData.annotations.length} annotations`);
+      // ========================== END: ANNOTATION ENRICHMENT ==========================
+      
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = { 
-        annotations: placed.annotations as any, 
+        annotations: enrichedAnnotations, // ✅ Return enriched annotations with bbox coordinates
         usage: { llmTokens: annotationData.usageTokens || 0 },
         cleanedOcrText: cleanedOcrText,
         studentScore: annotationData.studentScore
@@ -129,7 +242,7 @@ export class MarkingInstructionService {
   static async generateFromOCR(
     model: ModelType,
     ocrText: string,
-    questionDetection?: any
+    normalizedScheme?: NormalizedMarkingScheme | null
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -146,141 +259,130 @@ export class MarkingInstructionService {
       formattedOcrText = ocrText;
     }
 
-    let systemPrompt = getPrompt('markingInstructions.basic.system');
-    let userPrompt = getPrompt('markingInstructions.basic.user', formattedOcrText);
+    // ========================= START: USE SINGLE PROMPT =========================
+    // Use the centralized prompt from prompts.ts
+    const { AI_PROMPTS } = await import('../../config/prompts.js');
     
-    // ========================= START OF DEBUG =========================
-    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection object:");
-    console.log(JSON.stringify(questionDetection, null, 2));
-    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection?.match:", questionDetection?.match);
-    console.log("🔍 [MARKING INSTRUCTION DEBUG] questionDetection?.match?.markingScheme:", questionDetection?.match?.markingScheme);
-    // ========================== END OF DEBUG ==========================
-
-    // ========================= START OF FIX =========================
-    // Check for marking scheme in the correct location
-    const hasMarkingScheme = questionDetection?.questionMarks || questionDetection?.match?.markingScheme;
+    // Determine which prompt to use based on whether we have a normalized marking scheme
+    const hasMarkingScheme = normalizedScheme !== null && normalizedScheme !== undefined;
+    
+    console.log("🔍 [MARKING INSTRUCTION] Prompt selection:");
+    console.log("  - hasMarkingScheme:", hasMarkingScheme);
+    console.log("  - normalizedScheme:", normalizedScheme ? 'exists' : 'null/undefined');
+    
+    let systemPrompt: string;
+    let userPrompt: string;
     
     if (hasMarkingScheme) {
-      console.log("✅ [MARKING INSTRUCTION] Using withMarkingScheme prompt");
-      systemPrompt = getPrompt('markingInstructions.withMarkingScheme.system');
-
-      // Format marking scheme data into plain text string
-      let markingSchemeContext = "MARKING SCHEME CONTEXT:\n";
+      // Use the withMarkingScheme prompt
+      const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
+      systemPrompt = prompt.system;
       
+      // Format marking scheme for the prompt using normalized data
+      let schemeJson = '';
       try {
-        // Try both possible locations for the marking scheme
-        const ms = questionDetection.questionMarks || questionDetection.match?.markingScheme?.questionMarks;
-        console.log("🔍 [MARKING INSTRUCTION DEBUG] ms (questionMarks):", JSON.stringify(ms, null, 2));
-        
-        // Handle the correct structure: ms should be the full marks array from fullexampaper.questions[x].marks
-        if (ms && Array.isArray(ms)) {
-          // ms is the full marks array from fullexampaper.questions[x].marks
-          console.log("🔍 [MARKING INSTRUCTION DEBUG] ms is the full marks array with", ms.length, "items");
-          ms.forEach((markItem: any) => {
-            const markCode = markItem.mark || 'M1';
-            const answer = markItem.answer || markItem.comments || '';
-            markingSchemeContext += `- **[${markCode}]** ${answer}\n`;
-          });
-        }
-        // Fallback: if ms is an object with a marks property (legacy structure)
-        else if (ms && typeof ms === 'object' && ms.marks && Array.isArray(ms.marks)) {
-          console.log("🔍 [MARKING INSTRUCTION DEBUG] Found ms.marks array with", ms.marks.length, "items (legacy structure)");
-          ms.marks.forEach((markItem: any) => {
-            const markCode = markItem.mark || 'M1';
-            const answer = markItem.answer || markItem.comments || '';
-            markingSchemeContext += `- **[${markCode}]** ${answer}\n`;
-          });
-        }
-        // Fallback: try to format as JSON and use the existing function
-        else if (ms && typeof ms === 'object') {
-          console.log("🔍 [MARKING INSTRUCTION DEBUG] Using fallback JSON formatting");
-          const schemeJson = JSON.stringify(ms, null, 2);
-          markingSchemeContext += formatMarkingSchemeAsBullets(schemeJson);
-        } else {
-          console.warn("⚠️ Marking scheme data is missing or invalid.");
-          markingSchemeContext += "No valid scheme provided.\n";
-        }
-        
-        // Add total marks if available
-        // IMPORTANT: Use question-specific marks from fullexampaper.questions[x].marks array
-        let totalMarks = null;
-        
-        // The correct structure: ms should be the full marks array from fullexampaper.questions[x].marks
-        if (ms && Array.isArray(ms)) {
-          // ms is the full marks array - count the number of mark objects
-          totalMarks = ms.length;
-          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Calculated total marks from fullexampaper.questions[x].marks array: ${totalMarks}`);
-        }
-        // Fallback: if ms is an object with a marks property
-        else if (ms && ms.marks && Array.isArray(ms.marks)) {
-          // ms.marks is the full marks array
-          totalMarks = ms.marks.length;
-          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Calculated total marks from ms.marks array: ${totalMarks}`);
-        }
-        // Fallback to other possible locations
-        else if (questionDetection.match?.marks) {
-          totalMarks = questionDetection.match.marks;
-          console.log(`🔍 [MARKING INSTRUCTION DEBUG] Using match.marks: ${totalMarks}`);
-        }
-        // Last resort: use exam-level total (but log a warning)
-        else if (questionDetection.totalMarks) {
-          console.warn(`⚠️ [MARKING INSTRUCTION] Using exam-level total marks (${questionDetection.totalMarks}) instead of question-specific marks. This may be incorrect.`);
-          totalMarks = questionDetection.totalMarks;
-        }
-        
-        if (totalMarks) {
-          markingSchemeContext += `\n**TOTAL MARKS:** ${totalMarks}`;
-        }
-        
+        // Convert normalized scheme to JSON format for the prompt
+        schemeJson = JSON.stringify({ marks: normalizedScheme.marks }, null, 2);
+        console.log("✅ [MARKING INSTRUCTION] Using normalized marking scheme");
+        console.log("  - Marks array length:", normalizedScheme.marks.length);
+        console.log("  - Total marks:", normalizedScheme.totalMarks);
+        console.log("  - Question number:", normalizedScheme.questionNumber);
       } catch (error) {
-        console.error("❌ Error formatting marking scheme:", error);
-        markingSchemeContext += "Error formatting marking scheme.\n";
+        console.warn("⚠️ Error formatting normalized marking scheme for prompt:", error);
+        schemeJson = '{}';
       }
       
-      // Create the user prompt with plain text marking scheme
-      userPrompt = `Here is the OCR TEXT:
-
-${formattedOcrText}
-
-${markingSchemeContext}
-
-Please analyze this work based ONLY on the provided MARKING SCHEME CONTEXT and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy, and provide specific text matches for each annotation. Return ONLY a valid JSON object containing "annotations" and "studentScore". Do not generate any feedback text.`;
+      // Get the total marks from the normalized scheme
+      const totalMarks = normalizedScheme.totalMarks;
       
-      console.log("🔍 [MARKING INSTRUCTION DEBUG] Final userPrompt (first 1000 chars):");
-      console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? "..." : ""));
+      console.log("🔍 [MARKING INSTRUCTION] Total marks calculation:");
+      console.log(`  -> Final totalMarks: ${totalMarks}`);
+      
+      console.log("🔍 [MARKING INSTRUCTION] Scheme JSON being passed to prompt:");
+      console.log(schemeJson.substring(0, 500) + (schemeJson.length > 500 ? "..." : ""));
+      
+      // ========================= START OF FIX =========================
+      // Convert JSON marking scheme to plain text bullets for the prompt
+      const schemePlainText = formatMarkingSchemeAsBullets(schemeJson);
+      console.log("🔍 [MARKING INSTRUCTION] Scheme plain text being passed to prompt:");
+      console.log(schemePlainText.substring(0, 500) + (schemePlainText.length > 500 ? "..." : ""));
+      
+      userPrompt = prompt.user(formattedOcrText, schemePlainText, totalMarks);
       // ========================== END OF FIX ==========================
     } else {
-      console.log("❌ [MARKING INSTRUCTION] No marking scheme found, using basic prompt");
+      // Use the basic prompt
+      const prompt = AI_PROMPTS.markingInstructions.basic;
+      systemPrompt = prompt.system;
+      userPrompt = prompt.user(formattedOcrText);
     }
+    
+    console.log("🔍 [MARKING INSTRUCTION] Using prompt:", hasMarkingScheme ? 'withMarkingScheme' : 'basic');
+    console.log("🔍 [MARKING INSTRUCTION] User prompt (first 500 chars):\n", userPrompt.substring(0, 500) + "...");
+    // ========================== END: USE SINGLE PROMPT ==========================
 
+    let aiResponseString = ''; // Declare outside try block for error logging
     
-    // Log prompts and response for debugging
-    console.log('🔍 [MARKING INSTRUCTION] User Prompt:');
-    console.log(userPrompt);
-    
-    // Use the provided model parameter
-    const { ModelProvider } = await import('../../utils/ModelProvider.js');
-    const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, true);
-    
-    const responseText = res.content;
-    const usageTokens = res.usageTokens;
-    
-    // Log AI response
-    console.log('🔍 [MARKING INSTRUCTION] AI Response:');
-    console.log(responseText);
-   
     try {
-      const { JsonUtils } = await import('../../utils/JsonUtils');
-      const parsed = JsonUtils.cleanAndValidateJSON(responseText, 'annotations');
-      return { 
-        annotations: parsed.annotations || [], 
-        studentScore: parsed.studentScore,
-        usageTokens 
+      // Use the provided model parameter
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, true);
+      
+      aiResponseString = res.content;
+      const usageTokens = res.usageTokens;
+
+      // ========================= START: RAW RESPONSE LOGGING =========================
+      console.log("------------------------------------------");
+      console.log("[DEBUG - AI RAW RESPONSE] Raw string received from AI:");
+      console.log(aiResponseString);
+      console.log("------------------------------------------");
+      // ========================== END: RAW RESPONSE LOGGING ==========================
+
+      // Parse the AI response (Add robust parsing/cleanup)
+      let jsonString = aiResponseString;
+      const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+           console.log("[DEBUG - AI RAW RESPONSE] Extracted JSON block from markdown.");
+           jsonString = jsonMatch[1];
+      } else {
+           console.log("[DEBUG - AI RAW RESPONSE] No JSON markdown block detected, attempting direct parse.");
+      }
+
+      const parsedResponse = JSON.parse(jsonString);
+
+      // ========================= START: PARSED RESPONSE LOGGING =========================
+      console.log("[DEBUG - AI PARSED RESPONSE] Parsed response object:");
+      console.dir(parsedResponse, { depth: 3 });
+      // Specifically check the annotations array
+      if (parsedResponse.annotations) {
+          console.log(`[DEBUG - AI PARSED RESPONSE] Annotations array length: ${parsedResponse.annotations.length}`);
+      } else {
+           console.warn("[DEBUG - AI PARSED RESPONSE] Parsed response MISSING 'annotations' key!");
+      }
+      // ========================== END: PARSED RESPONSE LOGGING ==========================
+
+      // Return the correct MarkingInstructions structure
+      const markingResult = {
+          annotations: parsedResponse.annotations || [], // Default to empty array if missing
+          studentScore: parsedResponse.studentScore || null,
+          usageTokens
       };
+      
+      console.log("[DEBUG MARKING RESULT] Returning from MarkingInstructionService:", {
+        hasAnnotations: (markingResult.annotations?.length || 0) > 0,
+        annotationsLength: markingResult.annotations?.length || 0,
+        hasStudentScore: !!markingResult.studentScore,
+        studentScore: markingResult.studentScore
+      });
+      
+      return markingResult;
+
     } catch (error) {
-      console.error('❌ LLM2 JSON parsing failed:', error);
-      console.error('❌ Raw response that failed to parse:', responseText);
-      throw new Error(`LLM2 failed to generate valid marking annotations: ${error instanceof Error ? error.message : 'Unknown error'}`);
+         console.error("❌ Error calling AI for marking instructions or parsing response:", error);
+         // Log the raw response string if parsing failed
+         if (error instanceof SyntaxError) {
+             console.error("❌ RAW AI RESPONSE STRING that failed to parse:", aiResponseString);
+         }
+         throw new Error(`AI marking instruction generation failed: ${error instanceof Error ? error.message : 'Unknown AI error'}`);
     }
   }
 }

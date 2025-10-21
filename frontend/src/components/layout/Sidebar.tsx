@@ -77,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     } catch (error) {
       console.error('Failed to load chat sessions:', error);
     } finally {
-      console.log('✅ Sidebar: Finished loading sessions');
+      // Loading complete
     }
   }, [user?.uid, getAuthToken]);
 
