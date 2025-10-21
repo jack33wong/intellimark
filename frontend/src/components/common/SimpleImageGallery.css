@@ -28,11 +28,24 @@
   outline-offset: 2px;
 }
 
+/* Base thumbnail image styles */
 .thumbnail-image {
   width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Grid gallery variant - fixed height with contain */
+.thumbnail-grid .thumbnail-image {
   height: 90px;
   object-fit: contain;
-  display: block;
+}
+
+/* Multi-image gallery variant - square thumbnails with cover */
+.multi-image-gallery .thumbnail-image {
+  height: 100%;
+  object-fit: cover;
 }
 
 .thumbnail-overlay {
@@ -61,15 +74,15 @@
 
 /* Override SimpleImageGallery for chat messages - Force 3x3 grid layout with square thumbnails */
 .multi-image-gallery.thumbnail-grid {
-  display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
-  grid-auto-rows: 80px !important;
-  gap: 8px !important;
-  padding: 12px !important;
-  max-height: 280px !important;
-  overflow-y: auto !important;
-  width: 100% !important;
-  grid-auto-flow: row !important;
+  display: grid ;
+  grid-template-columns: repeat(3, 1fr) ;
+  grid-auto-rows: 80px;
+  gap: 8px ;
+  padding: 12px ;
+  max-height: 280px ;
+  overflow-y: auto ;
+  width: 60%;
+  grid-auto-flow: row ;
 }
 
 .multi-image-gallery .thumbnail-item {
@@ -86,11 +99,6 @@
   aspect-ratio: 1 !important;
 }
 
-.multi-image-gallery .thumbnail-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 
 .multi-image-gallery .thumbnail-label {
   font-size: 9px;
