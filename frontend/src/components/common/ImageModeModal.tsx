@@ -266,7 +266,7 @@ const ImageModeModal: React.FC<ImageModeModalProps> = ({
                   <img
                     src={image.src}
                     alt={image.alt}
-                    className="thumbnail-image"
+                    className="modal-thumbnail-image"
                     draggable={false}
                   />
                 </button>
