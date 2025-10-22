@@ -694,7 +694,6 @@ function AdminPage() {
                         <th className="admin-table__header">Board</th>
                         <th className="admin-table__header">Qualification</th>
                         <th className="admin-table__header">Paper Code</th>
-                        <th className="admin-table__header">Tier</th>
                         <th className="admin-table__header">Date</th>
                         <th className="admin-table__header">Questions</th>
                         <th className="admin-table__header">Marks</th>
@@ -706,13 +705,12 @@ function AdminPage() {
                       {markingSchemeEntries.map(entry => {
                         // Extract exam details from either structure
                         const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
-                        const questions = entry.markingSchemeData?.questions || {};
+                        const questions = entry.questions || entry.markingSchemeData?.questions || {};
                         
                         // Get display values
                         const board = examDetails.board || 'N/A';
                         const qualification = examDetails.qualification || 'N/A';
                         const paperCode = examDetails.paperCode || 'N/A';
-                        const tier = examDetails.tier || 'N/A';
                         const date = examDetails.date || 'N/A';
                         
                         // Calculate counts
@@ -755,7 +753,6 @@ function AdminPage() {
                               <td className="admin-table__cell">{board}</td>
                               <td className="admin-table__cell">{qualification}</td>
                               <td className="admin-table__cell">{paperCode}</td>
-                              <td className="admin-table__cell">{tier}</td>
                               <td className="admin-table__cell">{date}</td>
                               <td className="admin-table__cell">
                                 {questionCount ? (
@@ -832,9 +829,6 @@ function AdminPage() {
                                     <strong>Paper Code:</strong> {entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}
                                   </span>
                                   <span className="admin-summary-item">
-                                    <strong>Tier:</strong> {entry.examDetails?.tier || entry.markingSchemeData?.examDetails?.tier || 'Unknown'}
-                                  </span>
-                                  <span className="admin-summary-item">
                                     <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
                                   </span>
                                   <span className="admin-summary-item">
@@ -850,8 +844,8 @@ function AdminPage() {
                               <div className="admin-questions-summary">
                                 <span className="admin-summary-item">
                                   <strong>Total Questions:</strong> {entry.totalQuestions || 
-                                   (entry.markingSchemeData && entry.markingSchemeData.questions ? 
-                                     Object.keys(entry.markingSchemeData.questions).sort((a, b) => {
+                                   ((entry.questions || entry.markingSchemeData?.questions) ? 
+                                     Object.keys(entry.questions || entry.markingSchemeData.questions).sort((a, b) => {
                                        const numA = parseInt(a);
                                        const numB = parseInt(b);
                                        if (!isNaN(numA) && !isNaN(numB)) {
@@ -862,8 +856,8 @@ function AdminPage() {
                                 </span>
                                 <span className="admin-summary-item">
                                   <strong>Total Marks:</strong> {entry.totalMarks || 
-                                   (entry.markingSchemeData && entry.markingSchemeData.questions ? 
-                                     Object.values(entry.markingSchemeData.questions).reduce((total, question) => {
+                                   ((entry.questions || entry.markingSchemeData?.questions) ? 
+                                     Object.values(entry.questions || entry.markingSchemeData.questions).reduce((total, question) => {
                                        return total + (question.marks ? question.marks.length : 0);
                                      }, 0) : 'N/A')}
                                 </span>
@@ -871,11 +865,11 @@ function AdminPage() {
                             </div>
 
                             {/* Questions List */}
-                            {entry.markingSchemeData && entry.markingSchemeData.questions && (
+                            {(entry.questions || (entry.markingSchemeData && entry.markingSchemeData.questions)) && (
                               <div className="admin-questions-content">
-                                <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.markingSchemeData.questions).length})</h6>
+                                <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.questions || entry.markingSchemeData.questions).length})</h6>
                                 <div className="admin-questions-list">
-                                  {Object.entries(entry.markingSchemeData.questions)
+                                  {Object.entries(entry.questions || entry.markingSchemeData.questions)
                                     .sort(([a], [b]) => {
                                       // Sort numerically if both are numbers, otherwise alphabetically
                                       const numA = parseInt(a);

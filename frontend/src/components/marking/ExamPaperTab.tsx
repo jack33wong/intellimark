@@ -8,8 +8,18 @@ import './ExamPaperTab.css';
 
 type StudentScore = components['schemas']['UnifiedMessage']['studentScore'];
 
+// Extend DetectedQuestion to include multiple questions support
+interface ExtendedDetectedQuestion extends DetectedQuestion {
+  multipleQuestions?: boolean;
+  allQuestions?: Array<{
+    questionNumber: string;
+    marks: number;
+    confidence: number;
+  }>;
+}
+
 interface ExamPaperTabProps {
-  detectedQuestion: DetectedQuestion | null;
+  detectedQuestion: ExtendedDetectedQuestion | null;
   studentScore?: StudentScore;
 }
 
@@ -46,11 +56,18 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
 
   const formatQuestionInfo = () => {
     if (detectedQuestion.questionNumber) {
-      let questionInfo = `Q${detectedQuestion.questionNumber}`;
-      if (detectedQuestion.subQuestionNumber) {
-        questionInfo += `(${detectedQuestion.subQuestionNumber})`;
+      // Handle multiple questions
+      if (detectedQuestion.multipleQuestions && detectedQuestion.allQuestions) {
+        const questionNumbers = detectedQuestion.allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
+        return questionNumbers;
+      } else {
+        // Single question
+        let questionInfo = `Q${detectedQuestion.questionNumber}`;
+        if (detectedQuestion.subQuestionNumber) {
+          questionInfo += `(${detectedQuestion.subQuestionNumber})`;
+        }
+        return questionInfo;
       }
-      return questionInfo;
     }
     return null;
   };
@@ -66,7 +83,12 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
           <span className="tab-item">{questionInfo}</span>
         )}
         {detectedQuestion.marks && (
-          <span className="tab-item marks">{detectedQuestion.marks} marks</span>
+          <span className="tab-item marks">
+            {detectedQuestion.multipleQuestions && detectedQuestion.allQuestions
+              ? `${detectedQuestion.marks} marks total (${detectedQuestion.allQuestions.map(q => `${q.marks}`).join('+')})`
+              : `${detectedQuestion.marks} marks`
+            }
+          </span>
         )}
         {studentScore && studentScore.scoreText && (
           <span className="tab-item student-score">{studentScore.scoreText}</span>
