@@ -201,6 +201,7 @@ export interface UnifiedMessage {
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
   imageData?: string; // For unauthenticated users
+  imageDataArray?: string[]; // For multi-image cases
   fileName?: string;
   
   // Display options

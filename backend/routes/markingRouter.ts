@@ -689,8 +689,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Create user message for database
       const dbUserMessage = createUserMessage({
         content: customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`),
-        imageData: !isAuthenticated ? (isPdf ? files[0].buffer.toString('base64') : files.map(f => f.buffer.toString('base64')).join(',')) : undefined,
-        originalFileName: files[0]?.originalname || 'uploaded-file',
+        imageData: files.length === 1 ? files[0].buffer.toString('base64') : undefined,
+        imageDataArray: files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
+        originalFileName: files.length === 1 ? files[0]?.originalname : files.map(f => f.originalname).join(', '),
         sessionId: currentSessionId,
         model: model,
         // Add PDF context if applicable
@@ -709,7 +710,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const dbAiMessage = createAIMessage({
         content: 'Marking completed - see results below',
         messageId: resolvedAIMessageId,
-        imageData: !isAuthenticated && finalAnnotatedOutput.length > 0 ? finalAnnotatedOutput[0] : undefined, // Use first image for unauthenticated users
+        imageData: finalAnnotatedOutput.length === 1 ? finalAnnotatedOutput[0] : undefined, // Use first image for single image cases
+        imageDataArray: finalAnnotatedOutput.length > 1 ? finalAnnotatedOutput : undefined, // Use all images for multi-image cases
         progressData: {
           currentStepDescription: 'Marking completed',
           allSteps: MULTI_IMAGE_STEPS,

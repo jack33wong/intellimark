@@ -144,6 +144,7 @@ export interface UserMessageOptions {
   content: string;
   imageLink?: string;
   imageData?: string;
+  imageDataArray?: string[]; // For multi-image cases
   fileName?: string;
   originalFileName?: string;
   sessionId?: string;
@@ -156,6 +157,7 @@ export interface UserMessageOptions {
 export interface AIMessageOptions {
   content: string;
   imageData?: string;
+  imageDataArray?: string[]; // For multi-image cases
   fileName?: string;
   originalFileName?: string;
   progressData?: any;
@@ -175,6 +177,7 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     content,
     imageLink,
     imageData,
+    imageDataArray,
     fileName,
     originalFileName,
     sessionId,
@@ -190,11 +193,13 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     id: messageId || generateUserMessageId(content, Date.now()),
     messageId: messageId || generateUserMessageId(content, Date.now()),
     role: 'user',
-    content: content || (imageData ? 'Image uploaded' : (originalFileType === 'pdf' ? 'PDF uploaded' : '')),
+    content: content || (imageData ? 'Image uploaded' : (imageDataArray ? `${imageDataArray.length} image(s) uploaded` : (originalFileType === 'pdf' ? 'PDF uploaded' : ''))),
     type: 'chat',
     timestamp: new Date().toISOString(),
     imageLink: imageLink,
-    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null)),
+    imageData: imageData,
+    imageDataArray: imageDataArray,
+    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (imageDataArray ? 'uploaded-images' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null))),
     detectedQuestion: createDefaultDetectedQuestion(),
     processingStats: {
       processingTimeMs: 0,
@@ -223,6 +228,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
   const {
     content,
     imageData,
+    imageDataArray,
     fileName,
     originalFileName,
     progressData,
@@ -252,6 +258,7 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     type: messageType,
     timestamp: new Date().toISOString(),
     imageData: imageData, // Include imageData for unauthenticated users
+    imageDataArray: imageDataArray, // Include imageDataArray for multi-image cases
     fileName: fileName || (originalFileName 
       ? (isQuestionOnly ? originalFileName : `annotated_${originalFileName}`)
       : (isQuestionOnly ? null : 'annotated-image.png')),
