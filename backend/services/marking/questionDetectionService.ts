@@ -267,14 +267,22 @@ export class QuestionDetectionService {
 
       // If we found a good match, return the exam paper info
       if (bestQuestionMatch && bestScore > 0.5) {
-        // Handle different data structures
-        const metadata = examPaper.metadata || {};
-        const exam = examPaper.exam || {};
-        const board = metadata.exam_board || exam.board || examPaper.board || 'Unknown';
-        const qualification = metadata.subject || examPaper.qualification || 'Unknown';
-        const paperCode = metadata.exam_code || exam.code || examPaper.paperCode || 'Unknown';
-        const year = metadata.year || examPaper.year || 'Unknown';
-        const tier = exam.tier || metadata.tier || '';
+      // Use standardized fullExamPapers structure
+      const metadata = examPaper.metadata;
+      if (!metadata) {
+        throw new Error('Exam paper missing required metadata structure');
+      }
+      
+      const board = metadata.exam_board;
+      const qualification = metadata.subject;
+      const paperCode = metadata.exam_code;
+      const year = metadata.year;
+      const tier = metadata.tier;
+      
+      // Validate required fields
+      if (!board || !qualification || !paperCode || !year) {
+        throw new Error(`Exam paper missing required fields: board=${board}, qualification=${qualification}, paperCode=${paperCode}, year=${year}`);
+      }
         
         // Extract marks for the matched question
         if (!bestMatchedQuestion) {
@@ -323,12 +331,23 @@ export class QuestionDetectionService {
       });
 
       // Try to match marking scheme with exam paper
+      console.log(`🔍 [MARKING SCHEME LOOKUP] Searching for marking scheme with exam details:`);
+      console.log(`  - Board: "${examPaperMatch.board}"`);
+      console.log(`  - Qualification: "${examPaperMatch.qualification}"`);
+      console.log(`  - Paper Code: "${examPaperMatch.paperCode}"`);
+      console.log(`  - Year: "${examPaperMatch.year}"`);
+      console.log(`  - Question Number: "${examPaperMatch.questionNumber}"`);
+      console.log(`  - Total marking schemes in database: ${markingSchemes.length}`);
+      
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
+          console.log(`✅ [MARKING SCHEME LOOKUP] Found matching marking scheme: ${markingScheme.id}`);
           return match;
         }
       }
+      
+      console.log(`❌ [MARKING SCHEME LOOKUP] No matching marking scheme found after checking ${markingSchemes.length} schemes`);
 
       return null;
     } catch (error) {
@@ -342,34 +361,75 @@ export class QuestionDetectionService {
    */
   private matchMarkingSchemeWithExamPaper(examPaperMatch: ExamPaperMatch, markingScheme: any): MarkingSchemeMatch | null {
     try {
-      const examDetails = markingScheme.examDetails || markingScheme.markingSchemeData?.examDetails || {};
+      // Use standardized markingSchemes structure
+      const examDetails = markingScheme.examDetails;
+      if (!examDetails) {
+        throw new Error('Marking scheme missing required examDetails structure');
+      }
       
       // Match by board, qualification, paper code, and year
       const boardMatch = this.calculateSimilarity(examPaperMatch.board, examDetails.board || '');
-      const qualificationMatch = this.calculateSimilarity(examPaperMatch.qualification, examDetails.qualification || '');
-      const paperCodeMatch = this.calculateSimilarity(examPaperMatch.paperCode, examDetails.paperCode || '');
-      const yearMatch = this.calculateSimilarity(examPaperMatch.year, examDetails.date || examDetails.year || '');
+      
+      // Extract subject only from qualification (ignore GCSE, A-Level, etc.)
+      const extractSubject = (qualification: string) => {
+        return qualification.toLowerCase()
+          .replace(/\b(gcse|a-level|alevel|as-level|a2-level|igcse|international|advanced|higher|foundation)\b/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      
+      const examSubject = extractSubject(examPaperMatch.qualification);
+      const schemeSubject = extractSubject(examDetails.qualification || '');
+      const qualificationMatch = this.calculateSimilarity(examSubject, schemeSubject);
+      
+      // Paper code must match exactly for tier distinction (F vs H)
+      let paperCodeMatch = 0;
+      if (examPaperMatch.paperCode === examDetails.paperCode) {
+        paperCodeMatch = 1.0; // Exact match
+      } else {
+        // Check for tier mismatch (Foundation vs Higher)
+        const examTier = examPaperMatch.paperCode.includes('/2F') ? 'F' : 
+                        examPaperMatch.paperCode.includes('/2H') ? 'H' : 'Unknown';
+        const schemeTier = examDetails.paperCode?.includes('/2F') ? 'F' : 
+                          examDetails.paperCode?.includes('/2H') ? 'H' : 'Unknown';
+        
+        if (examTier !== 'Unknown' && schemeTier !== 'Unknown' && examTier !== schemeTier) {
+          paperCodeMatch = 0.0; // Different tiers - no match
+        } else {
+          paperCodeMatch = this.calculateSimilarity(examPaperMatch.paperCode, examDetails.paperCode || '');
+        }
+      }
+      
+      const yearMatch = this.calculateSimilarity(examPaperMatch.year, examDetails.date || '');
       
       // Calculate overall match score
       const overallScore = (boardMatch + qualificationMatch + paperCodeMatch + yearMatch) / 4;
       
+      // Debug logging for each marking scheme check
+      console.log(`🔍 [MARKING SCHEME MATCH] Checking marking scheme ${markingScheme.id}:`);
+      console.log(`  - Board: "${examPaperMatch.board}" vs "${examDetails.board}" = ${boardMatch.toFixed(3)}`);
+      console.log(`  - Subject: "${examSubject}" vs "${schemeSubject}" = ${qualificationMatch.toFixed(3)}`);
+      console.log(`  - Paper Code: "${examPaperMatch.paperCode}" vs "${examDetails.paperCode}" = ${paperCodeMatch.toFixed(3)}`);
+      console.log(`  - Year: "${examPaperMatch.year}" vs "${examDetails.date}" = ${yearMatch.toFixed(3)}`);
+      console.log(`  - Overall Score: ${overallScore.toFixed(3)} (threshold: 0.7)`);
+      
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
         // Get question marks for the specific question if available
         let questionMarks = null;
-        if (examPaperMatch.questionNumber && markingScheme.markingSchemeData?.questions) {
-          const questions = markingScheme.markingSchemeData.questions;
+        if (examPaperMatch.questionNumber && markingScheme.questions) {
+          const questions = markingScheme.questions;
           questionMarks = questions[examPaperMatch.questionNumber] || null;
         }
         
         return {
           id: markingScheme.id,
           examDetails: {
-            board: examDetails.board || 'Unknown',
-            qualification: examDetails.qualification || 'Unknown',
-            paperCode: examDetails.paperCode || 'Unknown',
-            tier: examDetails.tier || 'Unknown',
-            paper: examDetails.paper || 'Unknown',
-            date: examDetails.date || 'Unknown'
+            board: examDetails.board,
+            qualification: examDetails.qualification,
+            paperCode: examDetails.paperCode,
+            tier: examDetails.tier,
+            paper: examDetails.paper,
+            date: examDetails.date
           },
           questionMarks: questionMarks,
           totalQuestions: markingScheme.totalQuestions || 0,

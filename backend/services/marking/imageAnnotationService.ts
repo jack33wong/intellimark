@@ -24,11 +24,9 @@ export class ImageAnnotationService {
    */
   static createSVGOverlay(annotations: Annotation[], imageDimensions: ImageDimensions): string {
     if (!annotations || annotations.length === 0) {
-      console.log('[SVG DEBUG] No annotations provided');
       return '';
     }
 
-    console.log(`[SVG DEBUG] Processing ${annotations.length} annotations`);
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}" style="position: absolute; top: 0; left: 0; pointer-events: none;">`;
     
     let processedCount = 0;
@@ -36,19 +34,15 @@ export class ImageAnnotationService {
       // ========================= START OF FIX =========================
       // Process annotations that have either text OR action (tick/cross)
       if (annotation.text || annotation.action) {
-        console.log(`[SVG DEBUG] Processing annotation ${index}: text="${annotation.text}", action="${annotation.action}"`);
         const commentSvg = this.createCommentAnnotation(annotation, imageDimensions, index);
         svg += commentSvg;
         processedCount++;
       } else {
-        console.log(`[SVG DEBUG] Skipping annotation ${index}: no text or action`);
       }
       // ========================== END OF FIX ==========================
     });
 
-    console.log(`[SVG DEBUG] Processed ${processedCount} out of ${annotations.length} annotations`);
     const finalSvg = svg + '</svg>';
-    console.log(`[SVG DEBUG] Final SVG length: ${finalSvg.length}`);
     return finalSvg;
   }
 
@@ -289,8 +283,6 @@ export class ImageAnnotationService {
       let burnedImage = originalImage;
       try {
         if (annotations && annotations.length > 0) {
-          console.log(`[SVG DEBUG] Using SVGOverlayService for single image pipeline (${annotations.length} annotations)`);
-          console.log(`[SVG DEBUG] Student score available:`, !!studentScore, studentScore ? `(${studentScore.scoreText || 'no scoreText'})` : '');
           const { SVGOverlayService } = await import('../marking/SVGOverlayService.js');
           burnedImage = await SVGOverlayService.burnSVGOverlayServerSide(
             originalImage,
@@ -298,13 +290,10 @@ export class ImageAnnotationService {
             imageDimensions,
             studentScore // ✅ Pass the actual student score instead of null
           );
-          console.log(`✅ [SVG DEBUG] Successfully burned SVG overlay using SVGOverlayService`);
         } else {
-          console.log(`[SVG DEBUG] No annotations to burn, returning original image`);
         }
       } catch (error) {
-        console.error(`❌ [SVG DEBUG] Failed to burn SVG overlay with SVGOverlayService:`, error);
-        console.log(`[SVG DEBUG] Returning original image as fallback`);
+        console.error(`❌ Failed to burn SVG overlay:`, error);
         burnedImage = originalImage;
       }
       // ========================== END OF FIX ==========================

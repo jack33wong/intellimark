@@ -216,11 +216,27 @@ class SimpleSessionService {
       
       // Handle unifiedSession data first (for authenticated users)
       if (data.unifiedSession) {
-        // Extract the AI message from unifiedSession and add it directly (same as marking pipeline)
+        // Extract the AI message from unifiedSession and add it directly
         const aiMessage = data.unifiedSession.messages?.find(msg => msg.role === 'assistant');
         if (aiMessage) {
-          this.addMessage(aiMessage); // ✅ Same as marking pipeline - no sidebar updates
+          this.addMessage(aiMessage);
         }
+        
+        // Update session title and sidebar for authenticated users
+        if (data.unifiedSession.title && this.state.currentSession) {
+          const updatedSession = {
+            ...this.state.currentSession,
+            title: data.unifiedSession.title,
+            id: data.unifiedSession.id,
+            sessionStats: data.unifiedSession.sessionStats || this.state.currentSession.sessionStats,
+            updatedAt: data.unifiedSession.updatedAt || new Date().toISOString()
+          };
+          this.updateCurrentSessionOnly(updatedSession);
+          
+          // Update sidebar with the new session
+          this.updateSidebarSession(updatedSession);
+        }
+        
         return this.state.currentSession;
       }
       

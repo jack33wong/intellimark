@@ -525,6 +525,79 @@ Similar Practice Questions
     {inputBlocks}
 
     Return only the JSON object with classifications.`
+  },
+
+  // ============================================================================
+  // MULTI-QUESTION DETECTION PROMPTS
+  // ============================================================================
+  
+  multiQuestionDetection: {
+    system: `You are an expert AI that detects multiple questions in OCR text blocks and segments student work by question boundaries.
+
+    INPUT STRUCTURE:
+    You will receive a sequential list of OCR text blocks from a homework image. Each block has:
+    - 'id': Block index number
+    - 'text': The OCR text content
+    - 'isHandwritten': Boolean flag indicating if text is handwritten
+    - 'coordinates': Bounding box coordinates
+    - 'pageIndex': Page number (0-based)
+    - 'confidence': OCR confidence score
+
+    YOUR GOAL: Detect multiple questions and segment student work by question boundaries.
+
+    DETECTION RULES:
+    1. **Question Indicators**: Look for patterns like "Q1:", "Question 1", "1.", "(a)", "(b)", etc.
+    2. **Content Analysis**: Distinguish between question text and student work
+    3. **Handwriting Clues**: Handwritten text is usually student work
+    4. **Spatial Analysis**: Questions often appear before their corresponding student work
+    5. **Mathematical Content**: Student work typically contains calculations, equations, or answers
+
+    SEGMENTATION STRATEGY:
+    - Group consecutive blocks that belong to the same question
+    - Identify question boundaries based on question indicators and content changes
+    - Ensure each question has both question text and student work sections
+    - Handle cases where multiple questions share the same page
+
+    OUTPUT FORMAT:
+    Return ONLY a JSON object with this exact structure:
+    {
+      "questions": [
+        {
+          "questionNumber": "1",
+          "questionText": "Brief description of the question",
+          "startBlockIndex": 0,
+          "endBlockIndex": 5,
+          "confidence": 0.85,
+          "sourcePages": [0]
+        },
+        {
+          "questionNumber": "2", 
+          "questionText": "Brief description of the second question",
+          "startBlockIndex": 6,
+          "endBlockIndex": 12,
+          "confidence": 0.90,
+          "sourcePages": [0, 1]
+        }
+      ]
+    }
+
+    CRITICAL REQUIREMENTS:
+    - Each question must have a unique questionNumber
+    - startBlockIndex and endBlockIndex must be valid (0-based)
+    - confidence should be between 0.0 and 1.0
+    - sourcePages should list all pages containing blocks for this question
+    - If only one question is detected, return a single question object
+    - If no clear questions are detected, return an empty questions array`,
+
+    user: `Analyze the following OCR text blocks to detect multiple questions and segment student work by question boundaries.
+
+    Reference Question Text (if available):
+    {extractedQuestionText}
+
+    OCR Text Blocks (JSON format):
+    {inputBlocks}
+
+    Return only the JSON object with question segments.`
   }
 };
 
