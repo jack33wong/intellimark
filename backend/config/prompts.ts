@@ -611,11 +611,28 @@ function formatMarkingSchemeAsBullets(schemeJson: string): string {
       return schemeJson; // Return original if not in expected format
     }
     
-    // Convert each mark to a bullet point
+    // Convert each mark to a Markdown bullet point with proper math formatting
     const bullets = scheme.marks.map((mark: any) => {
       const markCode = mark.mark || 'M1';
-      const answer = mark.answer || '';
-      return `- **[${markCode}]** ${answer}`;
+      let answer = mark.answer || '';
+      
+      // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
+      // Convert \frac{a}{b} to \(\frac{a}{b}\)
+      answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
+      // Convert \sqrt{x} to \(\sqrt{x}\)
+      answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
+      // Convert \pi, \alpha, \beta, etc. to \(\pi\), \(\alpha\), \(\beta\)
+      answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
+      // Convert standalone numbers in math context to \(number\)
+      answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
+        // Only convert if it's in a mathematical context (surrounded by math symbols)
+        const before = answer.substring(0, answer.indexOf(match));
+        const after = answer.substring(answer.indexOf(match) + match.length);
+        const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
+        return mathContext ? `\\(${number}\\)` : number;
+      });
+      
+      return `- **${markCode}** ${answer}`;
     });
     
     return bullets.join('\n');

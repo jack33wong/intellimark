@@ -9,6 +9,7 @@ import {
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
 import ApiClient from '../../services/apiClient';
+import MarkdownMathRenderer from '../marking/MarkdownMathRenderer';
 import './AdminPage.css';
 
 // Utility functions
@@ -27,6 +28,37 @@ const formatDate = (dateString) => {
     console.error('Error formatting date:', error);
     return 'Invalid Date';
   }
+};
+
+// Format marking scheme as Markdown
+const formatMarkingSchemeAsMarkdown = (marks) => {
+  if (!marks || !Array.isArray(marks)) {
+    return 'No marks available';
+  }
+  
+  return marks.map((mark, index) => {
+    const markCode = mark.mark || `M${index + 1}`;
+    let answer = mark.answer || '';
+    
+    // Convert LaTeX math expressions to Markdown format
+    // Convert \frac{a}{b} to $\frac{a}{b}$
+    answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$\\frac{$1}{$2}$');
+    // Convert \sqrt{x} to $\sqrt{x}$
+    answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '$\\sqrt{$1}$');
+    // Convert \pi, \alpha, \beta, etc. to $\pi$, $\alpha$, $\beta$
+    answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `$${match}$`);
+    // Convert standalone numbers in math context to $number$
+    answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
+      // Only convert if it's in a mathematical context (surrounded by math symbols)
+      const before = answer.substring(0, answer.indexOf(match));
+      const after = answer.substring(answer.indexOf(match) + match.length);
+      const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
+      return mathContext ? `$${number}$` : number;
+    });
+    
+    const comments = mark.comments ? ` (${mark.comments})` : '';
+    return `• **${markCode}** ${answer}${comments}`;
+  }).join('\n');
 };
 
 /**
@@ -892,18 +924,34 @@ function AdminPage() {
                                       {question.marks && question.marks.length > 0 && (
                                         <div className="admin-sub-questions">
                                           <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
-                                          {question.marks.map((mark, markIndex) => (
-                                            <div key={markIndex} className="admin-sub-question-item">
-                                              <div className="admin-sub-question-content">
-                                                <span className="admin-sub-question-number">{markIndex + 1}</span>
-                                                <span className="admin-sub-question-text">
-                                                  <strong>{mark.mark}</strong>
-                                                  {mark.answer && ` - ${mark.answer}`}
-                                                  {mark.comments && ` (${mark.comments})`}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          ))}
+                                          <div className="markdown-marking-scheme">
+                                            {question.marks.map((mark, index) => {
+                                              const markCode = mark.mark || `M${index + 1}`;
+                                              let answer = mark.answer || '';
+                                              
+                                              // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
+                                              answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
+                                              answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
+                                              answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
+                                              answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
+                                                const before = answer.substring(0, answer.indexOf(match));
+                                                const after = answer.substring(answer.indexOf(match) + match.length);
+                                                const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
+                                                return mathContext ? `\\(${number}\\)` : number;
+                                              });
+                                              
+                                              const comments = mark.comments ? ` (${mark.comments})` : '';
+                                              
+                                              return (
+                                                <div key={index} className="marking-scheme-item">
+                                                  <MarkdownMathRenderer 
+                                                    content={`**${markCode}** ${answer}${comments}`}
+                                                    className="admin-markdown-content"
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
                                         </div>
                                       )}
 

@@ -1247,3 +1247,59 @@
     justify-content: center;
   }
 }
+
+/* ==========================================================================
+   MARKDOWN MARKING SCHEME STYLES
+   ========================================================================== */
+
+.markdown-marking-scheme {
+  background: var(--background-nav)  ;
+  border: 1px solid var(--text-tertiary);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.marking-scheme-item {
+  margin-bottom: 12px;
+  padding-left: 20px;
+  position: relative;
+}
+
+.marking-scheme-item:before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #2c3e50;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.marking-scheme-item:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-marking-scheme strong {
+  color: var(--function-error);
+  font-weight: 600;
+}
+
+.markdown-marking-scheme .katex {
+  font-size: 1.1em;
+}
+
+.markdown-marking-scheme .katex-display {
+  margin: 0.5em 0;
+  text-align: center;
+}
+
+/* Responsive adjustments for markdown marking scheme */
+@media (max-width: 768px) {
+  .markdown-marking-scheme {
+    padding: 12px;
+    font-size: 14px;
+  }
+}
