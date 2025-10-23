@@ -193,12 +193,10 @@ export async function runOriginalSingleImagePipeline(
         // or create a data URL for unauthenticated users
         if (isAuthenticated) {
           originalPdfLink = pdfContext.originalPdfLink;
-          console.log(`[PDF CONTEXT] Using provided originalPdfLink: ${originalPdfLink}`);
         } else {
           // For unauthenticated users, we need to create a data URL from the original PDF
           // This should be passed from the router
           originalPdfLink = (pdfContext as any)?.originalPdfDataUrl || null;
-          console.log(`[PDF CONTEXT] Using PDF data URL for unauthenticated user`);
         }
       } else {
         // For regular images, upload to storage

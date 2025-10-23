@@ -424,15 +424,11 @@ export class MarkingPipeline {
       // Log the first two steps immediately after they complete
       const totalStepsForMode = isQuestionMode ? 4 : 7;
       // Updated log source for Step 1 to reflect image processing
-      console.log(`[1/${totalStepsForMode}] Image Analysis            [${(stepTimings['analyzing_image'].duration / 1000).toFixed(1)}s] [image-processing]`);
-      console.log(`[2/${totalStepsForMode}] Image Classification      [${(stepTimings['classifying_image'].duration / 1000).toFixed(1)}s] [${actualModel}]`);
       
       // Print classification debug info after step completion
-      console.log('🔍 [CLASSIFICATION DEBUG] Raw cleanContent:', classification.extractedQuestionText?.substring(0, 200) + '...');
       
       if (isQuestionMode) {
         // Question mode: simplified pipeline
-        console.log('📝 [MODE] Question mode detected - using simplified pipeline');
         modeSteps = [
           'Image Analysis', 
           'Image Classification', 
@@ -460,7 +456,6 @@ export class MarkingPipeline {
         });
       } else {
         // Marking mode: full processing pipeline
-        console.log('📝 [MODE] Marking mode detected - using full pipeline');
         modeSteps = [
           'Image Analysis', 
           'Image Classification', 

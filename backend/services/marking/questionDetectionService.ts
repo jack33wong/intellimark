@@ -113,6 +113,12 @@ export class QuestionDetectionService {
         };
       }
 
+      // Debug: Show extracted question text
+      console.log('🔍 [QUESTION DETECTION] Extracted text:', {
+        textLength: extractedQuestionText.length,
+        firstChars: extractedQuestionText.substring(0, 100) + '...'
+      });
+
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
@@ -126,6 +132,13 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
+        // Debug: Show best match found
+        console.log('🔍 [QUESTION DETECTION] Best match found:', {
+          examPaper: `${bestMatch.board} ${bestMatch.qualification} ${bestMatch.paperCode} (${bestMatch.year})`,
+          questionNumber: bestMatch.questionNumber,
+          confidence: bestMatch.confidence?.toFixed(3)
+        });
+
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
@@ -331,23 +344,33 @@ export class QuestionDetectionService {
       });
 
       // Try to match marking scheme with exam paper
-      console.log(`🔍 [MARKING SCHEME LOOKUP] Searching for marking scheme with exam details:`);
-      console.log(`  - Board: "${examPaperMatch.board}"`);
-      console.log(`  - Qualification: "${examPaperMatch.qualification}"`);
-      console.log(`  - Paper Code: "${examPaperMatch.paperCode}"`);
-      console.log(`  - Year: "${examPaperMatch.year}"`);
-      console.log(`  - Question Number: "${examPaperMatch.questionNumber}"`);
-      console.log(`  - Total marking schemes in database: ${markingSchemes.length}`);
+      // First, try to find exact matches (same paper code)
+      let bestMatch: MarkingSchemeMatch | null = null;
+      let bestScore = 0;
       
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
-          console.log(`✅ [MARKING SCHEME LOOKUP] Found matching marking scheme: ${markingScheme.id}`);
-          return match;
+          // Prioritize exact paper code matches
+          const isExactPaperMatch = examPaperMatch.paperCode === match.examDetails.paperCode;
+          const adjustedScore = isExactPaperMatch ? match.confidence + 0.1 : match.confidence;
+          
+          if (adjustedScore > bestScore) {
+            bestMatch = match;
+            bestScore = adjustedScore;
+          }
         }
       }
       
-      console.log(`❌ [MARKING SCHEME LOOKUP] No matching marking scheme found after checking ${markingSchemes.length} schemes`);
+      if (bestMatch) {
+        console.log('🔍 [SCHEME SELECTION] Selected marking scheme:', {
+          selectedScheme: `${bestMatch.examDetails.board} ${bestMatch.examDetails.qualification} ${bestMatch.examDetails.paperCode} (${bestMatch.examDetails.date})`,
+          adjustedScore: bestScore.toFixed(3),
+          isExactPaperMatch: examPaperMatch.paperCode === bestMatch.examDetails.paperCode
+        });
+        return bestMatch;
+      }
+      
 
       return null;
     } catch (error) {
@@ -405,13 +428,18 @@ export class QuestionDetectionService {
       // Calculate overall match score
       const overallScore = (boardMatch + qualificationMatch + paperCodeMatch + yearMatch) / 4;
       
-      // Debug logging for each marking scheme check
-      console.log(`🔍 [MARKING SCHEME MATCH] Checking marking scheme ${markingScheme.id}:`);
-      console.log(`  - Board: "${examPaperMatch.board}" vs "${examDetails.board}" = ${boardMatch.toFixed(3)}`);
-      console.log(`  - Subject: "${examSubject}" vs "${schemeSubject}" = ${qualificationMatch.toFixed(3)}`);
-      console.log(`  - Paper Code: "${examPaperMatch.paperCode}" vs "${examDetails.paperCode}" = ${paperCodeMatch.toFixed(3)}`);
-      console.log(`  - Year: "${examPaperMatch.year}" vs "${examDetails.date}" = ${yearMatch.toFixed(3)}`);
-      console.log(`  - Overall Score: ${overallScore.toFixed(3)} (threshold: 0.7)`);
+      // Debug: Show matching scores
+      console.log('🔍 [SCHEME MATCHING]', {
+        examPaper: `${examPaperMatch.board} ${examPaperMatch.qualification} ${examPaperMatch.paperCode} (${examPaperMatch.year}) Q${examPaperMatch.questionNumber}`,
+        markingScheme: `${examDetails.board} ${examDetails.qualification} ${examDetails.paperCode} (${examDetails.date})`,
+        scores: {
+          board: boardMatch.toFixed(3),
+          qualification: qualificationMatch.toFixed(3),
+          paperCode: paperCodeMatch.toFixed(3),
+          year: yearMatch.toFixed(3),
+          overall: overallScore.toFixed(3)
+        }
+      });
       
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
         // Get question marks for the specific question if available

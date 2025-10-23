@@ -26,7 +26,6 @@ export class OCRCleanupService {
     model: ModelType = 'auto'
   ): Promise<Set<number>> {
     
-    console.log('🔧 [OCR CLEANUP] Initiating Deterministic Signal-Based Segmentation.');
 
     const studentWorkIndices = new Set<number>();
     let hasSwitchedToStudentWork = false;
@@ -53,7 +52,6 @@ export class OCRCleanupService {
                 // This is the first definitive handwriting block. Switch the context.
                 hasSwitchedToStudentWork = true;
                 studentWorkIndices.add(i);
-                console.log(`➡️ [OCR CLEANUP] Switching context to StudentWork at index ${i}.`);
             } else {
                 // Block is Print (isHandwritten: false or undefined) and context has not switched.
                 // Classified as Question (by exclusion).
@@ -71,7 +69,6 @@ export class OCRCleanupService {
         }
     }
 
-    console.log(`✅ [OCR CLEANUP] Deterministic Segmentation successful. Identified ${studentWorkIndices.size} blocks as student work.`);
     return studentWorkIndices;
   }
 

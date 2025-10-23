@@ -10,26 +10,14 @@ interface NormalizedMarkingScheme {
 
 // ========================= START: NORMALIZATION FUNCTION =========================
 function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
-  console.log("🔍 [NORMALIZATION DEBUG] Starting normalization with input:");
-  console.log("  - Input type:", typeof input);
-  console.log("  - Input keys:", input ? Object.keys(input) : 'null/undefined');
-  
   if (!input || typeof input !== 'object') {
-    console.log("❌ [NORMALIZATION DEBUG] Input is null, undefined, or not an object");
     return null;
   }
   
   // ========================= SINGLE IMAGE PIPELINE FORMAT =========================
   if (input.markingScheme && typeof input.markingScheme === 'string') {
-    console.log("✅ [NORMALIZATION DEBUG] Detected single image pipeline format");
-    console.log("  - markingScheme type:", typeof input.markingScheme);
-    console.log("  - markingScheme length:", input.markingScheme.length);
-    console.log("  - match.marks:", input.match?.marks);
-    console.log("  - match.questionNumber:", input.match?.questionNumber);
-    
     try {
       const parsed = JSON.parse(input.markingScheme);
-      console.log("  - Parsed markingScheme keys:", Object.keys(parsed));
       
       const normalized = {
         marks: parsed.marks || [],
@@ -37,29 +25,17 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
         questionNumber: input.match?.questionNumber || '1'
       };
       
-      console.log("✅ [NORMALIZATION DEBUG] Single image normalization result:");
-      console.log("  - marks array length:", normalized.marks.length);
-      console.log("  - totalMarks:", normalized.totalMarks);
-      console.log("  - questionNumber:", normalized.questionNumber);
-      
       return normalized;
     } catch (error) {
-      console.error("❌ [NORMALIZATION DEBUG] Failed to parse markingScheme JSON:", error);
       return null;
     }
   }
   
   // ========================= UNIFIED PIPELINE FORMAT =========================
   if (input.questionMarks && input.totalMarks !== undefined) {
-    console.log("✅ [NORMALIZATION DEBUG] Detected unified pipeline format");
-    console.log("  - questionMarks type:", typeof input.questionMarks);
-    console.log("  - questionMarks keys:", input.questionMarks ? Object.keys(input.questionMarks) : 'null/undefined');
-    console.log("  - totalMarks:", input.totalMarks);
-    console.log("  - questionNumber:", input.questionNumber);
     
     // Extract marks array from questionMarks.marks
     const marksArray = input.questionMarks.marks || [];
-    console.log("  - extracted marks array length:", marksArray.length);
     
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
@@ -67,20 +43,13 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       questionNumber: input.questionNumber || '1'
     };
     
-    console.log("✅ [NORMALIZATION DEBUG] Unified pipeline normalization result:");
-    console.log("  - marks array length:", normalized.marks.length);
-    console.log("  - totalMarks:", normalized.totalMarks);
-    console.log("  - questionNumber:", normalized.questionNumber);
     
     return normalized;
   }
   
   // ========================= FALLBACK: MATCH OBJECT FORMAT =========================
   if (input.match?.markingScheme?.questionMarks) {
-    console.log("✅ [NORMALIZATION DEBUG] Detected fallback match object format");
-    console.log("  - match.markingScheme.questionMarks type:", typeof input.match.markingScheme.questionMarks);
     console.log("  - match.marks:", input.match.marks);
-    console.log("  - match.questionNumber:", input.match.questionNumber);
     
     const normalized = {
       marks: Array.isArray(input.match.markingScheme.questionMarks) ? input.match.markingScheme.questionMarks : [],
@@ -88,15 +57,10 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       questionNumber: input.match.questionNumber || '1'
     };
     
-    console.log("✅ [NORMALIZATION DEBUG] Fallback normalization result:");
-    console.log("  - marks array length:", normalized.marks.length);
-    console.log("  - totalMarks:", normalized.totalMarks);
-    console.log("  - questionNumber:", normalized.questionNumber);
     
     return normalized;
   }
   
-  console.log("❌ [NORMALIZATION DEBUG] No recognized format found");
   console.log("  - Available properties:", Object.keys(input));
   return null;
 }
@@ -158,20 +122,12 @@ export class MarkingInstructionService {
 
       // Step 1: Generate raw annotations from cleaned OCR text
       // ========================= START: CLEAN NORMALIZATION =========================
-      console.log("🔍 [MARKING INSTRUCTION] About to normalize questionDetection:");
-      console.log("  - questionDetection type:", typeof questionDetection);
-      console.log("  - questionDetection:", questionDetection ? 'exists' : 'null/undefined');
       
       // Normalize the marking scheme data to a standard format
       const normalizedScheme = normalizeMarkingScheme(questionDetection);
       
       if (normalizedScheme) {
-        console.log("✅ [MARKING INSTRUCTION] Successfully normalized marking scheme");
-        console.log("  - Question Number:", normalizedScheme.questionNumber);
-        console.log("  - Total Marks:", normalizedScheme.totalMarks);
-        console.log("  - Marks Array Length:", normalizedScheme.marks.length);
       } else {
-        console.log("⚠️ [MARKING INSTRUCTION] No marking scheme found or normalization failed");
         console.log("  - This will result in using the basic prompt instead of withMarkingScheme");
       }
       // ========================== END: CLEAN NORMALIZATION ==========================
@@ -188,9 +144,6 @@ export class MarkingInstructionService {
 
       // ========================= START: ANNOTATION ENRICHMENT =========================
       // Enrich annotations with bbox coordinates for single image pipeline
-      console.log("🔍 [ANNOTATION ENRICHMENT] Starting enrichment for single image pipeline");
-      console.log(`  - Raw annotations count: ${annotationData.annotations.length}`);
-      console.log(`  - Steps data count: ${cleanDataForMarking.steps.length}`);
       
       const enrichedAnnotations = annotationData.annotations.map(anno => {
         const aiStepId = (anno as any).step_id?.trim();
@@ -216,7 +169,6 @@ export class MarkingInstructionService {
         }
       }).filter(anno => anno !== null);
       
-      console.log(`✅ [ANNOTATION ENRICHMENT] Enriched ${enrichedAnnotations.length} out of ${annotationData.annotations.length} annotations`);
       // ========================== END: ANNOTATION ENRICHMENT ==========================
       
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = { 
@@ -265,12 +217,7 @@ export class MarkingInstructionService {
                             normalizedScheme !== undefined && 
                             normalizedScheme.marks.length > 0;
     
-    console.log("🔍 [MARKING INSTRUCTION] Prompt selection:");
-    console.log("  - hasMarkingScheme:", hasMarkingScheme);
-    console.log("  - normalizedScheme:", normalizedScheme ? 'exists' : 'null/undefined');
     if (normalizedScheme) {
-      console.log("  - marks array length:", normalizedScheme.marks.length);
-      console.log("  - totalMarks:", normalizedScheme.totalMarks);
     }
     
     let systemPrompt: string;
@@ -286,29 +233,15 @@ export class MarkingInstructionService {
       try {
         // Convert normalized scheme to JSON format for the prompt
         schemeJson = JSON.stringify({ marks: normalizedScheme.marks }, null, 2);
-        console.log("✅ [MARKING INSTRUCTION] Using normalized marking scheme");
-        console.log("  - Marks array length:", normalizedScheme.marks.length);
-        console.log("  - Total marks:", normalizedScheme.totalMarks);
-        console.log("  - Question number:", normalizedScheme.questionNumber);
       } catch (error) {
-        console.warn("⚠️ Error formatting normalized marking scheme for prompt:", error);
         schemeJson = '{}';
       }
       
       // Get the total marks from the normalized scheme
       const totalMarks = normalizedScheme.totalMarks;
       
-      console.log("🔍 [MARKING INSTRUCTION] Total marks calculation:");
-      console.log(`  -> Final totalMarks: ${totalMarks}`);
-      
-      console.log("🔍 [MARKING INSTRUCTION] Scheme JSON being passed to prompt:");
-      console.log(schemeJson.substring(0, 500) + (schemeJson.length > 500 ? "..." : ""));
-      
-      // ========================= START OF FIX =========================
       // Convert JSON marking scheme to plain text bullets for the prompt
       const schemePlainText = formatMarkingSchemeAsBullets(schemeJson);
-      console.log("🔍 [MARKING INSTRUCTION] Scheme plain text being passed to prompt:");
-      console.log(schemePlainText.substring(0, 500) + (schemePlainText.length > 500 ? "..." : ""));
       
       userPrompt = prompt.user(formattedOcrText, schemePlainText, totalMarks);
       // ========================== END OF FIX ==========================
@@ -319,9 +252,18 @@ export class MarkingInstructionService {
       userPrompt = prompt.user(formattedOcrText);
     }
     
-    console.log("🔍 [MARKING INSTRUCTION] Using prompt:", hasMarkingScheme ? 'withMarkingScheme' : 'basic');
-    console.log("🔍 [MARKING INSTRUCTION] User prompt (first 500 chars):\n", userPrompt.substring(0, 500) + "...");
     // ========================== END: USE SINGLE PROMPT ==========================
+
+    // Log what's being sent to AI for debugging
+    console.log('📝 [AI PROMPT] OCR Text (first 200 chars):', formattedOcrText.substring(0, 200) + '...');
+    if (hasMarkingScheme) {
+      // Convert JSON marking scheme to plain text bullets for logging
+      const schemePlainText = formatMarkingSchemeAsBullets(JSON.stringify({ marks: normalizedScheme.marks }, null, 2));
+      console.log('📝 [AI PROMPT] Marking Scheme (plain text):');
+      console.log(schemePlainText);
+    } else {
+      console.log('📝 [AI PROMPT] No marking scheme - using basic prompt');
+    }
 
     let aiResponseString = ''; // Declare outside try block for error logging
     
@@ -343,6 +285,11 @@ export class MarkingInstructionService {
 
       const parsedResponse = JSON.parse(jsonString);
 
+      // Log clean AI response
+      console.log('🤖 [AI RESPONSE] Clean response received:');
+      console.log('  - Annotations count:', parsedResponse.annotations?.length || 0);
+      console.log('  - Student score:', parsedResponse.studentScore || 'None');
+      console.log('  - Usage tokens:', usageTokens);
 
       // Return the correct MarkingInstructions structure
       const markingResult = {
@@ -351,12 +298,6 @@ export class MarkingInstructionService {
           usageTokens
       };
       
-      console.log("[DEBUG MARKING RESULT] Returning from MarkingInstructionService:", {
-        hasAnnotations: (markingResult.annotations?.length || 0) > 0,
-        annotationsLength: markingResult.annotations?.length || 0,
-        hasStudentScore: !!markingResult.studentScore,
-        studentScore: markingResult.studentScore
-      });
       
       return markingResult;
 

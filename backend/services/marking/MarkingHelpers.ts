@@ -200,7 +200,12 @@ export async function performQuestionDetection(extractedQuestionText: string | u
 // Helper function to log performance summary
 export function logPerformanceSummary(stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } }, totalProcessingTime: number, actualModel: string, mode: string) {
   const totalTime = totalProcessingTime / 1000;
-  console.log(`📊 [PERFORMANCE] Total processing time: [${totalTime.toFixed(1)}s]`);
+  
+  console.log('\n=== PERFORMANCE SUMMARY ===');
+  console.log(`Total Processing Time: ${totalTime.toFixed(1)}s`);
+  console.log(`Model Used: ${actualModel}`);
+  console.log(`Mode: ${mode}`);
+  console.log('----------------------------');
   
   // Calculate step percentages
   const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
@@ -211,12 +216,11 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
         const duration = (timing.duration || 0) / 1000;
         const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
         const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
-        console.log(`   - ${paddedStepName}: ${percentage}% [${duration.toFixed(1)}s]`);
+        console.log(`${paddedStepName} ${duration.toFixed(1)}s (${percentage}%)`);
       });
   }
   
-  console.log(`🤖 [MODEL] Used: ${actualModel}`);
-  console.log(`✅ [RESULT] ${mode} mode completed successfully`);
+  console.log('============================\n');
 }
 
 // Helper function to generate session title

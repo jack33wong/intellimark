@@ -7,12 +7,13 @@ import express, { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { optionalAuth } from '../middleware/auth.js';
-import { runOriginalSingleImagePipeline } from './originalPipeline.js';
+// import { runOriginalSingleImagePipeline } from './originalPipeline.js'; // Removed - using unified pipeline only
 import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
 import sharp from 'sharp';
 import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/sseUtils.js';
 import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
+import { logPerformanceSummary, logCommonSteps } from '../services/marking/MarkingHelpers.js';
 import { OCRService } from '../services/ocr/OCRService.js';
 import { ClassificationService } from '../services/marking/ClassificationService.js';
 import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
@@ -63,40 +64,37 @@ interface MarkingTask {
 // --- Helper Functions for Multi-Question Detection ---
 
 /**
- * Parse classification output to extract individual questions
+ * Extract questions from AI classification result with filename fallback
  */
-const parseClassificationOutput = (globalQuestionText?: string): Array<{number: string, text: string}> => {
-  if (!globalQuestionText) return [];
-  
-  console.log(`🔍 [CLASSIFICATION PARSING] Full classification text: "${globalQuestionText}"`);
-  
-  const questions: Array<{number: string, text: string}> = [];
-  
-  // Look for question patterns like "13 A and B are...", "14 Using algebra..."
-  const questionPattern = /(\d+)\s+([^]*?)(?=\d+\s+[A-Z]|$)/g;
-  let match;
-  
-  while ((match = questionPattern.exec(globalQuestionText)) !== null) {
-    const questionNumber = match[1];
-    const questionText = match[2].trim();
-    console.log(`🔍 [CLASSIFICATION PARSING] Found question ${questionNumber}: "${questionText.substring(0, 100)}..."`);
-    if (questionText.length > 10) { // Only include substantial questions
-      questions.push({ number: questionNumber, text: questionText });
-    }
+const extractQuestionsFromClassification = (
+  classification: any, 
+  fileName?: string
+): Array<{number: string, text: string}> => {
+  // Extract question number from filename
+  const questionNumber = extractQuestionNumberFromFilename(fileName);
+  if (questionNumber && classification?.extractedQuestionText) {
+    console.log('🔍 [DEBUG] Using filename for question number:', {
+      questionNumber: questionNumber,
+      textLength: classification.extractedQuestionText.length
+    });
+    return [{
+      number: questionNumber,
+      text: classification.extractedQuestionText
+    }];
   }
   
-  // Fallback: if no pattern matches, treat as single question
-  if (questions.length === 0) {
-    console.log(`🔍 [CLASSIFICATION PARSING] No pattern matches, trying fallback...`);
-    const firstNumberMatch = globalQuestionText.match(/^(\d+)/);
-    if (firstNumberMatch) {
-      questions.push({ number: firstNumberMatch[1], text: globalQuestionText });
-      console.log(`🔍 [CLASSIFICATION PARSING] Fallback: Found single question ${firstNumberMatch[1]}`);
-    }
-  }
+  console.log('🔍 [DEBUG] No question number found in filename or no classification text');
+  return [];
+};
+
+/**
+ * Extract question number from filename (e.g., "q19.png" -> "19")
+ */
+const extractQuestionNumberFromFilename = (fileName?: string): string | null => {
+  if (!fileName) return null;
   
-  console.log(`🔍 [CLASSIFICATION PARSING] Final result: ${questions.length} questions found`);
-  return questions;
+  const match = fileName.match(/q(\d+)/i);
+  return match ? match[1] : null;
 };
 
 /**
@@ -106,8 +104,6 @@ const findMultipleQuestionBoundaries = (
   studentWorkBlocks: any[],
   individualQuestions: Array<{number: string, text: string}>
 ): Array<{questionNumber: string, startIndex: number, endIndex: number}> => {
-  console.log(`🔍 [ENHANCED BOUNDARY] Finding boundaries for ${individualQuestions.length} questions`);
-  
   const boundaries: Array<{questionNumber: string, startIndex: number, endIndex: number}> = [];
   
   if (individualQuestions.length === 1) {
@@ -117,7 +113,6 @@ const findMultipleQuestionBoundaries = (
       startIndex: 0,
       endIndex: studentWorkBlocks.length - 1
     });
-    console.log(`✅ [ENHANCED BOUNDARY] Single question Q${individualQuestions[0].number}: blocks 0-${studentWorkBlocks.length - 1}`);
     return boundaries;
   }
   
@@ -135,7 +130,6 @@ const findMultipleQuestionBoundaries = (
         startIndex: currentStartIndex,
         endIndex: studentWorkBlocks.length - 1
       });
-      console.log(`✅ [ENHANCED BOUNDARY] Last question Q${question.number}: blocks ${currentStartIndex}-${studentWorkBlocks.length - 1}`);
     } else {
       // For now, split blocks evenly between questions
       // TODO: Enhance this to use actual question ending detection
@@ -148,7 +142,6 @@ const findMultipleQuestionBoundaries = (
         endIndex: endIndex
       });
       
-      console.log(`✅ [ENHANCED BOUNDARY] Question Q${question.number}: blocks ${currentStartIndex}-${endIndex}`);
       currentStartIndex = endIndex + 1;
     }
   }
@@ -189,7 +182,6 @@ const createTasksFromEnhancedBoundaries = (
       sourcePages: sourcePages
     });
     
-    console.log(`✅ [ENHANCED BOUNDARY] Created task for Q${questionNumber} with ${questionBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
   }
   
   return tasks;
@@ -199,13 +191,11 @@ const createTasksFromEnhancedBoundaries = (
 const segmentOcrResultsByQuestion = async (
   allPagesOcrData: PageOcrResult[],
   globalQuestionText?: string,
-  detectedSchemesMap?: Map<string, any>
+  detectedSchemesMap?: Map<string, any>,
+  classificationResult?: any,
+  fileName?: string
 ): Promise<MarkingTask[]> => {
-  console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
-  console.log(`[DEBUG] Received ${allPagesOcrData.length} page results.`);
-
   if (allPagesOcrData.length === 0) {
-    console.log(`[SEGMENTATION] No OCR data available`);
     return [];
   }
 
@@ -215,7 +205,6 @@ const segmentOcrResultsByQuestion = async (
 
   allPagesOcrData.forEach((pageResult, pageIdx) => {
     const mathBlocks = pageResult.ocrData?.mathBlocks || [];
-    console.log(`[DEBUG] Page ${pageIdx}: Consolidating ${mathBlocks.length} processed blocks.`);
     
     mathBlocks.forEach((block) => {
        allMathBlocksForContent.push({
@@ -225,7 +214,6 @@ const segmentOcrResultsByQuestion = async (
       });
     });
   });
-  console.log(`  -> Consolidated ${allMathBlocksForContent.length} processed math blocks.`);
 
   // 2. Filter out any blocks that might be empty (should be handled by OCRService, but as a safeguard)
   const studentWorkBlocks = allMathBlocksForContent.filter(block =>
@@ -233,7 +221,6 @@ const segmentOcrResultsByQuestion = async (
   );
 
   if (studentWorkBlocks.length === 0) {
-    console.warn(`[SEGMENTATION] No student work blocks found after consolidation.`);
     return [];
   }
 
@@ -241,11 +228,8 @@ const segmentOcrResultsByQuestion = async (
   const tasks: MarkingTask[] = [];
   
   try {
-    console.log('🔍 [ENHANCED BOUNDARY] Starting enhanced multi-question detection...');
-    
-    // Parse individual questions from classification output
-    const individualQuestions = parseClassificationOutput(globalQuestionText);
-    console.log(`🔍 [ENHANCED BOUNDARY] Found ${individualQuestions.length} individual questions from classification`);
+    // Extract questions from AI classification result
+    const individualQuestions = extractQuestionsFromClassification(classificationResult, fileName);
     
     if (individualQuestions.length > 1) {
       // Use enhanced boundary detection instead of AI
@@ -256,31 +240,22 @@ const segmentOcrResultsByQuestion = async (
       );
       
       if (questionTasks.length > 0) {
-        console.log(`✅ [ENHANCED BOUNDARY] Created ${questionTasks.length} marking tasks using enhanced boundary detection`);
         return questionTasks;
       }
     }
     
-    console.log(`⚠️ [ENHANCED BOUNDARY] Single question or failed to create tasks, falling back to single-question logic`);
-    
   } catch (error) {
-    console.error('❌ [ENHANCED BOUNDARY] Error in enhanced boundary detection:', error);
-    console.log('🔄 [ENHANCED BOUNDARY] Falling back to single-question logic');
+    console.error('Error in enhanced boundary detection:', error);
   }
   
   // 4. Fallback: Single Question Logic (Original behavior)
-  console.log('🔧 [SINGLE-QUESTION] Using single-question segmentation logic...');
-  
   // Use the detected question number from the map
   let questionNumber: string | number = "UNKNOWN";
   if (detectedSchemesMap && detectedSchemesMap.size === 1) {
        questionNumber = detectedSchemesMap.keys().next().value;
-       console.log(`  -> Using detected question number: ${questionNumber}`);
   } else if (detectedSchemesMap && detectedSchemesMap.size > 1) {
-       console.warn(`  -> Multiple question schemes detected. Using first: '${detectedSchemesMap.keys().next().value}'`);
        questionNumber = detectedSchemesMap.keys().next().value;
   } else {
-      console.warn(`  -> No specific question detected. Defaulting to Q1 (placeholder).`);
       questionNumber = 1;
   }
 
@@ -301,8 +276,6 @@ const segmentOcrResultsByQuestion = async (
       sourcePages: sourcePages
   });
 
-  console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${studentWorkBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
-  console.log(`✅ [SEGMENTATION] Created ${tasks.length} preliminary marking task(s) (without schemes).`);
   return tasks;
 };
 
@@ -341,9 +314,27 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
   // --- Basic Setup ---
   const submissionId = uuidv4(); // Generate a unique ID for this submission
   const startTime = Date.now();
-  console.log(`🚀 [SUBMISSION ${submissionId}] Received request for /process.`);
+  
+  // Performance tracking variables (reuse original design)
+  const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
+  let totalLLMTokens = 0;
+  let totalMathpixCalls = 0;
+  let actualModel = 'auto'; // Will be updated when model is determined
+  
+  // Performance tracking function (reuse original design)
+  const logStep = (stepName: string, modelInfo: string) => {
+    const stepKey = stepName.toLowerCase().replace(/\s+/g, '_');
+    stepTimings[stepKey] = { start: Date.now() };
+    
+    return () => {
+      if (stepTimings[stepKey]) {
+        stepTimings[stepKey].duration = Date.now() - stepTimings[stepKey].start;
+        console.log(`✅ [${stepName}] Completed in ${stepTimings[stepKey].duration}ms (${modelInfo})`);
+      }
+    };
+  };
+  
   console.log(`\n🔄 ========== UNIFIED PIPELINE START ==========`);
-  console.log(`🔄 [UNIFIED PIPELINE] Starting unified marking pipeline for submission ${submissionId}`);
   console.log(`🔄 ============================================\n`);
 
   // --- SSE Setup ---
@@ -374,7 +365,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Input Type Detection (Prioritize PDF) ---
     const firstMime = files[0]?.mimetype || 'unknown';
-    console.log(`[MIME CHECK] Received ${files.length} file(s). First mimetype: ${firstMime}`);
     const isPdf = files.length === 1 && firstMime === 'application/pdf';
     const isSingleImage = files.length === 1 && !isPdf && firstMime.startsWith('image/');
     const isMultipleImages = files.length > 1 && files.every(f => {
@@ -400,8 +390,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Conditional Routing (PDF first) ---
     if (isPdf) {
       // --- Multi-File / PDF Path (This code only runs if NOT isSingleImage) ---
-      console.log(`🚀 [PIPELINE ROUTING] PDF → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
-      console.log(`[SUBMISSION ${submissionId}] Routing to new ${inputType} pipeline.`);
       sendSseUpdate(res, createProgressData(1, `Preparing ${inputType} processing...`, MULTI_IMAGE_STEPS));
 
       // Stage 1: Standardization
@@ -427,7 +415,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           }
           page.width = metadata.width || 0;
           page.height = metadata.height || 0;
-          console.log(`[DIMENSIONS - PDF Path] Extracted dimensions for page ${i}: ${page.width}x${page.height}`);
         }));
         sendSseUpdate(res, createProgressData(1, 'Dimension extraction complete.', MULTI_IMAGE_STEPS));
       } catch (dimensionError) {
@@ -437,7 +424,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Single-page PDF → route to new unified pipeline for consistency
       if (standardizedPages.length === 1) {
-        console.log(`[SUBMISSION ${submissionId}] Single-page PDF detected. Routing to new unified pipeline for plain text formatting.`);
         sendSseUpdate(res, createProgressData(2, 'Processing as single converted page...', MULTI_IMAGE_STEPS));
         
         // Upload original PDF to storage for authenticated users or create data URL for unauthenticated users
@@ -455,7 +441,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               sessionId,
               originalFileName
             );
-            console.log(`[PDF CONTEXT] Original PDF uploaded: ${originalPdfLink}`);
           } catch (error) {
             console.error('❌ Failed to upload original PDF:', error);
             originalPdfLink = null;
@@ -463,7 +448,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         } else {
           // For unauthenticated users, create a data URL
           originalPdfDataUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
-          console.log(`[PDF CONTEXT] Created PDF data URL for unauthenticated user`);
         }
         
         // Store PDF context for later use in the unified pipeline
@@ -475,16 +459,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         };
         
         // Continue to unified pipeline (don't return here)
-        console.log(`[SUBMISSION ${submissionId}] Single-page PDF will be processed through new unified pipeline.`);
       }
 
       // Multi-page PDF – Continue to common processing logic
-      console.log(`[SUBMISSION ${submissionId}] Multi-page PDF detected (${standardizedPages.length} pages). Proceeding with multi-page logic.`);
       
       // One-line dimension logs per page
       standardizedPages.forEach((p: any) => {
         const ratio = p.height ? (p.width / p.height).toFixed(3) : '0.000';
-        console.log(`[DIM] page=${p.pageIndex} size=${p.width}x${p.height} ratio=${ratio}`);
       });
 
       // Fallback warning if any page still lacks dimensions
@@ -499,8 +480,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     } else if (isSingleImage) {
       // ========================= START OF FIX =========================
       // --- Route Single Image to Unified Pipeline for Multi-Question Support ---
-      console.log(`🚀 [PIPELINE ROUTING] SINGLE IMAGE → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
-      console.log(`[SUBMISSION ${submissionId}] Routing single image to unified pipeline for multi-question detection.`);
       sendSseUpdate(res, createProgressData(2, 'Processing as single image with multi-question detection...', MULTI_IMAGE_STEPS));
 
       // Convert single image to standardized format for unified pipeline
@@ -523,7 +502,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           if (metadata.width && metadata.height) {
             standardizedPages[0].width = metadata.width;
             standardizedPages[0].height = metadata.height;
-            console.log(`[DIMENSIONS - Single Image] Extracted dimensions: ${metadata.width}x${metadata.height}`);
           }
         }
       } catch (error) {
@@ -535,8 +513,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     } else if (isMultipleImages) {
       // --- Multi-File / PDF Path (This code only runs if NOT isSingleImage) ---
-      console.log(`🚀 [PIPELINE ROUTING] MULTIPLE IMAGES → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
-      console.log(`[SUBMISSION ${submissionId}] Routing to new ${inputType} pipeline.`);
       sendSseUpdate(res, createProgressData(1, `Preparing ${inputType} processing...`, MULTI_IMAGE_STEPS));
 
       // 1. Collect Images & Extract Dimensions in Parallel
@@ -546,7 +522,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         try {
           const metadata = await sharp(file.buffer).metadata();
           if (!metadata.width || !metadata.height) return null;
-          console.log(`[DIMENSIONS - MultiImg Path] Extracted dimensions for image ${index}: ${metadata.width}x${metadata.height}`);
           return {
             pageIndex: index,
             imageData: `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
@@ -586,19 +561,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Perform Initial Classification ---
     // Using simple approach: Classify first page for global context
-    const globalQuestionText = standardizedPages.length > 0
-      ? (await ClassificationService.classifyImage(standardizedPages[0].imageData, 'auto', false, standardizedPages[0].originalFileName)).extractedQuestionText
-      : undefined;
-    console.log(`🔍 [CLASSIFICATION] Extracted Global Question Text: ${globalQuestionText ? `"${globalQuestionText.substring(0, 100)}..."` : 'None'}`);
+    const logClassificationComplete = logStep('Image Classification', actualModel);
+    const classificationResult = standardizedPages.length > 0
+      ? await ClassificationService.classifyImage(standardizedPages[0].imageData, 'auto', false, standardizedPages[0].originalFileName)
+      : null;
+    const globalQuestionText = classificationResult?.extractedQuestionText;
+    logClassificationComplete();
 
     // --- Run OCR on each page in parallel ---
+    const logOcrComplete = logStep('OCR Processing', 'mathpix');
     const pageProcessingPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
-      console.log(`⚡ [OCR Parallel] Starting OCR for page ${page.pageIndex}...`);
       const ocrResult = await OCRService.processImage(
         page.imageData, {}, false, 'auto',
         { extractedQuestionText: globalQuestionText }
       );
-      console.log(`⚡ [OCR Parallel] Finished OCR for page ${page.pageIndex}.`);
       return {
         pageIndex: page.pageIndex,
         ocrData: ocrResult,
@@ -607,6 +583,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
 
     allPagesOcrData = await Promise.all(pageProcessingPromises);
+    logOcrComplete();
     sendSseUpdate(res, createProgressData(3, 'OCR & Classification complete.', MULTI_IMAGE_STEPS));
     // ========================== END: IMPLEMENT STAGE 2 ==========================
 
@@ -617,17 +594,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const allOcrTextForDetection = allPagesOcrData.map(p => p.ocrData.text).join('\n\n--- Page Break ---\n\n');
     // Or pass structured blocks if needed by the service
 
-    // Parse individual questions from classification output
-    const individualQuestions = parseClassificationOutput(globalQuestionText);
-    console.log(`🔍 [QUESTION DETECTION] Found ${individualQuestions.length} individual questions to process`);
+    // Extract questions from AI classification result
+    const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
     
     // Create a Map from the detection results
     const markingSchemesMap: Map<string, any> = new Map();
     
     // Call question detection for each individual question
+    const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
     for (const question of individualQuestions) {
-        console.log(`🔍 [QUESTION DETECTION] Processing Q${question.number}: "${question.text.substring(0, 100)}..."`);
-        
         const detectionResult = await questionDetectionService.detectQuestion(question.text);
         
         if (detectionResult.found && detectionResult.match?.markingScheme) {
@@ -638,9 +613,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             
             if (detectionResult.match.markingScheme.questionMarks) {
                 questionSpecificMarks = detectionResult.match.markingScheme.questionMarks;
-                console.log(`🔍 [SCHEME EXTRACTION] Using questionMarks for Q${questionNumber}:`, questionSpecificMarks);
             } else {
-                console.warn(`⚠️ [SCHEME EXTRACTION] No questionMarks found for Q${questionNumber} in marking scheme`);
                 questionSpecificMarks = detectionResult.match.markingScheme;
             }
             
@@ -651,18 +624,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             };
             
             markingSchemesMap.set(questionNumber, schemeWithTotalMarks);
-            console.log(`✅ [QUESTION DETECTION] Found marking scheme for Q${questionNumber}`);
-        } else {
-            console.log(`⚠️ [QUESTION DETECTION] No marking scheme found for Q${question.number}`);
         }
     }
-
-    if (markingSchemesMap.size === 0) {
-        console.warn("[QUESTION DETECTION] No questions or schemes were identified.");
-        // Handle appropriately - maybe fallback to a default scheme or error?
-    } else {
-         console.log(`[QUESTION DETECTION] Detected schemes for questions: ${Array.from(markingSchemesMap.keys()).join(', ')}`);
-    }
+    logQuestionDetectionComplete();
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
 
@@ -671,11 +635,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(5, 'Segmenting work by question...', MULTI_IMAGE_STEPS));
 
     // Call the segmentation function
-    console.log(`🔧 [SEGMENTATION] Starting segmentation with multi-question detection support...`);
     markingTasks = await segmentOcrResultsByQuestion(
       allPagesOcrData,
       globalQuestionText,
-      markingSchemesMap // <-- Pass the map here
+      markingSchemesMap, // <-- Pass the map here
+      classificationResult,
+      standardizedPages[0]?.originalFileName
     );
 
     // Handle case where no student work is found
@@ -699,7 +664,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const tasksWithSchemes: MarkingTask[] = markingTasks.map(task => {
         const scheme = markingSchemesMap.get(String(task.questionNumber)); // Look up the fetched scheme
         if (!scheme) {
-             console.warn(`[SCHEME MAPPING] No scheme found for segmented Question ${task.questionNumber}. Task will be skipped or use default.`);
              // Decide how to handle missing scheme: skip task, use default, throw error?
              // For now, let's add a placeholder to avoid crashing executeMarkingForQuestion
              return { ...task, markingScheme: { error: `Scheme not found for Q${task.questionNumber}` } };
@@ -708,10 +672,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }).filter(task => task.markingScheme && !task.markingScheme.error); // Filter out tasks without valid schemes
 
     if (tasksWithSchemes.length === 0 && markingTasks.length > 0) {
-         console.error("❌ No valid marking schemes could be assigned to segmented tasks.");
          throw new Error("Failed to assign marking schemes to any detected question work.");
     }
-     console.log(`[SCHEME MAPPING] Assigned schemes to ${tasksWithSchemes.length} task(s).`);
     // ========================== END: ADD SCHEME TO TASKS ==========================
 
     // ========================= START: IMPLEMENT STAGE 4 =========================
@@ -719,18 +681,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(6, `Marking ${tasksWithSchemes.length} question(s)...`, MULTI_IMAGE_STEPS));
 
     // Call the refactored function for each task (works for 1 or many)
+    const logMarkingComplete = logStep('AI Marking', actualModel);
     const markingPromises = tasksWithSchemes.map(task => // <-- Use tasksWithSchemes
         executeMarkingForQuestion(task, res, submissionId) // Pass res and submissionId
     );
 
     // Wait for all marking tasks to complete
     const allQuestionResults: QuestionResult[] = await Promise.all(markingPromises);
+    logMarkingComplete();
     sendSseUpdate(res, createProgressData(6, 'All questions marked.', MULTI_IMAGE_STEPS));
     // ========================== END: IMPLEMENT STAGE 4 ==========================
 
     // ========================= START: IMPLEMENT STAGE 5 =========================
     // --- Stage 5: Aggregation & Output ---
     sendSseUpdate(res, createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
+    
+    const logAnnotationComplete = logStep('Image Annotation', 'svg-overlay');
 
     // --- Annotation Grouping ---
     const annotationsByPage: { [pageIndex: number]: EnrichedAnnotation[] } = {};
@@ -768,11 +734,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const scoreToDraw = (pageIndex === standardizedPages.length - 1) ? { scoreText: overallScoreText } : undefined;
 
         // Log exactly what's being sent to the drawing service
-        console.log(`🖌️ [ANNOTATION PREP] Sending ${annotationsForThisPage.length} annotations (Score: ${!!scoreToDraw}) to draw on page ${pageIndex}.`);
 
         // Only call service if there's something to draw
         if (annotationsForThisPage.length > 0 || scoreToDraw) {
-            console.log(`🖌️ [ANNOTATION] Drawing ${annotationsForThisPage.length} annotations (Score: ${!!scoreToDraw}) on page ${pageIndex}...`);
             try {
                 return await SVGOverlayService.burnSVGOverlayServerSide(
                     page.imageData,
@@ -815,6 +779,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // --- Construct Final Output (Always Images) ---
         const outputFormat: 'images' = 'images'; // Explicitly set to images
         const finalAnnotatedOutput: string[] = isAuthenticated ? annotatedImageLinks : annotatedImagesBase64;
+        logAnnotationComplete();
 
         // Add PDF context if available
         const pdfContext = (req as any)?.pdfContext;
@@ -852,6 +817,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const currentSessionId = sessionId.startsWith('temp-') ? `session-${Date.now()}` : sessionId;
       const customText = req.body.customText;
       const model = req.body.model || 'auto';
+      
+      // Resolve actual model if 'auto' is specified
+      if (model === 'auto') {
+        const { getDefaultModel } = await import('../config/aiModels.js');
+        actualModel = getDefaultModel();
+      } else {
+        actualModel = model;
+      }
       const aiMessageId = req.body.aiMessageId;
       
       // Generate timestamps for database consistency
@@ -1025,7 +998,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           // Adding to existing session
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbUserMessage);
           await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbAiMessage);
-          console.log(`✅ [SUBMISSION ${submissionId}] Messages added to existing session ${currentSessionId}`);
         } else {
           // Creating new session
           await FirestoreService.createUnifiedSessionWithMessages({
@@ -1047,10 +1019,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               totalAnnotations: allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0)
             }
           });
-          console.log(`✅ [SUBMISSION ${submissionId}] New session created: ${currentSessionId}`);
         }
       } else {
-        console.log(`ℹ️ [SUBMISSION ${submissionId}] Anonymous user - messages not persisted to database`);
       }
       
       // For authenticated users, include session data to trigger sidebar updates
@@ -1084,18 +1054,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     // ========================== END: DATABASE PERSISTENCE ==========================
 
-    // --- Send FINAL Complete Event ---
-    sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
-    console.log(`✅ [SUBMISSION ${submissionId}] Processing complete. Final 'complete' event sent.`);
-    console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
-    console.log(`🏁 [UNIFIED PIPELINE] Completed unified marking pipeline for submission ${submissionId} in ${Date.now() - startTime}ms`);
-    console.log(`🏁 ==========================================\n`);
+      // --- Send FINAL Complete Event ---
+      sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
+      
+      // --- Performance Summary (reuse original design) ---
+      const totalProcessingTime = Date.now() - startTime;
+      logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
+      
+      console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
+      console.log(`🏁 ==========================================\n`);
     // ========================== END: IMPLEMENT STAGE 5 ==========================
 
   } catch (error) {
     console.error(`❌ [SUBMISSION ${submissionId}] Processing failed:`, error);
     console.log(`\n💥 ========== UNIFIED PIPELINE FAILED ==========`);
-    console.log(`💥 [UNIFIED PIPELINE] Failed unified marking pipeline for submission ${submissionId} after ${Date.now() - startTime}ms`);
     console.log(`💥 =============================================\n`);
     
     // Provide user-friendly error messages based on error type
@@ -1126,9 +1098,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Ensure Connection Closure (Only if not already closed) ---
     if (!res.writableEnded) {
       closeSseConnection(res);
-      console.log(`[SUBMISSION ${submissionId}] SSE connection closed in finally block (multi-page path).`);
     } else {
-      console.log(`[SUBMISSION ${submissionId}] SSE connection likely closed by single-page pipeline.`);
     }
   }
 });
@@ -1182,3 +1152,4 @@ router.get('/download-image', optionalAuth, async (req: Request, res: Response) 
 });
 
 export default router;
+

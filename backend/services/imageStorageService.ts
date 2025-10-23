@@ -70,7 +70,6 @@ export class ImageStorageService {
         expires: '03-01-2500' // Far future date
       }).then(urls => urls[0]);
       
-      console.log(`✅ PDF uploaded successfully: ${filename}`);
       return downloadURL;
     } catch (error) {
       console.error(`❌ Failed to upload PDF to Firebase Storage:`, error);
@@ -104,6 +103,11 @@ export class ImageStorageService {
       const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
       const originalBuffer = Buffer.from(base64Data, 'base64');
       
+      // Debug: Check if buffer is valid
+      if (originalBuffer.length === 0) {
+        throw new Error('Invalid image buffer: empty buffer');
+      }
+      
       // Validate original file size
       if (!validateFileSize(originalBuffer, config)) {
         const sizeMB = getFileSizeMB(originalBuffer);
@@ -117,7 +121,10 @@ export class ImageStorageService {
       
       if (config.enableCompression) {
         try {
-          processedBuffer = await sharp(originalBuffer as any)
+          // First, try to get metadata to validate the image
+          const metadata = await sharp(originalBuffer).metadata();
+          
+          processedBuffer = await sharp(originalBuffer)
             .resize(config.maxWidth, config.maxHeight, {
               fit: 'inside',
               withoutEnlargement: true
@@ -130,7 +137,7 @@ export class ImageStorageService {
           
           compressionApplied = true;
         } catch (compressionError) {
-          console.warn(`⚠️ Compression failed, using original image:`, compressionError);
+          // Silently use original image if compression fails - this is expected for some formats
           processedBuffer = originalBuffer;
         }
       }

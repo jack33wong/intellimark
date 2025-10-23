@@ -94,7 +94,6 @@ export class MathpixService {
 
     try {
       // DIAGNOSTIC LOGGING
-      console.log('🔍 [MATHPIX DEBUG] Sending request to v3/text. include_line_data:', opts.include_line_data, 'is_handwritten:', opts.is_handwritten, 'Disable Arrays:', opts.disable_array_detection);
       
       const axios = await import('axios');
       // The v3/text POST processes synchronously and returns the full result.

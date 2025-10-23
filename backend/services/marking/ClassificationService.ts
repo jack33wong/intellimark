@@ -9,6 +9,7 @@ export interface ClassificationResult {
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string;
+  questions?: Array<{number: string, text: string}>;
   usageTokens?: number;
 }
 

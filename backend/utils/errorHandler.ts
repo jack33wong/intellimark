@@ -84,7 +84,6 @@ export class ErrorHandler {
       const jitter = Math.floor(Math.random() * 200);
       const delay = baseDelay + jitter;
       
-      console.log(`⏳ [BACKOFF] Attempt ${attempt}/${maxRetries}, waiting ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

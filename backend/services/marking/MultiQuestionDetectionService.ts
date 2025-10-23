@@ -86,10 +86,6 @@ export class MultiQuestionDetectionService {
         throw new Error('No math blocks provided');
       }
 
-      if (opts.debug) {
-        console.log(`🔍 [MULTI-Q DETECTION] Starting detection for ${mathBlocks.length} blocks`);
-        console.log(`🔍 [MULTI-Q DETECTION] Question text: ${questionText ? `"${questionText.substring(0, 100)}..."` : 'None'}`);
-      }
 
       // Prepare input for AI API
       const inputBlocks = this.prepareBlocksForAI(mathBlocks);
@@ -100,12 +96,6 @@ export class MultiQuestionDetectionService {
       // Parse AI response
       const segments = this.parseAIResponse(aiResponse);
       
-      if (opts.debug) {
-        console.log(`✅ [MULTI-Q DETECTION] Detected ${segments.length} segments`);
-        segments.forEach((s, i) => {
-          console.log(`  Segment ${i + 1}: ${s.type} (confidence: ${s.confidence.toFixed(2)}) - "${s.text.substring(0, 50)}..."`);
-        });
-      }
 
       return {
         success: true,
@@ -156,11 +146,6 @@ export class MultiQuestionDetectionService {
     });
 
     // Debug: Log what we're sending to AI
-    console.log(`🔍 [AI DEBUG] Sending ${inputBlocks.length} blocks to AI:`);
-    inputBlocks.forEach((block, i) => {
-      console.log(`  Block ${i}: "${block.text?.substring(0, 100)}..." (handwritten: ${block.isHandwritten})`);
-    });
-    console.log(`🔍 [AI DEBUG] Question text: "${questionText?.substring(0, 100)}..."`);
 
     try {
       const response = await ModelProvider.callGeminiText(
@@ -279,7 +264,6 @@ export class MultiQuestionDetectionService {
 
       const result = await this.detectMultipleQuestions(sampleBlocks, 'Q1: Solve for x', { debug: true });
       
-      console.log('🧪 [MULTI-Q DETECTION] Test result:', result);
       return result.success && result.totalSegments > 0;
       
     } catch (error) {

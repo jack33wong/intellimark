@@ -111,7 +111,6 @@ export class SVGOverlayService {
       
 
       // Use original image dimensions (no extension to maintain orientation)
-      console.log(`[BURN-IN] input size=${originalWidth}x${originalHeight}`);
       const burnWidth = originalWidth;
       const burnHeight = originalHeight;
       
@@ -139,7 +138,6 @@ export class SVGOverlayService {
       
       try {
         const outMeta = await sharp(burnedImageBuffer).metadata();
-        console.log(`[BURN-OUT] output size=${outMeta.width}x${outMeta.height}`);
       } catch {}
       
       

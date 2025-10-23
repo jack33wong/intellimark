@@ -155,7 +155,6 @@ router.post('/social-login', async (req: Request, res: Response) => {
         admin: true,
         role: 'admin'
       });
-      console.log(`✅ Admin custom claims set for social login user: ${userRecord.email}`);
     }
     
     const user: User = {
@@ -349,7 +348,6 @@ router.post('/signup', async (req: Request, res: Response) => {
         admin: true,
         role: 'admin'
       });
-      console.log(`✅ Admin custom claims set for new user: ${userRecord.email}`);
     }
     
     const user: User = {
@@ -460,7 +458,6 @@ router.post('/signin', async (req: Request, res: Response) => {
         admin: true,
         role: 'admin'
       });
-      console.log(`✅ Admin custom claims set for signin user: ${userRecord.email}`);
     }
     
     // Generate a custom token for the user

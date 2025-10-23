@@ -43,7 +43,6 @@ export class PdfProcessingService {
     pdfBuffer: Buffer,
     options: any = {}
   ): Promise<StandardizedPage[]> {
-    console.log('🔧 [PDF Processing] Starting PDF to image conversion (High Density, Calculated Dimensions)...');
     const startTime = Date.now();
 
     // Create a unique temporary directory for this conversion
@@ -134,7 +133,6 @@ export class PdfProcessingService {
       }
 
       const duration = (Date.now() - startTime) / 1000;
-      console.log(`✅ [PDF Processing] PDF converted to ${standardizedPages.length} images in ${duration}s.`);
       return standardizedPages;
 
     } catch (error) {

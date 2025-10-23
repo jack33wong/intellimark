@@ -18,7 +18,6 @@ export class JsonUtils {
       }
     } catch (error) {
       // If parsing fails, try to clean it up
-      console.log('🔍 [JSON UTILS] Initial parse failed, attempting cleanup...');
     }
     
     // Only apply aggressive cleaning if initial parse failed

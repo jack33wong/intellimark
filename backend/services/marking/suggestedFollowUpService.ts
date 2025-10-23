@@ -119,13 +119,9 @@ export class SuggestedFollowUpService {
     
     // DEBUG: Print the user prompt for model answer
     if (config.promptKey === 'modelAnswer') {
-      console.log('🔍 [MODEL ANSWER DEBUG] User Prompt being sent to Gemini:');
       console.log('='.repeat(80));
       console.log(userPrompt);
       console.log('='.repeat(80));
-      console.log(`📊 [MODEL ANSWER DEBUG] User prompt length: ${userPrompt.length} characters`);
-      console.log(`📊 [MODEL ANSWER DEBUG] System prompt length: ${systemPrompt.length} characters`);
-      console.log(`📊 [MODEL ANSWER DEBUG] Total prompt length: ${userPrompt.length + systemPrompt.length} characters`);
     }
     
     // Use ModelProvider directly with custom prompts

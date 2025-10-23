@@ -39,7 +39,6 @@ export async function executeMarkingForQuestion(
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;
-  console.log(`⚙️ [MARKING EXECUTION] Starting marking for Question ${questionId}...`);
   
   // Import createProgressData function
   const { createProgressData } = await import('../../utils/sseUtils.js');
@@ -68,14 +67,6 @@ export async function executeMarkingForQuestion(
     // ========================== END OF FIX ==========================
 
     // *** Log for Verification ***
-    console.log("------------------------------------------");
-    console.log(`[DEBUG - MARKING INPUT] For Question ${questionId}:`);
-    console.log(">>> OCR Text being sent (Plain Text Check):");
-    console.log(ocrTextForPrompt.substring(0, 500) + (ocrTextForPrompt.length > 500 ? "..." : ""));
-    console.log(">>> Marking Scheme being sent:");
-    console.dir(task.markingScheme, { depth: 2 }); // Verify scheme is received
-    console.log("------------------------------------------");
-    // **************************
 
     // Call Marking Instruction Service (Pass Plain Text)
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
@@ -102,17 +93,6 @@ export async function executeMarkingForQuestion(
       questionDetection: task.markingScheme
     });
     
-    // ========================= START: DEBUG MARKING RESULT =========================
-    console.log(`[DEBUG MARKING RESULT] MarkingInstructionService returned:`, {
-      hasAnnotations: !!markingResult.annotations,
-      annotationsLength: markingResult.annotations?.length || 0,
-      hasStudentScore: !!markingResult.studentScore,
-      studentScore: markingResult.studentScore
-    });
-    if (markingResult.annotations && markingResult.annotations.length > 0) {
-      console.log(`[DEBUG MARKING RESULT] First annotation:`, markingResult.annotations[0]);
-    }
-    // ========================== END: DEBUG MARKING RESULT ==========================
     
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
@@ -122,7 +102,6 @@ export async function executeMarkingForQuestion(
     }
 
     // 4. Skip feedback generation - removed as requested
-    console.log(`✅ [MARKING EXECUTION] Skipping feedback generation for Question ${questionId} as requested.`);
 
     // 5. Enrich Annotations
     
@@ -156,7 +135,6 @@ export async function executeMarkingForQuestion(
     // 6. Consolidate results for this question
     const score = markingResult.studentScore;
 
-    console.log(`✅ [MARKING EXECUTION] Marking complete for Question ${questionId}. Score: ${score?.scoreText}. Found ${enrichedAnnotations.length} valid annotations.`);
     sendSseUpdate(res, createProgressData(6, `Marking complete for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
     return {

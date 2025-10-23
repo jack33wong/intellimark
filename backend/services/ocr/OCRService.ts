@@ -154,7 +154,6 @@ export class OCRService {
         if (!ocrLineText.trim()) continue;
         const bestMatch = stringSimilarity.findBestMatch(ocrLineText, questionLines);
         if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD) {
-            console.log(`  -> Found potential question line match at index ${i} (Similarity: ${bestMatch.bestMatch.rating.toFixed(2)}): "${ocrLineText.substring(0,60)}..."`);
             lastMatchIndex = i;
         }
     }
@@ -163,7 +162,6 @@ export class OCRService {
     if (lastMatchIndex !== -1) {
         // Fuzzy match succeeded
         boundaryIndex = lastMatchIndex + 1;
-        console.log(`  -> Boundary set at index ${boundaryIndex} (after last strong fuzzy match).`);
     } else {
         // ========================= START OF FIX =========================
         // Fuzzy match failed, attempt Keyword Fallback
@@ -176,7 +174,6 @@ export class OCRService {
             // Check for keywords, ensure it's likely prose (more than 2 words), and lacks '='
             if (text.split(/\s+/).length > 2 && !text.includes('=') && instructionKeywords.some(kw => text.includes(kw))) {
                 lastInstructionIndex = i;
-                console.log(`  -> Keyword Fallback: Found potential last instruction at index ${i}: "${ocrLines[i].text?.substring(0,60)}..."`);
                 break; // Found the last instruction line
             }
         }
@@ -184,7 +181,6 @@ export class OCRService {
         if (lastInstructionIndex !== -1) {
             // Keyword fallback succeeded
             boundaryIndex = lastInstructionIndex + 1;
-            console.log(`  -> Keyword Fallback: Boundary set at index ${boundaryIndex}.`);
         } else {
             // Both fuzzy and keyword failed - absolute fallback
             console.warn('  -> Keyword fallback also failed. Treating all as student work.');
@@ -235,7 +231,6 @@ export class OCRService {
               maxY > dimensions.height * (1 - marginThresholdVertical) || // Bottom margin
               maxX > dimensions.width * (1 - marginThresholdHorizontal) // Right margin
           ) {
-             console.log(`⚠️ [OCR FILTERING FALLBACK] Ignoring noise in margin. Text: ${block.text}`);
              return false; 
           }
           return true;
@@ -383,7 +378,6 @@ export class OCRService {
     // --- PRIMARY STRATEGY: Mathpix First (v3/text) ---
     if (MathpixService.isAvailable()) {
       try {
-        console.log('✅ [OCR PROCESSING] Attempting Mathpix First strategy (v3/text).');
         const mathpixOptions = {
           formats: ["text", "latex_styled"],
           include_line_data: true,
@@ -393,9 +387,7 @@ export class OCRService {
         mathpixCalls += 1;
         if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
             rawLineData = mathpixResult.line_data;
-            console.log('✅ [OCR PROCESSING] Mathpix First strategy successful. Raw lines detected:', rawLineData.length);
         } else {
-            console.log('⚠️ [OCR] Mathpix v3/text returned no line data.');
             rawLineData = null; // Ensure fallback is triggered
         }
       } catch (error) {
@@ -530,7 +522,6 @@ export class OCRService {
         } as MathBlock));
     }
 
-    console.log(`✅ [OCR PROCESSING] Processing complete. Final student work lines: ${mathBlocks.length}.`);
 
     // --- Final Data Structuring and Return (No changes from here onwards) ---
     const sortedMathBlocks = [...mathBlocks].sort((a, b) => {

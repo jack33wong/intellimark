@@ -12,11 +12,9 @@ export class ImageUtils {
   static async normalizeOrientation(imageData: string): Promise<string> {
     try {
       const startTime = Date.now();
-      console.log(`[DEBUG] Mime type received: ${imageData.substring(0, imageData.indexOf(';'))}`);
       let imageBuffer: Buffer;
       if (imageData.startsWith('data:')) {
         const base64Data = imageData.split(',')[1];
-        console.log(`[DEBUG] Extracted base64 prefix (first 50 chars): ${base64Data?.substring(0, 50)}`);
         if (!base64Data) throw new Error('Invalid data URL format');
         imageBuffer = Buffer.from(base64Data, 'base64');
       } else {
@@ -31,7 +29,6 @@ export class ImageUtils {
       const normalizedBase64 = normalizedBuffer.toString('base64');
       const normalizedDataUrl = `data:image/jpeg;base64,${normalizedBase64}`;
 
-      console.log(`✅ [IMAGE UTILS] Orientation normalized and optimized in ${(Date.now() - startTime) / 1000}s`);
       return normalizedDataUrl;
 
     } catch (error) {
@@ -86,7 +83,6 @@ export class ImageUtils {
       const enhancedDataUrl = `data:image/jpeg;base64,${enhancedBase64}`;
       
       // Updated logging message to reflect the new strategy
-      console.log(`✅ [IMAGE UTILS] Pre-processing completed (Handwriting Optimized: Normalize, Gamma, Modulate) in ${(Date.now() - startTime) / 1000}s`);
       return enhancedDataUrl;
       
     } catch (error) {
