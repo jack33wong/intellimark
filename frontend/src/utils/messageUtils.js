@@ -130,7 +130,7 @@ export const isSystemMessage = (message) => {
  * @returns {boolean} - True if message has image
  */
 export const hasImage = (message) => {
-  return message && (message.imageLink || message.imageData);
+  return message && (message.imageLink || message.imageData || (message.imageDataArray && Array.isArray(message.imageDataArray) && message.imageDataArray.length > 0));
 };
 
 /**

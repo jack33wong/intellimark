@@ -686,11 +686,31 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
       const aiTimestamp = new Date().toISOString(); // AI message current time
       
+      // Upload original images to Firebase Storage for authenticated users
+      let originalImageLinks: string[] = [];
+      if (isAuthenticated) {
+        const uploadPromises = files.map(async (file, index) => {
+          try {
+            const imageLink = await ImageStorageService.uploadImage(
+              file.buffer.toString('base64'),
+              userId,
+              `multi-${submissionId}`,
+              'original'
+            );
+            return imageLink;
+          } catch (uploadError) {
+            console.error(`❌ [UPLOAD] Failed to upload original image ${index}:`, uploadError);
+            return file.buffer.toString('base64'); // Fallback to base64
+          }
+        });
+        originalImageLinks = await Promise.all(uploadPromises);
+      }
+
       // Create user message for database
       const dbUserMessage = createUserMessage({
         content: customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`),
-        imageData: files.length === 1 ? files[0].buffer.toString('base64') : undefined,
-        imageDataArray: files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
+        imageData: !isAuthenticated && files.length === 1 ? files[0].buffer.toString('base64') : undefined,
+        imageDataArray: !isAuthenticated && files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
         originalFileName: files.length === 1 ? files[0]?.originalname : files.map(f => f.originalname).join(', '),
         sessionId: currentSessionId,
         model: model,
@@ -701,6 +721,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           originalPdfDataUrl: pdfContext.originalPdfDataUrl
         })
       });
+
+      // Add image links for authenticated users
+      if (isAuthenticated) {
+        if (files.length === 1) {
+          (dbUserMessage as any).imageLink = originalImageLinks[0];
+        } else {
+          (dbUserMessage as any).imageDataArray = originalImageLinks;
+        }
+      }
       
       // Override timestamp for database consistency
       (dbUserMessage as any).timestamp = userTimestamp;

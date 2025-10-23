@@ -196,7 +196,7 @@
   cursor: zoom-in;
   border-radius: 12px;
   overflow: hidden;
-  max-width: 250px;
+  max-width: 350px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 

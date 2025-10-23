@@ -86,6 +86,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     return (message as any)?.imageDataArray || [];
   }, [message]);
 
+  // Helper function to get image source from imageDataArray
+  const getImageSourceFromArray = useCallback((imageDataArray: string[], index: number) => {
+    if (!imageDataArray || !Array.isArray(imageDataArray) || index >= imageDataArray.length) {
+      return null;
+    }
+    return imageDataArray[index];
+  }, []);
+
   const handleMultiImageClick = useCallback((index: number) => {
     const imageDataArray = getMultiImageData();
     if (imageDataArray.length > 0) {
@@ -201,12 +209,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     if ((message as any)?.isMultiImage === true && (message as any)?.fileCount > 1) {
       return true;
     }
+    // Check for user messages with imageDataArray (fallback for missing flags)
+    if (message.role === 'user' && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1) {
+      return true;
+    }
     // Check for AI response with annotated images array (including single images)
     if (message.role === 'assistant' && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 0) {
       return true;
     }
     return false;
   };
+
 
 
 
@@ -325,7 +338,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
               <img 
-                src={(message as any).imageDataArray[0]}
+                src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''}
                 alt="Marked homework"
                 className="annotated-image"
                 onLoad={onImageLoad}
@@ -364,7 +377,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           )}
         </div>
         
-        {isUser && hasImage(message) && imageSrc && !imageError && (
+        {isUser && hasImage(message) && !imageError && (
           <div className="chat-message-image">
             {isMultiImageMessage() ? (
               <SimpleImageGallery
@@ -373,15 +386,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 className="multi-image-gallery"
               />
             ) : (
-              <div onClick={handleImageClick}>
-                <img 
-                  src={imageSrc}
-                  alt="Uploaded"
-                  className="content-image"
-                  onLoad={onImageLoad}
-                  onError={handleImageError}
-                />
-              </div>
+              imageSrc && (
+                <div onClick={handleImageClick}>
+                  <img 
+                    src={imageSrc}
+                    alt="Uploaded"
+                    className="content-image"
+                    onLoad={onImageLoad}
+                    onError={handleImageError}
+                  />
+                </div>
+              )
             )}
           </div>
         )}

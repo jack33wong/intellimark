@@ -141,15 +141,33 @@ class SimpleSessionService {
     
     if (localSession?.messages && mergedSession.messages) {
         const localImageContentMap = new Map();
+        const localImageArrayContentMap = new Map();
+        
         localSession.messages.forEach(msg => {
-            if (msg.role === 'user' && msg.imageData) {
-                localImageContentMap.set(msg.content, msg.imageData);
+            if (msg.role === 'user') {
+                if (msg.imageData) {
+                    localImageContentMap.set(msg.content, msg.imageData);
+                }
+                if (msg.imageDataArray) {
+                    localImageArrayContentMap.set(msg.content, msg.imageDataArray);
+                }
             }
         });
-        if (localImageContentMap.size > 0) {
+        
+        if (localImageContentMap.size > 0 || localImageArrayContentMap.size > 0) {
             mergedSession.messages = mergedSession.messages.map(serverMessage => {
-                if (serverMessage.role === 'user' && localImageContentMap.has(serverMessage.content)) {
-                    return { ...serverMessage, imageData: localImageContentMap.get(serverMessage.content) };
+                if (serverMessage.role === 'user') {
+                    const updatedMessage = { ...serverMessage };
+                    
+                    if (localImageContentMap.has(serverMessage.content)) {
+                        updatedMessage.imageData = localImageContentMap.get(serverMessage.content);
+                    }
+                    
+                    if (localImageArrayContentMap.has(serverMessage.content)) {
+                        updatedMessage.imageDataArray = localImageArrayContentMap.get(serverMessage.content);
+                    }
+                    
+                    return updatedMessage;
                 }
                 // Return the original message object to preserve React component state
                 return serverMessage;
