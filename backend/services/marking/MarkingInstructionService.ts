@@ -260,12 +260,18 @@ export class MarkingInstructionService {
     // Use the centralized prompt from prompts.ts
     const { AI_PROMPTS } = await import('../../config/prompts.js');
     
-    // Determine which prompt to use based on whether we have a normalized marking scheme
-    const hasMarkingScheme = normalizedScheme !== null && normalizedScheme !== undefined;
+    // Determine which prompt to use based on whether we have a meaningful marking scheme
+    const hasMarkingScheme = normalizedScheme !== null && 
+                            normalizedScheme !== undefined && 
+                            normalizedScheme.marks.length > 0;
     
     console.log("🔍 [MARKING INSTRUCTION] Prompt selection:");
     console.log("  - hasMarkingScheme:", hasMarkingScheme);
     console.log("  - normalizedScheme:", normalizedScheme ? 'exists' : 'null/undefined');
+    if (normalizedScheme) {
+      console.log("  - marks array length:", normalizedScheme.marks.length);
+      console.log("  - totalMarks:", normalizedScheme.totalMarks);
+    }
     
     let systemPrompt: string;
     let userPrompt: string;
