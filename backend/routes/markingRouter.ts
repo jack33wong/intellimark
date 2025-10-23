@@ -543,21 +543,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Annotation Grouping ---
     const annotationsByPage: { [pageIndex: number]: EnrichedAnnotation[] } = {};
 
-    // ========================= START DEBUG LOG =========================
-    console.log("[DEBUG ANNOTATION] Aggregating annotations. allQuestionResults structure:");
-    console.dir(allQuestionResults, { depth: 3 }); // Log the structure of results received from marking
-    // ========================== END DEBUG LOG ==========================
 
     allQuestionResults.forEach((qr, questionIndex) => {
         const currentAnnotations = qr.annotations || []; // Ensure array exists
-        // ========================= START DEBUG LOG =========================
-        console.log(`[DEBUG ANNOTATION] Processing QuestionResult ${questionIndex}. Found ${currentAnnotations.length} annotations.`);
-        // ========================== END DEBUG LOG ==========================
 
         currentAnnotations.forEach((anno, annoIndex) => {
-            // ========================= START DEBUG LOG =========================
-            console.log(`[DEBUG ANNOTATION]   Anno ${annoIndex}: action=${anno.action}, pageIndex=${anno.pageIndex}, bbox=${JSON.stringify(anno.bbox)}`);
-            // ========================== END DEBUG LOG ==========================
 
             if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
                 if (!annotationsByPage[anno.pageIndex]) {
@@ -570,16 +560,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         });
     });
 
-    // ========================= START DEBUG LOG =========================
-    console.log("[DEBUG ANNOTATION] Grouping complete. annotationsByPage structure:");
-    // Log keys (page indices) and count per page
-    Object.keys(annotationsByPage).forEach(pageIdx => {
-         console.log(`  -> Page ${pageIdx}: ${annotationsByPage[pageIdx]?.length || 0} annotations`);
-    });
-    if (Object.keys(annotationsByPage).length === 0) {
-         console.warn("  -> annotationsByPage is EMPTY!");
-    }
-    // ========================== END DEBUG LOG ==========================
 
     // --- Calculate Overall Score (Example) ---
     const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);

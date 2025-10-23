@@ -125,15 +125,6 @@ export async function executeMarkingForQuestion(
     console.log(`✅ [MARKING EXECUTION] Skipping feedback generation for Question ${questionId} as requested.`);
 
     // 5. Enrich Annotations
-    console.log(`[ENRICHMENT DEBUG] stepsDataForMapping contains ${stepsDataForMapping.length} steps:`);
-    stepsDataForMapping.forEach((step, index) => {
-      console.log(`  [${index}] unified_step_id: "${step.unified_step_id}", pageIndex: ${step.pageIndex}, bbox: [${step.bbox?.join(', ') || 'none'}]`);
-    });
-    
-    console.log(`[ENRICHMENT DEBUG] AI returned ${markingResult.annotations?.length || 0} annotations:`);
-    (markingResult.annotations || []).forEach((anno, index) => {
-      console.log(`  [${index}] step_id: "${(anno as any).step_id}", action: ${anno.action}, text: ${anno.text}`);
-    });
     
     const enrichedAnnotations = (markingResult.annotations || []).map(anno => {
         
@@ -145,8 +136,6 @@ export async function executeMarkingForQuestion(
              return null;
         }
 
-        console.log(`[DEBUG ENRICH] Attempting to find match for AI step_id: "${aiStepId}"`);
-
         const originalStep = stepsDataForMapping.find(step => 
             step.unified_step_id?.trim() === aiStepId
         );
@@ -156,8 +145,6 @@ export async function executeMarkingForQuestion(
              console.warn(`[ENRICHMENT] Could not find original step for step_id: ${aiStepId}`);
              return null; // Mark for filtering
         }
-
-        console.log(`[DEBUG ENRICH]   -> Found match! PageIndex: ${originalStep.pageIndex}, BBox: ${originalStep.bbox ? 'Exists' : 'Missing'}`);
 
         return {
             ...anno,

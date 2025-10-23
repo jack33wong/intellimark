@@ -330,35 +330,16 @@ export class MarkingInstructionService {
       aiResponseString = res.content;
       const usageTokens = res.usageTokens;
 
-      // ========================= START: RAW RESPONSE LOGGING =========================
-      console.log("------------------------------------------");
-      console.log("[DEBUG - AI RAW RESPONSE] Raw string received from AI:");
-      console.log(aiResponseString);
-      console.log("------------------------------------------");
-      // ========================== END: RAW RESPONSE LOGGING ==========================
 
       // Parse the AI response (Add robust parsing/cleanup)
       let jsonString = aiResponseString;
       const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
-           console.log("[DEBUG - AI RAW RESPONSE] Extracted JSON block from markdown.");
            jsonString = jsonMatch[1];
-      } else {
-           console.log("[DEBUG - AI RAW RESPONSE] No JSON markdown block detected, attempting direct parse.");
       }
 
       const parsedResponse = JSON.parse(jsonString);
 
-      // ========================= START: PARSED RESPONSE LOGGING =========================
-      console.log("[DEBUG - AI PARSED RESPONSE] Parsed response object:");
-      console.dir(parsedResponse, { depth: 3 });
-      // Specifically check the annotations array
-      if (parsedResponse.annotations) {
-          console.log(`[DEBUG - AI PARSED RESPONSE] Annotations array length: ${parsedResponse.annotations.length}`);
-      } else {
-           console.warn("[DEBUG - AI PARSED RESPONSE] Parsed response MISSING 'annotations' key!");
-      }
-      // ========================== END: PARSED RESPONSE LOGGING ==========================
 
       // Return the correct MarkingInstructions structure
       const markingResult = {
