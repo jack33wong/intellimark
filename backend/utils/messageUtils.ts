@@ -164,7 +164,7 @@ export interface AIMessageOptions {
   processingStats?: any;
   messageId?: string;
   isQuestionOnly?: boolean;
-  suggestedFollowUps?: string[];
+  suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
 }
 
 /**

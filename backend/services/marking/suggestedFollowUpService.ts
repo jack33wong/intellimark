@@ -117,9 +117,15 @@ export class SuggestedFollowUpService {
       config.promptKey === 'modelAnswer' ? targetMessage.detectedQuestion.marks : undefined
     );
     
-    // DEBUG: Print the user prompt for model answer
+    // DEBUG: Print the detectedQuestion data and user prompt for model answer
     if (config.promptKey === 'modelAnswer') {
       console.log('='.repeat(80));
+      console.log('🔍 [MODEL ANSWER DEBUG] detectedQuestion data:');
+      console.log('questionText:', targetMessage.detectedQuestion?.questionText);
+      console.log('markingScheme:', targetMessage.detectedQuestion?.markingScheme);
+      console.log('marks:', targetMessage.detectedQuestion?.marks);
+      console.log('='.repeat(80));
+      console.log('🔍 [MODEL ANSWER DEBUG] Generated user prompt:');
       console.log(userPrompt);
       console.log('='.repeat(80));
     }
