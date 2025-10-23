@@ -134,7 +134,6 @@ export class OCRService {
     ocrLines: Array<any>,
     questionText: string | undefined
   ): number {
-    console.log('🔧 [OCR BOUNDARY] Attempting fuzzy match boundary detection.');
 
     if (!questionText || questionText.trim().length === 0) {
       console.warn('  -> No question text provided. Treating all as student work.');
@@ -195,7 +194,6 @@ export class OCRService {
     }
 
     boundaryIndex = Math.min(boundaryIndex, ocrLines.length);
-    console.log(`✅ [OCR BOUNDARY] Final boundary index determined: ${boundaryIndex}`);
     return boundaryIndex;
   }
   // --- END OF NEW HELPER ---
@@ -442,7 +440,6 @@ export class OCRService {
              if (!text || !coords) return;
 
              if (text.includes('\\\\')) {
-                 console.log('🔍 [OCR POST-PROCESSING] Detected merged lines (\\\\). Splitting.');
                  let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
                  const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
                  const avgHeight = coords.height / (splitLines.length || 1);
@@ -466,12 +463,10 @@ export class OCRService {
             // --- 1. Explicit Discard Rules ---
             const lowerCaseText = trimmedText.toLowerCase();
             if (lowerCaseText.includes("total for question")) {
-                 console.log(`🗑️ [OCR FILTERING - Rule 1] Discarding footer: "${text}"`);
                  return false;
             }
             // Stricter check for standalone numbers (likely page numbers/metadata)
             if (/^\s*\d+\s*$/.test(trimmedText) && trimmedText.length <= 3) { // Allow longer numbers
-                 console.log(`🗑️ [OCR FILTERING - Rule 1] Discarding likely page number/metadata: "${text}"`);
                  return false;
             }
              // Discard barcode/noise lines explicitly if possible (using confidence if available?)
@@ -513,13 +508,11 @@ export class OCRService {
                     coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) ||
                     coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal)
                 ) {
-                    console.log(`🗑️ [OCR FILTERING - Rule 3] Discarding ambiguous margin noise: "${text}"`);
                     return false; // Discard ambiguous lines near margin
                 }
             }
 
             // --- 4. Discard Remaining Ambiguous Prose ---
-            console.log(`🗑️ [OCR FILTERING - Rule 4] Discarding ambiguous line (failed inclusion rules): "${text}"`);
             return false; // Discard anything else that didn't pass inclusion
         });
 

@@ -179,6 +179,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
   const submissionId = uuidv4(); // Generate a unique ID for this submission
   const startTime = Date.now();
   console.log(`🚀 [SUBMISSION ${submissionId}] Received request for /process.`);
+  console.log(`\n🔄 ========== UNIFIED PIPELINE START ==========`);
+  console.log(`🔄 [UNIFIED PIPELINE] Starting unified marking pipeline for submission ${submissionId}`);
+  console.log(`🔄 ============================================\n`);
 
   // --- SSE Setup ---
   res.writeHead(200, {
@@ -874,10 +877,16 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Send FINAL Complete Event ---
     sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
     console.log(`✅ [SUBMISSION ${submissionId}] Processing complete. Final 'complete' event sent.`);
+    console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
+    console.log(`🏁 [UNIFIED PIPELINE] Completed unified marking pipeline for submission ${submissionId} in ${Date.now() - startTime}ms`);
+    console.log(`🏁 ==========================================\n`);
     // ========================== END: IMPLEMENT STAGE 5 ==========================
 
   } catch (error) {
     console.error(`❌ [SUBMISSION ${submissionId}] Processing failed:`, error);
+    console.log(`\n💥 ========== UNIFIED PIPELINE FAILED ==========`);
+    console.log(`💥 [UNIFIED PIPELINE] Failed unified marking pipeline for submission ${submissionId} after ${Date.now() - startTime}ms`);
+    console.log(`💥 =============================================\n`);
     
     // Provide user-friendly error messages based on error type
     let userFriendlyMessage = 'An unexpected error occurred. Please try again.';

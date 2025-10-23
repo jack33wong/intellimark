@@ -199,15 +199,12 @@ export class MarkingInstructionService {
           return null;
         }
         
-        console.log(`[ENRICHMENT] Looking for step_id: "${aiStepId}"`);
-        
         // Find matching step in cleanDataForMarking.steps
         const matchingStep = cleanDataForMarking.steps.find((step: any) => 
           step.unified_step_id?.trim() === aiStepId
         );
         
         if (matchingStep && matchingStep.bbox) {
-          console.log(`[ENRICHMENT] Found match for "${aiStepId}" with bbox: [${matchingStep.bbox.join(', ')}]`);
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
