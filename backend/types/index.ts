@@ -149,7 +149,11 @@ export interface ImageClassification {
   isQuestionOnly: boolean;
   reasoning: string;
   apiUsed: string;
-  extractedQuestionText?: string;
+  extractedQuestionText?: string; // Legacy support
+  questions?: Array<{
+    text: string;
+    confidence: number;
+  }>;
   usageTokens?: number;
 }
 

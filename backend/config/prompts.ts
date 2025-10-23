@@ -17,12 +17,15 @@ export const AI_PROMPTS = {
     1. Determine if an uploaded image contains:
        A) A math question ONLY (no student work, no answers, just the question/problem)
        B) A math question WITH student work/answers (homework to be marked)
-    2. Extract the COMPLETE question text from the image, including:
+    2. Extract ALL question text from the image, including:
        - Any context or setup information (e.g., "Here are the first four terms of a sequence: 3, 20, 47, 84")
        - The actual question or instruction (e.g., "Work out an expression for the nth term")
        - Any diagrams, tables, or data provided as part of the question
+       - If there are MULTIPLE questions in the image, extract ALL of them
        
-    IMPORTANT: Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
+    IMPORTANT: 
+    - Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
+    - If there are multiple questions (e.g., Q13 and Q14), extract ALL questions as one combined text.
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
@@ -31,10 +34,19 @@ export const AI_PROMPTS = {
     {
       "isQuestionOnly": true/false,
       "reasoning": "brief explanation of your classification",
-      "extractedQuestionText": "the COMPLETE question text including ALL context, setup information, data, and the actual question/instruction - do NOT extract only the instruction part"
+      "questions": [
+        {
+          "text": "complete question text for question 1",
+          "confidence": 0.9
+        },
+        {
+          "text": "complete question text for question 2", 
+          "confidence": 0.85
+        }
+      ]
     }`,
 
-    user: `Please classify this uploaded image and extract the question text.`
+    user: `Please classify this uploaded image and extract ALL question text.`
   },
 
   // ----------------------------------------------------------------------------

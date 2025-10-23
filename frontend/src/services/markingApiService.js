@@ -231,6 +231,7 @@ class SimpleSessionService {
             sessionStats: data.unifiedSession.sessionStats || this.state.currentSession.sessionStats,
             updatedAt: data.unifiedSession.updatedAt || new Date().toISOString()
           };
+          
           this.updateCurrentSessionOnly(updatedSession);
           
           // Update sidebar with the new session
@@ -736,6 +737,7 @@ class SimpleSessionService {
     if (!session) return;
     // Don't add temp sessions to sidebar - they will be replaced by real sessions
     if (session.id && session.id.startsWith('temp-')) return;
+    
     const lightweightSession = {
       id: session.id,
       title: session.title,
@@ -746,6 +748,7 @@ class SimpleSessionService {
       rating: session.rating,
       lastMessage: session.messages?.slice().reverse().find(m => m.content && !m.isProcessing) || null
     };
+    
     this.setState(prevState => {
       const existingIndex = prevState.sidebarSessions.findIndex(s => s.id === session.id);
       let newSessions;
@@ -757,6 +760,9 @@ class SimpleSessionService {
       }
       return { sidebarSessions: newSessions.slice(0, this.MAX_SIDEBAR_SESSIONS) };
     });
+    
+    // Trigger event to update Sidebar component
+    this.triggerSessionUpdate(lightweightSession);
   }
   
   updateSession = async (sessionId, updates) => { 

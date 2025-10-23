@@ -64,26 +64,39 @@ interface MarkingTask {
 // --- Helper Functions for Multi-Question Detection ---
 
 /**
- * Extract questions from AI classification result with filename fallback
+ * Extract questions from AI classification result
+ * 
+ * DESIGN: Support 1...N questions in classification response
+ * - Classification AI extracts question text (no question numbers needed)
+ * - Question Detection finds exam paper and marking schemes from database records
+ * - Database records contain the actual question numbers (Q13, Q14, etc.)
+ * - Classification returns array of questions with text only, NO numbers
  */
 const extractQuestionsFromClassification = (
   classification: any, 
   fileName?: string
-): Array<{number: string, text: string}> => {
-  // Extract question number from filename
-  const questionNumber = extractQuestionNumberFromFilename(fileName);
-  if (questionNumber && classification?.extractedQuestionText) {
-    console.log('🔍 [DEBUG] Using filename for question number:', {
-      questionNumber: questionNumber,
-      textLength: classification.extractedQuestionText.length
+): Array<{text: string}> => {
+  // Handle new questions array structure (1...N questions)
+  if (classification?.questions && Array.isArray(classification.questions)) {
+    const questions = classification.questions.map((q: any) => ({
+      text: q.text || ''
+    }));
+    
+    console.log('🔍 [DEBUG] Using questions array from classification:', {
+      count: questions.length,
+      questions: questions.map(q => ({ textLength: q.text.length }))
     });
+    return questions;
+  }
+  
+  // Fallback: Handle old extractedQuestionText structure
+  if (classification?.extractedQuestionText) {
     return [{
-      number: questionNumber,
       text: classification.extractedQuestionText
     }];
   }
   
-  console.log('🔍 [DEBUG] No question number found in filename or no classification text');
+  console.log('🔍 [DEBUG] No questions found in classification');
   return [];
 };
 
@@ -102,14 +115,19 @@ const extractQuestionNumberFromFilename = (fileName?: string): string | null => 
  */
 const findMultipleQuestionBoundaries = (
   studentWorkBlocks: any[],
-  individualQuestions: Array<{number: string, text: string}>
+  individualQuestions: Array<{text: string}>,
+  detectedSchemesMap?: Map<string, any>
 ): Array<{questionNumber: string, startIndex: number, endIndex: number}> => {
   const boundaries: Array<{questionNumber: string, startIndex: number, endIndex: number}> = [];
   
+  // Get question numbers from detectedSchemesMap (from question detection)
+  const questionNumbers = detectedSchemesMap ? Array.from(detectedSchemesMap.keys()) : [];
+  
   if (individualQuestions.length === 1) {
     // Single question - use all blocks
+    const questionNumber = questionNumbers[0] || "1";
     boundaries.push({
-      questionNumber: individualQuestions[0].number,
+      questionNumber: questionNumber,
       startIndex: 0,
       endIndex: studentWorkBlocks.length - 1
     });
@@ -120,13 +138,13 @@ const findMultipleQuestionBoundaries = (
   let currentStartIndex = 0;
   
   for (let i = 0; i < individualQuestions.length; i++) {
-    const question = individualQuestions[i];
+    const questionNumber = questionNumbers[i] || `${i + 1}`;
     const isLastQuestion = i === individualQuestions.length - 1;
     
     if (isLastQuestion) {
       // Last question gets all remaining blocks
       boundaries.push({
-        questionNumber: question.number,
+        questionNumber: questionNumber,
         startIndex: currentStartIndex,
         endIndex: studentWorkBlocks.length - 1
       });
@@ -137,7 +155,7 @@ const findMultipleQuestionBoundaries = (
       const endIndex = Math.min(currentStartIndex + blocksPerQuestion - 1, studentWorkBlocks.length - 1);
       
       boundaries.push({
-        questionNumber: question.number,
+        questionNumber: questionNumber,
         startIndex: currentStartIndex,
         endIndex: endIndex
       });
@@ -153,14 +171,14 @@ const findMultipleQuestionBoundaries = (
  * Create marking tasks using enhanced boundary detection
  */
 const createTasksFromEnhancedBoundaries = (
-  individualQuestions: Array<{number: string, text: string}>,
+  individualQuestions: Array<{text: string}>,
   studentWorkBlocks: any[],
   detectedSchemesMap?: Map<string, any>
 ): MarkingTask[] => {
   const tasks: MarkingTask[] = [];
   
   // Find boundaries for each question
-  const boundaries = findMultipleQuestionBoundaries(studentWorkBlocks, individualQuestions);
+  const boundaries = findMultipleQuestionBoundaries(studentWorkBlocks, individualQuestions, detectedSchemesMap);
   
   // Create tasks based on boundaries
   for (const boundary of boundaries) {
@@ -606,7 +624,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const detectionResult = await questionDetectionService.detectQuestion(question.text);
         
         if (detectionResult.found && detectionResult.match?.markingScheme) {
-            const questionNumber = question.number;
+            // Use the actual question number from database (Q13, Q14, etc.) not temporary ID
+            const actualQuestionNumber = detectionResult.match.questionNumber;
             
             // Extract the specific question's marks from the marking scheme
             let questionSpecificMarks = null;
@@ -620,10 +639,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const schemeWithTotalMarks = {
                 questionMarks: questionSpecificMarks,
                 totalMarks: detectionResult.match.marks,
-                questionNumber: questionNumber
+                questionNumber: actualQuestionNumber
             };
             
-            markingSchemesMap.set(questionNumber, schemeWithTotalMarks);
+            markingSchemesMap.set(actualQuestionNumber, schemeWithTotalMarks);
         }
     }
     logQuestionDetectionComplete();

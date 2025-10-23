@@ -742,7 +742,9 @@ export class FirestoreService {
       
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: classification?.extractedQuestionText || '',
+        questionText: classification?.questions && Array.isArray(classification.questions) 
+          ? classification.questions.map((q: any) => q.text).join(' ') 
+          : classification?.extractedQuestionText || '',
         questionNumber: questionDetection.match?.questionNumber || '',
         subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
         examBoard: questionDetection.match?.board || '',
@@ -847,7 +849,9 @@ export class FirestoreService {
       
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: classification?.extractedQuestionText || '',
+        questionText: classification?.questions && Array.isArray(classification.questions) 
+          ? classification.questions.map((q: any) => q.text).join(' ') 
+          : classification?.extractedQuestionText || '',
         questionNumber: questionDetection.match?.questionNumber || '',
         subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
         examBoard: questionDetection.match?.board || '',

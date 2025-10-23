@@ -113,11 +113,6 @@ export class QuestionDetectionService {
         };
       }
 
-      // Debug: Show extracted question text
-      console.log('🔍 [QUESTION DETECTION] Extracted text:', {
-        textLength: extractedQuestionText.length,
-        firstChars: extractedQuestionText.substring(0, 100) + '...'
-      });
 
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
@@ -132,12 +127,6 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
-        // Debug: Show best match found
-        console.log('🔍 [QUESTION DETECTION] Best match found:', {
-          examPaper: `${bestMatch.board} ${bestMatch.qualification} ${bestMatch.paperCode} (${bestMatch.year})`,
-          questionNumber: bestMatch.questionNumber,
-          confidence: bestMatch.confidence?.toFixed(3)
-        });
 
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
@@ -363,11 +352,6 @@ export class QuestionDetectionService {
       }
       
       if (bestMatch) {
-        console.log('🔍 [SCHEME SELECTION] Selected marking scheme:', {
-          selectedScheme: `${bestMatch.examDetails.board} ${bestMatch.examDetails.qualification} ${bestMatch.examDetails.paperCode} (${bestMatch.examDetails.date})`,
-          adjustedScore: bestScore.toFixed(3),
-          isExactPaperMatch: examPaperMatch.paperCode === bestMatch.examDetails.paperCode
-        });
         return bestMatch;
       }
       
@@ -428,18 +412,6 @@ export class QuestionDetectionService {
       // Calculate overall match score
       const overallScore = (boardMatch + qualificationMatch + paperCodeMatch + yearMatch) / 4;
       
-      // Debug: Show matching scores
-      console.log('🔍 [SCHEME MATCHING]', {
-        examPaper: `${examPaperMatch.board} ${examPaperMatch.qualification} ${examPaperMatch.paperCode} (${examPaperMatch.year}) Q${examPaperMatch.questionNumber}`,
-        markingScheme: `${examDetails.board} ${examDetails.qualification} ${examDetails.paperCode} (${examDetails.date})`,
-        scores: {
-          board: boardMatch.toFixed(3),
-          qualification: qualificationMatch.toFixed(3),
-          paperCode: paperCodeMatch.toFixed(3),
-          year: yearMatch.toFixed(3),
-          overall: overallScore.toFixed(3)
-        }
-      });
       
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
         // Get question marks for the specific question if available

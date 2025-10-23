@@ -8,8 +8,11 @@ export interface ClassificationResult {
   isQuestionOnly: boolean;
   reasoning: string;
   apiUsed: string;
-  extractedQuestionText?: string;
-  questions?: Array<{number: string, text: string}>;
+  extractedQuestionText?: string; // Legacy support
+  questions?: Array<{
+    text: string;
+    confidence: number;
+  }>;
   usageTokens?: number;
 }
 
@@ -252,7 +255,8 @@ export class ClassificationService {
       isQuestionOnly: parsed.isQuestionOnly,
       reasoning: parsed.reasoning,
       apiUsed,
-      extractedQuestionText: parsed.extractedQuestionText,
+      extractedQuestionText: parsed.extractedQuestionText, // Legacy support
+      questions: parsed.questions, // New questions array
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
   }
