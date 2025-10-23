@@ -532,64 +532,44 @@ Similar Practice Questions
   // ============================================================================
   
   multiQuestionDetection: {
-    system: `You are an expert AI that detects multiple questions in OCR text blocks and segments student work by question boundaries.
+    system: `You are an AI that analyzes OCR text blocks from a math homework image.
 
-    INPUT STRUCTURE:
-    You will receive a sequential list of OCR text blocks from a homework image. Each block has:
-    - 'id': Block index number
-    - 'text': The OCR text content
-    - 'isHandwritten': Boolean flag indicating if text is handwritten
-    - 'coordinates': Bounding box coordinates
-    - 'pageIndex': Page number (0-based)
-    - 'confidence': OCR confidence score
+    YOUR GOAL: Analyze the provided OCR text blocks and classify each block as either question text or student work.
 
-    YOUR GOAL: Detect multiple questions and segment student work by question boundaries.
+    IMPORTANT: You must analyze the ACTUAL OCR text blocks provided, not generate examples.
 
-    DETECTION RULES:
-    1. **Question Indicators**: Look for patterns like "Q1:", "Question 1", "1.", "(a)", "(b)", etc.
-    2. **Content Analysis**: Distinguish between question text and student work
+    CLASSIFICATION RULES:
+    1. **Question Text**: Contains the actual question/problem statement from the image
+    2. **Student Work**: Contains calculations, answers, or student responses written by the student
     3. **Handwriting Clues**: Handwritten text is usually student work
-    4. **Spatial Analysis**: Questions often appear before their corresponding student work
-    5. **Mathematical Content**: Student work typically contains calculations, equations, or answers
-
-    SEGMENTATION STRATEGY:
-    - Group consecutive blocks that belong to the same question
-    - Identify question boundaries based on question indicators and content changes
-    - Ensure each question has both question text and student work sections
-    - Handle cases where multiple questions share the same page
+    4. **Content Analysis**: Look for mathematical operations, equations, or answers
 
     OUTPUT FORMAT:
     Return ONLY a JSON object with this exact structure:
     {
-      "questions": [
+      "segments": [
         {
-          "questionNumber": "1",
-          "questionText": "Brief description of the question",
-          "startBlockIndex": 0,
-          "endBlockIndex": 5,
-          "confidence": 0.85,
-          "sourcePages": [0]
+          "text": "The actual text content from the OCR block",
+          "type": "question_text",
+          "confidence": 0.9
         },
         {
-          "questionNumber": "2", 
-          "questionText": "Brief description of the second question",
-          "startBlockIndex": 6,
-          "endBlockIndex": 12,
-          "confidence": 0.90,
-          "sourcePages": [0, 1]
+          "text": "The actual student work content from the OCR block",
+          "type": "student_work",
+          "confidence": 0.85
         }
       ]
     }
 
     CRITICAL REQUIREMENTS:
-    - Each question must have a unique questionNumber
-    - startBlockIndex and endBlockIndex must be valid (0-based)
+    - You MUST use the actual text from the provided OCR blocks
+    - Do NOT generate fake or example content
+    - type must be either "question_text" or "student_work"
     - confidence should be between 0.0 and 1.0
-    - sourcePages should list all pages containing blocks for this question
-    - If only one question is detected, return a single question object
-    - If no clear questions are detected, return an empty questions array`,
+    - text should contain the actual content from the OCR blocks
+    - Return all segments in the order they appear`,
 
-    user: `Analyze the following OCR text blocks to detect multiple questions and segment student work by question boundaries.
+    user: `Analyze the following OCR text blocks from a math homework image. Classify each block as question text or student work.
 
     Reference Question Text (if available):
     {extractedQuestionText}
@@ -597,7 +577,9 @@ Similar Practice Questions
     OCR Text Blocks (JSON format):
     {inputBlocks}
 
-    Return only the JSON object with question segments.`
+    IMPORTANT: Use the actual text content from the OCR blocks above. Do not generate examples.
+
+    Return only the JSON object with classified segments.`
   }
 };
 

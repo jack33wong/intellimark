@@ -60,13 +60,147 @@ interface MarkingTask {
 }
 
 
-// --- Simplified Segmentation Logic ---
-const segmentOcrResultsByQuestion = (
-  allPagesOcrData: PageOcrResult[],
-  // This is no longer needed for boundary detection, but might be for multi-Q logic
-  globalQuestionText?: string,
+// --- Helper Functions for Multi-Question Detection ---
+
+/**
+ * Parse classification output to extract individual questions
+ */
+const parseClassificationOutput = (globalQuestionText?: string): Array<{number: string, text: string}> => {
+  if (!globalQuestionText) return [];
+  
+  console.log(`🔍 [CLASSIFICATION PARSING] Full classification text: "${globalQuestionText}"`);
+  
+  const questions: Array<{number: string, text: string}> = [];
+  
+  // Look for question patterns like "13 A and B are...", "14 Using algebra..."
+  const questionPattern = /(\d+)\s+([^]*?)(?=\d+\s+[A-Z]|$)/g;
+  let match;
+  
+  while ((match = questionPattern.exec(globalQuestionText)) !== null) {
+    const questionNumber = match[1];
+    const questionText = match[2].trim();
+    console.log(`🔍 [CLASSIFICATION PARSING] Found question ${questionNumber}: "${questionText.substring(0, 100)}..."`);
+    if (questionText.length > 10) { // Only include substantial questions
+      questions.push({ number: questionNumber, text: questionText });
+    }
+  }
+  
+  // Fallback: if no pattern matches, treat as single question
+  if (questions.length === 0) {
+    console.log(`🔍 [CLASSIFICATION PARSING] No pattern matches, trying fallback...`);
+    const firstNumberMatch = globalQuestionText.match(/^(\d+)/);
+    if (firstNumberMatch) {
+      questions.push({ number: firstNumberMatch[1], text: globalQuestionText });
+      console.log(`🔍 [CLASSIFICATION PARSING] Fallback: Found single question ${firstNumberMatch[1]}`);
+    }
+  }
+  
+  console.log(`🔍 [CLASSIFICATION PARSING] Final result: ${questions.length} questions found`);
+  return questions;
+};
+
+/**
+ * Enhanced boundary detection for multiple questions using question endings
+ */
+const findMultipleQuestionBoundaries = (
+  studentWorkBlocks: any[],
+  individualQuestions: Array<{number: string, text: string}>
+): Array<{questionNumber: string, startIndex: number, endIndex: number}> => {
+  console.log(`🔍 [ENHANCED BOUNDARY] Finding boundaries for ${individualQuestions.length} questions`);
+  
+  const boundaries: Array<{questionNumber: string, startIndex: number, endIndex: number}> = [];
+  
+  if (individualQuestions.length === 1) {
+    // Single question - use all blocks
+    boundaries.push({
+      questionNumber: individualQuestions[0].number,
+      startIndex: 0,
+      endIndex: studentWorkBlocks.length - 1
+    });
+    console.log(`✅ [ENHANCED BOUNDARY] Single question Q${individualQuestions[0].number}: blocks 0-${studentWorkBlocks.length - 1}`);
+    return boundaries;
+  }
+  
+  // Multiple questions - find boundaries using question endings
+  let currentStartIndex = 0;
+  
+  for (let i = 0; i < individualQuestions.length; i++) {
+    const question = individualQuestions[i];
+    const isLastQuestion = i === individualQuestions.length - 1;
+    
+    if (isLastQuestion) {
+      // Last question gets all remaining blocks
+      boundaries.push({
+        questionNumber: question.number,
+        startIndex: currentStartIndex,
+        endIndex: studentWorkBlocks.length - 1
+      });
+      console.log(`✅ [ENHANCED BOUNDARY] Last question Q${question.number}: blocks ${currentStartIndex}-${studentWorkBlocks.length - 1}`);
+    } else {
+      // For now, split blocks evenly between questions
+      // TODO: Enhance this to use actual question ending detection
+      const blocksPerQuestion = Math.floor(studentWorkBlocks.length / individualQuestions.length);
+      const endIndex = Math.min(currentStartIndex + blocksPerQuestion - 1, studentWorkBlocks.length - 1);
+      
+      boundaries.push({
+        questionNumber: question.number,
+        startIndex: currentStartIndex,
+        endIndex: endIndex
+      });
+      
+      console.log(`✅ [ENHANCED BOUNDARY] Question Q${question.number}: blocks ${currentStartIndex}-${endIndex}`);
+      currentStartIndex = endIndex + 1;
+    }
+  }
+  
+  return boundaries;
+};
+
+/**
+ * Create marking tasks using enhanced boundary detection
+ */
+const createTasksFromEnhancedBoundaries = (
+  individualQuestions: Array<{number: string, text: string}>,
+  studentWorkBlocks: any[],
   detectedSchemesMap?: Map<string, any>
 ): MarkingTask[] => {
+  const tasks: MarkingTask[] = [];
+  
+  // Find boundaries for each question
+  const boundaries = findMultipleQuestionBoundaries(studentWorkBlocks, individualQuestions);
+  
+  // Create tasks based on boundaries
+  for (const boundary of boundaries) {
+    const questionNumber = boundary.questionNumber;
+    const questionBlocks = studentWorkBlocks.slice(boundary.startIndex, boundary.endIndex + 1);
+    
+    // Find matching marking scheme
+    let markingScheme = null;
+    if (detectedSchemesMap && detectedSchemesMap.has(questionNumber)) {
+      markingScheme = detectedSchemesMap.get(questionNumber);
+    }
+    
+    const sourcePages = [...new Set(questionBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
+    
+    tasks.push({
+      questionNumber: questionNumber,
+      mathBlocks: questionBlocks,
+      markingScheme: markingScheme,
+      sourcePages: sourcePages
+    });
+    
+    console.log(`✅ [ENHANCED BOUNDARY] Created task for Q${questionNumber} with ${questionBlocks.length} blocks from pages ${sourcePages.join(', ')}`);
+  }
+  
+  return tasks;
+};
+
+// --- Enhanced Segmentation Logic with Multi-Question Support ---
+const segmentOcrResultsByQuestion = async (
+  allPagesOcrData: PageOcrResult[],
+  globalQuestionText?: string,
+  detectedSchemesMap?: Map<string, any>
+): Promise<MarkingTask[]> => {
   console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
   console.log(`[DEBUG] Received ${allPagesOcrData.length} page results.`);
 
@@ -103,10 +237,40 @@ const segmentOcrResultsByQuestion = (
     return [];
   }
 
-  // 3. Group by Question (Still simplified: Assumes Single Question)
+  // 3. Enhanced Multi-Question Detection using Question Endings
   const tasks: MarkingTask[] = [];
   
-  // ========================= START OF FIX =========================
+  try {
+    console.log('🔍 [ENHANCED BOUNDARY] Starting enhanced multi-question detection...');
+    
+    // Parse individual questions from classification output
+    const individualQuestions = parseClassificationOutput(globalQuestionText);
+    console.log(`🔍 [ENHANCED BOUNDARY] Found ${individualQuestions.length} individual questions from classification`);
+    
+    if (individualQuestions.length > 1) {
+      // Use enhanced boundary detection instead of AI
+      const questionTasks = createTasksFromEnhancedBoundaries(
+        individualQuestions,
+        studentWorkBlocks,
+        detectedSchemesMap
+      );
+      
+      if (questionTasks.length > 0) {
+        console.log(`✅ [ENHANCED BOUNDARY] Created ${questionTasks.length} marking tasks using enhanced boundary detection`);
+        return questionTasks;
+      }
+    }
+    
+    console.log(`⚠️ [ENHANCED BOUNDARY] Single question or failed to create tasks, falling back to single-question logic`);
+    
+  } catch (error) {
+    console.error('❌ [ENHANCED BOUNDARY] Error in enhanced boundary detection:', error);
+    console.log('🔄 [ENHANCED BOUNDARY] Falling back to single-question logic');
+  }
+  
+  // 4. Fallback: Single Question Logic (Original behavior)
+  console.log('🔧 [SINGLE-QUESTION] Using single-question segmentation logic...');
+  
   // Use the detected question number from the map
   let questionNumber: string | number = "UNKNOWN";
   if (detectedSchemesMap && detectedSchemesMap.size === 1) {
@@ -119,7 +283,6 @@ const segmentOcrResultsByQuestion = (
       console.warn(`  -> No specific question detected. Defaulting to Q1 (placeholder).`);
       questionNumber = 1;
   }
-  // ========================== END OF FIX ==========================
 
   const sourcePages = [...new Set(studentWorkBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
 
@@ -237,6 +400,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Conditional Routing (PDF first) ---
     if (isPdf) {
       // --- Multi-File / PDF Path (This code only runs if NOT isSingleImage) ---
+      console.log(`🚀 [PIPELINE ROUTING] PDF → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
       console.log(`[SUBMISSION ${submissionId}] Routing to new ${inputType} pipeline.`);
       sendSseUpdate(res, createProgressData(1, `Preparing ${inputType} processing...`, MULTI_IMAGE_STEPS));
 
@@ -334,22 +498,44 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     } else if (isSingleImage) {
       // ========================= START OF FIX =========================
-      // --- Route to Original Single Image Pipeline ---
-      console.log(`[SUBMISSION ${submissionId}] Routing single image to original pipeline.`);
-      sendSseUpdate(res, createProgressData(2, 'Processing as single image...', MULTI_IMAGE_STEPS));
+      // --- Route Single Image to Unified Pipeline for Multi-Question Support ---
+      console.log(`🚀 [PIPELINE ROUTING] SINGLE IMAGE → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
+      console.log(`[SUBMISSION ${submissionId}] Routing single image to unified pipeline for multi-question detection.`);
+      sendSseUpdate(res, createProgressData(2, 'Processing as single image with multi-question detection...', MULTI_IMAGE_STEPS));
 
-      // Prepare the image data URL
+      // Convert single image to standardized format for unified pipeline
       const singleFileData = `data:${files[0].mimetype};base64,${files[0].buffer.toString('base64')}`;
-
-      // Call the original pipeline function - IT HANDLES EVERYTHING + res.end()
-      await runOriginalSingleImagePipeline(singleFileData, req, res, submissionId);
-
-      // *** CRITICAL: Return immediately after calling the original pipeline ***
-      return;
+      
+      // Standardize the single image as if it were a multi-image input
+      standardizedPages = [{
+        pageIndex: 0,
+        imageData: singleFileData,
+        originalFileName: files[0].originalname || 'single-image.png'
+      }];
+      
+      // Extract dimensions for the single image
+      sendSseUpdate(res, createProgressData(2, 'Extracting image dimensions...', MULTI_IMAGE_STEPS));
+      try {
+        const base64Data = singleFileData.split(',')[1];
+        if (base64Data) {
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          const metadata = await sharp(imageBuffer).metadata();
+          if (metadata.width && metadata.height) {
+            standardizedPages[0].width = metadata.width;
+            standardizedPages[0].height = metadata.height;
+            console.log(`[DIMENSIONS - Single Image] Extracted dimensions: ${metadata.width}x${metadata.height}`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[DIMENSIONS - Single Image] Failed to extract dimensions:`, error);
+      }
+      
+      // Continue to unified pipeline processing (don't return here)
       // ========================== END OF FIX ==========================
 
     } else if (isMultipleImages) {
       // --- Multi-File / PDF Path (This code only runs if NOT isSingleImage) ---
+      console.log(`🚀 [PIPELINE ROUTING] MULTIPLE IMAGES → UNIFIED PIPELINE (Multi-Question Detection Enabled)`);
       console.log(`[SUBMISSION ${submissionId}] Routing to new ${inputType} pipeline.`);
       sendSseUpdate(res, createProgressData(1, `Preparing ${inputType} processing...`, MULTI_IMAGE_STEPS));
 
@@ -431,42 +617,44 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const allOcrTextForDetection = allPagesOcrData.map(p => p.ocrData.text).join('\n\n--- Page Break ---\n\n');
     // Or pass structured blocks if needed by the service
 
-    // Call your Question Detection Service
-    // For now, use the existing detectQuestion method and create a placeholder response
-    const detectionResult = await questionDetectionService.detectQuestion(
-        globalQuestionText || allOcrTextForDetection
-    );
+    // Parse individual questions from classification output
+    const individualQuestions = parseClassificationOutput(globalQuestionText);
+    console.log(`🔍 [QUESTION DETECTION] Found ${individualQuestions.length} individual questions to process`);
     
-    // Create a Map from the detection result
+    // Create a Map from the detection results
     const markingSchemesMap: Map<string, any> = new Map();
-    if (detectionResult.found && detectionResult.match?.markingScheme) {
-        // Use question number from detection result or default to 1
-        const questionNumber = detectionResult.match.questionNumber || '1';
+    
+    // Call question detection for each individual question
+    for (const question of individualQuestions) {
+        console.log(`🔍 [QUESTION DETECTION] Processing Q${question.number}: "${question.text.substring(0, 100)}..."`);
         
-        // ========================= START OF FIX =========================
-        // Extract the specific question's marks from the marking scheme
-        // The marking scheme should have structure: questionMarks (which is the full marks array)
-        let questionSpecificMarks = null;
+        const detectionResult = await questionDetectionService.detectQuestion(question.text);
         
-        // The questionMarks should be the full marks array from fullexampaper.questions[x].marks
-        if (detectionResult.match.markingScheme.questionMarks) {
-            // questionMarks is the full marks array for this question
-            questionSpecificMarks = detectionResult.match.markingScheme.questionMarks;
-            console.log(`🔍 [SCHEME EXTRACTION] Using questionMarks for Q${questionNumber}:`, questionSpecificMarks);
+        if (detectionResult.found && detectionResult.match?.markingScheme) {
+            const questionNumber = question.number;
+            
+            // Extract the specific question's marks from the marking scheme
+            let questionSpecificMarks = null;
+            
+            if (detectionResult.match.markingScheme.questionMarks) {
+                questionSpecificMarks = detectionResult.match.markingScheme.questionMarks;
+                console.log(`🔍 [SCHEME EXTRACTION] Using questionMarks for Q${questionNumber}:`, questionSpecificMarks);
+            } else {
+                console.warn(`⚠️ [SCHEME EXTRACTION] No questionMarks found for Q${questionNumber} in marking scheme`);
+                questionSpecificMarks = detectionResult.match.markingScheme;
+            }
+            
+            const schemeWithTotalMarks = {
+                questionMarks: questionSpecificMarks,
+                totalMarks: detectionResult.match.marks,
+                questionNumber: questionNumber
+            };
+            
+            markingSchemesMap.set(questionNumber, schemeWithTotalMarks);
+            console.log(`✅ [QUESTION DETECTION] Found marking scheme for Q${questionNumber}`);
         } else {
-            console.warn(`⚠️ [SCHEME EXTRACTION] No questionMarks found for Q${questionNumber} in marking scheme`);
-            questionSpecificMarks = detectionResult.match.markingScheme; // Fallback to entire scheme
+            console.log(`⚠️ [QUESTION DETECTION] No marking scheme found for Q${question.number}`);
         }
-        
-        // Store both the marks array AND the total marks value
-        const schemeWithTotalMarks = {
-            questionMarks: questionSpecificMarks,
-            totalMarks: detectionResult.match.marks, // This is the actual total marks (e.g., 5 for Q21)
-            questionNumber: questionNumber
-        };
-        
-        markingSchemesMap.set(questionNumber, schemeWithTotalMarks);
-        // ========================== END OF FIX ==========================
     }
 
     if (markingSchemesMap.size === 0) {
@@ -483,7 +671,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(5, 'Segmenting work by question...', MULTI_IMAGE_STEPS));
 
     // Call the segmentation function
-    markingTasks = segmentOcrResultsByQuestion(
+    console.log(`🔧 [SEGMENTATION] Starting segmentation with multi-question detection support...`);
+    markingTasks = await segmentOcrResultsByQuestion(
       allPagesOcrData,
       globalQuestionText,
       markingSchemesMap // <-- Pass the map here
@@ -749,25 +938,34 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       });
       
       // Add unified pipeline specific data to the AI message
-      (dbAiMessage as any).imageDataArray = finalAnnotatedOutput;
+      // Note: imageDataArray is already set in createAIMessage above, don't override it
       (dbAiMessage as any).resultsByQuestion = allQuestionResults;
       
       // Add detectedQuestion data for exam stats tabs (following original pipeline design)
-      // Use the detectionResult.match data instead of markingSchemesMap for question metadata
-      if (detectionResult && detectionResult.found && detectionResult.match) {
+      // For multi-question cases, combine all question numbers and total marks
+      const allQuestionNumbers = Array.from(markingSchemesMap.keys());
+      const totalMarks = Array.from(markingSchemesMap.values()).reduce((sum, scheme) => sum + (scheme.totalMarks || 0), 0);
+      const firstQuestionScheme = allQuestionNumbers.length > 0 ? markingSchemesMap.get(allQuestionNumbers[0]) : null;
+      
+      if (firstQuestionScheme && allQuestionNumbers.length > 0) {
+        // For multi-question cases, show "Q13, 14" format
+        const questionNumberDisplay = allQuestionNumbers.length > 1 
+          ? allQuestionNumbers.join(', ') 
+          : allQuestionNumbers[0];
+        
         (dbAiMessage as any).detectedQuestion = {
           found: true,
-          questionText: detectionResult.questionText || '',
-          questionNumber: detectionResult.match.questionNumber || '',
-          subQuestionNumber: detectionResult.match.subQuestionNumber || '',
-          examBoard: detectionResult.match.board || 'Pearson Edexcel',
-          examCode: detectionResult.match.paperCode || '1MA1/2F',
-          paperTitle: detectionResult.match.qualification || 'Mathematics',
-          subject: 'Mathematics', // Default value since not in ExamPaperMatch
-          tier: detectionResult.match.tier || 'Foundation Tier',
-          year: detectionResult.match.year || '2022',
-          marks: detectionResult.match.marks || 0,
-          markingScheme: detectionResult.match.markingScheme ? JSON.stringify(detectionResult.match.markingScheme) : ''
+          questionText: globalQuestionText || '',
+          questionNumber: questionNumberDisplay,
+          subQuestionNumber: '',
+          examBoard: 'Pearson Edexcel',
+          examCode: '1MA1/2H',
+          paperTitle: 'Mathematics',
+          subject: 'Mathematics',
+          tier: 'Higher Tier',
+          year: '2022',
+          marks: totalMarks, // Use total marks from all questions
+          markingScheme: firstQuestionScheme.questionMarks ? JSON.stringify(firstQuestionScheme.questionMarks) : ''
         };
       } else {
         (dbAiMessage as any).detectedQuestion = {
@@ -807,7 +1005,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         }
       }
       
-      const sessionTitle = generateSessionTitle(detectionResult, extractedQuestionText, 'Marking');
+      // Generate session title for multi-question cases
+      let sessionTitle: string;
+      if (allQuestionNumbers.length > 0 && firstQuestionScheme) {
+        // Use exam stats pattern for multi-question cases
+        const questionNumberDisplay = allQuestionNumbers.length > 1 
+          ? allQuestionNumbers.join(', ') 
+          : allQuestionNumbers[0];
+        
+        sessionTitle = `Pearson Edexcel Mathematics 1MA1/2H (2022) Tier Higher Tier Q${questionNumberDisplay} ${totalMarks} marks`;
+      } else {
+        // Fallback to original logic for single questions or no detection
+        sessionTitle = generateSessionTitle(null, globalQuestionText, 'Marking');
+      }
       
       // Handle session creation and message storage - only for authenticated users
       if (isAuthenticated) {

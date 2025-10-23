@@ -39,10 +39,16 @@ export interface QuestionSegment {
   sourcePages: number[];
 }
 
+export interface TextSegment {
+  text: string;
+  type: 'question_text' | 'student_work';
+  confidence: number;
+}
+
 export interface MultiQuestionDetectionResult {
   success: boolean;
-  questions: QuestionSegment[];
-  totalQuestions: number;
+  segments: TextSegment[];
+  totalSegments: number;
   processingTimeMs: number;
   error?: string;
 }
@@ -92,22 +98,19 @@ export class MultiQuestionDetectionService {
       const aiResponse = await this.callExternalAI(inputBlocks, questionText, opts.model!);
       
       // Parse AI response
-      const questions = this.parseAIResponse(aiResponse, mathBlocks);
-      
-      // Validate and enhance results
-      const validatedQuestions = this.validateAndEnhanceQuestions(questions, mathBlocks);
+      const segments = this.parseAIResponse(aiResponse);
       
       if (opts.debug) {
-        console.log(`✅ [MULTI-Q DETECTION] Detected ${validatedQuestions.length} questions`);
-        validatedQuestions.forEach((q, i) => {
-          console.log(`  Q${i + 1}: ${q.questionNumber} (${q.endBlockIndex - q.startBlockIndex + 1} blocks, confidence: ${q.confidence.toFixed(2)})`);
+        console.log(`✅ [MULTI-Q DETECTION] Detected ${segments.length} segments`);
+        segments.forEach((s, i) => {
+          console.log(`  Segment ${i + 1}: ${s.type} (confidence: ${s.confidence.toFixed(2)}) - "${s.text.substring(0, 50)}..."`);
         });
       }
 
       return {
         success: true,
-        questions: validatedQuestions,
-        totalQuestions: validatedQuestions.length,
+        segments: segments,
+        totalSegments: segments.length,
         processingTimeMs: Date.now() - startTime
       };
 
@@ -116,8 +119,8 @@ export class MultiQuestionDetectionService {
       
       return {
         success: false,
-        questions: [],
-        totalQuestions: 0,
+        segments: [],
+        totalSegments: 0,
         processingTimeMs: Date.now() - startTime,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
@@ -152,6 +155,13 @@ export class MultiQuestionDetectionService {
       inputBlocks: JSON.stringify(inputBlocks, null, 2)
     });
 
+    // Debug: Log what we're sending to AI
+    console.log(`🔍 [AI DEBUG] Sending ${inputBlocks.length} blocks to AI:`);
+    inputBlocks.forEach((block, i) => {
+      console.log(`  Block ${i}: "${block.text?.substring(0, 100)}..." (handwritten: ${block.isHandwritten})`);
+    });
+    console.log(`🔍 [AI DEBUG] Question text: "${questionText?.substring(0, 100)}..."`);
+
     try {
       const response = await ModelProvider.callGeminiText(
         systemPrompt,
@@ -168,9 +178,9 @@ export class MultiQuestionDetectionService {
   }
 
   /**
-   * Parse AI response into question segments
+   * Parse AI response into text segments
    */
-  private static parseAIResponse(aiResponse: string, mathBlocks: MathBlock[]): QuestionSegment[] {
+  private static parseAIResponse(aiResponse: string): TextSegment[] {
     try {
       // Extract JSON from AI response
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -180,17 +190,14 @@ export class MultiQuestionDetectionService {
 
       const parsed = JSON.parse(jsonMatch[0]);
       
-      if (!parsed.questions || !Array.isArray(parsed.questions)) {
-        throw new Error('Invalid AI response format: missing questions array');
+      if (!parsed.segments || !Array.isArray(parsed.segments)) {
+        throw new Error('Invalid AI response format: missing segments array');
       }
 
-      return parsed.questions.map((q: any) => ({
-        questionNumber: q.questionNumber || '1',
-        questionText: q.questionText || '',
-        startBlockIndex: Math.max(0, q.startBlockIndex || 0),
-        endBlockIndex: Math.min(mathBlocks.length - 1, q.endBlockIndex || mathBlocks.length - 1),
-        confidence: Math.max(0, Math.min(1, q.confidence || 0.5)),
-        sourcePages: q.sourcePages || [0]
+      return parsed.segments.map((s: any) => ({
+        text: s.text || '',
+        type: s.type === 'student_work' ? 'student_work' : 'question_text',
+        confidence: Math.max(0, Math.min(1, s.confidence || 0.5))
       }));
 
     } catch (error) {
@@ -273,7 +280,7 @@ export class MultiQuestionDetectionService {
       const result = await this.detectMultipleQuestions(sampleBlocks, 'Q1: Solve for x', { debug: true });
       
       console.log('🧪 [MULTI-Q DETECTION] Test result:', result);
-      return result.success && result.totalQuestions > 0;
+      return result.success && result.totalSegments > 0;
       
     } catch (error) {
       console.error('❌ [MULTI-Q DETECTION] Test failed:', error);
