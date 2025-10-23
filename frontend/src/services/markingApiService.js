@@ -208,12 +208,6 @@ class SimpleSessionService {
 
   handleProcessComplete = (data, modelUsed, aiMessageId = null) => {
     try {
-      // ========================= START OF DEBUG =========================
-      console.log('🔍 [HANDLE COMPLETE DEBUG] Received data:', data);
-      console.log('🔍 [HANDLE COMPLETE DEBUG] Data type:', typeof data);
-      console.log('🔍 [HANDLE COMPLETE DEBUG] Data keys:', data ? Object.keys(data) : 'null/undefined');
-      console.log('🔍 [HANDLE COMPLETE DEBUG] Model used:', modelUsed);
-      // ========================== END OF DEBUG ==========================
       
       // Check for success flag (if present) or assume success if not present
       if (data.success === false) {
@@ -222,10 +216,12 @@ class SimpleSessionService {
       
       // Handle unifiedSession data first (for authenticated users)
       if (data.unifiedSession) {
-        // Authenticated users get full session data - this triggers sidebar updates
-        const newSession = this.convertToUnifiedSession(data.unifiedSession);
-        this._setAndMergeCurrentSession(newSession, modelUsed);
-        return newSession;
+        // Extract the AI message from unifiedSession and add it directly (same as marking pipeline)
+        const aiMessage = data.unifiedSession.messages?.find(msg => msg.role === 'assistant');
+        if (aiMessage) {
+          this.addMessage(aiMessage); // ✅ Same as marking pipeline - no sidebar updates
+        }
+        return this.state.currentSession;
       }
       
       // Handle new multi-image/PDF response structure
@@ -327,12 +323,7 @@ class SimpleSessionService {
         return this.state.currentSession;
       }
       
-      if (data.unifiedSession) {
-        // Authenticated users get full session data
-        const newSession = this.convertToUnifiedSession(data.unifiedSession);
-        this._setAndMergeCurrentSession(newSession, modelUsed);
-        return newSession;
-      } else if (data.aiMessage) {
+      if (data.aiMessage) {
         // Unauthenticated users get only AI message - append to current session
         this.addMessage(data.aiMessage);
         
