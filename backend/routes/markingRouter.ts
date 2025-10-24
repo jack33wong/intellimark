@@ -1376,11 +1376,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const customText = req.body.customText;
       const model = req.body.model || 'auto';
       
-      // Debug logging to see what's being received
-      console.log('🔍 DEBUG: Received customText:', customText);
-      console.log('🔍 DEBUG: customText type:', typeof customText);
-      console.log('🔍 DEBUG: customText truthy:', !!customText);
-      
       // Resolve actual model if 'auto' is specified
       if (model === 'auto') {
         const { getDefaultModel } = await import('../config/aiModels.js');
@@ -1415,8 +1410,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Create user message for database
       const messageContent = customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`);
-      console.log('🔍 DEBUG: Creating user message with content:', messageContent);
-      console.log('🔍 DEBUG: Using customText:', !!customText);
       
       dbUserMessage = createUserMessage({
         content: messageContent,

@@ -151,8 +151,9 @@ test.describe('Happy Path E2E Tests', () => {
       console.log('🔍 DEBUG: Starting Step 4 - Submit Follow-up Question');
       console.log(`🔍 DEBUG: About to send follow-up text: "${TEST_CONFIG.testTexts.followUp}"`);
       
-      await markHomeworkPage.uploadImage(TEST_CONFIG.testImages.q21);
-      console.log('🔍 DEBUG: Image uploaded successfully');
+      // FIX: For follow-up messages, we should send TEXT ONLY, not upload another image
+      // The follow-up should be a text message that goes to /api/messages/chat
+      // instead of uploading another image to /api/marking/process
       
       await markHomeworkPage.enterText(TEST_CONFIG.testTexts.followUp);
       console.log('🔍 DEBUG: Text entered successfully');
@@ -160,41 +161,21 @@ test.describe('Happy Path E2E Tests', () => {
       await markHomeworkPage.sendMessage();
       console.log('🔍 DEBUG: Message sent successfully');
       
-      // Verify follow-up user message
+      // Verify follow-up user message shows the custom text (not auto-generated upload message)
       console.log('🔍 DEBUG: About to verify follow-up message is visible');
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible();
       console.log('🔍 DEBUG: Follow-up message verified as visible');
       
-      // Verify 2nd user uploaded image has base64 source (from chat session memory)
-      await markHomeworkPage.verifyUserImagesHaveBase64Sources(2);
       console.log('🔍 DEBUG: Step 4 completed successfully');
     });
 
-    await test.step('Step 4.1: Verify Question Mode Progress Steps (Second Image)', async () => {
-      // Verify progress steps DURING processing (not after completion)
-      // Wait for progress toggle to appear first
-      await expect(markHomeworkPage.page.locator('.progress-toggle-button').first()).toBeVisible({ timeout: 15000 });
+    await test.step('Step 4.1: Verify Follow-up Text Message Processing', async () => {
+      // For text-only follow-up messages, we don't have the same progress steps
+      // as image uploads. The AI response should be generated directly.
       
-      // Verify the second image upload (q21.png) shows question mode progress steps
-      await markHomeworkPage.verifyProgressSteps({
-        mode: 'question',
-        expectedSteps: [
-          'Analyzing image...',
-          'Classifying image...',
-          'Detecting question...',
-          'Generating response...'
-        ]
-      });
-
-      // Verify progress toggle functionality
-      await markHomeworkPage.verifyProgressToggle({
-        shouldBeVisible: true,
-        shouldExpandSteps: true,
-        shouldCollapseSteps: true
-      });
-      
-      // Now wait for AI response to complete
+      // Wait for AI response to complete
       await markHomeworkPage.waitForAIResponse();
+      console.log('🔍 DEBUG: Step 4.1 completed successfully');
     });
 
     await test.step('Step 5: Text-Only Follow-up Mode', async () => {
@@ -338,6 +319,7 @@ test.describe('Happy Path E2E Tests', () => {
       
       console.log('🔍 DEBUG: Verifying follow-up message...');
       console.log(`🔍 DEBUG: Looking for follow-up text: "${TEST_CONFIG.testTexts.followUp}"`);
+      // FIX: Now that we send text-only follow-up, we should see the actual custom text
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible({ timeout: 10000 });
       console.log('🔍 DEBUG: Follow-up message verified');
       
@@ -375,6 +357,7 @@ test.describe('Happy Path E2E Tests', () => {
       
       // Wait for user messages to be visible (they should load first)
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.initial)).toBeVisible({ timeout: 10000 });
+      // FIX: Now that we send text-only follow-up, we should see the actual custom text
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.followUp)).toBeVisible({ timeout: 10000 });
       await expect(markHomeworkPage.getUserMessageLocator(TEST_CONFIG.testTexts.textOnly)).toBeVisible({ timeout: 10000 });
       

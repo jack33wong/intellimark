@@ -223,8 +223,14 @@ class MarkHomeworkPage {
           // Check for annotated image first (for marking_annotated messages)
           const annotatedImage = lastMessage.querySelector('.homework-annotated-image img.annotated-image');
           if (annotatedImage) {
-            console.log('🔍 DEBUG: Found annotated image, AI response complete!');
-            return true;
+            // Wait for the image to actually load (not just exist in DOM)
+            if (annotatedImage.complete && annotatedImage.naturalWidth > 0) {
+              console.log('🔍 DEBUG: Found annotated image and it has loaded, AI response complete!');
+              return true;
+            } else {
+              console.log('🔍 DEBUG: Found annotated image but it is still loading...');
+              return false;
+            }
           }
           
           // Check for markdown renderer (for chat/text-only responses)
@@ -399,13 +405,27 @@ class MarkHomeworkPage {
         
         // Wait for AI response to be visible
         await expect(this.aiMessages.last()).toBeVisible({ timeout: 30000 });
+        console.log('🔍 DEBUG: AI message is visible, checking for annotated image...');
         
         // Get the last AI message
         const lastAIMessage = this.aiMessages.last();
         
+        // Wait for the annotated image container to appear first
+        const annotatedImageContainer = lastAIMessage.locator('.homework-annotated-image');
+        await expect(annotatedImageContainer).toBeVisible({ timeout: 15000 });
+        console.log('🔍 DEBUG: Annotated image container is visible');
+        
         // Check for annotated image within the AI message
         const annotatedImage = lastAIMessage.locator('img.annotated-image');
         await expect(annotatedImage).toBeVisible({ timeout: 15000 });
+        console.log('🔍 DEBUG: Annotated image element is visible');
+        
+        // Wait for the image to actually load (not just be visible in DOM)
+        await this.page.waitForFunction((imageSelector) => {
+          const img = document.querySelector(imageSelector);
+          return img && img.complete && img.naturalWidth > 0;
+        }, `img.annotated-image`, { timeout: 30000 });
+        console.log('🔍 DEBUG: Annotated image has finished loading');
         
         // Verify the annotated image has the correct source type
         // For marking mode, it should have imageLink (storage URL), not base64
