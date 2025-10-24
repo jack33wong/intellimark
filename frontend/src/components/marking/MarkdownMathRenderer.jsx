@@ -16,7 +16,10 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\\\[/g, '$$')
     .replace(/\\\]/g, '$$')
     // FIX: This new line finds ^(...) and converts it to the correct ^{...} syntax.
-    .replace(/\^\(([^)]+)\)/g, '^{$1}');
+    .replace(/\^\(([^)]+)\)/g, '^{$1}')
+    // FIX: Convert literal \n\n to actual newlines for proper markdown rendering
+    .replace(/\\n\\n/g, '\n\n')
+    .replace(/\\n/g, '\n');
 };
 
 const MarkdownMathRenderer = ({ 

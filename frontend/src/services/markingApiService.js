@@ -214,7 +214,7 @@ class SimpleSessionService {
         throw new Error(data.error || 'Failed to process image');
       }
       
-      // Handle unifiedSession data first (for authenticated users)
+      // Handle unifiedSession data (for both authenticated and unauthenticated users)
       if (data.unifiedSession) {
         // Extract the AI message from unifiedSession and add it directly
         const aiMessage = data.unifiedSession.messages?.find(msg => msg.role === 'assistant');
@@ -222,7 +222,7 @@ class SimpleSessionService {
           this.addMessage(aiMessage);
         }
         
-        // Update session title and sidebar for authenticated users
+        // Update session title and sidebar (only for authenticated users)
         if (data.unifiedSession.title && this.state.currentSession) {
           const updatedSession = {
             ...this.state.currentSession,
@@ -234,8 +234,10 @@ class SimpleSessionService {
           
           this.updateCurrentSessionOnly(updatedSession);
           
-          // Update sidebar with the new session
-          this.updateSidebarSession(updatedSession);
+          // Update sidebar with the new session (only for authenticated users)
+          if (data.unifiedSession.userId) {
+            this.updateSidebarSession(updatedSession);
+          }
         }
         
         return this.state.currentSession;

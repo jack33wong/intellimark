@@ -367,35 +367,22 @@ async function persistSessionToDatabase(
       const firstQuestionDetection = additionalData.markingSchemesMap.get(allQuestionNumbers[0]);
       const actualQuestionData = firstQuestionDetection?.questionDetection || null;
       
-      (dbAiMessage as any).detectedQuestion = {
-        found: true,
-        questionText: globalQuestionText || '',
-        questionNumber: questionNumberDisplay,
-        subQuestionNumber: actualQuestionData?.match?.subQuestionNumber || '',
-        examBoard: actualQuestionData?.match?.board || '',
-        examCode: actualQuestionData?.match?.paperCode || '',
-        paperTitle: actualQuestionData?.match?.qualification || '',
-        subject: actualQuestionData?.match?.qualification || '',
-        tier: actualQuestionData?.match?.tier || '',
-        year: actualQuestionData?.match?.year || '',
-        marks: totalMarks,
-        markingScheme: firstQuestionScheme.questionMarks ? JSON.stringify(firstQuestionScheme.questionMarks) : ''
-      };
+      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
+        additionalData.allQuestionResults || [],
+        additionalData.markingSchemesMap,
+        globalQuestionText,
+        {
+          useQuestionDetection: true,
+          questionNumberDisplay: questionNumberDisplay,
+          totalMarks: totalMarks
+        }
+      );
     } else {
-      (dbAiMessage as any).detectedQuestion = {
-        found: false,
-        questionText: '',
-        questionNumber: '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: 0,
-        markingScheme: ''
-      };
+      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
+        additionalData.allQuestionResults || [],
+        additionalData.markingSchemesMap,
+        globalQuestionText
+      );
     }
   } else if (mode === 'Question') {
     // Question mode: use questionDetection data
@@ -579,6 +566,91 @@ async function persistSessionToDatabase(
   };
 }
 
+
+/**
+ * Create detectedQuestion data from markingSchemesMap and question results
+ * Common function used by both authenticated and unauthenticated users
+ */
+function createDetectedQuestionData(
+  allQuestionResults: any[],
+  markingSchemesMap: Map<string, any>,
+  globalQuestionText: string,
+  options?: {
+    useQuestionDetection?: boolean; // For authenticated users who have questionDetection data
+    questionNumberDisplay?: string; // For multi-question display
+    totalMarks?: number; // For authenticated users
+  }
+): any {
+  if (allQuestionResults.length === 0) {
+    return {
+      found: false,
+      questionText: globalQuestionText || '',
+      questionNumber: '',
+      subQuestionNumber: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: '',
+      marks: 0,
+      markingScheme: ''
+    };
+  }
+
+  const firstQuestionResult = allQuestionResults[0];
+  const firstQuestionDetection = markingSchemesMap.get(String(firstQuestionResult.questionNumber));
+  
+  if (firstQuestionDetection) {
+    // For authenticated users, use questionDetection data if available
+    const actualQuestionData = options?.useQuestionDetection ? firstQuestionDetection?.questionDetection : null;
+    
+    // Handle different data structures: both user types have questionDetection.match, but authenticated users pass it through actualQuestionData
+    const matchData = actualQuestionData?.match || firstQuestionDetection.questionDetection?.match;
+    
+    return {
+      found: true,
+      questionText: globalQuestionText || '',
+      questionNumber: options?.questionNumberDisplay || firstQuestionResult.questionNumber,
+      subQuestionNumber: matchData?.subQuestionNumber || '',
+      examBoard: matchData?.board || matchData?.examBoard || '',
+      examCode: matchData?.paperCode || matchData?.examCode || '',
+      paperTitle: matchData?.qualification || matchData?.paperTitle || '',
+      subject: matchData?.qualification || matchData?.subject || '',
+      tier: matchData?.tier || '',
+      year: matchData?.year || '',
+      marks: options?.totalMarks || firstQuestionResult.score?.totalMarks || 0,
+      markingScheme: firstQuestionDetection.questionMarks ? JSON.stringify(firstQuestionDetection.questionMarks) : ''
+    };
+  } else {
+    return {
+      found: false,
+      questionText: globalQuestionText || '',
+      questionNumber: options?.questionNumberDisplay || firstQuestionResult.questionNumber,
+      subQuestionNumber: '',
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      year: '',
+      marks: options?.totalMarks || firstQuestionResult.score?.totalMarks || 0,
+      markingScheme: ''
+    };
+  }
+}
+
+/**
+ * Generate session title from detectedQuestion data
+ * Common function used by both authenticated and unauthenticated users
+ */
+function generateSessionTitle(detectedQuestion: any): string {
+  if (detectedQuestion?.found) {
+    const { examBoard, subject, examCode, year, tier, questionNumber, marks } = detectedQuestion;
+    return `${examBoard} ${subject} ${examCode} (${year}) Tier ${tier} Q${questionNumber} ${marks} marks`;
+  }
+  return 'Processing...';
+}
 
 /**
  * POST /api/marking/process
@@ -951,9 +1023,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // ========================= DATABASE PERSISTENCE FOR QUESTION MODE =========================
       console.log('🔍 [QUESTION MODE DEBUG] Starting database persistence...');
       let persistenceResult: any = null;
+      let userMessage: any = null;
       try {
         // Create user message for question mode
-        const userMessage = createUserMessage({
+        userMessage = createUserMessage({
           content: `I have uploaded 1 file(s) for analysis.`,
           imageData: standardizedPages[0].imageData,
           fileName: standardizedPages[0].originalFileName || 'question-image.png'
@@ -988,6 +1061,35 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Continue with response even if database fails
       }
       
+      // Create unifiedSession for unauthenticated users (same as marking mode)
+      const isAuthenticated = !!(req as any)?.user?.uid;
+      let unifiedSession = persistenceResult?.unifiedSession;
+      
+      if (!isAuthenticated && !unifiedSession) {
+        // For unauthenticated users, create a temporary session structure
+        unifiedSession = {
+          id: submissionId,
+          title: generateSessionTitle((aiMessage as any)?.detectedQuestion),
+          messages: [userMessage, aiMessage],
+          userId: null,
+          messageType: 'Question',
+          createdAt: userMessage.timestamp,
+          updatedAt: aiMessage.timestamp,
+          isPastPaper: false,
+          sessionStats: {
+            totalProcessingTimeMs: Date.now() - startTime,
+            lastModelUsed: actualModel || 'auto',
+            lastApiUsed: 'unified_question_pipeline',
+            totalLlmTokens: aiResponse.usageTokens || 0,
+            totalMathpixCalls: 0,
+            totalTokens: aiResponse.usageTokens || 0,
+            averageConfidence: 0,
+            imageSize: standardizedPages[0].imageData.length,
+            totalAnnotations: 0
+          }
+        };
+      }
+      
       // Send final result
       console.log('🔍 [QUESTION MODE DEBUG] Creating final result...');
       const finalResult = {
@@ -995,7 +1097,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         message: aiMessage,
         sessionId: submissionId,
         mode: 'Question',
-        unifiedSession: persistenceResult?.unifiedSession // Include unified session data for frontend
+        unifiedSession: unifiedSession // Include unified session data for both user types
       };
       
       // Send final result with completion flag
@@ -1261,8 +1363,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // ========================= START: DATABASE PERSISTENCE =========================
     // --- Database Persistence (Following Original Pipeline Design) ---
+    let dbUserMessage: any = null; // Declare outside try-catch for scope
     let dbAiMessage: any = null; // Declare outside try-catch for scope
     let persistenceResult: any = null; // Declare outside try-catch for scope
+    let unifiedSession: any = null; // Declare outside try-catch for scope
     try {
       // Extract request data
       const userId = (req as any)?.user?.uid || 'anonymous';
@@ -1314,7 +1418,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.log('🔍 DEBUG: Creating user message with content:', messageContent);
       console.log('🔍 DEBUG: Using customText:', !!customText);
       
-      const dbUserMessage = createUserMessage({
+      dbUserMessage = createUserMessage({
         content: messageContent,
         imageData: !isAuthenticated && files.length === 1 ? files[0].buffer.toString('base64') : undefined,
         imageDataArray: !isAuthenticated && files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
@@ -1371,6 +1475,30 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Add unified pipeline specific data to the AI message
       (dbAiMessage as any).resultsByQuestion = allQuestionResults;
       
+      // Debug logging for markingSchemesMap
+      console.log('🔍 [DETECTED QUESTION DEBUG] markingSchemesMap entries:');
+      for (const [key, value] of markingSchemesMap.entries()) {
+        console.log(`  - Key: ${key}, Value:`, {
+          questionNumber: value.questionNumber,
+          totalMarks: value.totalMarks,
+          hasQuestionMarks: value.hasQuestionMarks,
+          match: value.match ? {
+            examBoard: value.match.examBoard,
+            examCode: value.match.examCode,
+            subject: value.match.subject,
+            year: value.match.year,
+            tier: value.match.tier
+          } : 'no match'
+        });
+      }
+      
+      // Add detectedQuestion data to the AI message using common function
+      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
+        allQuestionResults,
+        markingSchemesMap,
+        globalQuestionText
+      );
+      
       // Override timestamp for database consistency
       (dbAiMessage as any).timestamp = aiTimestamp;
       
@@ -1393,15 +1521,55 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         }
       );
       
-      // unifiedSession will be added to finalOutput after it's constructed
+      // For authenticated users, use the unifiedSession from persistence
+      if (isAuthenticated) {
+        unifiedSession = persistenceResult.unifiedSession;
+      }
       
     } catch (error) {
       console.error(`❌ [SUBMISSION ${submissionId}] Failed to persist to database:`, error);
       // Continue without throwing - user still gets response
     }
+    
+    // For unauthenticated users, create unifiedSession even if database persistence failed
+    if (!isAuthenticated && !unifiedSession) {
+      unifiedSession = {
+        // For unauthenticated users, create a temporary session structure
+        id: submissionId, // Use submissionId as session ID for unauthenticated users
+        title: generateSessionTitle((dbAiMessage as any)?.detectedQuestion),
+        messages: dbAiMessage ? [dbUserMessage, dbAiMessage] : [],
+        userId: null, // No user ID for unauthenticated users
+        messageType: 'Marking',
+        createdAt: dbUserMessage?.timestamp || new Date().toISOString(),
+        updatedAt: dbAiMessage?.timestamp || new Date().toISOString(),
+        isPastPaper: false,
+        sessionStats: {
+          totalProcessingTimeMs: Date.now() - startTime,
+          lastModelUsed: actualModel || 'auto',
+          lastApiUsed: 'unified_marking_pipeline',
+          totalLlmTokens: 0, // Will be calculated from individual results if available
+          totalMathpixCalls: 0,
+          totalTokens: 0,
+          averageConfidence: 0,
+          imageSize: files.reduce((sum, f) => sum + f.size, 0),
+          totalAnnotations: allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0)
+        }
+      };
+      
+      // Debug logging for unauthenticated users
+      console.log('🔍 [UNAUTHENTICATED DEBUG] Created unifiedSession:');
+      console.log('  - id:', unifiedSession.id);
+      console.log('  - title:', unifiedSession.title);
+      console.log('  - messages count:', unifiedSession.messages?.length);
+      console.log('  - userId:', unifiedSession.userId);
+      console.log('  - dbAiMessage detectedQuestion:', (dbAiMessage as any)?.detectedQuestion);
+      console.log('  - markingSchemesMap sample:', Array.from(markingSchemesMap.entries())[0]);
+    }
+    
     // ========================== END: DATABASE PERSISTENCE ==========================
 
-      // Construct finalOutput with detectedQuestion data from database persistence
+
+      // Construct unified finalOutput that works for both authenticated and unauthenticated users
       const finalOutput = {
         success: true, // Add success flag for frontend compatibility
         submissionId: submissionId,
@@ -1415,6 +1583,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         outputFormat: outputFormat,
         originalInputType: isPdf ? 'pdf' : 'images',
         detectedQuestion: (dbAiMessage as any).detectedQuestion, // Include detectedQuestion data for frontend
+        // Always include unifiedSession for consistent frontend handling
+        unifiedSession: unifiedSession,
         // Add PDF context for frontend display
         ...(pdfContext && {
             originalFileType: pdfContext.originalFileType,
@@ -1424,10 +1594,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         })
       };
       
-      // For authenticated users, include session data to trigger sidebar updates
-      if (isAuthenticated) {
-        (finalOutput as any).unifiedSession = persistenceResult.unifiedSession;
-      }
+      // Debug logging for final output
+      console.log('🔍 [FINAL OUTPUT DEBUG] Sending to frontend:');
+      console.log('  - success:', finalOutput.success);
+      console.log('  - submissionId:', finalOutput.submissionId);
+      console.log('  - unifiedSession exists:', !!finalOutput.unifiedSession);
+      console.log('  - unifiedSession title:', finalOutput.unifiedSession?.title);
+      console.log('  - unifiedSession messages count:', finalOutput.unifiedSession?.messages?.length);
+      console.log('  - unifiedSession userId:', finalOutput.unifiedSession?.userId);
       
       // --- Send FINAL Complete Event ---
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
