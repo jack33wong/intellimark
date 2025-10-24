@@ -22,6 +22,8 @@ import {
   withPerformanceLogging, 
   withErrorHandling 
 } from '../utils/markingRouterHelpers.js';
+import { SessionManagementService } from '../services/sessionManagementService.js';
+import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
 import type { StandardizedPage, PageOcrResult, MathBlock } from '../types/markingRouter.js';
 import type { MarkingTask } from '../services/marking/MarkingExecutor.js';
 import { OCRService } from '../services/ocr/OCRService.js';
@@ -299,248 +301,7 @@ const MULTI_IMAGE_STEPS = [
 ];
 
 // Helper function to persist session data to database (reused by both marking and question modes)
-async function persistSessionToDatabase(
-  req: Request,
-  submissionId: string,
-  startTime: number,
-  userMessage: any,
-  aiMessage: any,
-  questionDetection: any,
-  globalQuestionText: string,
-  mode: 'Marking' | 'Question',
-  additionalData?: {
-    allQuestionResults?: any[];
-    markingSchemesMap?: Map<string, any>;
-    files?: Express.Multer.File[];
-    model?: string;
-    usageTokens?: number;
-  }
-): Promise<{ sessionId: string; sessionTitle: string; unifiedSession?: any }> {
-  const { FirestoreService } = await import('../services/firestoreService.js');
-  
-  // Extract request data
-  const userId = (req as any)?.user?.uid || 'anonymous';
-  const userEmail = (req as any)?.user?.email || 'anonymous@example.com';
-  const isAuthenticated = !!(req as any)?.user?.uid;
-  const sessionId = req.body.sessionId || submissionId;
-  const currentSessionId = sessionId.startsWith('temp-') ? submissionId : sessionId;
-  
-  // Create database AI message with detected question data
-  const dbAiMessage = { ...aiMessage };
-  
-  if (mode === 'Marking' && additionalData?.markingSchemesMap) {
-    // Marking mode: use markingSchemesMap data
-    const allQuestionNumbers = Array.from(additionalData.markingSchemesMap.keys());
-    const totalMarks = Array.from(additionalData.markingSchemesMap.values()).reduce((sum, scheme) => sum + (scheme.totalMarks || 0), 0);
-    const firstQuestionScheme = allQuestionNumbers.length > 0 ? additionalData.markingSchemesMap.get(allQuestionNumbers[0]) : null;
-    
-    if (firstQuestionScheme && allQuestionNumbers.length > 0) {
-      const questionNumberDisplay = allQuestionNumbers.length > 1 
-        ? allQuestionNumbers.join(', ') 
-        : allQuestionNumbers[0];
-      
-      // Get the actual question detection data from the first question
-      const firstQuestionDetection = additionalData.markingSchemesMap.get(allQuestionNumbers[0]);
-      const actualQuestionData = firstQuestionDetection?.questionDetection || null;
-      
-      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
-        additionalData.allQuestionResults || [],
-        additionalData.markingSchemesMap,
-        globalQuestionText,
-        {
-          useQuestionDetection: true,
-          questionNumberDisplay: questionNumberDisplay,
-          totalMarks: totalMarks
-        }
-      );
-    } else {
-      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
-        additionalData.allQuestionResults || [],
-        additionalData.markingSchemesMap,
-        globalQuestionText
-      );
-    }
-  } else if (mode === 'Question') {
-    // Question mode: use questionDetection data
-    if (questionDetection?.found) {
-      // Found matching past paper
-      (dbAiMessage as any).detectedQuestion = {
-        found: true,
-        questionText: globalQuestionText || '',
-        questionNumber: questionDetection.match?.questionNumber || '',
-        subQuestionNumber: '',
-        examBoard: questionDetection.match?.board || '',
-        examCode: questionDetection.match?.paperCode || '',
-        paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.qualification || '',
-        tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || '',
-        marks: questionDetection.match?.marks,
-        markingScheme: questionDetection.match?.markingScheme?.questionMarks ? JSON.stringify(questionDetection.match.markingScheme.questionMarks) : ''
-      };
-    } else {
-      // No matching past paper found, but still show question text for question mode
-      (dbAiMessage as any).detectedQuestion = {
-        found: false,
-        questionText: globalQuestionText || '',
-        questionNumber: '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: 0,
-        markingScheme: ''
-      };
-    }
-  }
-  
-  // Generate session title
-  const { generateSessionTitle } = await import('../services/marking/MarkingHelpers.js');
-  let sessionTitle: string;
-  
-  if (mode === 'Marking' && additionalData?.markingSchemesMap) {
-    const allQuestionNumbers = Array.from(additionalData.markingSchemesMap.keys());
-    const totalMarks = Array.from(additionalData.markingSchemesMap.values()).reduce((sum, scheme) => sum + (scheme.totalMarks || 0), 0);
-    const firstQuestionScheme = allQuestionNumbers.length > 0 ? additionalData.markingSchemesMap.get(allQuestionNumbers[0]) : null;
-    
-    if (allQuestionNumbers.length > 0 && firstQuestionScheme) {
-      const questionNumberDisplay = allQuestionNumbers.length > 1 
-        ? allQuestionNumbers.join(', ') 
-        : allQuestionNumbers[0];
-      
-      // Use actual exam board data from question detection
-      const firstQuestionDetection = firstQuestionScheme.questionDetection;
-      if (firstQuestionDetection?.match) {
-        const { board, qualification, paperCode, year, tier } = firstQuestionDetection.match;
-        sessionTitle = `${board} ${qualification} ${paperCode} (${year}) Tier ${tier} Q${questionNumberDisplay} ${totalMarks} marks`;
-      } else {
-        sessionTitle = generateSessionTitle(null, globalQuestionText, 'Marking');
-      }
-    } else {
-      sessionTitle = generateSessionTitle(null, globalQuestionText, 'Marking');
-    }
-  } else {
-    sessionTitle = generateSessionTitle(questionDetection, globalQuestionText, mode);
-  }
-  
-  // Persist to database for authenticated users
-  if (isAuthenticated) {
-    if (sessionId && !sessionId.startsWith('temp-')) {
-      // Check if session exists before trying to add messages
-      try {
-        const sessionExists = await FirestoreService.getUnifiedSession(currentSessionId);
-        if (sessionExists) {
-          // Adding to existing session
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage);
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, dbAiMessage);
-        } else {
-          // Session doesn't exist, create new one
-          console.log(`🔍 [PERSISTENCE] Session ${currentSessionId} not found, creating new session`);
-          const sessionStats = {
-            totalProcessingTimeMs: Date.now() - startTime,
-            lastModelUsed: additionalData?.model || 'auto',
-            lastApiUsed: `unified_${mode.toLowerCase()}_pipeline`,
-            totalLlmTokens: additionalData?.usageTokens || 0,
-            totalMathpixCalls: 0,
-            totalTokens: additionalData?.usageTokens || 0,
-            averageConfidence: 0,
-            imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
-            totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
-          };
-          
-          await FirestoreService.createUnifiedSessionWithMessages({
-            sessionId: currentSessionId,
-            title: sessionTitle,
-            userId: userId,
-            messageType: mode,
-            messages: [userMessage, dbAiMessage],
-            isPastPaper: false,
-            sessionStats
-          });
-        }
-      } catch (error) {
-        console.error(`❌ [PERSISTENCE] Error checking session existence:`, error);
-        // Fallback: create new session
-        const sessionStats = {
-          totalProcessingTimeMs: Date.now() - startTime,
-          lastModelUsed: additionalData?.model || 'auto',
-          lastApiUsed: `unified_${mode.toLowerCase()}_pipeline`,
-          totalLlmTokens: additionalData?.usageTokens || 0,
-          totalMathpixCalls: 0,
-          totalTokens: additionalData?.usageTokens || 0,
-          averageConfidence: 0,
-          imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
-          totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
-        };
-        
-        await FirestoreService.createUnifiedSessionWithMessages({
-          sessionId: currentSessionId,
-          title: sessionTitle,
-          userId: userId,
-          messageType: mode,
-          messages: [userMessage, dbAiMessage],
-          isPastPaper: false,
-          sessionStats
-        });
-      }
-    } else {
-      // Creating new session
-      const sessionStats = {
-        totalProcessingTimeMs: Date.now() - startTime,
-        lastModelUsed: additionalData?.model || 'auto',
-        lastApiUsed: `unified_${mode.toLowerCase()}_pipeline`,
-        totalLlmTokens: additionalData?.usageTokens || 0,
-        totalMathpixCalls: 0,
-        totalTokens: additionalData?.usageTokens || 0,
-        averageConfidence: 0,
-        imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
-        totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
-      };
-      
-      await FirestoreService.createUnifiedSessionWithMessages({
-        sessionId: currentSessionId,
-        title: sessionTitle,
-        userId: userId,
-        messageType: mode,
-        messages: [userMessage, dbAiMessage],
-        isPastPaper: false,
-        sessionStats
-      });
-    }
-  }
-  
-  // Create unified session data for frontend
-  const unifiedSession = isAuthenticated ? {
-    id: currentSessionId,
-    title: sessionTitle,
-    messages: [userMessage, dbAiMessage],
-    userId: userId,
-    messageType: mode,
-    createdAt: userMessage.timestamp,
-    updatedAt: dbAiMessage.timestamp,
-    isPastPaper: false,
-    sessionStats: {
-      totalProcessingTimeMs: Date.now() - startTime,
-      lastModelUsed: additionalData?.model || 'auto',
-      lastApiUsed: `unified_${mode.toLowerCase()}_pipeline`,
-      totalLlmTokens: additionalData?.usageTokens || 0,
-      totalMathpixCalls: 0,
-      totalTokens: additionalData?.usageTokens || 0,
-      averageConfidence: 0,
-      imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
-      totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
-    }
-  } : undefined;
-  
-  return {
-    sessionId: currentSessionId,
-    sessionTitle,
-    unifiedSession
-  };
-}
+// Session management is now handled by SessionManagementService
 
 
 // Helper functions are now imported from '../utils/markingRouterHelpers.js'
@@ -925,25 +686,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           fileName: standardizedPages[0].originalFileName || 'question-image.png'
         });
         
-        // Use the reusable persistence function
-        persistenceResult = await persistSessionToDatabase(
+        // Use the new session management service
+        const questionContext: QuestionSessionContext = {
           req,
           submissionId,
           startTime,
           userMessage,
           aiMessage,
           questionDetection,
-          globalQuestionText || '',
-          'Question',
-          {
-            model: actualModel,
-            usageTokens: aiResponse.usageTokens || 0,
-            files: [{
-              size: standardizedPages[0].imageData.length,
-              originalname: standardizedPages[0].originalFileName || 'question-image.png'
-            } as Express.Multer.File]
-          }
-        );
+          globalQuestionText: globalQuestionText || '',
+          mode: 'Question'
+        };
+        
+        persistenceResult = await SessionManagementService.persistQuestionSession(questionContext);
         
         // Update the AI message with session data
         (aiMessage as any).sessionId = persistenceResult.sessionId;
@@ -1391,23 +1146,24 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       (dbAiMessage as any).timestamp = aiTimestamp;
       
       // Use the reusable persistence function
-      persistenceResult = await persistSessionToDatabase(
+      // Use the new session management service
+      const markingContext: MarkingSessionContext = {
         req,
         submissionId,
         startTime,
-        dbUserMessage,
-        dbAiMessage,
-        null, // No single questionDetection for marking mode
-        globalQuestionText || '',
-        'Marking',
-        {
-          allQuestionResults,
-          markingSchemesMap,
-          files,
-          model: actualModel,
-          usageTokens: 0 // Will be calculated from individual results if available
-        }
-      );
+        userMessage: dbUserMessage,
+        aiMessage: dbAiMessage,
+        questionDetection: null, // No single questionDetection for marking mode
+        globalQuestionText: globalQuestionText || '',
+        mode: 'Marking',
+        allQuestionResults,
+        markingSchemesMap,
+        files,
+        model: actualModel,
+        usageTokens: 0 // Will be calculated from individual results if available
+      };
+      
+      persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
       
       // For authenticated users, use the unifiedSession from persistence
       if (isAuthenticated) {
