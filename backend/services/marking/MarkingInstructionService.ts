@@ -47,6 +47,16 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     return normalized;
   }
   
+  // ========================= UNIFIED PIPELINE FORMAT =========================
+  if (input.questionMarks && input.totalMarks !== undefined) {
+    const normalized = {
+      marks: Array.isArray(input.questionMarks) ? input.questionMarks : [],
+      totalMarks: input.totalMarks,
+      questionNumber: input.questionNumber || '1'
+    };
+    return normalized;
+  }
+  
   // ========================= FALLBACK: MATCH OBJECT FORMAT =========================
   if (input.match?.markingScheme?.questionMarks) {
     console.log("  - match.marks:", input.match.marks);
@@ -95,6 +105,9 @@ export interface MarkingInputs {
   model: ModelType;
   processedImage: ProcessedImageResult;
   questionDetection?: any;
+  questionMarks?: any;
+  totalMarks?: number;
+  questionNumber?: string;
 }
 
 export class MarkingInstructionService {
@@ -135,7 +148,8 @@ export class MarkingInstructionService {
       const annotationData = await this.generateFromOCR(
         model,
         cleanedOcrText, // Use the plain text directly instead of JSON
-        normalizedScheme // Pass the normalized scheme instead of raw questionDetection
+        normalizedScheme, // Pass the normalized scheme instead of raw questionDetection
+        questionDetection?.match // Pass exam info for logging
       );
       
       if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
@@ -192,7 +206,8 @@ export class MarkingInstructionService {
   static async generateFromOCR(
     model: ModelType,
     ocrText: string,
-    normalizedScheme?: NormalizedMarkingScheme | null
+    normalizedScheme?: NormalizedMarkingScheme | null,
+    examInfo?: any
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -255,13 +270,23 @@ export class MarkingInstructionService {
     
     // ========================== END: USE SINGLE PROMPT ==========================
 
-    // Log what's being sent to AI for debugging
-    console.log('📝 [AI PROMPT] OCR Text (first 200 chars):', formattedOcrText.substring(0, 200) + '...');
+    // Log what's being sent to AI for debugging with better formatting
+    const ocrPreview = formattedOcrText.length > 200 ? formattedOcrText.substring(0, 200) + '...' : formattedOcrText;
+    console.log('📝 [AI PROMPT] OCR Text:');
+    console.log('\x1b[36m' + ocrPreview + '\x1b[0m'); // Cyan color
+    
     if (hasMarkingScheme) {
-      // Convert JSON marking scheme to plain text bullets for logging
+      // Convert JSON marking scheme to clean bulleted list format for logging
       const schemePlainText = formatMarkingSchemeAsBullets(JSON.stringify({ marks: normalizedScheme.marks }, null, 2));
-      console.log('📝 [AI PROMPT] Marking Scheme (plain text):');
-      console.log(schemePlainText);
+      const schemePreview = schemePlainText.length > 300 ? schemePlainText.substring(0, 300) + '...' : schemePlainText;
+      
+      console.log('📝 [AI PROMPT] Marking Scheme:');
+      console.log('\x1b[33m' + schemePreview + '\x1b[0m'); // Yellow color
+      console.log('📝 [AI PROMPT] Exam Stats:');
+      // Extract exam information from the marking scheme
+      // The examInfo is passed from the markingScheme.questionDetection.match
+      const examStats = `${examInfo?.board || 'Unknown'} ${examInfo?.qualification || ''} ${examInfo?.paperCode || ''} (${examInfo?.year || ''}) Q${normalizedScheme.questionNumber} | ${normalizedScheme.totalMarks} marks | ${normalizedScheme.marks.length} criteria`;
+      console.log('\x1b[32m' + examStats + '\x1b[0m'); // Green color
     } else {
       console.log('📝 [AI PROMPT] No marking scheme - using basic prompt');
     }
@@ -286,11 +311,11 @@ export class MarkingInstructionService {
 
       const parsedResponse = JSON.parse(jsonString);
 
-      // Log clean AI response
+      // Log clean AI response with better formatting
       console.log('🤖 [AI RESPONSE] Clean response received:');
-      console.log('  - Annotations count:', parsedResponse.annotations?.length || 0);
-      console.log('  - Student score:', parsedResponse.studentScore || 'None');
-      console.log('  - Usage tokens:', usageTokens);
+      console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
+      console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
+      console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
 
       // Return the correct MarkingInstructions structure
       const markingResult = {

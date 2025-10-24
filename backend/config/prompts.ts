@@ -374,9 +374,9 @@ export const AI_PROMPTS = {
            }
          ],
          "studentScore": {
-           "totalMarks": 6,
+           "totalMarks": [USE PROVIDED TOTAL MARKS],
            "awardedMarks": 4,
-           "scoreText": "4/6"
+           "scoreText": "4/[USE PROVIDED TOTAL MARKS]"
          }
        }
 
@@ -388,9 +388,10 @@ export const AI_PROMPTS = {
        5.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
-       1.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
-       2.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
-       3.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
+       1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
+       2.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
+       3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
+       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
       user: (ocrText: string, schemeJson: string, totalMarks?: number) => {
         // Convert JSON marking scheme to clean bulleted list format

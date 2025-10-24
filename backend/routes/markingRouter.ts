@@ -77,10 +77,6 @@ const extractQuestionsFromClassification = (
       text: q.text || ''
     }));
     
-    console.log('🔍 [DEBUG] Using questions array from classification:', {
-      count: questions.length,
-      questions: questions.map(q => ({ textLength: q.text.length }))
-    });
     return questions;
   }
   
@@ -91,7 +87,6 @@ const extractQuestionsFromClassification = (
     }];
   }
   
-  console.log('🔍 [DEBUG] No questions found in classification');
   return [];
 };
 
@@ -380,6 +375,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     
     sendSseUpdate(res, createProgressData(0, `Received ${files.length} file(s). Validating...`, MULTI_IMAGE_STEPS));
+    const logInputValidationComplete = logStep('Input Validation', 'validation');
 
     // --- Input Type Detection (Prioritize PDF) ---
     const firstMime = files[0]?.mimetype || 'unknown';
@@ -399,6 +395,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     const inputType = isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image';
     sendSseUpdate(res, createProgressData(0, `Input validated (${inputType}).`, MULTI_IMAGE_STEPS));
+    logInputValidationComplete();
 
     // --- Declare variables at proper scope ---
     let standardizedPages: StandardizedPage[] = [];
@@ -567,11 +564,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Preprocessing (Common for Multi-Page PDF & Multi-Image) ---
     sendSseUpdate(res, createProgressData(2, `Preprocessing ${standardizedPages.length} image(s)...`, MULTI_IMAGE_STEPS));
+    const logPreprocessingComplete = logStep('Preprocessing', 'image-processing');
     const preprocessedImageDatas = await Promise.all(
       standardizedPages.map(page => ImageUtils.preProcess(page.imageData))
     );
     standardizedPages.forEach((page, i) => page.imageData = preprocessedImageDatas[i]);
     sendSseUpdate(res, createProgressData(2, 'Image preprocessing complete.', MULTI_IMAGE_STEPS));
+    logPreprocessingComplete();
 
     // ========================= START: IMPLEMENT STAGE 2 =========================
     // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
@@ -892,19 +891,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-    console.log('🔍 [DEBUG] Starting question detection for', individualQuestions.length, 'questions');
     for (const question of individualQuestions) {
-        console.log('🔍 [DEBUG] Processing question with text length:', question.text.length);
         const detectionResult = await questionDetectionService.detectQuestion(question.text);
         
-        // Debug logging for question detection results
-        console.log('🔍 [DEBUG] Question detection result:', {
-            found: detectionResult.found,
-            hasMatch: !!detectionResult.match,
-            hasMarkingScheme: !!detectionResult.match?.markingScheme,
-            questionNumber: detectionResult.match?.questionNumber,
-            marks: detectionResult.match?.marks
-        });
         
         if (detectionResult.found && detectionResult.match?.markingScheme) {
             // Use the actual question number from database (Q13, Q14, etc.) not temporary ID
@@ -932,15 +921,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     logQuestionDetectionComplete();
     
     // Debug logging for markingSchemesMap
-    console.log('🔍 [DEBUG] markingSchemesMap after question detection:', {
-        size: markingSchemesMap.size,
-        keys: Array.from(markingSchemesMap.keys()),
-        values: Array.from(markingSchemesMap.values()).map(v => ({
-            questionNumber: v.questionNumber,
-            totalMarks: v.totalMarks,
-            hasQuestionMarks: !!v.questionMarks
-        }))
-    });
+    console.log('🔍 [DETECTED QUESTION DEBUG] markingSchemesMap entries:');
+    for (const [key, value] of markingSchemesMap.entries()) {
+      console.log(`  - Key: ${key}, Value:`, {
+        questionNumber: value.questionNumber,
+        totalMarks: value.totalMarks,
+        hasQuestionMarks: value.hasQuestionMarks,
+        match: value.questionDetection?.match ? {
+          examBoard: value.questionDetection.match.board,
+          examCode: value.questionDetection.match.paperCode,
+          subject: value.questionDetection.match.qualification,
+          year: value.questionDetection.match.year,
+          tier: value.questionDetection.match.tier
+        } : 'no match'
+      });
+    }
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
@@ -948,6 +943,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= START: IMPLEMENT STAGE 3 =========================
     // --- Stage 3: Consolidation & Segmentation ---
     sendSseUpdate(res, createProgressData(5, 'Segmenting work by question...', MULTI_IMAGE_STEPS));
+    const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
     // Call the segmentation function
     markingTasks = await segmentOcrResultsByQuestion(
@@ -971,6 +967,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       return; // Exit early
     }
     sendSseUpdate(res, createProgressData(5, `Segmentation complete. Identified student work for ${markingTasks.length} question(s).`, MULTI_IMAGE_STEPS));
+    logSegmentationComplete();
     // ========================== END: IMPLEMENT STAGE 3 ==========================
 
     // ========================= START: ADD SCHEME TO TASKS =========================
@@ -993,6 +990,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= START: IMPLEMENT STAGE 4 =========================
     // --- Stage 4: Marking (Single or Parallel) ---
     sendSseUpdate(res, createProgressData(6, `Marking ${tasksWithSchemes.length} question(s)...`, MULTI_IMAGE_STEPS));
+    const logMarkingComplete = logStep('Marking', 'ai-marking');
 
     // Call the refactored function for each task (works for 1 or many)
     const allQuestionResults: QuestionResult[] = await withPerformanceLogging(
@@ -1006,11 +1004,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     );
     sendSseUpdate(res, createProgressData(6, 'All questions marked.', MULTI_IMAGE_STEPS));
+    logMarkingComplete();
     // ========================== END: IMPLEMENT STAGE 4 ==========================
 
     // ========================= START: IMPLEMENT STAGE 5 =========================
     // --- Stage 5: Aggregation & Output ---
     sendSseUpdate(res, createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
+    const logOutputGenerationComplete = logStep('Output Generation', 'output-generation');
     
     const logAnnotationComplete = logStep('Image Annotation', 'svg-overlay');
 
@@ -1035,10 +1035,30 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
 
 
-    // --- Calculate Overall Score (Example) ---
+    // --- Calculate Overall Score and Per-Page Scores ---
     const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
     const totalPossibleScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.totalMarks || 0), 0);
-    const overallScoreText = `${overallScore}/${totalPossibleScore}`; // Adjust if total marks aren't directly summable
+    const overallScoreText = `${overallScore}/${totalPossibleScore}`;
+    
+    // Calculate per-page scores
+    const pageScores: { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } = {};
+    allQuestionResults.forEach((qr, index) => {
+      const question = classificationResult.questions[index];
+      const pageIndex = question?.sourceImageIndex ?? 0;
+      
+      if (!pageScores[pageIndex]) {
+        pageScores[pageIndex] = { awarded: 0, total: 0, scoreText: '' };
+      }
+      
+      pageScores[pageIndex].awarded += qr.score?.awardedMarks || 0;
+      pageScores[pageIndex].total += qr.score?.totalMarks || 0;
+    });
+    
+    // Generate score text for each page
+    Object.keys(pageScores).forEach(pageIndex => {
+      const pageScore = pageScores[parseInt(pageIndex)];
+      pageScore.scoreText = `${pageScore.awarded}/${pageScore.total}`;
+    });
 
     // --- Parallel Annotation Drawing using SVGOverlayService ---
     sendSseUpdate(res, createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
@@ -1046,8 +1066,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const pageIndex = page.pageIndex;
         const annotationsForThisPage = annotationsByPage[pageIndex] || [];
         const imageDimensions = { width: page.width, height: page.height };
-        // Draw score only on the last page (adjust logic if needed)
-        const scoreToDraw = (pageIndex === standardizedPages.length - 1) ? { scoreText: overallScoreText } : undefined;
+        // Draw per-page score on each page
+        const pageScore = pageScores[pageIndex];
+        const scoreToDraw = pageScore ? { 
+          scoreText: pageScore.scoreText 
+        } : undefined;
 
         // Log exactly what's being sent to the drawing service
 
@@ -1342,6 +1365,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       
       // --- Send FINAL Complete Event ---
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
+      logOutputGenerationComplete();
       
       // --- Performance Summary (reuse original design) ---
       const totalProcessingTime = Date.now() - startTime;
