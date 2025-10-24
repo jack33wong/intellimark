@@ -256,21 +256,8 @@ class SimpleSessionService {
           imageDataArray: Array.isArray(data.annotatedOutput) ? data.annotatedOutput : [data.annotatedOutput],
           // Store the detailed results
           resultsByQuestion: data.resultsByQuestion,
-          // Add detectedQuestion data for exam paper tab
-          detectedQuestion: data.resultsByQuestion.length > 0 ? {
-            found: true,
-            questionText: data.resultsByQuestion[0].feedback || '',
-            questionNumber: data.resultsByQuestion[0].questionNumber || '',
-            subQuestionNumber: '',
-            examBoard: 'Pearson Edexcel', // Default values - should be extracted from detection
-            examCode: '1MA1/2F',
-            paperTitle: 'Mathematics',
-            subject: 'Mathematics',
-            tier: 'Foundation Tier',
-            year: '2022',
-            marks: data.resultsByQuestion[0].score?.totalMarks || 0,
-            markingScheme: ''
-          } : {
+          // Use detectedQuestion data from backend (not from resultsByQuestion)
+          detectedQuestion: data.detectedQuestion || {
             found: false,
             questionText: '',
             questionNumber: '',

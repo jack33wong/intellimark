@@ -11,6 +11,7 @@ import {
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword 
 } from 'firebase/auth';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 
 interface AppUser extends User {
   isAdmin?: boolean; 
@@ -71,6 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 👇 FIX 2: Remove the token from localStorage on logout.
         localStorage.removeItem('authToken');
         setUser(null);
+        // 👇 FIX 3: Emit USER_LOGGED_OUT event to clear chat history
+        EventManager.dispatch(EVENT_TYPES.USER_LOGGED_OUT, {});
       }
       setLoading(false);
     });
@@ -86,6 +89,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async (): Promise<void> => {
     if (!auth) return;
+    // Emit logout event immediately before Firebase signOut
+    EventManager.dispatch(EVENT_TYPES.USER_LOGGED_OUT, {});
     await signOut(auth);
   };
   
