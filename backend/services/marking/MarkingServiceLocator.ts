@@ -68,24 +68,28 @@ export class MarkingServiceLocator {
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
     } else if (chatHistory.length > 0) {
-      // For simple math problems, limit context to avoid confusion
-      const isSimpleMath = /^[\d\s\+\-\*\/\(\)\.]+$/.test(message.trim());
-      
-      if (isSimpleMath) {
-        // For simple math, use minimal context (only last 1 message)
-        contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-1).map(item => `${item.role}: ${item.content}`).join('\n')}`;
-      } else {
-        // For complex problems, use normal context (last 3 messages)
-        contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
-      }
+      // Always provide context - let the AI decide what's relevant
+      contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;
+      console.log('🔍 DEBUG: Providing context, AI will determine relevance');
     }
 
     const userPrompt = getPrompt('marking.contextual.user', message, contextPrompt);
 
+    // E2E DEBUG: Before external API call
+    console.log('🔍 E2E DEBUG: About to call external AI API:');
+    console.log('🔍 E2E DEBUG: - systemPrompt:', systemPrompt);
+    console.log('🔍 E2E DEBUG: - userPrompt:', userPrompt);
+    console.log('🔍 E2E DEBUG: - model:', model);
+    console.log('🔍 E2E DEBUG: - contextPrompt length:', contextPrompt.length);
 
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
+      
+      // E2E DEBUG: AI response received
+      console.log('🔍 E2E DEBUG: AI API response received:');
+      console.log('🔍 E2E DEBUG: - response:', response.content);
+      console.log('🔍 E2E DEBUG: - response length:', response.content.length);
       
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);

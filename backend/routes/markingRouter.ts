@@ -906,6 +906,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Create AI message for question mode
       const aiMessage = createAIMessage({
         content: aiResponse.response,
+        progressData: {
+          currentStepDescription: 'Question analysis complete',
+          allSteps: MULTI_IMAGE_STEPS,
+          currentStepIndex: 7,
+          isComplete: true
+        },
         suggestedFollowUps: suggestedFollowUps,
         processingStats: {
           totalProcessingTime: Date.now() - startTime,
@@ -1266,6 +1272,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const customText = req.body.customText;
       const model = req.body.model || 'auto';
       
+      // Debug logging to see what's being received
+      console.log('🔍 DEBUG: Received customText:', customText);
+      console.log('🔍 DEBUG: customText type:', typeof customText);
+      console.log('🔍 DEBUG: customText truthy:', !!customText);
+      
       // Resolve actual model if 'auto' is specified
       if (model === 'auto') {
         const { getDefaultModel } = await import('../config/aiModels.js');
@@ -1299,8 +1310,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
 
       // Create user message for database
+      const messageContent = customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`);
+      console.log('🔍 DEBUG: Creating user message with content:', messageContent);
+      console.log('🔍 DEBUG: Using customText:', !!customText);
+      
       const dbUserMessage = createUserMessage({
-        content: customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`),
+        content: messageContent,
         imageData: !isAuthenticated && files.length === 1 ? files[0].buffer.toString('base64') : undefined,
         imageDataArray: !isAuthenticated && files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
         originalFileName: files.length === 1 ? files[0]?.originalname : files.map(f => f.originalname).join(', '),
@@ -1394,6 +1409,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
              questionNumber: qr.questionNumber,
              score: qr.score,
              feedback: qr.feedback,
+             annotations: qr.annotations, // Include annotations for frontend processing
         })),
         annotatedOutput: finalAnnotatedOutput,
         outputFormat: outputFormat,

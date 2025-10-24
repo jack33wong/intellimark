@@ -176,6 +176,14 @@ export const AI_PROMPTS = {
       You will receive a message from the student and their chat history for context.
       ALWAYS solve the math problem directly. Do NOT ask questions or ask for clarification.
       
+      CRITICAL CONTEXT HANDLING RULES:
+      - ALWAYS focus ONLY on the current math question being asked
+      - If the previous conversation context is about a completely different math topic, IGNORE IT completely
+      - Do NOT let previous complex problems (like compound interest, sequences, etc.) influence your answer to simple questions
+      - For simple arithmetic questions like "what is 2 + 2?", provide a direct, simple answer regardless of any complex context
+      - Only use previous context if it's directly relevant to the current question
+      - If in doubt, ignore the context and solve the current question independently
+      
       RESPONSE FORMAT REQUIREMENTS:
       - Use Markdown formatting
       - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
@@ -195,6 +203,8 @@ export const AI_PROMPTS = {
       Return a clear, step-by-step solution with minimal explanatory text.`,
 
       user: (message: string, contextPrompt: string) => `Math problem: "${message}"${contextPrompt}
+      
+      IMPORTANT: Focus ONLY on the current math problem above. If the previous conversation context is about a different topic, ignore it completely and solve only the current question.
       
       Solve this problem step by step. Show your work and give the final answer. Do not ask questions.`
     }
