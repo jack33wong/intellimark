@@ -83,7 +83,7 @@ export function createDetectedQuestionData(
 export function generateSessionTitle(detectedQuestion: any): string {
   if (detectedQuestion?.found) {
     const { examBoard, subject, examCode, year, tier, questionNumber, marks } = detectedQuestion;
-    return `${examBoard} ${subject} ${examCode} (${year}) Tier ${tier} Q${questionNumber} ${marks} marks`;
+    return `${examBoard} ${subject} ${examCode} (${year}) Q${questionNumber} ${marks} marks`;
   }
   return 'Processing...';
 }

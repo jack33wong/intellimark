@@ -28,6 +28,42 @@ function createDefaultDetectedQuestion(): DetectedQuestion {
   };
 }
 
+/**
+ * Check if a DetectedQuestion object is empty (all default values)
+ */
+function isEmptyDetectedQuestion(detectedQuestion: DetectedQuestion): boolean {
+  return (
+    !detectedQuestion.found &&
+    !detectedQuestion.questionText &&
+    !detectedQuestion.examBoard &&
+    !detectedQuestion.examCode &&
+    !detectedQuestion.paperTitle &&
+    !detectedQuestion.subject &&
+    !detectedQuestion.tier &&
+    !detectedQuestion.year &&
+    detectedQuestion.marks === 0 &&
+    !detectedQuestion.markingScheme
+  );
+}
+
+/**
+ * Check if processing stats are empty (all default/zero values)
+ * For user messages, we consider stats empty if they only contain default values
+ */
+function isEmptyProcessingStats(stats: any): boolean {
+  return (
+    stats.processingTimeMs === 0 &&
+    stats.annotations === 0 &&
+    stats.confidence === 0 &&
+    stats.llmTokens === 0 &&
+    stats.mathpixCalls === 0 &&
+    stats.ocrMethod === 'Chat' &&
+    // For user messages, imageSize can be 0 (no image) or > 0 (has image)
+    // We only exclude if it's 0 AND there's no actual processing done
+    (stats.imageSize === 0 || stats.imageSize === undefined)
+  );
+}
+
 // ============================================================================
 // CONTENT HASH GENERATION
 // ============================================================================
@@ -187,7 +223,22 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     originalPdfLink
   } = options;
 
-  return {
+  // Create default objects
+  const defaultDetectedQuestion = createDefaultDetectedQuestion();
+  const defaultProcessingStats = {
+    processingTimeMs: 0,
+    modelUsed: model,
+    annotations: 0,
+    imageSize: imageData ? imageData.length : 0,
+    confidence: 0,
+    llmTokens: 0,
+    mathpixCalls: 0,
+    ocrMethod: 'Chat',
+    apiUsed: 'Unknown API' // Will be overridden with real values when available
+  };
+
+  // Build the message object
+  const message: UnifiedMessage = {
     // CRITICAL: Always pass Date.now() to ensure unique IDs for identical content
     // DO NOT remove Date.now() - this prevents duplicate message ID conflicts
     id: messageId || generateUserMessageId(content, Date.now()),
@@ -199,24 +250,27 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     imageLink: imageLink,
     imageData: imageData,
     imageDataArray: imageDataArray,
-    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (imageDataArray ? 'uploaded-images' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null))),
-    detectedQuestion: createDefaultDetectedQuestion(),
-    processingStats: {
-      processingTimeMs: 0,
-      modelUsed: model,
-      annotations: 0,
-      imageSize: imageData ? imageData.length : 0,
-      confidence: 0,
-      llmTokens: 0,
-      mathpixCalls: 0,
-      ocrMethod: 'Chat'
-    },
-    // Add PDF context if applicable
-    ...(originalFileType === 'pdf' ? {
-      originalFileType: 'pdf',
-      originalPdfLink: originalPdfLink
-    } : {})
+    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (imageDataArray ? 'uploaded-images' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null)))
   };
+
+  // Only include detectedQuestion if it has meaningful data
+  if (!isEmptyDetectedQuestion(defaultDetectedQuestion)) {
+    message.detectedQuestion = defaultDetectedQuestion;
+  }
+
+  // Only include processingStats if it has meaningful data
+  // For user messages, include if there's image data or other meaningful stats
+  if (imageData || imageDataArray || !isEmptyProcessingStats(defaultProcessingStats)) {
+    message.processingStats = defaultProcessingStats;
+  }
+
+  // Add PDF context if applicable
+  if (originalFileType === 'pdf') {
+    (message as any).originalFileType = 'pdf';
+    (message as any).originalPdfLink = originalPdfLink;
+  }
+
+  return message;
 }
 
 /**
@@ -250,7 +304,23 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     messageType = 'chat';
   }
 
-  return {
+  // Create default objects
+  const defaultDetectedQuestion = createDefaultDetectedQuestion();
+  const defaultProcessingStats = {
+    processingTimeMs: 0,
+    modelUsed: 'auto',
+    annotations: 0,
+    imageSize: imageData ? imageData.length : 0,
+    confidence: 0,
+    llmTokens: 0,
+    mathpixCalls: 0,
+    ocrMethod: 'Chat',
+    apiUsed: 'Unknown API', // Will be overridden with real values when available
+    ...processingStats
+  };
+
+  // Build the message object
+  const message: UnifiedMessage = {
     id: messageId || generateAIMessageId(content),
     messageId: messageId || generateAIMessageId(content),
     role: 'assistant',
@@ -263,20 +333,21 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
       ? (isQuestionOnly ? originalFileName : `annotated_${originalFileName}`)
       : (isQuestionOnly ? null : 'annotated-image.png')),
     progressData: progressData,
-    detectedQuestion: createDefaultDetectedQuestion(),
-    processingStats: {
-      processingTimeMs: 0,
-      modelUsed: 'auto',
-      annotations: 0,
-      imageSize: imageData ? imageData.length : 0,
-      confidence: 0,
-      llmTokens: 0,
-      mathpixCalls: 0,
-      ocrMethod: 'Chat',
-      ...processingStats
-    },
     suggestedFollowUps: suggestedFollowUps
   };
+
+  // Only include detectedQuestion if it has meaningful data
+  if (!isEmptyDetectedQuestion(defaultDetectedQuestion)) {
+    message.detectedQuestion = defaultDetectedQuestion;
+  }
+
+  // Only include processingStats if it has meaningful data
+  // For AI messages, include if there's image data or other meaningful stats
+  if (imageData || imageDataArray || !isEmptyProcessingStats(defaultProcessingStats)) {
+    message.processingStats = defaultProcessingStats;
+  }
+
+  return message;
 }
 
 // ============================================================================
@@ -294,6 +365,118 @@ export function createChatProgressData(isComplete: boolean = false) {
     currentStepDescription: isComplete ? 'Generating response...' : 'AI is thinking...',
     allSteps: isComplete ? ['AI is thinking...', 'Generating response...'] : ['AI is thinking...'],
     currentStepIndex: isComplete ? 1 : 0 // Use new format with currentStepIndex
+  };
+}
+
+// ============================================================================
+// PROCESSING STATS CALCULATION (Reusing existing logic)
+// ============================================================================
+
+/**
+ * Calculate real processing stats for a message (reusing logic from originalPipeline.ts)
+ */
+export function calculateMessageProcessingStats(
+  aiResponse: any,
+  actualModel: string,
+  processingTimeMs: number,
+  annotations: any[] = [],
+  imageSize: number = 0,
+  questionResults: any[] = []
+): any {
+  // Get real API name (reusing logic from sessionManagementService.ts)
+  const getRealApiName = (modelName: string): string => {
+    if (modelName.includes('gemini')) {
+      return 'Google Gemini API';
+    }
+    return 'Unknown API';
+  };
+
+  // Get real model name (reusing logic from sessionManagementService.ts)
+  const getRealModelName = (modelType: string): string => {
+    if (modelType === 'auto') {
+      return 'gemini-2.5-flash'; // Default model for auto
+    }
+    return modelType;
+  };
+
+  const realModel = getRealModelName(actualModel);
+  const realApi = getRealApiName(realModel);
+
+  // Calculate total LLM tokens from question results if available
+  const totalLlmTokens = questionResults.length > 0 
+    ? questionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0)
+    : (aiResponse?.usageTokens || 0);
+
+  // Calculate total mathpix calls from question results if available
+  const totalMathpixCalls = questionResults.length > 0 
+    ? questionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0)
+    : 0;
+
+  return {
+    processingTimeMs,
+    modelUsed: realModel,
+    apiUsed: realApi,
+    annotations: annotations.length,
+    imageSize,
+    confidence: aiResponse?.confidence || 0,
+    llmTokens: totalLlmTokens,
+    mathpixCalls: totalMathpixCalls,
+    ocrMethod: 'Google Vision API' // TODO: Get real OCR method from processing
+  };
+}
+
+/**
+ * Calculate session-level totals and averages (reusing logic from originalPipeline.ts)
+ */
+export function calculateSessionStats(
+  allQuestionResults: any[],
+  totalProcessingTimeMs: number,
+  actualModel: string,
+  files: any[] = []
+): any {
+  // Get real API name (reusing logic from sessionManagementService.ts)
+  const getRealApiName = (modelName: string): string => {
+    if (modelName.includes('gemini')) {
+      return 'Google Gemini API';
+    }
+    return 'Unknown API';
+  };
+
+  // Get real model name (reusing logic from sessionManagementService.ts)
+  const getRealModelName = (modelType: string): string => {
+    if (modelType === 'auto') {
+      return 'gemini-2.5-flash'; // Default model for auto
+    }
+    return modelType;
+  };
+
+  const realModel = getRealModelName(actualModel);
+  const realApi = getRealApiName(realModel);
+
+  // Calculate totals (reusing logic from originalPipeline.ts)
+  const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
+  const totalLlmTokens = allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
+  const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
+  const totalTokens = totalLlmTokens + totalMathpixCalls;
+
+  // Calculate average confidence (reusing logic from imageAnnotationService.ts)
+  const confidences = allQuestionResults
+    .map(q => q.confidence || 0)
+    .filter(c => c > 0);
+  const averageConfidence = confidences.length > 0 
+    ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length 
+    : 0;
+
+  return {
+    totalProcessingTimeMs,
+    lastModelUsed: realModel,
+    lastApiUsed: realApi,
+    totalLlmTokens,
+    totalMathpixCalls,
+    totalTokens,
+    averageConfidence,
+    imageSize: files.reduce((sum, f) => sum + f.size, 0),
+    totalAnnotations
   };
 }
 

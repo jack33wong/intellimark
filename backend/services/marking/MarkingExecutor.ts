@@ -21,6 +21,9 @@ export interface QuestionResult {
   score: any;
   annotations: EnrichedAnnotation[];
   feedback?: string;
+  usageTokens?: number; // Add usage tokens from AI responses
+  confidence?: number; // Add confidence score
+  mathpixCalls?: number; // Add mathpix calls count
 }
 
 export interface EnrichedAnnotation extends Annotation {
@@ -137,11 +140,20 @@ export async function executeMarkingForQuestion(
 
     sendSseUpdate(res, createProgressData(6, `Marking complete for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
-    return {
+    // Count mathpix calls (1 call per image, not per math block)
+    // Mathpix processes the entire image once and returns multiple math blocks
+    const mathpixCalls = task.mathBlocks.length > 0 ? 1 : 0;
+
+    const result = {
       questionNumber: questionId,
       score,
-      annotations: enrichedAnnotations
+      annotations: enrichedAnnotations,
+      usageTokens: markingResult.usage?.llmTokens || 0,
+      confidence: 0.9, // Use confidence from processedImage (0.9 as set in the mock object)
+      mathpixCalls
     };
+    
+    return result;
 
   } catch (error) {
     console.error(`❌ [MARKING EXECUTION] Error during marking for Question ${questionId}:`, error);

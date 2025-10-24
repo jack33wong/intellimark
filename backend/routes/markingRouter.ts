@@ -13,7 +13,7 @@ import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
 import sharp from 'sharp';
 import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/sseUtils.js';
-import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
+import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps } from '../services/marking/MarkingHelpers.js';
 import { 
   createDetectedQuestionData, 
@@ -645,7 +645,16 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Complete progress
       sendSseUpdate(res, createProgressData(7, 'Question analysis complete!', MULTI_IMAGE_STEPS));
       
-      // Create AI message for question mode
+      // Create AI message for question mode with real processing stats
+      const realProcessingStats = calculateMessageProcessingStats(
+        aiResponse,
+        actualModel,
+        Date.now() - startTime,
+        [], // No annotations in question mode
+        standardizedPages[0].imageData.length,
+        [] // No question results in question mode
+      );
+
       const aiMessage = createAIMessage({
         content: aiResponse.response,
         progressData: {
@@ -655,11 +664,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           isComplete: true
         },
         suggestedFollowUps: suggestedFollowUps,
-        processingStats: {
-          totalProcessingTime: Date.now() - startTime,
-          llmTokens: aiResponse.usageTokens || 0,
-          mathpixCalls: 0
-        }
+        processingStats: realProcessingStats
       });
       
       // Update AI message with original image (not annotated) and detected question data
@@ -740,17 +745,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           createdAt: userMessage.timestamp,
           updatedAt: aiMessage.timestamp,
           isPastPaper: false,
-          sessionStats: {
-            totalProcessingTimeMs: Date.now() - startTime,
-            lastModelUsed: getRealModelName(actualModel || 'auto'),
-            lastApiUsed: getRealApiName(getRealModelName(actualModel || 'auto')),
-            totalLlmTokens: aiResponse.usageTokens || 0,
-            totalMathpixCalls: 0,
-            totalTokens: aiResponse.usageTokens || 0,
-            averageConfidence: 0,
-            imageSize: standardizedPages[0].imageData.length,
-            totalAnnotations: 0
-          }
+        sessionStats: calculateSessionStats(
+          [], // No question results in question mode
+          Date.now() - startTime,
+          actualModel,
+          standardizedPages
+        )
         };
       }
       
@@ -887,7 +887,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       sendSseUpdate(res, createProgressData(5, 'Segmentation complete. No student work found to mark.', MULTI_IMAGE_STEPS));
       const finalOutput = { 
         submissionId, 
-        resultsByQuestion: [], 
         annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
         outputFormat: isPdf ? 'pdf' : 'images' 
       };
@@ -1104,8 +1103,24 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Override timestamp for database consistency
       (dbUserMessage as any).timestamp = userTimestamp;
       
-      // Create AI message for database
+      // Create AI message for database with real processing stats
       const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, null, 'marking');
+      
+      // Calculate real processing stats for the AI message
+      const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
+      const totalLlmTokens = allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
+      const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
+      const mockAiResponse = { usageTokens: totalLlmTokens, confidence: 0.85 }; // Mock response for calculation
+      
+      const realProcessingStats = calculateMessageProcessingStats(
+        mockAiResponse,
+        actualModel,
+        Date.now() - startTime,
+        allQuestionResults.flatMap(q => q.annotations || []),
+        files.reduce((sum, f) => sum + f.size, 0),
+        allQuestionResults
+      );
+
       dbAiMessage = createAIMessage({
         content: 'Marking completed - see results below',
         messageId: resolvedAIMessageId,
@@ -1117,22 +1132,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           currentStepIndex: 7,
           isComplete: true
         },
-        processingStats: {
-          processingTimeMs: Date.now() - startTime,
-          modelUsed: model,
-          apiUsed: 'unified_marking_pipeline',
-          totalLlmTokens: 0, // Will be calculated from individual results if available
-          totalMathpixCalls: 0, // Will be calculated from individual results if available
-          totalTokens: 0, // Will be calculated from individual results if available
-          averageConfidence: 0, // Will be calculated from individual results if available
-          imageSize: files.reduce((sum, f) => sum + f.size, 0),
-          totalAnnotations: allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0)
-        },
+        processingStats: realProcessingStats,
         suggestedFollowUps: await getSuggestedFollowUps()
       });
       
-      // Add unified pipeline specific data to the AI message
-      (dbAiMessage as any).resultsByQuestion = allQuestionResults;
+      // resultsByQuestion removed - not needed in UnifiedMessage
       
       // Debug logging for markingSchemesMap
       console.log('🔍 [DETECTED QUESTION DEBUG] markingSchemesMap entries:');
@@ -1203,17 +1207,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         createdAt: dbUserMessage?.timestamp || new Date().toISOString(),
         updatedAt: dbAiMessage?.timestamp || new Date().toISOString(),
         isPastPaper: false,
-        sessionStats: {
-          totalProcessingTimeMs: Date.now() - startTime,
-          lastModelUsed: getRealModelName(actualModel || 'auto'),
-          lastApiUsed: getRealApiName(getRealModelName(actualModel || 'auto')),
-          totalLlmTokens: 0, // Will be calculated from individual results if available
-          totalMathpixCalls: 0,
-          totalTokens: 0,
-          averageConfidence: 0,
-          imageSize: files.reduce((sum, f) => sum + f.size, 0),
-          totalAnnotations: allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0)
-        }
+        sessionStats: calculateSessionStats(
+          allQuestionResults,
+          Date.now() - startTime,
+          actualModel,
+          files
+        )
       };
       
       // Debug logging for unauthenticated users
@@ -1233,12 +1232,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const finalOutput = {
         success: true, // Add success flag for frontend compatibility
         submissionId: submissionId,
-        resultsByQuestion: allQuestionResults.map(qr => ({
-             questionNumber: qr.questionNumber,
-             score: qr.score,
-             feedback: qr.feedback,
-             annotations: qr.annotations, // Include annotations for frontend processing
-        })),
+        // Calculate message-specific processing stats (not session-level totals)
+        processingStats: {
+          apiUsed: getRealApiName(getRealModelName(actualModel)),
+          modelUsed: getRealModelName(actualModel),
+          totalMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.totalMarks || 0), 0),
+          awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
+          questionCount: allQuestionResults.length
+        },
         annotatedOutput: finalAnnotatedOutput,
         outputFormat: outputFormat,
         originalInputType: isPdf ? 'pdf' : 'images',

@@ -177,6 +177,7 @@ export class MarkingInstructionService {
         cleanedOcrText: cleanedOcrText,
         studentScore: annotationData.studentScore
       };
+      
       return result;
     } catch (error) {
       console.error('❌ Marking flow failed:', error);
@@ -297,7 +298,6 @@ export class MarkingInstructionService {
           studentScore: parsedResponse.studentScore || null,
           usageTokens
       };
-      
       
       return markingResult;
 

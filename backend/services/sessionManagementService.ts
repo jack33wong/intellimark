@@ -6,6 +6,7 @@
 
 import type { Request } from 'express';
 import { createDetectedQuestionData, generateSessionTitle } from '../utils/markingRouterHelpers.js';
+import { calculateSessionStats } from '../utils/messageUtils.js';
 import type { 
   SessionContext, 
   MarkingSessionContext, 
@@ -277,26 +278,28 @@ export class SessionManagementService {
   }
 
   /**
-   * Create session statistics
+   * Create session statistics using calculateSessionStats
    */
   private static createSessionStats(context: SessionContext): SessionStats {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
     
-    // Get real model and API information
-    const realModel = this.getRealModelName(additionalData?.model || 'auto');
-    const realApi = this.getRealApiName(realModel);
-    
-    return {
-      totalProcessingTimeMs: Date.now() - context.startTime,
-      lastModelUsed: realModel,
-      lastApiUsed: realApi,
-      totalLlmTokens: additionalData?.usageTokens || 0,
-      totalMathpixCalls: 0,
-      totalTokens: additionalData?.usageTokens || 0,
-      averageConfidence: 0,
-      imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
-      totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
-    };
+    if (additionalData) {
+      // For marking mode, use calculateSessionStats with allQuestionResults
+      return calculateSessionStats(
+        additionalData.allQuestionResults,
+        Date.now() - context.startTime,
+        additionalData.model || 'auto',
+        additionalData.files || []
+      );
+    } else {
+      // For question mode, use calculateSessionStats with empty results
+      return calculateSessionStats(
+        [], // No question results in question mode
+        Date.now() - context.startTime,
+        'auto',
+        []
+      );
+    }
   }
 
   /**
