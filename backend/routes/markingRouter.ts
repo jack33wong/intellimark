@@ -24,6 +24,22 @@ import {
 } from '../utils/markingRouterHelpers.js';
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
+
+// Helper functions for real model and API names
+function getRealModelName(modelType: string): string {
+  if (modelType === 'auto') {
+    return 'gemini-2.5-flash'; // Default model for auto
+  }
+  return modelType; // Return the actual model name
+}
+
+function getRealApiName(modelName: string): string {
+  if (modelName.includes('gemini')) {
+    return 'Google Gemini API';
+  }
+  // Add other API mappings as needed
+  return 'Unknown API';
+}
 import type { StandardizedPage, PageOcrResult, MathBlock } from '../types/markingRouter.js';
 import type { MarkingTask } from '../services/marking/MarkingExecutor.js';
 import { OCRService } from '../services/ocr/OCRService.js';
@@ -726,8 +742,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           isPastPaper: false,
           sessionStats: {
             totalProcessingTimeMs: Date.now() - startTime,
-            lastModelUsed: actualModel || 'auto',
-            lastApiUsed: 'unified_question_pipeline',
+            lastModelUsed: getRealModelName(actualModel || 'auto'),
+            lastApiUsed: getRealApiName(getRealModelName(actualModel || 'auto')),
             totalLlmTokens: aiResponse.usageTokens || 0,
             totalMathpixCalls: 0,
             totalTokens: aiResponse.usageTokens || 0,
@@ -1189,8 +1205,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         isPastPaper: false,
         sessionStats: {
           totalProcessingTimeMs: Date.now() - startTime,
-          lastModelUsed: actualModel || 'auto',
-          lastApiUsed: 'unified_marking_pipeline',
+          lastModelUsed: getRealModelName(actualModel || 'auto'),
+          lastApiUsed: getRealApiName(getRealModelName(actualModel || 'auto')),
           totalLlmTokens: 0, // Will be calculated from individual results if available
           totalMathpixCalls: 0,
           totalTokens: 0,

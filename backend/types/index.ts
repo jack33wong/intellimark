@@ -271,9 +271,6 @@ export interface UnifiedSession {
   // Session-specific flags
   isPastPaper?: boolean;
   
-  // Detected question information (stored at session level for easy access)
-  detectedQuestion?: DetectedQuestion;
-  
   // Aggregated stats across ALL messages
   sessionStats?: {
     totalProcessingTimeMs?: number;   

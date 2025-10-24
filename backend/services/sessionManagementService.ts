@@ -282,10 +282,14 @@ export class SessionManagementService {
   private static createSessionStats(context: SessionContext): SessionStats {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
     
+    // Get real model and API information
+    const realModel = this.getRealModelName(additionalData?.model || 'auto');
+    const realApi = this.getRealApiName(realModel);
+    
     return {
       totalProcessingTimeMs: Date.now() - context.startTime,
-      lastModelUsed: additionalData?.model || 'auto',
-      lastApiUsed: `unified_${context.mode.toLowerCase()}_pipeline`,
+      lastModelUsed: realModel,
+      lastApiUsed: realApi,
       totalLlmTokens: additionalData?.usageTokens || 0,
       totalMathpixCalls: 0,
       totalTokens: additionalData?.usageTokens || 0,
@@ -293,6 +297,27 @@ export class SessionManagementService {
       imageSize: additionalData?.files ? additionalData.files.reduce((sum, f) => sum + f.size, 0) : 0,
       totalAnnotations: additionalData?.allQuestionResults ? additionalData.allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0) : 0
     };
+  }
+
+  /**
+   * Get real model name from model type
+   */
+  private static getRealModelName(modelType: string): string {
+    if (modelType === 'auto') {
+      return 'gemini-2.5-flash'; // Default model for auto
+    }
+    return modelType; // Return the actual model name
+  }
+
+  /**
+   * Get real API name from model
+   */
+  private static getRealApiName(modelName: string): string {
+    if (modelName.includes('gemini')) {
+      return 'Google Gemini API';
+    }
+    // Add other API mappings as needed
+    return 'Unknown API';
   }
 
   /**
