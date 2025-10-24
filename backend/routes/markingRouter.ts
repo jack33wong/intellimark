@@ -15,6 +15,15 @@ import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/sseUtils.js';
 import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps } from '../services/marking/MarkingHelpers.js';
+import { 
+  createDetectedQuestionData, 
+  generateSessionTitle, 
+  sendProgressUpdate, 
+  withPerformanceLogging, 
+  withErrorHandling 
+} from '../utils/markingRouterHelpers.js';
+import type { StandardizedPage, PageOcrResult, MathBlock } from '../types/markingRouter.js';
+import type { MarkingTask } from '../services/marking/MarkingExecutor.js';
 import { OCRService } from '../services/ocr/OCRService.js';
 import { ClassificationService } from '../services/marking/ClassificationService.js';
 import { MarkingInstructionService } from '../services/marking/MarkingInstructionService.js';
@@ -26,40 +35,7 @@ import { ImageStorageService } from '../services/imageStorageService.js';
 
 // Placeholder function removed - schemes are now fetched in Question Detection stage
 
-// Types for multi-page processing
-interface StandardizedPage {
-  pageIndex: number;
-  imageData: string;
-  originalFileName?: string;
-  width?: number;
-  height?: number;
-}
-
-interface PageOcrResult {
-  pageIndex: number;
-  ocrData: any;
-  classificationText?: string;
-}
-
-// Types for segmentation
-interface MathBlock {
-  googleVisionText: string;
-  mathpixLatex?: string;
-  confidence: number;
-  mathpixConfidence?: number;
-  mathLikenessScore: number;
-  coordinates: { x: number; y: number; width: number; height: number };
-  suspicious?: boolean;
-  pageIndex?: number;
-  globalBlockId?: string;
-}
-
-interface MarkingTask {
-  questionNumber: number | string;
-  mathBlocks: MathBlock[];
-  markingScheme: any | null; // Allow null for preliminary tasks
-  sourcePages: number[];
-}
+// Types are now imported from '../types/markingRouter.js'
 
 
 // --- Helper Functions for Multi-Question Detection ---
@@ -567,90 +543,7 @@ async function persistSessionToDatabase(
 }
 
 
-/**
- * Create detectedQuestion data from markingSchemesMap and question results
- * Common function used by both authenticated and unauthenticated users
- */
-function createDetectedQuestionData(
-  allQuestionResults: any[],
-  markingSchemesMap: Map<string, any>,
-  globalQuestionText: string,
-  options?: {
-    useQuestionDetection?: boolean; // For authenticated users who have questionDetection data
-    questionNumberDisplay?: string; // For multi-question display
-    totalMarks?: number; // For authenticated users
-  }
-): any {
-  if (allQuestionResults.length === 0) {
-    return {
-      found: false,
-      questionText: globalQuestionText || '',
-      questionNumber: '',
-      subQuestionNumber: '',
-      examBoard: '',
-      examCode: '',
-      paperTitle: '',
-      subject: '',
-      tier: '',
-      year: '',
-      marks: 0,
-      markingScheme: ''
-    };
-  }
-
-  const firstQuestionResult = allQuestionResults[0];
-  const firstQuestionDetection = markingSchemesMap.get(String(firstQuestionResult.questionNumber));
-  
-  if (firstQuestionDetection) {
-    // For authenticated users, use questionDetection data if available
-    const actualQuestionData = options?.useQuestionDetection ? firstQuestionDetection?.questionDetection : null;
-    
-    // Handle different data structures: both user types have questionDetection.match, but authenticated users pass it through actualQuestionData
-    const matchData = actualQuestionData?.match || firstQuestionDetection.questionDetection?.match;
-    
-    return {
-      found: true,
-      questionText: globalQuestionText || '',
-      questionNumber: options?.questionNumberDisplay || firstQuestionResult.questionNumber,
-      subQuestionNumber: matchData?.subQuestionNumber || '',
-      examBoard: matchData?.board || matchData?.examBoard || '',
-      examCode: matchData?.paperCode || matchData?.examCode || '',
-      paperTitle: matchData?.qualification || matchData?.paperTitle || '',
-      subject: matchData?.qualification || matchData?.subject || '',
-      tier: matchData?.tier || '',
-      year: matchData?.year || '',
-      marks: options?.totalMarks || firstQuestionResult.score?.totalMarks || 0,
-      markingScheme: firstQuestionDetection.questionMarks ? JSON.stringify(firstQuestionDetection.questionMarks) : ''
-    };
-  } else {
-    return {
-      found: false,
-      questionText: globalQuestionText || '',
-      questionNumber: options?.questionNumberDisplay || firstQuestionResult.questionNumber,
-      subQuestionNumber: '',
-      examBoard: '',
-      examCode: '',
-      paperTitle: '',
-      subject: '',
-      tier: '',
-      year: '',
-      marks: options?.totalMarks || firstQuestionResult.score?.totalMarks || 0,
-      markingScheme: ''
-    };
-  }
-}
-
-/**
- * Generate session title from detectedQuestion data
- * Common function used by both authenticated and unauthenticated users
- */
-function generateSessionTitle(detectedQuestion: any): string {
-  if (detectedQuestion?.found) {
-    const { examBoard, subject, examCode, year, tier, questionNumber, marks } = detectedQuestion;
-    return `${examBoard} ${subject} ${examCode} (${year}) Tier ${tier} Q${questionNumber} ${marks} marks`;
-  }
-  return 'Processing...';
-}
+// Helper functions are now imported from '../utils/markingRouterHelpers.js'
 
 /**
  * POST /api/marking/process
@@ -1256,14 +1149,16 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(6, `Marking ${tasksWithSchemes.length} question(s)...`, MULTI_IMAGE_STEPS));
 
     // Call the refactored function for each task (works for 1 or many)
-    const logMarkingComplete = logStep('AI Marking', actualModel);
-    const markingPromises = tasksWithSchemes.map(task => // <-- Use tasksWithSchemes
-        executeMarkingForQuestion(task, res, submissionId) // Pass res and submissionId
+    const allQuestionResults: QuestionResult[] = await withPerformanceLogging(
+      'AI Marking',
+      actualModel,
+      async () => {
+        const markingPromises = tasksWithSchemes.map(task => // <-- Use tasksWithSchemes
+          executeMarkingForQuestion(task, res, submissionId) // Pass res and submissionId
+        );
+        return Promise.all(markingPromises);
+      }
     );
-
-    // Wait for all marking tasks to complete
-    const allQuestionResults: QuestionResult[] = await Promise.all(markingPromises);
-    logMarkingComplete();
     sendSseUpdate(res, createProgressData(6, 'All questions marked.', MULTI_IMAGE_STEPS));
     // ========================== END: IMPLEMENT STAGE 4 ==========================
 
