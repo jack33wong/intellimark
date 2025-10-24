@@ -42,10 +42,18 @@ export class ClassificationService {
     try {
       // Hardcoded test data: Only trigger for specific filenames
       if (fileName === "IMG_1596.jpg" || fileName?.startsWith("q21-edexcel")) {
+        const q21Text = "The diagram shows a plan of Jason's garden. [A composite shape is shown, described as: ABCO and DEFO are rectangles. CDO is a right-angled triangle. AFO is a sector of a circle with centre O and angle AOF = 90°. Dimensions are given: AB = 11m, BC = 7m, ED = 7m, FE = 9m.] Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.";
+        
         return {
           isQuestionOnly: false,
           reasoning: "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-          extractedQuestionText: "The diagram shows a plan of Jason's garden. [A composite shape is shown, described as: ABCO and DEFO are rectangles. CDO is a right-angled triangle. AFO is a sector of a circle with centre O and angle AOF = 90°. Dimensions are given: AB = 11m, BC = 7m, ED = 7m, FE = 9m.] Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.",
+          extractedQuestionText: q21Text,
+          questions: [
+            {
+              text: q21Text,
+              confidence: 0.95
+            }
+          ],
           apiUsed: "Hardcoded Test Data",
           usageTokens: 0
         };
@@ -251,6 +259,18 @@ export class ClassificationService {
     const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
     const apiUsed = `Google ${modelName} (Service Account)`;
     
+    // Debug logging for multi-question detection
+    console.log('🔍 [CLASSIFICATION DEBUG] Parsed response:', {
+      isQuestionOnly: parsed.isQuestionOnly,
+      questionsCount: parsed.questions?.length || 0,
+      questions: parsed.questions?.map((q: any) => ({
+        textLength: q.text?.length || 0,
+        textPreview: q.text?.substring(0, 100) + '...',
+        confidence: q.confidence
+      })) || [],
+      extractedQuestionText: parsed.extractedQuestionText?.substring(0, 100) + '...'
+    });
+
     return {
       isQuestionOnly: parsed.isQuestionOnly,
       reasoning: parsed.reasoning,

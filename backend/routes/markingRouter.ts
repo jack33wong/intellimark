@@ -577,12 +577,70 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
     sendSseUpdate(res, createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
-    // --- Perform Initial Classification ---
-    // Using simple approach: Classify first page for global context
+    // --- Perform Classification on ALL Images ---
     const logClassificationComplete = logStep('Image Classification', actualModel);
-    const classificationResult = standardizedPages.length > 0
-      ? await ClassificationService.classifyImage(standardizedPages[0].imageData, 'auto', false, standardizedPages[0].originalFileName)
-      : null;
+    
+    // Debug logging for multi-image processing
+    console.log('🔍 [MULTI-IMAGE DEBUG] Processing images:', {
+      totalImages: standardizedPages.length,
+      imageOrder: standardizedPages.map((page, index) => ({
+        index,
+        fileName: page.originalFileName,
+        imageDataLength: page.imageData.length
+      }))
+    });
+    
+    // Classify ALL images to detect questions in all of them
+    const classificationPromises = standardizedPages.map(async (page, index) => {
+      console.log(`🔍 [CLASSIFICATION DEBUG] Classifying image ${index + 1}/${standardizedPages.length}: ${page.originalFileName}`);
+      const result = await ClassificationService.classifyImage(page.imageData, 'auto', false, page.originalFileName);
+      console.log(`🔍 [CLASSIFICATION DEBUG] Image ${index + 1} result:`, {
+        fileName: page.originalFileName,
+        questionsCount: result.questions?.length || 0,
+        questions: result.questions?.map((q: any) => ({
+          textLength: q.text?.length || 0,
+          textPreview: q.text?.substring(0, 50) + '...'
+        })) || []
+      });
+      return { pageIndex: index, result };
+    });
+    
+    const allClassificationResults = await Promise.all(classificationPromises);
+    
+    // Combine questions from all images
+    const allQuestions: any[] = [];
+    allClassificationResults.forEach(({ pageIndex, result }) => {
+      if (result.questions && Array.isArray(result.questions)) {
+        result.questions.forEach((question: any) => {
+          allQuestions.push({
+            ...question,
+            sourceImage: standardizedPages[pageIndex].originalFileName,
+            sourceImageIndex: pageIndex
+          });
+        });
+      }
+    });
+    
+    // Create combined classification result
+    const classificationResult = {
+      isQuestionOnly: allClassificationResults[0]?.result?.isQuestionOnly || false,
+      reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
+      questions: allQuestions,
+      extractedQuestionText: allQuestions.length > 0 ? allQuestions[0].text : allClassificationResults[0]?.result?.extractedQuestionText,
+      apiUsed: allClassificationResults[0]?.result?.apiUsed || 'Unknown',
+      usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0)
+    };
+    
+    console.log('🔍 [COMBINED CLASSIFICATION DEBUG] Final result:', {
+      totalImages: standardizedPages.length,
+      totalQuestions: allQuestions.length,
+      questions: allQuestions.map((q, i) => ({
+        index: i,
+        sourceImage: q.sourceImage,
+        textLength: q.text?.length || 0,
+        textPreview: q.text?.substring(0, 50) + '...'
+      }))
+    });
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
       ? classificationResult.questions[0].text 
@@ -784,11 +842,29 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Run OCR on each page in parallel (Marking Mode) ---
     const logOcrComplete = logStep('OCR Processing', 'mathpix');
+    
+    // Debug logging for OCR processing
+    console.log('🔍 [OCR DEBUG] Processing OCR for all images:', {
+      totalImages: standardizedPages.length,
+      imageDetails: standardizedPages.map((page, index) => ({
+        index,
+        fileName: page.originalFileName,
+        imageDataLength: page.imageData.length
+      }))
+    });
+    
     const pageProcessingPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
+      console.log(`🔍 [OCR DEBUG] Processing image ${page.pageIndex + 1}/${standardizedPages.length}: ${page.originalFileName}`);
       const ocrResult = await OCRService.processImage(
         page.imageData, {}, false, 'auto',
         { extractedQuestionText: globalQuestionText }
       );
+      console.log(`🔍 [OCR DEBUG] Image ${page.pageIndex + 1} OCR result:`, {
+        fileName: page.originalFileName,
+        mathBlocksCount: ocrResult.mathBlocks?.length || 0,
+        textLength: ocrResult.text?.length || 0,
+        textPreview: ocrResult.text?.substring(0, 100) + '...'
+      });
       return {
         pageIndex: page.pageIndex,
         ocrData: ocrResult,

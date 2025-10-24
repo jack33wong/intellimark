@@ -244,7 +244,7 @@ class SimpleSessionService {
       }
       
       // Handle new multi-image/PDF response structure
-      if (data.annotatedOutput && data.resultsByQuestion) {
+      if (data.annotatedOutput && data.processingStats) {
         
         // Create AI message with the same structure as original pipeline
         const aiMessage = {
@@ -256,8 +256,7 @@ class SimpleSessionService {
           isProcessing: false,
           // Store the annotated images array
           imageDataArray: Array.isArray(data.annotatedOutput) ? data.annotatedOutput : [data.annotatedOutput],
-          // Store the detailed results
-          resultsByQuestion: data.resultsByQuestion,
+          // resultsByQuestion removed - using processingStats instead
           // Use detectedQuestion data from backend (not from resultsByQuestion)
           detectedQuestion: data.detectedQuestion || {
             found: false,
@@ -279,13 +278,14 @@ class SimpleSessionService {
             'Show marking scheme.',
             'Similar practice questions.'
           ],
-          // Store processing metadata
+          // Store processing metadata from backend (message-specific stats only)
           processingStats: {
-            apiUsed: 'marking_pipeline',
-            modelUsed: modelUsed || 'auto',
-            annotations: data.resultsByQuestion.reduce((sum, q) => sum + (q.annotations?.length || 0), 0),
-            totalMarks: data.resultsByQuestion.reduce((sum, q) => sum + (q.score?.totalMarks || 0), 0),
-            awardedMarks: data.resultsByQuestion.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0)
+            apiUsed: data.processingStats.apiUsed || 'Google Gemini API',
+            modelUsed: data.processingStats.modelUsed || 'gemini-2.5-flash',
+            annotations: data.processingStats.totalAnnotations || 0,
+            totalMarks: data.processingStats.totalMarks || 0,
+            awardedMarks: data.processingStats.awardedMarks || 0,
+            questionCount: data.processingStats.questionCount || 1
           },
           // Preserve progress data for thinking text and progress details
           progressData: {

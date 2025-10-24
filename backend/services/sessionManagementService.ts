@@ -210,7 +210,7 @@ export class SessionManagementService {
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
           const { board, qualification, paperCode, year, tier } = firstQuestionDetection.match;
-          return `${board} ${qualification} ${paperCode} (${year}) Tier ${tier} Q${questionNumberDisplay} ${totalMarks} marks`;
+          return `${board} ${qualification} ${paperCode} (${year}) Q${questionNumberDisplay} ${totalMarks} marks`;
         }
       }
     }
