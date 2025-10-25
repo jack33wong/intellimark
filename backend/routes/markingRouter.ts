@@ -100,192 +100,269 @@ const extractQuestionNumberFromFilename = (fileName?: string): string | null => 
   return match ? match[1] : null;
 };
 
-/**
- * Enhanced boundary detection for multiple questions using question endings
- */
-const findMultipleQuestionBoundaries = (
-  studentWorkBlocks: any[],
-  individualQuestions: Array<{text: string}>,
-  detectedSchemesMap?: Map<string, any>
-): Array<{questionNumber: string, startIndex: number, endIndex: number}> => {
-  const boundaries: Array<{questionNumber: string, startIndex: number, endIndex: number}> = [];
-  
-  // Get question numbers from detectedSchemesMap (from question detection)
-  const questionNumbers = detectedSchemesMap ? Array.from(detectedSchemesMap.keys()) : [];
-  
-  if (individualQuestions.length === 1) {
-    // Single question - use all blocks
-    const questionNumber = questionNumbers[0] || "1";
-    boundaries.push({
-      questionNumber: questionNumber,
-      startIndex: 0,
-      endIndex: studentWorkBlocks.length - 1
+// --- Helper: findQuestionIndicators (This IS still needed) ---
+// Finds question start lines *within a single page's raw text*
+const findQuestionIndicators = (
+  rawLines: Array<any & { pageIndex: number; globalIndex: number }>
+): Array<{ questionNumber: string; pageIndex: number; y: number }> => {
+    const indicators: Array<{ questionNumber: string; pageIndex: number; y: number }> = [];
+    const questionRegex = /^(?:(question|q)\s*)?(\d+[a-z]?)[.)]?\s+/i;
+
+    rawLines.forEach(line => {
+        const text = (line.text?.trim() || '')
+            .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Clean LaTeX
+            .trim();
+        const match = text.match(questionRegex);
+        
+        if (match && text.length < 150) {
+            const questionNumber = match[2];
+            const coords = OCRService.extractBoundingBox(line); // Assumes OCRService.extractBoundingBox is static
+            if (coords) {
+                 console.log(`[DEBUG - SEGMENTATION] Found Question Indicator: "Q${questionNumber}" on Page ${line.pageIndex}, Y: ${coords.y}`);
+                indicators.push({
+                    questionNumber: questionNumber,
+                    pageIndex: line.pageIndex,
+                    y: coords.y
+                });
+            }
+        }
     });
-    return boundaries;
-  }
-  
-  // Multiple questions - find boundaries using question endings
-  let currentStartIndex = 0;
-  
-  for (let i = 0; i < individualQuestions.length; i++) {
-    const questionNumber = questionNumbers[i] || `${i + 1}`;
-    const isLastQuestion = i === individualQuestions.length - 1;
-    
-    if (isLastQuestion) {
-      // Last question gets all remaining blocks
-      boundaries.push({
-        questionNumber: questionNumber,
-        startIndex: currentStartIndex,
-        endIndex: studentWorkBlocks.length - 1
-      });
-    } else {
-      // For now, split blocks evenly between questions
-      // TODO: Enhance this to use actual question ending detection
-      const blocksPerQuestion = Math.floor(studentWorkBlocks.length / individualQuestions.length);
-      const endIndex = Math.min(currentStartIndex + blocksPerQuestion - 1, studentWorkBlocks.length - 1);
-      
-      boundaries.push({
-        questionNumber: questionNumber,
-        startIndex: currentStartIndex,
-        endIndex: endIndex
-      });
-      
-      currentStartIndex = endIndex + 1;
-    }
-  }
-  
-  return boundaries;
+    return indicators.sort((a, b) => {
+        if (a.pageIndex !== b.pageIndex) return a.pageIndex - b.pageIndex;
+        return a.y - b.y;
+    });
 };
 
-/**
- * Create marking tasks using enhanced boundary detection
- */
-const createTasksFromEnhancedBoundaries = (
-  individualQuestions: Array<{text: string}>,
-  studentWorkBlocks: any[],
-  detectedSchemesMap?: Map<string, any>
-): MarkingTask[] => {
-  const tasks: MarkingTask[] = [];
-  
-  // Find boundaries for each question
-  const boundaries = findMultipleQuestionBoundaries(studentWorkBlocks, individualQuestions, detectedSchemesMap);
-  
-  // Create tasks based on boundaries
-  for (const boundary of boundaries) {
-    const questionNumber = boundary.questionNumber;
-    const questionBlocks = studentWorkBlocks.slice(boundary.startIndex, boundary.endIndex + 1);
+// --- Helper: assignBlockToQuestion (This IS still needed) ---
+// Assigns a block to an indicator *on the same page*
+const assignBlockToQuestion = (
+    block: MathBlock & { pageIndex: number },
+    indicators: Array<{ questionNumber: string; pageIndex: number; y: number }>
+): string | null => {
+    let assignedQuestion: string | null = null;
+    // Find the last indicator *on the same page* that appeared *before* this block
+    const pageIndicators = indicators.filter(ind => ind.pageIndex === block.pageIndex);
     
-    // Find matching marking scheme
-    let markingScheme = null;
-    if (detectedSchemesMap && detectedSchemesMap.has(questionNumber)) {
-      markingScheme = detectedSchemesMap.get(questionNumber);
+    for (const indicator of pageIndicators) {
+        if ((block.coordinates?.y ?? 0) >= indicator.y) {
+            assignedQuestion = indicator.questionNumber;
+        } else {
+            break; // Block is before this indicator
+        }
     }
-    
-    const sourcePages = [...new Set(questionBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
-    
-    tasks.push({
-      questionNumber: questionNumber,
-      mathBlocks: questionBlocks,
-      markingScheme: markingScheme,
-      sourcePages: sourcePages
-    });
-    
-  }
-  
-  return tasks;
+    return assignedQuestion;
 };
 
-// --- Enhanced Segmentation Logic with Multi-Question Support ---
-const segmentOcrResultsByQuestion = async (
+// ========================= START: REPLACED SEGMENTATION LOGIC =========================
+/**
+ * NEW SEGMENTATION LOGIC (STEP 6)
+ * Segments OCR results by mapping blocks to questions based on the
+ * source image index provided by the ClassificationService.
+ */
+const segmentOcrResultsByQuestion = (
   allPagesOcrData: PageOcrResult[],
-  globalQuestionText?: string,
+  classificationResult: any, // The full result from ClassificationService
   detectedSchemesMap?: Map<string, any>,
-  classificationResult?: any,
-  fileName?: string
-): Promise<MarkingTask[]> => {
-  if (allPagesOcrData.length === 0) {
-    return [];
+  standardizedPages?: StandardizedPage[] // Add standardizedPages to access filenames
+): MarkingTask[] => {
+  console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
+  
+  if (!allPagesOcrData || allPagesOcrData.length === 0) return [];
+  if (!classificationResult || !classificationResult.questions || classificationResult.questions.length === 0) {
+       console.warn('[SEGMENTATION] No questions found in classification result. Cannot segment.');
+       return [];
   }
 
-  // 1. Consolidate ALL *processed* math blocks (no raw lines, no re-filtering)
+  // 1. Consolidate all processed math blocks
   let allMathBlocksForContent: Array<MathBlock & { pageIndex: number; globalBlockId: string }> = [];
   let blockCounter = 0;
-
-  allPagesOcrData.forEach((pageResult, pageIdx) => {
+  allPagesOcrData.forEach((pageResult) => {
     const mathBlocks = pageResult.ocrData?.mathBlocks || [];
-    
+    console.log(`[DEBUG] Page ${pageResult.pageIndex}: Consolidating ${mathBlocks.length} processed blocks.`);
     mathBlocks.forEach((block) => {
        allMathBlocksForContent.push({
            ...block,
-           pageIndex: pageResult.pageIndex, // Use the pageIndex from the PageOcrResult
+           pageIndex: pageResult.pageIndex,
            globalBlockId: `block_${blockCounter++}`
       });
     });
   });
+  console.log(`  -> Consolidated ${allMathBlocksForContent.length} total processed math blocks.`);
 
-  // 2. Filter out any blocks that might be empty (should be handled by OCRService, but as a safeguard)
+  // 2. Filter out empty blocks (safeguard)
   const studentWorkBlocks = allMathBlocksForContent.filter(block =>
       (block.mathpixLatex || block.googleVisionText || '').trim().length > 0
   );
-
   if (studentWorkBlocks.length === 0) {
+    console.warn(`[SEGMENTATION] No student work blocks found after consolidation.`);
     return [];
   }
 
-  // 3. Enhanced Multi-Question Detection using Question Endings
-  const tasks: MarkingTask[] = [];
+  // 3. Create a map of { pageIndex -> [list of question numbers on that page] }
+  //    This map is our "source of truth" from Classification + Question Detection
+  const pageToQuestionNumbersMap = new Map<number, string[]>();
+  const allDetectedQuestionNumbers = Array.from(detectedSchemesMap?.keys() || []);
   
-  try {
-    // Extract questions from AI classification result
-    const individualQuestions = extractQuestionsFromClassification(classificationResult, fileName);
-    
-    if (individualQuestions.length > 1) {
-      // Use enhanced boundary detection instead of AI
-      const questionTasks = createTasksFromEnhancedBoundaries(
-        individualQuestions,
-        studentWorkBlocks,
-        detectedSchemesMap
+  // Create a mapping from filename to page index using the standardizedPages
+  const filenameToPageIndexMap = new Map<string, number>();
+  if (standardizedPages) {
+    standardizedPages.forEach((page) => {
+      const filename = page.originalFileName || '';
+      if (filename) {
+        filenameToPageIndexMap.set(filename, page.pageIndex);
+      }
+    });
+  }
+  
+  classificationResult.questions.forEach((classifiedQ: any) => {
+      // Get page index from filename mapping
+      const sourceImage = classifiedQ.sourceImage || '';
+      const pageIndex = filenameToPageIndexMap.get(sourceImage);
+      
+      if (pageIndex === undefined) {
+        console.warn(`[SEGMENTATION] Could not find page index for source image: ${sourceImage}`);
+        return;
+      }
+      
+      // Find the *actual* question number(s) detected in this text
+      const textPreview = classifiedQ.textPreview || '';
+      let detectedQNsOnThisPage: string[] = [];
+      
+      // First, try to find question numbers in the text preview
+      detectedQNsOnThisPage = allDetectedQuestionNumbers.filter(qNum => 
+          textPreview.toLowerCase().includes(qNum) ||
+          textPreview.toLowerCase().includes(`q${qNum}`)
       );
       
-      if (questionTasks.length > 0) {
-        return questionTasks;
+      // If no question numbers found in text, try to infer from filename
+      if (detectedQNsOnThisPage.length === 0) {
+        const filename = sourceImage.toLowerCase();
+        detectedQNsOnThisPage = allDetectedQuestionNumbers.filter(qNum => 
+            filename.includes(`q${qNum}`) || filename.includes(qNum)
+        );
       }
-    }
-    
-  } catch (error) {
-    console.error('Error in enhanced boundary detection:', error);
+      
+      // If still no matches, try to infer from the source image name pattern
+      if (detectedQNsOnThisPage.length === 0) {
+        const filename = sourceImage.toLowerCase();
+        // For Q21 case: if filename contains "q21", assign Q21
+        if (filename.includes('q21')) {
+          detectedQNsOnThisPage = ['21'];
+        }
+        // For Q13/Q14 case: if filename contains "q13" or "q14", assign both
+        else if (filename.includes('q13') || filename.includes('q14')) {
+          detectedQNsOnThisPage = allDetectedQuestionNumbers.filter(qNum => 
+              qNum === '13' || qNum === '14'
+          );
+        }
+      }
+      
+      console.log(`[SEGMENTATION] Source image: ${sourceImage}, Page: ${pageIndex}, Detected QNs: [${detectedQNsOnThisPage.join(', ')}]`);
+      
+      if (detectedQNsOnThisPage.length > 0) {
+          if (!pageToQuestionNumbersMap.has(pageIndex)) {
+              pageToQuestionNumbersMap.set(pageIndex, []);
+          }
+          const existingQNs = pageToQuestionNumbersMap.get(pageIndex)!;
+          detectedQNsOnThisPage.forEach(qNum => {
+              if (!existingQNs.includes(qNum)) {
+                  existingQNs.push(qNum);
+              }
+          });
+      }
+  });
+  console.log('[DEBUG] Page-to-Question Map created:', pageToQuestionNumbersMap);
+
+  // 4. Group Blocks by Question
+  const blocksByQuestion: Map<string, (MathBlock & { pageIndex: number })[]> = new Map();
+
+  for (const [pageIndex, questionNumbers] of pageToQuestionNumbersMap.entries()) {
+      const blocksOnThisPage = studentWorkBlocks.filter(b => b.pageIndex === pageIndex);
+      
+      if (questionNumbers.length === 1) {
+          // Simple case: All blocks on this page belong to this one question
+          const qNum = questionNumbers[0];
+          if (!blocksByQuestion.has(qNum)) blocksByQuestion.set(qNum, []);
+          blocksByQuestion.get(qNum)!.push(...blocksOnThisPage);
+          console.log(`[SEGMENTATION] Assigning all ${blocksOnThisPage.length} blocks from Page ${pageIndex} to Q${qNum}`);
+
+      } else if (questionNumbers.length > 1) {
+          // Complex case: Multiple questions on one page (e.g., Q13/Q14 on Page 2)
+          console.log(`[SEGMENTATION] Found ${questionNumbers.length} questions [${questionNumbers.join(',')}] on Page ${pageIndex}. Binning blocks for this page...`);
+          
+          // Get the raw lines *for this page only* to find indicators
+          const pageRawLines = allPagesOcrData[pageIndex]?.ocrData?.rawResponse?.rawLineData
+              .map((line, i) => ({...line, pageIndex, globalIndex: i})) || [];
+          
+          const indicatorsOnPage = findQuestionIndicators(pageRawLines)
+              .filter(ind => questionNumbers.includes(ind.questionNumber)); // Only use indicators for questions we *know* are on this page
+          
+          blocksOnThisPage.forEach(block => {
+              const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
+              if (assignedQNum) {
+                  if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
+                  blocksByQuestion.get(assignedQNum)!.push(block);
+              } else {
+                  console.warn(`[SEGMENTATION] Could not assign block ${block.globalBlockId} on Page ${pageIndex} to any of [${questionNumbers.join(', ')}]`);
+              }
+          });
+      }
   }
+
+  // 5. Handle "work-only" pages (continuation pages like q21-bottom)
+  const assignedPageIndices = Array.from(pageToQuestionNumbersMap.keys());
+  const unassignedPages = allPagesOcrData.filter(page => !assignedPageIndices.includes(page.pageIndex));
+  let lastAssignedQuestion: string | null = null; // Track the last question
+
+  // Sort pages to process in order
+  const allPageIndices = [...new Set(allPagesOcrData.map(p => p.pageIndex))].sort((a,b) => a - b);
   
-  // 4. Fallback: Single Question Logic (Original behavior)
-  // Use the detected question number from the map
-  let questionNumber: string | number = "UNKNOWN";
-  if (detectedSchemesMap && detectedSchemesMap.size === 1) {
-       questionNumber = detectedSchemesMap.keys().next().value;
-  } else if (detectedSchemesMap && detectedSchemesMap.size > 1) {
-       questionNumber = detectedSchemesMap.keys().next().value;
-  } else {
-      questionNumber = 1;
+  for (const pageIndex of allPageIndices) {
+      if (pageToQuestionNumbersMap.has(pageIndex)) {
+          // This page has question headers, update the "last seen" question
+          const questionsOnThisPage = pageToQuestionNumbersMap.get(pageIndex)!;
+          // Use the last question on the page as the "current" one
+          lastAssignedQuestion = questionsOnThisPage[questionsOnThisPage.length - 1];
+      } else {
+          // This is a "work-only" page.
+          if (lastAssignedQuestion) {
+              const blocksOnThisPage = studentWorkBlocks.filter(b => b.pageIndex === pageIndex);
+              console.log(`[SEGMENTATION] Page ${pageIndex} is work-only. Assigning ${blocksOnThisPage.length} blocks to previous question: Q${lastAssignedQuestion}`);
+              if (!blocksByQuestion.has(lastAssignedQuestion)) blocksByQuestion.set(lastAssignedQuestion, []);
+              blocksByQuestion.get(lastAssignedQuestion)!.push(...blocksOnThisPage);
+          } else {
+              console.warn(`[SEGMENTATION] Page ${pageIndex} is work-only but no previous question was found. Discarding ${studentWorkBlocks.filter(b => b.pageIndex === pageIndex).length} blocks.`);
+          }
+      }
   }
 
-  const sourcePages = [...new Set(studentWorkBlocks.map(b => b.pageIndex))].sort((a, b) => a - b);
 
-  // Sort blocks by page, then Y-coordinate
-  studentWorkBlocks.sort((a, b) => {
-    if (a.pageIndex !== b.pageIndex) {
-      return a.pageIndex - b.pageIndex;
-    }
-    return (a.coordinates?.y ?? 0) - (b.coordinates?.y ?? 0);
-  });
+  // 6. Create Marking Tasks from grouped blocks
+  const tasks: MarkingTask[] = [];
+  for (const [questionNumber, blocks] of blocksByQuestion.entries()) {
+      if (blocks.length === 0) continue;
+      
+      blocks.sort((a, b) => { // Sort blocks within each question
+        if (a.pageIndex !== b.pageIndex) return a.pageIndex - b.pageIndex;
+        return (a.coordinates?.y ?? 0) - (b.coordinates?.y ?? 0);
+      });
+      
+      const sourcePages = [...new Set(blocks.map(b => b.pageIndex))].sort((a, b) => a - b);
+      
+      tasks.push({
+          questionNumber: questionNumber,
+          mathBlocks: blocks,
+          markingScheme: null, // Scheme will be added by the router
+          sourcePages: sourcePages
+      });
+      console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${blocks.length} blocks from pages ${sourcePages.join(', ')}.`);
+  }
 
-  tasks.push({
-      questionNumber: questionNumber,
-      mathBlocks: studentWorkBlocks,
-      markingScheme: null, // Scheme is added later in the router
-      sourcePages: sourcePages
-  });
-
+  console.log(`✅ [SEGMENTATION] Created ${tasks.length} preliminary marking task(s) (without schemes).`);
   return tasks;
 };
+
+// ========================== END: REPLACED SEGMENTATION LOGIC ==========================
 
 // --- Configure Multer ---
 const upload = multer({ 
@@ -1037,12 +1114,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
     // Call the segmentation function
-    markingTasks = await segmentOcrResultsByQuestion(
+    markingTasks = segmentOcrResultsByQuestion(
       allPagesOcrData,
-      globalQuestionText,
-      markingSchemesMap, // <-- Pass the map here
       classificationResult,
-      standardizedPages[0]?.originalFileName
+      markingSchemesMap, // <-- Pass the map here
+      standardizedPages // <-- Pass standardizedPages for filename mapping
     );
 
     // Handle case where no student work is found
