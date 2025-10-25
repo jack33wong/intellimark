@@ -613,7 +613,7 @@ Similar Practice Questions
 /**
  * Convert JSON marking scheme to clean bulleted list format
  */
-function formatMarkingSchemeAsBullets(schemeJson: string): string {
+export function formatMarkingSchemeAsBullets(schemeJson: string): string {
   try {
     // Parse the JSON marking scheme
     const scheme = JSON.parse(schemeJson);
@@ -622,28 +622,76 @@ function formatMarkingSchemeAsBullets(schemeJson: string): string {
       return schemeJson; // Return original if not in expected format
     }
     
-    // Convert each mark to a Markdown bullet point with proper math formatting
+    // Convert each mark to a clean Markdown bullet point
     const bullets = scheme.marks.map((mark: any) => {
       const markCode = mark.mark || 'M1';
-      let answer = mark.answer || '';
+      const answer = mark.answer || '';
+      const comments = mark.comments || '';
       
-      // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
-      // Convert \frac{a}{b} to \(\frac{a}{b}\)
-      answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
-      // Convert \sqrt{x} to \(\sqrt{x}\)
-      answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-      // Convert \pi, \alpha, \beta, etc. to \(\pi\), \(\alpha\), \(\beta\)
-      answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
-      // Convert standalone numbers in math context to \(number\)
-      answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
-        // Only convert if it's in a mathematical context (surrounded by math symbols)
-        const before = answer.substring(0, answer.indexOf(match));
-        const after = answer.substring(answer.indexOf(match) + match.length);
-        const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-        return mathContext ? `\\(${number}\\)` : number;
-      });
+      // Combine answer and comments
+      const fullText = comments ? `${answer} ${comments}` : answer;
       
-      return `- **${markCode}** ${answer}`;
+      // Convert LaTeX math expressions to clean Markdown + Inline LaTeX format
+      let processedText = fullText;
+      
+      // Clean up any existing LaTeX delimiters first
+      processedText = processedText
+        .replace(/\\\(/g, '')  // Remove \(
+        .replace(/\\\)/g, '')  // Remove \)
+        .replace(/\\\[/g, '')  // Remove \[
+        .replace(/\\\]/g, '')  // Remove \]
+        .replace(/\$/g, '');   // Remove existing $ delimiters
+      
+      // Convert LaTeX math expressions to clean inline LaTeX with $ delimiters
+      // Convert \frac{a}{b} to $\frac{a}{b}$
+      processedText = processedText.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$\\frac{$1}{$2}$');
+      
+      // Convert \times to $\times$
+      processedText = processedText.replace(/\\times/g, '$\\times$');
+      
+      // Convert \div to $\div$
+      processedText = processedText.replace(/\\div/g, '$\\div$');
+      
+      // Convert \pi to $\pi$
+      processedText = processedText.replace(/\\pi/g, '$\\pi$');
+      
+      // Convert \alpha, \beta, etc. to $\alpha$, $\beta$, etc.
+      processedText = processedText.replace(/\\alpha/g, '$\\alpha$');
+      processedText = processedText.replace(/\\beta/g, '$\\beta$');
+      processedText = processedText.replace(/\\gamma/g, '$\\gamma$');
+      processedText = processedText.replace(/\\delta/g, '$\\delta$');
+      processedText = processedText.replace(/\\theta/g, '$\\theta$');
+      processedText = processedText.replace(/\\lambda/g, '$\\lambda$');
+      processedText = processedText.replace(/\\mu/g, '$\\mu$');
+      processedText = processedText.replace(/\\sigma/g, '$\\sigma$');
+      processedText = processedText.replace(/\\phi/g, '$\\phi$');
+      processedText = processedText.replace(/\\omega/g, '$\\omega$');
+      
+      // Convert superscripts to $x^2$ format
+      processedText = processedText.replace(/\^(\d+)/g, '^$1');
+      
+      // Convert square root to $\sqrt{x}$
+      processedText = processedText.replace(/\\sqrt\{([^}]+)\}/g, '$\\sqrt{$1}$');
+      
+      // Convert approximation symbol to $\approx$
+      processedText = processedText.replace(/\\approx/g, '$\\approx$');
+      processedText = processedText.replace(/\\approxeq/g, '$\\approxeq$');
+      
+      // Convert other common symbols to inline LaTeX
+      processedText = processedText.replace(/\\leq/g, '$\\leq$');
+      processedText = processedText.replace(/\\geq/g, '$\\geq$');
+      processedText = processedText.replace(/\\neq/g, '$\\neq$');
+      processedText = processedText.replace(/\\pm/g, '$\\pm$');
+      processedText = processedText.replace(/\\mp/g, '$\\mp$');
+      processedText = processedText.replace(/\\infty/g, '$\\infty$');
+      processedText = processedText.replace(/\\sum/g, '$\\sum$');
+      processedText = processedText.replace(/\\prod/g, '$\\prod$');
+      processedText = processedText.replace(/\\int/g, '$\\int$');
+      
+      // Clean up any remaining backslashes that aren't part of LaTeX commands
+      processedText = processedText.replace(/\\/g, '');
+      
+      return `- **${markCode}** ${processedText}`;
     });
     
     return bullets.join('\n');

@@ -76,29 +76,8 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
 }
 // ========================== END: NORMALIZATION FUNCTION ==========================
 
-// Import the formatting function
-function formatMarkingSchemeAsBullets(schemeJson: string): string {
-  try {
-    // Parse the JSON marking scheme
-    const scheme = JSON.parse(schemeJson);
-    
-    if (!scheme.marks || !Array.isArray(scheme.marks)) {
-      return schemeJson; // Return original if not in expected format
-    }
-    
-    // Convert each mark to a bullet point
-    const bullets = scheme.marks.map((mark: any) => {
-      const markCode = mark.mark || 'M1';
-      const answer = mark.answer || '';
-      return `- **[${markCode}]** ${answer}`;
-    });
-    
-    return bullets.join('\n');
-  } catch (error) {
-    // If parsing fails, return the original JSON
-    return schemeJson;
-  }
-}
+// Import the formatting function from prompts.ts
+import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
 export interface MarkingInputs {
   imageData: string;
