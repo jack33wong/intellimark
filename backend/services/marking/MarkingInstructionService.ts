@@ -175,7 +175,7 @@ export class MarkingInstructionService {
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
-            pageIndex: 0 // Single image is always page 0
+            pageIndex: matchingStep.pageIndex !== undefined ? matchingStep.pageIndex : 0 // Use correct pageIndex from matchingStep
           };
         } else {
           console.warn(`[ENRICHMENT] No matching step found for "${aiStepId}"`);
@@ -307,6 +307,22 @@ export class MarkingInstructionService {
       const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
            jsonString = jsonMatch[1];
+      }
+
+      // Sanitize JSON string to handle unescaped characters
+      // Use a more robust approach: try to parse first, if it fails, fix common issues
+      try {
+        JSON.parse(jsonString);
+      } catch (error) {
+        // If parsing fails, fix common LaTeX escaping issues
+        jsonString = jsonString
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{}
+          .replace(/\\times/g, '\\\\times') // Fix \times
+          .replace(/\\pi/g, '\\\\pi') // Fix \pi
+          .replace(/\\mathrm\{([^}]*)\}/g, '\\\\mathrm{$1}') // Fix \mathrm{}
+          .replace(/\\text\{([^}]*)\}/g, '\\\\text{$1}') // Fix \text{}
+          .replace(/\\sqrt\{([^}]+)\}/g, '\\\\sqrt{$1}') // Fix \sqrt{}
+          .replace(/\\[a-zA-Z]+/g, (match) => `\\\\${match.slice(1)}`); // Fix other LaTeX commands
       }
 
       const parsedResponse = JSON.parse(jsonString);

@@ -377,9 +377,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(0, `Received ${files.length} file(s). Validating...`, MULTI_IMAGE_STEPS));
     const logInputValidationComplete = logStep('Input Validation', 'validation');
 
-    // --- Input Type Detection (Prioritize PDF) ---
+    // --- Input Type Detection (Support Multiple PDFs) ---
     const firstMime = files[0]?.mimetype || 'unknown';
     const isPdf = files.length === 1 && firstMime === 'application/pdf';
+    const isMultiplePdfs = files.length > 1 && files.every(f => f.mimetype === 'application/pdf');
     const isSingleImage = files.length === 1 && !isPdf && firstMime.startsWith('image/');
     const isMultipleImages = files.length > 1 && files.every(f => {
       const ok = f.mimetype?.startsWith('image/');
@@ -387,13 +388,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       return ok;
     });
 
-    if (!isSingleImage && !isMultipleImages && !isPdf) {
-      // Handle invalid combinations (e.g., multiple PDFs, mixed types)
+    if (!isSingleImage && !isMultipleImages && !isPdf && !isMultiplePdfs) {
+      // Handle invalid combinations (e.g., mixed types)
       console.error(`[SUBMISSION ${submissionId}] Invalid file combination received.`);
-      throw new Error('Invalid file submission: Please upload a single PDF, a single image, or multiple images.');
+      throw new Error('Invalid file submission: Please upload PDFs, images, or a combination of the same type.');
     }
     
-    const inputType = isPdf ? 'PDF' : isMultipleImages ? 'Multiple Images' : 'Single Image';
+    const inputType = isPdf ? 'PDF' : isMultiplePdfs ? 'Multiple PDFs' : isMultipleImages ? 'Multiple Images' : 'Single Image';
     sendSseUpdate(res, createProgressData(0, `Input validated (${inputType}).`, MULTI_IMAGE_STEPS));
     logInputValidationComplete();
 
@@ -403,16 +404,46 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     let markingTasks: MarkingTask[] = [];
 
     // --- Conditional Routing (PDF first) ---
-    if (isPdf) {
+    if (isPdf || isMultiplePdfs) {
       // --- Multi-File / PDF Path (This code only runs if NOT isSingleImage) ---
       sendSseUpdate(res, createProgressData(1, `Preparing ${inputType} processing...`, MULTI_IMAGE_STEPS));
 
       // Stage 1: Standardization
-      sendSseUpdate(res, createProgressData(1, 'Converting PDF...', MULTI_IMAGE_STEPS));
-      const pdfBuffer = files[0].buffer;
-      standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
-      if (standardizedPages.length === 0) throw new Error('PDF conversion yielded no pages.');
-      sendSseUpdate(res, createProgressData(1, `Converted PDF to ${standardizedPages.length} pages.`, MULTI_IMAGE_STEPS));
+      if (isPdf) {
+        // Single PDF processing
+        sendSseUpdate(res, createProgressData(1, 'Converting PDF...', MULTI_IMAGE_STEPS));
+        const pdfBuffer = files[0].buffer;
+        standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
+        if (standardizedPages.length === 0) throw new Error('PDF conversion yielded no pages.');
+        sendSseUpdate(res, createProgressData(1, `Converted PDF to ${standardizedPages.length} pages.`, MULTI_IMAGE_STEPS));
+      } else if (isMultiplePdfs) {
+        // Multiple PDFs processing
+        sendSseUpdate(res, createProgressData(1, `Converting ${files.length} PDFs...`, MULTI_IMAGE_STEPS));
+        const allPdfPages: StandardizedPage[] = [];
+        
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          sendSseUpdate(res, createProgressData(1, `Converting PDF ${i + 1}/${files.length}...`, MULTI_IMAGE_STEPS));
+          
+          const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer);
+          if (pdfPages.length === 0) {
+            console.warn(`PDF ${i + 1} (${file.originalname}) yielded no pages.`);
+            continue;
+          }
+          
+          // Update page indices to be sequential across all PDFs
+          pdfPages.forEach((page, pageIndex) => {
+            page.pageIndex = allPdfPages.length + pageIndex;
+            page.originalFileName = file.originalname || `pdf-${i + 1}.pdf`;
+          });
+          
+          allPdfPages.push(...pdfPages);
+        }
+        
+        standardizedPages = allPdfPages;
+        if (standardizedPages.length === 0) throw new Error('All PDF conversions yielded no pages.');
+        sendSseUpdate(res, createProgressData(1, `Converted ${files.length} PDFs to ${standardizedPages.length} total pages.`, MULTI_IMAGE_STEPS));
+      }
 
       // Dimension extraction after conversion (reliable via sharp on buffers)
       sendSseUpdate(res, createProgressData(1, `Extracting dimensions for ${standardizedPages.length} converted page(s)...`, MULTI_IMAGE_STEPS));
@@ -451,7 +482,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const sessionId = req.body.sessionId || submissionId;
             const originalFileName = files[0].originalname || 'document.pdf';
             originalPdfLink = await ImageStorageService.uploadPdf(
-              `data:application/pdf;base64,${pdfBuffer.toString('base64')}`,
+              `data:application/pdf;base64,${files[0].buffer.toString('base64')}`,
               userId || 'anonymous',
               sessionId,
               originalFileName
@@ -462,21 +493,78 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           }
         } else {
           // For unauthenticated users, create a data URL
-          originalPdfDataUrl = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+          originalPdfDataUrl = `data:application/pdf;base64,${files[0].buffer.toString('base64')}`;
         }
+        
+        // Calculate file size for single PDF
+        const fileSizeBytes = files[0].buffer.length;
+        const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
         
         // Store PDF context for later use in the unified pipeline
         (req as any).pdfContext = {
           originalFileType: 'pdf' as const,
           originalPdfLink,
           originalPdfDataUrl,
-          originalFileName: files[0].originalname || 'document.pdf'
+          originalFileName: files[0].originalname || 'document.pdf',
+          fileSize: fileSizeMB + ' MB',
+          fileSizeBytes: fileSizeBytes
         };
         
         // Continue to unified pipeline (don't return here)
+      } else if (isMultiplePdfs) {
+        // Multiple PDFs - store all PDFs for later use
+        sendSseUpdate(res, createProgressData(2, 'Processing multiple PDFs...', MULTI_IMAGE_STEPS));
+        
+        const pdfContexts: any[] = [];
+        
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          let originalPdfLink = null;
+          let originalPdfDataUrl = null;
+          
+          if (isAuthenticated) {
+            try {
+              const { ImageStorageService } = await import('../services/imageStorageService.js');
+              const sessionId = req.body.sessionId || submissionId;
+              const originalFileName = file.originalname || `document-${i + 1}.pdf`;
+              originalPdfLink = await ImageStorageService.uploadPdf(
+                `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+                userId || 'anonymous',
+                sessionId,
+                originalFileName
+              );
+            } catch (error) {
+              console.error(`❌ Failed to upload PDF ${i + 1}:`, error);
+              originalPdfLink = null;
+            }
+          } else {
+            // For unauthenticated users, create a data URL
+            originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
+          }
+          
+          // Calculate file size
+          const fileSizeBytes = file.buffer.length;
+          const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+          
+          pdfContexts.push({
+            originalFileType: 'pdf' as const,
+            originalPdfLink,
+            originalPdfDataUrl,
+            originalFileName: file.originalname || `document-${i + 1}.pdf`,
+            fileSize: fileSizeMB + ' MB',
+            fileSizeBytes: fileSizeBytes,
+            fileIndex: i
+          });
+        }
+        
+        // Store multiple PDF contexts for later use in the unified pipeline
+        (req as any).pdfContext = {
+          isMultiplePdfs: true,
+          pdfContexts
+        };
       }
 
-      // Multi-page PDF – Continue to common processing logic
+      // Multi-page PDF or Multiple PDFs – Continue to common processing logic
       
       // One-line dimension logs per page
       standardizedPages.forEach((p: any) => {
@@ -899,6 +987,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             // Use the actual question number from database (Q13, Q14, etc.) not temporary ID
             const actualQuestionNumber = detectionResult.match.questionNumber;
             
+            // For image version, use question number as key (no duplicate question numbers)
+            const uniqueKey = actualQuestionNumber;
+            
             // Extract the specific question's marks from the marking scheme
             let questionSpecificMarks = null;
             
@@ -915,7 +1006,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 questionDetection: detectionResult // Store the full question detection result
             };
             
-            markingSchemesMap.set(actualQuestionNumber, schemeWithTotalMarks);
+            markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
         }
     }
     logQuestionDetectionComplete();
@@ -1186,7 +1277,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         ...(pdfContext && {
           originalFileType: pdfContext.originalFileType,
           originalPdfLink: pdfContext.originalPdfLink,
-          originalPdfDataUrl: pdfContext.originalPdfDataUrl
+          originalPdfDataUrl: pdfContext.originalPdfDataUrl,
+          // For multiple PDFs, add the PDF contexts array
+          ...(pdfContext.isMultiplePdfs && {
+            pdfContexts: pdfContext.pdfContexts
+          })
         })
       });
 

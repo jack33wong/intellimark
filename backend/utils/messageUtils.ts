@@ -188,6 +188,8 @@ export interface UserMessageOptions {
   messageId?: string;
   originalFileType?: 'pdf';
   originalPdfLink?: string | null;
+  originalPdfDataUrl?: string | null;
+  pdfContexts?: any[]; // For multiple PDFs
 }
 
 export interface AIMessageOptions {
@@ -220,7 +222,9 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     model = 'auto',
     messageId,
     originalFileType,
-    originalPdfLink
+    originalPdfLink,
+    originalPdfDataUrl,
+    pdfContexts
   } = options;
 
   // Create default objects
@@ -268,6 +272,8 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
   if (originalFileType === 'pdf') {
     (message as any).originalFileType = 'pdf';
     (message as any).originalPdfLink = originalPdfLink;
+    (message as any).originalPdfDataUrl = originalPdfDataUrl;
+    (message as any).pdfContexts = pdfContexts;
   }
 
   return message;
