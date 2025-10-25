@@ -125,33 +125,6 @@ export async function runOriginalSingleImagePipeline(
     }
   });
 
-  // Add detectedQuestion data to AI message
-  (aiMessage as any).detectedQuestion = result.questionDetection?.found ? {
-    found: true,
-    questionText: result.classification?.extractedQuestionText || '',
-    questionNumber: result.questionDetection.match?.questionNumber || '',
-    subQuestionNumber: result.questionDetection.match?.subQuestionNumber || '',
-    examBoard: result.questionDetection.match?.board || '',
-    examCode: result.questionDetection.match?.paperCode || '',
-    paperTitle: result.questionDetection.match?.qualification || '',
-    subject: result.questionDetection.match?.qualification || '',
-    tier: result.questionDetection.match?.tier || '',
-    year: result.questionDetection.match?.year || '',
-    marks: result.questionDetection.match?.marks,
-    markingScheme: result.questionDetection.match?.markingScheme?.questionMarks ? JSON.stringify(result.questionDetection.match.markingScheme.questionMarks) : ''
-  } : {
-    found: false,
-    questionText: '',
-    questionNumber: '',
-    subQuestionNumber: '',
-    examBoard: '',
-    examCode: '',
-    paperTitle: '',
-    subject: '',
-    tier: '',
-    year: '',
-    markingScheme: ''
-  };
 
   // Update AI message with image link for authenticated users
   if (isAuthenticated && annotatedImageLink) {
@@ -220,7 +193,11 @@ export async function runOriginalSingleImagePipeline(
         content: customText || 'I have a question about this image. Can you help me understand it?',
         imageLink: originalImageLink, // For authenticated users with images
         imageData: !isAuthenticated ? imageData : undefined, // For unauthenticated users
-        originalFileName: originalFileName,
+        imageDataArray: originalFileName ? [{
+          url: imageData,
+          originalFileName: originalFileName,
+          fileSize: imageData.length
+        }] : undefined,
         sessionId: sessionId,
         model: model,
         // Add PDF context if applicable

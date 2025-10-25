@@ -6,7 +6,7 @@
 // File validation constants
 export const FILE_CONSTRAINTS = {
   MAX_SIZE: 10 * 1024 * 1024, // 10MB
-  ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
+  ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'],
   MIN_SIZE: 1024 // 1KB minimum
 };
 

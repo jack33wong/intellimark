@@ -11,39 +11,32 @@ import type { UnifiedMessage, DetectedQuestion } from '../types/index.js';
 // ============================================================================
 
 /**
- * Create a default DetectedQuestion object using auto-generated type
+ * Creates a default detected question object
  */
-function createDefaultDetectedQuestion(): DetectedQuestion {
+function createDefaultDetectedQuestion(): any {
   return {
     found: false,
     questionText: '',
+    questionNumber: '',
+    subQuestionNumber: '',
     examBoard: '',
     examCode: '',
     paperTitle: '',
     subject: '',
     tier: '',
     year: '',
-    marks: 0,
-    markingScheme: ''
+    marks: 0
   };
 }
 
 /**
- * Check if a DetectedQuestion object is empty (all default values)
+ * Checks if detected question is empty
  */
-function isEmptyDetectedQuestion(detectedQuestion: DetectedQuestion): boolean {
-  return (
-    !detectedQuestion.found &&
-    !detectedQuestion.questionText &&
-    !detectedQuestion.examBoard &&
-    !detectedQuestion.examCode &&
-    !detectedQuestion.paperTitle &&
-    !detectedQuestion.subject &&
-    !detectedQuestion.tier &&
-    !detectedQuestion.year &&
-    detectedQuestion.marks === 0 &&
-    !detectedQuestion.markingScheme
-  );
+function isEmptyDetectedQuestion(detectedQuestion: any): boolean {
+  if (!detectedQuestion) return true;
+  return !detectedQuestion.found && 
+         !detectedQuestion.questionText && 
+         !detectedQuestion.questionNumber;
 }
 
 /**
@@ -176,33 +169,37 @@ export function generateTempSessionId(timestamp?: number): string {
 // MESSAGE CREATION
 // ============================================================================
 
+// New structured image data interface
+export interface StructuredImageData {
+  url: string;
+  originalFileName: string;
+  fileSize: number;
+}
+
 export interface UserMessageOptions {
   content: string;
   imageLink?: string;
   imageData?: string;
-  imageDataArray?: string[]; // For multi-image cases
-  fileName?: string;
-  originalFileName?: string;
+  imageDataArray?: StructuredImageData[]; // New structured format
   sessionId?: string;
   model?: string;
   messageId?: string;
   originalFileType?: 'pdf';
-  originalPdfLink?: string | null;
-  originalPdfDataUrl?: string | null;
-  pdfContexts?: any[]; // For multiple PDFs
+  pdfContexts?: StructuredImageData[]; // For PDFs, using same structure
+  detectedQuestion?: DetectedQuestion;
 }
 
 export interface AIMessageOptions {
   content: string;
   imageData?: string;
-  imageDataArray?: string[]; // For multi-image cases
-  fileName?: string;
+  imageDataArray?: StructuredImageData[]; // New structured format
   originalFileName?: string;
   progressData?: any;
   processingStats?: any;
   messageId?: string;
   isQuestionOnly?: boolean;
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
+  detectedQuestion?: DetectedQuestion;
 }
 
 /**
@@ -216,19 +213,26 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     imageLink,
     imageData,
     imageDataArray,
-    fileName,
-    originalFileName,
     sessionId,
     model = 'auto',
     messageId,
     originalFileType,
-    originalPdfLink,
-    originalPdfDataUrl,
     pdfContexts
   } = options;
 
+  console.log('🔍 [CREATE USER MESSAGE DEBUG] Options:', {
+    content: content?.substring(0, 50) + '...',
+    originalFileType,
+    hasPdfContexts: !!pdfContexts,
+    pdfContextsLength: pdfContexts?.length,
+    pdfContexts: pdfContexts?.map(ctx => ({
+      fileName: ctx.originalFileName,
+      fileSize: ctx.fileSize,
+      hasUrl: !!ctx.url
+    }))
+  });
+
   // Create default objects
-  const defaultDetectedQuestion = createDefaultDetectedQuestion();
   const defaultProcessingStats = {
     processingTimeMs: 0,
     modelUsed: model,
@@ -254,13 +258,9 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     imageLink: imageLink,
     imageData: imageData,
     imageDataArray: imageDataArray,
-    fileName: fileName || originalFileName || (imageData ? 'uploaded-image.png' : (imageDataArray ? 'uploaded-images' : (originalFileType === 'pdf' ? 'uploaded-document.pdf' : null)))
+    pdfContexts: pdfContexts
   };
 
-  // Only include detectedQuestion if it has meaningful data
-  if (!isEmptyDetectedQuestion(defaultDetectedQuestion)) {
-    message.detectedQuestion = defaultDetectedQuestion;
-  }
 
   // Only include processingStats if it has meaningful data
   // For user messages, include if there's image data or other meaningful stats
@@ -271,10 +271,25 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
   // Add PDF context if applicable
   if (originalFileType === 'pdf') {
     (message as any).originalFileType = 'pdf';
-    (message as any).originalPdfLink = originalPdfLink;
-    (message as any).originalPdfDataUrl = originalPdfDataUrl;
-    (message as any).pdfContexts = pdfContexts;
   }
+
+  // Add detectedQuestion if provided
+  if (options.detectedQuestion && !isEmptyDetectedQuestion(options.detectedQuestion)) {
+    message.detectedQuestion = options.detectedQuestion;
+  }
+
+  console.log('🔍 [CREATE USER MESSAGE DEBUG] Final message:', {
+    id: message.id,
+    role: message.role,
+    originalFileType: (message as any).originalFileType,
+    hasPdfContexts: !!(message as any).pdfContexts,
+    pdfContextsLength: (message as any).pdfContexts?.length,
+    pdfContexts: (message as any).pdfContexts?.map((ctx: any) => ({
+      fileName: ctx.originalFileName,
+      fileSize: ctx.fileSize,
+      hasUrl: !!ctx.url
+    }))
+  });
 
   return message;
 }
@@ -289,8 +304,6 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     content,
     imageData,
     imageDataArray,
-    fileName,
-    originalFileName,
     progressData,
     processingStats,
     messageId,
@@ -311,7 +324,6 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
   }
 
   // Create default objects
-  const defaultDetectedQuestion = createDefaultDetectedQuestion();
   const defaultProcessingStats = {
     processingTimeMs: 0,
     modelUsed: 'auto',
@@ -335,22 +347,20 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     timestamp: new Date().toISOString(),
     imageData: imageData, // Include imageData for unauthenticated users
     imageDataArray: imageDataArray, // Include imageDataArray for multi-image cases
-    fileName: fileName || (originalFileName 
-      ? (isQuestionOnly ? originalFileName : `annotated_${originalFileName}`)
-      : (isQuestionOnly ? null : 'annotated-image.png')),
     progressData: progressData,
     suggestedFollowUps: suggestedFollowUps
   };
 
-  // Only include detectedQuestion if it has meaningful data
-  if (!isEmptyDetectedQuestion(defaultDetectedQuestion)) {
-    message.detectedQuestion = defaultDetectedQuestion;
-  }
 
   // Only include processingStats if it has meaningful data
   // For AI messages, include if there's image data or other meaningful stats
   if (imageData || imageDataArray || !isEmptyProcessingStats(defaultProcessingStats)) {
     message.processingStats = defaultProcessingStats;
+  }
+
+  // Add detectedQuestion if provided
+  if (options.detectedQuestion && !isEmptyDetectedQuestion(options.detectedQuestion)) {
+    message.detectedQuestion = options.detectedQuestion;
   }
 
   return message;

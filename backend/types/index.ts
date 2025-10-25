@@ -205,15 +205,21 @@ export interface UnifiedMessage {
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
   imageData?: string; // For unauthenticated users
-  imageDataArray?: string[]; // For multi-image cases
-  fileName?: string;
+  imageDataArray?: Array<{
+    url: string;
+    originalFileName: string;
+    fileSize: number;
+  }>; // For multi-image cases - new structured format
+  pdfContexts?: Array<{
+    url: string;
+    originalFileName: string;
+    fileSize: number;
+  }>; // For PDF uploads
   
   // Display options
   isImageContext?: boolean;
   isProcessing?: boolean;
   
-  // Question detection with full exam paper metadata
-  detectedQuestion?: DetectedQuestion;
   
   // Student score for marking messages
   studentScore?: {
@@ -246,6 +252,9 @@ export interface UnifiedMessage {
   
   // Suggested follow-up questions
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
+  
+  // Exam information for frontend display
+  detectedQuestion?: DetectedQuestion;
   
   // Firestore metadata
   createdAt?: string;

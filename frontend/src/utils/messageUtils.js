@@ -130,7 +130,13 @@ export const isSystemMessage = (message) => {
  * @returns {boolean} - True if message has image
  */
 export const hasImage = (message) => {
-  return message && (message.imageLink || message.imageData || (message.imageDataArray && Array.isArray(message.imageDataArray) && message.imageDataArray.length > 0));
+  return message && (
+    message.imageLink || 
+    message.imageData || 
+    (message.imageDataArray && Array.isArray(message.imageDataArray) && message.imageDataArray.length > 0) ||
+    // Also check for PDF messages
+    (message.originalFileType === 'pdf' && message.pdfContexts && Array.isArray(message.pdfContexts) && message.pdfContexts.length > 0)
+  );
 };
 
 /**

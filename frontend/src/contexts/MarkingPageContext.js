@@ -230,31 +230,89 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     try {
       startProcessing();
       
-      // Process files to get image data for display
-      const processImage = async (file) => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      };
+      // Check if any files are PDFs
+      const hasPDFs = files.some(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
       
-      const imageDataArray = await Promise.all(files.map(processImage));
+      let optimisticMessage;
       
-      // Create optimistic message for multi-image upload with actual image data
-      const optimisticMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: customText || `I have uploaded ${files.length} image(s) for analysis.`,
-        timestamp: new Date().toISOString(),
-        imageData: imageDataArray[0], // Show first image as primary
-        imageDataArray: imageDataArray, // Store all images
-        fileName: files.length === 1 ? files[0].name : `${files.length} files`,
-        isMultiImage: true,
-        fileCount: files.length,
-        originalFiles: files.map(f => ({ name: f.name, type: f.type }))
-      };
+      if (hasPDFs) {
+        // For PDFs, create message with PDF context instead of image data
+        // Convert each PDF file to base64 and create blob URL for immediate display
+        const convertPdfToBlobUrl = async (file) => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              try {
+                const base64DataUrl = e.target.result;
+                // Convert base64 data URL to Blob URL to avoid browser length limits
+                const base64String = base64DataUrl.split(',')[1];
+                const byteCharacters = atob(base64String);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                const blobUrl = URL.createObjectURL(blob);
+                resolve({ base64DataUrl, blobUrl });
+              } catch (error) {
+                reject(error);
+              }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        };
+        
+        const pdfContexts = await Promise.all(files.map(async (file) => {
+          const { blobUrl } = await convertPdfToBlobUrl(file);
+          
+          return {
+            originalFileName: file.name,
+            fileSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+            originalPdfDataUrl: blobUrl, // Use blob URL instead of base64 data URL
+            url: blobUrl // Fallback URL
+          };
+        }));
+        
+        optimisticMessage = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: customText || `I have uploaded ${files.length} file(s) for analysis.`,
+          timestamp: new Date().toISOString(),
+          originalFileType: 'pdf',
+          pdfContexts: pdfContexts,
+          // NO fileName for PDFs - use pdfContexts instead
+          isMultiImage: false, // Don't treat PDFs as multi-image
+          fileCount: files.length,
+          originalFiles: files.map(f => ({ name: f.name, type: f.type }))
+        };
+      } else {
+        // For images, process as before
+        const processImage = async (file) => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        };
+        
+        const imageDataArray = await Promise.all(files.map(processImage));
+        
+        optimisticMessage = {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: customText || `I have uploaded ${files.length} image(s) for analysis.`,
+          timestamp: new Date().toISOString(),
+          imageData: imageDataArray[0], // Show first image as primary
+          imageDataArray: imageDataArray, // Store all images
+          fileName: files.length === 1 ? files[0].name : files.map(f => f.name).join(', '),
+          isMultiImage: true,
+          fileCount: files.length,
+          originalFiles: files.map(f => ({ name: f.name, type: f.type }))
+        };
+      }
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       

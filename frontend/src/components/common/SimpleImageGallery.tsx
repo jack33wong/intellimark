@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './SimpleImageGallery.css';
 
 interface SimpleImageGalleryProps {
-  images: string[];
+  images: (string | { url: string; originalFileName?: string; fileSize?: number })[];
   onImageClick?: (index: number) => void;
   className?: string;
 }
@@ -23,16 +23,19 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
     setImageErrors(prev => new Set(prev).add(index));
   };
 
-  const getImageSrc = (image: string) => {
+  const getImageSrc = (image: string | { url: string; originalFileName?: string; fileSize?: number }) => {
+    // Handle both old format (string) and new format (object)
+    const imageSrc = typeof image === 'string' ? image : image.url;
+    
     // Handle both base64 data URLs and Firebase Storage links
-    if (image.startsWith('data:') || image.startsWith('http')) {
-      return image;
+    if (imageSrc.startsWith('data:') || imageSrc.startsWith('http')) {
+      return imageSrc;
     }
     // If it's not a valid URL format, assume it's base64 and add data URL prefix
-    if (image && !image.includes('://')) {
-      return `data:image/png;base64,${image}`;
+    if (imageSrc && !imageSrc.includes('://')) {
+      return `data:image/png;base64,${imageSrc}`;
     }
-    return image;
+    return imageSrc;
   };
 
   return (
@@ -58,7 +61,7 @@ const SimpleImageGallery: React.FC<SimpleImageGalleryProps> = ({
             {!hasError ? (
               <img
                 src={imageSrc}
-                alt={`Gallery image ${index + 1}`}
+                alt={`Gallery item ${index + 1}`}
                 className="thumbnail-image"
                 onError={() => handleImageError(index, imageSrc)}
                 onLoad={() => {

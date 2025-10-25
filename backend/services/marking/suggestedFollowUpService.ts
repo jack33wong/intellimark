@@ -68,10 +68,10 @@ export class SuggestedFollowUpService {
     if (sourceMessageId) {
       // Find the specific message that triggered this follow-up
       return existingSession?.messages?.find((msg: any) => 
-        msg.id === sourceMessageId && msg.detectedQuestion?.found
+        msg.id === sourceMessageId
       );
     } else {
-      // Fallback: Find the most recent message with detectedQuestion data
+      // Fallback: Find the most recent assistant message
       const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
         msg.role === 'assistant' && msg.detectedQuestion?.found
       ) || [];
@@ -112,9 +112,9 @@ export class SuggestedFollowUpService {
     
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
     const userPrompt = getPrompt(`${config.promptKey}.user`, 
-      targetMessage.detectedQuestion.questionText || '', 
-      targetMessage.detectedQuestion.markingScheme || '',
-      config.promptKey === 'modelAnswer' ? targetMessage.detectedQuestion.marks : undefined
+      targetMessage.detectedQuestion?.questionText || '',
+      targetMessage.detectedQuestion?.markingScheme || '',
+      targetMessage.detectedQuestion?.marks
     );
     
     // DEBUG: Print the detectedQuestion data and user prompt for model answer

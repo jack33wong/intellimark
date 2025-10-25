@@ -6,7 +6,7 @@
 // File validation constants
 export const FILE_CONSTRAINTS = {
   MAX_SIZE: 10 * 1024 * 1024, // 10MB
-  ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
+  ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'],
   MIN_SIZE: 1024 // 1KB minimum
 };
 
@@ -85,6 +85,19 @@ export const isImageFile = (file) => {
   }
   
   return file.type.startsWith('image/');
+};
+
+/**
+ * Check if file is a PDF based on MIME type
+ * @param {File} file - File to check
+ * @returns {boolean} - True if file is a PDF
+ */
+export const isPdfFile = (file) => {
+  if (!file || !file.type) {
+    return false;
+  }
+  
+  return file.type === 'application/pdf';
 };
 
 /**

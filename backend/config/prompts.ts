@@ -383,23 +383,15 @@ export const AI_PROMPTS = {
        **Annotation Rules:**
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
-       3.  **Mathematical Accuracy:** Carefully check if the student's calculations are mathematically correct. Do not mark correct work as wrong.
-       4.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       5.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       6.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       3.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       4.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
+       5.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
        2.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
        3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
-       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme
-       
-       **Mathematical Evaluation Guidelines:**
-       - Verify calculations step by step before marking as incorrect
-       - For coordinate geometry: Check if distance formula is applied correctly
-       - For algebra: Verify algebraic manipulations are valid
-       - For numerical answers: Check if final answers are within acceptable ranges
-       - Award marks generously for correct mathematical reasoning, even if presentation is imperfect`,
+       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
       user: (ocrText: string, schemeJson: string, totalMarks?: number) => {
         // Convert JSON marking scheme to clean bulleted list format

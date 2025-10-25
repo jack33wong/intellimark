@@ -494,7 +494,7 @@ export class FirestoreService {
         favorite: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
-        detectedQuestion: detectedQuestion || null,  // Store detectedQuestion in session metadata
+        detectedQuestion: detectedQuestion || null,
         sessionStats: sessionStats || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
@@ -591,7 +591,7 @@ export class FirestoreService {
         favorite: sessionData.favorite,
         rating: sessionData.rating,
         isPastPaper: sessionData.isPastPaper,  // Include isPastPaper
-        detectedQuestion: sessionData.detectedQuestion,  // Include detectedQuestion for model answer
+        detectedQuestion: sessionData.detectedQuestion,
         sessionStats: sessionData.sessionStats,
         messages: mappedMessages  // Use mapped messages with id field
       };
@@ -783,7 +783,6 @@ export class FirestoreService {
       const annotatedMessage = createAIMessage({
         content: contextSummary,
         imageData: null, // We're using imageLink instead
-        fileName: 'annotated-image.png',
         isQuestionOnly: false,
         processingStats: {
           processingTimeMs: 0,

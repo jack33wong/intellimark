@@ -21,6 +21,7 @@ import ImageModeModal from '../common/ImageModeModal';
 import SimpleImageGallery from '../common/SimpleImageGallery';
 import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUtils';
 import './ChatMessage.css';
+import '../common/SimpleImageGallery.css';
 import type { UnifiedMessage } from '../../types';
 
 
@@ -86,24 +87,47 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     return (message as any)?.imageDataArray || [];
   }, [message]);
 
-  // Helper function to get image source from imageDataArray
-  const getImageSourceFromArray = useCallback((imageDataArray: string[], index: number) => {
+  // Helper function to get image source from structured imageDataArray
+  const getImageSourceFromArray = useCallback((imageDataArray: any[], index: number) => {
     if (!imageDataArray || !Array.isArray(imageDataArray) || index >= imageDataArray.length) {
       return null;
     }
-    return imageDataArray[index];
+    const item = imageDataArray[index];
+    // Handle both old format (string) and new format (object with url property)
+    return typeof item === 'string' ? item : item?.url;
   }, []);
+
+
+  // Helper function to format file size
+  const formatFileSize = useCallback((fileSize: number | string) => {
+    if (!fileSize) return 'Unknown size';
+    
+    // If it's already a formatted string (like "0.78 MB"), return it as-is
+    if (typeof fileSize === 'string') {
+      return fileSize;
+    }
+    
+    // If it's a number (bytes), format it
+    if (fileSize < 1024) return `${fileSize} B`;
+    if (fileSize < 1024 * 1024) return `${Math.round(fileSize / 1024)} KB`;
+    return `${Math.round(fileSize / (1024 * 1024))} MB`;
+  }, []);
+
 
   const handleMultiImageClick = useCallback((index: number) => {
     const imageDataArray = getMultiImageData();
     if (imageDataArray.length > 0) {
       // Convert image data array to SessionImage format for ImageModeModal
-      const sessionImages = imageDataArray.map((imageData: string, idx: number) => ({
-        id: `multi-${message.id}-${idx}`,
-        src: imageData,
-        alt: `Uploaded image ${idx + 1}`,
-        type: 'uploaded' as const
-      }));
+      const sessionImages = imageDataArray.map((item: any, idx: number) => {
+        const src = typeof item === 'string' ? item : item?.url;
+        const fileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
+        return {
+          id: `multi-${message.id}-${idx}`,
+          src: src,
+          alt: fileName,
+          type: 'uploaded' as const
+        };
+      });
       
       // Open ImageModeModal with the selected image
       setIsImageModeOpen(true);
@@ -120,7 +144,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         handleMultiImageClick(0); // Click on first image
       } else {
         // For single image results, use the original logic
-        setIsImageModeOpen(true);
+      setIsImageModeOpen(true);
       }
     }
   }, [message, imageError, handleMultiImageClick]);
@@ -194,17 +218,31 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const isUser = isUserMessage(message);
   const content = getMessageDisplayText(message);
   const getOriginalFileName = () => (message as any)?.originalFileName || (message as any)?.fileName || 'PDF';
+  const truncateFileName = (fileName: string, maxLength: number = 10) => {
+    if (fileName.length <= maxLength) return fileName;
+    return fileName.substring(0, maxLength) + '...';
+  };
   const isPdfMessage = () => {
     // Check for explicit PDF type first
     if ((message as any)?.originalFileType === 'pdf') {
+      
+      // Log warning if PDF but no pdfContexts, but don't throw exception
+      if (!(message as any)?.pdfContexts || !Array.isArray((message as any).pdfContexts) || (message as any).pdfContexts.length === 0) {
+        console.warn(`PDF message detected but pdfContexts is empty! Message: ${message.id}, originalFileType: ${(message as any)?.originalFileType}, pdfContexts: ${JSON.stringify((message as any)?.pdfContexts)}`);
+      }
+      return true;
+    }
+    // Check for pdfContexts array
+    if ((message as any)?.pdfContexts && Array.isArray((message as any).pdfContexts) && (message as any).pdfContexts.length > 0) {
       return true;
     }
     // Fallback to filename detection
     const name = getOriginalFileName();
-    return typeof name === 'string' && name.toLowerCase().endsWith('.pdf');
+    const isPdfByName = typeof name === 'string' && name.toLowerCase().endsWith('.pdf');
+    return isPdfByName;
   };
 
-  const isMultiImageMessage = () => {
+  const isMultiFileMessage = () => {
     // Check for user multi-image uploads
     if ((message as any)?.isMultiImage === true && (message as any)?.fileCount > 1) {
       return true;
@@ -213,12 +251,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     if (message.role === 'user' && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1) {
       return true;
     }
+    // Check for PDF messages with multiple contexts
+    if (message.role === 'user' && (message as any)?.pdfContexts && Array.isArray((message as any).pdfContexts) && (message as any).pdfContexts.length > 1) {
+      return true;
+    }
     // Check for AI response with annotated images array (including single images)
     if (message.role === 'assistant' && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 0) {
       return true;
     }
     return false;
   };
+
+  // Keep the old function for backward compatibility
+  const isMultiImageMessage = () => isMultiFileMessage();
 
 
 
@@ -324,18 +369,20 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           )}
           
           {/* Display multi-image annotated results FIRST (before suggested follow-ups) - only if more than 1 image */}
-          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && (
-            <div className="multi-image-gallery">
-              <SimpleImageGallery
-                images={(message as any).imageDataArray}
-                onImageClick={handleMultiImageClick}
-                className="multi-image-gallery"
-              />
-            </div>
-          )}
+          {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (() => {
+            return (
+              <div className="multi-image-gallery">
+                <SimpleImageGallery
+                  images={(message as any).imageDataArray}
+                  onImageClick={handleMultiImageClick}
+                  className="multi-image-gallery"
+                />
+              </div>
+            );
+          })()}
           
           {/* Display single annotated image if only 1 image - BEFORE suggested follow-ups */}
-          {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && (
+          {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && !isPdfMessage() && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
               <img 
                 src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''}
@@ -363,11 +410,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           
           {/* Show suggested follow-ups for any assistant message with detected question and follow-ups */}
           {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
-            <SuggestedFollowUpButtons 
-              suggestions={message.suggestedFollowUps as string[]}
-              onSuggestionClick={handleFollowUpClick}
-              disabled={isAnyMessageProcessing}
-            />
+                <SuggestedFollowUpButtons 
+                  suggestions={message.suggestedFollowUps as string[]}
+                  onSuggestionClick={handleFollowUpClick}
+                  disabled={isAnyMessageProcessing}
+                />
           )}
           
           {isUser && content && (
@@ -379,22 +426,104 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         
         {isUser && hasImage(message) && !imageError && (
           <div className="chat-message-image">
-            {isMultiImageMessage() ? (
-              <SimpleImageGallery
-                images={getMultiImageData()}
-                onImageClick={handleMultiImageClick}
-                className="multi-image-gallery"
-              />
+            {(() => {
+              // BYPASS: Force PDF display for PDF messages
+              const isPdf = isPdfMessage();
+              if (isPdf && (message as any)?.pdfContexts?.length > 1) {
+                return true;
+              }
+              return isMultiImageMessage();
+            })() ? (
+              // Check if this is a PDF message - show PDF file cards instead of gallery
+              isPdfMessage() ? (
+                <div className="pdf-files-container">
+                  {/* Handle multiple PDFs from pdfContexts */}
+                  {(message as any).pdfContexts?.map((pdfContext: any, index: number) => {
+                    const fileName = pdfContext.originalFileName || `PDF ${index + 1}`;
+                    const fileSize = formatFileSize(pdfContext.fileSize);
+
+                    return (
+                      <div 
+                        key={index}
+                        className="chat-message-file-card" 
+                        role="button" 
+                        aria-label="Uploaded PDF"
+                        onClick={() => {
+                          // Try originalPdfDataUrl first (blob URL), then originalPdfLink (Firebase), then url
+                          const pdfUrl = pdfContext.originalPdfDataUrl || pdfContext.originalPdfLink || pdfContext.url;
+                          if (pdfUrl) {
+                            window.open(pdfUrl, '_blank');
+                          }
+                        }}
+                      >
+                        <div className="small-pdf-icon">
+                          <svg viewBox="0 0 24 24" className="small-pdf-icon-svg">
+                            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                          </svg>
+                        </div>
+                        <div className="pdf-file-info">
+                          <span className="small-pdf-file-name">
+                            {truncateFileName(fileName)}
+                          </span>
+                          <span className="pdf-file-size">
+                            PDF · {fileSize}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Handle single PDF without pdfContexts */}
+                  {(!(message as any).pdfContexts || (message as any).pdfContexts.length === 0) && (
+                    <div 
+                      className="chat-message-file-card" 
+                      role="button" 
+                      aria-label="Uploaded PDF"
+                      onClick={() => {
+                        const pdfLink = (message as any)?.originalPdfLink;
+                        const pdfDataUrl = (message as any)?.originalPdfDataUrl;
+                        
+                        if (pdfLink) {
+                          window.open(pdfLink, '_blank');
+                        } else if (pdfDataUrl) {
+                          window.open(pdfDataUrl, '_blank');
+                        } else {
+                        }
+                      }}
+                    >
+                      <div className="small-pdf-icon">
+                        <svg viewBox="0 0 24 24" className="small-pdf-icon-svg">
+                          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                        </svg>
+                      </div>
+                      <div className="pdf-file-info">
+                        <span className="small-pdf-file-name">
+                          {truncateFileName(getOriginalFileName())}
+                        </span>
+                        <span className="pdf-file-size">
+                          PDF · {formatFileSize((message as any)?.fileSize || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                  <SimpleImageGallery
+                    images={getMultiImageData()}
+                    onImageClick={handleMultiImageClick}
+                    className="multi-image-gallery"
+                  />
+              )
             ) : (
               imageSrc && (
                 <div onClick={handleImageClick}>
-                  <img 
-                    src={imageSrc}
-                    alt="Uploaded"
-                    className="content-image"
-                    onLoad={onImageLoad}
-                    onError={handleImageError}
-                  />
+            <img 
+              src={imageSrc}
+              alt="Uploaded"
+              className="content-image"
+              onLoad={onImageLoad}
+              onError={handleImageError}
+            />
                 </div>
               )
             )}
@@ -422,12 +551,23 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 }
               }}
             >
-              <span className="pdf-badge">PDF</span>
-              <span className="file-name">{getOriginalFileName()}</span>
+              <div className="small-pdf-icon">
+                <svg viewBox="0 0 24 24" className="small-pdf-icon-svg">
+                  <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                </svg>
+              </div>
+              <div className="pdf-file-info">
+                <span className="small-pdf-file-name">
+                  {truncateFileName(getOriginalFileName())}
+                </span>
+                <span className="pdf-file-size">
+                  PDF · {formatFileSize((message as any)?.fileSize || 0)}
+                </span>
+              </div>
             </div>
           ) : (
-            <div className="chat-message-image-error">
-              <span>📷 Image failed to load</span>
+          <div className="chat-message-image-error">
+            <span>📷 Image failed to load</span>
             </div>
           )
         )}
@@ -453,8 +593,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               }
             }}
           >
-            <span className="pdf-badge">PDF</span>
-            <span className="file-name">{getOriginalFileName()}</span>
+            <div className="small-pdf-icon">
+              <svg viewBox="0 0 24 24" className="small-pdf-icon-svg">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+              </svg>
+            </div>
+            <div className="pdf-file-info">
+              <span className="small-pdf-file-name">
+                {truncateFileName(getOriginalFileName())}
+              </span>
+              <span className="pdf-file-size">
+                PDF · {formatFileSize((message as any)?.fileSize || 0)}
+              </span>
+            </div>
           </div>
         )}
         

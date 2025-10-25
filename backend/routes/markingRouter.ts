@@ -16,7 +16,6 @@ import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/
 import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps } from '../services/marking/MarkingHelpers.js';
 import { 
-  createDetectedQuestionData, 
   generateSessionTitle, 
   sendProgressUpdate, 
   withPerformanceLogging, 
@@ -599,6 +598,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           let originalPdfLink = null;
           let originalPdfDataUrl = null;
           
+          // Always create base64 URL for immediate display
+          originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
+          
           if (isAuthenticated) {
             try {
               const { ImageStorageService } = await import('../services/imageStorageService.js');
@@ -614,16 +616,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               console.error(`❌ Failed to upload PDF ${i + 1}:`, error);
               originalPdfLink = null;
             }
-          } else {
-            // For unauthenticated users, create a data URL
-            originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
           }
           
           // Calculate file size
           const fileSizeBytes = file.buffer.length;
           const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
           
-          pdfContexts.push({
+          const pdfContextItem = {
             originalFileType: 'pdf' as const,
             originalPdfLink,
             originalPdfDataUrl,
@@ -631,7 +630,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             fileSize: fileSizeMB + ' MB',
             fileSizeBytes: fileSizeBytes,
             fileIndex: i
-          });
+          };
+          
+          
+          
+          pdfContexts.push(pdfContextItem);
         }
         
         // Store multiple PDF contexts for later use in the unified pipeline
@@ -744,28 +747,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Perform Classification on ALL Images ---
     const logClassificationComplete = logStep('Image Classification', actualModel);
     
-    // Debug logging for multi-image processing
-    console.log('🔍 [MULTI-IMAGE DEBUG] Processing images:', {
-      totalImages: standardizedPages.length,
-      imageOrder: standardizedPages.map((page, index) => ({
-        index,
-        fileName: page.originalFileName,
-        imageDataLength: page.imageData.length
-      }))
-    });
     
     // Classify ALL images to detect questions in all of them
     const classificationPromises = standardizedPages.map(async (page, index) => {
-      console.log(`🔍 [CLASSIFICATION DEBUG] Classifying image ${index + 1}/${standardizedPages.length}: ${page.originalFileName}`);
       const result = await ClassificationService.classifyImage(page.imageData, 'auto', false, page.originalFileName);
-      console.log(`🔍 [CLASSIFICATION DEBUG] Image ${index + 1} result:`, {
-        fileName: page.originalFileName,
-        questionsCount: result.questions?.length || 0,
-        questions: result.questions?.map((q: any) => ({
-          textLength: q.text?.length || 0,
-          textPreview: q.text?.substring(0, 50) + '...'
-        })) || []
-      });
       return { pageIndex: index, result };
     });
     
@@ -794,31 +779,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       apiUsed: allClassificationResults[0]?.result?.apiUsed || 'Unknown',
       usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0)
     };
-    
-    console.log('🔍 [COMBINED CLASSIFICATION DEBUG] Final result:', {
-      totalImages: standardizedPages.length,
-      totalQuestions: allQuestions.length,
-      questions: allQuestions.map((q, i) => ({
-        index: i,
-        sourceImage: q.sourceImage,
-        textLength: q.text?.length || 0,
-        textPreview: q.text?.substring(0, 50) + '...'
-      }))
-    });
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
       ? classificationResult.questions[0].text 
       : classificationResult?.extractedQuestionText;
     
-    // Debug logging for classification result
-    console.log('🔍 [DEBUG] Classification result:', {
-      hasResult: !!classificationResult,
-      isQuestionOnly: classificationResult?.isQuestionOnly,
-      extractedQuestionText: globalQuestionText?.substring(0, 100) + '...',
-      hasQuestions: !!classificationResult?.questions,
-      questionsCount: classificationResult?.questions?.length || 0,
-      fullQuestions: classificationResult?.questions?.map(q => ({ textLength: q.text?.length || 0, textPreview: q.text?.substring(0, 50) + '...' }))
-    });
     
     logClassificationComplete();
 
@@ -828,24 +793,16 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     if (isQuestionMode) {
       // Question mode: simplified pipeline - skip OCR, segmentation, and marking
-      console.log('🔍 [QUESTION MODE] Detected question-only image, running simplified pipeline');
       
       // Step 1: Question Detection
       sendSseUpdate(res, createProgressData(4, 'Detecting question type...', MULTI_IMAGE_STEPS));
       const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-      console.log('🔍 [QUESTION MODE DEBUG] Starting question detection with text:', globalQuestionText?.substring(0, 100) + '...');
       const questionDetection = await questionDetectionService.detectQuestion(globalQuestionText || '');
-      console.log('🔍 [QUESTION MODE DEBUG] Question detection result:', {
-        found: questionDetection?.found,
-        hasMatch: !!questionDetection?.match,
-        questionNumber: questionDetection?.match?.questionNumber
-      });
       logQuestionDetectionComplete();
       
       // Step 2: AI Response Generation (skip segmentation and marking steps)
       sendSseUpdate(res, createProgressData(6, 'Generating response...', MULTI_IMAGE_STEPS));
       const logAiResponseComplete = logStep('AI Response Generation', actualModel);
-      console.log('🔍 [QUESTION MODE DEBUG] Starting AI response generation...');
       const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
       const aiResponse = await MarkingServiceLocator.generateChatResponse(
         standardizedPages[0].imageData, 
@@ -854,11 +811,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         true, // isQuestionOnly
         false // debug
       );
-      console.log('🔍 [QUESTION MODE DEBUG] AI response received:', {
-        hasResponse: !!aiResponse?.response,
-        responseLength: aiResponse?.response?.length || 0,
-        usageTokens: aiResponse?.usageTokens || 0
-      });
       logAiResponseComplete();
       
       // Generate suggested follow-ups (same as marking mode)
@@ -879,6 +831,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       const aiMessage = createAIMessage({
         content: aiResponse.response,
+        imageDataArray: [{
+          url: standardizedPages[0].imageData,
+          originalFileName: standardizedPages[0].originalFileName || 'question-image.png',
+          fileSize: standardizedPages[0].imageData.length
+        }],
         progressData: {
           currentStepDescription: 'Question analysis complete',
           allSteps: MULTI_IMAGE_STEPS,
@@ -889,47 +846,46 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         processingStats: realProcessingStats
       });
       
-      // Update AI message with original image (not annotated) and detected question data
+      // Update AI message with original image (not annotated)
       (aiMessage as any).imageData = standardizedPages[0].imageData;
       (aiMessage as any).imageLink = null; // No image link for question mode
-      (aiMessage as any).detectedQuestion = questionDetection?.found ? {
-        found: true,
-        questionText: globalQuestionText || '',
-        questionNumber: questionDetection.match?.questionNumber || '',
-        examBoard: questionDetection.match?.board || '',
-        examCode: questionDetection.match?.paperCode || '',
-        paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.qualification || '',
-        tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || '',
-        marks: questionDetection.match?.marks,
-        markingScheme: questionDetection.match?.markingScheme?.questionMarks ? JSON.stringify(questionDetection.match.markingScheme.questionMarks) : ''
-      } : {
-        found: false,
-        questionText: '',
-        questionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        markingScheme: ''
-      };
       
       // ========================= DATABASE PERSISTENCE FOR QUESTION MODE =========================
-      console.log('🔍 [QUESTION MODE DEBUG] Starting database persistence...');
       let persistenceResult: any = null;
       let userMessage: any = null;
       try {
+        // Upload original files for authenticated users
+        const uploadResult = await SessionManagementService.uploadOriginalFiles(
+          files,
+          userId || 'anonymous',
+          submissionId,
+          !!userId
+        );
+
+        // Create structured data
+        const { structuredImageDataArray } = SessionManagementService.createStructuredData(
+          files,
+          false, // isPdf
+          false, // isMultiplePdfs
+          undefined // pdfContext
+        );
+
         // Create user message for question mode
-        userMessage = createUserMessage({
-          content: `I have uploaded 1 file(s) for analysis.`,
-          imageData: standardizedPages[0].imageData,
-          fileName: standardizedPages[0].originalFileName || 'question-image.png'
-        });
+        userMessage = SessionManagementService.createUserMessageForDatabase(
+          {
+            content: `I have uploaded 1 file(s) for analysis.`,
+            files,
+            isPdf: false,
+            isMultiplePdfs: false,
+            sessionId: req.body.sessionId || submissionId,
+            model: req.body.model || 'auto'
+          },
+          structuredImageDataArray,
+          undefined, // structuredPdfContexts
+          uploadResult.originalImageLinks
+        );
         
-        // Use the new session management service
+        // Persist question session
         const questionContext: QuestionSessionContext = {
           req,
           submissionId,
@@ -940,13 +896,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           globalQuestionText: globalQuestionText || '',
           mode: 'Question'
         };
-        
         persistenceResult = await SessionManagementService.persistQuestionSession(questionContext);
         
         // Update the AI message with session data
         (aiMessage as any).sessionId = persistenceResult.sessionId;
         
-        console.log('🔍 [QUESTION MODE DEBUG] Database persistence completed');
       } catch (dbError) {
         console.error('❌ [QUESTION MODE] Database persistence failed:', dbError);
         // Continue with response even if database fails
@@ -958,26 +912,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       
       if (!isAuthenticated && !unifiedSession) {
         // For unauthenticated users, create a temporary session structure
-        unifiedSession = {
-          id: submissionId,
-          title: generateSessionTitle((aiMessage as any)?.detectedQuestion),
-          messages: [userMessage, aiMessage],
-          userId: null,
-          messageType: 'Question',
-          createdAt: userMessage.timestamp,
-          updatedAt: aiMessage.timestamp,
-          isPastPaper: false,
-        sessionStats: calculateSessionStats(
+        unifiedSession = SessionManagementService.createUnauthenticatedSession(
+          submissionId,
+          userMessage,
+          aiMessage,
           [], // No question results in question mode
-          Date.now() - startTime,
+          startTime,
           actualModel,
-          standardizedPages
-        )
-        };
+          files,
+          'Question'
+        );
       }
       
       // Send final result
-      console.log('🔍 [QUESTION MODE DEBUG] Creating final result...');
       const finalResult = {
         success: true,
         message: aiMessage,
@@ -987,7 +934,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       };
       
       // Send final result with completion flag
-      console.log('🔍 [QUESTION MODE DEBUG] Sending completion event...');
       const finalProgressData = createProgressData(7, 'Complete!', MULTI_IMAGE_STEPS);
       finalProgressData.isComplete = true;
       sendSseUpdate(res, finalProgressData);
@@ -997,38 +943,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         type: 'complete',
         result: finalResult
       };
-      console.log('🔍 [QUESTION MODE DEBUG] Writing completion event to response...');
       res.write(`data: ${JSON.stringify(completionEvent)}\n\n`);
       res.end();
-      console.log('🔍 [QUESTION MODE DEBUG] Question mode completed successfully');
       return;
     }
 
     // --- Run OCR on each page in parallel (Marking Mode) ---
     const logOcrComplete = logStep('OCR Processing', 'mathpix');
     
-    // Debug logging for OCR processing
-    console.log('🔍 [OCR DEBUG] Processing OCR for all images:', {
-      totalImages: standardizedPages.length,
-      imageDetails: standardizedPages.map((page, index) => ({
-        index,
-        fileName: page.originalFileName,
-        imageDataLength: page.imageData.length
-      }))
-    });
     
     const pageProcessingPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
-      console.log(`🔍 [OCR DEBUG] Processing image ${page.pageIndex + 1}/${standardizedPages.length}: ${page.originalFileName}`);
       const ocrResult = await OCRService.processImage(
         page.imageData, {}, false, 'auto',
         { extractedQuestionText: globalQuestionText }
       );
-      console.log(`🔍 [OCR DEBUG] Image ${page.pageIndex + 1} OCR result:`, {
-        fileName: page.originalFileName,
-        mathBlocksCount: ocrResult.mathBlocks?.length || 0,
-        textLength: ocrResult.text?.length || 0,
-        textPreview: ocrResult.text?.substring(0, 100) + '...'
-      });
       return {
         pageIndex: page.pageIndex,
         ocrData: ocrResult,
@@ -1089,20 +1017,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     logQuestionDetectionComplete();
     
     // Debug logging for markingSchemesMap
-    console.log('🔍 [DETECTED QUESTION DEBUG] markingSchemesMap entries:');
     for (const [key, value] of markingSchemesMap.entries()) {
-      console.log(`  - Key: ${key}, Value:`, {
-        questionNumber: value.questionNumber,
-        totalMarks: value.totalMarks,
-        hasQuestionMarks: value.hasQuestionMarks,
-        match: value.questionDetection?.match ? {
-          examBoard: value.questionDetection.match.board,
-          examCode: value.questionDetection.match.paperCode,
-          subject: value.questionDetection.match.qualification,
-          year: value.questionDetection.match.year,
-          tier: value.questionDetection.match.tier
-        } : 'no match'
-      });
     }
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
@@ -1293,7 +1208,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // finalOutput will be constructed after database persistence
 
     // ========================= START: DATABASE PERSISTENCE =========================
-    // --- Database Persistence (Following Original Pipeline Design) ---
+    // --- Database Persistence (Using SessionManagementService) ---
     let dbUserMessage: any = null; // Declare outside try-catch for scope
     let dbAiMessage: any = null; // Declare outside try-catch for scope
     let persistenceResult: any = null; // Declare outside try-catch for scope
@@ -1319,140 +1234,91 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
       const aiTimestamp = new Date().toISOString(); // AI message current time
       
-      // Upload original images to Firebase Storage for authenticated users
-      let originalImageLinks: string[] = [];
-      if (isAuthenticated) {
-        const uploadPromises = files.map(async (file, index) => {
-          try {
-            const imageLink = await ImageStorageService.uploadImage(
-              file.buffer.toString('base64'),
-              userId,
-              `multi-${submissionId}`,
-              'original'
-            );
-            return imageLink;
-          } catch (uploadError) {
-            console.error(`❌ [UPLOAD] Failed to upload original image ${index}:`, uploadError);
-            return file.buffer.toString('base64'); // Fallback to base64
-          }
-        });
-        originalImageLinks = await Promise.all(uploadPromises);
+      // Upload original files for authenticated users
+      const uploadResult = await SessionManagementService.uploadOriginalFiles(
+        files,
+        userId,
+        submissionId,
+        isAuthenticated
+      );
+
+      // Create structured data
+      
+      const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+        files,
+        isPdf,
+        isMultiplePdfs,
+        pdfContext
+      );
+      
+
+      // Update pdfContext with structured data for frontend
+      if (pdfContext && structuredPdfContexts) {
+        pdfContext.pdfContexts = structuredPdfContexts;
       }
 
       // Create user message for database
       const messageContent = customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`);
       
-      dbUserMessage = createUserMessage({
-        content: messageContent,
-        imageData: !isAuthenticated && files.length === 1 ? files[0].buffer.toString('base64') : undefined,
-        imageDataArray: !isAuthenticated && files.length > 1 ? files.map(f => f.buffer.toString('base64')) : undefined,
-        originalFileName: files.length === 1 ? files[0]?.originalname : files.map(f => f.originalname).join(', '),
-        sessionId: currentSessionId,
-        model: model,
-        // Add PDF context if applicable
-        ...(pdfContext && {
-          originalFileType: pdfContext.originalFileType,
-          originalPdfLink: pdfContext.originalPdfLink,
-          originalPdfDataUrl: pdfContext.originalPdfDataUrl,
-          // For multiple PDFs, add the PDF contexts array
-          ...(pdfContext.isMultiplePdfs && {
-            pdfContexts: pdfContext.pdfContexts
-          })
-        })
-      });
-
-      // Add image links for authenticated users
-      if (isAuthenticated) {
-        if (files.length === 1) {
-          (dbUserMessage as any).imageLink = originalImageLinks[0];
-        } else {
-          (dbUserMessage as any).imageDataArray = originalImageLinks;
-        }
-      }
+      dbUserMessage = SessionManagementService.createUserMessageForDatabase(
+        {
+          content: messageContent,
+          files,
+          isPdf,
+          isMultiplePdfs,
+          customText,
+          sessionId: currentSessionId,
+          model,
+          pdfContext
+        },
+        structuredImageDataArray,
+        structuredPdfContexts,
+        uploadResult.originalImageLinks
+      );
       
       // Override timestamp for database consistency
       (dbUserMessage as any).timestamp = userTimestamp;
       
-      // Create AI message for database with real processing stats
+      // Create AI message for database
       const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, null, 'marking');
       
-      // Calculate real processing stats for the AI message
-      const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
-      const totalLlmTokens = allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
-      const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
-      const mockAiResponse = { usageTokens: totalLlmTokens, confidence: 0.85 }; // Mock response for calculation
-      
-      const realProcessingStats = calculateMessageProcessingStats(
-        mockAiResponse,
+      dbAiMessage = SessionManagementService.createAIMessageForDatabase({
+        allQuestionResults,
+        finalAnnotatedOutput,
+        files,
         actualModel,
-        Date.now() - startTime,
-        allQuestionResults.flatMap(q => q.annotations || []),
-        files.reduce((sum, f) => sum + f.size, 0),
-        allQuestionResults
-      );
-
-      dbAiMessage = createAIMessage({
-        content: 'Marking completed - see results below',
-        messageId: resolvedAIMessageId,
-        imageData: finalAnnotatedOutput.length === 1 ? finalAnnotatedOutput[0] : undefined, // Use first image for single image cases
-        imageDataArray: finalAnnotatedOutput.length > 1 ? finalAnnotatedOutput : undefined, // Use all images for multi-image cases
-        progressData: {
-          currentStepDescription: 'Marking completed',
-          allSteps: MULTI_IMAGE_STEPS,
-          currentStepIndex: 7,
-          isComplete: true
-        },
-        processingStats: realProcessingStats,
-        suggestedFollowUps: await getSuggestedFollowUps()
+        startTime,
+        markingSchemesMap,
+        globalQuestionText,
+        resolvedAIMessageId
       });
       
-      // resultsByQuestion removed - not needed in UnifiedMessage
-      
-      // Debug logging for markingSchemesMap
-      console.log('🔍 [DETECTED QUESTION DEBUG] markingSchemesMap entries:');
-      for (const [key, value] of markingSchemesMap.entries()) {
-        console.log(`  - Key: ${key}, Value:`, {
-          questionNumber: value.questionNumber,
-          totalMarks: value.totalMarks,
-          hasQuestionMarks: value.hasQuestionMarks,
-          match: value.match ? {
-            examBoard: value.match.examBoard,
-            examCode: value.match.examCode,
-            subject: value.match.subject,
-            year: value.match.year,
-            tier: value.match.tier
-          } : 'no match'
-        });
-      }
-      
-      // Add detectedQuestion data to the AI message using common function
-      (dbAiMessage as any).detectedQuestion = createDetectedQuestionData(
-        allQuestionResults,
-        markingSchemesMap,
-        globalQuestionText
-      );
+      // Add suggested follow-ups
+      (dbAiMessage as any).suggestedFollowUps = await getSuggestedFollowUps();
       
       // Override timestamp for database consistency
       (dbAiMessage as any).timestamp = aiTimestamp;
       
-      // Use the reusable persistence function
-      // Use the new session management service
+      // Debug logging for markingSchemesMap
+      for (const [key, value] of markingSchemesMap.entries()) {
+      }
+      
+      // Persist marking session
       const markingContext: MarkingSessionContext = {
         req,
         submissionId,
         startTime,
         userMessage: dbUserMessage,
         aiMessage: dbAiMessage,
-        questionDetection: null, // No single questionDetection for marking mode
+        questionDetection: null,
         globalQuestionText: globalQuestionText || '',
         mode: 'Marking',
         allQuestionResults,
         markingSchemesMap,
         files,
         model: actualModel,
-        usageTokens: 0 // Will be calculated from individual results if available
+        usageTokens: 0
       };
-      
       persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
       
       // For authenticated users, use the unifiedSession from persistence
@@ -1467,31 +1333,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // For unauthenticated users, create unifiedSession even if database persistence failed
     if (!isAuthenticated && !unifiedSession) {
-      unifiedSession = {
-        // For unauthenticated users, create a temporary session structure
-        id: submissionId, // Use submissionId as session ID for unauthenticated users
-        title: generateSessionTitle((dbAiMessage as any)?.detectedQuestion),
-        messages: dbAiMessage ? [dbUserMessage, dbAiMessage] : [],
-        userId: null, // No user ID for unauthenticated users
-        messageType: 'Marking',
-        createdAt: dbUserMessage?.timestamp || new Date().toISOString(),
-        updatedAt: dbAiMessage?.timestamp || new Date().toISOString(),
-        isPastPaper: false,
-        sessionStats: calculateSessionStats(
-          allQuestionResults,
-          Date.now() - startTime,
-          actualModel,
-          files
-        )
-      };
+      unifiedSession = SessionManagementService.createUnauthenticatedSession(
+        submissionId,
+        dbUserMessage,
+        dbAiMessage,
+        allQuestionResults,
+        startTime,
+        actualModel,
+        files,
+        'Marking'
+      );
       
       // Debug logging for unauthenticated users
-      console.log('🔍 [UNAUTHENTICATED DEBUG] Created unifiedSession:');
       console.log('  - id:', unifiedSession.id);
       console.log('  - title:', unifiedSession.title);
       console.log('  - messages count:', unifiedSession.messages?.length);
       console.log('  - userId:', unifiedSession.userId);
-      console.log('  - dbAiMessage detectedQuestion:', (dbAiMessage as any)?.detectedQuestion);
       console.log('  - markingSchemesMap sample:', Array.from(markingSchemesMap.entries())[0]);
     }
     
@@ -1513,7 +1370,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         annotatedOutput: finalAnnotatedOutput,
         outputFormat: outputFormat,
         originalInputType: isPdf ? 'pdf' : 'images',
-        detectedQuestion: (dbAiMessage as any).detectedQuestion, // Include detectedQuestion data for frontend
         // Always include unifiedSession for consistent frontend handling
         unifiedSession: unifiedSession,
         // Add PDF context for frontend display
@@ -1521,18 +1377,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             originalFileType: pdfContext.originalFileType,
             originalPdfLink: pdfContext.originalPdfLink,
             originalPdfDataUrl: pdfContext.originalPdfDataUrl,
-            originalFileName: pdfContext.originalFileName
+            originalFileName: pdfContext.originalFileName,
+            // Include pdfContexts for multiple PDFs
+            ...(pdfContext.pdfContexts && {
+              pdfContexts: pdfContext.pdfContexts
+            })
         })
       };
       
-      // Debug logging for final output
-      console.log('🔍 [FINAL OUTPUT DEBUG] Sending to frontend:');
-      console.log('  - success:', finalOutput.success);
-      console.log('  - submissionId:', finalOutput.submissionId);
-      console.log('  - unifiedSession exists:', !!finalOutput.unifiedSession);
-      console.log('  - unifiedSession title:', finalOutput.unifiedSession?.title);
-      console.log('  - unifiedSession messages count:', finalOutput.unifiedSession?.messages?.length);
-      console.log('  - unifiedSession userId:', finalOutput.unifiedSession?.userId);
       
       // --- Send FINAL Complete Event ---
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
