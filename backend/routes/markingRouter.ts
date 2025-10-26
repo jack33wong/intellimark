@@ -785,13 +785,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Single PDF processing
         sendSseUpdate(res, createProgressData(1, 'Converting PDF...', MULTI_IMAGE_STEPS));
         const pdfBuffer = files[0].buffer;
+        stepTimings['pdf_conversion'] = { start: Date.now() };
         standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
+        if (stepTimings['pdf_conversion']) {
+          stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
+        }
         if (standardizedPages.length === 0) throw new Error('PDF conversion yielded no pages.');
         sendSseUpdate(res, createProgressData(1, `Converted PDF to ${standardizedPages.length} pages.`, MULTI_IMAGE_STEPS));
       } else if (isMultiplePdfs) {
         // Multiple PDFs processing
         sendSseUpdate(res, createProgressData(1, `Converting ${files.length} PDFs...`, MULTI_IMAGE_STEPS));
         const allPdfPages: StandardizedPage[] = [];
+        stepTimings['pdf_conversion'] = { start: Date.now() };
         
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
@@ -810,6 +815,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           });
           
           allPdfPages.push(...pdfPages);
+        }
+        
+        if (stepTimings['pdf_conversion']) {
+          stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
         }
         
         standardizedPages = allPdfPages;
@@ -1653,7 +1662,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         model: actualModel,
         usageTokens: 0
       };
+      stepTimings['database_persistence'] = { start: Date.now() };
       persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
+      if (stepTimings['database_persistence']) {
+        stepTimings['database_persistence'].duration = Date.now() - stepTimings['database_persistence'].start;
+      }
       
       // For authenticated users, use the unifiedSession from persistence
       if (isAuthenticated) {
