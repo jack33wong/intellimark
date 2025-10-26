@@ -376,7 +376,7 @@ class SimpleSessionService {
         
         return this.state.currentSession;
       } else {
-        throw new Error('No session data received');
+        throw new Error('No AI message received from server');
       }
     } finally {
       apiControls.stopAIThinking();
@@ -390,13 +390,8 @@ class SimpleSessionService {
         throw new Error(data.error || 'Failed to process text chat');
       }
       
-      if (data.unifiedSession) {
-        // Authenticated users get full session data
-        const newSession = this.convertToUnifiedSession(data.unifiedSession);
-        this._setAndMergeCurrentSession(newSession, modelUsed);
-        return newSession;
-      } else if (data.aiMessage) {
-        // Unauthenticated users get only AI message - append to current session
+      if (data.aiMessage) {
+        // All users (authenticated and unauthenticated) now get only AI message - append to current session
         this.addMessage(data.aiMessage);
         
         // Update session title and ID in current session (for session header display only)
@@ -435,7 +430,7 @@ class SimpleSessionService {
         
         return this.state.currentSession;
       } else {
-        throw new Error('No session data received');
+        throw new Error('No AI message received from server');
       }
     } finally {
       apiControls.stopAIThinking();

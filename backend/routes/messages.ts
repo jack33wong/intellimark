@@ -262,12 +262,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
     
     // Return consistent response format (same as process-single)
     if (isAuthenticated) {
-      // Authenticated users get complete session (user message already in database)
+      // Authenticated users get only AI message (like marking/question modes)
       res.json({
         success: true,
         aiMessage: aiMessage,
         sessionId: currentSessionId,
-        unifiedSession: sessionData
+        sessionTitle: sessionTitle
       });
     } else {
       // Anonymous users get only AI message for frontend to append
