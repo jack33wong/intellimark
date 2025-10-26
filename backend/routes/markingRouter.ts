@@ -793,29 +793,44 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         if (standardizedPages.length === 0) throw new Error('PDF conversion yielded no pages.');
         sendSseUpdate(res, createProgressData(1, `Converted PDF to ${standardizedPages.length} pages.`, MULTI_IMAGE_STEPS));
       } else if (isMultiplePdfs) {
-        // Multiple PDFs processing
-        sendSseUpdate(res, createProgressData(1, `Converting ${files.length} PDFs...`, MULTI_IMAGE_STEPS));
-        const allPdfPages: StandardizedPage[] = [];
+        // Multiple PDFs processing - PARALLEL CONVERSION
+        sendSseUpdate(res, createProgressData(1, `Converting ${files.length} PDFs in parallel...`, MULTI_IMAGE_STEPS));
         stepTimings['pdf_conversion'] = { start: Date.now() };
         
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          sendSseUpdate(res, createProgressData(1, `Converting PDF ${i + 1}/${files.length}...`, MULTI_IMAGE_STEPS));
-          
-          const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer);
+        // Convert all PDFs in parallel
+        const pdfConversionPromises = files.map(async (file, index) => {
+          try {
+            const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer);
           if (pdfPages.length === 0) {
-            console.warn(`PDF ${i + 1} (${file.originalname}) yielded no pages.`);
-            continue;
+            console.warn(`PDF ${index + 1} (${file.originalname}) yielded no pages.`);
+            return { index, pdfPages: [] };
           }
-          
-          // Update page indices to be sequential across all PDFs
-          pdfPages.forEach((page, pageIndex) => {
-            page.pageIndex = allPdfPages.length + pageIndex;
-            page.originalFileName = file.originalname || `pdf-${i + 1}.pdf`;
-          });
-          
-          allPdfPages.push(...pdfPages);
-        }
+            
+            // Store original index for sequential page numbering
+            pdfPages.forEach((page, pageIndex) => {
+              page.originalFileName = file.originalname || `pdf-${index + 1}.pdf`;
+              (page as any)._sourceIndex = index; // Track source PDF for ordering
+            });
+            
+            return { index, pdfPages };
+          } catch (error) {
+            console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
+            return { index, pdfPages: [] };
+          }
+        });
+        
+        const results = await Promise.all(pdfConversionPromises);
+        
+        // Combine results and maintain sequential page indices
+        const allPdfPages: StandardizedPage[] = [];
+        results.forEach((result: any) => {
+          if (result && result.pdfPages && result.pdfPages.length > 0) {
+            result.pdfPages.forEach((page: any) => {
+              page.pageIndex = allPdfPages.length;
+              allPdfPages.push(page);
+            });
+          }
+        });
         
         if (stepTimings['pdf_conversion']) {
           stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
