@@ -68,6 +68,10 @@ export class SessionManagementService {
     // Generate session title
     const sessionTitle = this.generateMarkingSessionTitle(context);
     
+    // FIXED: Create separate database and response objects
+    const { MessageFactory } = await import('./messageFactory.js');
+    const dbMessages = MessageFactory.createForDatabase(context.userMessage, dbAiMessage);
+    
     // Persist to database for authenticated users
     if (isAuthenticated) {
       await this.persistAuthenticatedSession(
@@ -76,17 +80,17 @@ export class SessionManagementService {
         sessionTitle,
         userId,
         context,
-        dbAiMessage
+        dbMessages[1] // Use database AI message
       );
     }
     
     // Create unified session data for frontend
-    const unifiedSession = isAuthenticated ? this.createUnifiedSessionData(
+    const unifiedSession = isAuthenticated ? await this.createUnifiedSessionData(
       currentSessionId,
       sessionTitle,
       userId,
       context,
-      dbAiMessage
+      dbMessages[1] // Use database AI message
     ) : undefined;
     
     return {
@@ -128,7 +132,7 @@ export class SessionManagementService {
     }
     
     // Create unified session data for frontend
-    const unifiedSession = isAuthenticated ? this.createUnifiedSessionData(
+    const unifiedSession = isAuthenticated ? await this.createUnifiedSessionData(
       currentSessionId,
       sessionTitle,
       userId,
@@ -312,20 +316,26 @@ export class SessionManagementService {
 
   /**
    * Create unified session data for frontend
+   * FIXED: Uses database objects and creates proper response objects
    */
-  private static createUnifiedSessionData(
+  private static async createUnifiedSessionData(
     currentSessionId: string,
     sessionTitle: string,
     userId: string,
     context: SessionContext,
     dbAiMessage: any
-  ): any {
+  ): Promise<any> {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
+    
+    // FIXED: Create response objects from database objects
+    const { MessageFactory } = await import('./messageFactory.js');
+    const dbMessages = MessageFactory.createForDatabase(context.userMessage, dbAiMessage);
+    const responseMessages = MessageFactory.createForResponse(dbMessages);
     
     return {
       id: currentSessionId,
       title: sessionTitle,
-      messages: [context.userMessage, dbAiMessage],
+      messages: responseMessages, // Use response messages (follows design)
       userId: userId,
       messageType: context.mode,
       createdAt: context.userMessage.timestamp,
@@ -426,13 +436,13 @@ export class SessionManagementService {
       // For images, use imageDataArray for all users
       if (files.length === 1) {
         structuredImageDataArray = [{
-          url: files[0].buffer.toString('base64'), // Will be updated to Firebase URL for authenticated users
+          url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: files[0].originalname,
           fileSize: files[0].size
         }];
       } else {
         structuredImageDataArray = files.map(f => ({
-          url: f.buffer.toString('base64'), // Will be updated to Firebase URL for authenticated users
+          url: null, // Will be updated to Firebase URL for authenticated users
           originalFileName: f.originalname,
           fileSize: f.size
         }));

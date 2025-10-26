@@ -1494,11 +1494,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             // Upload annotated images to storage for authenticated users
             const uploadPromises = annotatedImagesBase64.map(async (imageData, index) => {
                 try {
+                    // FIXED: Pass original filename for proper annotated filename generation
+                    const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
                     const imageLink = await ImageStorageService.uploadImage(
                         imageData,
                         userId,
                         `multi-${submissionId}`,
-                        'annotated'
+                        'annotated',
+                        originalFileName
                     );
                     return imageLink;
                 } catch (uploadError) {

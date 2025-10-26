@@ -79,22 +79,27 @@ export class ImageStorageService {
 
   /**
    * Upload an image to Firebase Storage
+   * FIXED: Uses FilenameService for consistent naming patterns
    */
   static async uploadImage(
     imageData: string, 
     userId: string, 
     sessionId: string, 
-    imageType: 'original' | 'annotated'
+    imageType: 'original' | 'annotated',
+    originalFileName?: string
   ): Promise<string> {
     try {
       
       // Get configuration
       const config = getImageStorageConfig();
       
-      // Generate unique filename
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substr(2, 9);
-      const filename = `${imageType}-${timestamp}-${random}${config.filenameSuffix}`;
+      // FIXED: Use FilenameService for consistent naming
+      const { FilenameService } = await import('./filenameService.js');
+      const filename = originalFileName 
+        ? (imageType === 'annotated' 
+            ? FilenameService.generateAnnotatedFilename(originalFileName)
+            : FilenameService.generateOriginalFilename(originalFileName))
+        : `${imageType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}${config.filenameSuffix}`;
       
       // Create storage reference
       const storageRef = this.getStorage().bucket(config.bucketName).file(`${config.filenamePrefix}/${userId}/${sessionId}/${filename}`);

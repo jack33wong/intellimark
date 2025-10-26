@@ -345,8 +345,8 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     content: content,
     type: messageType,
     timestamp: new Date().toISOString(),
-    imageData: imageData, // Include imageData for unauthenticated users
-    imageDataArray: imageDataArray, // Include imageDataArray for multi-image cases
+    imageData: undefined, // FIXED: Don't use legacy imageData field to avoid duplicates
+    imageDataArray: imageDataArray, // Use structured format for all cases
     progressData: progressData,
     suggestedFollowUps: suggestedFollowUps
   };
