@@ -105,8 +105,71 @@ const extractQuestionNumberFromFilename = (fileName?: string): string[] | null =
 // ========================= START: REPLACED SEGMENTATION LOGIC =========================
 
 /**
+ * HELPER 0: Find question text boundaries using actual question text from classification
+ * This finds where the question text ends and student work begins.
+ */
+const findQuestionTextBoundaries = (
+  rawLines: Array<any & { pageIndex: number; globalIndex: number }>,
+  classificationQuestions: Array<{ textPreview: string; sourceImageIndex: number }>
+): Array<{ questionText: string; pageIndex: number; y: number; endIndex: number }> => {
+    
+    const boundaries: Array<{ questionText: string; pageIndex: number; y: number; endIndex: number }> = [];
+    
+    // For each classified question, find where its text ends in the OCR
+    classificationQuestions.forEach(classifiedQ => {
+        const pageIndex = classifiedQ.sourceImageIndex;
+        const questionText = classifiedQ.textPreview;
+        
+        if (!questionText || pageIndex === undefined || pageIndex === null) return;
+        
+        // Get OCR lines for this page
+        const pageLines = rawLines.filter(line => line.pageIndex === pageIndex);
+        
+        // Find the line that contains the end of the question text
+        let questionEndLineIndex = -1;
+        for (let i = 0; i < pageLines.length; i++) {
+            const lineText = (pageLines[i].text?.trim() || '')
+                .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX delimiters
+                .trim();
+            
+            if (!lineText) continue;
+            
+            // Check if this line contains the end of the question text
+            // Use the last 30 characters of question text for matching
+            const questionEndSnippet = questionText.substring(Math.max(0, questionText.length - 30));
+            if (lineText.toLowerCase().includes(questionEndSnippet.toLowerCase())) {
+                questionEndLineIndex = i;
+                break;
+            }
+        }
+        
+        // If we found the question end, get its coordinates
+        if (questionEndLineIndex >= 0) {
+            const endLine = pageLines[questionEndLineIndex];
+            const coords = OCRService.extractBoundingBox(endLine);
+            if (coords) {
+                console.log(`[DEBUG - SEGMENTATION] Found Question Text End: "${questionText.substring(0, 50)}..." on Page ${pageIndex}, Y: ${coords.y}`);
+                boundaries.push({
+                    questionText: questionText,
+                    pageIndex: pageIndex,
+                    y: coords.y,
+                    endIndex: questionEndLineIndex
+                });
+            }
+        } else {
+            console.log(`[DEBUG - SEGMENTATION] Could not find question text end for Page ${pageIndex}: "${questionText.substring(0, 50)}..."`);
+        }
+    });
+    
+    return boundaries.sort((a, b) => { // Sort by page and vertical position
+        if (a.pageIndex !== b.pageIndex) return a.pageIndex - b.pageIndex;
+        return a.y - b.y;
+    });
+};
+
+/**
  * HELPER 1: Find "Question Start" indicators (e.g., "Q13", "14.")
- * This is now a sub-routine for splitting blocks *on a single page*.
+ * This is now a FALLBACK sub-routine for splitting blocks *on a single page*.
  */
 const findQuestionIndicators = (
   rawLines: Array<any & { pageIndex: number; globalIndex: number }>
@@ -145,7 +208,29 @@ const findQuestionIndicators = (
 };
 
 /**
- * HELPER 2: Assigns a math block to the correct question *on the same page*.
+ * HELPER 2A: Assigns a math block to the correct question using question text boundaries.
+ */
+const assignBlockToQuestionByTextBoundary = (
+    block: MathBlock & { pageIndex: number },
+    boundaries: Array<{ questionText: string; pageIndex: number; y: number; endIndex: number }>,
+    questionNumber: string
+): boolean => {
+    // Find boundaries on the same page
+    const pageBoundaries = boundaries.filter(boundary => boundary.pageIndex === block.pageIndex);
+    
+    // If block is below any question text boundary, it belongs to this question
+    for (const boundary of pageBoundaries) {
+        if ((block.coordinates?.y ?? 0) >= boundary.y) {
+            console.log(`[DEBUG - SEGMENTATION] Block assigned to Q${questionNumber} (below question text end at Y: ${boundary.y})`);
+            return true;
+        }
+    }
+    
+    return false;
+};
+
+/**
+ * HELPER 2B: Assigns a math block to the correct question *on the same page* (FALLBACK).
  */
 const assignBlockToQuestion = (
     block: MathBlock & { pageIndex: number },
@@ -166,7 +251,76 @@ const assignBlockToQuestion = (
 };
 
 /**
- * HELPER 3 (FALLBACK ONLY): Find Boundary using Fuzzy Match
+ * HELPER 3A: Find question start text boundaries using fuzzy matching
+ * This is used as a fallback when question numbers are not found in text.
+ */
+const findQuestionStartTextBoundaries = (
+  rawLines: Array<any & { pageIndex: number; globalIndex: number }>,
+  classificationQuestions: Array<{ textPreview: string; sourceImageIndex: number }>
+): Array<{ questionText: string; pageIndex: number; y: number; startIndex: number }> => {
+    
+    const boundaries: Array<{ questionText: string; pageIndex: number; y: number; startIndex: number }> = [];
+    
+    // For each classified question, find where its text starts in the OCR using fuzzy matching
+    classificationQuestions.forEach(classifiedQ => {
+        const pageIndex = classifiedQ.sourceImageIndex;
+        const questionText = classifiedQ.textPreview;
+        
+        if (!questionText || pageIndex === undefined || pageIndex === null) return;
+        
+        // Get OCR lines for this page
+        const pageLines = rawLines.filter(line => line.pageIndex === pageIndex);
+        
+        // Split question text into lines for fuzzy matching
+        const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
+        if (questionLines.length === 0) return;
+        
+        const SIMILARITY_THRESHOLD = 0.75; // Slightly lower threshold for start detection
+        let bestMatchIndex = -1;
+        let bestMatchScore = 0;
+        
+        // Find the best matching line using fuzzy matching
+        for (let i = 0; i < pageLines.length; i++) {
+            const lineText = (pageLines[i].text?.trim() || '')
+                .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX delimiters
+                .trim();
+            
+            if (!lineText) continue;
+            
+            // Use fuzzy matching to find question start
+            const bestMatch = stringSimilarity.findBestMatch(lineText, questionLines);
+            if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD && bestMatch.bestMatch.rating > bestMatchScore) {
+                bestMatchIndex = i;
+                bestMatchScore = bestMatch.bestMatch.rating;
+            }
+        }
+        
+        // If we found a good match, get its coordinates
+        if (bestMatchIndex >= 0) {
+            const startLine = pageLines[bestMatchIndex];
+            const coords = OCRService.extractBoundingBox(startLine);
+            if (coords) {
+                console.log(`[DEBUG - SEGMENTATION] Found Question Start (Fuzzy): "${questionText.substring(0, 50)}..." on Page ${pageIndex}, Y: ${coords.y}, Score: ${bestMatchScore.toFixed(2)}`);
+                boundaries.push({
+                    questionText: questionText,
+                    pageIndex: pageIndex,
+                    y: coords.y,
+                    startIndex: bestMatchIndex
+                });
+            }
+        } else {
+            console.log(`[DEBUG - SEGMENTATION] Could not find question start (fuzzy) for Page ${pageIndex}: "${questionText.substring(0, 50)}..."`);
+        }
+    });
+    
+    return boundaries.sort((a, b) => { // Sort by page and vertical position
+        if (a.pageIndex !== b.pageIndex) return a.pageIndex - b.pageIndex;
+        return a.y - b.y;
+    });
+};
+
+/**
+ * HELPER 3B (FALLBACK ONLY): Find Boundary using Fuzzy Match
  * This is ONLY used if the AI Classification stage fails completely.
  */
 const findBoundaryByFuzzyMatch = (
@@ -263,19 +417,30 @@ const segmentOcrResultsByQuestion = async (
 
   // 3. Check if Classification was successful
   if (classificationResult && classificationResult.questions && classificationResult.questions.length > 0) {
-      console.log(`[SEGMENTATION] Using Classification-based segmentation for ${classificationResult.questions.length} detected question instances.`);
+      console.log(`[SEGMENTATION] Using Hybrid Classification-based segmentation for ${classificationResult.questions.length} detected question instances.`);
       
-      // --- Create a map of { pageIndex -> [list of question numbers on that page] } ---
-      // This map is our "source of truth"
+      // --- HYBRID APPROACH: Question numbers as primary key, question start + fuzzy match as fallback ---
       const pageToQuestionNumbersMap = new Map<number, string[]>();
       
+      // First, find all question boundaries across all pages
+      let allRawLines: Array<any & { pageIndex: number; globalIndex: number }> = [];
+      let lineCounter = 0;
+      allPagesOcrData.forEach((pageResult, pageIdx) => {
+          allRawLines.push(...(pageResult.ocrData?.rawResponse?.rawLineData || []).map((line, i) => ({...line, pageIndex: pageIdx, globalIndex: lineCounter++})));
+      });
+      
+      // PRIMARY: Try to find question numbers in text first
+      const questionIndicators = findQuestionIndicators(allRawLines);
+      console.log(`[DEBUG] Found ${questionIndicators.length} question number indicators:`, questionIndicators.map(i => `Page ${i.pageIndex}: Q${i.questionNumber}`));
+      
+      // Map pages to questions using question numbers as primary key
       classificationResult.questions.forEach((classifiedQ: any) => {
           const pageIndex = classifiedQ.sourceImageIndex;
           if (pageIndex === undefined || pageIndex === null) return;
           
           const textPreview = classifiedQ.textPreview?.toLowerCase() || '';
           
-          // Find which *detected* questions (from schemes) match this classification preview
+          // PRIMARY: Try to match with detected question numbers from database using text content
           const matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
               const qNumStr = String(qNum).toLowerCase();
               // Match "13" or "q13" at the start of the preview, or "question 13"
@@ -283,6 +448,46 @@ const segmentOcrResultsByQuestion = async (
                      textPreview.startsWith(`q${qNumStr} `) ||
                      textPreview.includes(`question ${qNumStr} `);
           });
+          
+          // SECONDARY: If no text match found, try filename fallback
+          if (matchedQNs.length === 0 && standardizedPages) {
+              const filenameQNs = extractQuestionNumberFromFilename(standardizedPages[pageIndex]?.originalFileName);
+              if (filenameQNs && filenameQNs.length > 0) {
+                  const filenameQN = filenameQNs[0]; // Take the first question number from filename
+                  if (allDetectedQuestionNumbers.includes(filenameQN)) {
+                      matchedQNs.push(filenameQN);
+                      console.log(`[SEGMENTATION] Filename fallback: Q${filenameQN} → Page ${pageIndex}`);
+                  }
+              }
+          }
+          
+          // TERTIARY: If still no match, use question start + fuzzy match fallback
+          if (matchedQNs.length === 0) {
+              console.log(`[SEGMENTATION] No question number match found for Page ${pageIndex}, trying question start + fuzzy match...`);
+              
+              // Find question start boundaries using fuzzy matching
+              const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, [classifiedQ]);
+              
+              if (questionStartBoundaries.length > 0) {
+                  // Found question start using fuzzy match - assign to next available question
+                  const unassignedQNs = allDetectedQuestionNumbers.filter(qn => 
+                      !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
+                  );
+                  if (unassignedQNs.length > 0) {
+                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a) - parseInt(b))[0]);
+                      console.log(`[SEGMENTATION] Question start + fuzzy fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
+                  }
+              } else {
+                  // Final fallback: sequential assignment
+                  const unassignedQNs = allDetectedQuestionNumbers.filter(qn => 
+                      !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
+                  );
+                  if (unassignedQNs.length > 0) {
+                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a) - parseInt(b))[0]);
+                      console.log(`[SEGMENTATION] Sequential fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
+                  }
+              }
+          }
           
           if (matchedQNs.length > 0) {
               if (!pageToQuestionNumbersMap.has(pageIndex)) pageToQuestionNumbersMap.set(pageIndex, []);
@@ -294,7 +499,7 @@ const segmentOcrResultsByQuestion = async (
       });
       console.log('[DEBUG] Page-to-Question Map created:', pageToQuestionNumbersMap);
 
-      // --- Iterate and Assign blocks based on the map ---
+      // --- HYBRID BLOCK ASSIGNMENT: Use question numbers as primary key, fallback to question start + fuzzy match ---
       let lastSeenQuestion: string | null = null;
       const allSortedPageIndices = [...new Set(allPagesOcrData.map(p => p.pageIndex))].sort((a,b) => a-b);
       
@@ -303,28 +508,68 @@ const segmentOcrResultsByQuestion = async (
           const questionsOnThisPage = pageToQuestionNumbersMap.get(pageIndex); // Get QNs for *this* page
 
           if (questionsOnThisPage && questionsOnThisPage.length > 0) {
-              // --- This page has question headers (e.g., q13-14.jpg or q21-top.png) ---
-              console.log(`[SEGMENTATION] Page ${pageIndex} contains Qs: [${questionsOnThisPage.join(', ')}]. Binning blocks...`);
+              // --- This page has questions assigned - use hybrid approach for block assignment ---
+              console.log(`[SEGMENTATION] Page ${pageIndex} contains Qs: [${questionsOnThisPage.join(', ')}]. Using hybrid block assignment...`);
               
+              // PRIMARY: Try to use question number indicators for precise block assignment
               const pageRawLines = allPagesOcrData[pageIndex]?.ocrData?.rawResponse?.rawLineData
                     .map((line, i) => ({...line, pageIndex, globalIndex: i})) || [];
               
-              // Find *all* indicators on this page for binning
               const indicatorsOnPage = findQuestionIndicators(pageRawLines);
               
-              blocksOnThisPage.forEach(block => {
-                  const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
-                  if (assignedQNum && questionsOnThisPage.includes(assignedQNum)) { // Check if the binned Q is one we expect
-                      if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
-                      blocksByQuestion.get(assignedQNum)!.push(block);
-                  } else if (assignedQNum) {
-                      // Found an indicator, but it wasn't in our detected list
-                      console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (via regex), but QN not in detected list [${questionsOnThisPage.join(', ')}]. Discarding.`);
+              if (indicatorsOnPage.length > 0) {
+                  // Use question number indicators for precise assignment
+                  console.log(`[SEGMENTATION] Using question number indicators for Page ${pageIndex}`);
+                  blocksOnThisPage.forEach(block => {
+                      const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
+                      if (assignedQNum && questionsOnThisPage.includes(assignedQNum)) {
+                          if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
+                          blocksByQuestion.get(assignedQNum)!.push(block);
+                      } else if (assignedQNum) {
+                          console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (via regex), but QN not in detected list [${questionsOnThisPage.join(', ')}]. Discarding.`);
+                      } else {
+                          console.warn(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} (Y: ${block.coordinates?.y}) is before first indicator. Discarding.`);
+                      }
+                  });
+              } else {
+                  // FALLBACK: Use question start + fuzzy match for block assignment
+                  console.log(`[SEGMENTATION] No question number indicators found on Page ${pageIndex}, using question start + fuzzy match fallback`);
+                  
+                  // Find question start boundaries using fuzzy matching
+                  const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, classificationResult.questions.filter((q: any) => q.sourceImageIndex === pageIndex));
+                  
+                  if (questionStartBoundaries.length > 0) {
+                      // Use question start boundaries to assign blocks
+                      blocksOnThisPage.forEach(block => {
+                          const assignedQNum = questionsOnThisPage[0]; // Assign to first question on this page
+                          
+                          // Check if block is below any question start boundary
+                          const pageBoundaries = questionStartBoundaries.filter(boundary => boundary.pageIndex === pageIndex);
+                          let isStudentWork = false;
+                          
+                          for (const boundary of pageBoundaries) {
+                              if ((block.coordinates?.y ?? 0) >= boundary.y) {
+                                  isStudentWork = true;
+                                  break;
+                              }
+                          }
+                          
+                          if (isStudentWork) {
+                              if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
+                              blocksByQuestion.get(assignedQNum)!.push(block);
+                          } else {
+                              console.log(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} is above question start boundaries - treating as question text`);
+                          }
+                      });
                   } else {
-                      // Block is *before* the first indicator on this page
-                      console.warn(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} (Y: ${block.coordinates?.y}) is before first indicator. Discarding.`);
+                      // Final fallback: assign all blocks to the first question on this page
+                      console.log(`[SEGMENTATION] No question start boundaries found on Page ${pageIndex}, assigning all blocks to first question`);
+                      const assignedQNum = questionsOnThisPage[0];
+                      if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
+                      blocksByQuestion.get(assignedQNum)!.push(...blocksOnThisPage);
                   }
-              });
+              }
+              
               // Update lastSeenQuestion with the last question found *on this page*
               if (questionsOnThisPage.length > 0) {
                    lastSeenQuestion = questionsOnThisPage[questionsOnThisPage.length - 1];
