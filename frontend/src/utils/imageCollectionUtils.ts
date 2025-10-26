@@ -42,7 +42,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     if (hasImage(message)) {
       try {
         const src = getImageSrc(message);
-        const filename = message.fileName || `image-${message.id}`;
+        // Generate proper annotated filename with prefix
+        const originalFileName = (message as any)?.originalFileName || 
+                                (message as any)?.imageDataArray?.[0]?.originalFileName ||
+                                `image-${message.id}`;
+        const filename = `annotated-${originalFileName}`;
         
         images.push({
           id: `img-${message.id}`,

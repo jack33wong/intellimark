@@ -5,7 +5,7 @@
  */
 
 import type { Request } from 'express';
-import { generateSessionTitle } from '../utils/markingRouterHelpers.js';
+import { generateSessionTitle } from '../services/marking/MarkingHelpers.js';
 import { createUserMessage, createAIMessage, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { ImageStorageService } from './imageStorageService.js';
 import type { 
@@ -117,7 +117,7 @@ export class SessionManagementService {
     const dbAiMessage = this.prepareQuestionAiMessage(context);
     
     // Generate session title
-    const sessionTitle = generateSessionTitle(context.questionDetection);
+    const sessionTitle = generateSessionTitle(context.questionDetection, context.globalQuestionText || '', 'Question');
     
     // Persist to database for authenticated users
     if (isAuthenticated) {
@@ -153,18 +153,10 @@ export class SessionManagementService {
   private static prepareMarkingAiMessage(context: MarkingSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
     
+    // Create detectedQuestion data from markingSchemesMap for frontend display
     if (context.markingSchemesMap) {
-      const allQuestionNumbers = Array.from(context.markingSchemesMap.keys());
-      const totalMarks = Array.from(context.markingSchemesMap.values()).reduce((sum, scheme) => sum + (scheme.totalMarks || 0), 0);
-      const firstQuestionScheme = allQuestionNumbers.length > 0 ? context.markingSchemesMap.get(allQuestionNumbers[0]) : null;
-      
-      if (firstQuestionScheme && allQuestionNumbers.length > 0) {
-        const questionNumberDisplay = allQuestionNumbers.length > 1 
-          ? allQuestionNumbers.join(', ') 
-          : allQuestionNumbers[0];
-        
-      } else {
-      }
+      const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(context.markingSchemesMap, context.globalQuestionText);
+      dbAiMessage.detectedQuestion = detectedQuestion;
     }
     
     return dbAiMessage;
@@ -176,8 +168,23 @@ export class SessionManagementService {
   private static prepareQuestionAiMessage(context: QuestionSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
     
+    // Transform question detection result to match frontend DetectedQuestion structure
     if (context.questionDetection?.found) {
-    } else {
+      const transformedDetectedQuestion = {
+        found: context.questionDetection.found,
+        questionText: context.questionDetection.questionText || '',
+        questionNumber: context.questionDetection.match?.questionNumber || '',
+        subQuestionNumber: context.questionDetection.match?.subQuestionNumber || '',
+        examBoard: context.questionDetection.match?.board || '',
+        examCode: context.questionDetection.match?.paperCode || '',
+        paperTitle: context.questionDetection.match ? `${context.questionDetection.match.board} ${context.questionDetection.match.qualification} ${context.questionDetection.match.paperCode} (${context.questionDetection.match.year})` : '',
+        subject: context.questionDetection.match?.qualification || '',
+        tier: context.questionDetection.match?.tier || '',
+        year: context.questionDetection.match?.year || '',
+        marks: context.questionDetection.match?.marks || 0,
+        markingScheme: context.questionDetection.markingScheme || ''
+      };
+      dbAiMessage.detectedQuestion = transformedDetectedQuestion;
     }
     
     return dbAiMessage;
@@ -206,7 +213,7 @@ export class SessionManagementService {
       }
     }
     
-    return generateSessionTitle(null);
+    return generateSessionTitle(null, '', 'Marking');
   }
 
   /**
@@ -592,7 +599,7 @@ export class SessionManagementService {
   ): any {
     return {
       id: submissionId,
-      title: generateSessionTitle(null),
+      title: generateSessionTitle(null, '', 'Question'),
       messages: [userMessage, aiMessage],
       userId: null,
       messageType: mode,

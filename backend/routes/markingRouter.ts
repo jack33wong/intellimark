@@ -1135,18 +1135,30 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         aiResponse,
         actualModel,
         Date.now() - startTime,
-        [], // No annotations in question mode
+        [], // No annotations in question mode - no annotation means question mode
         standardizedPages[0].imageData.length,
         [] // No question results in question mode
       );
 
+      // Transform question detection result to match frontend DetectedQuestion structure
+      const transformedDetectedQuestion = questionDetection ? {
+        found: questionDetection.found,
+        questionText: questionDetection.questionText || globalQuestionText || '',
+        questionNumber: questionDetection.match?.questionNumber || '',
+        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
+        examBoard: questionDetection.match?.board || '',
+        examCode: questionDetection.match?.paperCode || '',
+        paperTitle: questionDetection.match ? `${questionDetection.match.board} ${questionDetection.match.qualification} ${questionDetection.match.paperCode} (${questionDetection.match.year})` : '',
+        subject: questionDetection.match?.qualification || '',
+        tier: questionDetection.match?.tier || '',
+        year: questionDetection.match?.year || '',
+        marks: questionDetection.match?.marks || 0,
+        markingScheme: questionDetection.markingScheme || ''
+      } : undefined;
+
       const aiMessage = createAIMessage({
         content: aiResponse.response,
-        imageDataArray: [{
-          url: standardizedPages[0].imageData,
-          originalFileName: standardizedPages[0].originalFileName || 'question-image.png',
-          fileSize: standardizedPages[0].imageData.length
-        }],
+        imageDataArray: undefined, // No annotation means question mode - no image data returned to frontend
         progressData: {
           currentStepDescription: 'Question analysis complete',
           allSteps: MULTI_IMAGE_STEPS,
@@ -1154,12 +1166,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           isComplete: true
         },
         suggestedFollowUps: suggestedFollowUps,
-        processingStats: realProcessingStats
+        processingStats: realProcessingStats,
+        detectedQuestion: transformedDetectedQuestion // FIXED: Include transformed detected question for exam paper tab display
       });
       
-      // Update AI message with original image (not annotated)
-      (aiMessage as any).imageData = standardizedPages[0].imageData;
-      (aiMessage as any).imageLink = null; // No image link for question mode
+      // FIXED: Don't add image data to AI message for question mode
+      // (aiMessage as any).imageData = standardizedPages[0].imageData;
+      // (aiMessage as any).imageLink = null; // No image link for question mode
       
       // ========================= DATABASE PERSISTENCE FOR QUESTION MODE =========================
       let persistenceResult: any = null;
@@ -1195,6 +1208,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           undefined, // structuredPdfContexts
           uploadResult.originalImageLinks
         );
+        
+        // Override timestamp for database consistency (same as marking mode)
+        const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
+        const aiTimestamp = new Date().toISOString(); // AI message current time
+        (userMessage as any).timestamp = userTimestamp;
+        (aiMessage as any).timestamp = aiTimestamp;
         
         // Persist question session
         const questionContext: QuestionSessionContext = {

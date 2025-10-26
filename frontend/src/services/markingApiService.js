@@ -119,7 +119,7 @@ class SimpleSessionService {
     if (newSessionData.messages && Array.isArray(newSessionData.messages)) {
         // Smart deduplication: Allow duplicate user messages, prevent duplicate AI responses
         const seenIds = new Set();
-        mergedSession.messages = newSessionData.messages.filter(msg => {
+        const filteredMessages = newSessionData.messages.filter(msg => {
             // Always allow user messages (they might legitimately send duplicates)
             if (msg.role === 'user') {
                 return true;
@@ -131,6 +131,13 @@ class SimpleSessionService {
             }
             seenIds.add(msg.id);
             return true;
+        });
+        
+        // FIXED: Sort messages by timestamp to ensure correct order
+        mergedSession.messages = filteredMessages.sort((a, b) => {
+            const timestampA = new Date(a.timestamp || a.createdAt || 0).getTime();
+            const timestampB = new Date(b.timestamp || b.createdAt || 0).getTime();
+            return timestampA - timestampB; // Ascending order (oldest first)
         });
     } else if (localSession?.messages) {
         // Fallback to local messages if server doesn't provide messages

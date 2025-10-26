@@ -120,10 +120,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       // Convert image data array to SessionImage format for ImageModeModal
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
-        const fileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
+        const originalFileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
+        const fileName = `annotated-${originalFileName}`;
+        
         return {
           id: `multi-${message.id}-${idx}`,
           src: src,
+          filename: fileName, // FIXED: Add filename property
           alt: fileName,
           type: 'uploaded' as const
         };
@@ -144,7 +147,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         handleMultiImageClick(0); // Click on first image
       } else {
         // For single image results, use the original logic
-      setIsImageModeOpen(true);
+        setIsImageModeOpen(true);
       }
     }
   }, [message, imageError, handleMultiImageClick]);
