@@ -126,10 +126,6 @@ interface ImageDataObject {
   url: string;                    // Firebase URL (DB) or Base64 (Response)
   originalFileName: string;        // Original filename (e.g., "q21-edexcel-ball-pen-stroke.png")
   fileSize: number;               // File size in bytes
-  // Optional fields for future extension
-  width?: number;                 // Image width in pixels
-  height?: number;                // Image height in pixels
-  contentType?: string;           // MIME type (e.g., "image/png")
 }
 ```
 

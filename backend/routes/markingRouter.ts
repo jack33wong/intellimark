@@ -1779,10 +1779,32 @@ router.get('/download-image', optionalAuth, async (req: Request, res: Response) 
 
     // Get the image data
     const imageBuffer = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    
+    // Determine content type from URL or response headers
+    let contentType = response.headers.get('content-type');
+    const filenameStr = Array.isArray(filename) ? filename[0] : filename;
+    
+    if (!contentType) {
+      // Fallback: determine content type from URL or filename
+      const urlLower = typeof url === 'string' ? url.toLowerCase() : '';
+      const filenameLower = (typeof filenameStr === 'string' ? filenameStr : '').toLowerCase();
+      
+      if (urlLower.includes('.png') || filenameLower.includes('.png')) {
+        contentType = 'image/png';
+      } else if (urlLower.includes('.webp') || filenameLower.includes('.webp')) {
+        contentType = 'image/webp';
+      } else if (urlLower.includes('.gif') || filenameLower.includes('.gif')) {
+        contentType = 'image/gif';
+      } else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg') || 
+                 filenameLower.includes('.jpg') || filenameLower.includes('.jpeg')) {
+        contentType = 'image/jpeg';
+      } else {
+        contentType = 'image/jpeg'; // Default fallback
+      }
+    }
     
     // Set headers for download
-    const downloadFilename = filename && typeof filename === 'string' ? filename : 'image';
+    const downloadFilename = filenameStr && typeof filenameStr === 'string' ? filenameStr : 'image';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
     res.setHeader('Content-Length', imageBuffer.byteLength);
