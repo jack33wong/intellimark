@@ -699,6 +699,17 @@ export class SessionManagementService {
         marks: data.totalMarks || 0
       }));
 
+      // Combine all marking schemes for model answer generation
+      const combinedMarkingScheme = Array.from(markingSchemesMap.entries())
+        .map(([qNum, data]) => {
+          const marks = data.questionMarks || [];
+          return marks.map((mark: any) => ({
+            questionNumber: qNum,
+            mark: mark
+          }));
+        })
+        .flat();
+
       return {
         found: true,
         questionText: globalQuestionText || '',
@@ -711,12 +722,15 @@ export class SessionManagementService {
         tier: match.tier || '',
         year: match.year || '',
         marks: allQuestions.reduce((sum, q) => sum + q.marks, 0),
+        markingScheme: JSON.stringify(combinedMarkingScheme), // Store combined marking scheme
         multipleQuestions: true,
         allQuestions: allQuestions
       };
     }
 
     // Single question case
+    const singleMarkingScheme = schemeData.questionMarks || [];
+    
     return {
       found: true,
       questionText: globalQuestionText || '',
@@ -728,7 +742,8 @@ export class SessionManagementService {
       subject: match.qualification || '',
       tier: match.tier || '',
       year: match.year || '',
-      marks: schemeData.totalMarks || match.marks || 0
+      marks: schemeData.totalMarks || match.marks || 0,
+      markingScheme: JSON.stringify(singleMarkingScheme) // Store marking scheme for single question
     };
   }
 }
