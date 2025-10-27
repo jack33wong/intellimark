@@ -1362,7 +1362,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 questionMarks: questionSpecificMarks,
                 totalMarks: detectionResult.match.marks,
                 questionNumber: actualQuestionNumber,
-                questionDetection: detectionResult // Store the full question detection result
+                questionDetection: detectionResult, // Store the full question detection result
+                questionText: question.text // Store the original question text for this specific question
             };
             
             markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);

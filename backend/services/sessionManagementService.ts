@@ -708,10 +708,19 @@ export class SessionManagementService {
           }
         }
         
-        // Extract question text from questionDetection if available
-        let questionTextForThisQ = globalQuestionText || '';
-        if (data.questionDetection?.questionText) {
+        // Extract question text - prioritize the stored questionText field from markingRouter
+        let questionTextForThisQ = '';
+        
+        // First try the questionText stored directly in the scheme data
+        if (data.questionText) {
+          questionTextForThisQ = data.questionText;
+        } else if (data.questionDetection?.questionText) {
           questionTextForThisQ = data.questionDetection.questionText;
+        } else if (data.questionDetection?.match?.questionText) {
+          questionTextForThisQ = data.questionDetection.match.questionText;
+        } else {
+          // Fallback to global question text
+          questionTextForThisQ = globalQuestionText || '';
         }
         
         return {
