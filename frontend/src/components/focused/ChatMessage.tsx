@@ -116,6 +116,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const handleMultiImageClick = useCallback((index: number) => {
     const imageDataArray = getMultiImageData();
+    
+    // Check if this is a PDF message - if so, open the PDF from pdfContexts instead of image
+    if ((message as any)?.originalFileType === 'pdf' && (message as any)?.pdfContexts?.length > 0) {
+      const pdfContexts = (message as any).pdfContexts;
+      const pdfContext = pdfContexts[index];
+      if (pdfContext && pdfContext.url) {
+        window.open(pdfContext.url, '_blank');
+        return;
+      }
+    }
+    
     if (imageDataArray.length > 0) {
       // Convert image data array to SessionImage format for ImageModeModal
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
@@ -138,7 +149,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       (window as any).__currentSessionImages = sessionImages;
       (window as any).__currentImageIndex = index;
     }
-  }, [message.id, getMultiImageData]);
+  }, [message.id, getMultiImageData, message]);
 
   const handleImageClick = useCallback(() => {
     if ((hasImage(message) || (message as any)?.imageDataArray?.length > 0) && !imageError) {
