@@ -48,7 +48,11 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     }
     
     if (detectedQuestion.tier) {
-      parts.push(`Tier ${detectedQuestion.tier}`);
+      // Don't add "Tier" prefix if tier already contains "Tier" (e.g., "Foundation Tier")
+      const tierDisplay = detectedQuestion.tier.toLowerCase().includes('tier') 
+        ? detectedQuestion.tier 
+        : `Tier ${detectedQuestion.tier}`;
+      parts.push(tierDisplay);
     }
     
     return parts.join(' ');
@@ -85,7 +89,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
         {detectedQuestion.marks && (
           <span className="tab-item marks">
             {detectedQuestion.multipleQuestions && detectedQuestion.allQuestions
-              ? `${detectedQuestion.marks} marks total (${detectedQuestion.allQuestions.map(q => `${q.marks}`).join('+')})`
+              ? `${detectedQuestion.allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`
               : `${detectedQuestion.marks} marks`
             }
           </span>
