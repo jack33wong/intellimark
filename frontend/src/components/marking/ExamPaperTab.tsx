@@ -67,7 +67,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     
     // Check for old structure with allQuestions
     if (detectedQuestion.multipleQuestions && (detectedQuestion as any).allQuestions) {
-      const questionNumbers = (detectedQuestion as any).allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
+      const questionNumbers = (detectedQuestion as any).allQuestions.map((q: any) => `Q${q.questionNumber}`).join(', ');
       return questionNumbers;
     }
     
