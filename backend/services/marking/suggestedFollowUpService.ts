@@ -120,22 +120,32 @@ export class SuggestedFollowUpService {
       // New clean structure - combine all questions
       const questions = detectedQuestion.questions;
       
-      // Combine all question texts
-      questionText = questions.map(q => 
-        `Question ${q.questionNumber}: ${q.questionText}`
-      ).join('\n\n');
+      // Aggregate all question texts with clear separation
+      questionText = questions.map((q, index) => {
+        const separator = '\n' + '='.repeat(50) + '\n';
+        if (index === 0) {
+          return `Question ${q.questionNumber}:\n${q.questionText}`;
+        }
+        return `${separator}Question ${q.questionNumber}:\n${q.questionText}`;
+      }).join('\n\n');
       
-      // Combine all marking schemes
-      markingScheme = JSON.stringify(
-        questions.map(q => ({
-          questionNumber: q.questionNumber,
-          marks: q.marks,
-          markingScheme: q.markingScheme
-        }))
-      );
+      // Aggregate all marking schemes in a readable format
+      const combinedScheme = questions.map(q => ({
+        questionNumber: q.questionNumber,
+        marks: q.marks,
+        markingScheme: q.markingScheme // This is already an array
+      }));
       
-      // Sum total marks
+      markingScheme = JSON.stringify(combinedScheme, null, 2);
+      
+      // Sum total marks across all questions
       totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+      
+      // Enhanced debug logging for multiple questions
+      console.log('📋 [MULTI-QUESTION] Aggregating data for', questions.length, 'questions');
+      questions.forEach(q => {
+        console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points`);
+      });
     } else {
       // Legacy structure - use existing fields
       questionText = detectedQuestion?.questionText || '';
@@ -154,13 +164,18 @@ export class SuggestedFollowUpService {
     if (config.promptKey === 'modelAnswer') {
       console.log('='.repeat(80));
       console.log('🔍 [MODEL ANSWER DEBUG] detectedQuestion data:');
-      console.log('questions:', detectedQuestion?.questions);
-      console.log('questionText:', questionText);
-      console.log('markingScheme:', markingScheme);
-      console.log('totalMarks:', totalMarks);
+      if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
+        console.log(`📋 Found ${detectedQuestion.questions.length} question(s) in array`);
+        detectedQuestion.questions.forEach((q, idx) => {
+          console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
+        });
+      }
+      console.log('Aggregated questionText length:', questionText.length);
+      console.log('Aggregated markingScheme length:', markingScheme.length);
+      console.log('Total marks:', totalMarks);
       console.log('='.repeat(80));
-      console.log('🔍 [MODEL ANSWER DEBUG] Generated user prompt:');
-      console.log(userPrompt);
+      console.log('🔍 [MODEL ANSWER DEBUG] Generated user prompt (first 500 chars):');
+      console.log(userPrompt.substring(0, 500) + '...');
       console.log('='.repeat(80));
     }
     
