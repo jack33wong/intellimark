@@ -110,20 +110,54 @@ export class SuggestedFollowUpService {
     // Get prompts and execute AI call
     const { getPrompt } = await import('../../config/prompts.js');
     
+    // Use new clean structure if available, otherwise fall back to legacy
+    const detectedQuestion = targetMessage.detectedQuestion;
+    let questionText: string;
+    let markingScheme: string;
+    let totalMarks: number | undefined;
+    
+    if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
+      // New clean structure - combine all questions
+      const questions = detectedQuestion.questions;
+      
+      // Combine all question texts
+      questionText = questions.map(q => 
+        `Question ${q.questionNumber}: ${q.questionText}`
+      ).join('\n\n');
+      
+      // Combine all marking schemes
+      markingScheme = JSON.stringify(
+        questions.map(q => ({
+          questionNumber: q.questionNumber,
+          marks: q.marks,
+          markingScheme: q.markingScheme
+        }))
+      );
+      
+      // Sum total marks
+      totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+    } else {
+      // Legacy structure - use existing fields
+      questionText = detectedQuestion?.questionText || '';
+      markingScheme = detectedQuestion?.markingScheme || '';
+      totalMarks = detectedQuestion?.marks;
+    }
+    
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
     const userPrompt = getPrompt(`${config.promptKey}.user`, 
-      targetMessage.detectedQuestion?.questionText || '',
-      targetMessage.detectedQuestion?.markingScheme || '',
-      targetMessage.detectedQuestion?.marks
+      questionText,
+      markingScheme,
+      totalMarks
     );
     
     // DEBUG: Print the detectedQuestion data and user prompt for model answer
     if (config.promptKey === 'modelAnswer') {
       console.log('='.repeat(80));
       console.log('🔍 [MODEL ANSWER DEBUG] detectedQuestion data:');
-      console.log('questionText:', targetMessage.detectedQuestion?.questionText);
-      console.log('markingScheme:', targetMessage.detectedQuestion?.markingScheme);
-      console.log('marks:', targetMessage.detectedQuestion?.marks);
+      console.log('questions:', detectedQuestion?.questions);
+      console.log('questionText:', questionText);
+      console.log('markingScheme:', markingScheme);
+      console.log('totalMarks:', totalMarks);
       console.log('='.repeat(80));
       console.log('🔍 [MODEL ANSWER DEBUG] Generated user prompt:');
       console.log(userPrompt);
