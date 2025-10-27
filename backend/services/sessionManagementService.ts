@@ -700,9 +700,22 @@ export class SessionManagementService {
       }));
 
       // Combine all marking schemes for model answer generation
+      // questionMarks can be an array of marks or the whole scheme object
       const combinedMarkingScheme = Array.from(markingSchemesMap.entries())
         .map(([qNum, data]) => {
-          const marks = data.questionMarks || [];
+          let marks = data.questionMarks || [];
+          
+          // Handle case where questionMarks might not be an array
+          if (!Array.isArray(marks)) {
+            // If it's an object with marks property, extract it
+            if (marks && typeof marks === 'object' && marks.marks) {
+              marks = marks.marks;
+            } else {
+              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marks);
+              return [];
+            }
+          }
+          
           return marks.map((mark: any) => ({
             questionNumber: qNum,
             mark: mark
@@ -729,7 +742,18 @@ export class SessionManagementService {
     }
 
     // Single question case
-    const singleMarkingScheme = schemeData.questionMarks || [];
+    let singleMarkingScheme = schemeData.questionMarks || [];
+    
+    // Handle case where questionMarks might not be an array
+    if (!Array.isArray(singleMarkingScheme)) {
+      // If it's an object with marks property, extract it
+      if (singleMarkingScheme && typeof singleMarkingScheme === 'object' && singleMarkingScheme.marks) {
+        singleMarkingScheme = singleMarkingScheme.marks;
+      } else {
+        console.warn(`[MARKING SCHEME] Invalid marks for single question`);
+        singleMarkingScheme = [];
+      }
+    }
     
     return {
       found: true,
