@@ -484,7 +484,7 @@ export class FirestoreService {
 
       // Create single session document with nested messages
       
-      const sessionDoc = {
+      const sessionDoc: any = {
         id: sessionId,
         title,
         userId,
@@ -494,10 +494,14 @@ export class FirestoreService {
         favorite: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
-        detectedQuestion: detectedQuestion || null,
         sessionStats: sessionStats || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
+      
+      // Only include detectedQuestion if it exists and is not null
+      if (detectedQuestion) {
+        sessionDoc.detectedQuestion = detectedQuestion;
+      }
 
       // Save complete session document to unifiedSessions collection
 
