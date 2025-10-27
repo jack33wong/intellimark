@@ -59,19 +59,25 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
   };
 
   const formatQuestionInfo = () => {
+    // Check for new structure with questions array first
+    if (detectedQuestion.multipleQuestions && (detectedQuestion as any).questions) {
+      const questions = (detectedQuestion as any).questions;
+      return questions.map((q: any) => `Q${q.questionNumber}`).join(', ');
+    }
+    
+    // Check for old structure with allQuestions
+    if (detectedQuestion.multipleQuestions && (detectedQuestion as any).allQuestions) {
+      const questionNumbers = (detectedQuestion as any).allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
+      return questionNumbers;
+    }
+    
+    // Single question
     if (detectedQuestion.questionNumber) {
-      // Handle multiple questions
-      if (detectedQuestion.multipleQuestions && detectedQuestion.allQuestions) {
-        const questionNumbers = detectedQuestion.allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
-        return questionNumbers;
-      } else {
-        // Single question
-        let questionInfo = `Q${detectedQuestion.questionNumber}`;
-        if (detectedQuestion.subQuestionNumber) {
-          questionInfo += `(${detectedQuestion.subQuestionNumber})`;
-        }
-        return questionInfo;
+      let questionInfo = `Q${detectedQuestion.questionNumber}`;
+      if (detectedQuestion.subQuestionNumber) {
+        questionInfo += `(${detectedQuestion.subQuestionNumber})`;
       }
+      return questionInfo;
     }
     return null;
   };
@@ -88,10 +94,22 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
         )}
         {detectedQuestion.marks && (
           <span className="tab-item marks">
-            {detectedQuestion.multipleQuestions && detectedQuestion.allQuestions
-              ? `${detectedQuestion.allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`
-              : `${detectedQuestion.marks} marks`
-            }
+            {(() => {
+              // Handle new structure with questions array
+              if (detectedQuestion.multipleQuestions && (detectedQuestion as any).questions) {
+                const questions = (detectedQuestion as any).questions;
+                return `${questions.map((q: any) => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`;
+              }
+              
+              // Handle old structure with allQuestions
+              if (detectedQuestion.multipleQuestions && (detectedQuestion as any).allQuestions) {
+                const allQuestions = (detectedQuestion as any).allQuestions;
+                return `${allQuestions.map((q: any) => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`;
+              }
+              
+              // Single question
+              return `${detectedQuestion.marks} marks`;
+            })()}
           </span>
         )}
         {studentScore && studentScore.scoreText && (
