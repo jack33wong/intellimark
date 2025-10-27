@@ -692,39 +692,43 @@ export class SessionManagementService {
       };
     }
 
-    // Handle multiple questions case
+    // Handle multiple questions case - NEW CLEAN STRUCTURE
     if (markingSchemesMap.size > 1) {
-      const allQuestions = Array.from(markingSchemesMap.entries()).map(([qNum, data]) => ({
-        questionNumber: qNum,
-        marks: data.totalMarks || 0
-      }));
-
-      // Combine all marking schemes for model answer generation
-      // questionMarks can be an array of marks or the whole scheme object
-      const combinedMarkingScheme = Array.from(markingSchemesMap.entries())
-        .map(([qNum, data]) => {
-          let marks = data.questionMarks || [];
-          
-          // Handle case where questionMarks might not be an array
-          if (!Array.isArray(marks)) {
-            // If it's an object with marks property, extract it
-            if (marks && typeof marks === 'object' && marks.marks) {
-              marks = marks.marks;
-            } else {
-              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marks);
-              return [];
-            }
+      // Build structured array format with all question data
+      const questionsArray = Array.from(markingSchemesMap.entries()).map(([qNum, data]) => {
+        let marksArray = data.questionMarks || [];
+        
+        // Handle case where questionMarks might not be an array
+        if (!Array.isArray(marksArray)) {
+          if (marksArray && typeof marksArray === 'object' && marksArray.marks) {
+            marksArray = marksArray.marks;
+          } else {
+            console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
+            marksArray = [];
           }
-          
-          return marks.map((mark: any) => ({
-            questionNumber: qNum,
-            mark: mark
-          }));
-        })
-        .flat();
+        }
+        
+        // Extract question text from classification for this question
+        // Note: This is a simplified version - may need enhancement for multi-question text
+        const questionTextForThisQ = globalQuestionText || '';
+        
+        return {
+          questionNumber: qNum,
+          questionText: questionTextForThisQ, // Combined text for now
+          marks: data.totalMarks || 0,
+          markingScheme: marksArray, // Array of mark objects for this question
+          questionIndex: 0 // Could be enhanced to track actual index
+        };
+      });
+
+      // Calculate total marks across all questions
+      const totalMarks = questionsArray.reduce((sum, q) => sum + q.marks, 0);
 
       return {
         found: true,
+        multipleQuestions: true,
+        questions: questionsArray, // NEW: Clean array of all questions
+        // Legacy fields for backward compatibility
         questionText: globalQuestionText || '',
         questionNumber: questionNumber || '',
         subQuestionNumber: '',
@@ -734,14 +738,11 @@ export class SessionManagementService {
         subject: match.qualification || '',
         tier: match.tier || '',
         year: match.year || '',
-        marks: allQuestions.reduce((sum, q) => sum + q.marks, 0),
-        markingScheme: JSON.stringify(combinedMarkingScheme), // Store combined marking scheme
-        multipleQuestions: true,
-        allQuestions: allQuestions
+        marks: totalMarks
       };
     }
 
-    // Single question case
+    // Single question case - NEW CLEAN STRUCTURE
     let singleMarkingScheme = schemeData.questionMarks || [];
     
     // Handle case where questionMarks might not be an array
@@ -755,8 +756,20 @@ export class SessionManagementService {
       }
     }
     
+    // Create single question array for consistency
+    const questionsArray = [{
+      questionNumber: questionNumber || '',
+      questionText: globalQuestionText || '',
+      marks: schemeData.totalMarks || match.marks || 0,
+      markingScheme: singleMarkingScheme, // Array of mark objects
+      questionIndex: 0
+    }];
+    
     return {
       found: true,
+      multipleQuestions: false,
+      questions: questionsArray, // NEW: Clean array of single question
+      // Legacy fields for backward compatibility
       questionText: globalQuestionText || '',
       questionNumber: questionNumber || '',
       subQuestionNumber: match.subQuestionNumber || '',
@@ -766,8 +779,7 @@ export class SessionManagementService {
       subject: match.qualification || '',
       tier: match.tier || '',
       year: match.year || '',
-      marks: schemeData.totalMarks || match.marks || 0,
-      markingScheme: JSON.stringify(singleMarkingScheme) // Store marking scheme for single question
+      marks: schemeData.totalMarks || match.marks || 0
     };
   }
 }
