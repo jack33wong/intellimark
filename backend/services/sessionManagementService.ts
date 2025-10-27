@@ -376,13 +376,28 @@ export class SessionManagementService {
     try {
       const uploadPromises = files.map(async (file, index) => {
         try {
-          const imageLink = await ImageStorageService.uploadImage(
-            file.buffer.toString('base64'),
-            userId,
-            `multi-${submissionId}`,
-            'original'
-          );
-          return imageLink;
+          // Check if file is a PDF
+          const isPdf = file.mimetype === 'application/pdf';
+          
+          if (isPdf) {
+            // Upload as PDF
+            const pdfLink = await ImageStorageService.uploadPdf(
+              `data:application/pdf;base64,${file.buffer.toString('base64')}`,
+              userId,
+              `multi-${submissionId}`,
+              file.originalname || `document-${index + 1}.pdf`
+            );
+            return pdfLink;
+          } else {
+            // Upload as image
+            const imageLink = await ImageStorageService.uploadImage(
+              file.buffer.toString('base64'),
+              userId,
+              `multi-${submissionId}`,
+              'original'
+            );
+            return imageLink;
+          }
         } catch (uploadError) {
           console.error(`❌ [UPLOAD] Failed to upload original file ${index}:`, uploadError);
           return file.buffer.toString('base64'); // Fallback to base64
@@ -415,14 +430,14 @@ export class SessionManagementService {
       if (pdfContext?.isMultiplePdfs && pdfContext.pdfContexts) {
         // Multiple PDFs case
         structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => ({
-          url: ctx.originalPdfDataUrl || ctx.originalPdfLink || '', // Use url field for PDF (base64 or Firebase link)
+          url: ctx.originalPdfLink || ctx.originalPdfDataUrl || '', // Prefer Firebase PDF link over blob URL
           originalFileName: ctx.originalFileName,
           fileSize: ctx.fileSize || 0 // Already in bytes from markingRouter
         }));
       } else if (pdfContext && !pdfContext.isMultiplePdfs) {
         // Single PDF case
         structuredPdfContexts = [{
-          url: pdfContext.originalPdfDataUrl || pdfContext.originalPdfLink || '', // Use url field for PDF
+          url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl || '', // Prefer Firebase PDF link over blob URL
           originalFileName: pdfContext.originalFileName,
           fileSize: pdfContext.fileSize || 0 // Already in bytes from markingRouter
         }];
