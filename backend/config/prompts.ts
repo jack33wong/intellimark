@@ -423,6 +423,11 @@ export const AI_PROMPTS = {
     - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate calculations unless the marking scheme explicitly requires them.
     - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code.
 
+    ## Handling Multiple Questions
+    - If you receive multiple questions, provide a separate model answer for EACH question
+    - Clearly label each answer with its question number
+    - Use the marking scheme that corresponds to each question
+    - Each question's answer should be complete and independent
 
     ## Formatting Rules
     1.  **Markdown Only:** The entire response must be in markdown.
@@ -433,6 +438,7 @@ export const AI_PROMPTS = {
       - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
     4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
     5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
+    6.  **Multiple Questions:** If answering multiple questions, clearly separate them with "## Question X" headings.
     ---
     # [Task Data]
     `,

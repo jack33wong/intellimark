@@ -695,7 +695,7 @@ export class SessionManagementService {
     // Handle multiple questions case - NEW CLEAN STRUCTURE
     if (markingSchemesMap.size > 1) {
       // Build structured array format with all question data
-      const questionsArray = Array.from(markingSchemesMap.entries()).map(([qNum, data]) => {
+      const questionsArray = Array.from(markingSchemesMap.entries()).map(([qNum, data], index) => {
         let marksArray = data.questionMarks || [];
         
         // Handle case where questionMarks might not be an array
@@ -708,16 +708,18 @@ export class SessionManagementService {
           }
         }
         
-        // Extract question text from classification for this question
-        // Note: This is a simplified version - may need enhancement for multi-question text
-        const questionTextForThisQ = globalQuestionText || '';
+        // Extract question text from questionDetection if available
+        let questionTextForThisQ = globalQuestionText || '';
+        if (data.questionDetection?.questionText) {
+          questionTextForThisQ = data.questionDetection.questionText;
+        }
         
         return {
           questionNumber: qNum,
-          questionText: questionTextForThisQ, // Combined text for now
+          questionText: questionTextForThisQ,
           marks: data.totalMarks || 0,
           markingScheme: marksArray, // Array of mark objects for this question
-          questionIndex: 0 // Could be enhanced to track actual index
+          questionIndex: index
         };
       });
 
@@ -727,11 +729,8 @@ export class SessionManagementService {
       return {
         found: true,
         multipleQuestions: true,
-        questions: questionsArray, // NEW: Clean array of all questions
-        // Legacy fields for backward compatibility
-        questionText: globalQuestionText || '',
-        questionNumber: questionNumber || '',
-        subQuestionNumber: '',
+        questions: questionsArray, // Clean array of all questions with individual data
+        // Exam metadata
         examBoard: match.board || '',
         examCode: match.paperCode || '',
         paperTitle: match.qualification || '',
@@ -768,11 +767,8 @@ export class SessionManagementService {
     return {
       found: true,
       multipleQuestions: false,
-      questions: questionsArray, // NEW: Clean array of single question
-      // Legacy fields for backward compatibility
-      questionText: globalQuestionText || '',
-      questionNumber: questionNumber || '',
-      subQuestionNumber: match.subQuestionNumber || '',
+      questions: questionsArray, // Clean array of single question
+      // Exam metadata
       examBoard: match.board || '',
       examCode: match.paperCode || '',
       paperTitle: match.qualification || '',

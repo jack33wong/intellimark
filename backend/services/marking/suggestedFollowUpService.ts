@@ -117,35 +117,45 @@ export class SuggestedFollowUpService {
     let totalMarks: number | undefined;
     
     if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
-      // New clean structure - combine all questions
+      // New clean structure - combine all questions for model answer
       const questions = detectedQuestion.questions;
       
-      // Aggregate all question texts with clear separation
-      questionText = questions.map((q, index) => {
-        const separator = '\n' + '='.repeat(50) + '\n';
-        if (index === 0) {
-          return `Question ${q.questionNumber}:\n${q.questionText}`;
-        }
-        return `${separator}Question ${q.questionNumber}:\n${q.questionText}`;
-      }).join('\n\n');
-      
-      // Aggregate all marking schemes in a readable format
-      const combinedScheme = questions.map(q => ({
-        questionNumber: q.questionNumber,
-        marks: q.marks,
-        markingScheme: q.markingScheme // This is already an array
-      }));
-      
-      markingScheme = JSON.stringify(combinedScheme, null, 2);
-      
-      // Sum total marks across all questions
-      totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
-      
-      // Enhanced debug logging for multiple questions
-      console.log('📋 [MULTI-QUESTION] Aggregating data for', questions.length, 'questions');
-      questions.forEach(q => {
-        console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points`);
-      });
+      // For multiple questions, format each separately in the prompt
+      if (questions.length > 1) {
+        // Aggregate all question texts with clear separation
+        questionText = questions.map((q, index) => {
+          const separator = '\n' + '='.repeat(50) + '\n';
+          if (index === 0) {
+            return `Question ${q.questionNumber} (${q.marks} marks):\n${q.questionText}`;
+          }
+          return `${separator}Question ${q.questionNumber} (${q.marks} marks):\n${q.questionText}`;
+        }).join('\n\n');
+        
+        // Aggregate all marking schemes in a readable format
+        const combinedScheme = questions.map(q => ({
+          questionNumber: q.questionNumber,
+          marks: q.marks,
+          markingScheme: q.markingScheme
+        }));
+        
+        markingScheme = JSON.stringify(combinedScheme, null, 2);
+        
+        // Sum total marks across all questions
+        totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+        
+        // Enhanced debug logging for multiple questions
+        console.log('📋 [MULTI-QUESTION] Aggregating data for', questions.length, 'questions');
+        questions.forEach(q => {
+          console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points`);
+          console.log(`    Text: ${q.questionText?.substring(0, 60)}...`);
+        });
+      } else {
+        // Single question
+        const q = questions[0];
+        questionText = q.questionText;
+        markingScheme = JSON.stringify(q.markingScheme || [], null, 2);
+        totalMarks = q.marks;
+      }
     } else {
       // Legacy structure - use existing fields
       questionText = detectedQuestion?.questionText || '';
