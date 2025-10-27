@@ -214,7 +214,7 @@ export interface UnifiedMessage {
     url: string;
     originalFileName: string;
     fileSize: number;
-  }>; // For PDF uploads
+  }>; // For PDF uploads - simplified to match imageDataArray structure
   
   // Display options
   isImageContext?: boolean;

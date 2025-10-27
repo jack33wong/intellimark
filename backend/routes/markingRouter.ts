@@ -902,8 +902,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           originalPdfLink,
           originalPdfDataUrl,
           originalFileName: files[0].originalname || 'document.pdf',
-          fileSize: fileSizeMB + ' MB',
-          fileSizeBytes: fileSizeBytes
+          fileSize: fileSizeBytes, // Store as bytes (number) to match simplified structure
+          fileSizeMB: fileSizeMB + ' MB' // Keep for display if needed
         };
         
         // Continue to unified pipeline (don't return here)
@@ -947,8 +947,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             originalPdfLink,
             originalPdfDataUrl,
             originalFileName: file.originalname || `document-${i + 1}.pdf`,
-            fileSize: fileSizeMB + ' MB',
-            fileSizeBytes: fileSizeBytes,
+            fileSize: fileSizeBytes, // Store as bytes (number) to match simplified structure
+            fileSizeMB: fileSizeMB + ' MB', // Keep for display if needed
             fileIndex: i
           };
           

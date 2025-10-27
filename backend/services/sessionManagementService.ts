@@ -411,24 +411,20 @@ export class SessionManagementService {
 
 
     if (isPdf || isMultiplePdfs) {
-      // For PDFs, use pdfContexts for all users
+      // For PDFs, use pdfContexts for all users - simplified structure matching imageDataArray
       if (pdfContext?.isMultiplePdfs && pdfContext.pdfContexts) {
         // Multiple PDFs case
         structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => ({
-          url: ctx.originalPdfDataUrl || ctx.originalPdfLink,
-          originalPdfDataUrl: ctx.originalPdfDataUrl && ctx.originalPdfDataUrl.length < 1000000 ? ctx.originalPdfDataUrl : null, // Limit base64 size for Firestore
-          originalPdfLink: ctx.originalPdfLink,
+          url: ctx.originalPdfDataUrl || ctx.originalPdfLink || '', // Use url field for PDF (base64 or Firebase link)
           originalFileName: ctx.originalFileName,
-          fileSize: ctx.fileSize || ctx.fileSizeBytes || 0
+          fileSize: ctx.fileSize || 0 // Already in bytes from markingRouter
         }));
       } else if (pdfContext && !pdfContext.isMultiplePdfs) {
         // Single PDF case
         structuredPdfContexts = [{
-          url: pdfContext.originalPdfDataUrl || pdfContext.originalPdfLink,
-          originalPdfDataUrl: pdfContext.originalPdfDataUrl,
-          originalPdfLink: pdfContext.originalPdfLink,
+          url: pdfContext.originalPdfDataUrl || pdfContext.originalPdfLink || '', // Use url field for PDF
           originalFileName: pdfContext.originalFileName,
-          fileSize: pdfContext.fileSize || pdfContext.fileSizeBytes || 0
+          fileSize: pdfContext.fileSize || 0 // Already in bytes from markingRouter
         }];
       } else {
         // Fallback: create from files directly

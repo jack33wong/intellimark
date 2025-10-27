@@ -269,9 +269,8 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
           
           return {
             originalFileName: file.name,
-            fileSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-            originalPdfDataUrl: blobUrl, // Use blob URL instead of base64 data URL
-            url: blobUrl // Fallback URL
+            fileSize: file.size, // Use bytes (number) to match imageDataArray structure
+            url: blobUrl // Use simplified structure: url field only
           };
         }));
         

@@ -452,8 +452,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                         role="button" 
                         aria-label="Uploaded PDF"
                         onClick={() => {
-                          // Try originalPdfDataUrl first (blob URL), then originalPdfLink (Firebase), then url
-                          const pdfUrl = pdfContext.originalPdfDataUrl || pdfContext.originalPdfLink || pdfContext.url;
+                          // Use simplified structure: pdfContext.url (consolidates originalPdfDataUrl and originalPdfLink)
+                          const pdfUrl = pdfContext.url;
                           if (pdfUrl) {
                             window.open(pdfUrl, '_blank');
                           }
