@@ -490,23 +490,24 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
             Format your response with a clear title and numbered list of 3 questions.
             Your response MUST be in markdown format with clear structure.`,
 
-    user: (questionText: string, schemeJson: string) => {
+    user: (questionText: string, schemeJson: string, questionCount?: number) => {
       // Convert JSON marking scheme to clean bulleted list format
       const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
       
-      return `**ORIGINAL QUESTION:**
+      // If questionCount is provided, use it to determine how many similar questions to generate
+      const numSimilarQuestions = questionCount ? 1 : 3;
+      
+      return `**ORIGINAL QUESTION${questionCount && questionCount > 1 ? 'S' : ''}:**
 ${questionText}
 
 **MARKING SCHEME:**
 ${formattedScheme}
 
-Generate exactly 4 similar practice questions. Format your response as:
+Generate exactly ${numSimilarQuestions} similar practice question${numSimilarQuestions > 1 ? 's' : ''}. Format your response as:
 
-Similar Practice Questions
+Similar Practice Question${numSimilarQuestions > 1 ? 's' : ''}
 
-1. [Question 1]
-2. [Question 2] 
-3. [Question 3]
+${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
 `;
     }
   },

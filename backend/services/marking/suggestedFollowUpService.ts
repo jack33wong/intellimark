@@ -115,10 +115,12 @@ export class SuggestedFollowUpService {
     let questionText: string;
     let markingScheme: string;
     let totalMarks: number | undefined;
+    let questionCount: number | undefined;
     
     if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
       // New clean structure - combine all questions for model answer
       const questions = detectedQuestion.questions;
+      questionCount = questions.length;
       
       // For multiple questions, format each separately in the prompt
       if (questions.length > 1) {
@@ -167,24 +169,21 @@ export class SuggestedFollowUpService {
     const userPrompt = getPrompt(`${config.promptKey}.user`, 
       questionText,
       markingScheme,
-      totalMarks
+      questionCount  // Pass question count for similar questions prompt
     );
     
-    // DEBUG: Print the detectedQuestion data and user prompt for model answer
-    if (config.promptKey === 'modelAnswer') {
+    // DEBUG: Print the detectedQuestion data and user prompt for all multi-question follow-ups
+    if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions) && detectedQuestion.questions.length > 1) {
       console.log('='.repeat(80));
-      console.log('🔍 [MODEL ANSWER DEBUG] detectedQuestion data:');
-      if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
-        console.log(`📋 Found ${detectedQuestion.questions.length} question(s) in array`);
-        detectedQuestion.questions.forEach((q, idx) => {
-          console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
-        });
-      }
+      console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${detectedQuestion.questions.length} questions):`);
+      detectedQuestion.questions.forEach((q, idx) => {
+        console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
+      });
       console.log('Aggregated questionText length:', questionText.length);
       console.log('Aggregated markingScheme length:', markingScheme.length);
       console.log('Total marks:', totalMarks);
       console.log('='.repeat(80));
-      console.log('🔍 [MODEL ANSWER DEBUG] Generated user prompt (first 500 chars):');
+      console.log(`🔍 [${mode.toUpperCase()} DEBUG] Generated user prompt (first 500 chars):`);
       console.log(userPrompt.substring(0, 500) + '...');
       console.log('='.repeat(80));
     }
