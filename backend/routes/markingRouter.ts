@@ -1105,14 +1105,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     });
     
-    // Create combined classification result
+    // Create combined classification result with enhanced mixed content detection
+    const hasAnyStudentWork = allClassificationResults.some(result => result.result?.isQuestionOnly === false);
+    const hasMixedContent = allClassificationResults.some(result => result.result?.isQuestionOnly !== allClassificationResults[0]?.result?.isQuestionOnly);
+    
     const classificationResult = {
-      isQuestionOnly: allClassificationResults[0]?.result?.isQuestionOnly || false,
+      isQuestionOnly: allClassificationResults.every(result => result.result?.isQuestionOnly === true),
       reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
       questions: allQuestions,
       extractedQuestionText: allQuestions.length > 0 ? allQuestions[0].text : allClassificationResults[0]?.result?.extractedQuestionText,
       apiUsed: allClassificationResults[0]?.result?.apiUsed || 'Unknown',
-      usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0)
+      usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0),
+      hasMixedContent: hasMixedContent,
+      hasAnyStudentWork: hasAnyStudentWork
     };
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
@@ -1122,30 +1127,109 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     logClassificationComplete();
 
-    // ========================= QUESTION MODE DETECTION =========================
-    // Check if this is a question-only image (like original MarkingPipeline)
+    // ========================= ENHANCED MODE DETECTION =========================
+    // Smart mode detection based on content analysis
     const isQuestionMode = classificationResult?.isQuestionOnly === true;
+    const isMixedContent = classificationResult?.hasMixedContent === true;
+    
+    console.log(`🔍 [MODE DETECTION] Analysis:`);
+    console.log(`  - All question-only: ${isQuestionMode}`);
+    console.log(`  - Has mixed content: ${isMixedContent}`);
+    console.log(`  - Has any student work: ${classificationResult?.hasAnyStudentWork}`);
+    console.log(`  - Selected mode: ${isQuestionMode ? 'Question Mode' : 'Marking Mode'}`);
     
     if (isQuestionMode) {
-      // Question mode: simplified pipeline - skip OCR, segmentation, and marking
+      // ========================= ENHANCED QUESTION MODE =========================
+      // Question mode: Handle multiple question-only images with detailed responses
       
-      // Step 1: Question Detection
-      sendSseUpdate(res, createProgressData(4, 'Detecting question type...', MULTI_IMAGE_STEPS));
+      console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
+      
+      // Step 1: Enhanced Question Detection for Multiple Questions
+      sendSseUpdate(res, createProgressData(4, 'Detecting question types...', MULTI_IMAGE_STEPS));
       const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-      const questionDetection = await questionDetectionService.detectQuestion(globalQuestionText || '');
+      
+      // Extract individual questions from classification result
+      const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+      
+      // Detect each question individually to get proper exam data and marking schemes
+      const allQuestionDetections = await Promise.all(
+        individualQuestions.map(async (question, index) => {
+          const detection = await questionDetectionService.detectQuestion(question.text);
+          return {
+            questionIndex: index,
+            questionText: question.text,
+            detection: detection,
+            sourceImageIndex: classificationResult.questions[index]?.sourceImageIndex ?? index
+          };
+        })
+      );
+      
+      // Create combined question detection result
+      const questionDetection = {
+        found: allQuestionDetections.some(qd => qd.detection.found),
+        questions: allQuestionDetections.map(qd => ({
+          questionNumber: qd.detection.match?.questionNumber || '',
+          questionText: qd.questionText,
+          marks: qd.detection.match?.marks || 0,
+          markingScheme: qd.detection.markingScheme || '',
+          questionIndex: qd.questionIndex,
+          sourceImageIndex: qd.sourceImageIndex,
+          examBoard: qd.detection.match?.board || '',
+          examCode: qd.detection.match?.paperCode || '',
+          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.year})` : '',
+          subject: qd.detection.match?.qualification || '',
+          tier: qd.detection.match?.tier || '',
+          year: qd.detection.match?.year || ''
+        })),
+        multipleQuestions: allQuestionDetections.length > 1,
+        totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0)
+      };
+      
       logQuestionDetectionComplete();
       
-      // Step 2: AI Response Generation (skip segmentation and marking steps)
-      sendSseUpdate(res, createProgressData(6, 'Generating response...', MULTI_IMAGE_STEPS));
+      // Step 2: Enhanced AI Response Generation for Multiple Questions
+      sendSseUpdate(res, createProgressData(6, 'Generating responses...', MULTI_IMAGE_STEPS));
       const logAiResponseComplete = logStep('AI Response Generation', actualModel);
       const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
-      const aiResponse = await MarkingServiceLocator.generateChatResponse(
-        standardizedPages[0].imageData, 
-        globalQuestionText || '', 
-        actualModel as ModelType, 
-        true, // isQuestionOnly
-        false // debug
+      
+      // Generate AI responses for each question individually
+      const aiResponses = await Promise.all(
+        allQuestionDetections.map(async (qd, index) => {
+          const imageData = standardizedPages[qd.sourceImageIndex]?.imageData || standardizedPages[0].imageData;
+          const response = await MarkingServiceLocator.generateChatResponse(
+            imageData,
+            qd.questionText,
+            actualModel as ModelType,
+            true, // isQuestionOnly
+            false // debug
+          );
+          return {
+            questionIndex: index,
+            questionNumber: qd.detection.match?.questionNumber || `Q${index + 1}`,
+            response: response.response,
+            apiUsed: response.apiUsed,
+            usageTokens: response.usageTokens
+          };
+        })
       );
+      
+      // Debug logging for multi-question responses
+      console.log(`🔍 [QUESTION MODE] Generated ${aiResponses.length} individual AI responses:`);
+      aiResponses.forEach((ar, index) => {
+        console.log(`  ${index + 1}. ${ar.questionNumber}: ${ar.response.substring(0, 100)}...`);
+      });
+      
+      // Combine all responses into a single comprehensive response with clear separation
+      const combinedResponse = aiResponses.map(ar => 
+        `## ${ar.questionNumber}\n\n${ar.response}`
+      ).join('\n\n' + '='.repeat(50) + '\n\n');
+      
+      const aiResponse = {
+        response: combinedResponse,
+        apiUsed: aiResponses[0]?.apiUsed || 'Unknown',
+        usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0)
+      };
+      
       logAiResponseComplete();
       
       // Generate suggested follow-ups (same as marking mode)
@@ -1167,17 +1251,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Transform question detection result to match frontend DetectedQuestion structure
       const transformedDetectedQuestion = questionDetection ? {
         found: questionDetection.found,
-        questionText: questionDetection.questionText || globalQuestionText || '',
-        questionNumber: questionDetection.match?.questionNumber || '',
-        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
-        examBoard: questionDetection.match?.board || '',
-        examCode: questionDetection.match?.paperCode || '',
-        paperTitle: questionDetection.match ? `${questionDetection.match.board} ${questionDetection.match.qualification} ${questionDetection.match.paperCode} (${questionDetection.match.year})` : '',
-        subject: questionDetection.match?.qualification || '',
-        tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || '',
-        marks: questionDetection.match?.marks || 0,
-        markingScheme: questionDetection.markingScheme || ''
+        multipleQuestions: questionDetection.multipleQuestions,
+        marks: questionDetection.totalMarks,
+        questions: questionDetection.questions,
+        // Legacy fields for backward compatibility (use first question data)
+        questionText: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionText : '',
+        questionNumber: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionNumber : '',
+        subQuestionNumber: '',
+        examBoard: questionDetection.questions.length > 0 ? questionDetection.questions[0].examBoard : '',
+        examCode: questionDetection.questions.length > 0 ? questionDetection.questions[0].examCode : '',
+        paperTitle: questionDetection.questions.length > 0 ? questionDetection.questions[0].paperTitle : '',
+        subject: questionDetection.questions.length > 0 ? questionDetection.questions[0].subject : '',
+        tier: questionDetection.questions.length > 0 ? questionDetection.questions[0].tier : '',
+        year: questionDetection.questions.length > 0 ? questionDetection.questions[0].year : '',
+        markingScheme: questionDetection.questions.length > 0 ? questionDetection.questions[0].markingScheme : ''
       } : undefined;
 
       const aiMessage = createAIMessage({
@@ -1302,11 +1389,38 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       return;
     }
 
+    // ========================= ENHANCED MARKING MODE =========================
+    // Marking mode: Handle mixed content with both marking and question analysis
+    
+    if (isMixedContent) {
+      console.log(`🔄 [MIXED CONTENT] Processing ${standardizedPages.length} images with mixed content`);
+      console.log(`  - Student work images: ${standardizedPages.filter((_, i) => !allClassificationResults[i]?.result?.isQuestionOnly).length}`);
+      console.log(`  - Question-only images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.isQuestionOnly).length}`);
+    }
+
     // --- Run OCR on each page in parallel (Marking Mode) ---
     const logOcrComplete = logStep('OCR Processing', 'mathpix');
     
     
-    const pageProcessingPromises = standardizedPages.map(async (page): Promise<PageOcrResult> => {
+    const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
+      // Skip OCR for question-only images in mixed content scenarios
+      // Check if this specific page was classified as question-only
+      const pageClassification = allClassificationResults[index]?.result;
+      const isQuestionOnly = pageClassification?.isQuestionOnly;
+      
+      if (isMixedContent && isQuestionOnly) {
+        console.log(`⏭️ [MIXED CONTENT] Skipping OCR for question-only image: ${page.originalFileName}`);
+        return {
+          pageIndex: page.pageIndex,
+          ocrData: {
+            text: '',
+            mathBlocks: [],
+            rawResponse: { rawLineData: [] }
+          },
+          classificationText: globalQuestionText
+        };
+      }
+      
       const ocrResult = await OCRService.processImage(
         page.imageData, {}, false, 'auto',
         { extractedQuestionText: globalQuestionText }
@@ -1638,6 +1752,42 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Override timestamp for database consistency
       (dbUserMessage as any).timestamp = userTimestamp;
       
+      // ========================= MIXED CONTENT: QUESTION ANALYSIS =========================
+      let questionOnlyResponses: string[] = [];
+      
+      if (isMixedContent) {
+        console.log(`🔍 [MIXED CONTENT] Generating AI responses for question-only images...`);
+        
+        // Find question-only images and generate AI responses for them
+        const questionOnlyImages = standardizedPages.filter((page, index) => 
+          allClassificationResults[index]?.result?.isQuestionOnly
+        );
+        
+        if (questionOnlyImages.length > 0) {
+          const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
+          
+          questionOnlyResponses = await Promise.all(
+            questionOnlyImages.map(async (page, index) => {
+              const originalIndex = standardizedPages.indexOf(page);
+              const questionText = allClassificationResults[originalIndex]?.result?.extractedQuestionText || 
+                                 classificationResult.questions[originalIndex]?.text || '';
+              
+              const response = await MarkingServiceLocator.generateChatResponse(
+                page.imageData,
+                questionText,
+                actualModel as ModelType,
+                true, // isQuestionOnly
+                false // debug
+              );
+              
+              return `## Question Analysis (${page.originalFileName})\n\n${response.response}`;
+            })
+          );
+          
+          console.log(`✅ [MIXED CONTENT] Generated ${questionOnlyResponses.length} question-only responses`);
+        }
+      }
+
       // Create AI message for database
       const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, null, 'marking');
       
@@ -1649,7 +1799,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         startTime,
         markingSchemesMap,
         globalQuestionText,
-        resolvedAIMessageId
+        resolvedAIMessageId,
+        questionOnlyResponses: isMixedContent ? questionOnlyResponses : undefined
       });
       
       // Add suggested follow-ups

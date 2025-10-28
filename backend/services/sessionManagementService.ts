@@ -46,6 +46,7 @@ export interface AIMessageData {
   markingSchemesMap: Map<string, any>;
   globalQuestionText: string;
   resolvedAIMessageId: string;
+  questionOnlyResponses?: string[];
 }
 
 export class SessionManagementService {
@@ -548,7 +549,8 @@ export class SessionManagementService {
       startTime,
       markingSchemesMap,
       globalQuestionText,
-      resolvedAIMessageId
+      resolvedAIMessageId,
+      questionOnlyResponses
     } = aiData;
 
     // Calculate real processing stats for the AI message
@@ -576,8 +578,14 @@ export class SessionManagementService {
     // Create detectedQuestion data from markingSchemesMap for frontend display
     const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(markingSchemesMap, globalQuestionText);
 
+    // Create AI message content - include question-only responses if available
+    let aiContent = 'Marking completed - see results below';
+    if (questionOnlyResponses && questionOnlyResponses.length > 0) {
+      aiContent += '\n\n' + questionOnlyResponses.join('\n\n');
+    }
+
     const dbAiMessage = createAIMessage({
-      content: 'Marking completed - see results below',
+      content: aiContent,
       messageId: resolvedAIMessageId,
       imageData: finalAnnotatedOutput.length === 1 ? finalAnnotatedOutput[0] : undefined,
       imageDataArray: structuredAiImageDataArray,
