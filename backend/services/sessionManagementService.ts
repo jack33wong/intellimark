@@ -205,7 +205,26 @@ export class SessionManagementService {
           ? allQuestionNumbers.join(', ') 
           : allQuestionNumbers[0];
         
-        // Use actual exam board data from question detection
+        // Check if we have multiple exam papers
+        const examBoards = new Set();
+        const examCodes = new Set();
+        const years = new Set();
+        
+        Array.from(context.markingSchemesMap.values()).forEach(scheme => {
+          const questionDetection = scheme.questionDetection;
+          if (questionDetection?.match) {
+            examBoards.add(questionDetection.match.board);
+            examCodes.add(questionDetection.match.paperCode);
+            years.add(questionDetection.match.year);
+          }
+        });
+        
+        // If different exam boards, codes, or years, use simplified title
+        if (examBoards.size > 1 || examCodes.size > 1 || years.size > 1) {
+          return `Past paper - Q${questionNumberDisplay}`;
+        }
+        
+        // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
           const { board, qualification, paperCode, year, tier } = firstQuestionDetection.match;
@@ -711,10 +730,40 @@ export class SessionManagementService {
       };
     }
 
-    // Handle multiple questions case - NEW CLEAN STRUCTURE
+    // Handle multiple questions case - ENHANCED STRUCTURE WITH EXAM PAPER GROUPING
     if (markingSchemesMap.size > 1) {
-      // Build structured array format with all question data
-      const questionsArray = Array.from(markingSchemesMap.entries()).map(([qNum, data], index) => {
+      // Group questions by exam paper (board + code + year + tier)
+      const examPaperGroups = new Map<string, any>();
+      
+      Array.from(markingSchemesMap.entries()).forEach(([qNum, data], index) => {
+        const questionDetection = data.questionDetection;
+        const match = questionDetection?.match;
+        
+        if (!match) return; // Skip if no match data
+        
+        const examBoard = match.board || '';
+        const examCode = match.paperCode || '';
+        const year = match.year || '';
+        const tier = match.tier || '';
+        
+        // Create unique key for exam paper grouping
+        const examPaperKey = `${examBoard}_${examCode}_${year}_${tier}`;
+        
+        if (!examPaperGroups.has(examPaperKey)) {
+          examPaperGroups.set(examPaperKey, {
+            examBoard,
+            examCode,
+            year,
+            tier,
+            subject: match.qualification || '',
+            paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+            questions: [],
+            totalMarks: 0
+          });
+        }
+        
+        const examPaper = examPaperGroups.get(examPaperKey);
+        
         let marksArray = data.questionMarks || [];
         
         // Handle case where questionMarks might not be an array
@@ -742,34 +791,77 @@ export class SessionManagementService {
           questionTextForThisQ = globalQuestionText || '';
         }
         
-        return {
+        examPaper.questions.push({
           questionNumber: qNum,
           questionText: questionTextForThisQ,
           marks: data.totalMarks || 0,
-          markingScheme: marksArray, // Array of mark objects for this question
+          markingScheme: marksArray,
           questionIndex: index
-        };
+        });
+        examPaper.totalMarks += data.totalMarks || 0;
       });
-
+      
+      // Convert to array and determine if multiple exam papers
+      const examPapers = Array.from(examPaperGroups.values());
+      const multipleExamPapers = examPapers.length > 1;
+      
       // Calculate total marks across all questions
-      const totalMarks = questionsArray.reduce((sum, q) => sum + q.marks, 0);
+      const totalMarks = Array.from(markingSchemesMap.values()).reduce((sum, data) => sum + (data.totalMarks || 0), 0);
 
       return {
         found: true,
+        multipleExamPapers,
+        examPapers,
+        marks: totalMarks,
+        // Legacy fields for backward compatibility
         multipleQuestions: true,
-        questions: questionsArray, // Clean array of all questions with individual data
-        // Exam metadata
+        questions: Array.from(markingSchemesMap.entries()).map(([qNum, data], index) => {
+          let marksArray = data.questionMarks || [];
+          
+          // Handle case where questionMarks might not be an array
+          if (!Array.isArray(marksArray)) {
+            if (marksArray && typeof marksArray === 'object' && marksArray.marks) {
+              marksArray = marksArray.marks;
+            } else {
+              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
+              marksArray = [];
+            }
+          }
+          
+          // Extract question text - prioritize the stored questionText field from markingRouter
+          let questionTextForThisQ = '';
+          
+          // First try the questionText stored directly in the scheme data
+          if (data.questionText) {
+            questionTextForThisQ = data.questionText;
+          } else if (data.questionDetection?.questionText) {
+            questionTextForThisQ = data.questionDetection.questionText;
+          } else if (data.questionDetection?.match?.questionText) {
+            questionTextForThisQ = data.questionDetection.match.questionText;
+          } else {
+            // Fallback to global question text
+            questionTextForThisQ = globalQuestionText || '';
+          }
+          
+          return {
+            questionNumber: qNum,
+            questionText: questionTextForThisQ,
+            marks: data.totalMarks || 0,
+            markingScheme: marksArray,
+            questionIndex: index
+          };
+        }),
+        // Exam metadata (use first question's data for legacy compatibility)
         examBoard: match.board || '',
         examCode: match.paperCode || '',
         paperTitle: match.qualification || '',
         subject: match.qualification || '',
         tier: match.tier || '',
-        year: match.year || '',
-        marks: totalMarks
+        year: match.year || ''
       };
     }
 
-    // Single question case - NEW CLEAN STRUCTURE
+    // Single question case - ENHANCED STRUCTURE
     let singleMarkingScheme = schemeData.questionMarks || [];
     
     // Handle case where questionMarks might not be an array
@@ -792,18 +884,33 @@ export class SessionManagementService {
       questionIndex: 0
     }];
     
+    // Create single exam paper structure
+    const examPapers = [{
+      examBoard: match.board || '',
+      examCode: match.paperCode || '',
+      year: match.year || '',
+      tier: match.tier || '',
+      subject: match.qualification || '',
+      paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+      questions: questionsArray,
+      totalMarks: schemeData.totalMarks || match.marks || 0
+    }];
+    
     return {
       found: true,
+      multipleExamPapers: false,
+      examPapers,
+      marks: schemeData.totalMarks || match.marks || 0,
+      // Legacy fields for backward compatibility
       multipleQuestions: false,
-      questions: questionsArray, // Clean array of single question
+      questions: questionsArray,
       // Exam metadata
       examBoard: match.board || '',
       examCode: match.paperCode || '',
       paperTitle: match.qualification || '',
       subject: match.qualification || '',
       tier: match.tier || '',
-      year: match.year || '',
-      marks: schemeData.totalMarks || match.marks || 0
+      year: match.year || ''
     };
   }
 }

@@ -442,7 +442,9 @@ const segmentOcrResultsByQuestion = async (
           
           // PRIMARY: Try to match with detected question numbers from database using text content
           const matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
-              const qNumStr = String(qNum).toLowerCase();
+              // Extract question number from unique key (e.g., "21_Pearson Edexcel_1MA1/2F" -> "21")
+              const actualQNum = qNum.split('_')[0];
+              const qNumStr = String(actualQNum).toLowerCase();
               // Match "13" or "q13" at the start of the preview, or "question 13"
               return textPreview.startsWith(`${qNumStr} `) || 
                      textPreview.startsWith(`q${qNumStr} `) ||
@@ -454,8 +456,10 @@ const segmentOcrResultsByQuestion = async (
               const filenameQNs = extractQuestionNumberFromFilename(standardizedPages[pageIndex]?.originalFileName);
               if (filenameQNs && filenameQNs.length > 0) {
                   const filenameQN = filenameQNs[0]; // Take the first question number from filename
-                  if (allDetectedQuestionNumbers.includes(filenameQN)) {
-                      matchedQNs.push(filenameQN);
+                  // Find matching unique key for this question number
+                  const matchingKey = allDetectedQuestionNumbers.find(key => key.startsWith(`${filenameQN}_`));
+                  if (matchingKey) {
+                      matchedQNs.push(matchingKey);
                       console.log(`[SEGMENTATION] Filename fallback: Q${filenameQN} → Page ${pageIndex}`);
                   }
               }
@@ -474,7 +478,7 @@ const segmentOcrResultsByQuestion = async (
                       !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
                   );
                   if (unassignedQNs.length > 0) {
-                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a) - parseInt(b))[0]);
+                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
                       console.log(`[SEGMENTATION] Question start + fuzzy fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
                   }
               } else {
@@ -483,7 +487,7 @@ const segmentOcrResultsByQuestion = async (
                       !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
                   );
                   if (unassignedQNs.length > 0) {
-                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a) - parseInt(b))[0]);
+                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
                       console.log(`[SEGMENTATION] Sequential fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
                   }
               }
@@ -522,11 +526,17 @@ const segmentOcrResultsByQuestion = async (
                   console.log(`[SEGMENTATION] Using question number indicators for Page ${pageIndex}`);
                   blocksOnThisPage.forEach(block => {
                       const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
-                      if (assignedQNum && questionsOnThisPage.includes(assignedQNum)) {
-                          if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
-                          blocksByQuestion.get(assignedQNum)!.push(block);
-                      } else if (assignedQNum) {
-                          console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (via regex), but QN not in detected list [${questionsOnThisPage.join(', ')}]. Discarding.`);
+                      if (assignedQNum) {
+                          // Extract question number from assignedQNum (e.g., "21" from "Q21")
+                          const qNumStr = assignedQNum.replace('Q', '');
+                          // Check if any question on this page matches this question number
+                          const matchingQuestion = questionsOnThisPage.find(q => q.startsWith(`${qNumStr}_`));
+                          if (matchingQuestion) {
+                              if (!blocksByQuestion.has(matchingQuestion)) blocksByQuestion.set(matchingQuestion, []);
+                              blocksByQuestion.get(matchingQuestion)!.push(block);
+                          } else {
+                              console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (via regex), but QN not in detected list [${questionsOnThisPage.join(', ')}]. Discarding.`);
+                          }
                       } else {
                           console.warn(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} (Y: ${block.coordinates?.y}) is before first indicator. Discarding.`);
                       }
@@ -1164,9 +1174,55 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         })
       );
       
-      // Create combined question detection result
+      // Group questions by exam paper (board + code + year + tier)
+      const examPaperGroups = new Map<string, any>();
+      
+      allQuestionDetections.forEach(qd => {
+        const examBoard = qd.detection.match?.board || '';
+        const examCode = qd.detection.match?.paperCode || '';
+        const year = qd.detection.match?.year || '';
+        const tier = qd.detection.match?.tier || '';
+        
+        // Create unique key for exam paper grouping
+        const examPaperKey = `${examBoard}_${examCode}_${year}_${tier}`;
+        
+        if (!examPaperGroups.has(examPaperKey)) {
+          examPaperGroups.set(examPaperKey, {
+            examBoard,
+            examCode,
+            year,
+            tier,
+            subject: qd.detection.match?.qualification || '',
+            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.year})` : '',
+            questions: [],
+            totalMarks: 0
+          });
+        }
+        
+        const examPaper = examPaperGroups.get(examPaperKey);
+        examPaper.questions.push({
+          questionNumber: qd.detection.match?.questionNumber || '',
+          questionText: qd.questionText,
+          marks: qd.detection.match?.marks || 0,
+          markingScheme: qd.detection.markingScheme || '',
+          questionIndex: qd.questionIndex,
+          sourceImageIndex: qd.sourceImageIndex
+        });
+        examPaper.totalMarks += qd.detection.match?.marks || 0;
+      });
+      
+      // Convert to array and determine if multiple exam papers
+      const examPapers = Array.from(examPaperGroups.values());
+      const multipleExamPapers = examPapers.length > 1;
+      
+      // Create enhanced question detection result
       const questionDetection = {
         found: allQuestionDetections.some(qd => qd.detection.found),
+        multipleExamPapers,
+        examPapers,
+        totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
+        // Legacy fields for backward compatibility
+        multipleQuestions: allQuestionDetections.length > 1,
         questions: allQuestionDetections.map(qd => ({
           questionNumber: qd.detection.match?.questionNumber || '',
           questionText: qd.questionText,
@@ -1180,9 +1236,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           subject: qd.detection.match?.qualification || '',
           tier: qd.detection.match?.tier || '',
           year: qd.detection.match?.year || ''
-        })),
-        multipleQuestions: allQuestionDetections.length > 1,
-        totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0)
+        }))
       };
       
       logQuestionDetectionComplete();
@@ -1251,10 +1305,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Transform question detection result to match frontend DetectedQuestion structure
       const transformedDetectedQuestion = questionDetection ? {
         found: questionDetection.found,
-        multipleQuestions: questionDetection.multipleQuestions,
+        multipleExamPapers: questionDetection.multipleExamPapers,
+        examPapers: questionDetection.examPapers,
         marks: questionDetection.totalMarks,
+        // Legacy fields for backward compatibility
+        multipleQuestions: questionDetection.multipleQuestions,
         questions: questionDetection.questions,
-        // Legacy fields for backward compatibility (use first question data)
         questionText: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionText : '',
         questionNumber: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionNumber : '',
         subQuestionNumber: '',
@@ -1460,8 +1516,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             // Use the actual question number from database (Q13, Q14, etc.) not temporary ID
             const actualQuestionNumber = detectionResult.match.questionNumber;
             
-            // For image version, use question number as key (no duplicate question numbers)
-            const uniqueKey = actualQuestionNumber;
+            // Create unique key for questions with same number but different exam boards
+            const examBoard = detectionResult.match.board || 'Unknown';
+            const paperCode = detectionResult.match.paperCode || 'Unknown';
+            const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
             
             // Extract the specific question's marks from the marking scheme
             let questionSpecificMarks = null;
@@ -1485,9 +1543,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     logQuestionDetectionComplete();
     
-    // Debug logging for markingSchemesMap
-    for (const [key, value] of markingSchemesMap.entries()) {
-    }
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
@@ -1525,12 +1580,31 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= START: ADD SCHEME TO TASKS =========================
     // --- Stage 3.5: Add Correct Scheme to Each Task ---
     const tasksWithSchemes: MarkingTask[] = markingTasks.map(task => {
-        const scheme = markingSchemesMap.get(String(task.questionNumber)); // Look up the fetched scheme
+        console.log(`🔍 [SCHEME LOOKUP] Looking for scheme for task: Q${task.questionNumber}`);
+        console.log(`🔍 [SCHEME LOOKUP] Available schemes in map:`, Array.from(markingSchemesMap.keys()));
+        
+        // Try to find scheme by exact question number first (for backward compatibility)
+        let scheme = markingSchemesMap.get(String(task.questionNumber));
+        console.log(`🔍 [SCHEME LOOKUP] Direct lookup result:`, scheme ? 'Found' : 'Not found');
+        
+        // If not found, try to find by matching question number in unique keys
+        if (!scheme) {
+            for (const [key, value] of markingSchemesMap.entries()) {
+                if (key.startsWith(`${task.questionNumber}_`)) {
+                    scheme = value;
+                    console.log(`🔍 [SCHEME LOOKUP] Found scheme for Q${task.questionNumber} using key: ${key}`);
+                    break;
+                }
+            }
+        }
+        
         if (!scheme) {
              // Decide how to handle missing scheme: skip task, use default, throw error?
              // For now, let's add a placeholder to avoid crashing executeMarkingForQuestion
+             console.log(`❌ [SCHEME LOOKUP] No scheme found for Q${task.questionNumber}`);
              return { ...task, markingScheme: { error: `Scheme not found for Q${task.questionNumber}` } };
         }
+        console.log(`✅ [SCHEME LOOKUP] Successfully found scheme for Q${task.questionNumber}`);
         return { ...task, markingScheme: scheme }; // Add the found scheme
     }).filter(task => task.markingScheme && !task.markingScheme.error); // Filter out tasks without valid schemes
 

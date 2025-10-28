@@ -59,19 +59,23 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
   
   // ========================= FALLBACK: MATCH OBJECT FORMAT =========================
   if (input.match?.markingScheme?.questionMarks) {
-    console.log("  - match.marks:", input.match.marks);
+    // Handle the new structure where marks are in questionMarks.marks
+    let marksArray = [];
+    if (input.match.markingScheme.questionMarks.marks) {
+      marksArray = input.match.markingScheme.questionMarks.marks;
+    } else if (Array.isArray(input.match.markingScheme.questionMarks)) {
+      marksArray = input.match.markingScheme.questionMarks;
+    }
     
     const normalized = {
-      marks: Array.isArray(input.match.markingScheme.questionMarks) ? input.match.markingScheme.questionMarks : [],
+      marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.match.marks || 0,
       questionNumber: input.match.questionNumber || '1'
     };
     
-    
     return normalized;
   }
   
-  console.log("  - Available properties:", Object.keys(input));
   return null;
 }
 // ========================== END: NORMALIZATION FUNCTION ==========================
@@ -117,11 +121,6 @@ export class MarkingInstructionService {
       
       // Normalize the marking scheme data to a standard format
       const normalizedScheme = normalizeMarkingScheme(questionDetection);
-      
-      if (normalizedScheme) {
-      } else {
-        console.log("  - This will result in using the basic prompt instead of withMarkingScheme");
-      }
       // ========================== END: CLEAN NORMALIZATION ==========================
       
       const annotationData = await this.generateFromOCR(

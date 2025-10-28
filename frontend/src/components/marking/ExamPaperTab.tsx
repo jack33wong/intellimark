@@ -8,9 +8,24 @@ import './ExamPaperTab.css';
 
 type StudentScore = components['schemas']['UnifiedMessage']['studentScore'];
 
-// Extend DetectedQuestion to include multiple questions support
+// Extend DetectedQuestion to include multiple exam papers support
 interface ExtendedDetectedQuestion extends DetectedQuestion {
   multipleQuestions?: boolean;
+  multipleExamPapers?: boolean;
+  examPapers?: Array<{
+    examBoard: string;
+    examCode: string;
+    year: string;
+    tier: string;
+    subject: string;
+    paperTitle: string;
+    questions: Array<{
+      questionNumber: string;
+      marks: number;
+      markingScheme: any[];
+    }>;
+    totalMarks: number;
+  }>;
   allQuestions?: Array<{
     questionNumber: string;
     marks: number;
@@ -26,6 +41,32 @@ interface ExamPaperTabProps {
 const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentScore }) => {
   if (!detectedQuestion || !detectedQuestion.found) {
     return null;
+  }
+
+  // Handle multiple exam papers case
+  if (detectedQuestion.multipleExamPapers && detectedQuestion.examPapers) {
+    return (
+      <div className="exam-paper-tab">
+        <div className="exam-paper-tab-content">
+          {detectedQuestion.examPapers.map((examPaper, index) => (
+            <div key={index} className="exam-paper-line">
+              <span className="tab-item">
+                {examPaper.examBoard} {examPaper.subject} {examPaper.examCode} ({examPaper.year}) {examPaper.tier}
+              </span>
+              <span className="tab-item">
+                Q{examPaper.questions.map(q => q.questionNumber.split('_')[0]).join(', Q')}
+              </span>
+              <span className="tab-item marks">
+                {examPaper.questions.map(q => q.marks).join(' + ')} = {examPaper.totalMarks} marks
+              </span>
+            </div>
+          ))}
+          {studentScore && studentScore.scoreText && (
+            <span className="tab-item student-score">{studentScore.scoreText}</span>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const formatExamInfo = () => {
