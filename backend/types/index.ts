@@ -159,18 +159,42 @@ export interface ImageClassification {
 
 // Centralized DetectedQuestion interface - single source of truth
 export interface DetectedQuestion {
+  // Core flags
   found: boolean;
-  questionText?: string;
-  questionNumber?: string;       // Question number from exam paper
-  subQuestionNumber?: string;    // Optional sub-question number if matched
-  examBoard?: string;
-  examCode?: string;
-  paperTitle?: string;
-  subject?: string;
-  tier?: string;
-  year?: string;
-  marks?: number;                // Total marks for this question
-  markingScheme?: string;        // Marking scheme for model answer generation
+  multipleExamPapers: boolean;
+  multipleQuestions: boolean;
+  
+  // Aggregated totals (convenience fields)
+  totalMarks: number; // Sum of all examPapers[].totalMarks
+  
+  // Main data structure - grouped by exam paper
+  examPapers: Array<{
+    // Exam paper identification
+    examBoard: string;
+    examCode: string;
+    year: string;
+    tier: string;
+    subject: string;
+    paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (2022)"
+    
+    // Aggregated data for this exam paper
+    totalMarks: number; // Sum of all questions in this exam paper
+    
+    // Questions belonging to this specific exam paper
+    questions: Array<{
+      questionNumber: string; // e.g., "21" (just the number, not unique key)
+      questionText: string;
+      marks: number; // Marks for this individual question
+      sourceImageIndex?: number; // Which image this question came from
+      
+      // Marking scheme for this specific question
+      markingScheme: Array<{
+        mark: string; // e.g., "M1", "A1", "P1"
+        answer: string;
+        comments?: string;
+      }>;
+    }>;
+  }>;
 }
 
 export interface QuestionDetectionResult {

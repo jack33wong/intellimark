@@ -1306,21 +1306,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const transformedDetectedQuestion = questionDetection ? {
         found: questionDetection.found,
         multipleExamPapers: questionDetection.multipleExamPapers,
-        examPapers: questionDetection.examPapers,
-        marks: questionDetection.totalMarks,
-        // Legacy fields for backward compatibility
         multipleQuestions: questionDetection.multipleQuestions,
-        questions: questionDetection.questions,
-        questionText: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionText : '',
-        questionNumber: questionDetection.questions.length > 0 ? questionDetection.questions[0].questionNumber : '',
-        subQuestionNumber: '',
-        examBoard: questionDetection.questions.length > 0 ? questionDetection.questions[0].examBoard : '',
-        examCode: questionDetection.questions.length > 0 ? questionDetection.questions[0].examCode : '',
-        paperTitle: questionDetection.questions.length > 0 ? questionDetection.questions[0].paperTitle : '',
-        subject: questionDetection.questions.length > 0 ? questionDetection.questions[0].subject : '',
-        tier: questionDetection.questions.length > 0 ? questionDetection.questions[0].tier : '',
-        year: questionDetection.questions.length > 0 ? questionDetection.questions[0].year : '',
-        markingScheme: questionDetection.questions.length > 0 ? questionDetection.questions[0].markingScheme : ''
+        totalMarks: questionDetection.totalMarks,
+        examPapers: questionDetection.examPapers
       } : undefined;
 
       const aiMessage = createAIMessage({

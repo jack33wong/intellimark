@@ -171,21 +171,40 @@ export class SessionManagementService {
     
     // Transform question detection result to match frontend DetectedQuestion structure
     if (context.questionDetection?.found) {
-      const transformedDetectedQuestion = {
-        found: context.questionDetection.found,
-        questionText: context.questionDetection.questionText || '',
-        questionNumber: context.questionDetection.match?.questionNumber || '',
-        subQuestionNumber: context.questionDetection.match?.subQuestionNumber || '',
-        examBoard: context.questionDetection.match?.board || '',
-        examCode: context.questionDetection.match?.paperCode || '',
-        paperTitle: context.questionDetection.match ? `${context.questionDetection.match.board} ${context.questionDetection.match.qualification} ${context.questionDetection.match.paperCode} (${context.questionDetection.match.year})` : '',
-        subject: context.questionDetection.match?.qualification || '',
-        tier: context.questionDetection.match?.tier || '',
-        year: context.questionDetection.match?.year || '',
-        marks: context.questionDetection.match?.marks || 0,
-        markingScheme: context.questionDetection.markingScheme || ''
-      };
-      dbAiMessage.detectedQuestion = transformedDetectedQuestion;
+      const match = context.questionDetection.match;
+      if (match) {
+        // Create single exam paper structure
+        const examPapers = [{
+          examBoard: match.board || '',
+          examCode: match.paperCode || '',
+          year: match.year || '',
+          tier: match.tier || '',
+          subject: match.qualification || '',
+          paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+          questions: [{
+            questionNumber: match.questionNumber || '',
+            questionText: context.questionDetection.questionText || '',
+            marks: match.marks || 0,
+            sourceImageIndex: 0,
+            markingScheme: (context.questionDetection.markingScheme || '').split('\n').map(line => ({
+              mark: '',
+              answer: line.trim(),
+              comments: ''
+            })).filter(item => item.answer)
+          }],
+          totalMarks: match.marks || 0
+        }];
+        
+        const transformedDetectedQuestion = {
+          found: context.questionDetection.found,
+          multipleExamPapers: false,
+          multipleQuestions: false,
+          totalMarks: match.marks || 0,
+          examPapers
+        };
+        
+        dbAiMessage.detectedQuestion = transformedDetectedQuestion;
+      }
     }
     
     return dbAiMessage;
@@ -663,16 +682,10 @@ export class SessionManagementService {
     if (!markingSchemesMap || markingSchemesMap.size === 0) {
       return {
         found: false,
-        questionText: '',
-        questionNumber: '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: 0
+        multipleExamPapers: false,
+        multipleQuestions: false,
+        totalMarks: 0,
+        examPapers: []
       };
     }
 
@@ -681,16 +694,10 @@ export class SessionManagementService {
     if (!firstEntry) {
       return {
         found: false,
-        questionText: '',
-        questionNumber: '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: 0
+        multipleExamPapers: false,
+        multipleQuestions: false,
+        totalMarks: 0,
+        examPapers: []
       };
     }
 
@@ -700,16 +707,10 @@ export class SessionManagementService {
     if (!questionDetection || !questionDetection.found) {
       return {
         found: false,
-        questionText: globalQuestionText || '',
-        questionNumber: questionNumber || '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: schemeData.totalMarks || 0
+        multipleExamPapers: false,
+        multipleQuestions: false,
+        totalMarks: schemeData.totalMarks || 0,
+        examPapers: []
       };
     }
 
@@ -717,16 +718,10 @@ export class SessionManagementService {
     if (!match) {
       return {
         found: false,
-        questionText: globalQuestionText || '',
-        questionNumber: questionNumber || '',
-        subQuestionNumber: '',
-        examBoard: '',
-        examCode: '',
-        paperTitle: '',
-        subject: '',
-        tier: '',
-        year: '',
-        marks: schemeData.totalMarks || 0
+        multipleExamPapers: false,
+        multipleQuestions: false,
+        totalMarks: schemeData.totalMarks || 0,
+        examPapers: []
       };
     }
 
@@ -792,11 +787,15 @@ export class SessionManagementService {
         }
         
         examPaper.questions.push({
-          questionNumber: qNum,
+          questionNumber: qNum.split('_')[0], // Extract just the question number
           questionText: questionTextForThisQ,
           marks: data.totalMarks || 0,
-          markingScheme: marksArray,
-          questionIndex: index
+          sourceImageIndex: index, // Use index as sourceImageIndex
+          markingScheme: marksArray.map((mark: any) => ({
+            mark: mark.mark || '',
+            answer: mark.answer || '',
+            comments: mark.comments || ''
+          }))
         });
         examPaper.totalMarks += data.totalMarks || 0;
       });
@@ -811,53 +810,9 @@ export class SessionManagementService {
       return {
         found: true,
         multipleExamPapers,
-        examPapers,
-        marks: totalMarks,
-        // Legacy fields for backward compatibility
         multipleQuestions: true,
-        questions: Array.from(markingSchemesMap.entries()).map(([qNum, data], index) => {
-          let marksArray = data.questionMarks || [];
-          
-          // Handle case where questionMarks might not be an array
-          if (!Array.isArray(marksArray)) {
-            if (marksArray && typeof marksArray === 'object' && marksArray.marks) {
-              marksArray = marksArray.marks;
-            } else {
-              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
-              marksArray = [];
-            }
-          }
-          
-          // Extract question text - prioritize the stored questionText field from markingRouter
-          let questionTextForThisQ = '';
-          
-          // First try the questionText stored directly in the scheme data
-          if (data.questionText) {
-            questionTextForThisQ = data.questionText;
-          } else if (data.questionDetection?.questionText) {
-            questionTextForThisQ = data.questionDetection.questionText;
-          } else if (data.questionDetection?.match?.questionText) {
-            questionTextForThisQ = data.questionDetection.match.questionText;
-          } else {
-            // Fallback to global question text
-            questionTextForThisQ = globalQuestionText || '';
-          }
-          
-          return {
-            questionNumber: qNum,
-            questionText: questionTextForThisQ,
-            marks: data.totalMarks || 0,
-            markingScheme: marksArray,
-            questionIndex: index
-          };
-        }),
-        // Exam metadata (use first question's data for legacy compatibility)
-        examBoard: match.board || '',
-        examCode: match.paperCode || '',
-        paperTitle: match.qualification || '',
-        subject: match.qualification || '',
-        tier: match.tier || '',
-        year: match.year || ''
+        totalMarks,
+        examPapers
       };
     }
 
@@ -877,11 +832,15 @@ export class SessionManagementService {
     
     // Create single question array for consistency
     const questionsArray = [{
-      questionNumber: questionNumber || '',
+      questionNumber: questionNumber.split('_')[0], // Extract just the question number
       questionText: globalQuestionText || '',
       marks: schemeData.totalMarks || match.marks || 0,
-      markingScheme: singleMarkingScheme, // Array of mark objects
-      questionIndex: 0
+      sourceImageIndex: 0,
+      markingScheme: singleMarkingScheme.map((mark: any) => ({
+        mark: mark.mark || '',
+        answer: mark.answer || '',
+        comments: mark.comments || ''
+      }))
     }];
     
     // Create single exam paper structure
@@ -899,18 +858,9 @@ export class SessionManagementService {
     return {
       found: true,
       multipleExamPapers: false,
-      examPapers,
-      marks: schemeData.totalMarks || match.marks || 0,
-      // Legacy fields for backward compatibility
       multipleQuestions: false,
-      questions: questionsArray,
-      // Exam metadata
-      examBoard: match.board || '',
-      examCode: match.paperCode || '',
-      paperTitle: match.qualification || '',
-      subject: match.qualification || '',
-      tier: match.tier || '',
-      year: match.year || ''
+      totalMarks: schemeData.totalMarks || match.marks || 0,
+      examPapers
     };
   }
 }

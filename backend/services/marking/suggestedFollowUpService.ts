@@ -117,52 +117,63 @@ export class SuggestedFollowUpService {
     let totalMarks: number | undefined;
     let questionCount: number | undefined;
     
-    if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions)) {
-      // New clean structure - combine all questions for model answer
-      const questions = detectedQuestion.questions;
-      questionCount = questions.length;
+    if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
+      // Extract all questions from examPapers
+      const allQuestions = detectedQuestion.examPapers.flatMap(examPaper => 
+        examPaper.questions.map(q => ({
+          ...q,
+          examBoard: examPaper.examBoard,
+          examCode: examPaper.examCode,
+          year: examPaper.year,
+          tier: examPaper.tier
+        }))
+      );
+      
+      questionCount = allQuestions.length;
       
       // For multiple questions, format each separately in the prompt
-      if (questions.length > 1) {
+      if (allQuestions.length > 1) {
         // Aggregate all question texts with clear separation
-        questionText = questions.map((q, index) => {
+        questionText = allQuestions.map((q, index) => {
           const separator = '\n' + '='.repeat(50) + '\n';
           if (index === 0) {
-            return `Question ${q.questionNumber} (${q.marks} marks):\n${q.questionText}`;
+            return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.year}) ${q.tier}:\n${q.questionText}`;
           }
-          return `${separator}Question ${q.questionNumber} (${q.marks} marks):\n${q.questionText}`;
+          return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.year}) ${q.tier}:\n${q.questionText}`;
         }).join('\n\n');
         
         // Aggregate all marking schemes in a readable format
-        const combinedScheme = questions.map(q => ({
+        const combinedScheme = allQuestions.map(q => ({
           questionNumber: q.questionNumber,
           marks: q.marks,
+          examBoard: q.examBoard,
+          examCode: q.examCode,
           markingScheme: q.markingScheme
         }));
         
         markingScheme = JSON.stringify(combinedScheme, null, 2);
         
         // Sum total marks across all questions
-        totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+        totalMarks = allQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
         
         // Enhanced debug logging for multiple questions
-        console.log('📋 [MULTI-QUESTION] Aggregating data for', questions.length, 'questions');
-        questions.forEach(q => {
-          console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points`);
+        console.log('📋 [MULTI-QUESTION] Aggregating data for', allQuestions.length, 'questions');
+        allQuestions.forEach(q => {
+          console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points (${q.examBoard} ${q.examCode})`);
           console.log(`    Text: ${q.questionText?.substring(0, 60)}...`);
         });
       } else {
         // Single question
-        const q = questions[0];
+        const q = allQuestions[0];
         questionText = q.questionText;
         markingScheme = JSON.stringify(q.markingScheme || [], null, 2);
         totalMarks = q.marks;
       }
     } else {
-      // Legacy structure - use existing fields
-      questionText = detectedQuestion?.questionText || '';
-      markingScheme = detectedQuestion?.markingScheme || '';
-      totalMarks = detectedQuestion?.marks;
+      // No exam papers found
+      questionText = '';
+      markingScheme = '';
+      totalMarks = 0;
     }
     
     const systemPrompt = getPrompt(`${config.promptKey}.system`);
@@ -173,19 +184,22 @@ export class SuggestedFollowUpService {
     );
     
     // DEBUG: Print the detectedQuestion data and user prompt for all multi-question follow-ups
-    if (detectedQuestion?.questions && Array.isArray(detectedQuestion.questions) && detectedQuestion.questions.length > 1) {
-      console.log('='.repeat(80));
-      console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${detectedQuestion.questions.length} questions):`);
-      detectedQuestion.questions.forEach((q, idx) => {
-        console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
-      });
-      console.log('Aggregated questionText length:', questionText.length);
-      console.log('Aggregated markingScheme length:', markingScheme.length);
-      console.log('Total marks:', totalMarks);
-      console.log('='.repeat(80));
-      console.log(`🔍 [${mode.toUpperCase()} DEBUG] Generated user prompt (first 500 chars):`);
-      console.log(userPrompt.substring(0, 500) + '...');
-      console.log('='.repeat(80));
+    if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
+      const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
+      if (allQuestions.length > 1) {
+        console.log('='.repeat(80));
+        console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${allQuestions.length} questions):`);
+        allQuestions.forEach((q, idx) => {
+          console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
+        });
+        console.log('Aggregated questionText length:', questionText.length);
+        console.log('Aggregated markingScheme length:', markingScheme.length);
+        console.log('Total marks:', totalMarks);
+        console.log('='.repeat(80));
+        console.log(`🔍 [${mode.toUpperCase()} DEBUG] Generated user prompt (first 500 chars):`);
+        console.log(userPrompt.substring(0, 500) + '...');
+        console.log('='.repeat(80));
+      }
     }
     
     // Use ModelProvider directly with custom prompts

@@ -8,33 +8,8 @@ import './ExamPaperTab.css';
 
 type StudentScore = components['schemas']['UnifiedMessage']['studentScore'];
 
-// Extend DetectedQuestion to include multiple exam papers support
-interface ExtendedDetectedQuestion extends DetectedQuestion {
-  multipleQuestions?: boolean;
-  multipleExamPapers?: boolean;
-  examPapers?: Array<{
-    examBoard: string;
-    examCode: string;
-    year: string;
-    tier: string;
-    subject: string;
-    paperTitle: string;
-    questions: Array<{
-      questionNumber: string;
-      marks: number;
-      markingScheme: any[];
-    }>;
-    totalMarks: number;
-  }>;
-  allQuestions?: Array<{
-    questionNumber: string;
-    marks: number;
-    confidence: number;
-  }>;
-}
-
 interface ExamPaperTabProps {
-  detectedQuestion: ExtendedDetectedQuestion | null;
+  detectedQuestion: DetectedQuestion | null;
   studentScore?: StudentScore;
 }
 
@@ -70,57 +45,49 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
   }
 
   const formatExamInfo = () => {
-    const parts = [];
-    
-    if (detectedQuestion.examBoard) {
-      parts.push(detectedQuestion.examBoard);
+    // Get exam info from first exam paper
+    if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+      const firstExamPaper = detectedQuestion.examPapers[0];
+      const parts = [];
+      
+      if (firstExamPaper.examBoard) {
+        parts.push(firstExamPaper.examBoard);
+      }
+      
+      if (firstExamPaper.subject) {
+        parts.push(firstExamPaper.subject);
+      }
+      
+      if (firstExamPaper.examCode) {
+        parts.push(firstExamPaper.examCode);
+      }
+      
+      if (firstExamPaper.year) {
+        parts.push(`(${firstExamPaper.year})`);
+      }
+      
+      if (firstExamPaper.tier) {
+        // Don't add "Tier" prefix if tier already contains "Tier" (e.g., "Foundation Tier")
+        const tierDisplay = firstExamPaper.tier.toLowerCase().includes('tier') 
+          ? firstExamPaper.tier 
+          : `Tier ${firstExamPaper.tier}`;
+        parts.push(tierDisplay);
+      }
+      
+      return parts.join(' ');
     }
     
-    if (detectedQuestion.subject) {
-      parts.push(detectedQuestion.subject);
-    }
-    
-    if (detectedQuestion.examCode) {
-      parts.push(detectedQuestion.examCode);
-    }
-    
-    if (detectedQuestion.year) {
-      parts.push(`(${detectedQuestion.year})`);
-    }
-    
-    if (detectedQuestion.tier) {
-      // Don't add "Tier" prefix if tier already contains "Tier" (e.g., "Foundation Tier")
-      const tierDisplay = detectedQuestion.tier.toLowerCase().includes('tier') 
-        ? detectedQuestion.tier 
-        : `Tier ${detectedQuestion.tier}`;
-      parts.push(tierDisplay);
-    }
-    
-    return parts.join(' ');
+    return '';
   };
 
   const formatQuestionInfo = () => {
-    // Check for new structure with questions array first
-    if (detectedQuestion.multipleQuestions && (detectedQuestion as any).questions) {
-      const questions = (detectedQuestion as any).questions;
-      return questions.map((q: any) => `Q${q.questionNumber}`).join(', ');
+    // Extract all questions from examPapers
+    if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+      const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
+      return allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
     }
     
-    // Check for old structure with allQuestions
-    if (detectedQuestion.multipleQuestions && (detectedQuestion as any).allQuestions) {
-      const questionNumbers = (detectedQuestion as any).allQuestions.map((q: any) => `Q${q.questionNumber}`).join(', ');
-      return questionNumbers;
-    }
-    
-    // Single question
-    if (detectedQuestion.questionNumber) {
-      let questionInfo = `Q${detectedQuestion.questionNumber}`;
-      if (detectedQuestion.subQuestionNumber) {
-        questionInfo += `(${detectedQuestion.subQuestionNumber})`;
-      }
-      return questionInfo;
-    }
-    return null;
+    return '';
   };
 
   const questionInfo = formatQuestionInfo();
@@ -133,23 +100,16 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
         {questionInfo && (
           <span className="tab-item">{questionInfo}</span>
         )}
-        {detectedQuestion.marks && (
+        {detectedQuestion.totalMarks && (
           <span className="tab-item marks">
             {(() => {
-              // Handle new structure with questions array
-              if (detectedQuestion.multipleQuestions && (detectedQuestion as any).questions) {
-                const questions = (detectedQuestion as any).questions;
-                return `${questions.map((q: any) => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`;
+              // Extract all questions from examPapers
+              if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+                const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
+                return `${allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.totalMarks} marks`;
               }
               
-              // Handle old structure with allQuestions
-              if (detectedQuestion.multipleQuestions && (detectedQuestion as any).allQuestions) {
-                const allQuestions = (detectedQuestion as any).allQuestions;
-                return `${allQuestions.map((q: any) => `${q.marks}`).join(' + ')} = ${detectedQuestion.marks} marks`;
-              }
-              
-              // Single question
-              return `${detectedQuestion.marks} marks`;
+              return `${detectedQuestion.totalMarks} marks`;
             })()}
           </span>
         )}
