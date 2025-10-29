@@ -24,7 +24,7 @@ export interface ImageStorageConfig {
 
 export const IMAGE_STORAGE_CONFIG: ImageStorageConfig = {
   // Size limits (in MB)
-  maxFileSizeMB: 10, // 10MB max file size
+  maxFileSizeMB: 50, // 50MB max file size
   
   // Image dimensions (pixels)
   maxWidth: 1920,

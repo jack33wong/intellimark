@@ -95,27 +95,28 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
   return (
     <div className="exam-paper-tab">
       <div className="exam-paper-tab-content">
-        <span className="tab-item">Exam Paper</span>
-        <span className="tab-item">{formatExamInfo()}</span>
-        {questionInfo && (
-          <span className="tab-item">{questionInfo}</span>
-        )}
-        {detectedQuestion.totalMarks && (
-          <span className="tab-item marks">
-            {(() => {
-              // Extract all questions from examPapers
-              if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
-                const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
-                return `${allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.totalMarks} marks`;
-              }
-              
-              return `${detectedQuestion.totalMarks} marks`;
-            })()}
-          </span>
-        )}
-        {studentScore && studentScore.scoreText && (
-          <span className="tab-item student-score">{studentScore.scoreText}</span>
-        )}
+        <div className="exam-paper-line">
+          <span className="tab-item">{formatExamInfo()}</span>
+          {questionInfo && (
+            <span className="tab-item">{questionInfo}</span>
+          )}
+          {detectedQuestion.totalMarks && (
+            <span className="tab-item marks">
+              {(() => {
+                // Extract all questions from examPapers
+                if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+                  const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
+                  return `${allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.totalMarks} marks`;
+                }
+                
+                return `${detectedQuestion.totalMarks} marks`;
+              })()}
+            </span>
+          )}
+          {studentScore && studentScore.scoreText && (
+            <span className="tab-item student-score">{studentScore.scoreText}</span>
+          )}
+        </div>
       </div>
     </div>
   );

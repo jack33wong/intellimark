@@ -220,9 +220,11 @@ export class SessionManagementService {
       const firstQuestionScheme = allQuestionNumbers.length > 0 ? context.markingSchemesMap.get(allQuestionNumbers[0]) : null;
       
       if (allQuestionNumbers.length > 0 && firstQuestionScheme) {
-        const questionNumberDisplay = allQuestionNumbers.length > 1 
-          ? allQuestionNumbers.join(', ') 
-          : allQuestionNumbers[0];
+        // Extract just the question number from unique keys (e.g., "13_Pearson Edexcel_1MA1/2H" -> "13")
+        const questionNumbersOnly = allQuestionNumbers.map(key => key.split('_')[0]);
+        const questionNumberDisplay = questionNumbersOnly.length > 1 
+          ? questionNumbersOnly.join(', ') 
+          : questionNumbersOnly[0];
         
         // Check if we have multiple exam papers
         const examBoards = new Set();

@@ -673,7 +673,7 @@ const segmentOcrResultsByQuestion = async (
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    fileSize: 50 * 1024 * 1024, // 50MB limit per file
     files: 10 // Maximum 10 files
   }
 });
@@ -1983,7 +1983,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     let userFriendlyMessage = 'An unexpected error occurred. Please try again.';
     
     if (error instanceof Error) {
-      if (error.message.includes('quota exceeded') || error.message.includes('429')) {
+      // Handle multer file size errors
+      if (error.message.includes('File too large') || error.message.includes('LIMIT_FILE_SIZE')) {
+        userFriendlyMessage = 'File too large. Maximum file size is 50MB per file. Please compress your images or use smaller files.';
+      } else if (error.message.includes('too large') || error.message.includes('max:')) {
+        // Handle ImageStorageService file size errors (includes file size in message)
+        userFriendlyMessage = error.message.includes('max:') 
+          ? error.message // Use the detailed message that includes size info
+          : 'File too large. Maximum file size is 50MB per file. Please compress your images or use smaller files.';
+      } else if (error.message.includes('quota exceeded') || error.message.includes('429')) {
         userFriendlyMessage = 'API quota exceeded. Please try again later or contact support if this persists.';
       } else if (error.message.includes('timeout')) {
         userFriendlyMessage = 'Request timed out. The image might be too complex or the service is busy. Please try again.';
