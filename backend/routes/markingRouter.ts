@@ -797,6 +797,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const pdfBuffer = files[0].buffer;
         stepTimings['pdf_conversion'] = { start: Date.now() };
         standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
+        // TEMP: Limit to first 5 pages to stabilize processing
+        const MAX_PAGES_LIMIT = 5;
+        if (standardizedPages.length > MAX_PAGES_LIMIT) {
+          standardizedPages = standardizedPages.slice(0, MAX_PAGES_LIMIT);
+          console.warn(`⚠️ [TEMPORARY LIMIT] Processing only first ${MAX_PAGES_LIMIT} pages from PDF. Discarding remaining pages.`);
+        }
         if (stepTimings['pdf_conversion']) {
           stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
         }
@@ -816,13 +822,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             return { index, pdfPages: [] };
           }
             
+            // TEMP: Limit to first 5 pages per PDF
+            const MAX_PAGES_LIMIT = 5;
+            const limitedPages = pdfPages.slice(0, MAX_PAGES_LIMIT);
+            if (pdfPages.length > MAX_PAGES_LIMIT) {
+              console.warn(`⚠️ [TEMPORARY LIMIT] Processing only first ${MAX_PAGES_LIMIT} pages from PDF ${index + 1}. Discarding remaining pages.`);
+            }
+            
             // Store original index for sequential page numbering
-            pdfPages.forEach((page, pageIndex) => {
+            limitedPages.forEach((page, pageIndex) => {
               page.originalFileName = file.originalname || `pdf-${index + 1}.pdf`;
               (page as any)._sourceIndex = index; // Track source PDF for ordering
             });
             
-            return { index, pdfPages };
+            return { index, pdfPages: limitedPages };
           } catch (error) {
             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
             return { index, pdfPages: [] };

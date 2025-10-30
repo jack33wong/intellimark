@@ -158,7 +158,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         handleMultiImageClick(0); // Click on first image
       } else {
         // For single image results, use the original logic
-        setIsImageModeOpen(true);
+      setIsImageModeOpen(true);
       }
     }
   }, [message, imageError, handleMultiImageClick]);
@@ -441,9 +441,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         {isUser && hasImage(message) && !imageError && (
           <div className="chat-message-image">
             {(() => {
-              // BYPASS: Force PDF display for PDF messages
+              // BYPASS: Force PDF display for PDF messages (single or multiple)
               const isPdf = isPdfMessage();
-              if (isPdf && (message as any)?.pdfContexts?.length > 1) {
+              if (isPdf && (message as any)?.pdfContexts && (message as any).pdfContexts.length >= 1) {
                 return true;
               }
               return isMultiImageMessage();
