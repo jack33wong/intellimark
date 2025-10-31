@@ -795,6 +795,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Single PDF processing
         sendSseUpdate(res, createProgressData(1, 'Converting PDF...', MULTI_IMAGE_STEPS));
         const pdfBuffer = files[0].buffer;
+        const originalFileName = files[0].originalname || 'document.pdf';
         stepTimings['pdf_conversion'] = { start: Date.now() };
         standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
         // TEMP: Limit to first 5 pages to stabilize processing
@@ -803,6 +804,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           standardizedPages = standardizedPages.slice(0, MAX_PAGES_LIMIT);
           console.warn(`⚠️ [TEMPORARY LIMIT] Processing only first ${MAX_PAGES_LIMIT} pages from PDF. Discarding remaining pages.`);
         }
+        // Set originalFileName for all pages (like we do for multiple PDFs)
+        standardizedPages.forEach((page) => {
+          page.originalFileName = originalFileName;
+        });
         if (stepTimings['pdf_conversion']) {
           stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
         }
