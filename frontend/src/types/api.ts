@@ -1620,7 +1620,7 @@ export interface components {
         };
         MarkHomeworkResponse: {
             success: boolean;
-            isQuestionOnly?: boolean;
+            category?: "questionOnly" | "questionAnswer" | "metadata";
             annotatedImage?: string;
             message?: string;
             suggestedFollowUps?: (string | {

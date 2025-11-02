@@ -301,7 +301,7 @@ export function buildMarkingResponse({
   // Build base response object
   const baseResponse = {
     success: true,
-    isQuestionOnly: isQuestionMode,
+    category: isQuestionMode ? "questionOnly" : "questionAnswer",
     isPastPaper: isPastPaper,
     mode: mode,
     processingTime: totalProcessingTime,

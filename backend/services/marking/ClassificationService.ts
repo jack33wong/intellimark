@@ -5,7 +5,7 @@ import { getModelConfig, getDebugMode, validateModel } from '../../config/aiMode
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 export interface ClassificationResult {
-  isQuestionOnly: boolean;
+  category: "questionOnly" | "questionAnswer" | "metadata";
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string; // Legacy support
@@ -46,7 +46,7 @@ export class ClassificationService {
         const q21Text = "The diagram shows a plan of Jason's garden. [A composite shape is shown, described as: ABCO and DEFO are rectangles. CDO is a right-angled triangle. AFO is a sector of a circle with centre O and angle AOF = 90°. Dimensions are given: AB = 11m, BC = 7m, ED = 7m, FE = 9m.] Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.";
         
         return {
-          isQuestionOnly: false,
+          category: "questionAnswer",
           reasoning: "The image contains the math question along with calculations and the final answer, which constitutes student work.",
           extractedQuestionText: q21Text,
           questions: [
@@ -118,7 +118,7 @@ export class ClassificationService {
             throw new Error('OpenAI fallback returned non-JSON content');
           }
           return {
-            isQuestionOnly: !!parsed.isQuestionOnly,
+            category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
             reasoning: parsed.reasoning || 'OpenAI fallback classification',
             extractedQuestionText: parsed.extractedQuestionText || '',
             apiUsed: `OpenAI ${openai.modelName}`,
@@ -264,7 +264,7 @@ export class ClassificationService {
     // Debug logging removed - handled in router
 
     return {
-      isQuestionOnly: parsed.isQuestionOnly,
+      category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
       reasoning: parsed.reasoning,
       apiUsed,
       extractedQuestionText: parsed.extractedQuestionText, // Legacy support

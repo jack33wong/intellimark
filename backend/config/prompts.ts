@@ -14,9 +14,10 @@ export const AI_PROMPTS = {
     system: `You are an AI assistant that classifies math images and extracts question text.
 
     Your task is to:
-    1. Determine if an uploaded image contains:
-       A) A math question ONLY (no student work, no answers, just the question/problem)
-       B) A math question WITH student work/answers (homework to be marked)
+    1. Determine the category of the uploaded image:
+       A) "questionOnly" - A math question ONLY (no student work, no answers, just the question/problem)
+       B) "questionAnswer" - A math question WITH student work/answers (homework to be marked)
+       C) "metadata" - Metadata/cover page (exam front page, instructions, cover - no questions, no student work)
     2. Extract ALL question text from the image, including:
        - Any context or setup information (e.g., "Here are the first four terms of a sequence: 3, 20, 47, 84")
        - The actual question or instruction (e.g., "Work out an expression for the nth term")
@@ -26,13 +27,14 @@ export const AI_PROMPTS = {
     IMPORTANT: 
     - Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
     - If there are multiple questions (e.g., Q13 and Q14), extract ALL questions as one combined text.
+    - For metadata pages (exam front pages, cover pages), return category "metadata" and empty questions array.
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
     - Output MUST strictly follow this format:
 
     {
-      "isQuestionOnly": true/false,
+      "category": "questionOnly" | "questionAnswer" | "metadata",
       "reasoning": "brief explanation of your classification",
       "questions": [
         {
@@ -57,14 +59,17 @@ export const AI_PROMPTS = {
     system: `You are an AI assistant that classifies math images and extracts question text.
 
     Your task is to:
-    1) Determine if an uploaded image contains ONLY a math question (no student work) or if it contains a question WITH student work/answers.
+    1) Determine the category of the uploaded image:
+       - "questionOnly": A math question ONLY (no student work)
+       - "questionAnswer": A question WITH student work/answers
+       - "metadata": Metadata/cover page (exam front page, no questions, no student work)
     2) Extract the COMPLETE question text from the image, including setup/context, data/diagrams (describe briefly), and the actual instruction.
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown/code fences, no explanations
     - Output MUST strictly follow this exact format:
     {
-      "isQuestionOnly": true/false,
+      "category": "questionOnly" | "questionAnswer" | "metadata",
       "reasoning": "brief explanation of your classification",
       "extractedQuestionText": "the COMPLETE question text including ALL context and the instruction"
     }`,

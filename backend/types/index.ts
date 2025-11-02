@@ -146,7 +146,7 @@ export interface MarkingInstructions {
 }
 
 export interface ImageClassification {
-  isQuestionOnly: boolean;
+  category: "questionOnly" | "questionAnswer" | "metadata";
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string; // Legacy support
@@ -364,7 +364,7 @@ export interface MarkHomeworkRequest {
 
 export interface MarkHomeworkResponse {
   success: boolean;
-  isQuestionOnly?: boolean;
+  category?: "questionOnly" | "questionAnswer" | "metadata";
   result?: ProcessedImageResult;
   annotatedImage?: string | null;
   instructions?: MarkingInstructions;

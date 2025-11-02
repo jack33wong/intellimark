@@ -197,7 +197,7 @@ export interface AIMessageOptions {
   progressData?: any;
   processingStats?: any;
   messageId?: string;
-  isQuestionOnly?: boolean;
+  category?: "questionOnly" | "questionAnswer" | "metadata";
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   detectedQuestion?: DetectedQuestion;
 }
@@ -307,13 +307,13 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     progressData,
     processingStats,
     messageId,
-    isQuestionOnly = false,
+    category,
     suggestedFollowUps
   } = options;
 
   // Determine message type based on content and context
   let messageType: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
-  if (isQuestionOnly) {
+  if (category === "questionOnly") {
     messageType = 'question_response';
   } else if (imageData) {
     // If there's image data, it's likely a marking response

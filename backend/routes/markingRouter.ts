@@ -1124,7 +1124,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.log(`🔍 [CLASSIFICATION INPUT] Page ${index + 1}: ${page.originalFileName} -> AI Classification`);
       const result = await ClassificationService.classifyImage(page.imageData, 'auto', false, page.originalFileName);
       console.log(`🔍 [CLASSIFICATION OUTPUT] Page ${index + 1} result:`, { 
-        isQuestionOnly: result.isQuestionOnly,
+        category: result.category,
         questionsCount: result.questions?.length || 0,
         questions: result.questions?.map((q: any) => ({
           textPreview: q.textPreview ? q.textPreview.substring(0, 50) + '...' : 'undefined',
@@ -1151,11 +1151,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
     
     // Create combined classification result with enhanced mixed content detection
-    const hasAnyStudentWork = allClassificationResults.some(result => result.result?.isQuestionOnly === false);
-    const hasMixedContent = allClassificationResults.some(result => result.result?.isQuestionOnly !== allClassificationResults[0]?.result?.isQuestionOnly);
+    const hasAnyStudentWork = allClassificationResults.some(result => result.result?.category === "questionAnswer");
+    const hasMixedContent = allClassificationResults.some(result => result.result?.category !== allClassificationResults[0]?.result?.category);
+    
+    // Determine combined category
+    const allCategories = allClassificationResults.map(r => r.result?.category).filter(Boolean);
+    const combinedCategory = allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
+                            allCategories.every(cat => cat === "metadata") ? "metadata" :
+                            "questionAnswer";
     
     const classificationResult = {
-      isQuestionOnly: allClassificationResults.every(result => result.result?.isQuestionOnly === true),
+      category: combinedCategory,
       reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
       questions: allQuestions,
       extractedQuestionText: allQuestions.length > 0 ? allQuestions[0].text : allClassificationResults[0]?.result?.extractedQuestionText,
@@ -1176,9 +1182,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
     // but still appear in final output
     allClassificationResults.forEach(({ pageIndex, result }, index) => {
-      // Metadata page: has no questions and is not question-only (neither question nor answer)
-      const hasNoQuestions = !result.questions || (Array.isArray(result.questions) && result.questions.length === 0);
-      const isMetadataPage = result.isQuestionOnly === false && hasNoQuestions;
+      // Metadata page: explicitly marked as metadata by AI classification
+      const isMetadataPage = result.category === "metadata";
       
       if (isMetadataPage) {
         // Mark the page as metadata page
@@ -1189,7 +1194,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // ========================= ENHANCED MODE DETECTION =========================
     // Smart mode detection based on content analysis
-    const isQuestionMode = classificationResult?.isQuestionOnly === true;
+    const isQuestionMode = classificationResult?.category === "questionOnly";
     const isMixedContent = classificationResult?.hasMixedContent === true;
     
     console.log(`🔍 [MODE DETECTION] Analysis:`);
@@ -1304,7 +1309,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             imageData,
             qd.questionText,
             actualModel as ModelType,
-            true, // isQuestionOnly
+            "questionOnly", // category
             false // debug
           );
           return {
@@ -1488,8 +1493,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     if (isMixedContent) {
       console.log(`🔄 [MIXED CONTENT] Processing ${standardizedPages.length} images with mixed content`);
-      console.log(`  - Student work images: ${standardizedPages.filter((_, i) => !allClassificationResults[i]?.result?.isQuestionOnly).length}`);
-      console.log(`  - Question-only images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.isQuestionOnly).length}`);
+      console.log(`  - Student work images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.category === "questionAnswer").length}`);
+      console.log(`  - Question-only images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.category === "questionOnly").length}`);
     }
 
     // --- Run OCR on each page in parallel (Marking Mode) ---
@@ -1514,7 +1519,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Skip OCR for question-only images in mixed content scenarios
       // Check if this specific page was classified as question-only
       const pageClassification = allClassificationResults[index]?.result;
-      const isQuestionOnly = pageClassification?.isQuestionOnly;
+      const isQuestionOnly = pageClassification?.category === "questionOnly";
       
       if (isMixedContent && isQuestionOnly) {
         console.log(`⏭️ [MIXED CONTENT] Skipping OCR for question-only image: ${page.originalFileName}`);
@@ -1893,7 +1898,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         
         // Find question-only images and generate AI responses for them
         const questionOnlyImages = standardizedPages.filter((page, index) => 
-          allClassificationResults[index]?.result?.isQuestionOnly
+          allClassificationResults[index]?.result?.category === "questionOnly"
         );
         
         if (questionOnlyImages.length > 0) {
@@ -1909,7 +1914,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 page.imageData,
                 questionText,
                 actualModel as ModelType,
-                true, // isQuestionOnly
+                "questionOnly", // category
                 false // debug
               );
               

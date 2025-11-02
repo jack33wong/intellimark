@@ -93,7 +93,7 @@ export class MarkingPipeline {
         imageData, 
         classification.extractedQuestionText || '', 
         model, 
-        true, // isQuestionOnly
+        "questionOnly", // category
         debug
       );
     })();
@@ -419,7 +419,7 @@ export class MarkingPipeline {
       totalLLMTokens += classification.usageTokens || 0;
 
       // Determine if this is question mode or marking mode
-      const isQuestionMode = classification.isQuestionOnly === true;
+      const isQuestionMode = classification.category === "questionOnly";
       
       // Log the first two steps immediately after they complete
       const totalStepsForMode = isQuestionMode ? 4 : 7;

@@ -106,7 +106,7 @@ export class MarkingServiceLocator {
     imageDataOrOcrText: string,
     message: string,
     model: ModelType,
-    isQuestionOnly: boolean = true,
+    category: "questionOnly" | "questionAnswer" | "metadata" = "questionOnly",
     debug: boolean = false,
     onProgress?: (data: any) => void,
     useOcrText: boolean = false
@@ -132,6 +132,7 @@ export class MarkingServiceLocator {
       compressedImage = imageDataOrOcrText;
     }
     
+    const isQuestionOnly = category === "questionOnly";
     const systemPrompt = isQuestionOnly
       ? getPrompt('marking.questionOnly.system')
       : getPrompt('modelAnswer.system')

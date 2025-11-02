@@ -77,7 +77,7 @@ export async function runOriginalSingleImagePipeline(
 
   // Upload annotated image to Firebase Storage if it's a marking result
   let annotatedImageLink;
-  if (!result.isQuestionOnly && result.annotatedImage && isAuthenticated) {
+  if (result.category !== "questionOnly" && result.annotatedImage && isAuthenticated) {
     const { ImageStorageService } = await import('../services/imageStorageService.js');
     try {
       annotatedImageLink = await ImageStorageService.uploadImage(
@@ -109,7 +109,7 @@ export async function runOriginalSingleImagePipeline(
     imageData: result.annotatedImage || null,
     originalFileName: originalFileName,
     progressData: finalProgressData,
-    isQuestionOnly: result.isQuestionOnly,
+    category: result.category,
     suggestedFollowUps: result.suggestedFollowUps,
     processingStats: {
       processingTimeMs: result.processingStats?.processingTimeMs || 0,
@@ -228,7 +228,7 @@ export async function runOriginalSingleImagePipeline(
             sessionId: sessionId,
             title: result.sessionTitle || 'Marking Session',
             userId: userId,
-            messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+            messageType: result.category === "questionOnly" ? 'Question' : 'Marking',
             messages: [dbUserMessage, dbAiMessage],
             isPastPaper: result.isPastPaper || false,
             sessionStats: {
@@ -252,7 +252,7 @@ export async function runOriginalSingleImagePipeline(
           sessionId: sessionId,
           title: result.sessionTitle || 'Marking Session',
           userId: userId,
-          messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+          messageType: result.category === "questionOnly" ? 'Question' : 'Marking',
           messages: [dbUserMessage, dbAiMessage],
           isPastPaper: result.isPastPaper || false,
           // Remove detectedQuestion from session metadata - now stored in individual messages
@@ -313,7 +313,7 @@ export async function runOriginalSingleImagePipeline(
       id: sessionId,
       title: result.sessionTitle || 'Marking Session',
       userId: userId,
-      messageType: result.isQuestionOnly ? 'Question' : 'Marking',
+      messageType: result.category === "questionOnly" ? 'Question' : 'Marking',
       messages: [aiMessage], // Use aiMessage directly
       isPastPaper: result.isPastPaper || false,
       sessionStats: {
