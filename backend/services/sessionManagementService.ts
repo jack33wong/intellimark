@@ -440,8 +440,16 @@ export class SessionManagementService {
             return imageLink;
           }
         } catch (uploadError) {
-          console.error(`❌ [UPLOAD] Failed to upload original file ${index}:`, uploadError);
-          return file.buffer.toString('base64'); // Fallback to base64
+          const fileName = file.originalname || `file-${index + 1}`;
+          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+          const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+          console.error(`❌ [UPLOAD] Failed to upload original file ${index} (${fileName}):`);
+          console.error(`  - File size: ${fileSizeMB}MB`);
+          console.error(`  - Error: ${errorMessage}`);
+          if (uploadError instanceof Error && uploadError.stack) {
+            console.error(`  - Stack: ${uploadError.stack}`);
+          }
+          throw new Error(`Failed to upload original file ${index} (${fileName}): ${errorMessage}`);
         }
       });
       
@@ -468,27 +476,32 @@ export class SessionManagementService {
 
     if (isPdf || isMultiplePdfs) {
       // For PDFs, use pdfContexts for all users - simplified structure matching imageDataArray
+      // CRITICAL: Only use Firebase Storage URLs, never base64 fallback
       if (pdfContext?.isMultiplePdfs && pdfContext.pdfContexts) {
-        // Multiple PDFs case
-        structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => ({
-          url: ctx.originalPdfLink || ctx.originalPdfDataUrl || '', // Prefer Firebase PDF link over blob URL
-          originalFileName: ctx.originalFileName,
-          fileSize: ctx.fileSize || 0 // Already in bytes from markingRouter
-        }));
+        // Multiple PDFs case - only use originalPdfLink (Firebase URL)
+        structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => {
+          if (!ctx.originalPdfLink) {
+            throw new Error(`PDF upload failed for ${ctx.originalFileName || 'unknown'}: No Firebase URL available`);
+          }
+          return {
+            url: ctx.originalPdfLink, // Only Firebase URL, no base64 fallback
+            originalFileName: ctx.originalFileName,
+            fileSize: ctx.fileSize || 0
+          };
+        });
       } else if (pdfContext && !pdfContext.isMultiplePdfs) {
-        // Single PDF case
+        // Single PDF case - only use originalPdfLink (Firebase URL)
+        if (!pdfContext.originalPdfLink) {
+          throw new Error(`PDF upload failed for ${pdfContext.originalFileName || 'unknown'}: No Firebase URL available`);
+        }
         structuredPdfContexts = [{
-          url: pdfContext.originalPdfLink || pdfContext.originalPdfDataUrl || '', // Prefer Firebase PDF link over blob URL
+          url: pdfContext.originalPdfLink, // Only Firebase URL, no base64 fallback
           originalFileName: pdfContext.originalFileName,
-          fileSize: pdfContext.fileSize || 0 // Already in bytes from markingRouter
+          fileSize: pdfContext.fileSize || 0
         }];
       } else {
-        // Fallback: create from files directly
-        structuredPdfContexts = files.map((file, index) => ({
-          url: `data:application/pdf;base64,${file.buffer.toString('base64')}`,
-          originalFileName: file.originalname || `document-${index + 1}.pdf`,
-          fileSize: file.size
-        }));
+        // No pdfContext provided - this should not happen if upload succeeded
+        throw new Error('PDF context missing: PDF upload may have failed');
       }
       
     } else {
@@ -609,6 +622,17 @@ export class SessionManagementService {
     );
 
     // Create structured imageDataArray for AI message
+    // DIAGNOSTIC: Check for base64 in finalAnnotatedOutput (causes Firestore payload size error)
+    finalAnnotatedOutput.forEach((item, idx) => {
+      const isBase64 = typeof item === 'string' && item.startsWith('data:image');
+      const sizeMB = typeof item === 'string' ? item.length / (1024 * 1024) : 0;
+      if (isBase64) {
+        console.log(`🔍 [DIAGNOSTIC] Item ${idx} (${files[idx]?.originalname || 'unknown'}): BASE64 detected, size: ${sizeMB.toFixed(2)}MB`);
+      }
+    });
+    const totalPayloadSizeMB = JSON.stringify(finalAnnotatedOutput).length / (1024 * 1024);
+    console.log(`🔍 [DIAGNOSTIC] Total finalAnnotatedOutput payload: ${totalPayloadSizeMB.toFixed(2)}MB`);
+    
     const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => ({
       url: annotatedImage,
       originalFileName: files[index]?.originalname || `annotated-image-${index + 1}.png`,

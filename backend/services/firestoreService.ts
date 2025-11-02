@@ -467,10 +467,54 @@ export class FirestoreService {
           ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
         };
 
-        // Remove null values
+        // Remove null values, imageData, and base64 pdfContexts (base64 should not be in Firestore)
         const finalMessage = Object.fromEntries(
-          Object.entries(messageDoc).filter(([_, value]) => value !== null && value !== undefined)
+          Object.entries(messageDoc).filter(([key, value]) => {
+            if (value === null || value === undefined) return false;
+            if (key === 'imageData' && typeof value === 'string' && value.startsWith('data:image')) {
+              // DIAGNOSTIC: Log if imageData (base64) is being filtered out
+              const sizeMB = value.length / (1024 * 1024);
+              console.log(`🔍 [DIAGNOSTIC] Filtering out imageData (base64) from message ${index}, size: ${sizeMB.toFixed(2)}MB`);
+              return false; // Don't include base64 imageData in Firestore
+            }
+            if (key === 'pdfContexts' && Array.isArray(value)) {
+              // Filter out base64 URLs from pdfContexts - only keep Firebase Storage URLs
+              const filteredPdfContexts = value.map((pdf: any) => {
+                if (pdf.url && typeof pdf.url === 'string' && pdf.url.startsWith('data:')) {
+                  // This is base64, filter it out
+                  const sizeMB = pdf.url.length / (1024 * 1024);
+                  console.log(`🔍 [DIAGNOSTIC] Filtering out pdfContext base64 from message ${index} (${pdf.originalFileName || 'unknown'}), size: ${sizeMB.toFixed(2)}MB`);
+                  return null;
+                }
+                return pdf; // Keep Firebase URLs
+              }).filter((pdf: any) => pdf !== null);
+              
+              // Only include pdfContexts if there are valid URLs (not all base64)
+              if (filteredPdfContexts.length === 0) {
+                return false; // Remove pdfContexts if all items were base64
+              }
+              // Replace with filtered array
+              messageDoc[key] = filteredPdfContexts;
+              return true;
+            }
+            return true;
+          })
         );
+        
+        // DIAGNOSTIC: Log message payload size before saving
+        const messageSize = JSON.stringify(finalMessage).length;
+        const messageSizeMB = messageSize / (1024 * 1024);
+        if (messageSizeMB > 1) {
+          console.log(`🔍 [DIAGNOSTIC] Message ${index} payload size: ${messageSize.toLocaleString()} bytes (${messageSizeMB.toFixed(2)}MB)`);
+          // Log which fields are largest
+          Object.entries(finalMessage).forEach(([key, value]) => {
+            const fieldSize = JSON.stringify(value).length;
+            const fieldSizeMB = fieldSize / (1024 * 1024);
+            if (fieldSizeMB > 0.5) {
+              console.log(`  - Field "${key}": ${fieldSize.toLocaleString()} bytes (${fieldSizeMB.toFixed(2)}MB)`);
+            }
+          });
+        }
         
         return finalMessage;
         }));
@@ -483,6 +527,11 @@ export class FirestoreService {
       }
 
       // Create single session document with nested messages
+      
+      // DIAGNOSTIC: Calculate total payload size before saving
+      const totalPayloadSize = JSON.stringify(unifiedMessages).length;
+      const totalPayloadSizeMB = totalPayloadSize / (1024 * 1024);
+      console.log(`🔍 [DIAGNOSTIC] Total unifiedMessages payload: ${totalPayloadSize.toLocaleString()} bytes (${totalPayloadSizeMB.toFixed(2)}MB)`);
       
       const sessionDoc: any = {
         id: sessionId,
@@ -497,6 +546,14 @@ export class FirestoreService {
         sessionStats: sessionStats || null,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
+      
+      // DIAGNOSTIC: Calculate final document size
+      const finalDocSize = JSON.stringify(sessionDoc).length;
+      const finalDocSizeMB = finalDocSize / (1024 * 1024);
+      console.log(`🔍 [DIAGNOSTIC] Final session document payload: ${finalDocSize.toLocaleString()} bytes (${finalDocSizeMB.toFixed(2)}MB)`);
+      if (finalDocSizeMB > 10) {
+        console.log(`  - ❌ EXCEEDS FIRESTORE 10MB LIMIT!`);
+      }
       
       // Only include detectedQuestion if it exists and is not null
       if (detectedQuestion) {

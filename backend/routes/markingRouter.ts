@@ -519,11 +519,17 @@ const segmentOcrResultsByQuestion = async (
               const pageRawLines = allPagesOcrData[pageIndex]?.ocrData?.rawResponse?.rawLineData
                     .map((line, i) => ({...line, pageIndex, globalIndex: i})) || [];
               
-              const indicatorsOnPage = findQuestionIndicators(pageRawLines);
+              const allIndicatorsOnPage = findQuestionIndicators(pageRawLines);
+              
+              // Filter indicators to only include those that match detected questions
+              const detectedQuestionNumbers = questionsOnThisPage.map(q => q.split('_')[0]); // Extract "1" from "1_Pearson Edexcel_1MA1/1H"
+              const indicatorsOnPage = allIndicatorsOnPage.filter(indicator => 
+                  detectedQuestionNumbers.includes(indicator.questionNumber)
+              );
               
               if (indicatorsOnPage.length > 0) {
-                  // Use question number indicators for precise assignment
-                  console.log(`[SEGMENTATION] Using question number indicators for Page ${pageIndex}`);
+                  // Use question number indicators for precise assignment (only detected questions)
+                  console.log(`[SEGMENTATION] Using question number indicators for Page ${pageIndex} (filtered: ${indicatorsOnPage.length} of ${allIndicatorsOnPage.length} indicators match detected questions)`);
                   blocksOnThisPage.forEach(block => {
                       const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
                       if (assignedQNum) {
@@ -892,19 +898,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         throw new Error(`Failed during PDF dimension extraction: ${dimensionError instanceof Error ? dimensionError.message : 'Unknown error'}`);
       }
 
-      // Single-page PDF → route to new unified pipeline for consistency
-      if (standardizedPages.length === 1) {
-        sendSseUpdate(res, createProgressData(2, 'Processing as single converted page...', MULTI_IMAGE_STEPS));
+      // Handle PDF upload and context setup
+      if (isPdf && !isMultiplePdfs) {
+        // Single PDF (single-page or multi-page) - set pdfContext
+        const pageCount = standardizedPages.length;
+        sendSseUpdate(res, createProgressData(2, pageCount === 1 ? 'Processing as single converted page...' : 'Processing multi-page PDF...', MULTI_IMAGE_STEPS));
         
-        // Upload original PDF to storage for authenticated users or create data URL for unauthenticated users
+        // Upload original PDF to storage for authenticated users
         let originalPdfLink = null;
         let originalPdfDataUrl = null;
         
         if (isAuthenticated) {
+          const originalFileName = files[0].originalname || 'document.pdf';
           try {
             const { ImageStorageService } = await import('../services/imageStorageService.js');
             const sessionId = req.body.sessionId || submissionId;
-            const originalFileName = files[0].originalname || 'document.pdf';
             originalPdfLink = await ImageStorageService.uploadPdf(
               `data:application/pdf;base64,${files[0].buffer.toString('base64')}`,
               userId || 'anonymous',
@@ -912,12 +920,16 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               originalFileName
             );
           } catch (error) {
-            console.error('❌ Failed to upload original PDF:', error);
-            originalPdfLink = null;
+            const pdfSizeMB = (files[0].size / (1024 * 1024)).toFixed(2);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`❌ [PDF UPLOAD] Failed to upload original PDF (${originalFileName}):`);
+            console.error(`  - PDF size: ${pdfSizeMB}MB`);
+            console.error(`  - Error: ${errorMessage}`);
+            if (error instanceof Error && error.stack) {
+              console.error(`  - Stack: ${error.stack}`);
+            }
+            throw new Error(`Failed to upload original PDF (${originalFileName}): ${errorMessage}`);
           }
-        } else {
-          // For unauthenticated users, create a data URL
-          originalPdfDataUrl = `data:application/pdf;base64,${files[0].buffer.toString('base64')}`;
         }
         
         // Calculate file size for single PDF
@@ -930,11 +942,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           originalPdfLink,
           originalPdfDataUrl,
           originalFileName: files[0].originalname || 'document.pdf',
-          fileSize: fileSizeBytes, // Store as bytes (number) to match simplified structure
-          fileSizeMB: fileSizeMB + ' MB' // Keep for display if needed
+          fileSize: fileSizeBytes,
+          fileSizeMB: fileSizeMB + ' MB'
         };
-        
-        // Continue to unified pipeline (don't return here)
       } else if (isMultiplePdfs) {
         // Multiple PDFs - store all PDFs for later use
         sendSseUpdate(res, createProgressData(2, 'Processing multiple PDFs...', MULTI_IMAGE_STEPS));
@@ -950,10 +960,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
           
           if (isAuthenticated) {
+            const originalFileName = file.originalname || `document-${i + 1}.pdf`;
             try {
               const { ImageStorageService } = await import('../services/imageStorageService.js');
               const sessionId = req.body.sessionId || submissionId;
-              const originalFileName = file.originalname || `document-${i + 1}.pdf`;
               originalPdfLink = await ImageStorageService.uploadPdf(
                 `data:application/pdf;base64,${file.buffer.toString('base64')}`,
                 userId || 'anonymous',
@@ -961,8 +971,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 originalFileName
               );
             } catch (error) {
-              console.error(`❌ Failed to upload PDF ${i + 1}:`, error);
-              originalPdfLink = null;
+              const pdfSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.error(`❌ [PDF UPLOAD] Failed to upload PDF ${i + 1} (${originalFileName}):`);
+              console.error(`  - PDF size: ${pdfSizeMB}MB`);
+              console.error(`  - Error: ${errorMessage}`);
+              if (error instanceof Error && error.stack) {
+                console.error(`  - Stack: ${error.stack}`);
+              }
+              throw new Error(`Failed to upload PDF ${i + 1} (${originalFileName}): ${errorMessage}`);
             }
           }
           
@@ -1154,6 +1171,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     
     logClassificationComplete();
+
+    // ========================= MARK METADATA PAGES =========================
+    // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
+    // but still appear in final output
+    allClassificationResults.forEach(({ pageIndex, result }, index) => {
+      // Metadata page: has no questions and is not question-only (neither question nor answer)
+      const hasNoQuestions = !result.questions || (Array.isArray(result.questions) && result.questions.length === 0);
+      const isMetadataPage = result.isQuestionOnly === false && hasNoQuestions;
+      
+      if (isMetadataPage) {
+        // Mark the page as metadata page
+        (standardizedPages[index] as any).isMetadataPage = true;
+        console.log(`📄 [METADATA] Page ${index + 1} (${standardizedPages[index].originalFileName}) marked as metadata page - will skip OCR/processing`);
+      }
+    });
 
     // ========================= ENHANCED MODE DETECTION =========================
     // Smart mode detection based on content analysis
@@ -1465,6 +1497,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     
     const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
+      // Skip OCR for metadata pages (front pages with no questions/answers)
+      if ((page as any).isMetadataPage) {
+        console.log(`⏭️ [METADATA] Skipping OCR for metadata page: ${page.originalFileName}`);
+        return {
+          pageIndex: page.pageIndex,
+          ocrData: {
+            text: '',
+            mathBlocks: [],
+            rawResponse: { rawLineData: [] }
+          },
+          classificationText: globalQuestionText
+        };
+      }
+      
       // Skip OCR for question-only images in mixed content scenarios
       // Check if this specific page was classified as question-only
       const pageClassification = allClassificationResults[index]?.result;
@@ -1731,9 +1777,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         if (isAuthenticated) {
             // Upload annotated images to storage for authenticated users
             const uploadPromises = annotatedImagesBase64.map(async (imageData, index) => {
+                // FIXED: Pass original filename for proper annotated filename generation
+                const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
                 try {
-                    // FIXED: Pass original filename for proper annotated filename generation
-                    const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
                     const imageLink = await ImageStorageService.uploadImage(
                         imageData,
                         userId,
@@ -1743,8 +1789,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                     );
                     return imageLink;
                 } catch (uploadError) {
-                    console.error(`❌ [ANNOTATION] Failed to upload annotated image ${index}:`, uploadError);
-                    return imageData; // Fallback to base64
+                    const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2);
+                    const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+                    console.error(`❌ [ANNOTATION] Failed to upload annotated image ${index} (${originalFileName}):`);
+                    console.error(`  - Image size: ${imageSizeMB}MB`);
+                    console.error(`  - Error: ${errorMessage}`);
+                    if (uploadError instanceof Error && uploadError.stack) {
+                        console.error(`  - Stack: ${uploadError.stack}`);
+                    }
+                    throw new Error(`Failed to upload annotated image ${index} (${originalFileName}): ${errorMessage}`);
                 }
             });
             annotatedImageLinks = await Promise.all(uploadPromises);
