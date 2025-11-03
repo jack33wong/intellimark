@@ -70,10 +70,11 @@ import { ImageStorageService } from '../services/imageStorageService.js';
 const extractQuestionsFromClassification = (
   classification: any, 
   fileName?: string
-): Array<{text: string}> => {
+): Array<{text: string; questionNumber?: string | null}> => {
   // Handle new questions array structure (1...N questions)
   if (classification?.questions && Array.isArray(classification.questions)) {
     const questions = classification.questions.map((q: any) => ({
+      questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve question number if present
       text: q.text || ''
     }));
     
@@ -84,6 +85,7 @@ const extractQuestionsFromClassification = (
   if (classification?.extractedQuestionText) {
     return [{
       text: classification.extractedQuestionText
+      // No questionNumber in legacy format
     }];
   }
   
@@ -275,21 +277,47 @@ const findQuestionStartTextBoundaries = (
         const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
         if (questionLines.length === 0) return;
         
-        const SIMILARITY_THRESHOLD = 0.75; // Slightly lower threshold for start detection
+        // Dynamic threshold: lower for short questions (sub-questions like "b)")
+        const baseThreshold = 0.75;
+        const dynamicThreshold = questionText.length < 50 ? 0.60 : baseThreshold;
         let bestMatchIndex = -1;
         let bestMatchScore = 0;
         
-        // Find the best matching line using fuzzy matching
-        for (let i = 0; i < pageLines.length; i++) {
-            const lineText = (pageLines[i].text?.trim() || '')
+        // Improved text normalization for better matching
+        const normalizeText = (text: string): string => {
+            return text
                 .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX delimiters
+                .replace(/[()]/g, ' ') // Normalize parentheses to spaces
+                .replace(/\s+/g, ' ') // Normalize whitespace
+                .toLowerCase()
                 .trim();
+        };
+        
+        const normalizedQuestionLines = questionLines.map(normalizeText);
+        
+        // Find the best matching line using improved fuzzy matching
+        for (let i = 0; i < pageLines.length; i++) {
+            const lineText = normalizeText(pageLines[i].text?.trim() || '');
             
             if (!lineText) continue;
             
-            // Use fuzzy matching to find question start
-            const bestMatch = stringSimilarity.findBestMatch(lineText, questionLines);
-            if (bestMatch.bestMatch.rating >= SIMILARITY_THRESHOLD && bestMatch.bestMatch.rating > bestMatchScore) {
+            // Try single-line matching first
+            let bestMatch = stringSimilarity.findBestMatch(lineText, normalizedQuestionLines);
+            
+            // If single line fails, try multi-line matching (combine with next 1-2 lines)
+            if (bestMatch.bestMatch.rating < dynamicThreshold && i + 2 < pageLines.length) {
+                const multiLineText = normalizeText(
+                    pageLines.slice(i, Math.min(i + 3, pageLines.length))
+                        .map(l => l.text?.trim() || '')
+                        .join(' ')
+                );
+                const multiMatch = stringSimilarity.findBestMatch(multiLineText, normalizedQuestionLines);
+                if (multiMatch.bestMatch.rating > bestMatch.bestMatch.rating) {
+                    bestMatch = multiMatch;
+                }
+            }
+            
+            if (bestMatch.bestMatch.rating >= dynamicThreshold && bestMatch.bestMatch.rating > bestMatchScore) {
                 bestMatchIndex = i;
                 bestMatchScore = bestMatch.bestMatch.rating;
             }
@@ -438,10 +466,41 @@ const segmentOcrResultsByQuestion = async (
           const pageIndex = classifiedQ.sourceImageIndex;
           if (pageIndex === undefined || pageIndex === null) return;
           
+          const aiDetectedQuestionNumber = classifiedQ.questionNumber; // AI-detected question number from classification
           const textPreview = classifiedQ.textPreview?.toLowerCase() || '';
+          let matchedQNs: string[] = [];
+          let matchMethod = '';
           
-          // PRIMARY: Try to match with detected question numbers from database using text content
-          const matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
+          // PRIMARY: Use AI-detected question number if available
+          if (aiDetectedQuestionNumber !== undefined && aiDetectedQuestionNumber !== null) {
+              console.log(`[SEGMENTATION] Page ${pageIndex}: Using AI-detected question number "${aiDetectedQuestionNumber}"`);
+              matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
+                  // Extract question number from unique key (e.g., "21_Pearson Edexcel_1MA1/2F" -> "21")
+                  const actualQNum = qNum.split('_')[0];
+                  // Normalize: extract base number from both sides (e.g., "2a" -> "2", "2b" -> "2")
+                  const baseActualQNum = actualQNum.replace(/[a-z]/i, '');
+                  const baseAiDetected = String(aiDetectedQuestionNumber).replace(/[a-z]/i, '');
+                  // Match if base numbers are equal (e.g., "2" matches "2a", "2b")
+                  return baseActualQNum === baseAiDetected;
+              });
+              
+              if (matchedQNs.length > 0) {
+                  matchMethod = `AI-detected question number "${aiDetectedQuestionNumber}"`;
+                  console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} → Found ${matchedQNs.length} match(es): ${matchedQNs.join(', ')}`);
+              } else {
+                  console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: AI-detected question number "${aiDetectedQuestionNumber}" found no matches in detected schemes. Falling back to text parsing...`);
+              }
+          }
+          
+          // SECONDARY: If AI-detected number not available or didn't match, try text parsing
+          if (matchedQNs.length === 0) {
+              if (aiDetectedQuestionNumber !== undefined && aiDetectedQuestionNumber !== null) {
+                  console.log(`[SEGMENTATION] Page ${pageIndex}: AI-detected number "${aiDetectedQuestionNumber}" not in detected schemes. Trying text parsing from preview: "${textPreview.substring(0, 30)}..."`);
+              } else {
+                  console.log(`[SEGMENTATION] Page ${pageIndex}: No AI-detected question number (value: ${aiDetectedQuestionNumber === null ? 'null' : 'undefined'}). Trying text parsing from preview: "${textPreview.substring(0, 30)}..."`);
+              }
+              
+              matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
               // Extract question number from unique key (e.g., "21_Pearson Edexcel_1MA1/2F" -> "21")
               const actualQNum = qNum.split('_')[0];
               const qNumStr = String(actualQNum).toLowerCase();
@@ -451,8 +510,15 @@ const segmentOcrResultsByQuestion = async (
                      textPreview.includes(`question ${qNumStr} `);
           });
           
-          // SECONDARY: If no text match found, try filename fallback
+              if (matchedQNs.length > 0) {
+                  matchMethod = 'text parsing from question preview';
+                  console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} → Found ${matchedQNs.length} match(es): ${matchedQNs.join(', ')}`);
+              }
+          }
+          
+          // TERTIARY: If no text match found, try filename fallback
           if (matchedQNs.length === 0 && standardizedPages) {
+              console.log(`[SEGMENTATION] Page ${pageIndex}: Text parsing failed. Trying filename fallback...`);
               const filenameQNs = extractQuestionNumberFromFilename(standardizedPages[pageIndex]?.originalFileName);
               if (filenameQNs && filenameQNs.length > 0) {
                   const filenameQN = filenameQNs[0]; // Take the first question number from filename
@@ -460,14 +526,17 @@ const segmentOcrResultsByQuestion = async (
                   const matchingKey = allDetectedQuestionNumbers.find(key => key.startsWith(`${filenameQN}_`));
                   if (matchingKey) {
                       matchedQNs.push(matchingKey);
-                      console.log(`[SEGMENTATION] Filename fallback: Q${filenameQN} → Page ${pageIndex}`);
+                      matchMethod = 'filename extraction';
+                      console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} (Q${filenameQN} from filename) → ${matchingKey}`);
+                  } else {
+                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Filename fallback found Q${filenameQN} but no matching scheme in detected schemes`);
                   }
               }
           }
           
-          // TERTIARY: If still no match, use question start + fuzzy match fallback
+          // QUATERNARY: If still no match, use question start + fuzzy match fallback
           if (matchedQNs.length === 0) {
-              console.log(`[SEGMENTATION] No question number match found for Page ${pageIndex}, trying question start + fuzzy match...`);
+              console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: No question number match found using AI detection, text parsing, or filename. Trying question start + fuzzy match fallback...`);
               
               // Find question start boundaries using fuzzy matching
               const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, [classifiedQ]);
@@ -479,7 +548,8 @@ const segmentOcrResultsByQuestion = async (
                   );
                   if (unassignedQNs.length > 0) {
                       matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
-                      console.log(`[SEGMENTATION] Question start + fuzzy fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
+                      matchMethod = 'question start + fuzzy match';
+                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Matched using ${matchMethod} (fallback) → ${matchedQNs[0]}`);
                   }
               } else {
                   // Final fallback: sequential assignment
@@ -488,7 +558,8 @@ const segmentOcrResultsByQuestion = async (
                   );
                   if (unassignedQNs.length > 0) {
                       matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
-                      console.log(`[SEGMENTATION] Sequential fallback: Q${matchedQNs[0]} → Page ${pageIndex}`);
+                      matchMethod = 'sequential assignment (final fallback)';
+                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Matched using ${matchMethod} → ${matchedQNs[0]}`);
                   }
               }
           }
@@ -515,41 +586,110 @@ const segmentOcrResultsByQuestion = async (
               // --- This page has questions assigned - use hybrid approach for block assignment ---
               console.log(`[SEGMENTATION] Page ${pageIndex} contains Qs: [${questionsOnThisPage.join(', ')}]. Using hybrid block assignment...`);
               
-              // PRIMARY: Try to use question number indicators for precise block assignment
               const pageRawLines = allPagesOcrData[pageIndex]?.ocrData?.rawResponse?.rawLineData
                     .map((line, i) => ({...line, pageIndex, globalIndex: i})) || [];
               
-              const allIndicatorsOnPage = findQuestionIndicators(pageRawLines);
+              // Get AI questions for this page
+              const aiQuestionsOnPage = classificationResult.questions.filter((q: any) => q.sourceImageIndex === pageIndex);
               
-              // Filter indicators to only include those that match detected questions
-              const detectedQuestionNumbers = questionsOnThisPage.map(q => q.split('_')[0]); // Extract "1" from "1_Pearson Edexcel_1MA1/1H"
-              const indicatorsOnPage = allIndicatorsOnPage.filter(indicator => 
-                  detectedQuestionNumbers.includes(indicator.questionNumber)
-              );
+              // PRIMARY: Use AI question numbers + filtered OCR Y positions
+              const aiIndicatorsOnPage: Array<{ questionNumber: string; pageIndex: number; y: number }> = [];
               
-              if (indicatorsOnPage.length > 0) {
-                  // Use question number indicators for precise assignment (only detected questions)
-                  console.log(`[SEGMENTATION] Using question number indicators for Page ${pageIndex} (filtered: ${indicatorsOnPage.length} of ${allIndicatorsOnPage.length} indicators match detected questions)`);
+              // Get OCR indicators for this page (from earlier in segmentation)
+              const ocrIndicatorsOnPage = questionIndicators.filter(ind => ind.pageIndex === pageIndex);
+              
+              // Match OCR indicators with AI question numbers
+              aiQuestionsOnPage.forEach((aiQ: any) => {
+                  if (!aiQ.questionNumber) return;
+                  
+                  const aiQNum = String(aiQ.questionNumber);
+                  const baseAiQNum = aiQNum.replace(/[a-z]/i, ''); // Extract base number (e.g., "2a" -> "2")
+                  
+                  // Find OCR indicators that match this AI question number (by base number)
+                  const matchingOcrIndicators = ocrIndicatorsOnPage.filter(ocrInd => {
+                      const baseOcrNum = ocrInd.questionNumber.replace(/[a-z]/i, '');
+                      return baseOcrNum === baseAiQNum;
+                  });
+                  
+                  // If multiple OCR indicators match (e.g., multiple "Q2"), assign by spatial order
+                  if (matchingOcrIndicators.length > 0) {
+                      // Sort by Y position, then assign first to first AI question, second to second, etc.
+                      const sortedMatches = matchingOcrIndicators.sort((a, b) => a.y - b.y);
+                      
+                      // Get all AI questions with same base number on this page
+                      const sameBaseAiQuestions = aiQuestionsOnPage
+                          .filter(q => q.questionNumber && String(q.questionNumber).replace(/[a-z]/i, '') === baseAiQNum)
+                          .sort((a, b) => {
+                              // Sort AI questions by sub-letter if available (2a before 2b)
+                              const aSub = String(a.questionNumber).replace(/\d+/g, '');
+                              const bSub = String(b.questionNumber).replace(/\d+/g, '');
+                              return aSub.localeCompare(bSub);
+                          });
+                      
+                      const aiQIndex = sameBaseAiQuestions.findIndex(q => q === aiQ);
+                      if (aiQIndex >= 0 && aiQIndex < sortedMatches.length) {
+                          const matchedIndicator = sortedMatches[aiQIndex];
+                          aiIndicatorsOnPage.push({
+                              questionNumber: aiQNum, // Use AI-detected number (e.g., "2a", "2b")
+                              pageIndex: pageIndex,
+                              y: matchedIndicator.y
+                          });
+                          console.log(`[SEGMENTATION] Created AI indicator: "Q${aiQNum}" on Page ${pageIndex}, Y: ${matchedIndicator.y} (from OCR Q${matchedIndicator.questionNumber})`);
+                      }
+                  }
+              });
+              
+              // If no AI indicators created from OCR, try improved fuzzy text matching
+              if (aiIndicatorsOnPage.length === 0) {
+                  console.log(`[SEGMENTATION] No OCR indicators matched AI question numbers, trying improved fuzzy text matching...`);
+                  
+                  // Find question start boundaries using improved fuzzy matching
+                  const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, aiQuestionsOnPage);
+                  
+                  aiQuestionsOnPage.forEach((aiQ: any) => {
+                      const boundary = questionStartBoundaries.find(b => 
+                          b.pageIndex === pageIndex && 
+                          b.questionText === aiQ.textPreview
+                      );
+                      if (boundary && aiQ.questionNumber) {
+                          aiIndicatorsOnPage.push({
+                              questionNumber: String(aiQ.questionNumber), // Use AI-detected number (e.g., "2a", "2b")
+                              pageIndex: pageIndex,
+                              y: boundary.y
+                          });
+                          console.log(`[SEGMENTATION] Created AI indicator: "Q${aiQ.questionNumber}" on Page ${pageIndex}, Y: ${boundary.y} (from fuzzy text match)`);
+                      }
+                  });
+              }
+              
+              if (aiIndicatorsOnPage.length > 0) {
+                  // Use AI question number indicators for precise assignment
+                  console.log(`[SEGMENTATION] Using AI question number indicators for Page ${pageIndex} (${aiIndicatorsOnPage.length} indicators: ${aiIndicatorsOnPage.map(i => `Q${i.questionNumber}`).join(', ')})`);
                   blocksOnThisPage.forEach(block => {
-                      const assignedQNum = assignBlockToQuestion(block, indicatorsOnPage);
+                      const assignedQNum = assignBlockToQuestion(block, aiIndicatorsOnPage);
                       if (assignedQNum) {
-                          // Extract question number from assignedQNum (e.g., "21" from "Q21")
-                          const qNumStr = assignedQNum.replace('Q', '');
-                          // Check if any question on this page matches this question number
-                          const matchingQuestion = questionsOnThisPage.find(q => q.startsWith(`${qNumStr}_`));
+                          // assignedQNum is now the AI-detected question number (e.g., "2a", "2b")
+                          // Extract base number to match database keys (e.g., "2a" -> "2")
+                          const baseQNum = String(assignedQNum).replace(/[a-z]/i, '');
+                          // Check if any question on this page matches this base question number
+                          const matchingQuestion = questionsOnThisPage.find(q => {
+                              const qBaseNum = q.split('_')[0].replace(/[a-z]/i, '');
+                              return qBaseNum === baseQNum;
+                          });
                           if (matchingQuestion) {
                               if (!blocksByQuestion.has(matchingQuestion)) blocksByQuestion.set(matchingQuestion, []);
                               blocksByQuestion.get(matchingQuestion)!.push(block);
+                              console.log(`[SEGMENTATION] ✅ Block ${block.globalBlockId} assigned to Q${assignedQNum} → ${matchingQuestion}`);
                           } else {
-                              console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (via regex), but QN not in detected list [${questionsOnThisPage.join(', ')}]. Discarding.`);
+                              console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (base: ${baseQNum}), but no matching question in [${questionsOnThisPage.join(', ')}]. Discarding.`);
                           }
                       } else {
                           console.warn(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} (Y: ${block.coordinates?.y}) is before first indicator. Discarding.`);
                       }
                   });
               } else {
-                  // FALLBACK: Use question start + fuzzy match for block assignment
-                  console.log(`[SEGMENTATION] No question number indicators found on Page ${pageIndex}, using question start + fuzzy match fallback`);
+                  // FALLBACK: No AI indicators found, use question start + fuzzy match for block assignment
+                  console.log(`[SEGMENTATION] No AI question number indicators found on Page ${pageIndex}, using question start + fuzzy match fallback`);
                   
                   // Find question start boundaries using fuzzy matching
                   const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, classificationResult.questions.filter((q: any) => q.sourceImageIndex === pageIndex));
@@ -808,7 +948,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const MAX_PAGES_LIMIT = 5;
         if (standardizedPages.length > MAX_PAGES_LIMIT) {
           standardizedPages = standardizedPages.slice(0, MAX_PAGES_LIMIT);
-          console.warn(`⚠️ [TEMPORARY LIMIT] Processing only first ${MAX_PAGES_LIMIT} pages from PDF. Discarding remaining pages.`);
         }
         // Set originalFileName for all pages (like we do for multiple PDFs)
         standardizedPages.forEach((page) => {
@@ -836,9 +975,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             // TEMP: Limit to first 5 pages per PDF
             const MAX_PAGES_LIMIT = 5;
             const limitedPages = pdfPages.slice(0, MAX_PAGES_LIMIT);
-            if (pdfPages.length > MAX_PAGES_LIMIT) {
-              console.warn(`⚠️ [TEMPORARY LIMIT] Processing only first ${MAX_PAGES_LIMIT} pages from PDF ${index + 1}. Discarding remaining pages.`);
-            }
             
             // Store original index for sequential page numbering
             limitedPages.forEach((page, pageIndex) => {
@@ -1121,12 +1257,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Classify ALL images to detect questions in all of them
     const classificationPromises = standardizedPages.map(async (page, index) => {
-      console.log(`🔍 [CLASSIFICATION INPUT] Page ${index + 1}: ${page.originalFileName} -> AI Classification`);
       const result = await ClassificationService.classifyImage(page.imageData, 'auto', false, page.originalFileName);
       console.log(`🔍 [CLASSIFICATION OUTPUT] Page ${index + 1} result:`, { 
         category: result.category,
         questionsCount: result.questions?.length || 0,
         questions: result.questions?.map((q: any) => ({
+          questionNumber: q.questionNumber !== undefined ? (q.questionNumber || 'null') : 'undefined', // Show AI-detected question number
           textPreview: q.textPreview ? q.textPreview.substring(0, 50) + '...' : 'undefined',
           confidence: q.confidence
         })) || []
@@ -1219,7 +1355,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Detect each question individually to get proper exam data and marking schemes
       const allQuestionDetections = await Promise.all(
         individualQuestions.map(async (question, index) => {
-          const detection = await questionDetectionService.detectQuestion(question.text);
+          const detection = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
           return {
             questionIndex: index,
             questionText: question.text,
@@ -1566,7 +1702,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
     for (const question of individualQuestions) {
-        const detectionResult = await questionDetectionService.detectQuestion(question.text);
+        const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
         
         if (detectionResult.found && detectionResult.match?.markingScheme) {
@@ -1782,8 +1918,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         if (isAuthenticated) {
             // Upload annotated images to storage for authenticated users
             const uploadPromises = annotatedImagesBase64.map(async (imageData, index) => {
-                // FIXED: Pass original filename for proper annotated filename generation
-                const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
+                    // FIXED: Pass original filename for proper annotated filename generation
+                    const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
                 try {
                     const imageLink = await ImageStorageService.uploadImage(
                         imageData,
@@ -1852,7 +1988,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         submissionId,
         isAuthenticated
       );
-
+      
       // Create structured data
       
       const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(

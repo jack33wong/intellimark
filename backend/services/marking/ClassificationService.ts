@@ -10,6 +10,7 @@ export interface ClassificationResult {
   apiUsed: string;
   extractedQuestionText?: string; // Legacy support
   questions?: Array<{
+    questionNumber?: string | null; // Question number if visible in image, null otherwise
     text: string;
     textPreview?: string; // For segmentation matching
     confidence: number;
@@ -51,6 +52,7 @@ export class ClassificationService {
           extractedQuestionText: q21Text,
           questions: [
             {
+              questionNumber: "21", // Hardcoded test data includes question number
               text: q21Text,
               textPreview: "21 The diagram shows a plan of Jason's garden. Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.",
               confidence: 0.95
@@ -117,10 +119,23 @@ export class ClassificationService {
             console.error('❌ [CLASSIFICATION FALLBACK] OpenAI JSON parse failed:', parseErr);
             throw new Error('OpenAI fallback returned non-JSON content');
           }
+          // Reuse same parsing logic as Gemini for consistency
           return {
             category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
             reasoning: parsed.reasoning || 'OpenAI fallback classification',
-            extractedQuestionText: parsed.extractedQuestionText || '',
+            extractedQuestionText: parsed.extractedQuestionText, // Legacy support
+            questions: parsed.questions?.map((q: any) => ({
+              questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve null if explicitly set, undefined if missing
+              text: q.text || '',
+              textPreview: q.textPreview || q.text, // Map text to textPreview if missing (same as Gemini)
+              confidence: q.confidence || 0.8
+            })) || (parsed.extractedQuestionText ? [{
+              // Convert legacy extractedQuestionText to questions array format
+              questionNumber: undefined, // Legacy format has no question number
+              text: parsed.extractedQuestionText,
+              textPreview: parsed.extractedQuestionText, // Use full text as preview for legacy format
+              confidence: 0.8
+            }] : undefined),
             apiUsed: `OpenAI ${openai.modelName}`,
             usageTokens: openai.usageTokens || 0
           };
@@ -269,10 +284,11 @@ export class ClassificationService {
       apiUsed,
       extractedQuestionText: parsed.extractedQuestionText, // Legacy support
       questions: parsed.questions?.map((q: any) => ({
+        questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve null if explicitly set, undefined if missing
         text: q.text,
         textPreview: q.textPreview || q.text, // Map text to textPreview if missing
         confidence: q.confidence
-      })), // New questions array with textPreview mapping
+      })), // New questions array with questionNumber and textPreview mapping
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
   }

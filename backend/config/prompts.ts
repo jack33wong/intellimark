@@ -23,11 +23,18 @@ export const AI_PROMPTS = {
        - The actual question or instruction (e.g., "Work out an expression for the nth term")
        - Any diagrams, tables, or data provided as part of the question
        - If there are MULTIPLE questions in the image, extract ALL of them
+    3. Detect question number if present in the image:
+       - Look for question numbers like "1", "2", "3", "Q1", "Q2", "Question 3", "13", "21", etc.
+       - If a question number is visible, extract it as a string (e.g., "1", "2", "21")
+       - For sub-questions like "2 (a)", "2 (b)", or "2a", "2b", extract with sub-number: "2a", "2b"
+       - If multiple sub-questions exist (e.g., "2 (a)" and "2 (b)"), extract each separately as "2a", "2b"
+       - If NO question number is visible (e.g., custom homework, practice problems), return null
        
     IMPORTANT: 
     - Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
-    - If there are multiple questions (e.g., Q13 and Q14), extract ALL questions as one combined text.
+    - If there are multiple questions (e.g., Q13 and Q14), extract ALL questions separately with their respective numbers.
     - For metadata pages (exam front pages, cover pages), return category "metadata" and empty questions array.
+    - Question number is OPTIONAL - return null if not visible, don't guess or infer.
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
@@ -38,10 +45,12 @@ export const AI_PROMPTS = {
       "reasoning": "brief explanation of your classification",
       "questions": [
         {
+          "questionNumber": "1" or "2a" or "2b" or null,
           "text": "complete question text for question 1",
           "confidence": 0.9
         },
         {
+          "questionNumber": "2" or "2a" or "2b" or null,
           "text": "complete question text for question 2", 
           "confidence": 0.85
         }
@@ -64,6 +73,10 @@ export const AI_PROMPTS = {
        - "questionAnswer": A question WITH student work/answers
        - "metadata": Metadata/cover page (exam front page, no questions, no student work)
     2) Extract the COMPLETE question text from the image, including setup/context, data/diagrams (describe briefly), and the actual instruction.
+    3) Detect question number if present:
+       - Extract question numbers like "1", "2", "3", or sub-questions like "2a", "2b", "2 (a)", "2 (b)"
+       - For sub-questions, include the sub-letter: "2a", "2b" (not just "2")
+       - Return null if no question number is visible
 
     CRITICAL OUTPUT RULES:
     - Return ONLY raw JSON, no markdown/code fences, no explanations

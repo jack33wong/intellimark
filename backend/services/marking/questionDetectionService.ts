@@ -91,9 +91,12 @@ export class QuestionDetectionService {
 
   /**
    * Detect exam paper and question number from extracted question text
+   * @param extractedQuestionText - The question text extracted by classification
+   * @param questionNumberHint - Optional question number hint from classification (e.g., "1", "2", "21")
    */
   public async detectQuestion(
-    extractedQuestionText: string
+    extractedQuestionText: string,
+    questionNumberHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
@@ -119,7 +122,7 @@ export class QuestionDetectionService {
       let bestScore = 0;
 
       for (const examPaper of examPapers) {
-        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper);
+        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
         if (match && match.confidence && match.confidence > bestScore) {
           bestMatch = match;
           bestScore = match.confidence;
@@ -184,10 +187,14 @@ export class QuestionDetectionService {
 
   /**
    * Match question text with a specific exam paper using fuzzy matching
+   * @param questionText - The extracted question text from classification
+   * @param examPaper - The exam paper to match against
+   * @param questionNumberHint - Optional question number hint from classification (e.g., "1", "2", "21")
    */
   private async matchQuestionWithExamPaper(
     questionText: string,
-    examPaper: any
+    examPaper: any,
+    questionNumberHint?: string | null
   ): Promise<ExamPaperMatch | null> {
     try {
       const questions = examPaper.questions || {};
@@ -206,7 +213,28 @@ export class QuestionDetectionService {
           const questionContent = question.question_text || question.text || question.question || '';
           
           if (questionContent && questionNumber) {
-            const similarity = this.calculateSimilarity(questionText, questionContent);
+            let similarity = this.calculateSimilarity(questionText, questionContent);
+            
+            // Boost or penalize similarity based on question number hint
+            if (questionNumberHint) {
+              // Normalize question numbers: extract base number (e.g., "2a" -> "2", "2b" -> "2")
+              const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
+              const baseHint = String(questionNumberHint).replace(/[a-z]/i, '');
+              
+              if (baseQuestionNumber === baseHint) {
+                // Boost score by 30% if base question numbers match (e.g., "2" matches "2a")
+                similarity = Math.min(1.0, similarity * 1.3);
+                
+                // If exact match (including sub-number), boost even more
+                if (questionNumber === questionNumberHint) {
+                  similarity = Math.min(1.0, similarity * 1.1); // Additional 10% boost for exact match
+                }
+              } else {
+                // Heavily penalize (reduce by 50%) if question numbers don't match
+                // This helps prevent matching Q2 text with Q9 in the database
+                similarity = similarity * 0.5;
+              }
+            }
             
             if (similarity > bestScore) {
               bestScore = similarity;
@@ -239,7 +267,28 @@ export class QuestionDetectionService {
           const questionContent = (questionData as any).text || (questionData as any).question || '';
           
           if (questionContent) {
-            const similarity = this.calculateSimilarity(questionText, questionContent);
+            let similarity = this.calculateSimilarity(questionText, questionContent);
+            
+            // Boost or penalize similarity based on question number hint
+            if (questionNumberHint) {
+              // Normalize question numbers: extract base number (e.g., "2a" -> "2", "2b" -> "2")
+              const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
+              const baseHint = String(questionNumberHint).replace(/[a-z]/i, '');
+              
+              if (baseQuestionNumber === baseHint) {
+                // Boost score by 30% if base question numbers match (e.g., "2" matches "2a")
+                similarity = Math.min(1.0, similarity * 1.3);
+                
+                // If exact match (including sub-number), boost even more
+                if (questionNumber === questionNumberHint) {
+                  similarity = Math.min(1.0, similarity * 1.1); // Additional 10% boost for exact match
+                }
+              } else {
+                // Heavily penalize (reduce by 50%) if question numbers don't match
+                // This helps prevent matching Q2 text with Q9 in the database
+                similarity = similarity * 0.5;
+              }
+            }
             
             if (similarity > bestScore) {
               bestScore = similarity;
