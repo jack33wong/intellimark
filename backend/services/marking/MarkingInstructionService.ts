@@ -310,6 +310,21 @@ export class MarkingInstructionService {
       console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
       console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
+      
+      // Log individual annotations for debugging (especially for answers like 18.6)
+      if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
+        console.log('  - Annotations:');
+        parsedResponse.annotations.forEach((ann: any, idx: number) => {
+          const action = ann.action || 'unknown';
+          const text = ann.text || '';
+          const textMatch = ann.textMatch || '';
+          const reasoning = ann.reasoning || '';
+          const actionColor = action === 'tick' ? '\x1b[32m' : action === 'cross' ? '\x1b[31m' : '\x1b[0m';
+          const resetColor = '\x1b[0m';
+          const shortMatch = textMatch.length > 50 ? textMatch.substring(0, 50) + '...' : textMatch;
+          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} "${shortMatch}"${reasoning ? ` - ${reasoning}` : ''}`);
+        });
+      }
 
       // Return the correct MarkingInstructions structure
       const markingResult = {

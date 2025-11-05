@@ -422,7 +422,7 @@ export class OCRService {
         // PRIMARY PATH: Mathpix succeeded, now process the result.
         // NOTE: Process ALL OCR lines - question text filtering happens in segmentation stage
         // This prevents discarding valid student work (like Q2a) due to incorrect boundary detection
-        
+
         // UNGROUP ARRAYS
         // IMPORTANT: Don't discard lines without coordinates here - we'll handle coordinate estimation later
         const ungroupedLines: any[] = [];
@@ -627,16 +627,6 @@ export class OCRService {
             const text = line.latex_styled || line.text || '';
             return text.includes('35/24') || text.includes('35 / 24') || (text.includes('24') && text.includes('bot'));
         });
-        if (!q2aInFiltered) {
-            console.log(`[Q2a DIAGNOSTIC] ⚠️ Q2a line NOT in filtered studentWorkLines (was filtered out)`);
-        } else {
-            console.log(`[Q2a DIAGNOSTIC] ✅ Q2a line IS in filtered studentWorkLines`);
-        }
-        if (!q2bInFiltered) {
-            console.log(`[Q2b DIAGNOSTIC] ⚠️ Q2b line NOT in filtered studentWorkLines (was filtered out)`);
-        } else {
-            console.log(`[Q2b DIAGNOSTIC] ✅ Q2b line IS in filtered studentWorkLines`);
-        }
 
         // PREPARE FINAL MATHBLOCKS
         const processedLines: any[] = [];
@@ -812,25 +802,6 @@ export class OCRService {
              processedLines.push({ text: cleanedText || text, coords });
         }
         
-        // Q2a/Q2b diagnostic: Check final processed lines
-        const q2aInFinal = processedLines.some((line, idx) => {
-            const text = line.text || '';
-            return text.includes('32/19') || text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}');
-        });
-        const q2bInFinal = processedLines.some((line, idx) => {
-            const text = line.text || '';
-            return text.includes('35/24') || text.includes('35 / 24') || (text.includes('24') && text.includes('bot'));
-        });
-        if (!q2aInFinal) {
-            console.log(`[Q2a DIAGNOSTIC] ⚠️ Q2a line NOT in final processedLines (was filtered out during coordinate estimation)`);
-        } else {
-            console.log(`[Q2a DIAGNOSTIC] ✅ Q2a line IS in final processedLines`);
-        }
-        if (!q2bInFinal) {
-            console.log(`[Q2b DIAGNOSTIC] ⚠️ Q2b line NOT in final processedLines (was filtered out during coordinate estimation)`);
-        } else {
-            console.log(`[Q2b DIAGNOSTIC] ✅ Q2b line IS in final processedLines`);
-        }
         mathBlocks = processedLines.map(line => ({
             googleVisionText: line.text, mathpixLatex: line.text, confidence: line.confidence || 1.0,
             mathpixConfidence: line.confidence || 1.0, mathLikenessScore: 1.0, coordinates: line.coords

@@ -211,7 +211,7 @@ function isQuestionTextBlock(
   // Check main question student work
   if (question.studentWork) {
     if (matchesClassificationStudentWork(block, question.studentWork)) {
-      console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} NOT filtered: matches classification student work for main question`);
+      // Don't log - too verbose for normal operation
       return false; // Don't filter - it's confirmed student work from classification
     }
   }
@@ -221,7 +221,7 @@ function isQuestionTextBlock(
     for (const subQ of question.subQuestions) {
       if (subQ.studentWork) {
         if (matchesClassificationStudentWork(block, subQ.studentWork)) {
-          console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} NOT filtered: matches classification student work for sub-question ${subQ.part || '?'}`);
+          // Don't log - too verbose for normal operation
           return false; // Don't filter - it's confirmed student work from classification
         }
       }
@@ -253,6 +253,7 @@ function isQuestionTextBlock(
         }
         if (similarity >= similarityThreshold) {
           bestMatch = true;
+          // Only log if it's actually filtered (not just "not filtered")
           console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: matches question text (${source}, similarity: ${similarity.toFixed(3)})`);
           return true;
         }
@@ -303,7 +304,12 @@ function isQuestionTextBlock(
             if (isMatch) {
               bestMatch = true;
               const source = subQ.databaseText ? 'database' : 'classification (fallback - not past paper)';
-              console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: matches sub-question text (${source}, similarity: ${similarity.toFixed(3)})`);
+              // Only log if it's Q2 debugging or if it's actually filtered (not just "not filtered")
+              if (isQ2Block) {
+                console.log(`[Q2 DEBUG] Block ${block.globalBlockId} filtered: matches sub-question text (${source}, similarity: ${similarity.toFixed(3)})`);
+              } else {
+                console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: matches sub-question text (${source}, similarity: ${similarity.toFixed(3)})`);
+              }
               return true;
             }
           }
@@ -353,10 +359,7 @@ function isQuestionTextBlock(
     }
     
     if (hasStudentWorkIndicators(block) && !isSubstringOfAnyQuestion) {
-      if (isQ2Block) {
-        console.log(`[Q2 DEBUG] Block ${block.globalBlockId} → PASS (negative check: similarity=${bestSimilarity.toFixed(3)} < ${LOW_SIMILARITY_THRESHOLD}, has student work indicators, NOT substring of question)`);
-      }
-      console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} NOT filtered: low similarity (${bestSimilarity.toFixed(3)}) but has student work indicators`);
+      // Don't log - too verbose for normal operation
       return false; // Don't filter - it's student work
     } else if (isSubstringOfAnyQuestion) {
       // Block is a substring of question text - filter it even if it has student work indicators
@@ -611,7 +614,6 @@ function mapQuestionsToSchemes(
     
     if (matchingSchemeKey) {
       questionToSchemeMap.set(aiDetectedQNum, matchingSchemeKey);
-      console.log(`[SEGMENTATION] Mapped Q${aiDetectedQNum} → ${matchingSchemeKey}`);
     } else {
       console.warn(`[SEGMENTATION] ⚠️ No matching scheme found for Q${aiDetectedQNum}`);
     }
@@ -679,7 +681,6 @@ export function segmentOcrResultsByQuestion(
     });
   });
   
-  console.log(`[SEGMENTATION] Consolidated ${allMathBlocks.length} math blocks`);
   
   // 2. Filter out empty blocks
   const studentWorkBlocks = allMathBlocks.filter(block =>
@@ -732,7 +733,6 @@ export function segmentOcrResultsByQuestion(
     throw new Error('[SEGMENTATION] No valid questions found after flattening classification structure');
   }
   
-  console.log(`[SEGMENTATION] Flattened ${flattenedQuestions.length} question(s) from classification`);
   
   // 4. Map questions to marking schemes
   const questionToSchemeMap = mapQuestionsToSchemes(flattenedQuestions, detectedSchemesMap);
@@ -1030,7 +1030,6 @@ export function segmentOcrResultsByQuestion(
         blocksByQuestion.set(schemeKey, []);
       }
       blocksByQuestion.get(schemeKey)!.push(...filteredBlocks);
-      console.log(`[SEGMENTATION] Assigned ${filteredBlocks.length} blocks from Page ${pageIndex} to ${schemeKey}`);
     }
   }
   
