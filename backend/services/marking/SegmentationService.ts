@@ -134,11 +134,130 @@ function matchesClassificationStudentWork(
   const isMatch = similarity >= threshold || 
                   (blockContainsStudentWork && similarity >= 0.70); // Increased from 0.60 to 0.70 for better accuracy
   
-  if (isMatch) {
-    console.log(`[STUDENT WORK MATCH] Block ${block.globalBlockId} matches classification student work (similarity: ${similarity.toFixed(3)})`);
+  return isMatch;
+}
+
+/**
+ * Match a block to a question using classification student work
+ * Returns the best matching question number and similarity score
+ */
+function matchBlockToQuestion(
+  block: MathBlock & { pageIndex: number },
+  questionsOnPage: Array<{ questionNumber: string; schemeKey: string }>,
+  classificationResult: ClassificationResult
+): { questionNumber: string; schemeKey: string; similarity: number } | null {
+  const blockText = block.mathpixLatex || block.googleVisionText || '';
+  if (!blockText.trim()) return null;
+  
+  let bestMatch: { questionNumber: string; schemeKey: string; similarity: number } | null = null;
+  let bestSimilarity = 0;
+  
+  // Find classification questions on this page
+  const classificationQuestionsOnPage = (classificationResult.questions || []).filter((q: any) => {
+    const pageIdx = (q as any).sourceImageIndex ?? 0;
+    return pageIdx === block.pageIndex;
+  });
+  
+  for (const qInfo of questionsOnPage) {
+    // Find matching classification question by question number
+    const classificationQ = classificationQuestionsOnPage.find((q: any) => {
+      const mainQNum = String(q.questionNumber || '');
+      const qNum = qInfo.questionNumber;
+      
+      // Extract base question number (e.g., "8" from "8", "8a" from "8a")
+      const baseQNum = qNum.replace(/[a-z]/i, '');
+      
+      // Match main question number
+      if (mainQNum === baseQNum || mainQNum === qNum) {
+        return true;
+      }
+      return false;
+    });
+    
+    if (!classificationQ) continue;
+    
+    // Try to match against main question student work
+    let studentWorkToMatch: string | null = null;
+    if (classificationQ.studentWork) {
+      studentWorkToMatch = classificationQ.studentWork;
+    }
+    
+    // If no main student work, try sub-question student work
+    if (!studentWorkToMatch && classificationQ.subQuestions && Array.isArray(classificationQ.subQuestions)) {
+      // Extract question number part (e.g., "8" from "8", "8a" from "8a")
+      const qNum = qInfo.questionNumber;
+      const subQPart = qNum.match(/^(\d+)([a-z])?$/i);
+      if (subQPart && subQPart[2]) {
+        // Has sub-question part
+        const subQ = classificationQ.subQuestions.find((sq: any) => sq.part?.toLowerCase() === subQPart[2].toLowerCase());
+        if (subQ?.studentWork) {
+          studentWorkToMatch = subQ.studentWork;
+        }
+      }
+    }
+    
+    if (!studentWorkToMatch) continue;
+    
+    // Split multi-line student work into individual lines for better matching
+    // Classification may return student work as a single string with newlines (e.g., "line1\nline2\nline3")
+    // OCR extracts these as separate blocks, so we need to match each block against individual lines
+    const studentWorkLines = studentWorkToMatch.split(/\n/).map(line => line.trim()).filter(line => line.length > 0);
+    
+    // Calculate similarity against each line and take the best match
+    const normalizedBlock = normalizeTextForComparison(blockText);
+    if (!normalizedBlock) continue;
+    
+    let bestLineSimilarity = 0;
+    let bestLineMatch = false;
+    
+    for (const studentWorkLine of studentWorkLines) {
+      const normalizedStudentWorkLine = normalizeTextForComparison(studentWorkLine);
+      if (!normalizedStudentWorkLine) continue;
+      
+      const similarity = stringSimilarity.compareTwoStrings(normalizedBlock, normalizedStudentWorkLine);
+      
+      // Also check for partial/substring matching
+      const blockContainsStudentWork = normalizedBlock.includes(normalizedStudentWorkLine) || 
+                                        normalizedStudentWorkLine.includes(normalizedBlock) ||
+                                        (normalizedBlock.length > 10 && normalizedStudentWorkLine.length > 10 &&
+                                         (normalizedBlock.includes(normalizedStudentWorkLine.substring(0, Math.min(30, normalizedStudentWorkLine.length))) ||
+                                         normalizedStudentWorkLine.includes(normalizedBlock.substring(0, Math.min(30, normalizedBlock.length)))));
+      
+      // Boost similarity if partial match
+      const finalSimilarity = blockContainsStudentWork ? Math.max(similarity, 0.70) : similarity;
+      
+      if (finalSimilarity > bestLineSimilarity) {
+        bestLineSimilarity = finalSimilarity;
+        bestLineMatch = finalSimilarity >= 0.60; // Match threshold
+      }
+    }
+    
+    // Also check against the full string (for cases where OCR combined multiple lines)
+    const normalizedStudentWork = normalizeTextForComparison(studentWorkToMatch);
+    if (normalizedStudentWork) {
+      const fullStringSimilarity = stringSimilarity.compareTwoStrings(normalizedBlock, normalizedStudentWork);
+      const blockContainsFullWork = normalizedBlock.includes(normalizedStudentWork) || 
+                                     normalizedStudentWork.includes(normalizedBlock) ||
+                                     (normalizedBlock.length > 10 && normalizedStudentWork.length > 10 &&
+                                      (normalizedBlock.includes(normalizedStudentWork.substring(0, Math.min(30, normalizedStudentWork.length))) ||
+                                       normalizedStudentWork.includes(normalizedBlock.substring(0, Math.min(30, normalizedBlock.length)))));
+      const fullStringFinalSimilarity = blockContainsFullWork ? Math.max(fullStringSimilarity, 0.70) : fullStringSimilarity;
+      
+      if (fullStringFinalSimilarity > bestLineSimilarity) {
+        bestLineSimilarity = fullStringFinalSimilarity;
+        bestLineMatch = fullStringFinalSimilarity >= 0.60;
+      }
+    }
+    
+    if (bestLineMatch && bestLineSimilarity > bestSimilarity) {
+      bestSimilarity = bestLineSimilarity;
+      bestMatch = { questionNumber: qInfo.questionNumber, schemeKey: qInfo.schemeKey, similarity: bestLineSimilarity };
+    }
   }
   
-  return isMatch;
+  // Only return if similarity is above threshold
+  const threshold = 0.60; // Lower threshold for block-to-question matching
+  return bestSimilarity >= threshold ? bestMatch : null;
 }
 
 /**
@@ -191,18 +310,6 @@ function isQuestionTextBlock(
   
   const normalizedBlockText = normalizeTextForComparison(blockText);
   
-  // Check if this is a Q2 block - dynamically determine Q2 page index
-  // Q2 could be on different pages, so we check against classification questions
-  let isQ2Block = false;
-  for (const question of classificationQuestions) {
-    const mainQNum = (question as any).questionNumber;
-    if (mainQNum === '2' && question.sourceImageIndex === block.pageIndex) {
-      isQ2Block = true;
-      break;
-    }
-  }
-  
-  
   // PRIORITY CHECK: If block matches classification student work, don't filter it
   // This prevents filtering actual student work that classification identified
   for (const question of classificationQuestions) {
@@ -247,14 +354,8 @@ function isQuestionTextBlock(
         if (similarity > bestSimilarity) {
           bestSimilarity = similarity;
         }
-        const source = question.databaseText ? 'database' : 'classification (fallback - not past paper)';
-        if (isQ2Block) {
-          console.log(`[Q2 DEBUG] Block ${block.globalBlockId} vs main Q2 text (${source}): similarity=${similarity.toFixed(3)} ${similarity >= similarityThreshold ? '→ FILTERED' : '→ PASS'}`);
-        }
         if (similarity >= similarityThreshold) {
           bestMatch = true;
-          // Only log if it's actually filtered (not just "not filtered")
-          console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: matches question text (${source}, similarity: ${similarity.toFixed(3)})`);
           return true;
         }
       }
@@ -294,22 +395,8 @@ function isQuestionTextBlock(
               bestSimilarity = similarity;
             }
             
-            if (isQ2Block) {
-              const subQPart = (subQ as any).part || 'unknown';
-              const source = subQ.databaseText ? 'database' : 'classification (fallback - not past paper)';
-              const matchReason = blockIsSubstringOfQuestion ? 'substring' : 'full';
-              console.log(`[Q2 DEBUG] Block ${block.globalBlockId} vs Q2${subQPart} text (${source}): similarity=${similarity.toFixed(3)}, substring=${blockIsSubstringOfQuestion} ${isMatch ? `→ FILTERED (${matchReason})` : '→ PASS'}`);
-            }
-            
             if (isMatch) {
               bestMatch = true;
-              const source = subQ.databaseText ? 'database' : 'classification (fallback - not past paper)';
-              // Only log if it's Q2 debugging or if it's actually filtered (not just "not filtered")
-              if (isQ2Block) {
-                console.log(`[Q2 DEBUG] Block ${block.globalBlockId} filtered: matches sub-question text (${source}, similarity: ${similarity.toFixed(3)})`);
-              } else {
-                console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: matches sub-question text (${source}, similarity: ${similarity.toFixed(3)})`);
-              }
               return true;
             }
           }
@@ -359,11 +446,8 @@ function isQuestionTextBlock(
     }
     
     if (hasStudentWorkIndicators(block) && !isSubstringOfAnyQuestion) {
-      // Don't log - too verbose for normal operation
       return false; // Don't filter - it's student work
     } else if (isSubstringOfAnyQuestion) {
-      // Block is a substring of question text - filter it even if it has student work indicators
-      console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered: is substring of question text`);
       return true; // Filter it - it's question text
     }
   }
@@ -649,28 +733,9 @@ export function segmentOcrResultsByQuestion(
   let allMathBlocks: Array<MathBlock & { pageIndex: number; globalBlockId: string }> = [];
   let blockCounter = 0;
   
-  // Find Q2 page index for debugging
-  let q2PageIndex: number | null = null;
-  classificationResult.questions.forEach((q: any) => {
-    const mainQuestionNumber = q.questionNumber;
-    const pageIndex = (q as any).sourceImageIndex ?? 0;
-    if (mainQuestionNumber === '2' || mainQuestionNumber === '2a' || mainQuestionNumber === '2b') {
-      q2PageIndex = pageIndex;
-    }
-  });
-  
   allPagesOcrData.forEach((pageResult) => {
     const mathBlocks = pageResult.ocrData?.mathBlocks || [];
     
-    // Q2 debugging: Show math blocks from OCR parsing
-    if (q2PageIndex !== null && pageResult.pageIndex === q2PageIndex) {
-      console.log(`[Q2 DEBUG] Math blocks from OCR parsing on Page ${pageResult.pageIndex}: ${mathBlocks.length} blocks`);
-      mathBlocks.forEach((block, idx) => {
-        const text = block.mathpixLatex || block.googleVisionText || '';
-        const yPos = block.coordinates?.y ?? -1;
-        console.log(`[Q2 DEBUG] OCR parsed block ${idx + 1}/${mathBlocks.length} (Y=${yPos}): "${text.substring(0, 80)}${text.length >= 80 ? '...' : ''}"`);
-      });
-    }
     
     mathBlocks.forEach((block) => {
       allMathBlocks.push({
@@ -817,15 +882,6 @@ export function segmentOcrResultsByQuestion(
   allPagesOcrData.forEach((pageResult, pageIdx) => {
     const rawLineData = pageResult.ocrData?.rawResponse?.rawLineData || [];
     
-    // Q2 debugging: Show raw OCR lines for Q2 page
-    if (q2PageIndex !== null && pageIdx === q2PageIndex) {
-      console.log(`[Q2 DEBUG] Raw OCR lines on Page ${pageIdx}: ${rawLineData.length} lines`);
-      rawLineData.forEach((line: any, i: number) => {
-        const text = line.latex_styled || line.text || '';
-        const coords = line.region ? `(x=${line.region.x || line.region.top_left_x}, y=${line.region.y || line.region.top_left_y})` : 'no coords';
-        console.log(`[Q2 DEBUG] Raw line ${i + 1}/${rawLineData.length} ${coords}: "${text.substring(0, 80)}${text.length >= 80 ? '...' : ''}"`);
-      });
-    }
     
     allRawLines.push(...rawLineData.map((line: any, i: number) => ({
       ...line,
@@ -848,22 +904,6 @@ export function segmentOcrResultsByQuestion(
     blocksByPage.get(block.pageIndex)!.push(block);
   });
   
-  // Q2 debugging: Show all blocks on all pages
-  if (q2PageIndex !== null) {
-    console.log(`[Q2 DEBUG] Q2 pageIndex from classification: ${q2PageIndex}`);
-    console.log(`[Q2 DEBUG] Total blocks by page: ${Array.from(blocksByPage.entries()).map(([p, b]) => `Page ${p}: ${b.length} blocks`).join(', ')}`);
-    if (blocksByPage.has(q2PageIndex)) {
-      const q2PageBlocks = blocksByPage.get(q2PageIndex)!;
-      console.log(`[Q2 DEBUG] Blocks on Q2 page (${q2PageIndex}): ${q2PageBlocks.length} blocks`);
-      q2PageBlocks.forEach((block, idx) => {
-        const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 60);
-        const yPos = block.coordinates?.y ?? -1;
-        console.log(`[Q2 DEBUG] Q2 page block ${idx + 1}/${q2PageBlocks.length} (${block.globalBlockId}, Y=${yPos}): "${blockText}${blockText.length >= 60 ? '...' : ''}"`);
-      });
-    } else {
-      console.log(`[Q2 DEBUG] ⚠️ No blocks found on Q2 page (${q2PageIndex})!`);
-    }
-  }
   
   // Create a map of page -> question numbers from flattenedQuestions
   const pageToQuestionMap = new Map<number, Array<{ questionNumber: string; schemeKey: string }>>();
@@ -879,8 +919,7 @@ export function segmentOcrResultsByQuestion(
   });
   
   // Assign blocks by page index and question number mapping
-  // All blocks on a page are assigned to the first question detected on that page
-  // Sub-questions on the same page share the same scheme key (already grouped)
+  // Fix: Handle multiple questions per page and multi-page sub-questions
   for (const [pageIndex, blocksOnPage] of blocksByPage.entries()) {
     const questionsOnPage = pageToQuestionMap.get(pageIndex);
     if (!questionsOnPage || questionsOnPage.length === 0) {
@@ -888,32 +927,67 @@ export function segmentOcrResultsByQuestion(
       continue;
     }
     
-    // Use the first question on this page (sub-questions share the same scheme key)
-    const firstQuestion = questionsOnPage[0];
-    const schemeKey = firstQuestion.schemeKey;
+    // Group questions by scheme key (same scheme key = grouped sub-questions or same question)
+    const questionsByScheme = new Map<string, Array<{ questionNumber: string; schemeKey: string }>>();
+    questionsOnPage.forEach(q => {
+      if (!questionsByScheme.has(q.schemeKey)) {
+        questionsByScheme.set(q.schemeKey, []);
+      }
+      questionsByScheme.get(q.schemeKey)!.push(q);
+    });
     
-    // Q2 debugging: Check if this page contains Q2 blocks
-    const isQ2Page = schemeKey.includes('2_');
-    if (isQ2Page) {
-      console.log(`[Q2 DEBUG] Page ${pageIndex}: ${blocksOnPage.length} total blocks before filtering`);
-      console.log(`[Q2 DEBUG] Scheme key: ${schemeKey}`);
-      blocksOnPage.forEach((block, idx) => {
-        const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 80);
-        const yPos = block.coordinates?.y ?? -1;
-        console.log(`[Q2 DEBUG] Block ${idx + 1}/${blocksOnPage.length} (${block.globalBlockId}, Y=${yPos}): "${blockText}${blockText.length >= 80 ? '...' : ''}"`);
-      });
+    // Fix: If multiple questions with DIFFERENT scheme keys on same page (e.g., Q8 and Q9),
+    // match blocks to questions using classification student work
+    const hasMultipleDifferentSchemes = questionsByScheme.size > 1;
+    const assignedBlocksInPage = new Set<string>(); // Track blocks assigned in this page iteration
+    
+    if (hasMultipleDifferentSchemes) {
+      console.log(`[SEGMENTATION] Page ${pageIndex} has ${questionsByScheme.size} different questions (${questionsOnPage.map(q => `Q${q.questionNumber}`).join(', ')}), using student work matching`);
     }
+    
+    // For each unique scheme key, assign blocks
+    // If multiple questions share the same scheme key (grouped sub-questions), assign all blocks to that scheme
+    for (const [schemeKey, schemeQuestions] of questionsByScheme.entries()) {
     
     // Step 1: First pass - filter out question text blocks using text matching
     const questionTextBlocks: Array<MathBlock & { pageIndex: number }> = [];
-    const initiallyFilteredBlocks = blocksOnPage.filter(block => {
-      if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
-        questionTextBlocks.push(block);
-        console.log(`[QUESTION TEXT FILTER] Block ${block.globalBlockId} filtered out (matches question text)`);
-        return false;
+    
+    // If multiple different schemes, match blocks to questions first
+    let blocksToAssign: Array<MathBlock & { pageIndex: number }> = [];
+    if (hasMultipleDifferentSchemes) {
+      // Match each block to the best question
+      for (const block of blocksOnPage) {
+        const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+        if (assignedBlocksInPage.has(blockId)) continue; // Already assigned to another question
+        
+        // Skip question text blocks
+        if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
+          questionTextBlocks.push(block);
+          continue;
+        }
+        
+        // Try to match this block to a question
+        const match = matchBlockToQuestion(block, questionsOnPage, classificationResult);
+        if (match && match.schemeKey === schemeKey) {
+          // This block belongs to this question
+          blocksToAssign.push(block);
+          assignedBlocksInPage.add(blockId);
+          const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 40);
+          console.log(`[SEGMENTATION] Matched block "${blockText}..." to Q${match.questionNumber} (similarity: ${match.similarity.toFixed(3)})`);
+        }
       }
-      return true;
-    });
+    } else {
+      // Single scheme or grouped sub-questions - use all blocks (after filtering question text)
+      blocksToAssign = blocksOnPage.filter(block => {
+        if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
+          questionTextBlocks.push(block);
+          return false;
+        }
+        return true;
+      });
+    }
+    
+    const initiallyFilteredBlocks = blocksToAssign;
     
     // Step 2: Calculate Y range from question text blocks (if any were found)
     let questionTextYRange: { minY: number; maxY: number } | null = null;
@@ -930,15 +1004,6 @@ export function segmentOcrResultsByQuestion(
         const minY = Math.min(...yPositions.map(r => r.startY));
         const maxY = Math.max(...yPositions.map(r => r.endY));
         questionTextYRange = { minY, maxY };
-        
-        if (isQ2Page) {
-          console.log(`[Y-RANGE FILTER] Calculated question text Y range for Page ${pageIndex}: ${minY} - ${maxY} (from ${questionTextBlocks.length} question text blocks)`);
-          questionTextBlocks.forEach((block, idx) => {
-            const y = block.coordinates?.y ?? -1;
-            const height = block.coordinates?.height ?? 50;
-            console.log(`[Y-RANGE FILTER] Question text block ${idx + 1}/${questionTextBlocks.length}: Y=${y}, height=${height}`);
-          });
-        }
       }
     }
     
@@ -989,16 +1054,7 @@ export function segmentOcrResultsByQuestion(
             }
             
             if (!matchesStudentWork) {
-              console.log(`[Y-RANGE FILTER] Block ${block.globalBlockId} filtered out (Y=${blockY} within question text range ${questionTextYRange.minY}-${questionTextYRange.maxY})`);
-              if (isQ2Page) {
-                const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 60);
-                console.log(`[Y-RANGE FILTER] Block text: "${blockText}${blockText.length >= 60 ? '...' : ''}"`);
-              }
               return false; // Filter it out
-            } else {
-              if (isQ2Page) {
-                console.log(`[Y-RANGE FILTER] Block ${block.globalBlockId} NOT filtered (Y=${blockY} within range but matches classification student work)`);
-              }
             }
           }
         }
@@ -1006,45 +1062,62 @@ export function segmentOcrResultsByQuestion(
       return true; // Keep the block
     });
     
-    if (isQ2Page) {
-      const filteredCount = blocksOnPage.length - filteredBlocks.length;
-      console.log(`[Q2 DEBUG] Page ${pageIndex}: ${filteredBlocks.length} blocks passed filter (${filteredCount} filtered out)`);
-      if (filteredCount > 0) {
-        const filteredOutBlocks = blocksOnPage.filter(block => 
-          !filteredBlocks.some(fb => fb.globalBlockId === block.globalBlockId)
-        );
-        filteredOutBlocks.forEach((block, idx) => {
-          const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 60);
-          console.log(`[Q2 DEBUG] Filtered out block ${idx + 1}/${filteredCount} (${block.globalBlockId}): "${blockText}${blockText.length >= 60 ? '...' : ''}"`);
-        });
-      }
-      filteredBlocks.forEach((block, idx) => {
-        const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 80);
-        const yPos = block.coordinates?.y ?? -1;
-        console.log(`[Q2 DEBUG] Passed block ${idx + 1}/${filteredBlocks.length} (${block.globalBlockId}, Y=${yPos}): "${blockText}${blockText.length >= 80 ? '...' : ''}"`);
-      });
-    }
     
-    if (filteredBlocks.length > 0) {
+      if (filteredBlocks.length > 0) {
+        if (!blocksByQuestion.has(schemeKey)) {
+          blocksByQuestion.set(schemeKey, []);
+        }
+        blocksByQuestion.get(schemeKey)!.push(...filteredBlocks);
+      }
+    }
+  }
+  
+  // Fix: Assign blocks from pages where sub-questions are detected but main question wasn't
+  // This handles cases like Q3b on page 4 when Q3a is on page 3, and Q9 on page 9 when Q8 is also on page 9
+  const assignedBlockIds = new Set<string>(); // Track which blocks have been assigned
+  for (const [schemeKey, blocks] of blocksByQuestion.entries()) {
+    blocks.forEach(block => {
+      assignedBlockIds.add((block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`);
+    });
+  }
+  
+  for (const q of flattenedQuestions) {
+    const schemeKey = questionToSchemeMap.get(q.questionNumber);
+    if (!schemeKey) continue;
+    
+    // Check if this question's page has unassigned blocks
+    const pageBlocks = blocksByPage.get(q.sourceImageIndex) || [];
+    if (pageBlocks.length === 0) continue;
+    
+    // Check if blocks from this page are already assigned to this scheme
+    const existingBlocks = blocksByQuestion.get(schemeKey) || [];
+    const existingPages = new Set(existingBlocks.map(b => b.pageIndex));
+    if (existingPages.has(q.sourceImageIndex)) continue; // Already has blocks from this page
+    
+    // Filter out already-assigned blocks (to other schemes) and question text
+    const unassignedBlocks = pageBlocks.filter(block => {
+      const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+      if (assignedBlockIds.has(blockId)) return false; // Already assigned to another question
+      if (isQuestionTextBlock(block, originalQuestionsForFiltering)) return false;
+      return true;
+    });
+    
+    if (unassignedBlocks.length > 0) {
+      console.log(`[SEGMENTATION] Assigning ${unassignedBlocks.length} blocks from Page ${q.sourceImageIndex} to ${schemeKey} (Q${q.questionNumber}, missed during initial assignment)`);
       if (!blocksByQuestion.has(schemeKey)) {
         blocksByQuestion.set(schemeKey, []);
       }
-      blocksByQuestion.get(schemeKey)!.push(...filteredBlocks);
+      blocksByQuestion.get(schemeKey)!.push(...unassignedBlocks);
+      // Track these as assigned
+      unassignedBlocks.forEach(block => {
+        assignedBlockIds.add((block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`);
+      });
     }
   }
   
   // 8. Create marking tasks
   const tasks: MarkingTask[] = [];
   for (const [schemeKey, blocks] of blocksByQuestion.entries()) {
-    // Q2 debugging: Log what blocks are being passed to AI for Q2
-    if (schemeKey.includes('2_')) {
-      console.log(`[Q2 DEBUG] Creating marking task for ${schemeKey} with ${blocks.length} blocks`);
-      blocks.forEach((block, idx) => {
-        const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 80);
-        console.log(`[Q2 DEBUG] Task block ${idx + 1}/${blocks.length} (${block.globalBlockId}, page ${block.pageIndex}): "${blockText}${blockText.length >= 80 ? '...' : ''}"`);
-      });
-    }
-    
     if (blocks.length === 0) {
       console.warn(`[SEGMENTATION] No blocks assigned to ${schemeKey}, skipping`);
       continue;
@@ -1058,10 +1131,16 @@ export function segmentOcrResultsByQuestion(
     
     const sourcePages = [...new Set(blocks.map(b => b.pageIndex))].sort((a, b) => a - b);
     
+    // Attach marking scheme directly from detectedSchemesMap
+    const markingScheme = detectedSchemesMap.get(schemeKey);
+    if (!markingScheme) {
+      console.warn(`[SEGMENTATION] ⚠️ No marking scheme found for ${schemeKey}, task will be skipped later`);
+    }
+    
     tasks.push({
       questionNumber: schemeKey,
       mathBlocks: blocks,
-      markingScheme: null, // Will be set by router
+      markingScheme: markingScheme || null, // Attach scheme directly during segmentation
       sourcePages
     });
     

@@ -161,7 +161,92 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       
       return results;
     } catch (error) {
-      console.error(`❌ [CLASSIFICATION] Multi-image classification failed:`, error);
+      // Check if this is our validation error (fail fast)
+      if (error instanceof Error && error.message.includes('Unsupported model')) {
+        throw error;
+      }
+      
+      // Google API error handling (suppress detailed logs for known RECITATION case)
+      const errMsg = (error instanceof Error ? error.message : String(error));
+      const isRecitation = errMsg.toUpperCase().includes('RECITATION');
+      let actualModelName = 'unknown';
+      let apiVersion = 'v1';
+      
+      if (isRecitation) {
+        // Minimal logging for known issue
+        console.error('❌ [GOOGLE API ERROR] Gemini API error: RECITATION');
+      } else {
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        try {
+          const validatedModel = validateModel(model);
+          const modelConfig = getModelConfig(validatedModel);
+          actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || (model as string);
+          apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+          console.error(`❌ [GOOGLE API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+          console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        } catch {
+          // Ignore config errors during error handling
+        }
+        console.error(`❌ [GOOGLE ERROR] ${errMsg}`);
+      }
+      
+      // Use unified error handling
+      const { ErrorHandler } = await import('../../utils/errorHandler.js');
+      const errorInfo = ErrorHandler.analyzeError(error);
+      
+      // Fail fast on 429 errors with clear message
+      if (errorInfo.isRateLimit) {
+        console.error(`❌ [QUOTA EXCEEDED] ${actualModelName} (${apiVersion}) quota exceeded`);
+        throw new Error(`API quota exceeded for ${actualModelName} (${apiVersion}). Please check your Google Cloud Console for quota limits.`);
+      }
+      
+      // Fallback only for specific Gemini "RECITATION" style errors
+      // Reuse classifyImage for each image individually (which has its own fallback logic)
+      const message = errMsg.toLowerCase();
+      const shouldFallback = message.includes('recitation') || message.includes('promptfeedback') || message.includes('blockreason');
+      const { isOpenAIConfigured } = await import('../../config/aiModels.js');
+      
+      if (shouldFallback && isOpenAIConfigured()) {
+        try {
+          console.warn('⚠️ [CLASSIFICATION] Gemini RECITATION-style error detected in multi-image call. Falling back to individual image classification.');
+          
+          // Fallback: Classify each image individually using classifyImage (which has its own fallback)
+          const results: Array<{ pageIndex: number; result: ClassificationResult }> = [];
+          
+          for (let i = 0; i < images.length; i++) {
+            const img = images[i];
+            try {
+              // Reuse classifyImage which already has hardcoded bypass and OpenAI fallback
+              const result = await this.classifyImage(img.imageData, model, debug, img.fileName);
+              results.push({
+                pageIndex: img.pageIndex ?? i,
+                result
+              });
+            } catch (individualError) {
+              // If individual classification also fails, log and continue with next image
+              console.error(`❌ [CLASSIFICATION] Failed to classify image ${i + 1} (${img.fileName || 'unknown'}):`, individualError);
+              // Add a fallback result to maintain page count
+              results.push({
+                pageIndex: img.pageIndex ?? i,
+                result: {
+                  category: 'questionAnswer',
+                  reasoning: 'Classification failed for this image',
+                  questions: [],
+                  apiUsed: 'Failed',
+                  usageTokens: 0
+                }
+              });
+            }
+          }
+          
+          return results;
+        } catch (fallbackError) {
+          console.error('❌ [CLASSIFICATION] Individual image fallback also failed:', fallbackError);
+          throw error; // Re-throw original error
+        }
+      }
+      
+      // If not a RECITATION error or OpenAI not configured, re-throw original error
       throw error;
     }
   }

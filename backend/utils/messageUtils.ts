@@ -220,17 +220,6 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     pdfContexts
   } = options;
 
-  console.log('🔍 [CREATE USER MESSAGE DEBUG] Options:', {
-    content: content?.substring(0, 50) + '...',
-    originalFileType,
-    hasPdfContexts: !!pdfContexts,
-    pdfContextsLength: pdfContexts?.length,
-    pdfContexts: pdfContexts?.map(ctx => ({
-      fileName: ctx.originalFileName,
-      fileSize: ctx.fileSize,
-      hasUrl: !!ctx.url
-    }))
-  });
 
   // Create default objects
   const defaultProcessingStats = {
@@ -278,18 +267,6 @@ export function createUserMessage(options: UserMessageOptions): UnifiedMessage {
     message.detectedQuestion = options.detectedQuestion;
   }
 
-  console.log('🔍 [CREATE USER MESSAGE DEBUG] Final message:', {
-    id: message.id,
-    role: message.role,
-    originalFileType: (message as any).originalFileType,
-    hasPdfContexts: !!(message as any).pdfContexts,
-    pdfContextsLength: (message as any).pdfContexts?.length,
-    pdfContexts: (message as any).pdfContexts?.map((ctx: any) => ({
-      fileName: ctx.originalFileName,
-      fileSize: ctx.fileSize,
-      hasUrl: !!ctx.url
-    }))
-  });
 
   return message;
 }

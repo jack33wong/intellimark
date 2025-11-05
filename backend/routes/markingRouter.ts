@@ -654,8 +654,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const originalFileName = files[0].originalname || 'document.pdf';
         stepTimings['pdf_conversion'] = { start: Date.now() };
         standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
-        // TEMP: Limit to first 5 pages to stabilize processing
-        const MAX_PAGES_LIMIT = 5;
+        // TEMP: Limit to first 10 pages to stabilize processing
+        const MAX_PAGES_LIMIT = 10;
         if (standardizedPages.length > MAX_PAGES_LIMIT) {
           standardizedPages = standardizedPages.slice(0, MAX_PAGES_LIMIT);
         }
@@ -682,8 +682,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             return { index, pdfPages: [] };
           }
             
-            // TEMP: Limit to first 5 pages per PDF
-            const MAX_PAGES_LIMIT = 5;
+            // TEMP: Limit to first 10 pages per PDF
+            const MAX_PAGES_LIMIT = 10;
             const limitedPages = pdfPages.slice(0, MAX_PAGES_LIMIT);
             
             // Store original index for sequential page numbering
@@ -991,7 +991,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const questionInfo: any = {
           questionNumber: mainQuestionNumber,
           text: q.text !== undefined ? (q.text ? q.text.substring(0, 50) + '...' : 'null') : 'undefined',
-          studentWork: q.studentWork !== undefined ? (q.studentWork ? q.studentWork.substring(0, 50) + '...' : 'null') : 'undefined',
+          studentWork: q.studentWork !== undefined ? (q.studentWork || 'null') : 'undefined', // Full text, no truncation
           confidence: q.confidence
         };
         
@@ -1000,7 +1000,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           questionInfo.subQuestions = q.subQuestions.map((sq: any) => ({
             part: sq.part,
             text: sq.text ? sq.text.substring(0, 50) + '...' : 'null',
-            studentWork: sq.studentWork !== undefined ? (sq.studentWork ? sq.studentWork.substring(0, 50) + '...' : 'null') : 'undefined',
+            studentWork: sq.studentWork !== undefined ? (sq.studentWork || 'null') : 'undefined', // Full text, no truncation
             confidence: sq.confidence
           }));
         } else {
@@ -1480,9 +1480,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         
         if (detectionResult.found && detectionResult.match?.markingScheme) {
             detectionResults.push({ question, detectionResult });
-            console.log(`[QUESTION DETECTION] Added to results: Q${question.questionNumber || '?'} → Q${detectionResult.match.questionNumber} (${detectionResult.match.board || 'Unknown'}_${detectionResult.match.paperCode || 'Unknown'})`);
-        } else {
-            console.log(`[QUESTION DETECTION] Not found: Q${question.questionNumber || '?'} (hint: "${question.questionNumber || 'none'}")`);
         }
     }
     
@@ -1526,23 +1523,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     
     // Third pass: Merge grouped sub-questions or store single questions
-    console.log(`[QUESTION DETECTION] Processing ${groupedResults.size} group(s) for merging`);
     for (const [groupKey, group] of groupedResults.entries()) {
         const baseQuestionNumber = groupKey.split('_')[0];
         const examBoard = group[0].examBoard;
         const paperCode = group[0].paperCode;
         
-        console.log(`[QUESTION DETECTION] Group ${groupKey}: ${group.length} item(s), actualQNums: ${group.map(g => g.actualQuestionNumber).join(', ')}, originalQNums: ${group.map(g => g.originalQuestionNumber || 'none').join(', ')}`);
-        
         // Check if this group contains sub-questions
         // Use originalQuestionNumber (from classification) to detect sub-questions, not actualQuestionNumber (from database)
         const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
-        console.log(`[QUESTION DETECTION] Group ${groupKey}: hasSubQuestions=${hasSubQuestions}, group.length=${group.length}`);
         
         if (hasSubQuestions && group.length > 1) {
             // Group sub-questions: merge marking schemes, combine texts, use parent question marks
-            console.log(`[QUESTION DETECTION] Grouping ${group.length} sub-question(s) for Q${baseQuestionNumber} (${examBoard}_${paperCode})`);
-            
             // Get parent question marks from the first item (all items have same parent question)
             // The parent question marks is stored in parentQuestionMarks field (added to detection result)
             const firstItem = group[0];
@@ -1551,8 +1542,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             if (!parentQuestionMarks) {
                 throw new Error(`Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Expected structure: match.parentQuestionMarks`);
             }
-            
-            console.log(`  [MERGE DEBUG] Using parent question marks: ${parentQuestionMarks} (from fullExamPapers.questions[${baseQuestionNumber}].marks)`);
             
             // Merge marking schemes
             const mergedMarks: any[] = [];
@@ -1574,7 +1563,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 }
                 
                 const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
-                console.log(`  [MERGE DEBUG] Q${displayQNum}: questionSpecificMarks type=${typeof questionSpecificMarks}, hasMarks=${!!questionSpecificMarks?.marks}, isArray=${Array.isArray(questionSpecificMarks)}, marksArray.length=${marksArray.length}`);
                 
                 mergedMarks.push(...marksArray);
                 combinedQuestionTexts.push(item.question.text); // Classification text (for backward compatibility)
@@ -1584,23 +1572,23 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                     combinedDatabaseQuestionTexts.push(dbQuestionText);
                 }
                 questionNumbers.push(displayQNum); // Use original question number for display
-                
-                console.log(`  - Q${displayQNum}: ${marksArray.length} mark(s), individual marks: ${item.detectionResult.match.marks || 0}`);
             }
-            
-            console.log(`  [MERGE DEBUG] After merging: ${mergedMarks.length} total marks, parent question marks: ${parentQuestionMarks}`);
             
             // Create merged marking scheme
             const mergedQuestionMarks = {
                 marks: mergedMarks
             };
             
+            // Store questionDetection from first item for exam paper info (board, code, year, tier)
+            // This is needed for exam tab display in the frontend
+            // Note: We use the first item's detection result which has the correct exam paper match info
+            const questionDetection = firstItem.detectionResult;
+            
             const schemeWithTotalMarks = {
                 questionMarks: mergedQuestionMarks,
                 totalMarks: parentQuestionMarks, // Use parent question marks from database, not sum of sub-question marks
                 questionNumber: baseQuestionNumber, // Use base question number for grouped sub-questions
-                // Don't include questionDetection - it causes normalization to use wrong source
-                // questionDetection: group[0].detectionResult, // REMOVED: causes normalization to use Q2a's detection instead of merged scheme
+                questionDetection: questionDetection, // Store detection result for exam paper info (needed for exam tab storage)
                 questionText: combinedQuestionTexts.join('\n\n'), // Classification text (for backward compatibility)
                 databaseQuestionText: combinedDatabaseQuestionTexts.join('\n\n'), // Database question text for filtering
                 subQuestionNumbers: questionNumbers // Store sub-question numbers for reference
@@ -1610,14 +1598,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
             markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
             
-            console.log(`[QUESTION DETECTION] ✅ Grouped Q${questionNumbers.join(', ')} → Q${baseQuestionNumber} (${examBoard}_${paperCode}) [${mergedMarks.length} marks, ${parentQuestionMarks} total from parent question]`);
         } else {
             // Single question (not grouped): store as-is
             const item = group[0];
             const actualQuestionNumber = item.actualQuestionNumber;
             const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
             
-            console.log(`[QUESTION DETECTION] Found: Q${item.question.questionNumber || '?'} → Q${actualQuestionNumber} (${examBoard}_${paperCode})`);
             
             // Extract the specific question's marks from the marking scheme
             let questionSpecificMarks = null;
@@ -1702,41 +1688,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     logSegmentationComplete();
     // ========================== END: IMPLEMENT STAGE 3 ==========================
 
-    // ========================= START: ADD SCHEME TO TASKS =========================
-    // --- Stage 3.5: Add Correct Scheme to Each Task ---
-    const tasksWithSchemes: MarkingTask[] = markingTasks.map(task => {
-        console.log(`🔍 [SCHEME LOOKUP] Looking for scheme for task: Q${task.questionNumber}`);
-        console.log(`🔍 [SCHEME LOOKUP] Available schemes in map:`, Array.from(markingSchemesMap.keys()));
-        
-        // Try to find scheme by exact question number first (for backward compatibility)
-        let scheme = markingSchemesMap.get(String(task.questionNumber));
-        console.log(`🔍 [SCHEME LOOKUP] Direct lookup result:`, scheme ? 'Found' : 'Not found');
-        
-        // If not found, try to find by matching question number in unique keys
-        if (!scheme) {
-            for (const [key, value] of markingSchemesMap.entries()) {
-                if (key.startsWith(`${task.questionNumber}_`)) {
-                    scheme = value;
-                    console.log(`🔍 [SCHEME LOOKUP] Found scheme for Q${task.questionNumber} using key: ${key}`);
-                    break;
-                }
-            }
+    // ========================= START: VALIDATE SCHEMES =========================
+    // --- Stage 3.5: Validate that schemes were attached during segmentation ---
+    // Schemes are now attached during segmentation, so we just need to validate and filter
+    const tasksWithSchemes: MarkingTask[] = markingTasks.filter(task => {
+        if (!task.markingScheme) {
+            console.warn(`[SEGMENTATION] ⚠️ Task for Q${task.questionNumber} has no marking scheme, skipping`);
+            return false;
         }
-        
-        if (!scheme) {
-             // Decide how to handle missing scheme: skip task, use default, throw error?
-             // For now, let's add a placeholder to avoid crashing executeMarkingForQuestion
-             console.log(`❌ [SCHEME LOOKUP] No scheme found for Q${task.questionNumber}`);
-             return { ...task, markingScheme: { error: `Scheme not found for Q${task.questionNumber}` } };
-        }
-        console.log(`✅ [SCHEME LOOKUP] Successfully found scheme for Q${task.questionNumber}`);
-        return { ...task, markingScheme: scheme }; // Add the found scheme
-    }).filter(task => task.markingScheme && !task.markingScheme.error); // Filter out tasks without valid schemes
+        return true;
+    });
 
     if (tasksWithSchemes.length === 0 && markingTasks.length > 0) {
          throw new Error("Failed to assign marking schemes to any detected question work.");
     }
-    // ========================== END: ADD SCHEME TO TASKS ==========================
+    // ========================== END: VALIDATE SCHEMES ==========================
 
     // ========================= START: IMPLEMENT STAGE 4 =========================
     // --- Stage 4: Marking (Single or Parallel) ---

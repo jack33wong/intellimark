@@ -420,8 +420,9 @@ export class OCRService {
 
     } else {
         // PRIMARY PATH: Mathpix succeeded, now process the result.
-        // NOTE: Process ALL OCR lines - question text filtering happens in segmentation stage
-        // This prevents discarding valid student work (like Q2a) due to incorrect boundary detection
+        // NOTE: Minimal metadata filtering only - all heuristic filtering removed
+        // Question text filtering and accurate filtering happen in segmentation stage where we have question context
+        // This prevents discarding valid student work (like Q2a, Q4a comma-separated numbers) due to incorrect heuristic rules
 
         // UNGROUP ARRAYS
         // IMPORTANT: Don't discard lines without coordinates here - we'll handle coordinate estimation later
@@ -430,24 +431,7 @@ export class OCRService {
         rawLineData.forEach((line, idx) => {
              const text = line.latex_styled || line.text || '';
              
-             // Q2a/Q2b diagnostic: Check BEFORE any processing
-             const isQ2aBefore = text.includes('32/19') || text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}');
-             const isQ2bBefore = text.includes('35 / 24') || text.includes('35/24') || (text.includes('24') && text.includes('bot'));
-             
-             if (isQ2aBefore) {
-                 console.log(`[Q2a DIAGNOSTIC] Found Q2a BEFORE ungrouping (line ${idx + 1}):`);
-                 console.log(`[Q2a DIAGNOSTIC]   Text length: ${text.length}, has text: ${!!text}`);
-                 console.log(`[Q2a DIAGNOSTIC]   Raw text: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
-             }
-             if (isQ2bBefore) {
-                 console.log(`[Q2b DIAGNOSTIC] Found Q2b BEFORE ungrouping (line ${idx + 1}):`);
-                 console.log(`[Q2b DIAGNOSTIC]   Text length: ${text.length}, has text: ${!!text}`);
-                 console.log(`[Q2b DIAGNOSTIC]   Raw text: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
-             }
-             
              if (!text) {
-                 if (isQ2aBefore) console.log(`[Q2a DIAGNOSTIC] ❌ Q2a line discarded: empty text`);
-                 if (isQ2bBefore) console.log(`[Q2b DIAGNOSTIC] ❌ Q2b line discarded: empty text`);
                  return; // Only discard if text is missing, not if coords are missing
              }
              
@@ -457,9 +441,6 @@ export class OCRService {
                  let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
                  const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
                  
-                 if (isQ2aBefore) console.log(`[Q2a DIAGNOSTIC] Line contains \\\\, splitting into ${splitLines.length} lines`);
-                 if (isQ2bBefore) console.log(`[Q2b DIAGNOSTIC] Line contains \\\\, splitting into ${splitLines.length} lines`);
-                 
                  // If we have coords, split them; otherwise estimate for each split line
                  if (coords) {
                  const avgHeight = coords.height / (splitLines.length || 1);
@@ -468,49 +449,24 @@ export class OCRService {
                      const newCoords = { ...coords, y: coords.y + (index * avgHeight), height: avgHeight };
                      newLine.region = newCoords; // Store coords for extraction
                      ungroupedLines.push(newLine);
-                         if (isQ2aBefore && splitText.includes('32/19')) {
-                             console.log(`[Q2a DIAGNOSTIC] ✅ Q2a split line ${index + 1} added to ungroupedLines`);
-                         }
-                         if (isQ2bBefore && splitText.includes('35/24')) {
-                             console.log(`[Q2b DIAGNOSTIC] ✅ Q2b split line ${index + 1} added to ungroupedLines`);
-                         }
                      });
                  } else {
                      // No coords - just push split lines as-is (coords will be estimated later)
                      splitLines.forEach((splitText) => {
                          const newLine = { ...line, latex_styled: splitText, text: splitText };
                          ungroupedLines.push(newLine);
-                         if (isQ2aBefore && splitText.includes('32/19')) {
-                             console.log(`[Q2a DIAGNOSTIC] ✅ Q2a split line (no coords) added to ungroupedLines`);
-                         }
-                         if (isQ2bBefore && splitText.includes('35/24')) {
-                             console.log(`[Q2b DIAGNOSTIC] ✅ Q2b split line (no coords) added to ungroupedLines`);
-                         }
                      });
                  }
              } else {
                  ungroupedLines.push(line); // Keep line even if no coords - will estimate later
-                 if (isQ2aBefore) console.log(`[Q2a DIAGNOSTIC] ✅ Q2a line added to ungroupedLines (no splitting)`);
-                 if (isQ2bBefore) console.log(`[Q2b DIAGNOSTIC] ✅ Q2b line added to ungroupedLines (no splitting)`);
              }
         });
 
-        // APPLY FILTER WITH CORRECT ORDER
+        // MINIMAL METADATA FILTERING ONLY
+        // All heuristic filtering (margin, ambiguous prose, math expression checks) is removed
+        // Accurate filtering happens in segmentation stage where we have question context
         const studentWorkLines = ungroupedLines.filter((line, idx) => {
             const text = line.latex_styled || line.text || '';
-            
-            // Q2a/Q2b diagnostic: Check BEFORE cleaning
-            const isQ2aBeforeFilter = text.includes('32/19') || text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}');
-            const isQ2bBeforeFilter = text.includes('35/24') || text.includes('35 / 24') || (text.includes('24') && text.includes('bot'));
-            
-            if (isQ2aBeforeFilter) {
-                console.log(`[Q2a DIAGNOSTIC] Q2a line ${idx + 1} entering FILTER stage:`);
-                console.log(`[Q2a DIAGNOSTIC]   Original text: "${text}"`);
-            }
-            if (isQ2bBeforeFilter) {
-                console.log(`[Q2b DIAGNOSTIC] Q2b line ${idx + 1} entering FILTER stage:`);
-                console.log(`[Q2b DIAGNOSTIC]   Original text: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
-            }
             
             // Remove LaTeX delimiters \[ \] and also standalone brackets [ ] that come with newlines
             // Format can be: \[...\] or [\n...\n\] or [...]
@@ -518,115 +474,26 @@ export class OCRService {
             cleanedText = cleanedText.replace(/^\s*\[\s*|\s*\]\s*$/g, ''); // Remove leading [ and trailing ] with whitespace
             cleanedText = cleanedText.trim();
             
-            if (isQ2aBeforeFilter) {
-                console.log(`[Q2a DIAGNOSTIC]   After cleaning: "${cleanedText}"`);
-            }
-            if (isQ2bBeforeFilter) {
-                console.log(`[Q2b DIAGNOSTIC]   After cleaning: "${cleanedText.substring(0, 100)}${cleanedText.length > 100 ? '...' : ''}"`);
-            }
-            
-            // Q2a specific debugging: Check for "32/19" or "frac{32}{19}" pattern (more flexible)
-            // Check both original and cleaned text to catch any format, accounting for escaped backslashes
-            // Patterns: "32/19", "frac{32}{19}", "\\frac{32}{19}", etc.
-            const has32over19 = text.includes('32/19') || 
-                               text.includes('frac{32}{19}') || 
-                               text.includes('\\frac{32}{19}') ||
-                               cleanedText.includes('32/19') || 
-                               cleanedText.includes('frac{32}{19}') ||
-                               cleanedText.includes('\\frac{32}{19}');
-            const hasEqualsAndFraction = (text.includes('=') && (text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}') || text.includes('32/19'))) ||
-                                       (cleanedText.includes('=') && (cleanedText.includes('frac{32}{19}') || cleanedText.includes('\\frac{32}{19}') || cleanedText.includes('32/19')));
-            const isQ2aPattern = has32over19 || hasEqualsAndFraction;
-            
-            if (isQ2aPattern) {
-                console.log(`[Q2a DEBUG OCR] ✅ MATCH: Found Q2a pattern in line ${idx + 1}:`);
-                console.log(`[Q2a DEBUG OCR]   Original text: "${text}"`);
-                console.log(`[Q2a DEBUG OCR]   Cleaned text: "${cleanedText}"`);
-                console.log(`[Q2a DEBUG OCR]   Has coords: ${!!this.extractBoundingBox(line)}`);
-            } else if (isQ2aBeforeFilter) {
-                console.log(`[Q2a DIAGNOSTIC] ❌ NO MATCH: Pattern detection failed for Q2a line ${idx + 1}`);
-                console.log(`[Q2a DIAGNOSTIC]   has32over19: ${has32over19}`);
-                console.log(`[Q2a DIAGNOSTIC]   hasEqualsAndFraction: ${hasEqualsAndFraction}`);
-            }
-            
+            // 1. Discard empty lines (after cleaning)
             if (!cleanedText) {
-                if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ❌ FILTERED: Q2a line discarded: empty after cleaning`);
-                if (isQ2aBeforeFilter) console.log(`[Q2a DIAGNOSTIC] ❌ FILTERED: Line ${idx + 1} discarded: empty after cleaning`);
-                return false; // Discard empty lines
+                return false;
             }
 
-            // --- 1. Explicit Discard Rules ---
+            // 2. Discard metadata: "Total for question" lines
             const lowerCaseText = cleanedText.toLowerCase();
             if (lowerCaseText.includes("total for question")) {
-                 if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ❌ FILTERED: Q2a line discarded: contains "total for question"`);
-                 if (isQ2aBeforeFilter) console.log(`[Q2a DIAGNOSTIC] ❌ FILTERED: Line ${idx + 1} discarded: contains "total for question"`);
-                 return false;
+                return false;
             }
-            // Stricter check for standalone numbers (likely page numbers/metadata)
-            if (/^\s*\d+\s*$/.test(cleanedText) && cleanedText.length <= 3) { // Allow longer numbers
-                 if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ❌ FILTERED: Q2a line discarded: standalone number`);
-                 if (isQ2aBeforeFilter) console.log(`[Q2a DIAGNOSTIC] ❌ FILTERED: Line ${idx + 1} discarded: standalone number`);
-                 return false;
+            
+            // 3. Discard standalone page numbers (≤3 digits) - likely metadata
+            if (/^\s*\d+\s*$/.test(cleanedText) && cleanedText.length <= 3) {
+                return false;
             }
 
-            // --- 2. Inclusionary Rules ---
-            // Rule 2a: Keep if it contains an equals sign.
-            if (cleanedText.includes('=')) {
-                if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ✅ KEPT: Q2a line KEPT: contains equals sign`);
-                if (isQ2aBeforeFilter) console.log(`[Q2a DIAGNOSTIC] ✅ KEPT: Line ${idx + 1} KEPT: contains equals sign`);
-                return true; // Definitely student work
-            }
-            // Rule 2b: Keep if it's a math expression (number + operator/variable).
-            const hasNumber = /\d/.test(cleanedText);
-            const hasOperatorOrVariable = /[+\-^*/÷×nxyz£$€]/.test(cleanedText);
-            if (hasNumber && hasOperatorOrVariable) {
-                 // Additional check: Ensure it doesn't look like long prose accidentally matching
-                 const wordCount = cleanedText.split(/\s+/).length;
-                 if (wordCount < 7) { // Heuristic: Keep shorter math expressions
-                     return true; // Likely student work (final answer etc.)
-                 }
-            }
-            // Rule 2c: Keep if it's just a standalone number or currency amount.
-            const isSingleNumOrCurrency = /^\s*[£$€]?[\d.,]+\s*$/.test(cleanedText.replace(/\\text\{.*?\}/g, ''));
-            if (isSingleNumOrCurrency) {
-                // Heuristic: Avoid keeping very large numbers that might be noise/IDs unless they follow an equals
-                 if (cleanedText.length < 10) { // Avoid overly long standalone numbers
-                     return true; // Likely student work (intermediate/final answer)
-                 }
-            }
-
-            // --- If it hasn't been KEPT yet, proceed to checks for DISCARDING ambiguous lines ---
-
-            // --- 3. Margin Filtering (Only for lines not kept above) ---
-            const coords = this.extractBoundingBox(line);
-             if (coords) {
-                const marginThresholdVertical = 0.05;
-                const marginThresholdHorizontal = 0.10;
-                if (coords.y < dimensions.height * marginThresholdVertical ||
-                    coords.y + coords.height > dimensions.height * (1 - marginThresholdVertical) ||
-                    coords.x + coords.width > dimensions.width * (1 - marginThresholdHorizontal)
-                ) {
-                    if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ❌ Q2a line discarded: near margin`);
-                    return false; // Discard ambiguous lines near margin
-                }
-            }
-
-            // --- 4. Discard Remaining Ambiguous Prose ---
-            if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ❌ FILTERED: Q2a line discarded: ambiguous prose`);
-            if (isQ2aBeforeFilter) console.log(`[Q2a DIAGNOSTIC] ❌ FILTERED: Line ${idx + 1} discarded: ambiguous prose (no inclusion rules matched)`);
-            if (isQ2bBeforeFilter) console.log(`[Q2b DIAGNOSTIC] ❌ FILTERED: Line ${idx + 1} discarded: ambiguous prose (no inclusion rules matched)`);
-            return false; // Discard anything else that didn't pass inclusion
+            // Keep everything else - let segmentation filter based on question context
+            return true;
         });
         
-        // Q2a/Q2b diagnostic: Check if lines made it through filter
-        const q2aInFiltered = studentWorkLines.some((line, idx) => {
-            const text = line.latex_styled || line.text || '';
-            return text.includes('32/19') || text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}');
-        });
-        const q2bInFiltered = studentWorkLines.some((line, idx) => {
-            const text = line.latex_styled || line.text || '';
-            return text.includes('35/24') || text.includes('35 / 24') || (text.includes('24') && text.includes('bot'));
-        });
 
         // PREPARE FINAL MATHBLOCKS
         const processedLines: any[] = [];
@@ -635,22 +502,7 @@ export class OCRService {
              const line = studentWorkLines[i];
              const text = line.latex_styled || line.text || '';
              
-             // Q2a/Q2b diagnostic: Check BEFORE processing
-             const isQ2aInProcessing = text.includes('32/19') || text.includes('frac{32}{19}') || text.includes('\\frac{32}{19}');
-             const isQ2bInProcessing = text.includes('35/24') || text.includes('35 / 24') || (text.includes('24') && text.includes('bot'));
-             
-             if (isQ2aInProcessing) {
-                 console.log(`[Q2a DIAGNOSTIC] Q2a line ${i + 1} entering COORDINATE ESTIMATION stage:`);
-                 console.log(`[Q2a DIAGNOSTIC]   Text: "${text.substring(0, 80)}${text.length > 80 ? '...' : ''}"`);
-             }
-             if (isQ2bInProcessing) {
-                 console.log(`[Q2b DIAGNOSTIC] Q2b line ${i + 1} entering COORDINATE ESTIMATION stage:`);
-                 console.log(`[Q2b DIAGNOSTIC]   Text: "${text.substring(0, 80)}${text.length > 80 ? '...' : ''}"`);
-             }
-             
              if (!text) {
-                 if (isQ2aInProcessing) console.log(`[Q2a DIAGNOSTIC] ❌ Line ${i + 1} discarded: empty text`);
-                 if (isQ2bInProcessing) console.log(`[Q2b DIAGNOSTIC] ❌ Line ${i + 1} discarded: empty text`);
                  continue;
              }
              
@@ -659,8 +511,6 @@ export class OCRService {
              cleanedText = cleanedText.replace(/^\s*\[\s*|\s*\]\s*$/g, ''); // Remove leading [ and trailing ] with whitespace
              cleanedText = cleanedText.trim();
              if (!cleanedText) {
-                 if (isQ2aInProcessing) console.log(`[Q2a DIAGNOSTIC] ❌ Line ${i + 1} discarded: empty after cleaning`);
-                 if (isQ2bInProcessing) console.log(`[Q2b DIAGNOSTIC] ❌ Line ${i + 1} discarded: empty after cleaning`);
                  continue;
              }
              
@@ -668,32 +518,17 @@ export class OCRService {
              
              // If coordinates are missing, detect if it's student work and estimate coordinates
              if (!coords) {
-                 // Q2a specific debugging: Check both before and after cleaning patterns
-                 const isQ2aPattern = cleanedText.includes('=\\frac{32}{19}') || cleanedText === '=\\frac{32}{19}' || cleanedText.includes('=32/19') || cleanedText.includes('frac{32}{19}');
-                 if (isQ2aPattern) {
-                     console.log(`[Q2a DEBUG OCR] Line ${i + 1} has no coords, checking if it's student work...`);
-                 }
-                 if (isQ2aInProcessing) {
-                     console.log(`[Q2a DIAGNOSTIC] Line ${i + 1} has no coords, will check student work detection`);
-                 }
-                 if (isQ2bInProcessing) {
-                     console.log(`[Q2b DIAGNOSTIC] Line ${i + 1} has no coords, will check student work detection`);
-                 }
-                 
-                 // Enhanced student work detection: check for common student work patterns
-                 // This should catch cases like "=\frac{32}{19}", "= 5", "x + 3", etc.
-                 const hasEquals = cleanedText.includes('=');
-                 const hasOperator = /[+\-×÷*/]/.test(cleanedText);
-                 const hasNumber = /\d/.test(cleanedText);
-                 const hasFraction = /\\frac\{/.test(cleanedText);
-                 const hasAligned = /\\begin\{aligned\}/.test(text) || /\\end\{aligned\}/.test(text);
-                 
-                 const isStudentWork = hasEquals || hasOperator || hasNumber || hasFraction || hasAligned;
-                 
-                 if (isQ2aPattern) {
-                     console.log(`[Q2a DEBUG OCR] Student work detection: hasEquals=${hasEquals}, hasOperator=${hasOperator}, hasNumber=${hasNumber}, hasFraction=${hasFraction}, hasAligned=${hasAligned}`);
-                     console.log(`[Q2a DEBUG OCR] isStudentWork=${isStudentWork}`);
-                 }
+                // Enhanced student work detection: check for common student work patterns
+                // This should catch cases like "=\frac{32}{19}", "= 5", "x + 3", comma-separated numbers, etc.
+                const hasEquals = cleanedText.includes('=');
+                const hasOperator = /[+\-×÷*/]/.test(cleanedText);
+                const hasNumber = /\d/.test(cleanedText);
+                const hasFraction = /\\frac\{/.test(cleanedText);
+                const hasAligned = /\\begin\{aligned\}/.test(text) || /\\end\{aligned\}/.test(text);
+                // Pattern for comma-separated numbers (e.g., "10, 13, 11, 14, 16, 17" for Q4a)
+                const hasCommaSeparatedNumbers = /\d+,\s*\d+/.test(cleanedText);
+                
+                const isStudentWork = hasEquals || hasOperator || hasNumber || hasFraction || hasAligned || hasCommaSeparatedNumbers;
                  
                  if (isStudentWork) {
                      // Try to estimate from previous/next lines with coordinates
@@ -718,7 +553,6 @@ export class OCRService {
                              estimatedY += nearbyCoords.height + 10;
                              estimationMethod = `below line ${j + 1} (Y=${nearbyCoords.y.toFixed(0)})`;
                              foundNearbyCoords = true;
-                             if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] Found previous line ${j + 1} with coords at Y=${nearbyCoords.y.toFixed(0)}, estimating below`);
                              break;
                          }
                      }
@@ -736,7 +570,6 @@ export class OCRService {
                                  estimatedY -= nearbyCoords.height + 10;
                                  estimationMethod = `above line ${j + 1} (Y=${nearbyCoords.y.toFixed(0)})`;
                                  foundNearbyCoords = true;
-                                 if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] Found next line ${j + 1} with coords at Y=${nearbyCoords.y.toFixed(0)}, estimating above`);
                                  break;
                              }
                          }
@@ -750,9 +583,6 @@ export class OCRService {
                          estimatedY = estimatedLineIndex * avgLineHeight + 100; // Start from top with margin
                          estimatedHeight = avgLineHeight;
                          estimationMethod = `index-based (line ${i + 1}, Y=${estimatedY.toFixed(0)})`;
-                         if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] No nearby coords found, using index-based estimate: Y=${estimatedY.toFixed(0)}`);
-                     } else {
-                         if (isQ2aPattern) console.log(`[Q2a DEBUG OCR] ✅ Found nearby coords from line ${nearbyLineIndex + 1}, using: ${estimationMethod}`);
                      }
                      
                      // Estimate width based on text length (rough heuristic)
@@ -765,36 +595,9 @@ export class OCRService {
                          width: estimatedWidth,
                          height: estimatedHeight
                      };
-                     
-                     if (isQ2aPattern) {
-                         console.log(`[Q2a DEBUG OCR] ✅ Estimated coordinates for student work (${estimationMethod}): Y=${estimatedY.toFixed(0)}, text="${cleanedText.substring(0, 40)}..."`);
-                     }
-                     if (isQ2aInProcessing) {
-                         console.log(`[Q2a DIAGNOSTIC] ✅ Line ${i + 1} coordinates estimated, will be added to processedLines`);
-                     }
-                     if (isQ2bInProcessing) {
-                         console.log(`[Q2b DIAGNOSTIC] ✅ Line ${i + 1} coordinates estimated, will be added to processedLines`);
-                     }
                  } else {
                      // Not clearly student work, skip it
-                     if (isQ2aPattern) {
-                         console.log(`[Q2a DEBUG OCR] ❌ Skipping line without coords (not student work): "${cleanedText.substring(0, 50)}..."`);
-                         console.log(`[Q2a DEBUG OCR]   Reason: None of the student work patterns matched`);
-                     }
-                     if (isQ2aInProcessing) {
-                         console.log(`[Q2a DIAGNOSTIC] ❌ Line ${i + 1} SKIPPED: not detected as student work (no coords, no student work indicators)`);
-                     }
-                     if (isQ2bInProcessing) {
-                         console.log(`[Q2b DIAGNOSTIC] ❌ Line ${i + 1} SKIPPED: not detected as student work (no coords, no student work indicators)`);
-                     }
                      continue;
-                 }
-             } else {
-                 if (isQ2aInProcessing) {
-                     console.log(`[Q2a DIAGNOSTIC] ✅ Line ${i + 1} has coords, will be added to processedLines`);
-                 }
-                 if (isQ2bInProcessing) {
-                     console.log(`[Q2b DIAGNOSTIC] ✅ Line ${i + 1} has coords, will be added to processedLines`);
                  }
              }
              
