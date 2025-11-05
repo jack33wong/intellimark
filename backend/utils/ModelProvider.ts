@@ -166,6 +166,50 @@ export class ModelProvider {
     return { content, usageTokens, modelName: model };
   }
 
+  static async callOpenAIChatWithMultipleImages(
+    systemPrompt: string, 
+    userContent: Array<{ type: string; text?: string; image_url?: { url: string } }>
+  ): Promise<{ content: string; usageTokens: number; modelName: string }> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    const { getOpenAIEndpoint, getOpenAIModelName } = await import('../config/aiModels.js');
+    const endpoint = getOpenAIEndpoint();
+    const model = getOpenAIModelName();
+
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userContent }
+    ];
+
+    const body = {
+      model,
+      messages,
+      temperature: 0,
+      response_format: { type: 'json_object' }
+    } as any;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
+    }
+
+    const json = await response.json() as any;
+    const content = json.choices?.[0]?.message?.content || '';
+    const usageTokens = json.usage?.total_tokens || 0;
+    return { content, usageTokens, modelName: model };
+  }
+
 }
 
 

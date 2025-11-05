@@ -65,8 +65,6 @@ export class PdfProcessingService {
       const { width: pdfPtW, height: pdfPtH } = firstPage.getSize();
       targetWidth = Math.round((pdfPtW / 72) * TARGET_DENSITY);
       targetHeight = Math.round((pdfPtH / 72) * TARGET_DENSITY);
-      console.log(`  -> PDF Page 0 Dimensions: ${pdfPtW.toFixed(2)}pt x ${pdfPtH.toFixed(2)}pt`);
-      console.log(`  -> Calculated Target Image Dimensions at ${TARGET_DENSITY} DPI: ${targetWidth}x${targetHeight}`);
     } catch (pdfErr) {
       console.error('❌ [PDF Processing] Failed to read PDF dimensions with pdf-lib:', pdfErr);
     }
@@ -94,7 +92,6 @@ export class PdfProcessingService {
         throw new Error('PDF conversion returned an invalid result or no pages.');
       }
 
-      console.log(`  -> Conversion successful. Reading ${conversionResults.length} generated image files (Target: ${targetWidth}x${targetHeight} @ ${TARGET_DENSITY} DPI).`);
 
       // Ensure ordered by page number
       conversionResults.sort((a, b) => (a.page || 0) - (b.page || 0));
@@ -119,7 +116,6 @@ export class PdfProcessingService {
             console.warn(`⚠️ [PDF Processing] Sharp failed to get valid dimensions for page ${i + 1}. Skipping page.`);
             continue;
           }
-          console.log(`  -> Page ${i} ACTUAL processed dimensions: ${width}x${height}`);
           const base64Image = imageFileBuffer.toString('base64');
           standardizedPages.push({
             pageIndex: i,
@@ -142,7 +138,6 @@ export class PdfProcessingService {
       try {
         if (tempDirPath) {
           await fs.rm(tempDirPath, { recursive: true, force: true });
-          console.log(`  -> Cleaned up temporary directory: ${tempDirPath}`);
         }
       } catch (cleanupError) {
         console.error(`⚠️ [PDF Processing] Failed to clean up temporary directory ${tempDirPath}:`, cleanupError);

@@ -106,7 +106,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
-        const aiResult = await MarkingServiceLocator.generateChatResponse(imageData, message, resolvedModel as any, true);
+        const aiResult = await MarkingServiceLocator.generateChatResponse(imageData, message, resolvedModel as any, "questionAnswer");
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats

@@ -24,6 +24,7 @@ import {
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
 import * as stringSimilarity from 'string-similarity';
+import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
@@ -71,14 +72,37 @@ const extractQuestionsFromClassification = (
   classification: any, 
   fileName?: string
 ): Array<{text: string; questionNumber?: string | null}> => {
-  // Handle new questions array structure (1...N questions)
+  // Handle hierarchical questions array structure
   if (classification?.questions && Array.isArray(classification.questions)) {
-    const questions = classification.questions.map((q: any) => ({
-      questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve question number if present
-      text: q.text || ''
-    }));
+    const extractedQuestions: Array<{text: string; questionNumber?: string | null}> = [];
     
-    return questions;
+    for (const q of classification.questions) {
+      const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
+      
+      // If question has sub-questions, extract each sub-question separately
+      if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        for (const subQ of q.subQuestions) {
+          const combinedQuestionNumber = mainQuestionNumber 
+            ? `${mainQuestionNumber}${subQ.part || ''}` 
+            : null;
+          extractedQuestions.push({
+            questionNumber: combinedQuestionNumber,
+            text: subQ.text || ''
+          });
+        }
+      } else {
+        // Main question without sub-questions (or main text exists)
+        if (q.text) {
+          extractedQuestions.push({
+            questionNumber: mainQuestionNumber,
+            text: q.text
+          });
+        }
+        // If main text is null but no sub-questions, skip (empty question)
+      }
+    }
+    
+    return extractedQuestions;
   }
   
   // Fallback: Handle old extractedQuestionText structure
@@ -194,7 +218,6 @@ const findQuestionIndicators = (
             const coords = OCRService.extractBoundingBox(line); // Assumes OCRService.extractBoundingBox is static
             
             if (coords) {
-                 console.log(`[DEBUG - SEGMENTATION] Found Question Indicator: "Q${questionNumber}" on Page ${line.pageIndex}, Y: ${coords.y}`);
                 indicators.push({
                     questionNumber: questionNumber,
                     pageIndex: line.pageIndex,
@@ -253,6 +276,77 @@ const assignBlockToQuestion = (
 };
 
 /**
+ * HELPER 2C: Check if a block matches question text using fuzzy matching
+ * Used to filter out question text blocks before passing to AI marking
+ */
+const isQuestionTextBlock = (
+    block: MathBlock & { pageIndex: number },
+    classificationQuestions: Array<{ 
+        text?: string | null; 
+        textPreview?: string; 
+        subQuestions?: Array<{ text: string }>;
+        sourceImageIndex: number;
+    }>,
+    similarityThreshold: number = 0.70
+): boolean => {
+    const blockText = block.mathpixLatex || block.googleVisionText || '';
+    if (!blockText.trim()) return false;
+    
+    // Normalize text for comparison (same as findQuestionStartTextBoundaries)
+    const normalizeText = (text: string): string => {
+        return text
+            .replace(/\\\(|\\\)|\\\[|\\\]/g, '') // Remove LaTeX delimiters
+            .replace(/[()]/g, ' ') // Normalize parentheses to spaces
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .toLowerCase()
+            .trim();
+    };
+    
+    const normalizedBlockText = normalizeText(blockText);
+    
+    // Check against all questions on the same page
+    const pageQuestions = classificationQuestions.filter(q => q.sourceImageIndex === block.pageIndex);
+    
+    for (const question of pageQuestions) {
+        // Check main question text
+        if (question.text) {
+            const normalizedQuestionText = normalizeText(question.text);
+            const similarity = stringSimilarity.compareTwoStrings(normalizedBlockText, normalizedQuestionText);
+            if (similarity >= similarityThreshold) {
+                console.log(`[QUESTION TEXT FILTER] Block "${blockText.substring(0, 50)}..." matches question text (similarity: ${similarity.toFixed(3)})`);
+                return true;
+            }
+        }
+        
+        // Check textPreview (may be more accurate)
+        if (question.textPreview) {
+            const normalizedPreview = normalizeText(question.textPreview);
+            const similarity = stringSimilarity.compareTwoStrings(normalizedBlockText, normalizedPreview);
+            if (similarity >= similarityThreshold) {
+                console.log(`[QUESTION TEXT FILTER] Block "${blockText.substring(0, 50)}..." matches question textPreview (similarity: ${similarity.toFixed(3)})`);
+                return true;
+            }
+        }
+        
+        // Check sub-questions
+        if (question.subQuestions && Array.isArray(question.subQuestions)) {
+            for (const subQ of question.subQuestions) {
+                if (subQ.text) {
+                    const normalizedSubQText = normalizeText(subQ.text);
+                    const similarity = stringSimilarity.compareTwoStrings(normalizedBlockText, normalizedSubQText);
+                    if (similarity >= similarityThreshold) {
+                        console.log(`[QUESTION TEXT FILTER] Block "${blockText.substring(0, 50)}..." matches sub-question text (similarity: ${similarity.toFixed(3)})`);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+};
+
+/**
  * HELPER 3A: Find question start text boundaries using fuzzy matching
  * This is used as a fallback when question numbers are not found in text.
  */
@@ -266,14 +360,14 @@ const findQuestionStartTextBoundaries = (
     // For each classified question, find where its text starts in the OCR using fuzzy matching
     classificationQuestions.forEach(classifiedQ => {
         const pageIndex = classifiedQ.sourceImageIndex;
-        const questionText = classifiedQ.textPreview;
+        const questionText = classifiedQ.textPreview; // Source: classification result textPreview field
         
         if (!questionText || pageIndex === undefined || pageIndex === null) return;
         
         // Get OCR lines for this page
         const pageLines = rawLines.filter(line => line.pageIndex === pageIndex);
         
-        // Split question text into lines for fuzzy matching
+        // Split question text into lines for fuzzy matching (EXACT implementation step)
         const questionLines = questionText.split('\n').map(l => l.trim()).filter(Boolean);
         if (questionLines.length === 0) return;
         
@@ -282,6 +376,8 @@ const findQuestionStartTextBoundaries = (
         const dynamicThreshold = questionText.length < 50 ? 0.60 : baseThreshold;
         let bestMatchIndex = -1;
         let bestMatchScore = 0;
+        let bestOcrText = '';
+        let bestSourceText = '';
         
         // Improved text normalization for better matching
         const normalizeText = (text: string): string => {
@@ -317,18 +413,43 @@ const findQuestionStartTextBoundaries = (
                 }
             }
             
-            if (bestMatch.bestMatch.rating >= dynamicThreshold && bestMatch.bestMatch.rating > bestMatchScore) {
-                bestMatchIndex = i;
+            if (bestMatch.bestMatch.rating > bestMatchScore) {
+                // Track best match (whether above threshold or not)
                 bestMatchScore = bestMatch.bestMatch.rating;
+                const ocrText = pageLines[i].text?.trim() || '';
+                const matchedClassLineIndex = normalizedQuestionLines.findIndex(l => l === bestMatch.bestMatch.target);
+                const matchedClassLineOriginal = questionLines[matchedClassLineIndex >= 0 ? matchedClassLineIndex : 0] || '';
+                
+                if (bestMatch.bestMatch.rating >= dynamicThreshold) {
+                    bestMatchIndex = i;
+                    bestOcrText = ocrText;
+                    bestSourceText = matchedClassLineOriginal;
+                } else {
+                    // Track best even if below threshold (for failed match logging)
+                    if (!bestOcrText) {
+                        bestOcrText = ocrText;
+                        bestSourceText = matchedClassLineOriginal;
+                    }
+                }
             }
         }
         
-        // If we found a good match, get its coordinates
+        // Log the best match (only highest score, simplified format)
+        if (bestMatchScore > 0) {
+            const greenCode = '\x1b[32m'; // Green for source text
+            const yellowCode = '\x1b[33m'; // Yellow for OCR text
+            const resetCode = '\x1b[0m';
+            
         if (bestMatchIndex >= 0) {
+                // Successful match
+                const sourcePreview = bestSourceText.substring(0, 100);
+                const ocrPreview = bestOcrText.substring(0, 100);
+                console.log(`[FUZZY MATCH] Page ${pageIndex}: ${greenCode}${sourcePreview}${sourcePreview.length < bestSourceText.length ? '...' : ''}${resetCode} vs ${yellowCode}${ocrPreview}${ocrPreview.length < bestOcrText.length ? '...' : ''}${resetCode} (score: ${bestMatchScore.toFixed(3)})`);
+                
+                // Get coordinates for successful match
             const startLine = pageLines[bestMatchIndex];
             const coords = OCRService.extractBoundingBox(startLine);
             if (coords) {
-                console.log(`[DEBUG - SEGMENTATION] Found Question Start (Fuzzy): "${questionText.substring(0, 50)}..." on Page ${pageIndex}, Y: ${coords.y}, Score: ${bestMatchScore.toFixed(2)}`);
                 boundaries.push({
                     questionText: questionText,
                     pageIndex: pageIndex,
@@ -337,7 +458,11 @@ const findQuestionStartTextBoundaries = (
                 });
             }
         } else {
-            console.log(`[DEBUG - SEGMENTATION] Could not find question start (fuzzy) for Page ${pageIndex}: "${questionText.substring(0, 50)}..."`);
+                // Failed match (below threshold)
+                const sourcePreview = bestSourceText.substring(0, 100);
+                const ocrPreview = bestOcrText.substring(0, 100);
+                console.log(`[FUZZY MATCH] Page ${pageIndex} (FAILED): ${greenCode}${sourcePreview}${sourcePreview.length < bestSourceText.length ? '...' : ''}${resetCode} vs ${yellowCode}${ocrPreview}${ocrPreview.length < bestOcrText.length ? '...' : ''}${resetCode} (score: ${bestMatchScore.toFixed(3)}, threshold: ${dynamicThreshold})`);
+            }
         }
     });
     
@@ -398,422 +523,7 @@ const findBoundaryByFuzzyMatch = (
   return 0;
 };
 
-/**
- * NEW GENERIC SEGMENTATION LOGIC
- * Segments OCR results by mapping blocks to questions based on the
- * source image index provided by the ClassificationService.
- */
-const segmentOcrResultsByQuestion = async (
-  allPagesOcrData: PageOcrResult[],
-  globalQuestionText: string | undefined, // Fallback question text
-  detectedSchemesMap: Map<string, any>, // Source of truth for *which* QNs exist
-  classificationResult?: any, // Source of truth for *where* Qs are
-  standardizedPages?: StandardizedPage[] // Not used, but kept for compatibility
-): Promise<MarkingTask[]> => {
-  console.log('🔧 [SEGMENTATION] Consolidating and segmenting OCR results...');
-  
-  if (!allPagesOcrData || allPagesOcrData.length === 0) return [];
-
-  // 1. Consolidate all processed math blocks
-  let allMathBlocksForContent: Array<MathBlock & { pageIndex: number; globalBlockId: string }> = [];
-  let blockCounter = 0;
-  allPagesOcrData.forEach((pageResult) => {
-    const mathBlocks = pageResult.ocrData?.mathBlocks || [];
-    console.log(`[DEBUG] Page ${pageResult.pageIndex}: Consolidating ${mathBlocks.length} processed blocks.`);
-    mathBlocks.forEach((block) => {
-       allMathBlocksForContent.push({
-           ...block,
-           pageIndex: pageResult.pageIndex,
-           globalBlockId: `block_${blockCounter++}`
-      });
-    });
-  });
-  console.log(`  -> Consolidated ${allMathBlocksForContent.length} total processed math blocks.`);
-
-  // 2. Filter out empty blocks
-  const studentWorkBlocks = allMathBlocksForContent.filter(block =>
-      (block.mathpixLatex || block.googleVisionText || '').trim().length > 0
-  );
-  if (studentWorkBlocks.length === 0) {
-    console.warn(`[SEGMENTATION] No student work blocks found after consolidation.`);
-    return [];
-  }
-
-  const blocksByQuestion: Map<string, (MathBlock & { pageIndex: number })[]> = new Map();
-  const allDetectedQuestionNumbers = Array.from(detectedSchemesMap?.keys() || []);
-  let allRawLines: Array<any & { pageIndex: number; globalIndex: number }> = []; // Populated as needed
-
-  // 3. Check if Classification was successful
-  if (classificationResult && classificationResult.questions && classificationResult.questions.length > 0) {
-      console.log(`[SEGMENTATION] Using Hybrid Classification-based segmentation for ${classificationResult.questions.length} detected question instances.`);
-      
-      // --- HYBRID APPROACH: Question numbers as primary key, question start + fuzzy match as fallback ---
-      const pageToQuestionNumbersMap = new Map<number, string[]>();
-      
-      // First, find all question boundaries across all pages
-      let allRawLines: Array<any & { pageIndex: number; globalIndex: number }> = [];
-      let lineCounter = 0;
-      allPagesOcrData.forEach((pageResult, pageIdx) => {
-          allRawLines.push(...(pageResult.ocrData?.rawResponse?.rawLineData || []).map((line, i) => ({...line, pageIndex: pageIdx, globalIndex: lineCounter++})));
-      });
-      
-      // PRIMARY: Try to find question numbers in text first
-      const questionIndicators = findQuestionIndicators(allRawLines);
-      console.log(`[DEBUG] Found ${questionIndicators.length} question number indicators:`, questionIndicators.map(i => `Page ${i.pageIndex}: Q${i.questionNumber}`));
-      
-      // Map pages to questions using question numbers as primary key
-      classificationResult.questions.forEach((classifiedQ: any) => {
-          const pageIndex = classifiedQ.sourceImageIndex;
-          if (pageIndex === undefined || pageIndex === null) return;
-          
-          const aiDetectedQuestionNumber = classifiedQ.questionNumber; // AI-detected question number from classification
-          const textPreview = classifiedQ.textPreview?.toLowerCase() || '';
-          let matchedQNs: string[] = [];
-          let matchMethod = '';
-          
-          // PRIMARY: Use AI-detected question number if available
-          if (aiDetectedQuestionNumber !== undefined && aiDetectedQuestionNumber !== null) {
-              console.log(`[SEGMENTATION] Page ${pageIndex}: Using AI-detected question number "${aiDetectedQuestionNumber}"`);
-              matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
-                  // Extract question number from unique key (e.g., "21_Pearson Edexcel_1MA1/2F" -> "21")
-                  const actualQNum = qNum.split('_')[0];
-                  // Normalize: extract base number from both sides (e.g., "2a" -> "2", "2b" -> "2")
-                  const baseActualQNum = actualQNum.replace(/[a-z]/i, '');
-                  const baseAiDetected = String(aiDetectedQuestionNumber).replace(/[a-z]/i, '');
-                  // Match if base numbers are equal (e.g., "2" matches "2a", "2b")
-                  return baseActualQNum === baseAiDetected;
-              });
-              
-              if (matchedQNs.length > 0) {
-                  matchMethod = `AI-detected question number "${aiDetectedQuestionNumber}"`;
-                  console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} → Found ${matchedQNs.length} match(es): ${matchedQNs.join(', ')}`);
-              } else {
-                  console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: AI-detected question number "${aiDetectedQuestionNumber}" found no matches in detected schemes. Falling back to text parsing...`);
-              }
-          }
-          
-          // SECONDARY: If AI-detected number not available or didn't match, try text parsing
-          if (matchedQNs.length === 0) {
-              if (aiDetectedQuestionNumber !== undefined && aiDetectedQuestionNumber !== null) {
-                  console.log(`[SEGMENTATION] Page ${pageIndex}: AI-detected number "${aiDetectedQuestionNumber}" not in detected schemes. Trying text parsing from preview: "${textPreview.substring(0, 30)}..."`);
-              } else {
-                  console.log(`[SEGMENTATION] Page ${pageIndex}: No AI-detected question number (value: ${aiDetectedQuestionNumber === null ? 'null' : 'undefined'}). Trying text parsing from preview: "${textPreview.substring(0, 30)}..."`);
-              }
-              
-              matchedQNs = allDetectedQuestionNumbers.filter(qNum => {
-              // Extract question number from unique key (e.g., "21_Pearson Edexcel_1MA1/2F" -> "21")
-              const actualQNum = qNum.split('_')[0];
-              const qNumStr = String(actualQNum).toLowerCase();
-              // Match "13" or "q13" at the start of the preview, or "question 13"
-              return textPreview.startsWith(`${qNumStr} `) || 
-                     textPreview.startsWith(`q${qNumStr} `) ||
-                     textPreview.includes(`question ${qNumStr} `);
-          });
-          
-              if (matchedQNs.length > 0) {
-                  matchMethod = 'text parsing from question preview';
-                  console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} → Found ${matchedQNs.length} match(es): ${matchedQNs.join(', ')}`);
-              }
-          }
-          
-          // TERTIARY: If no text match found, try filename fallback
-          if (matchedQNs.length === 0 && standardizedPages) {
-              console.log(`[SEGMENTATION] Page ${pageIndex}: Text parsing failed. Trying filename fallback...`);
-              const filenameQNs = extractQuestionNumberFromFilename(standardizedPages[pageIndex]?.originalFileName);
-              if (filenameQNs && filenameQNs.length > 0) {
-                  const filenameQN = filenameQNs[0]; // Take the first question number from filename
-                  // Find matching unique key for this question number
-                  const matchingKey = allDetectedQuestionNumbers.find(key => key.startsWith(`${filenameQN}_`));
-                  if (matchingKey) {
-                      matchedQNs.push(matchingKey);
-                      matchMethod = 'filename extraction';
-                      console.log(`[SEGMENTATION] ✅ Page ${pageIndex}: Matched using ${matchMethod} (Q${filenameQN} from filename) → ${matchingKey}`);
-                  } else {
-                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Filename fallback found Q${filenameQN} but no matching scheme in detected schemes`);
-                  }
-              }
-          }
-          
-          // QUATERNARY: If still no match, use question start + fuzzy match fallback
-          if (matchedQNs.length === 0) {
-              console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: No question number match found using AI detection, text parsing, or filename. Trying question start + fuzzy match fallback...`);
-              
-              // Find question start boundaries using fuzzy matching
-              const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, [classifiedQ]);
-              
-              if (questionStartBoundaries.length > 0) {
-                  // Found question start using fuzzy match - assign to next available question
-                  const unassignedQNs = allDetectedQuestionNumbers.filter(qn => 
-                      !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
-                  );
-                  if (unassignedQNs.length > 0) {
-                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
-                      matchMethod = 'question start + fuzzy match';
-                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Matched using ${matchMethod} (fallback) → ${matchedQNs[0]}`);
-                  }
-              } else {
-                  // Final fallback: sequential assignment
-                  const unassignedQNs = allDetectedQuestionNumbers.filter(qn => 
-                      !Array.from(pageToQuestionNumbersMap.values()).flat().includes(qn)
-                  );
-                  if (unassignedQNs.length > 0) {
-                      matchedQNs.push(unassignedQNs.sort((a, b) => parseInt(a.split('_')[0]) - parseInt(b.split('_')[0]))[0]);
-                      matchMethod = 'sequential assignment (final fallback)';
-                      console.log(`[SEGMENTATION] ⚠️ Page ${pageIndex}: Matched using ${matchMethod} → ${matchedQNs[0]}`);
-                  }
-              }
-          }
-          
-          if (matchedQNs.length > 0) {
-              if (!pageToQuestionNumbersMap.has(pageIndex)) pageToQuestionNumbersMap.set(pageIndex, []);
-              const existingQNs = pageToQuestionNumbersMap.get(pageIndex)!;
-              matchedQNs.forEach(qNum => {
-                  if (!existingQNs.includes(qNum)) existingQNs.push(qNum);
-              });
-          }
-      });
-      console.log('[DEBUG] Page-to-Question Map created:', pageToQuestionNumbersMap);
-
-      // --- HYBRID BLOCK ASSIGNMENT: Use question numbers as primary key, fallback to question start + fuzzy match ---
-      let lastSeenQuestion: string | null = null;
-      const allSortedPageIndices = [...new Set(allPagesOcrData.map(p => p.pageIndex))].sort((a,b) => a-b);
-      
-      for (const pageIndex of allSortedPageIndices) {
-          const blocksOnThisPage = studentWorkBlocks.filter(b => b.pageIndex === pageIndex);
-          const questionsOnThisPage = pageToQuestionNumbersMap.get(pageIndex); // Get QNs for *this* page
-
-          if (questionsOnThisPage && questionsOnThisPage.length > 0) {
-              // --- This page has questions assigned - use hybrid approach for block assignment ---
-              console.log(`[SEGMENTATION] Page ${pageIndex} contains Qs: [${questionsOnThisPage.join(', ')}]. Using hybrid block assignment...`);
-              
-              const pageRawLines = allPagesOcrData[pageIndex]?.ocrData?.rawResponse?.rawLineData
-                    .map((line, i) => ({...line, pageIndex, globalIndex: i})) || [];
-              
-              // Get AI questions for this page
-              const aiQuestionsOnPage = classificationResult.questions.filter((q: any) => q.sourceImageIndex === pageIndex);
-              
-              // PRIMARY: Use AI question numbers + filtered OCR Y positions
-              const aiIndicatorsOnPage: Array<{ questionNumber: string; pageIndex: number; y: number }> = [];
-              
-              // Get OCR indicators for this page (from earlier in segmentation)
-              const ocrIndicatorsOnPage = questionIndicators.filter(ind => ind.pageIndex === pageIndex);
-              
-              // Match OCR indicators with AI question numbers
-              aiQuestionsOnPage.forEach((aiQ: any) => {
-                  if (!aiQ.questionNumber) return;
-                  
-                  const aiQNum = String(aiQ.questionNumber);
-                  const baseAiQNum = aiQNum.replace(/[a-z]/i, ''); // Extract base number (e.g., "2a" -> "2")
-                  
-                  // Find OCR indicators that match this AI question number (by base number)
-                  const matchingOcrIndicators = ocrIndicatorsOnPage.filter(ocrInd => {
-                      const baseOcrNum = ocrInd.questionNumber.replace(/[a-z]/i, '');
-                      return baseOcrNum === baseAiQNum;
-                  });
-                  
-                  // If multiple OCR indicators match (e.g., multiple "Q2"), assign by spatial order
-                  if (matchingOcrIndicators.length > 0) {
-                      // Sort by Y position, then assign first to first AI question, second to second, etc.
-                      const sortedMatches = matchingOcrIndicators.sort((a, b) => a.y - b.y);
-                      
-                      // Get all AI questions with same base number on this page
-                      const sameBaseAiQuestions = aiQuestionsOnPage
-                          .filter(q => q.questionNumber && String(q.questionNumber).replace(/[a-z]/i, '') === baseAiQNum)
-                          .sort((a, b) => {
-                              // Sort AI questions by sub-letter if available (2a before 2b)
-                              const aSub = String(a.questionNumber).replace(/\d+/g, '');
-                              const bSub = String(b.questionNumber).replace(/\d+/g, '');
-                              return aSub.localeCompare(bSub);
-                          });
-                      
-                      const aiQIndex = sameBaseAiQuestions.findIndex(q => q === aiQ);
-                      if (aiQIndex >= 0 && aiQIndex < sortedMatches.length) {
-                          const matchedIndicator = sortedMatches[aiQIndex];
-                          aiIndicatorsOnPage.push({
-                              questionNumber: aiQNum, // Use AI-detected number (e.g., "2a", "2b")
-                              pageIndex: pageIndex,
-                              y: matchedIndicator.y
-                          });
-                          console.log(`[SEGMENTATION] Created AI indicator: "Q${aiQNum}" on Page ${pageIndex}, Y: ${matchedIndicator.y} (from OCR Q${matchedIndicator.questionNumber})`);
-                      }
-                  }
-              });
-              
-              // If no AI indicators created from OCR, try improved fuzzy text matching
-              if (aiIndicatorsOnPage.length === 0) {
-                  console.log(`[SEGMENTATION] No OCR indicators matched AI question numbers, trying improved fuzzy text matching...`);
-                  
-                  // Find question start boundaries using improved fuzzy matching
-                  const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, aiQuestionsOnPage);
-                  
-                  aiQuestionsOnPage.forEach((aiQ: any) => {
-                      const boundary = questionStartBoundaries.find(b => 
-                          b.pageIndex === pageIndex && 
-                          b.questionText === aiQ.textPreview
-                      );
-                      if (boundary && aiQ.questionNumber) {
-                          aiIndicatorsOnPage.push({
-                              questionNumber: String(aiQ.questionNumber), // Use AI-detected number (e.g., "2a", "2b")
-                              pageIndex: pageIndex,
-                              y: boundary.y
-                          });
-                          console.log(`[SEGMENTATION] Created AI indicator: "Q${aiQ.questionNumber}" on Page ${pageIndex}, Y: ${boundary.y} (from fuzzy text match)`);
-                      }
-                  });
-              }
-              
-              if (aiIndicatorsOnPage.length > 0) {
-                  // Use AI question number indicators for precise assignment
-                  console.log(`[SEGMENTATION] Using AI question number indicators for Page ${pageIndex} (${aiIndicatorsOnPage.length} indicators: ${aiIndicatorsOnPage.map(i => `Q${i.questionNumber}`).join(', ')})`);
-                  blocksOnThisPage.forEach(block => {
-                      const assignedQNum = assignBlockToQuestion(block, aiIndicatorsOnPage);
-                      if (assignedQNum) {
-                          // assignedQNum is now the AI-detected question number (e.g., "2a", "2b")
-                          // Extract base number to match database keys (e.g., "2a" -> "2")
-                          const baseQNum = String(assignedQNum).replace(/[a-z]/i, '');
-                          // Check if any question on this page matches this base question number
-                          const matchingQuestion = questionsOnThisPage.find(q => {
-                              const qBaseNum = q.split('_')[0].replace(/[a-z]/i, '');
-                              return qBaseNum === baseQNum;
-                          });
-                          if (matchingQuestion) {
-                              if (!blocksByQuestion.has(matchingQuestion)) blocksByQuestion.set(matchingQuestion, []);
-                              blocksByQuestion.get(matchingQuestion)!.push(block);
-                              console.log(`[SEGMENTATION] ✅ Block ${block.globalBlockId} assigned to Q${assignedQNum} → ${matchingQuestion}`);
-                          } else {
-                              console.warn(`[SEGMENTATION] Block ${block.globalBlockId} assigned to Q${assignedQNum} (base: ${baseQNum}), but no matching question in [${questionsOnThisPage.join(', ')}]. Discarding.`);
-                          }
-                      } else {
-                          console.warn(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} (Y: ${block.coordinates?.y}) is before first indicator. Discarding.`);
-                      }
-                  });
-              } else {
-                  // FALLBACK: No AI indicators found, use question start + fuzzy match for block assignment
-                  console.log(`[SEGMENTATION] No AI question number indicators found on Page ${pageIndex}, using question start + fuzzy match fallback`);
-                  
-                  // Find question start boundaries using fuzzy matching
-                  const questionStartBoundaries = findQuestionStartTextBoundaries(allRawLines, classificationResult.questions.filter((q: any) => q.sourceImageIndex === pageIndex));
-                  
-                  if (questionStartBoundaries.length > 0) {
-                      // Use question start boundaries to assign blocks
-                      blocksOnThisPage.forEach(block => {
-                          const assignedQNum = questionsOnThisPage[0]; // Assign to first question on this page
-                          
-                          // Check if block is below any question start boundary
-                          const pageBoundaries = questionStartBoundaries.filter(boundary => boundary.pageIndex === pageIndex);
-                          let isStudentWork = false;
-                          
-                          for (const boundary of pageBoundaries) {
-                              if ((block.coordinates?.y ?? 0) >= boundary.y) {
-                                  isStudentWork = true;
-                                  break;
-                              }
-                          }
-                          
-                          if (isStudentWork) {
-                              if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
-                              blocksByQuestion.get(assignedQNum)!.push(block);
-                          } else {
-                              console.log(`[SEGMENTATION] Block ${block.globalBlockId} on Page ${pageIndex} is above question start boundaries - treating as question text`);
-                          }
-                      });
-                  } else {
-                      // Final fallback: assign all blocks to the first question on this page
-                      console.log(`[SEGMENTATION] No question start boundaries found on Page ${pageIndex}, assigning all blocks to first question`);
-                      const assignedQNum = questionsOnThisPage[0];
-                      if (!blocksByQuestion.has(assignedQNum)) blocksByQuestion.set(assignedQNum, []);
-                      blocksByQuestion.get(assignedQNum)!.push(...blocksOnThisPage);
-                  }
-              }
-              
-              // Update lastSeenQuestion with the last question found *on this page*
-              if (questionsOnThisPage.length > 0) {
-                   lastSeenQuestion = questionsOnThisPage[questionsOnThisPage.length - 1];
-              }
-
-          } else {
-              // --- This is a "work-only" page (e.g., q21-bottom.png) ---
-              if (lastSeenQuestion) {
-                  console.log(`[SEGMENTATION] Page ${pageIndex} is work-only. Assigning ${blocksOnThisPage.length} blocks to previous question: Q${lastSeenQuestion}`);
-                  if (!blocksByQuestion.has(lastSeenQuestion)) blocksByQuestion.set(lastSeenQuestion, []);
-                  blocksByQuestion.get(lastSeenQuestion)!.push(...blocksOnThisPage);
-              } else {
-                  // This is the "work-only first page" edge case
-                  const firstDetectedQ = allDetectedQuestionNumbers[0];
-                  if (firstDetectedQ) {
-                      console.warn(`[SEGMENTATION] Page ${pageIndex} is work-only but no previous question found. Assigning to first detected Q: ${firstDetectedQ}`);
-                      if (!blocksByQuestion.has(firstDetectedQ)) blocksByQuestion.set(firstDetectedQ, []);
-                      blocksByQuestion.get(firstDetectedQ)!.push(...blocksOnThisPage);
-                      lastSeenQuestion = firstDetectedQ; // Set for subsequent pages
-                  } else {
-                       console.error(`[SEGMENTATION] Page ${pageIndex} is work-only but NO questions were detected. Discarding blocks.`);
-                  }
-              }
-          }
-      }
-
-  } else {
-      // --- Fallback: Classification failed. Use old single-question boundary logic ---
-      console.warn(`[SEGMENTATION] No questions found in classification result. Using fallback boundary logic.`);
-      
-      let lineCounter = 0;
-      allPagesOcrData.forEach((pageResult, pageIdx) => {
-          allRawLines.push(...(pageResult.ocrData?.rawResponse?.rawLineData || []).map((line, i) => ({...line, pageIndex: pageIdx, globalIndex: lineCounter++})));
-      });
-
-      const boundaryIndex = findBoundaryByFuzzyMatch(allRawLines, globalQuestionText);
-      let startYThreshold = -Infinity, startPageThreshold = 0;
-      if (boundaryIndex > 0 && boundaryIndex < allRawLines.length) {
-          const boundaryLine = allRawLines[boundaryIndex];
-          const boundaryCoords = OCRService.extractBoundingBox(boundaryLine);
-          if (boundaryCoords) {
-              startYThreshold = boundaryCoords.y;
-              startPageThreshold = boundaryLine.pageIndex;
-          }
-      }
-      
-      const filteredBlocks = studentWorkBlocks.filter(block => {
-          if (!block.coordinates) return false;
-          // This is the corrected filter logic for the fallback
-          if (block.pageIndex > startPageThreshold) return true;
-          if (block.pageIndex === startPageThreshold && block.coordinates.y >= startYThreshold) return true;
-          return false;
-      });
-      
-      let questionNumber: string | number = 1; // Default
-      if (detectedSchemesMap && detectedSchemesMap.size > 0) {
-          questionNumber = detectedSchemesMap.keys().next().value;
-      }
-      console.log(`  -> Fallback: Assigning ${filteredBlocks.length} blocks to single task "Q${questionNumber}".`);
-      blocksByQuestion.set(String(questionNumber), filteredBlocks);
-  }
-
-  // 5. Create Marking Tasks from grouped blocks
-  const tasks: MarkingTask[] = [];
-  for (const [questionNumber, blocks] of blocksByQuestion.entries()) {
-      if (blocks.length === 0) continue;
-      
-      blocks.sort((a, b) => { // Sort blocks within each question
-        if (a.pageIndex !== b.pageIndex) return a.pageIndex - b.pageIndex;
-        return (a.coordinates?.y ?? 0) - (b.coordinates?.y ?? 0);
-      });
-      
-      const sourcePages = [...new Set(blocks.map(b => b.pageIndex))].sort((a, b) => a - b);
-      
-      tasks.push({
-          questionNumber: questionNumber,
-          mathBlocks: blocks,
-          markingScheme: null, // Scheme will be added by the router
-          sourcePages: sourcePages
-      });
-      console.log(`✅ [SEGMENTATION] Created marking task for Q${questionNumber} with ${blocks.length} blocks from pages ${sourcePages.join(', ')}.`);
-  }
-
-  console.log(`✅ [SEGMENTATION] Created ${tasks.length} preliminary marking task(s) (without schemes).`);
-  return tasks;
-};
-
-// ========================== END: REPLACED SEGMENTATION LOGIC ==========================
+// ========================== SEGMENTATION LOGIC MOVED TO SegmentationService ==========================
 
 // --- Configure Multer ---
 const upload = multer({ 
@@ -1255,22 +965,58 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const logClassificationComplete = logStep('Image Classification', actualModel);
     
     
-    // Classify ALL images to detect questions in all of them
-    const classificationPromises = standardizedPages.map(async (page, index) => {
-      const result = await ClassificationService.classifyImage(page.imageData, 'auto', false, page.originalFileName);
-      console.log(`🔍 [CLASSIFICATION OUTPUT] Page ${index + 1} result:`, { 
-        category: result.category,
-        questionsCount: result.questions?.length || 0,
-        questions: result.questions?.map((q: any) => ({
-          questionNumber: q.questionNumber !== undefined ? (q.questionNumber || 'null') : 'undefined', // Show AI-detected question number
-          textPreview: q.textPreview ? q.textPreview.substring(0, 50) + '...' : 'undefined',
-          confidence: q.confidence
-        })) || []
-      });
-      return { pageIndex: index, result };
-    });
+    // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
+    console.log(`🔍 [CLASSIFICATION] Classifying ${standardizedPages.length} page(s) together for cross-page context...`);
+    const allClassificationResults = await ClassificationService.classifyMultipleImages(
+      standardizedPages.map((page, index) => ({
+        imageData: page.imageData,
+        fileName: page.originalFileName,
+        pageIndex: index
+      })),
+      'auto',
+      false
+    );
     
-    const allClassificationResults = await Promise.all(classificationPromises);
+    // Log results for each page
+    allClassificationResults.forEach(({ pageIndex, result }) => {
+      // Calculate total questions (main + sub-questions) for better visibility
+      const totalMainQuestions = result.questions?.length || 0;
+      const totalSubQuestions = result.questions?.reduce((sum: number, q: any) => {
+        return sum + (q.subQuestions && Array.isArray(q.subQuestions) ? q.subQuestions.length : 0);
+      }, 0) || 0;
+      
+      // Build question info with properly expanded sub-questions
+      const questionsInfo = result.questions?.map((q: any) => {
+        const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || 'null') : 'undefined';
+        const questionInfo: any = {
+          questionNumber: mainQuestionNumber,
+          text: q.text !== undefined ? (q.text ? q.text.substring(0, 50) + '...' : 'null') : 'undefined',
+          studentWork: q.studentWork !== undefined ? (q.studentWork ? q.studentWork.substring(0, 50) + '...' : 'null') : 'undefined',
+          confidence: q.confidence
+        };
+        
+        // Show sub-questions if they exist
+        if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+          questionInfo.subQuestions = q.subQuestions.map((sq: any) => ({
+            part: sq.part,
+            text: sq.text ? sq.text.substring(0, 50) + '...' : 'null',
+            studentWork: sq.studentWork !== undefined ? (sq.studentWork ? sq.studentWork.substring(0, 50) + '...' : 'null') : 'undefined',
+            confidence: sq.confidence
+          }));
+        } else {
+          questionInfo.subQuestions = [];
+        }
+        
+        return questionInfo;
+      }) || [];
+      
+      // Log with proper serialization
+      console.log(`🔍 [CLASSIFICATION OUTPUT] Page ${pageIndex + 1} result:`);
+      console.log(JSON.stringify({ 
+        category: result.category,
+        questions: questionsInfo
+      }, null, 2));
+    });
     
     // Combine questions from all images
     const allQuestions: any[] = [];
@@ -1292,9 +1038,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Determine combined category
     const allCategories = allClassificationResults.map(r => r.result?.category).filter(Boolean);
-    const combinedCategory = allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
-                            allCategories.every(cat => cat === "metadata") ? "metadata" :
-                            "questionAnswer";
+    const combinedCategory: "questionOnly" | "questionAnswer" | "metadata" = 
+      allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
+      allCategories.every(cat => cat === "metadata") ? "metadata" :
+      "questionAnswer";
     
     const classificationResult = {
       category: combinedCategory,
@@ -1695,47 +1442,234 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // Extract questions from AI classification result
     const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+    console.log(`[QUESTION DETECTION] Extracted ${individualQuestions.length} question(s) from classification:`);
+    individualQuestions.forEach((q, index) => {
+      const qNum = q.questionNumber || '?';
+      const preview = q.text.substring(0, 60);
+      const truncated = q.text.length > 60 ? '...' : '';
+      console.log(`  ${index + 1}. Q${qNum}: "${preview}${truncated}"`);
+    });
     
     // Create a Map from the detection results
     const markingSchemesMap: Map<string, any> = new Map();
+    
+    // Helper function to extract base question number (e.g., "2a" -> "2", "3" -> "3")
+    const getBaseQuestionNumber = (questionNumber: string | null | undefined): string => {
+        if (!questionNumber) return '';
+        const qNumStr = String(questionNumber);
+        return qNumStr.replace(/[a-z]$/i, ''); // Remove trailing letter if present
+    };
+    
+    // Helper function to check if a question number is a sub-question
+    const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
+        if (!questionNumber) return false;
+        const qNumStr = String(questionNumber);
+        return /[a-z]$/i.test(qNumStr);
+    };
+    
+    // First pass: Collect all detection results
+    const detectionResults: Array<{
+        question: { text: string; questionNumber?: string | null };
+        detectionResult: any;
+    }> = [];
     
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
     for (const question of individualQuestions) {
         const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
-        
         if (detectionResult.found && detectionResult.match?.markingScheme) {
-            // Use the actual question number from database (Q13, Q14, etc.) not temporary ID
-            const actualQuestionNumber = detectionResult.match.questionNumber;
-            
-            // Create unique key for questions with same number but different exam boards
+            detectionResults.push({ question, detectionResult });
+            console.log(`[QUESTION DETECTION] Added to results: Q${question.questionNumber || '?'} → Q${detectionResult.match.questionNumber} (${detectionResult.match.board || 'Unknown'}_${detectionResult.match.paperCode || 'Unknown'})`);
+        } else {
+            console.log(`[QUESTION DETECTION] Not found: Q${question.questionNumber || '?'} (hint: "${question.questionNumber || 'none'}")`);
+        }
+    }
+    
+    console.log(`[QUESTION DETECTION] Total detection results: ${detectionResults.length}`);
+    
+    // Second pass: Group sub-questions by base question number and merge
+    const groupedResults = new Map<string, Array<{
+        question: { text: string; questionNumber?: string | null };
+        detectionResult: any;
+        actualQuestionNumber: string; // Database question number (e.g., "2")
+        originalQuestionNumber: string | null | undefined; // Original classification question number (e.g., "2a", "2b")
+        examBoard: string;
+        paperCode: string;
+    }>>();
+    
+    // Group detection results by base question number and exam paper
+    for (const { question, detectionResult } of detectionResults) {
+        const actualQuestionNumber = detectionResult.match.questionNumber; // Database question number (e.g., "2")
+        const originalQuestionNumber = question.questionNumber; // Original classification question number (e.g., "2a", "2b")
             const examBoard = detectionResult.match.board || 'Unknown';
             const paperCode = detectionResult.match.paperCode || 'Unknown';
+        
+        // Create group key: base question number + exam board + paper code
+        // Use original question number if available, otherwise use database question number
+        const questionNumberForGrouping = originalQuestionNumber || actualQuestionNumber;
+        const baseQuestionNumber = getBaseQuestionNumber(questionNumberForGrouping);
+        const groupKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
+        
+        if (!groupedResults.has(groupKey)) {
+            groupedResults.set(groupKey, []);
+        }
+        
+        groupedResults.get(groupKey)!.push({
+            question,
+            detectionResult,
+            actualQuestionNumber, // Database question number (e.g., "2")
+            originalQuestionNumber, // Original classification question number (e.g., "2a", "2b")
+            examBoard,
+            paperCode
+        });
+    }
+    
+    // Third pass: Merge grouped sub-questions or store single questions
+    console.log(`[QUESTION DETECTION] Processing ${groupedResults.size} group(s) for merging`);
+    for (const [groupKey, group] of groupedResults.entries()) {
+        const baseQuestionNumber = groupKey.split('_')[0];
+        const examBoard = group[0].examBoard;
+        const paperCode = group[0].paperCode;
+        
+        console.log(`[QUESTION DETECTION] Group ${groupKey}: ${group.length} item(s), actualQNums: ${group.map(g => g.actualQuestionNumber).join(', ')}, originalQNums: ${group.map(g => g.originalQuestionNumber || 'none').join(', ')}`);
+        
+        // Check if this group contains sub-questions
+        // Use originalQuestionNumber (from classification) to detect sub-questions, not actualQuestionNumber (from database)
+        const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
+        console.log(`[QUESTION DETECTION] Group ${groupKey}: hasSubQuestions=${hasSubQuestions}, group.length=${group.length}`);
+        
+        if (hasSubQuestions && group.length > 1) {
+            // Group sub-questions: merge marking schemes, combine texts, use parent question marks
+            console.log(`[QUESTION DETECTION] Grouping ${group.length} sub-question(s) for Q${baseQuestionNumber} (${examBoard}_${paperCode})`);
+            
+            // Get parent question marks from the first item (all items have same parent question)
+            // The parent question marks is stored in parentQuestionMarks field (added to detection result)
+            const firstItem = group[0];
+            const parentQuestionMarks = firstItem.detectionResult.match?.parentQuestionMarks;
+            
+            if (!parentQuestionMarks) {
+                throw new Error(`Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Expected structure: match.parentQuestionMarks`);
+            }
+            
+            console.log(`  [MERGE DEBUG] Using parent question marks: ${parentQuestionMarks} (from fullExamPapers.questions[${baseQuestionNumber}].marks)`);
+            
+            // Merge marking schemes
+            const mergedMarks: any[] = [];
+            const combinedQuestionTexts: string[] = [];
+            const combinedDatabaseQuestionTexts: string[] = []; // Store database question texts
+            const questionNumbers: string[] = [];
+            
+            for (const item of group) {
+                const questionSpecificMarks = item.detectionResult.match.markingScheme.questionMarks || item.detectionResult.match.markingScheme;
+                
+                // Extract marks array (handle both formats: questionMarks.marks or questionMarks as array)
+                let marksArray: any[] = [];
+                if (questionSpecificMarks && typeof questionSpecificMarks === 'object') {
+                    if (Array.isArray(questionSpecificMarks.marks)) {
+                        marksArray = questionSpecificMarks.marks;
+                    } else if (Array.isArray(questionSpecificMarks)) {
+                        marksArray = questionSpecificMarks;
+                    }
+                }
+                
+                const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+                console.log(`  [MERGE DEBUG] Q${displayQNum}: questionSpecificMarks type=${typeof questionSpecificMarks}, hasMarks=${!!questionSpecificMarks?.marks}, isArray=${Array.isArray(questionSpecificMarks)}, marksArray.length=${marksArray.length}`);
+                
+                mergedMarks.push(...marksArray);
+                combinedQuestionTexts.push(item.question.text); // Classification text (for backward compatibility)
+                // Store database question text for filtering
+                const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
+                if (dbQuestionText) {
+                    combinedDatabaseQuestionTexts.push(dbQuestionText);
+                }
+                questionNumbers.push(displayQNum); // Use original question number for display
+                
+                console.log(`  - Q${displayQNum}: ${marksArray.length} mark(s), individual marks: ${item.detectionResult.match.marks || 0}`);
+            }
+            
+            console.log(`  [MERGE DEBUG] After merging: ${mergedMarks.length} total marks, parent question marks: ${parentQuestionMarks}`);
+            
+            // Create merged marking scheme
+            const mergedQuestionMarks = {
+                marks: mergedMarks
+            };
+            
+            const schemeWithTotalMarks = {
+                questionMarks: mergedQuestionMarks,
+                totalMarks: parentQuestionMarks, // Use parent question marks from database, not sum of sub-question marks
+                questionNumber: baseQuestionNumber, // Use base question number for grouped sub-questions
+                // Don't include questionDetection - it causes normalization to use wrong source
+                // questionDetection: group[0].detectionResult, // REMOVED: causes normalization to use Q2a's detection instead of merged scheme
+                questionText: combinedQuestionTexts.join('\n\n'), // Classification text (for backward compatibility)
+                databaseQuestionText: combinedDatabaseQuestionTexts.join('\n\n'), // Database question text for filtering
+                subQuestionNumbers: questionNumbers // Store sub-question numbers for reference
+            };
+            
+            // Use base question number in unique key (e.g., "2_Pearson Edexcel_1MA1/1H" instead of "2a_...")
+            const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
+            markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
+            
+            console.log(`[QUESTION DETECTION] ✅ Grouped Q${questionNumbers.join(', ')} → Q${baseQuestionNumber} (${examBoard}_${paperCode}) [${mergedMarks.length} marks, ${parentQuestionMarks} total from parent question]`);
+        } else {
+            // Single question (not grouped): store as-is
+            const item = group[0];
+            const actualQuestionNumber = item.actualQuestionNumber;
             const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
+            
+            console.log(`[QUESTION DETECTION] Found: Q${item.question.questionNumber || '?'} → Q${actualQuestionNumber} (${examBoard}_${paperCode})`);
             
             // Extract the specific question's marks from the marking scheme
             let questionSpecificMarks = null;
             
-            if (detectionResult.match.markingScheme.questionMarks) {
-                questionSpecificMarks = detectionResult.match.markingScheme.questionMarks;
+            if (item.detectionResult.match.markingScheme.questionMarks) {
+                questionSpecificMarks = item.detectionResult.match.markingScheme.questionMarks;
             } else {
-                questionSpecificMarks = detectionResult.match.markingScheme;
+                questionSpecificMarks = item.detectionResult.match.markingScheme;
             }
             
             const schemeWithTotalMarks = {
                 questionMarks: questionSpecificMarks,
-                totalMarks: detectionResult.match.marks,
+                totalMarks: item.detectionResult.match.marks,
                 questionNumber: actualQuestionNumber,
-                questionDetection: detectionResult, // Store the full question detection result
-                questionText: question.text // Store the original question text for this specific question
+                questionDetection: item.detectionResult, // Store the full question detection result
+                questionText: item.question.text, // Classification text (for backward compatibility)
+                databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '' // Database question text for filtering
             };
             
             markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
         }
     }
-    logQuestionDetectionComplete();
     
+    logQuestionDetectionComplete();
+    console.log(`[QUESTION DETECTION] Final markingSchemesMap (${markingSchemesMap.size}):`, Array.from(markingSchemesMap.keys()).join(', '));
+    
+    // Brief summary of question detection results
+    const summary = {
+      totalDetected: detectionResults.length,
+      totalGrouped: markingSchemesMap.size,
+      questions: Array.from(markingSchemesMap.entries()).map(([key, scheme]) => {
+        const parts = key.split('_');
+        const qNum = parts[0];
+        const examBoard = parts[1];
+        const paperCode = parts[2];
+        const subQuestions = scheme.subQuestionNumbers && Array.isArray(scheme.subQuestionNumbers) && scheme.subQuestionNumbers.length > 1
+          ? scheme.subQuestionNumbers.join(', ')
+          : undefined;
+        return {
+          question: `Q${qNum}`,
+          exam: `${examBoard} ${paperCode}`,
+          totalMarks: scheme.totalMarks || 0,
+          subQuestions: subQuestions
+        };
+      })
+    };
+    
+    console.log(`[QUESTION DETECTION SUMMARY] Detected ${summary.totalDetected} question(s), grouped into ${summary.totalGrouped} scheme(s):`);
+    summary.questions.forEach((q, idx) => {
+      const subQInfo = q.subQuestions ? ` (includes: ${q.subQuestions})` : '';
+      console.log(`  ${idx + 1}. ${q.question} → ${q.exam} [${q.totalMarks} marks]${subQInfo}`);
+    });
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
@@ -1746,12 +1680,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
     // Call the segmentation function
-    markingTasks = await segmentOcrResultsByQuestion(
+    markingTasks = segmentOcrResultsByQuestion(
       allPagesOcrData,
-      globalQuestionText,
-      markingSchemesMap,
       classificationResult,
-      standardizedPages
+      markingSchemesMap
     );
 
     // Handle case where no student work is found
@@ -1861,9 +1793,38 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Calculate per-page scores
     const pageScores: { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } = {};
-    allQuestionResults.forEach((qr, index) => {
-      const question = classificationResult.questions[index];
-      const pageIndex = question?.sourceImageIndex ?? 0;
+    allQuestionResults.forEach((qr) => {
+      // Get pageIndex from annotations (they have pageIndex) or from the first annotation's pageIndex
+      // If no annotations, use the first page that has blocks for this question
+      let pageIndex: number | undefined;
+      
+      if (qr.annotations && qr.annotations.length > 0) {
+        // Get the most common pageIndex from annotations (in case question spans multiple pages)
+        const pageIndexCounts = new Map<number, number>();
+        qr.annotations.forEach(anno => {
+          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+          }
+        });
+        // Use the page with the most annotations
+        if (pageIndexCounts.size > 0) {
+          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+      
+      // Fallback: try to match by question number from classificationResult
+      if (pageIndex === undefined) {
+        const matchingQuestion = classificationResult.questions.find((q: any) => {
+          const qNum = String(q.questionNumber || '').replace(/[a-z]/i, '');
+          const resultQNum = String(qr.questionNumber || '').split('_')[0].replace(/[a-z]/i, '');
+          return qNum === resultQNum;
+        });
+        pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
+      }
+      
+      if (pageIndex === undefined) {
+        pageIndex = 0; // Final fallback
+      }
       
       if (!pageScores[pageIndex]) {
         pageScores[pageIndex] = { awarded: 0, total: 0, scoreText: '' };
@@ -2116,11 +2077,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       
     } catch (error) {
       console.error(`❌ [SUBMISSION ${submissionId}] Failed to persist to database:`, error);
-      // Continue without throwing - user still gets response
+      if (error instanceof Error) {
+        console.error(`❌ [SUBMISSION ${submissionId}] Error name: ${error.name}`);
+        console.error(`❌ [SUBMISSION ${submissionId}] Error message: ${error.message}`);
+        console.error(`❌ [SUBMISSION ${submissionId}] Error stack:`, error.stack);
+      }
+      // Re-throw the real error instead of hiding it
+      throw error;
     }
     
     // For unauthenticated users, create unifiedSession even if database persistence failed
     if (!isAuthenticated && !unifiedSession) {
+      // Validate required data before creating session
+      if (!dbUserMessage || !dbAiMessage) {
+        throw new Error(`Cannot create unauthenticated session: missing required data. dbUserMessage: ${!!dbUserMessage}, dbAiMessage: ${!!dbAiMessage}`);
+      }
       unifiedSession = SessionManagementService.createUnauthenticatedSession(
         submissionId,
         dbUserMessage,

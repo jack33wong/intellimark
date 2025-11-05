@@ -93,7 +93,7 @@ export async function executeMarkingForQuestion(
         cleanedOcrText: ocrTextForPrompt,
         unifiedLookupTable: {}
       } as any, // Type assertion for mock object
-      questionDetection: task.markingScheme.questionDetection || task.markingScheme // Pass the actual questionDetection object
+      questionDetection: task.markingScheme // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
     });
     
     

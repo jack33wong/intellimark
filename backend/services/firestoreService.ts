@@ -844,7 +844,7 @@ export class FirestoreService {
       const annotatedMessage = createAIMessage({
         content: contextSummary,
         imageData: null, // We're using imageLink instead
-        isQuestionOnly: false,
+        category: "questionAnswer",
         processingStats: {
           processingTimeMs: 0,
           modelUsed: 'auto',

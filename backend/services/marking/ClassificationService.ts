@@ -10,9 +10,15 @@ export interface ClassificationResult {
   apiUsed: string;
   extractedQuestionText?: string; // Legacy support
   questions?: Array<{
-    questionNumber?: string | null; // Question number if visible in image, null otherwise
-    text: string;
-    textPreview?: string; // For segmentation matching
+    questionNumber?: string | null; // Main question number (e.g., "1", "2", "3") or null
+    text: string | null; // Main question text, or null if no main text (only sub-questions)
+    studentWork?: string | null; // Extracted student work for main question (LaTeX format)
+    subQuestions?: Array<{
+      part: string; // Sub-question part (e.g., "a", "b", "i", "ii")
+      text: string; // Complete sub-question text
+      studentWork?: string | null; // Extracted student work for sub-question (LaTeX format)
+      confidence?: number;
+    }>;
     confidence: number;
   }>;
   usageTokens?: number;
@@ -37,6 +43,129 @@ export class ClassificationService {
       threshold: "BLOCK_NONE"
     }
   ];
+  /**
+   * Classify multiple images at once (for better cross-page context)
+   * @param images Array of objects with imageData and optional fileName/pageIndex
+   * @param model Model to use
+   * @param debug Debug mode
+   * @returns Array of classification results, one per image
+   */
+  static async classifyMultipleImages(
+    images: Array<{ imageData: string; fileName?: string; pageIndex?: number }>,
+    model: ModelType = 'auto',
+    debug: boolean = false
+  ): Promise<Array<{ pageIndex: number; result: ClassificationResult }>> {
+    if (images.length === 0) return [];
+    
+    // Use Gemini prompt for classification
+    const systemPrompt = getPrompt('classification.system');
+    const userPrompt = getPrompt('classification.user');
+    
+    // Enhanced prompt for multi-image context
+    const multiImageSystemPrompt = systemPrompt + `\n\nIMPORTANT FOR MULTI-PAGE DOCUMENTS:
+- You are analyzing ${images.length} pages/images together
+- Use context from previous pages to identify question numbers on continuation pages
+- If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
+- Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
+- For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
+- Return results for EACH page in the "pages" array, maintaining the same order as input`;
+    
+    const multiImageUserPrompt = `Please classify all ${images.length} pages/images together and extract ALL question text from each page. Use context from previous pages to identify question numbers on continuation pages.
+
+${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fileName})` : ''} ---`).join('\n')}`;
+
+    try {
+      const validatedModel = validateModel(model);
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const accessToken = await ModelProvider.getGeminiAccessToken();
+      
+      // Build parts array with all images
+      const parts: any[] = [
+        { text: multiImageSystemPrompt },
+        { text: multiImageUserPrompt }
+      ];
+      
+      // Add all images with page indicators
+      images.forEach((img, index) => {
+        const imageData = img.imageData.includes(',') ? img.imageData.split(',')[1] : img.imageData;
+        parts.push({ 
+          text: `\n--- Page ${index + 1} ${img.fileName ? `(${img.fileName})` : ''} ---` 
+        });
+        parts.push({ 
+          inline_data: { 
+            mime_type: 'image/jpeg', 
+            data: imageData 
+          } 
+        });
+      });
+      
+      // Make single API call with all images
+      const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);
+      
+      // Check if response is HTML (error page)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/html')) {
+        const htmlContent = await response.text();
+        console.error('❌ [CLASSIFICATION] Received HTML response instead of JSON:');
+        console.error('❌ [CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
+        throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
+      }
+      
+      const result = await response.json() as any;
+      const content = await this.extractGeminiContent(result);
+      const cleanContent = this.cleanGeminiResponse(content);
+      const parsed = JSON.parse(cleanContent);
+      
+      // Get dynamic API name
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(validatedModel);
+      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
+      const apiUsed = `Google ${modelName} (Service Account)`;
+      
+      // Parse response - handle both single result and per-page results
+      let results: Array<{ pageIndex: number; result: ClassificationResult }> = [];
+      
+      if (parsed.pages && Array.isArray(parsed.pages)) {
+        // New format: per-page results
+        parsed.pages.forEach((pageResult: any, index: number) => {
+          const processedQuestions = this.parseQuestionsFromResponse({ questions: pageResult.questions }, 0.9);
+          results.push({
+            pageIndex: index,
+            result: {
+              category: pageResult.category || parsed.category || 'questionAnswer',
+              reasoning: pageResult.reasoning || parsed.reasoning || 'Multi-page classification',
+              questions: processedQuestions,
+              extractedQuestionText: pageResult.extractedQuestionText,
+              apiUsed,
+              usageTokens: result.usageMetadata?.totalTokenCount || 0
+            }
+          });
+        });
+      } else {
+        // Fallback: single result format (backward compatibility)
+        const processedQuestions = this.parseQuestionsFromResponse(parsed, 0.9);
+        const singleResult: ClassificationResult = {
+          category: parsed.category || 'questionAnswer',
+          reasoning: parsed.reasoning || 'Multi-page classification',
+          questions: processedQuestions,
+          extractedQuestionText: parsed.extractedQuestionText,
+          apiUsed,
+          usageTokens: result.usageMetadata?.totalTokenCount || 0
+        };
+        
+        // Distribute single result to all pages (fallback behavior)
+        images.forEach((_, index) => {
+          results.push({ pageIndex: index, result: singleResult });
+        });
+      }
+      
+      return results;
+    } catch (error) {
+      console.error(`❌ [CLASSIFICATION] Multi-image classification failed:`, error);
+      throw error;
+    }
+  }
+
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
     const systemPrompt = getPrompt('classification.system');
     const userPrompt = getPrompt('classification.user');
@@ -54,7 +183,7 @@ export class ClassificationService {
             {
               questionNumber: "21", // Hardcoded test data includes question number
               text: q21Text,
-              textPreview: "21 The diagram shows a plan of Jason's garden. Jason is going to cover his garden with grass seed. Each bag of grass seed covers 14 m² of garden. Each bag of grass seed costs £10.95. Work out how much it will cost Jason to buy all the bags of grass seed he needs.",
+              subQuestions: [],
               confidence: 0.95
             }
           ],
@@ -119,23 +248,36 @@ export class ClassificationService {
             console.error('❌ [CLASSIFICATION FALLBACK] OpenAI JSON parse failed:', parseErr);
             throw new Error('OpenAI fallback returned non-JSON content');
           }
-          // Reuse same parsing logic as Gemini for consistency
+          // Debug: Log raw AI response structure
+          if (parsed.questions && Array.isArray(parsed.questions)) {
+            console.log(`🔍 [CLASSIFICATION RAW - OpenAI] AI returned ${parsed.questions.length} question(s) with structure:`, 
+              parsed.questions.map((q: any) => ({
+                questionNumber: q.questionNumber,
+                hasText: !!q.text,
+                hasSubQuestions: !!(q.subQuestions && q.subQuestions.length > 0),
+                subQuestionsCount: q.subQuestions?.length || 0
+              }))
+            );
+          }
+          
+          // Reuse same shared parsing function as Gemini for consistency (0.8 default confidence for OpenAI)
+          let processedQuestions = this.parseQuestionsFromResponse(parsed, 0.8);
+          
+          // Legacy support: convert extractedQuestionText to questions array if no questions
+          if (!processedQuestions && parsed.extractedQuestionText) {
+            processedQuestions = [{
+              questionNumber: undefined,
+              text: parsed.extractedQuestionText,
+              subQuestions: [],
+              confidence: 0.8
+            }];
+          }
+          
           return {
-            category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
+            category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"),
             reasoning: parsed.reasoning || 'OpenAI fallback classification',
             extractedQuestionText: parsed.extractedQuestionText, // Legacy support
-            questions: parsed.questions?.map((q: any) => ({
-              questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve null if explicitly set, undefined if missing
-              text: q.text || '',
-              textPreview: q.textPreview || q.text, // Map text to textPreview if missing (same as Gemini)
-              confidence: q.confidence || 0.8
-            })) || (parsed.extractedQuestionText ? [{
-              // Convert legacy extractedQuestionText to questions array format
-              questionNumber: undefined, // Legacy format has no question number
-              text: parsed.extractedQuestionText,
-              textPreview: parsed.extractedQuestionText, // Use full text as preview for legacy format
-              confidence: 0.8
-            }] : undefined),
+            questions: processedQuestions,
             apiUsed: `OpenAI ${openai.modelName}`,
             usageTokens: openai.usageTokens || 0
           };
@@ -184,6 +326,54 @@ export class ClassificationService {
 
 
 
+
+  private static async makeGeminiMultiImageRequest(
+    accessToken: string,
+    parts: any[],
+    model: ModelType = 'gemini-2.5-pro'
+  ): Promise<Response> {
+    // Use centralized model configuration
+    const { getModelConfig } = await import('../../config/aiModels.js');
+    const config = getModelConfig(model);
+    const endpoint = config.apiEndpoint;
+    
+    const requestBody = {
+      contents: [{
+        parts: parts
+      }],
+      generationConfig: { 
+        temperature: 0.1, 
+        maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
+      },
+      safetySettings: this.SAFETY_SETTINGS
+    };
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      const { getModelConfig } = await import('../../config/aiModels.js');
+      const modelConfig = getModelConfig(model);
+      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      
+      console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
+    }
+    
+    return response;
+  }
 
   private static async makeGeminiRequest(
     accessToken: string,
@@ -257,6 +447,82 @@ export class ClassificationService {
     return cleanContent;
   }
 
+  /**
+   * Shared parsing function for hierarchical question structure
+   * Handles both new hierarchical format and old flat format (backward compatibility)
+   */
+  private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
+    // Handle hierarchical structure with backward compatibility
+    const questions = parsed.questions?.map((q: any) => {
+      return {
+        questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
+        text: q.text !== undefined ? (q.text || null) : undefined, // Support null for empty main text
+        studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined, // Extract student work for main question
+        subQuestions: q.subQuestions?.map((sq: any) => ({
+          part: sq.part,
+          text: sq.text,
+          studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined, // Extract student work for sub-question
+          confidence: sq.confidence
+        })),
+        confidence: q.confidence || defaultConfidence
+      };
+    });
+    
+    // Backward compatibility: if old flat format (questionNumber like "2a", "2b"), convert to hierarchical
+    if (questions && questions.length > 0) {
+      const hasSubQuestionsInStructure = questions.some((q: any) => q.subQuestions && q.subQuestions.length > 0);
+      const hasFlatSubQuestions = questions.some((q: any) => q.questionNumber && /[a-z]/i.test(q.questionNumber));
+      
+      if (!hasSubQuestionsInStructure && hasFlatSubQuestions) {
+        // Convert flat format to hierarchical
+        const grouped = new Map<string, any>();
+        questions.forEach((q: any) => {
+          if (!q.questionNumber) {
+            // Question without number, keep as-is
+            grouped.set(q.questionNumber || `_${Math.random()}`, q);
+            return;
+          }
+          
+          const baseNumber = String(q.questionNumber).replace(/[a-z]/i, '');
+          const subPart = String(q.questionNumber).replace(/\d+/g, '');
+          
+          if (subPart) {
+            // This is a sub-question (e.g., "2a")
+            if (!grouped.has(baseNumber)) {
+              grouped.set(baseNumber, {
+                questionNumber: baseNumber,
+                text: null,
+                subQuestions: [],
+                confidence: q.confidence
+              });
+            }
+            grouped.get(baseNumber).subQuestions.push({
+              part: subPart.toLowerCase(),
+              text: q.text,
+              confidence: q.confidence
+            });
+            // Update text to first sub-question if main text is empty
+            if (!grouped.get(baseNumber).text) {
+              grouped.get(baseNumber).text = q.text;
+            }
+          } else {
+            // This is a main question (e.g., "2")
+            grouped.set(baseNumber, {
+              questionNumber: baseNumber,
+              text: q.text,
+              subQuestions: [],
+              confidence: q.confidence
+            });
+          }
+        });
+        
+        return Array.from(grouped.values());
+      }
+    }
+    
+    return questions;
+  }
+
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
     // Debug logging will be moved to after step completion
     
@@ -276,19 +542,27 @@ export class ClassificationService {
     const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || modelType;
     const apiUsed = `Google ${modelName} (Service Account)`;
     
-    // Debug logging removed - handled in router
+    // Debug: Log raw AI response structure
+    if (parsed.questions && Array.isArray(parsed.questions)) {
+      console.log(`🔍 [CLASSIFICATION RAW] AI returned ${parsed.questions.length} question(s) with structure:`, 
+        parsed.questions.map((q: any) => ({
+          questionNumber: q.questionNumber,
+          hasText: !!q.text,
+          hasSubQuestions: !!(q.subQuestions && q.subQuestions.length > 0),
+          subQuestionsCount: q.subQuestions?.length || 0
+        }))
+      );
+    }
 
+    // Use shared parsing function
+    const questions = this.parseQuestionsFromResponse(parsed);
+    
     return {
       category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
       reasoning: parsed.reasoning,
       apiUsed,
       extractedQuestionText: parsed.extractedQuestionText, // Legacy support
-      questions: parsed.questions?.map((q: any) => ({
-        questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined, // Preserve null if explicitly set, undefined if missing
-        text: q.text,
-        textPreview: q.textPreview || q.text, // Map text to textPreview if missing
-        confidence: q.confidence
-      })), // New questions array with questionNumber and textPreview mapping
+      questions: questions,
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
   }

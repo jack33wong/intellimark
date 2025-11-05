@@ -680,6 +680,20 @@ export class SessionManagementService {
     files: Express.Multer.File[],
     mode: 'Marking' | 'Question'
   ): any {
+    // Validate required parameters and throw descriptive errors
+    if (!userMessage) {
+      throw new Error(`createUnauthenticatedSession: userMessage is null or undefined. submissionId: ${submissionId}`);
+    }
+    if (!aiMessage) {
+      throw new Error(`createUnauthenticatedSession: aiMessage is null or undefined. submissionId: ${submissionId}`);
+    }
+    if (userMessage.timestamp === null || userMessage.timestamp === undefined) {
+      throw new Error(`createUnauthenticatedSession: userMessage.timestamp is null or undefined. userMessage: ${JSON.stringify(userMessage)}`);
+    }
+    if (aiMessage.timestamp === null || aiMessage.timestamp === undefined) {
+      throw new Error(`createUnauthenticatedSession: aiMessage.timestamp is null or undefined. aiMessage: ${JSON.stringify(aiMessage)}`);
+    }
+    
     return {
       id: submissionId,
       title: generateSessionTitle(null, '', 'Question'),

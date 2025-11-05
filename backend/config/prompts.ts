@@ -11,51 +11,41 @@ export const AI_PROMPTS = {
   // ============================================================================
   
   classification: {
-    system: `You are an AI assistant that classifies math images and extracts question text.
+    system: `You are an AI assistant that classifies math images and extracts question text and student work.
 
-    Your task is to:
-    1. Determine the category of the uploaded image:
-       A) "questionOnly" - A math question ONLY (no student work, no answers, just the question/problem)
-       B) "questionAnswer" - A math question WITH student work/answers (homework to be marked)
-       C) "metadata" - Metadata/cover page (exam front page, instructions, cover - no questions, no student work)
-    2. Extract ALL question text from the image, including:
-       - Any context or setup information (e.g., "Here are the first four terms of a sequence: 3, 20, 47, 84")
-       - The actual question or instruction (e.g., "Work out an expression for the nth term")
-       - Any diagrams, tables, or data provided as part of the question
-       - If there are MULTIPLE questions in the image, extract ALL of them
-    3. Detect question number if present in the image:
-       - Look for question numbers like "1", "2", "3", "Q1", "Q2", "Question 3", "13", "21", etc.
-       - If a question number is visible, extract it as a string (e.g., "1", "2", "21")
-       - For sub-questions like "2 (a)", "2 (b)", or "2a", "2b", extract with sub-number: "2a", "2b"
-       - If multiple sub-questions exist (e.g., "2 (a)" and "2 (b)"), extract each separately as "2a", "2b"
-       - If NO question number is visible (e.g., custom homework, practice problems), return null
-       
-    IMPORTANT: 
-    - Do NOT extract only the instruction part. Extract the ENTIRE question including all context, setup information, and the instruction together as one complete text.
-    - If there are multiple questions (e.g., Q13 and Q14), extract ALL questions separately with their respective numbers.
-    - For metadata pages (exam front pages, cover pages), return category "metadata" and empty questions array.
-    - Question number is OPTIONAL - return null if not visible, don't guess or infer.
+    Your task:
+    1. Determine category: "questionOnly" (question only), "questionAnswer" (question with student work), or "metadata" (cover page)
+    2. Extract question text in hierarchical structure:
+       - Main questions: "1", "2", "3", etc.
+       - Sub-questions: "a", "b", etc. grouped under parent question
+       - Extract COMPLETE question text only (exclude header instructions, exclude student work)
+    3. Extract student work (ONLY if category is "questionAnswer"):
+       - For each question/sub-question with visible student work, extract in LaTeX format
+       - Example: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - If no student work, set "studentWork" to null
 
-    CRITICAL OUTPUT RULES:
-    - Return ONLY raw JSON, no markdown formatting, no code blocks, no explanations
-    - Output MUST strictly follow this format:
-
+    Output format (raw JSON only, no markdown):
     {
-      "category": "questionOnly" | "questionAnswer" | "metadata",
-      "reasoning": "brief explanation of your classification",
+      "category": "questionAnswer",
       "questions": [
         {
-          "questionNumber": "1" or "2a" or "2b" or null,
-          "text": "complete question text for question 1",
-          "confidence": 0.9
-        },
-        {
-          "questionNumber": "2" or "2a" or "2b" or null,
-          "text": "complete question text for question 2", 
-          "confidence": 0.85
+          "questionNumber": "2" or null,
+          "text": "question text" or null,
+          "studentWork": "LaTeX student work" or null,
+          "confidence": 0.9,
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "sub-question text",
+              "studentWork": "LaTeX student work" or null,
+              "confidence": 0.9
+            }
+          ]
         }
       ]
-    }`,
+    }
+
+    For multiple pages, use "pages" array with same structure.`,
 
     user: `Please classify this uploaded image and extract ALL question text.`
   },
@@ -65,29 +55,43 @@ export const AI_PROMPTS = {
   // Mirrors the Gemini contract and output shape
   // ----------------------------------------------------------------------------
   classificationOpenAI: {
-    system: `You are an AI assistant that classifies math images and extracts question text.
+    system: `You are an AI assistant that classifies math images and extracts question text and student work.
 
-    Your task is to:
-    1) Determine the category of the uploaded image:
-       - "questionOnly": A math question ONLY (no student work)
-       - "questionAnswer": A question WITH student work/answers
-       - "metadata": Metadata/cover page (exam front page, no questions, no student work)
-    2) Extract the COMPLETE question text from the image, including setup/context, data/diagrams (describe briefly), and the actual instruction.
-    3) Detect question number if present:
-       - Extract question numbers like "1", "2", "3", or sub-questions like "2a", "2b", "2 (a)", "2 (b)"
-       - For sub-questions, include the sub-letter: "2a", "2b" (not just "2")
-       - Return null if no question number is visible
+    Your task:
+    1. Determine category: "questionOnly" (question only), "questionAnswer" (question with student work), or "metadata" (cover page)
+    2. Extract question text in hierarchical structure:
+       - Main questions: "1", "2", "3", etc.
+       - Sub-questions: "a", "b", etc. grouped under parent question
+       - Extract COMPLETE question text only (exclude header instructions, exclude student work)
+    3. Extract student work (ONLY if category is "questionAnswer"):
+       - For each question/sub-question with visible student work, extract in LaTeX format
+       - Example: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - If no student work, set "studentWork" to null
 
-    CRITICAL OUTPUT RULES:
-    - Return ONLY raw JSON, no markdown/code fences, no explanations
-    - Output MUST strictly follow this exact format:
+    Output format (raw JSON only, no markdown):
     {
-      "category": "questionOnly" | "questionAnswer" | "metadata",
-      "reasoning": "brief explanation of your classification",
-      "extractedQuestionText": "the COMPLETE question text including ALL context and the instruction"
-    }`,
+      "category": "questionAnswer",
+      "questions": [
+        {
+          "questionNumber": "2" or null,
+          "text": "question text" or null,
+          "studentWork": "LaTeX student work" or null,
+          "confidence": 0.9,
+          "subQuestions": [
+            {
+              "part": "a",
+              "text": "sub-question text",
+              "studentWork": "LaTeX student work" or null,
+              "confidence": 0.9
+            }
+          ]
+        }
+      ]
+    }
 
-    user: `Please classify this uploaded image and extract the complete question text.`
+    For multiple pages, use "pages" array with same structure.`,
+
+    user: `Please classify this uploaded image and extract ALL question text and student work.`
   },
 
   // ============================================================================
@@ -351,6 +355,7 @@ export const AI_PROMPTS = {
       }
 
       ANNOTATION RULES:
+      - CRITICAL: DO NOT mark question text: The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
       - Use "tick" for correct steps (including working steps and awarded marks like "M1", "A1").
       - Use "cross" for incorrect steps or calculations.
       - The "text" field can contain mark codes like "M1", "M1dep", "A1", "B1", "C1", "M0", "A0", "B0", "C0", or be empty.
@@ -400,10 +405,12 @@ export const AI_PROMPTS = {
 
        **Annotation Rules:**
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
-       2.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
-       3.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       4.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       5.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
+       3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
+       4.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
+       5.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       6.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
+       7.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)

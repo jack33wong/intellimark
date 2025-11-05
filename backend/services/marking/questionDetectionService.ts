@@ -45,9 +45,11 @@ export interface ExamPaperMatch {
   tier?: string;  // Add tier field
   questionNumber?: string;
   subQuestionNumber?: string;  // Optional sub-question number if matched
-  marks?: number;  // Total marks for this question
+  marks?: number;  // Total marks for this question (sub-question marks if matched, parent question marks if main question)
+  parentQuestionMarks?: number;  // Parent question marks (for sub-questions, this is the total marks for the parent question)
   confidence?: number;
   markingScheme?: MarkingSchemeMatch;
+  databaseQuestionText?: string;  // Database question text for filtering OCR blocks
 }
 
 export interface MarkingSchemeMatch {
@@ -120,16 +122,42 @@ export class QuestionDetectionService {
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
+      const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
+
+      if (isQ2SubQuestion) {
+        console.log(`[Q2 DEBUG] Detecting Q${questionNumberHint}, text preview: "${extractedQuestionText.substring(0, 80)}${extractedQuestionText.length > 80 ? '...' : ''}"`);
+      }
 
       for (const examPaper of examPapers) {
+        const metadata = examPaper.metadata;
+        const paperCode = metadata?.exam_code || 'unknown';
+        const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
+        
+        if (isQ2SubQuestion && is1MA1_1H) {
+          console.log(`[Q2 DEBUG] Checking paper: ${paperCode}`);
+        }
+        
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
         if (match && match.confidence && match.confidence > bestScore) {
+          if (isQ2SubQuestion) {
+            console.log(`[Q2 DEBUG] New best match: ${match.paperCode} Q${match.questionNumber}, score: ${match.confidence.toFixed(3)}`);
+          }
           bestMatch = match;
           bestScore = match.confidence;
+        } else if (match && isQ2SubQuestion) {
+          console.log(`[Q2 DEBUG] Match found but lower score: ${match.paperCode} Q${match.questionNumber}, score: ${match.confidence.toFixed(3)} (best: ${bestScore.toFixed(3)})`);
+        } else if (isQ2SubQuestion && is1MA1_1H && !match) {
+          console.log(`[Q2 DEBUG] ${paperCode}: No Q2 match found (score below 0.5 threshold or no Q2 in paper)`);
         }
       }
 
       if (bestMatch) {
+        // Only log final winner for Q2 debugging
+        if (isQ2SubQuestion) {
+          const colorCode = bestScore >= 0.6 ? '\x1b[32m' : bestScore >= 0.5 ? '\x1b[33m' : '\x1b[0m';
+          const resetCode = '\x1b[0m';
+          console.log(`${colorCode}[FINAL WINNER] ${bestMatch.paperCode} Q${bestMatch.questionNumber} score=${bestScore.toFixed(3)}${resetCode}`);
+        }
 
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
@@ -211,30 +239,179 @@ export class QuestionDetectionService {
         for (const question of questions) {
           const questionNumber = question.question_number || question.number;
           const questionContent = question.question_text || question.text || question.question || '';
+          const subQuestions = question.sub_questions || question.subQuestions || [];
           
-          if (questionContent && questionNumber) {
-            let similarity = this.calculateSimilarity(questionText, questionContent);
+          // Check if main text is empty but sub-questions exist and question number matches hint
+          const baseQuestionNumber = questionNumberHint ? String(questionNumber).replace(/[a-z]/i, '') : '';
+          const baseHint = questionNumberHint ? String(questionNumberHint).replace(/[a-z]/i, '') : '';
+          const questionNumberMatches = questionNumberHint && baseQuestionNumber === baseHint;
+          
+          // Special case: main text empty but sub-questions exist and question number matches
+          // Only handle if hint is a sub-question (e.g., "2a", "2b")
+          const isSubQuestionHint = questionNumberHint && /[a-z]/i.test(questionNumberHint);
+          if (!questionContent && questionNumber && subQuestions.length > 0 && questionNumberMatches && isSubQuestionHint) {
+            // Extract sub-question part from hint (e.g., "a" from "2a")
+            const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
             
-            // Boost or penalize similarity based on question number hint
-            if (questionNumberHint) {
-              // Normalize question numbers: extract base number (e.g., "2a" -> "2", "2b" -> "2")
-              const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
-              const baseHint = String(questionNumberHint).replace(/[a-z]/i, '');
+            // Match against the specific sub-question part only
+            let bestSubSimilarity = 0;
+            let matchedSubQuestionNumber = '';
+            
+            const metadata = examPaper.metadata;
+            const paperCode = metadata?.exam_code || 'unknown';
+            const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
+            
+            for (const subQ of subQuestions) {
+              const subQuestionText = subQ.text || subQ.question || subQ.question_text || subQ.sub_question || '';
+              // Use ONLY question_part - fail fast if missing
+              if (!subQ.question_part) {
+                console.error(`[QUESTION DETECTION] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
+                continue; // Skip this sub-question - invalid structure
+              }
+              const subQuestionPart = String(subQ.question_part).toLowerCase();
               
-              if (baseQuestionNumber === baseHint) {
-                // Boost score by 30% if base question numbers match (e.g., "2" matches "2a")
-                similarity = Math.min(1.0, similarity * 1.3);
-                
-                // If exact match (including sub-number), boost even more
-                if (questionNumber === questionNumberHint) {
-                  similarity = Math.min(1.0, similarity * 1.1); // Additional 10% boost for exact match
-                }
-              } else {
-                // Heavily penalize (reduce by 50%) if question numbers don't match
-                // This helps prevent matching Q2 text with Q9 in the database
-                similarity = similarity * 0.5;
+              // Only match if sub-question parts match (e.g., "a" matches "a")
+              if (subQuestionPart !== hintSubPart || !subQuestionText) {
+                continue;
+              }
+              
+              const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+              
+              // Only log for Q2 debugging
+              if (isQ2SubQuestion) {
+                const colorCode = subSimilarity >= 0.6 ? '\x1b[32m' : subSimilarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
+                const resetCode = '\x1b[0m';
+                console.log(`${colorCode}[Q2 DEBUG] Comparing sub-question "${subQuestionPart}" from ${paperCode} Q${questionNumber}:${resetCode}`);
+                console.log(`  Classification text: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
+                console.log(`  Database text:       "${subQuestionText.substring(0, 100)}${subQuestionText.length > 100 ? '...' : ''}"`);
+                console.log(`  ${colorCode}Similarity score: ${subSimilarity.toFixed(3)}${resetCode}`);
+              }
+              
+              if (subSimilarity > bestSubSimilarity) {
+                bestSubSimilarity = subSimilarity;
+                matchedSubQuestionNumber = subQuestionPart;
               }
             }
+            
+            // Use sub-question similarity as the main score if it's above threshold
+            if (bestSubSimilarity > 0.5) {
+              if (bestSubSimilarity > bestScore) {
+                bestScore = bestSubSimilarity;
+                bestQuestionMatch = questionNumber;
+                bestMatchedQuestion = question;
+                bestSubQuestionNumber = matchedSubQuestionNumber; // Set outer scope variable
+                
+                // Only log for Q2 debugging
+                if (isQ2SubQuestion) {
+                  const colorCode = bestSubSimilarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
+                  const resetCode = '\x1b[0m';
+                  console.log(`${colorCode}[Q2 DEBUG] Best match: ${paperCode} Q${questionNumber} sub-question "${matchedSubQuestionNumber}" (score=${bestSubSimilarity.toFixed(3)})${resetCode}`);
+                }
+              } else if (isQ2SubQuestion) {
+                // Color-coded info log (lower score)
+                console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} sub-question "${matchedSubQuestionNumber}" score=${bestSubSimilarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
+              }
+            }
+          }
+          
+          if (questionContent && questionNumber) {
+            const metadata = examPaper.metadata;
+            const paperCode = metadata?.exam_code || 'unknown';
+            
+            // Determine if hint is a sub-question (e.g., "2a", "2b") or main question (e.g., "2")
+            const isSubQuestionHint = questionNumberHint && /[a-z]/i.test(questionNumberHint);
+            const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
+            const baseHint = questionNumberHint ? String(questionNumberHint).replace(/[a-z]/i, '') : '';
+            
+            // Match hierarchically: sub-question to sub-question, main to main
+            // If hint is a sub-question (e.g., "2a"), only match against main questions with matching base number
+            // Then check sub-questions of that main question
+            // If hint is a main question (e.g., "2"), only match against main questions
+            if (isSubQuestionHint) {
+              // For sub-question hints, only consider if base question numbers match
+              if (baseQuestionNumber !== baseHint) {
+                continue; // Skip this question - different base number
+              }
+            } else if (questionNumberHint) {
+              // For main question hints, only match exact question numbers
+              if (questionNumber !== questionNumberHint) {
+                continue; // Skip this question - different question number
+              }
+            }
+            
+            // Only log detailed info for Q2 debugging
+            const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
+            const isQ2InPaper = baseQuestionNumber === '2' || questionNumber === '2';
+            const shouldLog = isQ2SubQuestion && isQ2InPaper;
+            
+            // If hint is a sub-question (e.g., "2a"), match against sub-questions only
+            if (isSubQuestionHint) {
+              const subQuestions = question.sub_questions || question.subQuestions || [];
+              if (subQuestions.length === 0) {
+                continue; // No sub-questions, skip
+              }
+              
+              // Extract sub-question part from hint (e.g., "a" from "2a")
+              const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
+              
+              // Match against the specific sub-question part
+              for (const subQ of subQuestions) {
+                const subQuestionText = subQ.text || subQ.question || subQ.question_text || subQ.sub_question || '';
+                // Use ONLY question_part - fail fast if missing
+                if (!subQ.question_part) {
+                  console.error(`[QUESTION DETECTION] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
+                  continue; // Skip this sub-question - invalid structure
+                }
+                const subQuestionPart = String(subQ.question_part).toLowerCase();
+                
+                // Only match if sub-question parts match (e.g., "a" matches "a")
+                if (subQuestionPart !== hintSubPart) {
+                  continue;
+                }
+                
+                if (!subQuestionText) {
+                  continue;
+                }
+                
+                // Calculate similarity for sub-question text
+                const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+                
+                if (shouldLog) {
+                  const subColorCode = subSimilarity >= 0.6 ? '\x1b[32m' : subSimilarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
+                  const resetCode = '\x1b[0m';
+                  console.log(`${subColorCode}[QUESTION MATCH] Comparing sub-question "${subQuestionPart}" from ${paperCode} Q${questionNumber}:${resetCode}`);
+                  console.log(`  Classification text: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
+                  console.log(`  Database text:       "${subQuestionText.substring(0, 100)}${subQuestionText.length > 100 ? '...' : ''}"`);
+                  console.log(`  ${subColorCode}Similarity score: ${subSimilarity.toFixed(3)}${resetCode}`);
+                }
+                
+                if (subSimilarity > bestScore) {
+                  bestScore = subSimilarity;
+                  bestQuestionMatch = questionNumber;
+                  bestMatchedQuestion = question;
+                  bestSubQuestionNumber = subQuestionPart;
+                  
+                  if (shouldLog) {
+                    const successColor = subSimilarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
+                    const resetCode = '\x1b[0m';
+                    console.log(`${successColor}[MATCH] ${paperCode} Q${questionNumber} sub-question "${subQuestionPart}" score=${subSimilarity.toFixed(3)}${resetCode}`);
+                  }
+                } else if (shouldLog) {
+                  console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} sub-question "${subQuestionPart}" score=${subSimilarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
+                }
+              }
+            } else {
+              // Hint is a main question (e.g., "2"), match against main question text only
+              const similarity = this.calculateSimilarity(questionText, questionContent);
+              
+              if (shouldLog) {
+                const colorCode = similarity >= 0.6 ? '\x1b[32m' : similarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
+                const resetCode = '\x1b[0m';
+                console.log(`${colorCode}[QUESTION MATCH] ${paperCode} Q${questionNumber}:${resetCode}`);
+                console.log(`  Classification: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
+                console.log(`  Database:       "${questionContent.substring(0, 100)}${questionContent.length > 100 ? '...' : ''}"`);
+                console.log(`  ${colorCode}Similarity: ${similarity.toFixed(3)}${resetCode}`);
+              }
             
             if (similarity > bestScore) {
               bestScore = similarity;
@@ -242,21 +419,13 @@ export class QuestionDetectionService {
               bestMatchedQuestion = question;
               bestSubQuestionNumber = ''; // Reset sub-question
               
-              // Check for sub-questions
-              const subQuestions = question.sub_questions || question.subQuestions || [];
-              if (subQuestions.length > 0) {
-                // Try to match with sub-questions
-                for (const subQ of subQuestions) {
-                  const subQuestionText = subQ.text || subQ.question || subQ.sub_question || '';
-                  const subQuestionNumber = subQ.number || subQ.sub_question_number || subQ.id || '';
-                  if (subQuestionText && subQuestionNumber) {
-                    const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
-                    if (subSimilarity > 0.6) { // Lower threshold for sub-questions
-                      bestSubQuestionNumber = subQuestionNumber;
-                      break;
-                    }
-                  }
+                if (shouldLog) {
+                  const successColor = similarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
+                  const resetCode = '\x1b[0m';
+                  console.log(`${successColor}[MATCH] ${paperCode} Q${questionNumber} score=${similarity.toFixed(3)}${resetCode}`);
                 }
+              } else if (shouldLog) {
+                console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} score=${similarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
               }
             }
           }
@@ -267,49 +436,65 @@ export class QuestionDetectionService {
           const questionContent = (questionData as any).text || (questionData as any).question || '';
           
           if (questionContent) {
-            let similarity = this.calculateSimilarity(questionText, questionContent);
+            const isSubQuestionHint = questionNumberHint && /[a-z]/i.test(questionNumberHint);
+            const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
+            const baseHint = questionNumberHint ? String(questionNumberHint).replace(/[a-z]/i, '') : '';
             
-            // Boost or penalize similarity based on question number hint
-            if (questionNumberHint) {
-              // Normalize question numbers: extract base number (e.g., "2a" -> "2", "2b" -> "2")
-              const baseQuestionNumber = String(questionNumber).replace(/[a-z]/i, '');
-              const baseHint = String(questionNumberHint).replace(/[a-z]/i, '');
-              
-              if (baseQuestionNumber === baseHint) {
-                // Boost score by 30% if base question numbers match (e.g., "2" matches "2a")
-                similarity = Math.min(1.0, similarity * 1.3);
-                
-                // If exact match (including sub-number), boost even more
-                if (questionNumber === questionNumberHint) {
-                  similarity = Math.min(1.0, similarity * 1.1); // Additional 10% boost for exact match
-                }
-              } else {
-                // Heavily penalize (reduce by 50%) if question numbers don't match
-                // This helps prevent matching Q2 text with Q9 in the database
-                similarity = similarity * 0.5;
+            // Match hierarchically: sub-question to sub-question, main to main
+            if (isSubQuestionHint) {
+              // For sub-question hints, only consider if base question numbers match
+              if (baseQuestionNumber !== baseHint) {
+                continue; // Skip this question - different base number
+              }
+            } else if (questionNumberHint) {
+              // For main question hints, only match exact question numbers
+              if (questionNumber !== questionNumberHint) {
+                continue; // Skip this question - different question number
               }
             }
             
-            if (similarity > bestScore) {
-              bestScore = similarity;
-              bestQuestionMatch = questionNumber;
-              bestMatchedQuestion = questionData;
-              bestSubQuestionNumber = ''; // Reset sub-question
-              
-              // Check for sub-questions in object structure
+            // If hint is a sub-question, match against sub-questions only
+            if (isSubQuestionHint) {
               const subQuestions = (questionData as any).sub_questions || (questionData as any).subQuestions || [];
-              if (subQuestions.length > 0) {
-                for (const subQ of subQuestions) {
-                  const subQuestionText = subQ.text || subQ.question || subQ.sub_question || '';
-                  const subQuestionNumber = subQ.number || subQ.sub_question_number || subQ.id || '';
-                  if (subQuestionText && subQuestionNumber) {
-                    const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
-                    if (subSimilarity > 0.6) {
-                      bestSubQuestionNumber = subQuestionNumber;
-                      break;
-                    }
-                  }
+              if (subQuestions.length === 0) {
+                continue; // No sub-questions, skip
+              }
+              
+              // Extract sub-question part from hint (e.g., "a" from "2a")
+              const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
+              
+              // Match against the specific sub-question part
+              for (const subQ of subQuestions) {
+                const subQuestionText = subQ.text || subQ.question || subQ.sub_question || '';
+                // Use ONLY question_part - fail fast if missing
+                if (!subQ.question_part) {
+                  console.error(`[QUESTION DETECTION] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
+                  continue; // Skip this sub-question - invalid structure
                 }
+                const subQuestionPart = String(subQ.question_part).toLowerCase();
+                
+                // Only match if sub-question parts match (e.g., "a" matches "a")
+                if (subQuestionPart !== hintSubPart || !subQuestionText) {
+                  continue;
+                }
+                
+                const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
+                if (subSimilarity > bestScore) {
+                  bestScore = subSimilarity;
+                  bestQuestionMatch = questionNumber;
+                  bestMatchedQuestion = questionData;
+                  bestSubQuestionNumber = subQuestionPart;
+                }
+              }
+            } else {
+              // Hint is a main question, match against main question text only
+              const similarity = this.calculateSimilarity(questionText, questionContent);
+              
+              if (similarity > bestScore) {
+                bestScore = similarity;
+                bestQuestionMatch = questionNumber;
+                bestMatchedQuestion = questionData;
+                bestSubQuestionNumber = ''; // Reset sub-question
               }
             }
           }
@@ -339,7 +524,51 @@ export class QuestionDetectionService {
         if (!bestMatchedQuestion) {
           throw new Error(`Question ${bestQuestionMatch} not found in exam paper`);
         }
-        const questionMarks = bestMatchedQuestion.marks;
+        
+        // Extract sub-questions info from matched question
+        const matchedSubQuestions = bestMatchedQuestion?.sub_questions || bestMatchedQuestion?.subQuestions || [];
+        const hasSubQuestions = Array.isArray(matchedSubQuestions) && matchedSubQuestions.length > 0;
+        
+        // If we matched a sub-question, get marks from sub_questions[].marks - fail fast if not found
+        // Store parent question marks (bestMatchedQuestion.marks) for use when grouping sub-questions
+        const parentQuestionMarks = bestMatchedQuestion.marks;
+        let questionMarks = parentQuestionMarks;
+        
+        if (bestSubQuestionNumber && hasSubQuestions) {
+          // Use ONLY question_part - fail fast if missing
+          const matchedSubQ = matchedSubQuestions.find((sq: any) => {
+            if (!sq.question_part) {
+              console.error(`[QUESTION MARKS DEBUG] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
+              return false; // Skip - invalid structure
+            }
+            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
+          });
+          
+          if (matchedSubQ && matchedSubQ.marks !== undefined) {
+            questionMarks = matchedSubQ.marks; // Use sub-question's marks directly from fullExamPapers
+            console.log(`[QUESTION MARKS DEBUG] ✅ Using sub-question marks: Q${bestQuestionMatch}${bestSubQuestionNumber} = ${questionMarks} marks (from fullExamPapers)`);
+          } else {
+            // Fail fast - sub-question matched but marks not found
+            console.error(`[QUESTION MARKS DEBUG] ❌ Sub-question Q${bestQuestionMatch}${bestSubQuestionNumber} matched but marks not found in sub_questions[].marks. Expected structure: sub_questions[].question_part and sub_questions[].marks`);
+            throw new Error(`Sub-question Q${bestQuestionMatch}${bestSubQuestionNumber} matched but marks extraction failed - invalid database structure`);
+          }
+        }
+        
+        // Extract database question text for filtering
+        let databaseQuestionText = '';
+        if (bestSubQuestionNumber && hasSubQuestions) {
+          // Get sub-question text from database
+          const matchedSubQ = matchedSubQuestions.find((sq: any) => {
+            if (!sq.question_part) return false;
+            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
+          });
+          if (matchedSubQ) {
+            databaseQuestionText = matchedSubQ.text || matchedSubQ.question || matchedSubQ.question_text || '';
+          }
+        } else {
+          // Get main question text from database
+          databaseQuestionText = bestMatchedQuestion.question_text || bestMatchedQuestion.text || bestMatchedQuestion.question || '';
+        }
         
         return {
           board: board,
@@ -349,8 +578,10 @@ export class QuestionDetectionService {
           tier: tier,
           questionNumber: bestQuestionMatch,
           subQuestionNumber: bestSubQuestionNumber || undefined,
-          marks: questionMarks,
-          confidence: bestScore
+          marks: questionMarks, // Sub-question marks (if matched) or parent question marks (if main question)
+          parentQuestionMarks: parentQuestionMarks, // Always store parent question marks for grouping
+          confidence: bestScore,
+          databaseQuestionText: databaseQuestionText // Store database question text for filtering
         };
       }
 
@@ -386,12 +617,17 @@ export class QuestionDetectionService {
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
       
+      console.log(`[MARKING SCHEME LOOKUP] Looking for scheme matching: ${examPaperMatch.paperCode} (${examPaperMatch.board} ${examPaperMatch.qualification} ${examPaperMatch.year})`);
+      console.log(`[MARKING SCHEME LOOKUP] Total marking schemes in database: ${markingSchemes.length}`);
+      
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
           // Prioritize exact paper code matches
           const isExactPaperMatch = examPaperMatch.paperCode === match.examDetails.paperCode;
           const adjustedScore = isExactPaperMatch ? match.confidence + 0.1 : match.confidence;
+          
+          console.log(`[MARKING SCHEME LOOKUP] Found match: ${match.examDetails.paperCode} (score: ${adjustedScore.toFixed(3)})`);
           
           if (adjustedScore > bestScore) {
             bestMatch = match;
@@ -401,8 +637,11 @@ export class QuestionDetectionService {
       }
       
       if (bestMatch) {
+        console.log(`[MARKING SCHEME LOOKUP] ✅ Best match selected: ${bestMatch.examDetails.paperCode}`);
         return bestMatch;
       }
+      
+      console.log(`[MARKING SCHEME LOOKUP] ❌ No matching marking scheme found`);
       
 
       return null;
@@ -438,36 +677,57 @@ export class QuestionDetectionService {
       const schemeSubject = extractSubject(examDetails.qualification || '');
       const qualificationMatch = this.calculateSimilarity(examSubject, schemeSubject);
       
-      // Paper code must match exactly for tier distinction (F vs H)
-      let paperCodeMatch = 0;
-      if (examPaperMatch.paperCode === examDetails.paperCode) {
-        paperCodeMatch = 1.0; // Exact match
-      } else {
-        // Check for tier mismatch (Foundation vs Higher)
-        const examTier = examPaperMatch.paperCode.includes('/2F') ? 'F' : 
-                        examPaperMatch.paperCode.includes('/2H') ? 'H' : 'Unknown';
-        const schemeTier = examDetails.paperCode?.includes('/2F') ? 'F' : 
-                          examDetails.paperCode?.includes('/2H') ? 'H' : 'Unknown';
-        
-        if (examTier !== 'Unknown' && schemeTier !== 'Unknown' && examTier !== schemeTier) {
-          paperCodeMatch = 0.0; // Different tiers - no match
-        } else {
-          paperCodeMatch = this.calculateSimilarity(examPaperMatch.paperCode, examDetails.paperCode || '');
-        }
+      // Paper code must match EXACTLY - different papers have different questions
+      // Examples: 1MA1/1H != 1MA1/2H (different papers), 1MA1/1H != 1MA1/1F (different tiers)
+      // This is a hard requirement - reject immediately if paper codes don't match
+      if (examPaperMatch.paperCode !== examDetails.paperCode) {
+        return null; // Reject - paper codes must match exactly
       }
       
       const yearMatch = this.calculateSimilarity(examPaperMatch.year, examDetails.date || '');
       
-      // Calculate overall match score
-      const overallScore = (boardMatch + qualificationMatch + paperCodeMatch + yearMatch) / 4;
-      
+      // Calculate overall match score (paper code already matched, so we can proceed)
+      const overallScore = (boardMatch + qualificationMatch + 1.0 + yearMatch) / 4;
       
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
-        // Get question marks for the specific question if available
+        // Get question marks for the specific question - FLAT STRUCTURE ONLY
+        // Expected structure: questions["1"], questions["2a"], questions["2b"], etc.
         let questionMarks = null;
-        if (examPaperMatch.questionNumber && markingScheme.questions) {
-          const questions = markingScheme.questions;
-          questionMarks = questions[examPaperMatch.questionNumber] || null;
+        
+        if (!examPaperMatch.questionNumber) {
+          console.log(`[QUESTION MARKS DEBUG] ❌ examPaperMatch.questionNumber is missing`);
+          return null; // Fail fast
+        }
+        
+        // Check if markingScheme has questions property
+        if (!markingScheme.questions) {
+          console.log(`[QUESTION MARKS DEBUG] ❌ markingScheme.questions is missing for ${examDetails.paperCode}`);
+          console.log(`[QUESTION MARKS DEBUG] markingScheme keys: ${Object.keys(markingScheme).join(', ')}`);
+          return null; // Fail fast
+        }
+        
+        const questions = markingScheme.questions;
+        const questionNumber = examPaperMatch.questionNumber;
+        
+        // Build the flat key: "1" for main questions, "2a", "2b" for sub-questions
+        let flatKey: string;
+        if (examPaperMatch.subQuestionNumber) {
+          flatKey = `${questionNumber}${examPaperMatch.subQuestionNumber.toLowerCase()}`;
+        } else {
+          flatKey = questionNumber;
+        }
+        
+        console.log(`[QUESTION MARKS DEBUG] Looking for Q${flatKey} in ${examDetails.paperCode}`);
+        
+        // FLAT STRUCTURE ONLY - no fallbacks, no nested structures
+        if (questions[flatKey]) {
+          questionMarks = questions[flatKey];
+          console.log(`[QUESTION MARKS DEBUG] ✅ Found marks: questions["${flatKey}"]`);
+        } else {
+          // Fail fast - no matching structure found
+          console.log(`[QUESTION MARKS DEBUG] ❌ Not found: questions["${flatKey}"]`);
+          console.log(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 20).join(', ')}${Object.keys(questions).length > 20 ? '...' : ''}`);
+          return null; // Fail fast - no fallbacks
         }
         
         return {

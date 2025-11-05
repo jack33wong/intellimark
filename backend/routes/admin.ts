@@ -158,7 +158,7 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
 
     const newEntry = {
       id: uuidv4(),
-      markingSchemeData: parsedData,
+      ...parsedData, // Spread the parsed data directly (examDetails and questions)
       examDetails: {
         board: examDetails.board || 'Unknown',
         qualification: examDetails.qualification || 'Unknown',
