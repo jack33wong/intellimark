@@ -677,7 +677,7 @@ function getBaseQuestionNumber(questionNumber: string): string {
  * Returns a map: questionNumber -> schemeKey
  */
 function mapQuestionsToSchemes(
-  classificationQuestions: Array<{ questionNumber?: string | null; sourceImageIndex?: number }>,
+  classificationQuestions: Array<{ questionNumber?: string | null; sourceImageIndex?: number; text?: string | null }>,
   detectedSchemesMap: Map<string, any>
 ): Map<string, string> {
   const questionToSchemeMap = new Map<string, string>();
@@ -687,19 +687,53 @@ function mapQuestionsToSchemes(
     if (!question.questionNumber) continue;
     
     const aiDetectedQNum = String(question.questionNumber);
-    const baseQNum = getBaseQuestionNumber(aiDetectedQNum);
     
-    // Find matching scheme key
-    const matchingSchemeKey = allSchemeKeys.find(schemeKey => {
-      const schemeQNum = schemeKey.split('_')[0];
-      const baseSchemeQNum = getBaseQuestionNumber(schemeQNum);
-      return baseSchemeQNum === baseQNum;
-    });
+    // Check if this is a numeric question number (past paper) or text key (non-past paper)
+    const isNumericKey = /^\d+[a-z]?$/i.test(aiDetectedQNum);
     
-    if (matchingSchemeKey) {
-      questionToSchemeMap.set(aiDetectedQNum, matchingSchemeKey);
+    if (isNumericKey) {
+      // Past paper: match by question number
+      const baseQNum = getBaseQuestionNumber(aiDetectedQNum);
+      
+      // Find matching scheme key
+      const matchingSchemeKey = allSchemeKeys.find(schemeKey => {
+        const schemeQNum = schemeKey.split('_')[0];
+        const baseSchemeQNum = getBaseQuestionNumber(schemeQNum);
+        return baseSchemeQNum === baseQNum;
+      });
+      
+      if (matchingSchemeKey) {
+        questionToSchemeMap.set(aiDetectedQNum, matchingSchemeKey);
+      } else {
+        console.warn(`[SEGMENTATION] ⚠️ No matching scheme found for Q${aiDetectedQNum}`);
+      }
     } else {
-      console.warn(`[SEGMENTATION] ⚠️ No matching scheme found for Q${aiDetectedQNum}`);
+      // Non-past paper: match by question text similarity
+      const questionText = question.text || '';
+      if (questionText) {
+        let bestMatch: { schemeKey: string; similarity: number } | null = null;
+        let bestSimilarity = 0;
+        
+        for (const [schemeKey, scheme] of detectedSchemesMap.entries()) {
+          const schemeQuestionText = scheme.databaseQuestionText || scheme.questionText || '';
+          if (schemeQuestionText) {
+            const normalizedQText = normalizeTextForComparison(questionText);
+            const normalizedSchemeText = normalizeTextForComparison(schemeQuestionText);
+            if (normalizedQText && normalizedSchemeText) {
+              const similarity = stringSimilarity.compareTwoStrings(normalizedQText, normalizedSchemeText);
+              if (similarity > bestSimilarity && similarity >= 0.60) {
+                bestSimilarity = similarity;
+                bestMatch = { schemeKey, similarity };
+              }
+            }
+          }
+        }
+        
+        if (bestMatch) {
+          questionToSchemeMap.set(aiDetectedQNum, bestMatch.schemeKey);
+        }
+        // If no match found, that's okay - it's a non-past paper question without a scheme
+      }
     }
   }
   
@@ -766,8 +800,45 @@ export function segmentOcrResultsByQuestion(
   }> = [];
   
   classificationResult.questions.forEach((q: any) => {
-    const mainQuestionNumber = q.questionNumber;
+    let mainQuestionNumber = q.questionNumber;
     const pageIndex = (q as any).sourceImageIndex ?? 0;
+    
+    // Fix: If questionNumber is "null" or null, try to find matching scheme (past paper case)
+    if (!mainQuestionNumber || mainQuestionNumber === 'null' || mainQuestionNumber === 'undefined') {
+      // Try to match by question text against detectedSchemesMap (past paper detection)
+      const questionText = q.text || '';
+      if (questionText) {
+        let bestMatch: { scheme: any; schemeKey: string; similarity: number } | null = null;
+        let bestSimilarity = 0;
+        
+        for (const [schemeKey, scheme] of detectedSchemesMap.entries()) {
+          const schemeQuestionText = scheme.databaseQuestionText || scheme.questionText || '';
+          if (schemeQuestionText) {
+            const normalizedQText = normalizeTextForComparison(questionText);
+            const normalizedSchemeText = normalizeTextForComparison(schemeQuestionText);
+            if (normalizedQText && normalizedSchemeText) {
+              const similarity = stringSimilarity.compareTwoStrings(normalizedQText, normalizedSchemeText);
+              if (similarity > bestSimilarity && similarity >= 0.60) {
+                bestSimilarity = similarity;
+                bestMatch = { scheme, schemeKey, similarity };
+              }
+            }
+          }
+        }
+        
+        if (bestMatch && bestMatch.scheme.questionNumber) {
+          // Past paper: use scheme's question number
+          mainQuestionNumber = String(bestMatch.scheme.questionNumber);
+        } else {
+          // Non-past paper: use normalized question text as key (first 30 chars)
+          const normalizedText = normalizeTextForComparison(questionText);
+          mainQuestionNumber = normalizedText.substring(0, 30) || 'unknown';
+        }
+      } else {
+        // No question text either, use fallback
+        mainQuestionNumber = 'unknown';
+      }
+    }
     
     // If question has sub-questions, create separate entries for each sub-question
     if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
