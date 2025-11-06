@@ -15,11 +15,13 @@ import type { ClassificationResult } from './ClassificationService.js';
 interface QuestionBoundary {
   questionNumber: string;
   pageIndex: number;
-  y: number;
+  startY: number; // Start Y position of question text (top)
+  endY: number | null; // End Y position of question text (bottom), null if not found
   questionText: string;
 }
 
 interface QuestionForFiltering {
+  questionNumber?: string | null; // Question number from classification (e.g., "13", "14")
   text?: string | null;
   databaseText?: string | null; // Database question text (from fullExamPapers)
   studentWork?: string | null; // Classification-extracted student work for main question
@@ -199,16 +201,19 @@ function matchBlockToQuestion(
     if (!studentWorkToMatch) continue;
     
     // Split multi-line student work into individual lines for better matching
-    // Classification may return student work as a single string with newlines (e.g., "line1\nline2\nline3")
+    // Classification may return student work as a single string with newlines or double backslashes
+    // AI uses "\\" (double backslash) as line separators in LaTeX format (e.g., "line1 \\ line2 \\ line3")
     // OCR extracts these as separate blocks, so we need to match each block against individual lines
-    const studentWorkLines = studentWorkToMatch.split(/\n/).map(line => line.trim()).filter(line => line.length > 0);
+    const studentWorkLines = studentWorkToMatch
+      .split(/\n|\\\\/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
     
     // Calculate similarity against each line and take the best match
     const normalizedBlock = normalizeTextForComparison(blockText);
     if (!normalizedBlock) continue;
     
     let bestLineSimilarity = 0;
-    let bestLineMatch = false;
     
     for (const studentWorkLine of studentWorkLines) {
       const normalizedStudentWorkLine = normalizeTextForComparison(studentWorkLine);
@@ -228,7 +233,6 @@ function matchBlockToQuestion(
       
       if (finalSimilarity > bestLineSimilarity) {
         bestLineSimilarity = finalSimilarity;
-        bestLineMatch = finalSimilarity >= 0.60; // Match threshold
       }
     }
     
@@ -245,19 +249,22 @@ function matchBlockToQuestion(
       
       if (fullStringFinalSimilarity > bestLineSimilarity) {
         bestLineSimilarity = fullStringFinalSimilarity;
-        bestLineMatch = fullStringFinalSimilarity >= 0.60;
       }
     }
     
-    if (bestLineMatch && bestLineSimilarity > bestSimilarity) {
+    // Use bestLineSimilarity directly (threshold check happens at the end)
+    if (bestLineSimilarity > bestSimilarity) {
       bestSimilarity = bestLineSimilarity;
       bestMatch = { questionNumber: qInfo.questionNumber, schemeKey: qInfo.schemeKey, similarity: bestLineSimilarity };
     }
+    
   }
   
-  // Only return if similarity is above threshold
-  const threshold = 0.60; // Lower threshold for block-to-question matching
-  return bestSimilarity >= threshold ? bestMatch : null;
+    // Only return if similarity is above threshold
+    // Since Step 1 already filtered out question text, any block reaching here must be student work
+    // Use lower threshold to handle OCR errors (e.g., "i" vs "\dot{2}")
+    const threshold = 0.40; // Lowered from 0.55 - we know it's student work, just need to match which question
+    return bestSimilarity >= threshold ? bestMatch : null;
 }
 
 /**
@@ -312,28 +319,41 @@ function isQuestionTextBlock(
   
   // PRIORITY CHECK: If block matches classification student work, don't filter it
   // This prevents filtering actual student work that classification identified
+  // CRITICAL: Check this FIRST before any question text matching to prevent false positives
   for (const question of classificationQuestions) {
     if (question.sourceImageIndex !== block.pageIndex) continue;
     
-  // Check main question student work
-  if (question.studentWork) {
-    if (matchesClassificationStudentWork(block, question.studentWork)) {
-      // Don't log - too verbose for normal operation
-      return false; // Don't filter - it's confirmed student work from classification
-    }
-  }
-  
-  // Check sub-question student work
-  if (question.subQuestions && Array.isArray(question.subQuestions)) {
-    for (const subQ of question.subQuestions) {
-      if (subQ.studentWork) {
-        if (matchesClassificationStudentWork(block, subQ.studentWork)) {
-          // Don't log - too verbose for normal operation
+    // Check main question student work - split by lines for better matching
+    if (question.studentWork) {
+      const studentWorkLines = question.studentWork.split(/\n/).map(line => line.trim()).filter(line => line.length > 0);
+      for (const studentWorkLine of studentWorkLines) {
+        if (matchesClassificationStudentWork(block, studentWorkLine)) {
           return false; // Don't filter - it's confirmed student work from classification
         }
       }
+      // Also check against full string (for cases where OCR combined multiple lines)
+      if (matchesClassificationStudentWork(block, question.studentWork)) {
+        return false; // Don't filter - it's confirmed student work from classification
+      }
     }
-  }
+    
+    // Check sub-question student work
+    if (question.subQuestions && Array.isArray(question.subQuestions)) {
+      for (const subQ of question.subQuestions) {
+        if (subQ.studentWork) {
+          const subQStudentWorkLines = subQ.studentWork.split(/\n/).map(line => line.trim()).filter(line => line.length > 0);
+          for (const studentWorkLine of subQStudentWorkLines) {
+            if (matchesClassificationStudentWork(block, studentWorkLine)) {
+              return false; // Don't filter - it's confirmed student work from classification
+            }
+          }
+          // Also check against full string
+          if (matchesClassificationStudentWork(block, subQ.studentWork)) {
+            return false; // Don't filter - it's confirmed student work from classification
+          }
+        }
+      }
+    }
   }
   
   // Track best match for negative checking
@@ -584,13 +604,18 @@ function findQuestionStartBoundaries(
     }
     
     if (bestMatch) {
+      // Calculate endY from the matched line (if height is available)
+      const coords = extractBoundingBox(pageLines[bestMatch.lineIndex]);
+      const endY = coords ? bestMatch.y + (coords.height || 0) : null;
+      
       boundaries.push({
         questionNumber: String(question.questionNumber),
         pageIndex: pageIndex,
-        y: bestMatch.y,
+        startY: bestMatch.y,
+        endY: endY,
         questionText
       });
-      console.log(`[SEGMENTATION] ✅ Found boundary for Q${question.questionNumber} on Page ${pageIndex} (Y: ${bestMatch.y}, similarity: ${bestMatch.score.toFixed(3)})`);
+      console.log(`[SEGMENTATION] ✅ Found boundary for Q${question.questionNumber} on Page ${pageIndex} (startY: ${bestMatch.y}, endY: ${endY !== null ? endY : 'null'}, similarity: ${bestMatch.score.toFixed(3)})`);
       console.log(`[SEGMENTATION]   Matched text: "${bestMatch.matchedText}..."`);
     } else {
       // Debug: show what OCR text is available on this page
@@ -633,11 +658,108 @@ function extractBoundingBox(line: any): { x: number; y: number; width: number; h
 }
 
 /**
- * Assign block to question based on Y position
- * NOTE: This is currently unused - we use page-based assignment instead
- * Kept for potential future use or debugging
+ * Calculate question boundaries from question text blocks
+ * More reliable than text matching - uses already-identified question text blocks
+ * Matches question text blocks to questions by comparing with question text
  */
-function assignBlockToQuestion(
+function calculateQuestionBoundariesFromTextBlocks(
+  questionTextBlocks: Array<MathBlock & { pageIndex: number }>,
+  questionsOnPage: Array<{ questionNumber: string; schemeKey: string }>,
+  pageIndex: number,
+  originalQuestionsForFiltering: QuestionForFiltering[]
+): QuestionBoundary[] {
+  const boundaries: QuestionBoundary[] = [];
+  
+  // Get questions for this page from originalQuestionsForFiltering
+  const pageQuestions = originalQuestionsForFiltering.filter(q => q.sourceImageIndex === pageIndex);
+  
+  // For each question on this page, find its question text blocks
+  for (const question of questionsOnPage) {
+    const questionNumber = question.questionNumber;
+    
+    // Find the question info from originalQuestionsForFiltering
+    // Use classification question number directly (more reliable than extracting from text)
+    const questionInfo = pageQuestions.find(q => {
+      // First try: match by stored questionNumber from classification
+      if (q.questionNumber) {
+        const baseQNum = questionNumber.replace(/[a-z]/i, '');
+        const baseQNumFromFilter = q.questionNumber.replace(/[a-z]/i, '');
+        if (q.questionNumber === questionNumber || baseQNumFromFilter === baseQNum) {
+          return true;
+        }
+      }
+      // Fallback: extract from text (for backward compatibility or edge cases)
+      const qNumMatch = (q.text || q.databaseText || '').match(/Q?(\d+[a-z]?)/i);
+      const qNum = qNumMatch ? qNumMatch[1] : '';
+      const baseQNum = questionNumber.replace(/[a-z]/i, '');
+      return qNum === baseQNum || qNum === questionNumber;
+    });
+    
+    if (!questionInfo) {
+      continue;
+    }
+    
+    const questionTextToUse = questionInfo.databaseText || questionInfo.text;
+    if (!questionTextToUse) {
+      continue;
+    }
+    
+    // Find question text blocks that match this question
+    const matchingBlocks = questionTextBlocks.filter(block => {
+      if (block.pageIndex !== pageIndex) return false;
+      
+      const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+      if (!blockText) return false;
+      
+      const normalizedBlock = normalizeTextForComparison(blockText);
+      const normalizedQuestion = normalizeTextForComparison(questionTextToUse);
+      
+      // Check if block is question text (high similarity or substring)
+      const similarity = stringSimilarity.compareTwoStrings(normalizedBlock, normalizedQuestion);
+      const isSubstring1 = normalizedQuestion.includes(normalizedBlock);
+      const isSubstring2 = normalizedBlock.includes(normalizedQuestion.slice(0, 50));
+      const matches = similarity >= 0.70 || isSubstring1 || isSubstring2;
+      
+      return matches;
+    });
+    
+    if (matchingBlocks.length > 0) {
+      // Calculate boundary: use the minimum Y (start) and maximum Y+height (end) of question text blocks
+      const yRanges = matchingBlocks
+        .map(block => {
+          const y = block.coordinates?.y;
+          const height = block.coordinates?.height ?? 0;
+          if (y !== null && y !== undefined) {
+            return { startY: y, endY: y + height };
+          }
+          return null;
+        })
+        .filter((range): range is { startY: number; endY: number } => range !== null);
+      
+      if (yRanges.length > 0) {
+        const minY = Math.min(...yRanges.map(r => r.startY));
+        const maxEndY = Math.max(...yRanges.map(r => r.endY));
+        
+        boundaries.push({
+          questionNumber,
+          pageIndex,
+          startY: minY,
+          endY: maxEndY,
+          questionText: questionTextToUse
+        });
+      }
+    }
+  }
+  
+  return boundaries;
+}
+
+/**
+ * Assign block to question based on Y position
+ * Returns the question number that this block belongs to
+ * Works with either startY or endY - if endY is available, uses it for more precise assignment
+ */
+function assignBlockToQuestionByY(
   block: MathBlock & { pageIndex: number },
   boundaries: QuestionBoundary[]
 ): string | null {
@@ -647,15 +769,22 @@ function assignBlockToQuestion(
   const blockPage = block.pageIndex;
   
   // Find the question boundary that this block is below
-  // Sort boundaries by Y position (top to bottom)
+  // Sort boundaries by startY position (top to bottom)
   const pageBoundaries = boundaries
     .filter(b => b.pageIndex === blockPage)
-    .sort((a, b) => a.y - b.y);
+    .sort((a, b) => a.startY - b.startY);
+  
+  if (pageBoundaries.length === 0) return null;
   
   // Find the last (bottommost) boundary that the block is below
+  // If endY is available, use it for more precise assignment (block must be below endY)
+  // If endY is not available, use startY (block must be below startY)
   let assignedQuestion: string | null = null;
   for (const boundary of pageBoundaries) {
-    if (blockY >= boundary.y) {
+    // Use endY if available, otherwise use startY
+    const thresholdY = boundary.endY !== null ? boundary.endY : boundary.startY;
+    
+    if (blockY >= thresholdY) {
       assignedQuestion = boundary.questionNumber;
     } else {
       break; // Block is above this boundary, stop searching
@@ -801,7 +930,10 @@ export function segmentOcrResultsByQuestion(
   
   classificationResult.questions.forEach((q: any) => {
     let mainQuestionNumber = q.questionNumber;
-    const pageIndex = (q as any).sourceImageIndex ?? 0;
+    // For merged questions, use sourceImageIndices array; otherwise use single sourceImageIndex
+    const pageIndices = (q as any).sourceImageIndices && Array.isArray((q as any).sourceImageIndices)
+      ? (q as any).sourceImageIndices
+      : [(q as any).sourceImageIndex ?? 0];
     
     // Fix: If questionNumber is "null" or null, try to find matching scheme (past paper case)
     if (!mainQuestionNumber || mainQuestionNumber === 'null' || mainQuestionNumber === 'undefined') {
@@ -840,29 +972,32 @@ export function segmentOcrResultsByQuestion(
       }
     }
     
-    // If question has sub-questions, create separate entries for each sub-question
-    if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
-      q.subQuestions.forEach((subQ) => {
-        const combinedQuestionNumber = mainQuestionNumber 
-          ? `${mainQuestionNumber}${subQ.part || ''}` 
-          : null;
-        if (combinedQuestionNumber) {
-          flattenedQuestions.push({
-            questionNumber: combinedQuestionNumber,
-            text: subQ.text || q.text || null,
-            sourceImageIndex: pageIndex,
-            subQuestionPart: subQ.part
-          });
-        }
-      });
-    } else if (mainQuestionNumber) {
-      // Main question without sub-questions
-      flattenedQuestions.push({
-        questionNumber: String(mainQuestionNumber),
-        text: q.text || null,
-        sourceImageIndex: pageIndex
-      });
-    }
+    // Create entries for all pages this question spans (for multi-page merged questions)
+    pageIndices.forEach((pageIndex: number) => {
+      // If question has sub-questions, create separate entries for each sub-question
+      if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        q.subQuestions.forEach((subQ) => {
+          const combinedQuestionNumber = mainQuestionNumber 
+            ? `${mainQuestionNumber}${subQ.part || ''}` 
+            : null;
+          if (combinedQuestionNumber) {
+            flattenedQuestions.push({
+              questionNumber: combinedQuestionNumber,
+              text: subQ.text || q.text || null,
+              sourceImageIndex: pageIndex,
+              subQuestionPart: subQ.part
+            });
+          }
+        });
+      } else if (mainQuestionNumber) {
+        // Main question without sub-questions
+        flattenedQuestions.push({
+          questionNumber: String(mainQuestionNumber),
+          text: q.text || null,
+          sourceImageIndex: pageIndex
+        });
+      }
+    });
   });
   
   if (flattenedQuestions.length === 0) {
@@ -873,9 +1008,10 @@ export function segmentOcrResultsByQuestion(
   // 4. Map questions to marking schemes
   const questionToSchemeMap = mapQuestionsToSchemes(flattenedQuestions, detectedSchemesMap);
   
-  if (questionToSchemeMap.size === 0) {
-    throw new Error('[SEGMENTATION] No questions could be mapped to marking schemes');
-  }
+  // Allow questions without schemes (non-past paper questions) - they'll be marked without a scheme
+  // if (questionToSchemeMap.size === 0) {
+  //   throw new Error('[SEGMENTATION] No questions could be mapped to marking schemes');
+  // }
   
   // 5. Build originalQuestionsForFiltering with database question text (directly from detectedSchemesMap to avoid duplication)
   const originalQuestionsForFiltering: QuestionForFiltering[] = [];
@@ -937,6 +1073,7 @@ export function segmentOcrResultsByQuestion(
     // IMPORTANT: Use database text if available (past paper questions), otherwise fallback to classification text (non-past paper questions)
     // This ensures ALL questions are included in filtering, whether they're in the database or not
     originalQuestionsForFiltering.push({
+      questionNumber: mainQuestionNumber, // Store classification question number directly (more reliable than extracting from text)
       text: q.text, // Classification text (always available, used as fallback for non-past paper questions)
       databaseText: databaseQuestionText, // Database question text (only available for past paper questions, no duplication)
       studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined, // Classification-extracted student work for main question
@@ -977,16 +1114,15 @@ export function segmentOcrResultsByQuestion(
   
   
   // Create a map of page -> question numbers from flattenedQuestions
+  // Allow questions without schemes (non-past paper questions) - use question number as scheme key
   const pageToQuestionMap = new Map<number, Array<{ questionNumber: string; schemeKey: string }>>();
   flattenedQuestions.forEach(q => {
     const pageIdx = q.sourceImageIndex;
-    const schemeKey = questionToSchemeMap.get(q.questionNumber);
-    if (schemeKey) {
-      if (!pageToQuestionMap.has(pageIdx)) {
-        pageToQuestionMap.set(pageIdx, []);
-      }
-      pageToQuestionMap.get(pageIdx)!.push({ questionNumber: q.questionNumber, schemeKey });
+    const schemeKey = questionToSchemeMap.get(q.questionNumber) || q.questionNumber; // Use question number as fallback scheme key
+    if (!pageToQuestionMap.has(pageIdx)) {
+      pageToQuestionMap.set(pageIdx, []);
     }
+    pageToQuestionMap.get(pageIdx)!.push({ questionNumber: q.questionNumber, schemeKey });
   });
   
   // Assign blocks by page index and question number mapping
@@ -1020,126 +1156,118 @@ export function segmentOcrResultsByQuestion(
     // If multiple questions share the same scheme key (grouped sub-questions), assign all blocks to that scheme
     for (const [schemeKey, schemeQuestions] of questionsByScheme.entries()) {
     
-    // Step 1: First pass - filter out question text blocks using text matching
+    // Step 1: Filter out question text blocks using text matching
     const questionTextBlocks: Array<MathBlock & { pageIndex: number }> = [];
+    const studentWorkBlocks = blocksOnPage.filter(block => {
+      if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
+        questionTextBlocks.push(block);
+        return false; // Filter out question text
+      } else {
+        return true; // Keep student work
+      }
+    });
     
-    // If multiple different schemes, match blocks to questions first
+    // Step 2: Calculate question boundaries from question text blocks
+    const boundaries = calculateQuestionBoundariesFromTextBlocks(
+      questionTextBlocks,
+      questionsOnPage,
+      pageIndex,
+      originalQuestionsForFiltering
+    );
+    
+    if (hasMultipleDifferentSchemes && boundaries.length === 0) {
+      console.warn(`[SEGMENTATION] ⚠️ Page ${pageIndex}: No boundaries found for questions ${questionsOnPage.map(q => `Q${q.questionNumber}`).join(', ')}, will use text matching fallback`);
+    } else if (hasMultipleDifferentSchemes && boundaries.length > 0) {
+      const boundaryInfo = boundaries.map(b => {
+        const endYInfo = b.endY !== null ? `-${b.endY}` : '(no endY)';
+        return `Q${b.questionNumber}@startY${b.startY}${endYInfo}`;
+      }).join(', ');
+      console.log(`[SEGMENTATION] Page ${pageIndex}: Found ${boundaries.length} boundary(ies): ${boundaryInfo}`);
+      
+      // Log Q14 specifically if present
+      const q14Boundary = boundaries.find(b => b.questionNumber === '14');
+      if (q14Boundary) {
+        console.log(`[SEGMENTATION] Q14 boundary: startY=${q14Boundary.startY}, endY=${q14Boundary.endY !== null ? q14Boundary.endY : 'null'}`);
+      }
+    }
+    
+    // Step 3: Assign blocks to questions by Y-position
     let blocksToAssign: Array<MathBlock & { pageIndex: number }> = [];
+    
     if (hasMultipleDifferentSchemes) {
-      // Match each block to the best question
-      for (const block of blocksOnPage) {
+      // Multiple questions on same page - assign by Y-position
+      for (const block of studentWorkBlocks) {
         const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
-        if (assignedBlocksInPage.has(blockId)) continue; // Already assigned to another question
+        if (assignedBlocksInPage.has(blockId)) continue; // Already assigned
         
-        // Skip question text blocks
-        if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
-          questionTextBlocks.push(block);
-          continue;
-        }
+        const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 40);
+        const isQ14Block = blockText.includes('14/225') || blockText.includes('1+x') || blockText.includes('1 \\frac');
         
-        // Try to match this block to a question
-        const match = matchBlockToQuestion(block, questionsOnPage, classificationResult);
-        if (match && match.schemeKey === schemeKey) {
-          // This block belongs to this question
-          blocksToAssign.push(block);
-          assignedBlocksInPage.add(blockId);
-          const blockText = (block.mathpixLatex || block.googleVisionText || '').substring(0, 40);
-          console.log(`[SEGMENTATION] Matched block "${blockText}..." to Q${match.questionNumber} (similarity: ${match.similarity.toFixed(3)})`);
+        // Assign by Y-position
+        const assignedQuestion = assignBlockToQuestionByY(block, boundaries);
+        if (assignedQuestion) {
+          // Find which scheme this question belongs to
+          const questionInfo = questionsOnPage.find(q => q.questionNumber === assignedQuestion);
+          if (questionInfo && questionInfo.schemeKey === schemeKey) {
+            blocksToAssign.push(block);
+            assignedBlocksInPage.add(blockId);
+            if (isQ14Block) {
+              console.log(`[SEGMENTATION] Q14 Block "${blockText}..." assigned to Q${assignedQuestion} by Y-position (Y: ${block.coordinates?.y})`);
+            }
+          } else if (isQ14Block) {
+            console.log(`[SEGMENTATION] Q14 Block "${blockText}..." assigned to Q${assignedQuestion} by Y-position, but schemeKey mismatch (expected: ${schemeKey}, got: ${questionInfo?.schemeKey})`);
+          }
+        } else {
+          // No Y coordinate or no boundary found - fallback to text matching for this block only
+          const match = matchBlockToQuestion(block, questionsOnPage, classificationResult);
+          if (match && match.schemeKey === schemeKey) {
+            blocksToAssign.push(block);
+            assignedBlocksInPage.add(blockId);
+            if (isQ14Block) {
+              console.log(`[SEGMENTATION] Q14 Block "${blockText}..." assigned to Q${match.questionNumber} by text matching (similarity: ${match.similarity.toFixed(3)})`);
+            }
+          } else if (isQ14Block) {
+            console.warn(`[SEGMENTATION] ⚠️ Q14 Block "${blockText}..." NOT assigned: Y-position=${assignedQuestion || 'null'}, text-match=${match ? `Q${match.questionNumber}(${match.similarity.toFixed(3)})` : 'null'}, schemeKey=${schemeKey}`);
+          }
         }
       }
     } else {
-      // Single scheme or grouped sub-questions - use all blocks (after filtering question text)
-      blocksToAssign = blocksOnPage.filter(block => {
-        if (isQuestionTextBlock(block, originalQuestionsForFiltering)) {
-          questionTextBlocks.push(block);
-          return false;
-        }
-        return true;
-      });
+      // Single scheme or grouped sub-questions - use all student work blocks
+      blocksToAssign = studentWorkBlocks;
     }
     
-    const initiallyFilteredBlocks = blocksToAssign;
-    
-    // Step 2: Calculate Y range from question text blocks (if any were found)
-    let questionTextYRange: { minY: number; maxY: number } | null = null;
-    if (questionTextBlocks.length > 0) {
-      const yPositions = questionTextBlocks
-        .map(block => {
-          const y = block.coordinates?.y ?? null;
-          const height = block.coordinates?.height ?? 50; // Default height if missing
-          return y !== null ? { startY: y, endY: y + height } : null;
-        })
-        .filter((range): range is { startY: number; endY: number } => range !== null);
+    // Step 4: Minimal safety check - filter any remaining high-confidence question text
+    const filteredBlocks = blocksToAssign.filter(block => {
+      const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+      if (!blockText) return true;
       
-      if (yPositions.length > 0) {
-        const minY = Math.min(...yPositions.map(r => r.startY));
-        const maxY = Math.max(...yPositions.map(r => r.endY));
-        questionTextYRange = { minY, maxY };
-      }
-    }
-    
-    // Step 3: Second pass - filter blocks within Y range (unless confirmed student work)
-    const filteredBlocks = initiallyFilteredBlocks.filter(block => {
-      // If we have a Y range and this block is within it, check if it should be filtered
-      if (questionTextYRange) {
-        const blockY = block.coordinates?.y ?? null;
-        const blockHeight = block.coordinates?.height ?? 50;
+      // Only filter if similarity is VERY high (>= 0.90) - we're certain it's question text
+      for (const question of originalQuestionsForFiltering) {
+        if (question.sourceImageIndex !== block.pageIndex) continue;
         
-        if (blockY !== null) {
-          const blockStartY = blockY;
-          const blockEndY = blockY + blockHeight;
-          
-          // Check if block overlaps with question text Y range
-          const isWithinRange = (
-            (blockStartY >= questionTextYRange.minY && blockStartY <= questionTextYRange.maxY) ||
-            (blockEndY >= questionTextYRange.minY && blockEndY <= questionTextYRange.maxY) ||
-            (blockStartY <= questionTextYRange.minY && blockEndY >= questionTextYRange.maxY)
-          );
-          
-          if (isWithinRange) {
-            // Check if this block matches classification student work (don't filter if it does)
-            let matchesStudentWork = false;
-            for (const question of originalQuestionsForFiltering) {
-              if (question.sourceImageIndex !== block.pageIndex) continue;
-              
-              // Check main question student work
-              if (question.studentWork) {
-                if (matchesClassificationStudentWork(block, question.studentWork)) {
-                  matchesStudentWork = true;
-                  break;
-                }
-              }
-              
-              // Check sub-question student work
-              if (question.subQuestions && Array.isArray(question.subQuestions)) {
-                for (const subQ of question.subQuestions) {
-                  if (subQ.studentWork) {
-                    if (matchesClassificationStudentWork(block, subQ.studentWork)) {
-                      matchesStudentWork = true;
-                      break;
-                    }
-                  }
-                }
-                if (matchesStudentWork) break;
-              }
-            }
-            
-            if (!matchesStudentWork) {
-              return false; // Filter it out
+        const questionTextToUse = question.databaseText || question.text;
+        if (questionTextToUse) {
+          const normalizedBlockText = normalizeTextForComparison(blockText);
+          const normalizedQuestionText = normalizeTextForComparison(questionTextToUse);
+          if (normalizedBlockText && normalizedQuestionText) {
+            const similarity = stringSimilarity.compareTwoStrings(normalizedBlockText, normalizedQuestionText);
+            // Only filter if similarity is VERY high (>= 0.90) - we're certain it's question text
+            if (similarity >= 0.90) {
+              return false; // Filter it - we're very certain it's question text
             }
           }
         }
       }
-      return true; // Keep the block
+      
+      return true; // Keep it
     });
     
-    
-      if (filteredBlocks.length > 0) {
-        if (!blocksByQuestion.has(schemeKey)) {
-          blocksByQuestion.set(schemeKey, []);
-        }
-        blocksByQuestion.get(schemeKey)!.push(...filteredBlocks);
+    if (filteredBlocks.length > 0) {
+      if (!blocksByQuestion.has(schemeKey)) {
+        blocksByQuestion.set(schemeKey, []);
       }
+      blocksByQuestion.get(schemeKey)!.push(...filteredBlocks);
+    }
     }
   }
   
@@ -1153,8 +1281,7 @@ export function segmentOcrResultsByQuestion(
   }
   
   for (const q of flattenedQuestions) {
-    const schemeKey = questionToSchemeMap.get(q.questionNumber);
-    if (!schemeKey) continue;
+    const schemeKey = questionToSchemeMap.get(q.questionNumber) || q.questionNumber; // Use question number as fallback
     
     // Check if this question's page has unassigned blocks
     const pageBlocks = blocksByPage.get(q.sourceImageIndex) || [];
@@ -1203,15 +1330,16 @@ export function segmentOcrResultsByQuestion(
     const sourcePages = [...new Set(blocks.map(b => b.pageIndex))].sort((a, b) => a - b);
     
     // Attach marking scheme directly from detectedSchemesMap
+    // If no scheme found (non-past paper question), allow null scheme for basic marking
     const markingScheme = detectedSchemesMap.get(schemeKey);
     if (!markingScheme) {
-      console.warn(`[SEGMENTATION] ⚠️ No marking scheme found for ${schemeKey}, task will be skipped later`);
+      console.warn(`[SEGMENTATION] ⚠️ No marking scheme found for ${schemeKey}, will use basic marking (no scheme)`);
     }
     
     tasks.push({
       questionNumber: schemeKey,
       mathBlocks: blocks,
-      markingScheme: markingScheme || null, // Attach scheme directly during segmentation
+      markingScheme: markingScheme || null, // Allow null for non-past paper questions
       sourcePages
     });
     

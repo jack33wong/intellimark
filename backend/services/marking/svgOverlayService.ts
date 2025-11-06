@@ -166,7 +166,7 @@ export class SVGOverlayService {
     
     annotations.forEach((annotation, index) => {
       try {
-        svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualHeight);
+        svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight);
       } catch (error) {
         console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
         console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
@@ -186,7 +186,7 @@ export class SVGOverlayService {
   /**
    * Create annotation SVG element based on type
    */
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualHeight: number): string {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number): string {
     const [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
@@ -210,10 +210,10 @@ export class SVGOverlayService {
            const reasoning = (annotation as any).reasoning;
            switch (action) {
              case 'tick':
-               svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualHeight);
+               svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight);
                break;
              case 'cross':
-               svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualHeight);
+               svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight);
                break;
              case 'circle':
                svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -232,8 +232,8 @@ export class SVGOverlayService {
   /**
    * Create tick annotation with symbol and text
    */
-  private static createTickAnnotation(x: number, y: number, width: number, height: number, text: string | undefined, reasoning: string | undefined, actualHeight: number): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning, actualHeight);
+  private static createTickAnnotation(x: number, y: number, width: number, height: number, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number): string {
+    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning, actualWidth, actualHeight);
   }
 
   /**
@@ -246,9 +246,10 @@ export class SVGOverlayService {
     height: number,
     text: string | undefined,
     reasoning: string | undefined,
+    actualWidth: number,
     actualHeight: number
   ): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning, actualHeight);
+    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning, actualWidth, actualHeight);
   }
   
 
@@ -278,7 +279,7 @@ export class SVGOverlayService {
   /**
    * Create symbol annotation with optional text (unified logic for tick/cross)
    */
-  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualHeight: number): string {
+  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
     // Calculate base Y position using configurable percentage offset
@@ -304,16 +305,39 @@ export class SVGOverlayService {
       // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
       if (symbol === '✗' && reasoning && reasoning.trim()) {
         const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
-        const reasoningX = textX + textSize + 30; // Start right after marking code with spacing
         const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
         const lineHeight = reasoningSize + 2; // Small spacing between lines
         
-        reasoningLines.forEach((line, index) => {
+        // Estimate reasoning width (rough estimate: ~8px per character)
+        const estimatedReasoningWidth = reasoningLines.reduce((max, line) => Math.max(max, line.length * 8), 0);
+        const reasoningXInline = textX + textSize + 30; // Start right after marking code with spacing
+        const wouldOverflow = (reasoningXInline + estimatedReasoningWidth) > actualWidth;
+        
+        // Determine if block is too wide (reasoning would overflow or block width exceeds threshold)
+        const blockTooWide = width > (actualWidth * 0.7) || wouldOverflow;
+        
+        let reasoningX: number;
+        let reasoningY: number;
+        
+        if (blockTooWide) {
+          // Position reasoning below the answer block, starting at block's left edge
+          reasoningX = x; // Start at block's left edge
+          // Position below the block: block bottom + spacing
+          const spacingBelowBlock = 10 * fontScaleFactor; // Small spacing below block
+          reasoningY = y + height + spacingBelowBlock;
+        } else {
+          // Position reasoning inline (to the right of marking code)
+          reasoningX = reasoningXInline;
           // Calculate reasoning Y position using configurable percentage offset
           const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
-          const reasoningY = textY + reasoningYOffsetPixels + (index * lineHeight);
+          reasoningY = textY + reasoningYOffsetPixels;
+        }
+        
+        reasoningLines.forEach((line, index) => {
+          // For multi-line reasoning, add line height offset for subsequent lines
+          const lineY = reasoningY + (index * lineHeight);
           svg += `
-            <text x="${reasoningX}" y="${reasoningY}" text-anchor="start" fill="#ff0000" 
+            <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000" 
                   font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
         });
       }

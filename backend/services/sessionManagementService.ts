@@ -468,7 +468,8 @@ export class SessionManagementService {
     files: Express.Multer.File[],
     isPdf: boolean,
     isMultiplePdfs: boolean,
-    pdfContext?: any
+    pdfContext?: any,
+    isAuthenticated?: boolean
   ): { structuredImageDataArray?: any[]; structuredPdfContexts?: any[] } {
     let structuredImageDataArray: any[] | undefined = undefined;
     let structuredPdfContexts: any[] | undefined = undefined;
@@ -481,7 +482,16 @@ export class SessionManagementService {
         // Multiple PDFs case - only use originalPdfLink (Firebase URL)
         structuredPdfContexts = pdfContext.pdfContexts.map((ctx: any) => {
           if (!ctx.originalPdfLink) {
-            throw new Error(`PDF upload failed for ${ctx.originalFileName || 'unknown'}: No Firebase URL available`);
+            // Detailed logging for authenticated users to diagnose why originalPdfLink is null
+            console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Multiple PDFs - Missing Firebase URL for ${ctx.originalFileName || 'unknown'}:`);
+            console.error(`  - isAuthenticated: ${isAuthenticated}`);
+            console.error(`  - originalPdfLink: ${ctx.originalPdfLink || 'null'}`);
+            console.error(`  - originalPdfDataUrl: ${ctx.originalPdfDataUrl ? 'exists' : 'null'}`);
+            console.error(`  - fileSize: ${ctx.fileSize || 'unknown'} bytes`);
+            console.error(`  - fileSizeMB: ${ctx.fileSizeMB || 'unknown'}`);
+            console.error(`  - fileIndex: ${ctx.fileIndex !== undefined ? ctx.fileIndex : 'unknown'}`);
+            console.error(`  - pdfContext structure: isMultiplePdfs=${pdfContext.isMultiplePdfs}, pdfContexts.length=${pdfContext.pdfContexts?.length || 0}`);
+            throw new Error(`PDF upload failed for ${ctx.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
           }
           return {
             url: ctx.originalPdfLink, // Only Firebase URL, no base64 fallback
@@ -492,7 +502,16 @@ export class SessionManagementService {
       } else if (pdfContext && !pdfContext.isMultiplePdfs) {
         // Single PDF case - only use originalPdfLink (Firebase URL)
         if (!pdfContext.originalPdfLink) {
-          throw new Error(`PDF upload failed for ${pdfContext.originalFileName || 'unknown'}: No Firebase URL available`);
+          // Detailed logging for authenticated users to diagnose why originalPdfLink is null
+          console.error(`❌ [PDF UPLOAD DIAGNOSTIC] Single PDF - Missing Firebase URL for ${pdfContext.originalFileName || 'unknown'}:`);
+          console.error(`  - isAuthenticated: ${isAuthenticated}`);
+          console.error(`  - originalPdfLink: ${pdfContext.originalPdfLink || 'null'}`);
+          console.error(`  - originalPdfDataUrl: ${pdfContext.originalPdfDataUrl ? 'exists' : 'null'}`);
+          console.error(`  - fileSize: ${pdfContext.fileSize || 'unknown'} bytes`);
+          console.error(`  - fileSizeMB: ${pdfContext.fileSizeMB || 'unknown'}`);
+          console.error(`  - originalFileType: ${pdfContext.originalFileType || 'unknown'}`);
+          console.error(`  - pdfContext structure: isMultiplePdfs=${pdfContext.isMultiplePdfs}, has pdfContexts=${!!pdfContext.pdfContexts}`);
+          throw new Error(`PDF upload failed for ${pdfContext.originalFileName || 'unknown'}: No Firebase URL available (authenticated user - upload should have succeeded)`);
         }
         structuredPdfContexts = [{
           url: pdfContext.originalPdfLink, // Only Firebase URL, no base64 fallback
@@ -501,6 +520,14 @@ export class SessionManagementService {
         }];
       } else {
         // No pdfContext provided - this should not happen if upload succeeded
+        console.error(`❌ [PDF UPLOAD DIAGNOSTIC] PDF context missing:`);
+        console.error(`  - isAuthenticated: ${isAuthenticated}`);
+        console.error(`  - isPdf: ${isPdf}`);
+        console.error(`  - isMultiplePdfs: ${isMultiplePdfs}`);
+        console.error(`  - pdfContext: ${pdfContext ? 'exists but invalid structure' : 'null/undefined'}`);
+        if (pdfContext) {
+          console.error(`  - pdfContext keys: ${Object.keys(pdfContext).join(', ')}`);
+        }
         throw new Error('PDF context missing: PDF upload may have failed');
       }
       
@@ -826,8 +853,11 @@ export class SessionManagementService {
           questionTextForThisQ = globalQuestionText || '';
         }
         
+        // Extract question number from key (e.g., "1_Pearson Edexcel_1MA1/1H" -> "1")
+        const extractedQNum = qNum.split('_')[0];
+        
         examPaper.questions.push({
-          questionNumber: qNum.split('_')[0], // Extract just the question number
+          questionNumber: extractedQNum,
           questionText: questionTextForThisQ,
           marks: data.totalMarks || 0,
           sourceImageIndex: index, // Use index as sourceImageIndex

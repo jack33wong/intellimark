@@ -118,13 +118,27 @@ export async function executeMarkingForQuestion(
              return null;
         }
 
-        const originalStep = stepsDataForMapping.find(step => 
+        // Try exact match first
+        let originalStep = stepsDataForMapping.find(step => 
             step.unified_step_id?.trim() === aiStepId
         );
-        // =================== END OF FIX ===================
+        
+        // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
+        if (!originalStep && aiStepId) {
+          // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
+          const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
+          if (stepNumMatch && stepNumMatch[1]) {
+            const stepNum = parseInt(stepNumMatch[1], 10);
+            // Match by step index (1-based)
+            if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
+              originalStep = stepsDataForMapping[stepNum - 1];
+              console.log(`[ENRICHMENT] Matched step_id "${aiStepId}" to step ${stepNum} using flexible matching`);
+            }
+          }
+        }
         
         if (!originalStep) {
-             console.warn(`[ENRICHMENT] Could not find original step for step_id: ${aiStepId}`);
+             console.warn(`[ENRICHMENT] Could not find original step for step_id: ${aiStepId} (available: ${stepsDataForMapping.map(s => s.unified_step_id).join(', ')})`);
              return null; // Mark for filtering
         }
 

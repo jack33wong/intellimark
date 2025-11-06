@@ -122,43 +122,20 @@ export class QuestionDetectionService {
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
-      const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
-
-      if (isQ2SubQuestion) {
-        console.log(`[Q2 DEBUG] Detecting Q${questionNumberHint}, text preview: "${extractedQuestionText.substring(0, 80)}${extractedQuestionText.length > 80 ? '...' : ''}"`);
-      }
 
       for (const examPaper of examPapers) {
         const metadata = examPaper.metadata;
         const paperCode = metadata?.exam_code || 'unknown';
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
         
-        if (isQ2SubQuestion && is1MA1_1H) {
-          console.log(`[Q2 DEBUG] Checking paper: ${paperCode}`);
-        }
-        
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
         if (match && match.confidence && match.confidence > bestScore) {
-          if (isQ2SubQuestion) {
-            console.log(`[Q2 DEBUG] New best match: ${match.paperCode} Q${match.questionNumber}, score: ${match.confidence.toFixed(3)}`);
-          }
           bestMatch = match;
           bestScore = match.confidence;
-        } else if (match && isQ2SubQuestion) {
-          console.log(`[Q2 DEBUG] Match found but lower score: ${match.paperCode} Q${match.questionNumber}, score: ${match.confidence.toFixed(3)} (best: ${bestScore.toFixed(3)})`);
-        } else if (isQ2SubQuestion && is1MA1_1H && !match) {
-          console.log(`[Q2 DEBUG] ${paperCode}: No Q2 match found (score below 0.5 threshold or no Q2 in paper)`);
         }
       }
 
       if (bestMatch) {
-        // Only log final winner for Q2 debugging
-        if (isQ2SubQuestion) {
-          const colorCode = bestScore >= 0.6 ? '\x1b[32m' : bestScore >= 0.5 ? '\x1b[33m' : '\x1b[0m';
-          const resetCode = '\x1b[0m';
-          console.log(`${colorCode}[FINAL WINNER] ${bestMatch.paperCode} Q${bestMatch.questionNumber} score=${bestScore.toFixed(3)}${resetCode}`);
-        }
-
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
@@ -257,10 +234,6 @@ export class QuestionDetectionService {
             let bestSubSimilarity = 0;
             let matchedSubQuestionNumber = '';
             
-            const metadata = examPaper.metadata;
-            const paperCode = metadata?.exam_code || 'unknown';
-            const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
-            
             for (const subQ of subQuestions) {
               const subQuestionText = subQ.text || subQ.question || subQ.question_text || subQ.sub_question || '';
               // Use ONLY question_part - fail fast if missing
@@ -277,16 +250,6 @@ export class QuestionDetectionService {
               
               const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
               
-              // Only log for Q2 debugging
-              if (isQ2SubQuestion) {
-                const colorCode = subSimilarity >= 0.6 ? '\x1b[32m' : subSimilarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
-                const resetCode = '\x1b[0m';
-                console.log(`${colorCode}[Q2 DEBUG] Comparing sub-question "${subQuestionPart}" from ${paperCode} Q${questionNumber}:${resetCode}`);
-                console.log(`  Classification text: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
-                console.log(`  Database text:       "${subQuestionText.substring(0, 100)}${subQuestionText.length > 100 ? '...' : ''}"`);
-                console.log(`  ${colorCode}Similarity score: ${subSimilarity.toFixed(3)}${resetCode}`);
-              }
-              
               if (subSimilarity > bestSubSimilarity) {
                 bestSubSimilarity = subSimilarity;
                 matchedSubQuestionNumber = subQuestionPart;
@@ -300,16 +263,6 @@ export class QuestionDetectionService {
                 bestQuestionMatch = questionNumber;
                 bestMatchedQuestion = question;
                 bestSubQuestionNumber = matchedSubQuestionNumber; // Set outer scope variable
-                
-                // Only log for Q2 debugging
-                if (isQ2SubQuestion) {
-                  const colorCode = bestSubSimilarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
-                  const resetCode = '\x1b[0m';
-                  console.log(`${colorCode}[Q2 DEBUG] Best match: ${paperCode} Q${questionNumber} sub-question "${matchedSubQuestionNumber}" (score=${bestSubSimilarity.toFixed(3)})${resetCode}`);
-                }
-              } else if (isQ2SubQuestion) {
-                // Color-coded info log (lower score)
-                console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} sub-question "${matchedSubQuestionNumber}" score=${bestSubSimilarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
               }
             }
           }
@@ -338,11 +291,6 @@ export class QuestionDetectionService {
                 continue; // Skip this question - different question number
               }
             }
-            
-            // Only log detailed info for Q2 debugging
-            const isQ2SubQuestion = questionNumberHint && (questionNumberHint.toLowerCase().startsWith('2a') || questionNumberHint.toLowerCase().startsWith('2b'));
-            const isQ2InPaper = baseQuestionNumber === '2' || questionNumber === '2';
-            const shouldLog = isQ2SubQuestion && isQ2InPaper;
             
             // If hint is a sub-question (e.g., "2a"), match against sub-questions only
             if (isSubQuestionHint) {
@@ -376,56 +324,22 @@ export class QuestionDetectionService {
                 // Calculate similarity for sub-question text
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
                 
-                if (shouldLog) {
-                  const subColorCode = subSimilarity >= 0.6 ? '\x1b[32m' : subSimilarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
-                  const resetCode = '\x1b[0m';
-                  console.log(`${subColorCode}[QUESTION MATCH] Comparing sub-question "${subQuestionPart}" from ${paperCode} Q${questionNumber}:${resetCode}`);
-                  console.log(`  Classification text: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
-                  console.log(`  Database text:       "${subQuestionText.substring(0, 100)}${subQuestionText.length > 100 ? '...' : ''}"`);
-                  console.log(`  ${subColorCode}Similarity score: ${subSimilarity.toFixed(3)}${resetCode}`);
-                }
-                
                 if (subSimilarity > bestScore) {
                   bestScore = subSimilarity;
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = question;
                   bestSubQuestionNumber = subQuestionPart;
-                  
-                  if (shouldLog) {
-                    const successColor = subSimilarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
-                    const resetCode = '\x1b[0m';
-                    console.log(`${successColor}[MATCH] ${paperCode} Q${questionNumber} sub-question "${subQuestionPart}" score=${subSimilarity.toFixed(3)}${resetCode}`);
-                  }
-                } else if (shouldLog) {
-                  console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} sub-question "${subQuestionPart}" score=${subSimilarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
                 }
               }
             } else {
               // Hint is a main question (e.g., "2"), match against main question text only
               const similarity = this.calculateSimilarity(questionText, questionContent);
               
-              if (shouldLog) {
-                const colorCode = similarity >= 0.6 ? '\x1b[32m' : similarity >= 0.5 ? '\x1b[33m' : '\x1b[0m';
-                const resetCode = '\x1b[0m';
-                console.log(`${colorCode}[QUESTION MATCH] ${paperCode} Q${questionNumber}:${resetCode}`);
-                console.log(`  Classification: "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
-                console.log(`  Database:       "${questionContent.substring(0, 100)}${questionContent.length > 100 ? '...' : ''}"`);
-                console.log(`  ${colorCode}Similarity: ${similarity.toFixed(3)}${resetCode}`);
-              }
-            
-            if (similarity > bestScore) {
-              bestScore = similarity;
-              bestQuestionMatch = questionNumber;
-              bestMatchedQuestion = question;
-              bestSubQuestionNumber = ''; // Reset sub-question
-              
-                if (shouldLog) {
-                  const successColor = similarity >= 0.6 ? '\x1b[32m' : '\x1b[33m';
-                  const resetCode = '\x1b[0m';
-                  console.log(`${successColor}[MATCH] ${paperCode} Q${questionNumber} score=${similarity.toFixed(3)}${resetCode}`);
-                }
-              } else if (shouldLog) {
-                console.log(`\x1b[33m[INFO] ${paperCode} Q${questionNumber} score=${similarity.toFixed(3)} (best: ${bestScore.toFixed(3)})\x1b[0m`);
+              if (similarity > bestScore) {
+                bestScore = similarity;
+                bestQuestionMatch = questionNumber;
+                bestMatchedQuestion = question;
+                bestSubQuestionNumber = ''; // Reset sub-question
               }
             }
           }
@@ -546,7 +460,6 @@ export class QuestionDetectionService {
           
           if (matchedSubQ && matchedSubQ.marks !== undefined) {
             questionMarks = matchedSubQ.marks; // Use sub-question's marks directly from fullExamPapers
-            console.log(`[QUESTION MARKS DEBUG] ✅ Using sub-question marks: Q${bestQuestionMatch}${bestSubQuestionNumber} = ${questionMarks} marks (from fullExamPapers)`);
           } else {
             // Fail fast - sub-question matched but marks not found
             console.error(`[QUESTION MARKS DEBUG] ❌ Sub-question Q${bestQuestionMatch}${bestSubQuestionNumber} matched but marks not found in sub_questions[].marks. Expected structure: sub_questions[].question_part and sub_questions[].marks`);
@@ -617,17 +530,12 @@ export class QuestionDetectionService {
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
       
-      console.log(`[MARKING SCHEME LOOKUP] Looking for scheme matching: ${examPaperMatch.paperCode} (${examPaperMatch.board} ${examPaperMatch.qualification} ${examPaperMatch.year})`);
-      console.log(`[MARKING SCHEME LOOKUP] Total marking schemes in database: ${markingSchemes.length}`);
-      
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
           // Prioritize exact paper code matches
           const isExactPaperMatch = examPaperMatch.paperCode === match.examDetails.paperCode;
           const adjustedScore = isExactPaperMatch ? match.confidence + 0.1 : match.confidence;
-          
-          console.log(`[MARKING SCHEME LOOKUP] Found match: ${match.examDetails.paperCode} (score: ${adjustedScore.toFixed(3)})`);
           
           if (adjustedScore > bestScore) {
             bestMatch = match;
@@ -637,11 +545,10 @@ export class QuestionDetectionService {
       }
       
       if (bestMatch) {
-        console.log(`[MARKING SCHEME LOOKUP] ✅ Best match selected: ${bestMatch.examDetails.paperCode}`);
         return bestMatch;
       }
       
-      console.log(`[MARKING SCHEME LOOKUP] ❌ No matching marking scheme found`);
+      console.error(`[MARKING SCHEME LOOKUP] ❌ No matching marking scheme found for ${examPaperMatch.paperCode}`);
       
 
       return null;
@@ -695,14 +602,13 @@ export class QuestionDetectionService {
         let questionMarks = null;
         
         if (!examPaperMatch.questionNumber) {
-          console.log(`[QUESTION MARKS DEBUG] ❌ examPaperMatch.questionNumber is missing`);
+          console.error(`[QUESTION MARKS DEBUG] ❌ examPaperMatch.questionNumber is missing`);
           return null; // Fail fast
         }
         
         // Check if markingScheme has questions property
         if (!markingScheme.questions) {
-          console.log(`[QUESTION MARKS DEBUG] ❌ markingScheme.questions is missing for ${examDetails.paperCode}`);
-          console.log(`[QUESTION MARKS DEBUG] markingScheme keys: ${Object.keys(markingScheme).join(', ')}`);
+          console.error(`[QUESTION MARKS DEBUG] ❌ markingScheme.questions is missing for ${examDetails.paperCode}`);
           return null; // Fail fast
         }
         
@@ -717,16 +623,13 @@ export class QuestionDetectionService {
           flatKey = questionNumber;
         }
         
-        console.log(`[QUESTION MARKS DEBUG] Looking for Q${flatKey} in ${examDetails.paperCode}`);
-        
         // FLAT STRUCTURE ONLY - no fallbacks, no nested structures
         if (questions[flatKey]) {
           questionMarks = questions[flatKey];
-          console.log(`[QUESTION MARKS DEBUG] ✅ Found marks: questions["${flatKey}"]`);
         } else {
           // Fail fast - no matching structure found
-          console.log(`[QUESTION MARKS DEBUG] ❌ Not found: questions["${flatKey}"]`);
-          console.log(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 20).join(', ')}${Object.keys(questions).length > 20 ? '...' : ''}`);
+          console.error(`[QUESTION MARKS DEBUG] ❌ Not found: questions["${flatKey}"] in ${examDetails.paperCode}`);
+          console.error(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 20).join(', ')}${Object.keys(questions).length > 20 ? '...' : ''}`);
           return null; // Fail fast - no fallbacks
         }
         

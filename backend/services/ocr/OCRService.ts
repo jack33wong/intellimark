@@ -437,9 +437,14 @@ export class OCRService {
              
              const coords = this.extractBoundingBox(line);
 
-             if (text.includes('\\\\')) {
-                 let cleanText = text.replace(/\\\[|\\\]|\\begin{array}\{.*\}|\\end{array}/g, '').trim();
-                 const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
+            if (text.includes('\\\\')) {
+                // Remove LaTeX delimiters and environment tags, but keep the actual content
+                let cleanText = text
+                    .replace(/\\\[|\\\]/g, '') // Remove \[ and \]
+                    .replace(/\\begin\{array\}\{.*?\}|\\end\{array\}/g, '') // Remove \begin{array}{...} and \end{array}
+                    .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '') // Remove \begin{aligned} and \end{aligned}
+                    .trim();
+                const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
                  
                  // If we have coords, split them; otherwise estimate for each split line
                  if (coords) {

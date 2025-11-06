@@ -248,9 +248,12 @@ export class MarkingInstructionService {
     
     // ========================== END: USE SINGLE PROMPT ==========================
 
+    // Extract question number for logging
+    const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
+
     // Log what's being sent to AI for debugging with better formatting
     const ocrPreview = formattedOcrText.length > 200 ? formattedOcrText.substring(0, 200) + '...' : formattedOcrText;
-    console.log('📝 [AI PROMPT] OCR Text:');
+    console.log(`📝 [AI PROMPT] Q${questionNumber} - OCR Text:`);
     console.log('\x1b[36m' + ocrPreview + '\x1b[0m'); // Cyan color
     
     if (hasMarkingScheme) {
@@ -305,8 +308,11 @@ export class MarkingInstructionService {
 
       const parsedResponse = JSON.parse(jsonString);
 
+      // Extract question number for logging
+      const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
+
       // Log clean AI response with better formatting
-      console.log('🤖 [AI RESPONSE] Clean response received:');
+      console.log(`🤖 [AI RESPONSE] Q${questionNumber} - Clean response received:`);
       console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
       console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color

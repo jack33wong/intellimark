@@ -1019,17 +1019,129 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
     
     // Combine questions from all images
-    const allQuestions: any[] = [];
+    // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
+    const questionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
+    const questionsWithoutNumber: Array<{ question: any; pageIndex: number }> = [];
+    
     allClassificationResults.forEach(({ pageIndex, result }) => {
       if (result.questions && Array.isArray(result.questions)) {
         result.questions.forEach((question: any) => {
-          allQuestions.push({
-            ...question,
-            sourceImage: standardizedPages[pageIndex].originalFileName,
-            sourceImageIndex: pageIndex
-          });
+          const qNum = question.questionNumber;
+          
+          // Only merge if questionNumber exists and is not null/undefined
+          if (qNum && qNum !== 'null' && qNum !== 'undefined') {
+            const qNumStr = String(qNum);
+            if (!questionsByNumber.has(qNumStr)) {
+              questionsByNumber.set(qNumStr, []);
+            }
+            questionsByNumber.get(qNumStr)!.push({
+              question,
+              pageIndex
+            });
+          } else {
+            // No question number - can't merge, keep as separate entry
+            questionsWithoutNumber.push({
+              question,
+              pageIndex
+            });
+          }
         });
       }
+    });
+    
+    // Merge questions with same questionNumber
+    const allQuestions: any[] = [];
+    
+    // Process merged questions
+    questionsByNumber.forEach((questionInstances, questionNumber) => {
+      if (questionInstances.length === 1) {
+        // Single page - no merge needed
+        const { question, pageIndex } = questionInstances[0];
+        allQuestions.push({
+          ...question,
+          sourceImage: standardizedPages[pageIndex].originalFileName,
+          sourceImageIndex: pageIndex
+        });
+      } else {
+        // Multiple pages with same questionNumber - merge them
+        // Find page with question text (not null/empty)
+        const pageWithText = questionInstances.find(({ question }) => 
+          question.text && question.text !== 'null' && question.text.trim().length > 0
+        ) || questionInstances[0];
+        
+        // Combine student work from all pages
+        const combinedStudentWork = questionInstances
+          .map(({ question }) => question.studentWork)
+          .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
+          .join('\n');
+        
+        // Merge sub-questions if present (group by part, combine student work)
+        const mergedSubQuestions = new Map<string, any>();
+        questionInstances.forEach(({ question }) => {
+          if (question.subQuestions && Array.isArray(question.subQuestions)) {
+            question.subQuestions.forEach((subQ: any) => {
+              const part = subQ.part || '';
+              if (!mergedSubQuestions.has(part)) {
+                mergedSubQuestions.set(part, {
+                  part: subQ.part,
+                  text: subQ.text && subQ.text !== 'null' ? subQ.text : null,
+                  studentWork: null,
+                  confidence: subQ.confidence || 0.9
+                });
+              }
+              // Combine student work for same sub-question part
+              if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
+                const existing = mergedSubQuestions.get(part)!;
+                if (existing.studentWork) {
+                  existing.studentWork += '\n' + subQ.studentWork;
+                } else {
+                  existing.studentWork = subQ.studentWork;
+                }
+              }
+              // Use text from sub-question that has it
+              if (subQ.text && subQ.text !== 'null' && !mergedSubQuestions.get(part)!.text) {
+                mergedSubQuestions.get(part)!.text = subQ.text;
+              }
+            });
+          }
+        });
+        
+        // Collect all page indices for this merged question
+        const allPageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+        
+        const merged = {
+          ...pageWithText.question,
+          questionNumber: questionNumber,
+          // Use text from page that has it (not null/empty)
+          text: pageWithText.question.text && pageWithText.question.text !== 'null' 
+            ? pageWithText.question.text 
+            : questionInstances[0].question.text,
+          // Combine student work from all pages
+          studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
+          // Use sourceImageIndex from page with text, or first page (for backward compatibility)
+          sourceImage: standardizedPages[pageWithText.pageIndex].originalFileName,
+          sourceImageIndex: pageWithText.pageIndex,
+          // Store all page indices this question spans (for multi-page questions)
+          sourceImageIndices: allPageIndices,
+          // Merge sub-questions if present
+          subQuestions: mergedSubQuestions.size > 0 
+            ? Array.from(mergedSubQuestions.values())
+            : pageWithText.question.subQuestions || [],
+          // Use highest confidence
+          confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
+        };
+        
+        allQuestions.push(merged);
+      }
+    });
+    
+    // Add questions without question number (can't be merged)
+    questionsWithoutNumber.forEach(({ question, pageIndex }) => {
+      allQuestions.push({
+        ...question,
+        sourceImage: standardizedPages[pageIndex].originalFileName,
+        sourceImageIndex: pageIndex
+      });
     });
     
     // Create combined classification result with enhanced mixed content detection
@@ -1916,19 +2028,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         isAuthenticated
       );
       
-      // Create structured data
+      // Create structured data (only for authenticated users - unauthenticated users don't need database persistence)
+      let structuredImageDataArray: any[] | undefined = undefined;
+      let structuredPdfContexts: any[] | undefined = undefined;
       
-      const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
-        files,
-        isPdf,
-        isMultiplePdfs,
-        pdfContext
-      );
-      
-
-      // Update pdfContext with structured data for frontend
-      if (pdfContext && structuredPdfContexts) {
-        pdfContext.pdfContexts = structuredPdfContexts;
+      if (isAuthenticated) {
+        const structuredData = SessionManagementService.createStructuredData(
+          files,
+          isPdf,
+          isMultiplePdfs,
+          pdfContext,
+          isAuthenticated // Pass authentication status for diagnostic logging
+        );
+        structuredImageDataArray = structuredData.structuredImageDataArray;
+        structuredPdfContexts = structuredData.structuredPdfContexts;
+        
+        // Update pdfContext with structured data for frontend
+        if (pdfContext && structuredPdfContexts) {
+          pdfContext.pdfContexts = structuredPdfContexts;
+        }
       }
 
       // Create user message for database
