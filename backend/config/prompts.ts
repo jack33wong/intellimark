@@ -21,7 +21,10 @@ export const AI_PROMPTS = {
        - Extract COMPLETE question text only (exclude header instructions, exclude student work)
     3. Extract student work (ONLY if category is "questionAnswer"):
        - For each question/sub-question with visible student work, extract in LaTeX format
-       - Example: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
+       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
+       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
        - If no student work, set "studentWork" to null
 
     Output format (raw JSON only, no markdown):
@@ -65,7 +68,10 @@ export const AI_PROMPTS = {
        - Extract COMPLETE question text only (exclude header instructions, exclude student work)
     3. Extract student work (ONLY if category is "questionAnswer"):
        - For each question/sub-question with visible student work, extract in LaTeX format
-       - Example: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
+       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
+       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
        - If no student work, set "studentWork" to null
 
     Output format (raw JSON only, no markdown):

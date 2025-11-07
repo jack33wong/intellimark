@@ -114,7 +114,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const result = await response.json() as any;
       const content = await this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      const parsed = JSON.parse(cleanContent);
+      const parsed = this.parseJsonWithSanitization(cleanContent);
       
       // Get dynamic API name
       const { getModelConfig } = await import('../../config/aiModels.js');
@@ -400,7 +400,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const result = await response.json() as any;
       const content = await this.extractGeminiContent(result);
       const cleanContent = this.cleanGeminiResponse(content);
-      const finalResult = await this.parseGeminiResponse(cleanContent, result, model);
+      const sanitizedContent = this.parseJsonWithSanitization(cleanContent, true); // true = return string for parseGeminiResponse
+      const finalResult = await this.parseGeminiResponse(sanitizedContent, result, model);
       
       return finalResult;
     } catch (error) {
@@ -533,6 +534,96 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   }
 
   /**
+   * Parse JSON with robust sanitization for invalid escape sequences
+   * @param jsonString The JSON string to parse
+   * @param returnString If true, return the sanitized string instead of parsed object (for parseGeminiResponse)
+   * @returns Parsed object or sanitized string
+   */
+  private static parseJsonWithSanitization(jsonString: string, returnString: boolean = false): any {
+    // First, try to parse directly (fast path for valid JSON)
+    try {
+      const parsed = JSON.parse(jsonString);
+      return returnString ? jsonString : parsed;
+    } catch (error) {
+      // Log the error and problematic content
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ [CLASSIFICATION] JSON Parse Error (first attempt):');
+      console.error(`❌ [CLASSIFICATION] Error: ${errorMessage}`);
+      
+      // Find the position mentioned in the error (e.g., "at position 5963")
+      const positionMatch = errorMessage.match(/position (\d+)/);
+      const errorPosition = positionMatch ? parseInt(positionMatch[1], 10) : null;
+      
+      // Log the problematic content around the error position
+      if (errorPosition !== null && errorPosition < jsonString.length) {
+        const start = Math.max(0, errorPosition - 100);
+        const end = Math.min(jsonString.length, errorPosition + 100);
+        const context = jsonString.substring(start, end);
+        const relativePos = errorPosition - start;
+        console.error(`❌ [CLASSIFICATION] Content around error position ${errorPosition}:`);
+        console.error(`❌ [CLASSIFICATION] ...${context.substring(0, relativePos)}${'\x1b[31m'}${context[relativePos]}${'\x1b[0m'}${context.substring(relativePos + 1)}...`);
+      } else {
+        // If we can't find position, log a sample of the content
+        console.error(`❌ [CLASSIFICATION] Content length: ${jsonString.length} characters`);
+        console.error(`❌ [CLASSIFICATION] First 500 chars: ${jsonString.substring(0, 500)}`);
+        if (jsonString.length > 500) {
+          console.error(`❌ [CLASSIFICATION] Last 500 chars: ...${jsonString.substring(jsonString.length - 500)}`);
+        }
+      }
+      
+      // Sanitize invalid escape sequences
+      let sanitized = jsonString;
+      
+      // Fix invalid escape sequences (e.g., \x where x is not a valid escape character)
+      // Valid escapes: \n, \r, \t, \\, \", \/, \b, \f, \uXXXX (where XXXX is 4 hex digits)
+      // We need to escape backslashes that are not followed by valid escape characters
+      // Be careful: \u must be followed by 4 hex digits, so we check for that separately
+      sanitized = sanitized.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+      
+      // Fix common LaTeX escaping issues (similar to MarkingInstructionService)
+      sanitized = sanitized
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{}
+        .replace(/\\times/g, '\\\\times') // Fix \times
+        .replace(/\\pi/g, '\\\\pi') // Fix \pi
+        .replace(/\\mathrm\{([^}]*)\}/g, '\\\\mathrm{$1}') // Fix \mathrm{}
+        .replace(/\\text\{([^}]*)\}/g, '\\\\text{$1}') // Fix \text{}
+        .replace(/\\sqrt\{([^}]+)\}/g, '\\\\sqrt{$1}') // Fix \sqrt{}
+        .replace(/\\[a-zA-Z]+/g, (match) => {
+          // Only fix if it's not already escaped
+          if (match.startsWith('\\\\')) return match;
+          return `\\\\${match.slice(1)}`;
+        });
+      
+      // Try parsing again after sanitization
+      try {
+        const parsed = JSON.parse(sanitized);
+        console.log('✅ [CLASSIFICATION] JSON parsing succeeded after sanitization');
+        return returnString ? sanitized : parsed;
+      } catch (secondError) {
+        const secondErrorMessage = secondError instanceof Error ? secondError.message : String(secondError);
+        console.error('❌ [CLASSIFICATION] JSON Parse Error (after sanitization):');
+        console.error(`❌ [CLASSIFICATION] Error: ${secondErrorMessage}`);
+        console.error(`❌ [CLASSIFICATION] Sanitized content length: ${sanitized.length} characters`);
+        console.error(`❌ [CLASSIFICATION] Sanitized content (first 1000 chars): ${sanitized.substring(0, 1000)}`);
+        
+        // Find the position in the sanitized string
+        const secondPositionMatch = secondErrorMessage.match(/position (\d+)/);
+        if (secondPositionMatch) {
+          const secondErrorPosition = parseInt(secondPositionMatch[1], 10);
+          const start = Math.max(0, secondErrorPosition - 100);
+          const end = Math.min(sanitized.length, secondErrorPosition + 100);
+          const context = sanitized.substring(start, end);
+          const relativePos = secondErrorPosition - start;
+          console.error(`❌ [CLASSIFICATION] Sanitized content around error position ${secondErrorPosition}:`);
+          console.error(`❌ [CLASSIFICATION] ...${context.substring(0, relativePos)}${'\x1b[31m'}${context[relativePos]}${'\x1b[0m'}${context.substring(relativePos + 1)}...`);
+        }
+        
+        throw new Error(`Failed to parse Gemini response as JSON even after sanitization. Original error: ${errorMessage}. Sanitization error: ${secondErrorMessage}`);
+      }
+    }
+  }
+
+  /**
    * Shared parsing function for hierarchical question structure
    * Handles both new hierarchical format and old flat format (backward compatibility)
    */
@@ -611,15 +702,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   private static async parseGeminiResponse(cleanContent: string, result: any, modelType: string): Promise<ClassificationResult> {
     // Debug logging will be moved to after step completion
     
-    let parsed;
-    try {
-      parsed = JSON.parse(cleanContent);
-    } catch (error) {
-      console.error('❌ [CLASSIFICATION] JSON Parse Error:');
-      console.error('❌ [CLASSIFICATION] Content that failed to parse:', cleanContent);
-      console.error('❌ [CLASSIFICATION] Parse error:', error);
-      throw new Error(`Failed to parse Gemini response as JSON. Content: ${cleanContent.substring(0, 100)}...`);
-    }
+    // Use parseJsonWithSanitization which handles errors and logging internally
+    const parsed = this.parseJsonWithSanitization(cleanContent, false);
     
     // Get dynamic API name based on model
     const { getModelConfig } = await import('../../config/aiModels.js');
