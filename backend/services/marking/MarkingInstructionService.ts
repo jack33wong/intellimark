@@ -328,22 +328,47 @@ export class MarkingInstructionService {
       }
 
       // Sanitize JSON string to handle unescaped characters
-      // Use a more robust approach: try to parse first, if it fails, fix common issues
+      // The AI may return single backslashes in LaTeX that need to be escaped for JSON
+      let parsedResponse;
       try {
-        JSON.parse(jsonString);
+        parsedResponse = JSON.parse(jsonString);
       } catch (error) {
         // If parsing fails, fix common LaTeX escaping issues
-        jsonString = jsonString
-          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{}
-          .replace(/\\times/g, '\\\\times') // Fix \times
-          .replace(/\\pi/g, '\\\\pi') // Fix \pi
-          .replace(/\\mathrm\{([^}]*)\}/g, '\\\\mathrm{$1}') // Fix \mathrm{}
-          .replace(/\\text\{([^}]*)\}/g, '\\\\text{$1}') // Fix \text{}
-          .replace(/\\sqrt\{([^}]+)\}/g, '\\\\sqrt{$1}') // Fix \sqrt{}
-          .replace(/\\[a-zA-Z]+/g, (match) => `\\\\${match.slice(1)}`); // Fix other LaTeX commands
+        // The issue is often single backslashes in string values like "\\mathbf{A}" 
+        // which should be "\\\\mathbf{A}" in JSON
+        let fixedJson = jsonString;
+        
+        // Fix unescaped backslashes in string values
+        // The AI may return single backslashes like \mathbf{A} which need to be \\mathbf{A} in JSON
+        // Simple approach: escape all backslashes that aren't already part of valid escape sequences
+        fixedJson = jsonString;
+        
+        // Replace single backslashes that aren't followed by valid escape characters
+        // Valid escapes: \", \\, \n, \r, \t, \b, \f, \uXXXX
+        fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
+        
+        try {
+          parsedResponse = JSON.parse(fixedJson);
+        } catch (secondError) {
+          // If still failing, try escaping ALL backslashes (more aggressive)
+          fixedJson = jsonString.replace(/\\/g, '\\\\');
+          // But then un-escape the ones that should stay as single (like \n, \", etc.)
+          fixedJson = fixedJson.replace(/\\\\n/g, '\\n');
+          fixedJson = fixedJson.replace(/\\\\"/g, '\\"');
+          fixedJson = fixedJson.replace(/\\\\r/g, '\\r');
+          fixedJson = fixedJson.replace(/\\\\t/g, '\\t');
+          fixedJson = fixedJson.replace(/\\\\b/g, '\\b');
+          fixedJson = fixedJson.replace(/\\\\f/g, '\\f');
+          
+          try {
+            parsedResponse = JSON.parse(fixedJson);
+          } catch (thirdError) {
+            console.error("❌ JSON parsing failed after fix attempts. Error:", thirdError);
+            console.error("❌ Problematic JSON section (first 500 chars):", fixedJson.substring(0, 500));
+            throw thirdError;
+          }
+        }
       }
-
-      const parsedResponse = JSON.parse(jsonString);
 
       // Extract question number for logging
       const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';

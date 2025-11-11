@@ -45,6 +45,9 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     .replace(/\\times/g, 'x') // Convert \times to x
     .replace(/\\cdot/g, '*') // Convert \cdot to *
     .replace(/\\mathrm\{([^}]+)\}/g, '$1') // Remove \mathrm{}
+    .replace(/\\mathbf\{([^}]+)\}/g, '$1') // Remove \mathbf{} (e.g., \mathbf{A} → A)
+    .replace(/\\mathit\{([^}]+)\}/g, '$1') // Remove \mathit{}
+    .replace(/\\text\{([^}]+)\}/g, '$1') // Remove \text{}
     .replace(/\\/g, '') // Remove any remaining backslashes
     .replace(/\{|\}/g, '') // Remove braces
     .replace(/\$+/g, '') // Remove $ signs
