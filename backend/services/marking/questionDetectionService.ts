@@ -249,10 +249,6 @@ export class QuestionDetectionService {
             if (baseQuestionNumber !== baseHint) {
               continue; // Skip this question - different base number
             }
-            // Q12 debugging: log that we passed base number check
-            if (questionNumberHint?.startsWith('12')) {
-              console.log(`[Q12 DEBUG] ✅ Base number match: Q${questionNumber} (base=${baseQuestionNumber})`);
-            }
           } else if (questionNumberHint) {
             // For main question hints, only match exact question numbers
             if (questionNumber !== questionNumberHint) {
@@ -270,10 +266,6 @@ export class QuestionDetectionService {
             // Remove parentheses if present (e.g., "(i)" -> "i", "(ii)" -> "ii")
             hintSubPart = hintSubPart.replace(/^\(|\)$/g, '');
             
-            // Q12 debugging: log what we're looking for
-            if (questionNumber === '12' || questionNumberHint?.startsWith('12')) {
-              console.log(`[Q12 DEBUG] Looking for sub-question part: "${hintSubPart}" in Q${questionNumber} (${subQuestions.length} sub-questions)`);
-            }
             
             if (subQuestions.length > 0) {
               // Match against the specific sub-question part
@@ -286,10 +278,6 @@ export class QuestionDetectionService {
                 }
                 const subQuestionPart = String(subQ.question_part).toLowerCase();
                 
-                // Q12 debugging: log each sub-question we check
-                if (questionNumber === '12' || questionNumberHint?.startsWith('12')) {
-                  console.log(`[Q12 DEBUG] Checking sub-question part: "${subQuestionPart}" vs hint "${hintSubPart}"`);
-                }
                 
                 // Only match if sub-question parts match (e.g., "a" matches "a", "i" matches "i")
                 if (subQuestionPart !== hintSubPart) {
@@ -303,30 +291,24 @@ export class QuestionDetectionService {
                 // Calculate similarity for sub-question text
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
                 
-                // Q12 debugging: log similarity score and actual texts
-                if (questionNumber === '12' || questionNumberHint?.startsWith('12')) {
-                  console.log(`[Q12 DEBUG] ✅ Matched sub-question part "${subQuestionPart}" with similarity: ${subSimilarity.toFixed(3)}`);
-                  console.log(`[Q12 DEBUG]   Classification text: "${questionText.substring(0, 100)}"`);
-                  console.log(`[Q12 DEBUG]   Database text: "${subQuestionText.substring(0, 100)}"`);
-                  // Use shared normalization utility for debug logging (same as actual comparison)
-                  const norm1 = normalizeTextForComparison(questionText);
-                  const norm2 = normalizeTextForComparison(subQuestionText);
-                  console.log(`[Q12 DEBUG]   Normalized classification: "${norm1}"`);
-                  console.log(`[Q12 DEBUG]   Normalized database: "${norm2}"`);
-                  console.log(`[Q12 DEBUG]   Normalized match: ${norm1 === norm2}`);
-                }
                 
                 if (subSimilarity > bestScore) {
                   bestScore = subSimilarity;
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = question;
                   bestSubQuestionNumber = subQuestionPart;
+                } else if (subQuestionPart === hintSubPart && subSimilarity >= 0.2) {
+                  // Fallback: Sub-question part matches but text similarity is low
+                  // Use lower confidence (0.5) but still accept the match
+                  // This handles cases where classification text format differs but sub-question part is correct
+                  if (bestScore < 0.5) {
+                    bestScore = 0.5;
+                    bestQuestionMatch = questionNumber;
+                    bestMatchedQuestion = question;
+                    bestSubQuestionNumber = subQuestionPart;
+                    console.warn(`[QUESTION DETECTION] ⚠️ Using sub-question part fallback for Q${questionNumber}${subQuestionPart} (text similarity: ${subSimilarity.toFixed(3)}, bestScore was: ${bestScore.toFixed(3)})`);
+                  }
                 }
-              }
-            } else {
-              // Q12 debugging: no sub-questions found
-              if (questionNumber === '12' || questionNumberHint?.startsWith('12')) {
-                console.log(`[Q12 DEBUG] ⚠️ Q${questionNumber} has no sub_questions array`);
               }
             }
           } else {
@@ -363,19 +345,12 @@ export class QuestionDetectionService {
               console.error(`[QUESTION DETECTION] ❌ Failed to extract base number from hint "${questionNumberHint}" in object structure. This should not happen for sub-question hints.`);
             }
             
-            // Q12 debugging: check if this is a flat key match (e.g., "12i" matches "12i")
-            if (questionNumberHint?.startsWith('12') && questionNumber.startsWith('12')) {
-              console.log(`[Q12 DEBUG] Object structure: checking key "${questionNumber}" vs hint "${questionNumberHint}"`);
-            }
             
             // FIRST: Check if this is a direct flat key match (e.g., hint "12i" matches key "12i")
             // This handles cases where sub-questions are stored as flat keys (e.g., questions["12i"])
             if (isSubQuestionHint && questionNumber === questionNumberHint) {
               // Direct match - this is a flat key structure (e.g., questions["12i"])
               const similarity = this.calculateSimilarity(questionText, questionContent);
-              if (questionNumberHint?.startsWith('12')) {
-                console.log(`[Q12 DEBUG] ✅ Direct flat key match "${questionNumber}" with similarity: ${similarity.toFixed(3)}`);
-              }
               if (similarity > bestScore) {
                 bestScore = similarity;
                 bestQuestionMatch = baseQuestionNumber; // Store base number (e.g., "12")
@@ -406,14 +381,8 @@ export class QuestionDetectionService {
               // Extract sub-question part from hint (e.g., "a" from "2a", "i" from "12i")
               const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
               
-              if (questionNumberHint?.startsWith('12')) {
-                console.log(`[Q12 DEBUG] Object structure: looking for sub-question part "${hintSubPart}" in Q${questionNumber} (${subQuestions.length} sub-questions)`);
-              }
               
               if (subQuestions.length === 0) {
-                if (questionNumberHint?.startsWith('12')) {
-                  console.log(`[Q12 DEBUG] ⚠️ Object structure: Q${questionNumber} has no sub_questions array`);
-                }
                 continue; // No sub-questions, skip
               }
               
@@ -427,9 +396,6 @@ export class QuestionDetectionService {
                 }
                 const subQuestionPart = String(subQ.question_part).toLowerCase();
                 
-                if (questionNumberHint?.startsWith('12')) {
-                  console.log(`[Q12 DEBUG] Object structure: checking sub-question part "${subQuestionPart}" vs hint "${hintSubPart}"`);
-                }
                 
                 // Only match if sub-question parts match (e.g., "a" matches "a", "i" matches "i")
                 if (subQuestionPart !== hintSubPart || !subQuestionText) {
@@ -437,9 +403,6 @@ export class QuestionDetectionService {
                 }
                 
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
-                if (questionNumberHint?.startsWith('12')) {
-                  console.log(`[Q12 DEBUG] ✅ Object structure: matched sub-question part "${subQuestionPart}" with similarity: ${subSimilarity.toFixed(3)}`);
-                }
                 if (subSimilarity > bestScore) {
                   bestScore = subSimilarity;
                   bestQuestionMatch = questionNumber;
@@ -467,10 +430,6 @@ export class QuestionDetectionService {
       // For main questions, use higher threshold (0.5) for better accuracy
       const threshold = bestSubQuestionNumber ? 0.4 : 0.5;
       if (bestQuestionMatch && bestScore >= threshold) {
-        // Q12 debugging: log successful match
-        if (questionNumberHint?.startsWith('12')) {
-          console.log(`[Q12 DEBUG] ✅ Match accepted: Q${bestQuestionMatch}${bestSubQuestionNumber || ''} (score=${bestScore.toFixed(3)}, threshold=${threshold})`);
-        }
         // Use standardized fullExamPapers structure
         const metadata = examPaper.metadata;
         if (!metadata) {
@@ -552,26 +511,6 @@ export class QuestionDetectionService {
         };
       }
 
-      // Error logging: log why match was rejected or not found
-      // Skip logging for 17a and 17b (working correctly, no need for verbose logs)
-      const skipLogging = questionNumberHint?.startsWith('17a') || questionNumberHint?.startsWith('17b');
-      
-      if (bestQuestionMatch) {
-        const threshold = bestSubQuestionNumber ? 0.4 : 0.5;
-        if (questionNumberHint?.startsWith('12')) {
-          console.log(`[Q12 DEBUG] ❌ Match rejected: Q${bestQuestionMatch}${bestSubQuestionNumber || ''} (score=${bestScore.toFixed(3)}, threshold=${threshold})`);
-        } else if (!skipLogging) {
-          console.log(`[QUESTION DETECTION] ❌ Match rejected for ${questionNumberHint}: Q${bestQuestionMatch}${bestSubQuestionNumber || ''} (score=${bestScore.toFixed(3)}, threshold=${threshold})`);
-        }
-      } else {
-        // No match found - log error for all questions (except 17a/17b)
-        if (!skipLogging) {
-          console.error(`[QUESTION DETECTION] ❌ No match found for question hint "${questionNumberHint}" with text "${questionText.substring(0, 100)}${questionText.length > 100 ? '...' : ''}"`);
-        }
-        if (questionNumberHint?.startsWith('12')) {
-          console.log(`[Q12 DEBUG] ❌ No match found for ${questionNumberHint}`);
-        }
-      }
 
       return null;
     } catch (error) {
@@ -707,22 +646,10 @@ export class QuestionDetectionService {
           console.error(`[QUESTION MARKS DEBUG] Question number: "${questionNumber}", Sub-question: "${examPaperMatch.subQuestionNumber || 'none'}"`);
           console.error(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 30).join(', ')}${Object.keys(questions).length > 30 ? '...' : ''}`);
           
-          // For Q12 debugging: check if keys like "12i", "12ii", "12iii" exist
-          if (questionNumber === '12' || questionNumber?.startsWith('12')) {
-            const q12Keys = Object.keys(questions).filter(k => k.startsWith('12'));
-            console.error(`[Q12 DEBUG] Keys starting with "12": ${q12Keys.join(', ')}`);
-            console.error(`[Q12 DEBUG] Looking for: "${flatKey}"`);
-            console.error(`[Q12 DEBUG] Sub-question number from match: "${examPaperMatch.subQuestionNumber || 'none'}"`);
-          }
           
           return null; // Fail fast - no fallbacks
         }
         
-        // Debug logging for Q12
-        if (questionNumber === '12' || questionNumber?.startsWith('12')) {
-          console.log(`[Q12 DEBUG] ✅ Found marking scheme for Q${flatKey}`);
-          console.log(`[Q12 DEBUG] Question marks structure: ${JSON.stringify(Object.keys(questionMarks || {})).substring(0, 200)}`);
-        }
         
         return {
           id: markingScheme.id,

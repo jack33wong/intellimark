@@ -85,6 +85,15 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     .replace(/\s+/g, '') // Remove all spaces
     .trim();
   
+  // Normalize sign variations: \frac{5}{x} and -\frac{5}{x} should match
+  // Only normalize fractions (not other expressions) to avoid false matches
+  // This handles cases where classification returns different sign than database
+  // Remove negative before 'frac' anywhere in the string (not just at start)
+  // After normalization, "y-frac5/x" becomes "yfrac5/x" to match "yfrac5/x"
+  if (normalized.includes('frac')) {
+    normalized = normalized.replace(/-frac/g, 'frac'); // Remove negative before 'frac' anywhere
+  }
+  
   return normalized;
 }
 

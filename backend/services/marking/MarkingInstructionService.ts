@@ -119,51 +119,8 @@ export class MarkingInstructionService {
       }
 
       // Step 1: Generate raw annotations from cleaned OCR text
-      // ========================= START: CLEAN NORMALIZATION =========================
-      
-      // Debug: Log the raw marking scheme structure before normalization
-      if (questionDetection) {
-        console.log(`[MARKING SCHEME DEBUG] Raw questionDetection structure:`, {
-          hasQuestionMarks: !!questionDetection.questionMarks,
-          questionMarksType: typeof questionDetection.questionMarks,
-          questionMarksIsArray: Array.isArray(questionDetection.questionMarks),
-          hasMarks: !!questionDetection.questionMarks?.marks,
-          marksIsArray: Array.isArray(questionDetection.questionMarks?.marks),
-          marksLength: questionDetection.questionMarks?.marks?.length || 0,
-          totalMarks: questionDetection.totalMarks,
-          questionNumber: questionDetection.questionNumber,
-          subQuestionNumbers: questionDetection.subQuestionNumbers
-        });
-        if (questionDetection.questionMarks?.marks) {
-          console.log(`[MARKING SCHEME DEBUG] Marks array (first 3):`, questionDetection.questionMarks.marks.slice(0, 3).map((m: any) => ({
-            mark: m.mark,
-            answer: m.answer?.substring(0, 50),
-            comments: m.comments?.substring(0, 50)
-          })));
-        }
-      }
-      
       // Normalize the marking scheme data to a standard format
       const normalizedScheme = normalizeMarkingScheme(questionDetection);
-      
-      // Debug: Log the normalized scheme
-      if (normalizedScheme) {
-        console.log(`[MARKING SCHEME DEBUG] Normalized scheme:`, {
-          marksLength: normalizedScheme.marks.length,
-          totalMarks: normalizedScheme.totalMarks,
-          questionNumber: normalizedScheme.questionNumber
-        });
-        if (normalizedScheme.marks.length > 0) {
-          console.log(`[MARKING SCHEME DEBUG] Normalized marks (first 3):`, normalizedScheme.marks.slice(0, 3).map((m: any) => ({
-            mark: m.mark,
-            answer: m.answer?.substring(0, 50),
-            comments: m.comments?.substring(0, 50)
-          })));
-        }
-      } else {
-        console.warn(`[MARKING SCHEME DEBUG] ⚠️ Normalized scheme is null/undefined`);
-      }
-      // ========================== END: CLEAN NORMALIZATION ==========================
       
       const annotationData = await this.generateFromOCR(
         model,
@@ -328,35 +285,20 @@ export class MarkingInstructionService {
     const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
     // Log what's being sent to AI for debugging with better formatting
-    const ocrPreview = formattedOcrText.length > 200 ? formattedOcrText.substring(0, 200) + '...' : formattedOcrText;
-    console.log(`📝 [AI PROMPT] Q${questionNumber} - OCR Text:`);
-    console.log('\x1b[36m' + ocrPreview + '\x1b[0m'); // Cyan color
-    
-    // Q11: Log full prompt including question text
-    const isQ11 = questionNumber === '11';
-    if (isQ11) {
-      console.log(`📝 [AI PROMPT] Q11 - Full Prompt Details:`);
-      console.log(`📝 [AI PROMPT] Q11 - Question Text: ${questionText ? `✅ Present (${questionText.length} chars)` : '❌ Missing'}`);
-      if (questionText) {
-        console.log('\x1b[35m' + questionText.substring(0, 500) + (questionText.length > 500 ? '...' : '') + '\x1b[0m'); // Magenta color
-      }
-      console.log(`📝 [AI PROMPT] Q11 - Full OCR Text (${formattedOcrText.length} chars):`);
-      console.log('\x1b[36m' + formattedOcrText + '\x1b[0m'); // Cyan color
+    console.log(`📝 [AI PROMPT] Q${questionNumber} - Full Prompt Details:`);
+    console.log(`📝 [AI PROMPT] Q${questionNumber} - Question Text: ${questionText ? `✅ Present (${questionText.length} chars)` : '❌ Missing'}`);
+    if (questionText) {
+      console.log('\x1b[35m' + questionText + '\x1b[0m'); // Magenta color
     }
+    console.log(`📝 [AI PROMPT] Q${questionNumber} - Full OCR Text (${formattedOcrText.length} chars):`);
+    console.log('\x1b[36m' + formattedOcrText + '\x1b[0m'); // Cyan color
     
     if (hasMarkingScheme) {
       // Convert JSON marking scheme to clean bulleted list format for logging
       const schemePlainText = formatMarkingSchemeAsBullets(JSON.stringify({ marks: normalizedScheme.marks }, null, 2));
-      const schemePreview = schemePlainText.length > 300 ? schemePlainText.substring(0, 300) + '...' : schemePlainText;
       
-      console.log('📝 [AI PROMPT] Marking Scheme:');
-      console.log('\x1b[33m' + schemePreview + '\x1b[0m'); // Yellow color
-      
-      // Q11: Log full marking scheme
-      if (isQ11) {
-        console.log(`📝 [AI PROMPT] Q11 - Full Marking Scheme (${schemePlainText.length} chars):`);
-        console.log('\x1b[33m' + schemePlainText + '\x1b[0m'); // Yellow color
-      }
+      console.log(`📝 [AI PROMPT] Q${questionNumber} - Full Marking Scheme (${schemePlainText.length} chars):`);
+      console.log('\x1b[33m' + schemePlainText + '\x1b[0m'); // Yellow color
       
       console.log('📝 [AI PROMPT] Exam Stats:');
       // Extract exam information from the marking scheme

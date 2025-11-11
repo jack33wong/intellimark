@@ -1694,25 +1694,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                         }
                     }
                 }
-                
-                // Q12: Debug mark extraction with full structure
-                if (baseQuestionNumber === '12') {
-                    console.log(`[Q12 MERGE DEBUG] Sub-question ${displayQNum}: extracted ${marksArray.length} mark(s)`);
-                    if (marksArray.length > 0) {
-                        console.log(`[Q12 MERGE DEBUG]   Marks: ${marksArray.map((m: any) => m.mark || m.code || 'unknown').join(', ')}`);
-                    } else {
-                        console.log(`[Q12 MERGE DEBUG]   ⚠️ No marks extracted for ${displayQNum}`);
-                        console.log(`[Q12 MERGE DEBUG]   markingScheme keys: ${markingScheme ? Object.keys(markingScheme).join(', ') : 'null'}`);
-                        console.log(`[Q12 MERGE DEBUG]   questionMarks type: ${questionMarks ? typeof questionMarks : 'null'}`);
-                        console.log(`[Q12 MERGE DEBUG]   questionMarks keys: ${questionMarks && typeof questionMarks === 'object' ? Object.keys(questionMarks).join(', ') : 'N/A'}`);
-                        if (questionMarks && typeof questionMarks === 'object' && 'marks' in questionMarks) {
-                            console.log(`[Q12 MERGE DEBUG]   questionMarks.marks type: ${Array.isArray(questionMarks.marks) ? 'array' : typeof questionMarks.marks}`);
-                            console.log(`[Q12 MERGE DEBUG]   questionMarks.marks length: ${Array.isArray(questionMarks.marks) ? questionMarks.marks.length : 'N/A'}`);
-                        }
-                        console.log(`[Q12 MERGE DEBUG]   Full markingScheme structure (first 500 chars):`, JSON.stringify(markingScheme, null, 2).substring(0, 500));
-                    }
-                }
-                
                 if (marksArray.length === 0) {
                     console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
                 }
@@ -1731,13 +1712,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const mergedQuestionMarks = {
                 marks: mergedMarks
             };
-            
-            // Q12: Debug merged marks
-            if (baseQuestionNumber === '12') {
-                console.log(`[Q12 MERGE DEBUG] Q${baseQuestionNumber}: Merged ${mergedMarks.length} mark(s) from ${group.length} sub-question(s)`);
-                console.log(`[Q12 MERGE DEBUG]   Sub-questions: ${questionNumbers.join(', ')}`);
-                console.log(`[Q12 MERGE DEBUG]   Combined student work length: ${combinedQuestionTexts.join('\\n').length} chars`);
-            }
             
             // Store questionDetection from first item for exam paper info (board, code, year, tier)
             // This is needed for exam tab display in the frontend
