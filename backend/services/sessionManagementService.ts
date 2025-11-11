@@ -495,7 +495,7 @@ export class SessionManagementService {
           }
           return {
             url: ctx.originalPdfLink, // Only Firebase URL, no base64 fallback
-            originalFileName: ctx.originalFileName,
+          originalFileName: ctx.originalFileName,
             fileSize: ctx.fileSize || 0
           };
         });

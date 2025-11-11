@@ -437,14 +437,14 @@ export class OCRService {
              
              const coords = this.extractBoundingBox(line);
 
-            if (text.includes('\\\\')) {
+             if (text.includes('\\\\')) {
                 // Remove LaTeX delimiters and environment tags, but keep the actual content
                 let cleanText = text
                     .replace(/\\\[|\\\]/g, '') // Remove \[ and \]
                     .replace(/\\begin\{array\}\{.*?\}|\\end\{array\}/g, '') // Remove \begin{array}{...} and \end{array}
                     .replace(/\\begin\{aligned\}|\\end\{aligned\}/g, '') // Remove \begin{aligned} and \end{aligned}
                     .trim();
-                const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
+                 const splitLines = cleanText.split(/\\\\/g).map(l => l.trim()).filter(Boolean);
                  
                  // If we have coords, split them; otherwise estimate for each split line
                  if (coords) {
@@ -454,8 +454,8 @@ export class OCRService {
                      const newCoords = { ...coords, y: coords.y + (index * avgHeight), height: avgHeight };
                      newLine.region = newCoords; // Store coords for extraction
                      ungroupedLines.push(newLine);
-                     });
-                 } else {
+                 });
+             } else {
                      // No coords - just push split lines as-is (coords will be estimated later)
                      splitLines.forEach((splitText) => {
                          const newLine = { ...line, latex_styled: splitText, text: splitText };
@@ -470,6 +470,35 @@ export class OCRService {
         // MINIMAL METADATA FILTERING ONLY
         // All heuristic filtering (margin, ambiguous prose, math expression checks) is removed
         // Accurate filtering happens in segmentation stage where we have question context
+        
+        // Q4/Q5 DEBUG: Log raw OCR lines before filtering
+        const isQ4Page = ungroupedLines.some(line => {
+            const text = (line.latex_styled || line.text || '').toLowerCase();
+            return text.includes('venn') || text.includes('set p') || text.includes('5/9') || text.includes('frac{5}{9}');
+        });
+        const isQ5Page = ungroupedLines.some(line => {
+            const text = (line.latex_styled || line.text || '').toLowerCase();
+            return text.includes('sophie') || text.includes('513') || text.includes('0.81');
+        });
+        
+        if (isQ4Page) {
+            console.log(`[Q4 OCR DEBUG] Raw OCR lines before filtering (${ungroupedLines.length} lines):`);
+            ungroupedLines.forEach((line, idx) => {
+                const text = line.latex_styled || line.text || '';
+                const coords = this.extractBoundingBox(line);
+                console.log(`[Q4 OCR DEBUG]   Line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
+            });
+        }
+        
+        if (isQ5Page) {
+            console.log(`[Q5 OCR DEBUG] Raw OCR lines before filtering (${ungroupedLines.length} lines):`);
+            ungroupedLines.forEach((line, idx) => {
+                const text = line.latex_styled || line.text || '';
+                const coords = this.extractBoundingBox(line);
+                console.log(`[Q5 OCR DEBUG]   Line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
+            });
+        }
+        
         const studentWorkLines = ungroupedLines.filter((line, idx) => {
             const text = line.latex_styled || line.text || '';
             
@@ -481,23 +510,63 @@ export class OCRService {
             
             // 1. Discard empty lines (after cleaning)
             if (!cleanedText) {
+                if (isQ4Page || isQ5Page) {
+                    console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} FILTERED: empty after cleaning`);
+                }
                 return false;
             }
 
-            // 2. Discard metadata: "Total for question" lines
             const lowerCaseText = cleanedText.toLowerCase();
-            if (lowerCaseText.includes("total for question")) {
-                return false;
+            
+            // 2. Filter ONLY known metadata/noise patterns (very conservative - keep everything else)
+            // Design principle: Only filter explicit metadata patterns, let segmentation handle everything else
+            const knownMetadataPatterns = [
+                /total\s+for\s+question/i,                    // "Total for Question 5 is 4 marks"
+                /^turn\s+over$/i,                             // "Turn over" (exact match)
+                /do\s+not\s+write\s+(in\s+)?this\s+area/i,  // "Do not write in this area" / "Do not write this area"
+                /^bar\s*code$/i,                              // "Bar code" or "Barcode" (exact match)
+                /^page\s+\d+$/i,                              // "Page 7" (exact match with number)
+            ];
+            
+            for (const pattern of knownMetadataPatterns) {
+                if (pattern.test(cleanedText)) {
+                    if (isQ4Page || isQ5Page) {
+                        console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} FILTERED: known metadata pattern "${cleanedText.substring(0, 50)}"`);
+                    }
+                    return false; // Known metadata - filter it
+                }
             }
             
-            // 3. Discard standalone page numbers (≤3 digits) - likely metadata
-            if (/^\s*\d+\s*$/.test(cleanedText) && cleanedText.length <= 3) {
-                return false;
+            // 3. Keep everything else - let segmentation filter based on question context
+            // This includes:
+            // - Standalone numbers like "40", "7" (let segmentation decide with context)
+            // - Mark allocations like "(3)", "(1)" (let segmentation decide with context)
+            // - Question text (segmentation will filter it)
+            // - Student work (must keep)
+            // - Any ambiguous content (let segmentation decide)
+            if (isQ4Page || isQ5Page) {
+                console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} KEPT: "${cleanedText.substring(0, 80)}"`);
             }
-
-            // Keep everything else - let segmentation filter based on question context
             return true;
         });
+        
+        if (isQ4Page) {
+            console.log(`[Q4 OCR DEBUG] After filtering: ${studentWorkLines.length} lines kept (from ${ungroupedLines.length} raw lines)`);
+            studentWorkLines.forEach((line, idx) => {
+                const text = line.latex_styled || line.text || '';
+                const coords = this.extractBoundingBox(line);
+                console.log(`[Q4 OCR DEBUG]   Kept line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
+            });
+        }
+        
+        if (isQ5Page) {
+            console.log(`[Q5 OCR DEBUG] After filtering: ${studentWorkLines.length} lines kept (from ${ungroupedLines.length} raw lines)`);
+            studentWorkLines.forEach((line, idx) => {
+                const text = line.latex_styled || line.text || '';
+                const coords = this.extractBoundingBox(line);
+                console.log(`[Q5 OCR DEBUG]   Kept line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
+            });
+        }
         
 
         // PREPARE FINAL MATHBLOCKS
@@ -618,24 +687,55 @@ export class OCRService {
 
 
     // --- Final Data Structuring and Return (No changes from here onwards) ---
+    // Preserve MathPix reading order for blocks with null Y coordinates
+    // This allows us to use order-based interpolation for drawing positions
     const sortedMathBlocks = [...mathBlocks].sort((a, b) => {
-       const aY = a.coordinates.y;
-       const aHeight = a.coordinates.height;
-       const aBottom = aY + aHeight;
-       const bY = b.coordinates.y;
-       const bHeight = b.coordinates.height;
-       const bBottom = bY + bHeight;
-       const overlapThreshold = usedFallback ? 0.1 : 0.3;
-       const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
-       if (verticalOverlap > 0) {
-         const aOverlapRatio = verticalOverlap / aHeight;
-         const bOverlapRatio = verticalOverlap / bHeight;
-         if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
-           return a.coordinates.x - b.coordinates.x;
+       const aY = a.coordinates?.y;
+       const bY = b.coordinates?.y;
+       
+       // If both have Y coordinates, use existing overlap detection logic
+       if (aY != null && bY != null) {
+         const aHeight = a.coordinates.height;
+         const aBottom = aY + aHeight;
+         const bHeight = b.coordinates.height;
+         const bBottom = bY + bHeight;
+         const overlapThreshold = usedFallback ? 0.1 : 0.3;
+         const verticalOverlap = Math.min(aBottom, bBottom) - Math.max(aY, bY);
+         if (verticalOverlap > 0) {
+           const aOverlapRatio = verticalOverlap / aHeight;
+           const bOverlapRatio = verticalOverlap / bHeight;
+           if (aOverlapRatio >= overlapThreshold || bOverlapRatio >= overlapThreshold) {
+             return a.coordinates.x - b.coordinates.x;
+           }
          }
+         return aY - bY;
        }
-       return aY - bY;
+       
+       // If one has Y and one doesn't, put null Y at the end (preserves relative order)
+       if (aY == null && bY == null) {
+         // Both null - preserve original MathPix order (stable sort)
+         return 0;
+       }
+       if (aY == null) return 1; // a goes after b
+       if (bY == null) return -1; // b goes after a
+       
+       return 0; // Shouldn't reach here
     });
+
+    // Debug: Log OCR blocks for Q12
+    const hasQ12Content = sortedMathBlocks.some(b => {
+      const text = (b.mathpixLatex || b.googleVisionText || '').trim();
+      return text.includes('12') || text.includes('Here are some graphs') || text === 'H' || text === 'F' || text === 'J';
+    });
+    if (hasQ12Content) {
+      console.log(`[OCR SERVICE DEBUG] Q12 - OCR extracted ${sortedMathBlocks.length} mathBlocks:`);
+      sortedMathBlocks.forEach((block, idx) => {
+        const text = (block.mathpixLatex || block.googleVisionText || '').trim();
+        const y = block.coordinates?.y ?? 'null';
+        const x = block.coordinates?.x ?? 'null';
+        console.log(`[OCR SERVICE DEBUG]   Block ${idx + 1}: "${text}" (X=${x}, Y=${y})`);
+      });
+    }
 
     let cleanedOcrText = '';
     let cleanDataForMarking: any = null;

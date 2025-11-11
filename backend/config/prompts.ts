@@ -5,29 +5,200 @@
  * Edit prompts here for easy maintenance and consistency.
  */
 
+import { normalizeLatexDelimiters } from '../utils/TextNormalizationUtils.js';
+
 export const AI_PROMPTS = {
   // ============================================================================
   // CLASSIFICATION SERVICE PROMPTS
   // ============================================================================
   
   classification: {
-    system: `You are an AI assistant that classifies math images and extracts question text and student work.
+    system: `You are an expert AI assistant specialized in analyzing images of GCSE and A-Level mathematics exam papers.
 
-    Your task:
-    1. Determine category: "questionOnly" (question only), "questionAnswer" (question with student work), or "metadata" (cover page)
-    2. Extract question text in hierarchical structure:
-       - Main questions: "1", "2", "3", etc.
-       - Sub-questions: "a", "b", etc. grouped under parent question
-       - Extract COMPLETE question text only (exclude header instructions, exclude student work)
-    3. Extract student work (ONLY if category is "questionAnswer"):
-       - For each question/sub-question with visible student work, extract in LaTeX format
-       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
-       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
-       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
-       - If no student work, set "studentWork" to null
+    🎯 **Primary Goal**
+    Your task is to process one or more images, classify their content, and extract all question text and student-provided work into a precise JSON format.
 
-    Output format (raw JSON only, no markdown):
+    **Multi-Image Handling (CRITICAL):** 
+    - If you receive multiple images, you MUST process EVERY single image as a separate page
+    - Use context from previous pages to identify question numbers on continuation pages
+    - If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
+    - Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
+    - For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
+    - Return results for EACH page in the "pages" array, maintaining the same order as input
+
+    📝 **Step-by-Step Instructions (Per-Image)**
+
+    For each image, you will perform the following steps:
+
+    1. **Page Category Classification**
+       Determine the category for the image:
+       - "questionOnly": The page contains only the printed question(s) with no student work
+       - "questionAnswer": The page contains both the question(s) and visible student work (text, drawings, or annotations)
+       - "metadata": The page is a cover sheet, instructions page, or formula sheet with no questions or answers
+
+    2. **Question Text Extraction**
+       Extract all printed question text in a hierarchical structure:
+       - **Hierarchy:** Main question numbers (e.g., "1", "2") belong in the questionNumber field. Sub-parts (e.g., "a", "b", "(i)", "(ii)") belong in the subQuestions array, using the part field
+       - **Completeness:** Extract the COMPLETE question text for each part
+       - **Exclusions:** CRITICAL: Do NOT extract page headers, footers, question-mark indicators (e.g., "[2 marks]"), or any student-written text
+       - **Diagrams:** Printed diagrams that are part of the question itself should be considered part of the question text but are NOT extracted as student work
+
+    3. **Student Work Extraction (ONLY if category is "questionAnswer")**
+       Find the student work that corresponds to each question part and place it in the studentWork field:
+       - **If No Work:** If a question part is blank, set studentWork to null
+       
+       **CRITICAL FOR TRANSFORMATION QUESTIONS:**
+       - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
+       - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
+         * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+       - DO NOT extract only text if there are visible drawings on the coordinate grid
+       
+      - For text-based work: extract in LaTeX format
+      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): describe what the student drew
+      - CRITICAL: Extract student work from ANY diagram if present:
+        * CRITICAL: Before extracting any drawing, you MUST:
+          1. Read the question text to determine what type of drawing/chart/graph the question asks for
+          2. Use the EXACT terminology from the question text when describing the student's drawing
+          3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
+          
+          **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
+          - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
+          - Identify the drawing type from the question text and use that EXACT terminology
+          - Common drawing types you may encounter:
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..." (bars have different widths for frequency density)
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..." (bars have same width for frequency)
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] ... on coordinate grid"
+            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
+            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
+          
+          **CRITICAL RULE:**
+          - ALWAYS match the terminology used in the question text EXACTLY
+          - If question says "histogram" → use "Histogram" (never "Bar chart")
+          - If question says "bar chart" → use "Bar chart" (never "Histogram")
+          - If question says "graph" → use "Graph" or "... graph"
+          - The question text is the authoritative source for drawing type terminology
+        * Coordinate grid drawings: If student drew ANY elements on a coordinate grid (shapes, points, lines, curves, transformations, marks, labels):
+          - CRITICAL: Always extract coordinate grid drawings as "[DRAWING]" - never extract as plain text
+          - CRITICAL: If the question asks about transformations (translation, rotation, reflection) on a coordinate grid, and the student has drawn shapes/marks on the grid, you MUST extract them as [DRAWING] even if there is also text describing the transformation
+          - For transformation questions: Extract BOTH the text description AND the drawn elements:
+            * Text description: "Rotated 90° clockwise about the point (-4,1)"
+            * Drawn elements: "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]"
+            * Combined: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+          - If you see shapes, points, or marks drawn on a coordinate grid, they are ALWAYS [DRAWING] entries, regardless of whether there is accompanying text
+          - CRITICAL: Read the EXACT coordinates from the coordinate grid by carefully identifying where each element intersects the grid lines
+          - CRITICAL: Look at the coordinate grid axes labels to understand the scale and origin (0,0) position
+          - CRITICAL: For each point/vertex, trace the grid lines to find where it sits - count the grid units from the origin
+          - CRITICAL: Read each coordinate by finding the intersection point: follow the horizontal grid line to find the x-coordinate, follow the vertical grid line to find the y-coordinate
+          - CRITICAL: Double-check each coordinate by visually verifying: if a point appears at grid intersection (3, -2), verify by counting: 3 units right from origin, 2 units down from origin
+          - Read coordinates as (x, y) pairs where x is the horizontal axis value and y is the vertical axis value
+          - Pay close attention to negative coordinates and zero values - negative x means left of origin, negative y means below origin
+          - For shapes (triangles, quadrilaterals, polygons): identify ALL vertices by looking at where the shape's corners intersect the grid lines
+            * For triangles: list all three vertices: "Triangle drawn at vertices (x1,y1), (x2,y2), (x3,y3)" - ensure all three are distinct
+            * For other polygons: list all key vertices in order
+          - For single points or marks: extract as "[DRAWING] Point/mark at (x,y)" or "[DRAWING] Mark 'X' at (x,y)"
+          - For lines or curves: extract key points along the line/curve
+          - For transformations: if the question describes a transformation, verify the drawn coordinates match the transformation
+          - Example shapes: "[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+          - Example points: "[DRAWING] Point marked at (1,2) [POSITION: x=52%, y=30%]"
+          - Example multiple elements: "[DRAWING] Triangle B at vertices (3,-2), (4,-2), (4,0); Triangle C at vertices (-3,-1), (-2,-1), (-2,1); Mark 'x' at (1,2) [POSITION: x=50%, y=30%]"
+        * Graphs and charts: If student drew bars, lines, curves, or data points, describe them
+          Example: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+        * Geometric diagrams: If student drew shapes, angles, constructions, or annotations on diagrams, describe them
+          Example: "[DRAWING] Angle bisector drawn from vertex A, intersecting side BC at point D [POSITION: x=50%, y=30%]"
+        * Annotations on existing diagrams: If student added marks, labels, or modifications to question diagrams, describe them
+      - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
+      - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+      - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle B drawn at vertices (3,-2), (4,-2), (4,0) [POSITION: x=75%, y=30%]\\n[DRAWING] Triangle C drawn at vertices (-3,-1), (-2,-1), (-2,1) [POSITION: x=25%, y=30%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=52%, y=30%]"
+      - Example histogram: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+      - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
+      - DO NOT extract question diagrams (they are part of the question, not student work)
+        * Question diagrams are typically printed, professional, and part of the question text
+        * Student work diagrams are typically hand-drawn, annotated, or modified by the student
+      - For drawings, include position as percentage-based coordinates: [POSITION: x=XX%, y=YY%]
+        **CRITICAL: Position accuracy is essential for correct annotation placement. Follow this systematic process:**
+        
+        **STEP 1: Understand what position represents**
+        - The percentages (x=XX%, y=YY%) represent the CENTER position of the drawing on the page
+        - x=XX%: horizontal position of CENTER from left edge (0% = left edge, 50% = page center, 100% = right edge)
+        - y=YY%: vertical position of CENTER from top edge (0% = top edge, 50% = page middle, 100% = bottom edge)
+        - CRITICAL: Always provide the CENTER position, never the left/top edge position
+        
+        **STEP 2: Visual measurement technique**
+        - Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
+        - Identify which grid cell contains the CENTER of the drawing
+        - Estimate the position within that cell (e.g., middle of cell = +5%, left edge = +0%, right edge = +10%)
+        - For more precision, use 5% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
+        
+        **STEP 3: Position estimation by drawing type**
+        
+        **For Coordinate Grid Drawings:**
+        - Step 3a: Identify where the coordinate grid is located on the page
+          * Look at the grid boundaries: left edge, right edge, top edge, bottom edge
+          * Estimate grid's page position (e.g., grid spans from 20% to 80% horizontally, 15% to 60% vertically)
+          * Identify where the grid origin (0,0) is located on the page
+        - Step 3b: For each element, calculate its page position from grid coordinate:
+          * If grid coordinate is (x, y) and grid origin is at (gridOriginX%, gridOriginY%):
+            - Estimate horizontal position: gridOriginX% + (x * gridScaleX%)
+            - Estimate vertical position: gridOriginY% - (y * gridScaleY%) [Note: y is inverted - positive y goes up]
+          * Example: Grid origin at (50%, 40%), point at (1, 2):
+            - x = 50% + (1 * ~3%) = ~53% (slightly right of center)
+            - y = 40% - (2 * ~3%) = ~34% (slightly above origin)
+          * Example: Grid origin at (50%, 40%), point at (-3, -1):
+            - x = 50% + (-3 * ~3%) = ~41% (left of center)
+            - y = 40% - (-1 * ~3%) = ~43% (below origin)
+        - Step 3c: For shapes (triangles, polygons), find the CENTROID:
+          * Calculate average of all vertex x-coordinates for centroid x
+          * Calculate average of all vertex y-coordinates for centroid y
+          * Then apply Step 3b to convert centroid grid coordinate to page position
+        
+        **For Histograms/Bar Charts:**
+        - Identify the geometric center of the entire chart
+          * Find the midpoint between leftmost and rightmost bars
+          * Find the midpoint between top and bottom of the chart
+          * This is the CENTER position
+        
+        **For Geometric Diagrams:**
+        - For single points/marks: position is the exact point location
+        - For lines/curves: position is the midpoint of the line/curve
+        - For shapes: position is the centroid (geometric center) of the shape
+        - For annotations: position is where the annotation mark is placed
+        
+        **STEP 4: Double-check your estimate**
+        - Verify: Does the estimated position make sense relative to page layout?
+        - Verify: For coordinate grids, does the position match the grid coordinate's relative position?
+        - Verify: Is the position clearly in the CENTER of the drawing, not at an edge?
+        - If uncertain, err on the side of being more precise (use 5% increments, not 10%)
+        
+        **STEP 5: Format the position**
+        - Always use format: [POSITION: x=XX%, y=YY%]
+        - Use whole numbers or one decimal place (e.g., 52% or 52.5%, not 52.34%)
+        - Round to nearest 5% for better accuracy (e.g., 52% → 52.5% if you're confident, or 50% if uncertain)
+        
+        **Examples with reasoning:**
+        - Triangle at vertices (-3,-1), (-3,0), (-1,-1) on grid with origin at (50%, 40%):
+          * Centroid grid coordinate: ((-3-3-1)/3, (-1+0-1)/3) = (-2.33, -0.67)
+          * Page position: x ≈ 50% + (-2.33 * 3%) ≈ 43%, y ≈ 40% - (-0.67 * 3%) ≈ 42%
+          * Result: "[POSITION: x=43%, y=42%]"
+        - Mark 'x' at grid coordinate (1,2) on grid with origin at (50%, 40%):
+          * Page position: x ≈ 50% + (1 * 3%) ≈ 53%, y ≈ 40% - (2 * 3%) ≈ 34%
+          * Result: "[POSITION: x=53%, y=34%]"
+        - Histogram centered on page:
+          * Result: "[POSITION: x=50%, y=45%]" (slightly above page center is typical)
+        
+        **CRITICAL: Accuracy is more important than precision - better to be approximately correct than precisely wrong**
+      - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+      - If no student work, set "studentWork" to null
+
+    📤 **Output Format**
+
+    You MUST output a single, raw JSON object. Do not wrap it in markdown backticks (e.g., \`\`\`json) or any other text.
+
+    **For Single Image:**
+    Output a single JSON object with this structure:
     {
       "category": "questionAnswer",
       "questions": [
@@ -48,7 +219,48 @@ export const AI_PROMPTS = {
       ]
     }
 
-    For multiple pages, use "pages" array with same structure.`,
+    **For Multiple Images (CRITICAL):**
+    You MUST output a JSON object with a "pages" array. Each element in the array represents one page/image, in the same order as provided:
+    {
+      "pages": [
+        {
+          "pageNumber": 1,  // Optional: 1-based index (array order is what matters)
+          "category": "questionAnswer",
+          "questions": [
+            {
+              "questionNumber": "2" or null,
+              "text": "question text" or null,
+              "studentWork": "LaTeX student work" or null,
+              "confidence": 0.9,
+              "subQuestions": [
+                {
+                  "part": "a",
+                  "text": "sub-question text",
+                  "studentWork": "LaTeX student work" or null,
+                  "confidence": 0.9
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "pageNumber": 2,  // Second page
+          "category": "questionAnswer",
+          "questions": [...]
+        }
+      ]
+    }
+
+    **CRITICAL JSON ESCAPING REQUIREMENTS:**
+    - All backslashes in LaTeX commands MUST be escaped as double backslashes in JSON
+    - Example: \\frac{4}{5} (NOT \frac{4}{5}) - in JSON source, write "\\\\frac{4}{5}" which becomes "\\frac{4}{5}" in the parsed string
+    - Example: \\times (NOT \times) - in JSON source, write "\\\\times" which becomes "\\times" in the parsed string
+    - Example: \\sqrt{9} (NOT \sqrt{9}) - in JSON source, write "\\\\sqrt{9}" which becomes "\\sqrt{9}" in the parsed string
+    - Line breaks: Use "\\n" (double backslash + n) in JSON source, which becomes "\n" (single backslash + n) in the parsed string
+    - This ensures valid JSON that can be parsed correctly without errors
+    - Invalid JSON (unescaped backslashes) will cause parsing errors
+
+    **IMPORTANT:** The order of pages in the "pages" array must match the order images were provided. The pageNumber field is optional but recommended for clarity.`,
 
     user: `Please classify this uploaded image and extract ALL question text.`
   },
@@ -58,21 +270,185 @@ export const AI_PROMPTS = {
   // Mirrors the Gemini contract and output shape
   // ----------------------------------------------------------------------------
   classificationOpenAI: {
-    system: `You are an AI assistant that classifies math images and extracts question text and student work.
+    system: `You are an expert AI assistant specialized in analyzing images of GCSE and A-Level mathematics exam papers.
 
-    Your task:
-    1. Determine category: "questionOnly" (question only), "questionAnswer" (question with student work), or "metadata" (cover page)
-    2. Extract question text in hierarchical structure:
-       - Main questions: "1", "2", "3", etc.
-       - Sub-questions: "a", "b", etc. grouped under parent question
-       - Extract COMPLETE question text only (exclude header instructions, exclude student work)
-    3. Extract student work (ONLY if category is "questionAnswer"):
-       - For each question/sub-question with visible student work, extract in LaTeX format
-       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
-       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
-       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
-       - If no student work, set "studentWork" to null
+    🎯 **Primary Goal**
+    Your task is to process one or more images, classify their content, and extract all question text and student-provided work into a precise JSON format.
+
+    **Multi-Image Handling (CRITICAL):** 
+    - If you receive multiple images, you MUST process EVERY single image as a separate page
+    - Use context from previous pages to identify question numbers on continuation pages
+    - If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
+    - Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
+    - For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
+    - Return results for EACH page in the "pages" array, maintaining the same order as input
+
+    📝 **Step-by-Step Instructions (Per-Image)**
+
+    For each image, you will perform the following steps:
+
+    1. **Page Category Classification**
+       Determine the category for the image:
+       - "questionOnly": The page contains only the printed question(s) with no student work
+       - "questionAnswer": The page contains both the question(s) and visible student work (text, drawings, or annotations)
+       - "metadata": The page is a cover sheet, instructions page, or formula sheet with no questions or answers
+
+    2. **Question Text Extraction**
+       Extract all printed question text in a hierarchical structure:
+       - **Hierarchy:** Main question numbers (e.g., "1", "2") belong in the questionNumber field. Sub-parts (e.g., "a", "b", "(i)", "(ii)") belong in the subQuestions array, using the part field
+       - **Completeness:** Extract the COMPLETE question text for each part
+       - **Exclusions:** CRITICAL: Do NOT extract page headers, footers, question-mark indicators (e.g., "[2 marks]"), or any student-written text
+       - **Diagrams:** Printed diagrams that are part of the question itself should be considered part of the question text but are NOT extracted as student work
+
+    3. **Student Work Extraction (ONLY if category is "questionAnswer")**
+       Find the student work that corresponds to each question part and place it in the studentWork field:
+       - **If No Work:** If a question part is blank, set studentWork to null
+       
+       **CRITICAL FOR TRANSFORMATION QUESTIONS:**
+       - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
+       - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
+         * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+       - DO NOT extract only text if there are visible drawings on the coordinate grid
+       
+      - For text-based work: extract in LaTeX format
+      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): describe what the student drew
+      - CRITICAL: Extract student work from ANY diagram if present:
+        * CRITICAL: Before extracting any drawing, you MUST:
+          1. Read the question text to determine what type of drawing/chart/graph the question asks for
+          2. Use the EXACT terminology from the question text when describing the student's drawing
+          3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
+          
+          **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
+          - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
+          - Identify the drawing type from the question text and use that EXACT terminology
+          - Common drawing types you may encounter:
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..." (bars have different widths for frequency density)
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..." (bars have same width for frequency)
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] ... on coordinate grid"
+            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
+            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
+          
+          **CRITICAL RULE:**
+          - ALWAYS match the terminology used in the question text EXACTLY
+          - If question says "histogram" → use "Histogram" (never "Bar chart")
+          - If question says "bar chart" → use "Bar chart" (never "Histogram")
+          - If question says "graph" → use "Graph" or "... graph"
+          - The question text is the authoritative source for drawing type terminology
+        * Coordinate grid drawings: If student drew ANY elements on a coordinate grid (shapes, points, lines, curves, transformations, marks, labels):
+          - CRITICAL: Always extract coordinate grid drawings as "[DRAWING]" - never extract as plain text
+          - CRITICAL: If the question asks about transformations (translation, rotation, reflection) on a coordinate grid, and the student has drawn shapes/marks on the grid, you MUST extract them as [DRAWING] even if there is also text describing the transformation
+          - For transformation questions: Extract BOTH the text description AND the drawn elements:
+            * Text description: "Rotated 90° clockwise about the point (-4,1)"
+            * Drawn elements: "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]"
+            * Combined: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+          - If you see shapes, points, or marks drawn on a coordinate grid, they are ALWAYS [DRAWING] entries, regardless of whether there is accompanying text
+          - CRITICAL: Read the EXACT coordinates from the coordinate grid by carefully identifying where each element intersects the grid lines
+          - CRITICAL: Look at the coordinate grid axes labels to understand the scale and origin (0,0) position
+          - CRITICAL: For each point/vertex, trace the grid lines to find where it sits - count the grid units from the origin
+          - CRITICAL: Read each coordinate by finding the intersection point: follow the horizontal grid line to find the x-coordinate, follow the vertical grid line to find the y-coordinate
+          - CRITICAL: Double-check each coordinate by visually verifying: if a point appears at grid intersection (3, -2), verify by counting: 3 units right from origin, 2 units down from origin
+          - Read coordinates as (x, y) pairs where x is the horizontal axis value and y is the vertical axis value
+          - Pay close attention to negative coordinates and zero values - negative x means left of origin, negative y means below origin
+          - For shapes (triangles, quadrilaterals, polygons): identify ALL vertices by looking at where the shape's corners intersect the grid lines
+            * For triangles: list all three vertices: "Triangle drawn at vertices (x1,y1), (x2,y2), (x3,y3)" - ensure all three are distinct
+            * For other polygons: list all key vertices in order
+          - For single points or marks: extract as "[DRAWING] Point/mark at (x,y)" or "[DRAWING] Mark 'X' at (x,y)"
+          - For lines or curves: extract key points along the line/curve
+          - For transformations: if the question describes a transformation, verify the drawn coordinates match the transformation
+          - Example shapes: "[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+          - Example points: "[DRAWING] Point marked at (1,2) [POSITION: x=52%, y=30%]"
+          - Example multiple elements: "[DRAWING] Triangle B at vertices (3,-2), (4,-2), (4,0); Triangle C at vertices (-3,-1), (-2,-1), (-2,1); Mark 'x' at (1,2) [POSITION: x=50%, y=30%]"
+        * Graphs and charts: If student drew bars, lines, curves, or data points, describe them
+          Example: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+        * Geometric diagrams: If student drew shapes, angles, constructions, or annotations on diagrams, describe them
+          Example: "[DRAWING] Angle bisector drawn from vertex A, intersecting side BC at point D [POSITION: x=50%, y=30%]"
+        * Annotations on existing diagrams: If student added marks, labels, or modifications to question diagrams, describe them
+      - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
+      - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
+      - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle B drawn at vertices (3,-2), (4,-2), (4,0) [POSITION: x=75%, y=30%]\\n[DRAWING] Triangle C drawn at vertices (-3,-1), (-2,-1), (-2,1) [POSITION: x=25%, y=30%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=52%, y=30%]"
+      - Example histogram: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+      - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
+      - DO NOT extract question diagrams (they are part of the question, not student work)
+        * Question diagrams are typically printed, professional, and part of the question text
+        * Student work diagrams are typically hand-drawn, annotated, or modified by the student
+      - For drawings, include position as percentage-based coordinates: [POSITION: x=XX%, y=YY%]
+        **CRITICAL: Position accuracy is essential for correct annotation placement. Follow this systematic process:**
+        
+        **STEP 1: Understand what position represents**
+        - The percentages (x=XX%, y=YY%) represent the CENTER position of the drawing on the page
+        - x=XX%: horizontal position of CENTER from left edge (0% = left edge, 50% = page center, 100% = right edge)
+        - y=YY%: vertical position of CENTER from top edge (0% = top edge, 50% = page middle, 100% = bottom edge)
+        - CRITICAL: Always provide the CENTER position, never the left/top edge position
+        
+        **STEP 2: Visual measurement technique**
+        - Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
+        - Identify which grid cell contains the CENTER of the drawing
+        - Estimate the position within that cell (e.g., middle of cell = +5%, left edge = +0%, right edge = +10%)
+        - For more precision, use 5% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
+        
+        **STEP 3: Position estimation by drawing type**
+        
+        **For Coordinate Grid Drawings:**
+        - Step 3a: Identify where the coordinate grid is located on the page
+          * Look at the grid boundaries: left edge, right edge, top edge, bottom edge
+          * Estimate grid's page position (e.g., grid spans from 20% to 80% horizontally, 15% to 60% vertically)
+          * Identify where the grid origin (0,0) is located on the page
+        - Step 3b: For each element, calculate its page position from grid coordinate:
+          * If grid coordinate is (x, y) and grid origin is at (gridOriginX%, gridOriginY%):
+            - Estimate horizontal position: gridOriginX% + (x * gridScaleX%)
+            - Estimate vertical position: gridOriginY% - (y * gridScaleY%) [Note: y is inverted - positive y goes up]
+          * Example: Grid origin at (50%, 40%), point at (1, 2):
+            - x = 50% + (1 * ~3%) = ~53% (slightly right of center)
+            - y = 40% - (2 * ~3%) = ~34% (slightly above origin)
+          * Example: Grid origin at (50%, 40%), point at (-3, -1):
+            - x = 50% + (-3 * ~3%) = ~41% (left of center)
+            - y = 40% - (-1 * ~3%) = ~43% (below origin)
+        - Step 3c: For shapes (triangles, polygons), find the CENTROID:
+          * Calculate average of all vertex x-coordinates for centroid x
+          * Calculate average of all vertex y-coordinates for centroid y
+          * Then apply Step 3b to convert centroid grid coordinate to page position
+        
+        **For Histograms/Bar Charts:**
+        - Identify the geometric center of the entire chart
+          * Find the midpoint between leftmost and rightmost bars
+          * Find the midpoint between top and bottom of the chart
+          * This is the CENTER position
+        
+        **For Geometric Diagrams:**
+        - For single points/marks: position is the exact point location
+        - For lines/curves: position is the midpoint of the line/curve
+        - For shapes: position is the centroid (geometric center) of the shape
+        - For annotations: position is where the annotation mark is placed
+        
+        **STEP 4: Double-check your estimate**
+        - Verify: Does the estimated position make sense relative to page layout?
+        - Verify: For coordinate grids, does the position match the grid coordinate's relative position?
+        - Verify: Is the position clearly in the CENTER of the drawing, not at an edge?
+        - If uncertain, err on the side of being more precise (use 5% increments, not 10%)
+        
+        **STEP 5: Format the position**
+        - Always use format: [POSITION: x=XX%, y=YY%]
+        - Use whole numbers or one decimal place (e.g., 52% or 52.5%, not 52.34%)
+        - Round to nearest 5% for better accuracy (e.g., 52% → 52.5% if you're confident, or 50% if uncertain)
+        
+        **Examples with reasoning:**
+        - Triangle at vertices (-3,-1), (-3,0), (-1,-1) on grid with origin at (50%, 40%):
+          * Centroid grid coordinate: ((-3-3-1)/3, (-1+0-1)/3) = (-2.33, -0.67)
+          * Page position: x ≈ 50% + (-2.33 * 3%) ≈ 43%, y ≈ 40% - (-0.67 * 3%) ≈ 42%
+          * Result: "[POSITION: x=43%, y=42%]"
+        - Mark 'x' at grid coordinate (1,2) on grid with origin at (50%, 40%):
+          * Page position: x ≈ 50% + (1 * 3%) ≈ 53%, y ≈ 40% - (2 * 3%) ≈ 34%
+          * Result: "[POSITION: x=53%, y=34%]"
+        - Histogram centered on page:
+          * Result: "[POSITION: x=50%, y=45%]" (slightly above page center is typical)
+        
+        **CRITICAL: Accuracy is more important than precision - better to be approximately correct than precisely wrong**
+      - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+      - If no student work, set "studentWork" to null
 
     Output format (raw JSON only, no markdown):
     {
@@ -94,6 +470,14 @@ export const AI_PROMPTS = {
         }
       ]
     }
+
+    CRITICAL JSON ESCAPING REQUIREMENTS:
+    - All backslashes in LaTeX commands MUST be escaped as double backslashes in JSON
+    - Example: \\frac{4}{5} (NOT \frac{4}{5}) - in JSON source, write "\\\\frac{4}{5}" which becomes "\\frac{4}{5}" in the parsed string
+    - Example: \\times (NOT \times) - in JSON source, write "\\\\times" which becomes "\\times" in the parsed string
+    - Example: \\sqrt{9} (NOT \sqrt{9}) - in JSON source, write "\\\\sqrt{9}" which becomes "\\sqrt{9}" in the parsed string
+    - This ensures valid JSON that can be parsed correctly without errors
+    - Invalid JSON (unescaped backslashes) will cause parsing errors
 
     For multiple pages, use "pages" array with same structure.`,
 
@@ -413,10 +797,20 @@ export const AI_PROMPTS = {
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
        3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
-       4.  **Matching:** The "textMatch" and "step_id" in your annotation MUST exactly match the "cleanedText" and "unified_step_id" from the "OCR TEXT".
-       5.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       6.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       7.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       4.  **Drawing/Diagram Tolerance:** For student work marked with [DRAWING] (coordinate grid transformations, histograms, graphs, geometric diagrams):
+          - CRITICAL: Be lenient when evaluating drawings - coordinate extraction may have minor inaccuracies
+          - If coordinates are approximately correct (within 1-2 grid units), award marks
+          - For transformations: if the shape is correctly transformed (rotation, translation, reflection) even if coordinates are slightly off, award marks
+          - For histograms/graphs: if the general shape, trend, or key features are correct, award marks even if exact values differ slightly
+          - Focus on whether the student understood and applied the transformation/concept correctly, not perfect coordinate precision
+          - Only penalize if the drawing is clearly wrong (wrong quadrant, wrong transformation type, completely incorrect shape)
+       5.  **Matching:** The "textMatch" and "step_id" in your annotation MUST match the "cleanedText" and step ID from the "OCR TEXT".
+          - The OCR TEXT uses step IDs like "[q8_Pearson Edexcel_1MA1/1H_step_1]", "[q8_Pearson Edexcel_1MA1/1H_step_2]", etc.
+          - Your annotation's "step_id" should match these exactly (e.g., "q8_Pearson Edexcel_1MA1/1H_step_1", "q8_Pearson Edexcel_1MA1/1H_step_2")
+          - The "textMatch" should match the "cleanedText" from that step
+       6.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       7.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
+       8.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
@@ -424,13 +818,16 @@ export const AI_PROMPTS = {
        3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
        4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
-      user: (ocrText: string, schemeJson: string, totalMarks?: number) => {
+      user: (ocrText: string, schemeJson: string, totalMarks?: number, questionText?: string | null) => {
         // Convert JSON marking scheme to clean bulleted list format
         const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
         
         const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
         
-        return `Here is the OCR TEXT:
+        // Add question text section if available (from fullExamPapers - source for question detection)
+        const questionSection = questionText ? `ORIGINAL QUESTION:\n${questionText}\n\n` : '';
+        
+        return `${questionSection}Here is the OCR TEXT:
 
       ${ocrText}
       
@@ -672,13 +1069,11 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       // Convert LaTeX math expressions to clean Markdown + Inline LaTeX format
       let processedText = fullText;
       
-      // Clean up any existing LaTeX delimiters first
-      processedText = processedText
-        .replace(/\\\(/g, '')  // Remove \(
-        .replace(/\\\)/g, '')  // Remove \)
-        .replace(/\\\[/g, '')  // Remove \[
-        .replace(/\\\]/g, '')  // Remove \]
-        .replace(/\$/g, '');   // Remove existing $ delimiters
+      // First, normalize LaTeX delimiters using shared helper (ensures consistency with OCR text)
+      processedText = normalizeLatexDelimiters(processedText);
+      
+      // Then remove $ delimiters so we can rebuild with consistent formatting
+      processedText = processedText.replace(/\$/g, '');
       
       // Convert LaTeX math expressions to clean inline LaTeX with $ delimiters
       // Convert \frac{a}{b} to $\frac{a}{b}$
@@ -780,3 +1175,4 @@ export function getPromptPaths(): string[] {
   traverse(AI_PROMPTS);
   return paths;
 }
+

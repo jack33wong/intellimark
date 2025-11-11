@@ -25,6 +25,7 @@ import { SessionManagementService } from '../services/sessionManagementService.j
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
 import * as stringSimilarity from 'string-similarity';
 import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
+import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../utils/TextNormalizationUtils.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
@@ -1565,18 +1566,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Create a Map from the detection results
     const markingSchemesMap: Map<string, any> = new Map();
     
-    // Helper function to extract base question number (e.g., "2a" -> "2", "3" -> "3")
-    const getBaseQuestionNumber = (questionNumber: string | null | undefined): string => {
-        if (!questionNumber) return '';
-        const qNumStr = String(questionNumber);
-        return qNumStr.replace(/[a-z]$/i, ''); // Remove trailing letter if present
-    };
-    
     // Helper function to check if a question number is a sub-question
+    // Uses normalization to handle various formats: "2a", "2(i)", "12(ii)", etc.
     const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
         if (!questionNumber) return false;
         const qNumStr = String(questionNumber);
-        return /[a-z]$/i.test(qNumStr);
+        // Extract sub-question part: digits followed by optional sub-question part
+        // Examples: "12(i)", "12i", "12(ii)", "12ii", "8a", "8(a)"
+        const subQPartMatch = qNumStr.match(/^(\d+)(\(?[a-zivx]+\)?)?$/i);
+        if (subQPartMatch && subQPartMatch[2]) {
+            // Has sub-question part (normalized check ensures consistent detection)
+            const normalizedPart = normalizeSubQuestionPart(subQPartMatch[2]);
+            return normalizedPart.length > 0; // If normalization produces a non-empty string, it's a sub-question
+        }
+        return false;
     };
     
     // First pass: Collect all detection results
@@ -1662,19 +1665,57 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const questionNumbers: string[] = [];
             
             for (const item of group) {
-                const questionSpecificMarks = item.detectionResult.match.markingScheme.questionMarks || item.detectionResult.match.markingScheme;
+                const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
                 
-                // Extract marks array (handle both formats: questionMarks.marks or questionMarks as array)
+                // More defensive extraction
                 let marksArray: any[] = [];
-                if (questionSpecificMarks && typeof questionSpecificMarks === 'object') {
-                    if (Array.isArray(questionSpecificMarks.marks)) {
-                        marksArray = questionSpecificMarks.marks;
-                    } else if (Array.isArray(questionSpecificMarks)) {
-                        marksArray = questionSpecificMarks;
+                const markingScheme = item.detectionResult.match?.markingScheme;
+                let questionMarks: any = null;
+                
+                if (markingScheme) {
+                    questionMarks = markingScheme.questionMarks;
+                    
+                    if (questionMarks) {
+                        // Try multiple extraction paths
+                        if (Array.isArray(questionMarks.marks)) {
+                            marksArray = questionMarks.marks;
+                        } else if (Array.isArray(questionMarks)) {
+                            marksArray = questionMarks;
+                        } else if (questionMarks.marks && Array.isArray(questionMarks.marks)) {
+                            marksArray = questionMarks.marks;
+                        } else if (typeof questionMarks === 'object' && 'marks' in questionMarks) {
+                            // Handle case where marks is a property but might be nested
+                            const marksValue = questionMarks.marks;
+                            if (Array.isArray(marksValue)) {
+                                marksArray = marksValue;
+                            } else if (marksValue && typeof marksValue === 'object' && Array.isArray(marksValue.marks)) {
+                                marksArray = marksValue.marks;
+                            }
+                        }
                     }
                 }
                 
-                const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+                // Q12: Debug mark extraction with full structure
+                if (baseQuestionNumber === '12') {
+                    console.log(`[Q12 MERGE DEBUG] Sub-question ${displayQNum}: extracted ${marksArray.length} mark(s)`);
+                    if (marksArray.length > 0) {
+                        console.log(`[Q12 MERGE DEBUG]   Marks: ${marksArray.map((m: any) => m.mark || m.code || 'unknown').join(', ')}`);
+                    } else {
+                        console.log(`[Q12 MERGE DEBUG]   ⚠️ No marks extracted for ${displayQNum}`);
+                        console.log(`[Q12 MERGE DEBUG]   markingScheme keys: ${markingScheme ? Object.keys(markingScheme).join(', ') : 'null'}`);
+                        console.log(`[Q12 MERGE DEBUG]   questionMarks type: ${questionMarks ? typeof questionMarks : 'null'}`);
+                        console.log(`[Q12 MERGE DEBUG]   questionMarks keys: ${questionMarks && typeof questionMarks === 'object' ? Object.keys(questionMarks).join(', ') : 'N/A'}`);
+                        if (questionMarks && typeof questionMarks === 'object' && 'marks' in questionMarks) {
+                            console.log(`[Q12 MERGE DEBUG]   questionMarks.marks type: ${Array.isArray(questionMarks.marks) ? 'array' : typeof questionMarks.marks}`);
+                            console.log(`[Q12 MERGE DEBUG]   questionMarks.marks length: ${Array.isArray(questionMarks.marks) ? questionMarks.marks.length : 'N/A'}`);
+                        }
+                        console.log(`[Q12 MERGE DEBUG]   Full markingScheme structure (first 500 chars):`, JSON.stringify(markingScheme, null, 2).substring(0, 500));
+                    }
+                }
+                
+                if (marksArray.length === 0) {
+                    console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
+                }
                 
                 mergedMarks.push(...marksArray);
                 combinedQuestionTexts.push(item.question.text); // Classification text (for backward compatibility)
@@ -1690,6 +1731,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const mergedQuestionMarks = {
                 marks: mergedMarks
             };
+            
+            // Q12: Debug merged marks
+            if (baseQuestionNumber === '12') {
+                console.log(`[Q12 MERGE DEBUG] Q${baseQuestionNumber}: Merged ${mergedMarks.length} mark(s) from ${group.length} sub-question(s)`);
+                console.log(`[Q12 MERGE DEBUG]   Sub-questions: ${questionNumbers.join(', ')}`);
+                console.log(`[Q12 MERGE DEBUG]   Combined student work length: ${combinedQuestionTexts.join('\\n').length} chars`);
+            }
             
             // Store questionDetection from first item for exam paper info (board, code, year, tier)
             // This is needed for exam tab display in the frontend

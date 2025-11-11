@@ -1,5 +1,6 @@
 import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
+import { normalizeLatexDelimiters } from '../../utils/TextNormalizationUtils.js';
 
 // ========================= START: NORMALIZED DATA STRUCTURE =========================
 interface NormalizedMarkingScheme {
@@ -91,6 +92,7 @@ export interface MarkingInputs {
   questionMarks?: any;
   totalMarks?: number;
   questionNumber?: string;
+  questionText?: string | null; // Question text from fullExamPapers (source for question detection)
 }
 
 export class MarkingInstructionService {
@@ -98,7 +100,7 @@ export class MarkingInstructionService {
    * Execute complete marking flow - moved from LLMOrchestrator
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
-    const { imageData: _imageData, model, processedImage, questionDetection } = inputs;
+    const { imageData: _imageData, model, processedImage, questionDetection, questionText } = inputs;
 
 
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
@@ -119,19 +121,72 @@ export class MarkingInstructionService {
       // Step 1: Generate raw annotations from cleaned OCR text
       // ========================= START: CLEAN NORMALIZATION =========================
       
+      // Debug: Log the raw marking scheme structure before normalization
+      if (questionDetection) {
+        console.log(`[MARKING SCHEME DEBUG] Raw questionDetection structure:`, {
+          hasQuestionMarks: !!questionDetection.questionMarks,
+          questionMarksType: typeof questionDetection.questionMarks,
+          questionMarksIsArray: Array.isArray(questionDetection.questionMarks),
+          hasMarks: !!questionDetection.questionMarks?.marks,
+          marksIsArray: Array.isArray(questionDetection.questionMarks?.marks),
+          marksLength: questionDetection.questionMarks?.marks?.length || 0,
+          totalMarks: questionDetection.totalMarks,
+          questionNumber: questionDetection.questionNumber,
+          subQuestionNumbers: questionDetection.subQuestionNumbers
+        });
+        if (questionDetection.questionMarks?.marks) {
+          console.log(`[MARKING SCHEME DEBUG] Marks array (first 3):`, questionDetection.questionMarks.marks.slice(0, 3).map((m: any) => ({
+            mark: m.mark,
+            answer: m.answer?.substring(0, 50),
+            comments: m.comments?.substring(0, 50)
+          })));
+        }
+      }
+      
       // Normalize the marking scheme data to a standard format
       const normalizedScheme = normalizeMarkingScheme(questionDetection);
+      
+      // Debug: Log the normalized scheme
+      if (normalizedScheme) {
+        console.log(`[MARKING SCHEME DEBUG] Normalized scheme:`, {
+          marksLength: normalizedScheme.marks.length,
+          totalMarks: normalizedScheme.totalMarks,
+          questionNumber: normalizedScheme.questionNumber
+        });
+        if (normalizedScheme.marks.length > 0) {
+          console.log(`[MARKING SCHEME DEBUG] Normalized marks (first 3):`, normalizedScheme.marks.slice(0, 3).map((m: any) => ({
+            mark: m.mark,
+            answer: m.answer?.substring(0, 50),
+            comments: m.comments?.substring(0, 50)
+          })));
+        }
+      } else {
+        console.warn(`[MARKING SCHEME DEBUG] ⚠️ Normalized scheme is null/undefined`);
+      }
       // ========================== END: CLEAN NORMALIZATION ==========================
       
       const annotationData = await this.generateFromOCR(
         model,
         cleanedOcrText, // Use the plain text directly instead of JSON
         normalizedScheme, // Pass the normalized scheme instead of raw questionDetection
-        questionDetection?.match // Pass exam info for logging
+        questionDetection?.match, // Pass exam info for logging
+        questionText // Pass question text from fullExamPapers
       );
       
-      if (!annotationData.annotations || !Array.isArray(annotationData.annotations) || annotationData.annotations.length === 0) {
+      // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
+      if (!annotationData.annotations || !Array.isArray(annotationData.annotations)) {
         throw new Error('AI failed to generate valid annotations array');
+      }
+      
+      if (annotationData.annotations.length === 0) {
+        console.warn(`[MARKING INSTRUCTION] ⚠️ AI returned 0 annotations - likely no valid student work or wrong blocks assigned`);
+        // Return empty annotations instead of throwing - allows pipeline to continue
+        return {
+          annotations: [],
+          usage: { llmTokens: annotationData.usageTokens || 0 },
+          cleanedOcrText: cleanedOcrText,
+          studentScore: annotationData.studentScore || { score: 0, total: 0 }
+        };
       }
 
       // ========================= START: ANNOTATION ENRICHMENT =========================
@@ -145,9 +200,24 @@ export class MarkingInstructionService {
         }
         
         // Find matching step in cleanDataForMarking.steps
-        const matchingStep = cleanDataForMarking.steps.find((step: any) => 
+        // Try exact match first
+        let matchingStep = cleanDataForMarking.steps.find((step: any) => 
           step.unified_step_id?.trim() === aiStepId
         );
+        
+        // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
+        if (!matchingStep && aiStepId) {
+          // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
+          const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
+          if (stepNumMatch && stepNumMatch[1]) {
+            const stepNum = parseInt(stepNumMatch[1], 10);
+            // Match by step index (1-based)
+            if (stepNum > 0 && stepNum <= cleanDataForMarking.steps.length) {
+              matchingStep = cleanDataForMarking.steps[stepNum - 1];
+              console.log(`[ENRICHMENT] Matched step_id "${aiStepId}" to step ${stepNum} using flexible matching`);
+            }
+          }
+        }
         
         if (matchingStep && matchingStep.bbox) {
           return {
@@ -181,25 +251,31 @@ export class MarkingInstructionService {
     }
   }
 
+  // Use shared normalization helper from TextNormalizationUtils
+
   static async generateFromOCR(
     model: ModelType,
     ocrText: string,
     normalizedScheme?: NormalizedMarkingScheme | null,
-    examInfo?: any
+    examInfo?: any,
+    questionText?: string | null
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
     try {
       const parsedOcr = JSON.parse(ocrText);
       if (parsedOcr.question && parsedOcr.steps) {
-        // Format the OCR text nicely
-        formattedOcrText = `Question: ${parsedOcr.question}\n\nStudent's Work:\n${parsedOcr.steps.map((step: any, index: number) => 
-          `${index + 1}. [${step.unified_step_id}] ${step.cleanedText}`
-        ).join('\n')}`;
+        // Format the OCR text nicely and normalize LaTeX delimiters
+        formattedOcrText = `Question: ${parsedOcr.question}\n\nStudent's Work:\n${parsedOcr.steps.map((step: any, index: number) => {
+          const normalizedText = normalizeLatexDelimiters(step.cleanedText || step.text || '');
+          // Use full unified_step_id format for robustness
+          const stepId = step.unified_step_id || `step_${index + 1}`;
+          return `${index + 1}. [${stepId}] ${normalizedText}`;
+        }).join('\n')}`;
       }
     } catch (error) {
-      // If parsing fails, use original text
-      formattedOcrText = ocrText;
+      // If parsing fails, normalize the original text
+      formattedOcrText = normalizeLatexDelimiters(ocrText);
     }
 
     // ========================= START: USE SINGLE PROMPT =========================
@@ -237,7 +313,7 @@ export class MarkingInstructionService {
       // Convert JSON marking scheme to plain text bullets for the prompt
       const schemePlainText = formatMarkingSchemeAsBullets(schemeJson);
       
-      userPrompt = prompt.user(formattedOcrText, schemePlainText, totalMarks);
+      userPrompt = prompt.user(formattedOcrText, schemePlainText, totalMarks, questionText);
       // ========================== END OF FIX ==========================
     } else {
       // Use the basic prompt
@@ -256,6 +332,18 @@ export class MarkingInstructionService {
     console.log(`📝 [AI PROMPT] Q${questionNumber} - OCR Text:`);
     console.log('\x1b[36m' + ocrPreview + '\x1b[0m'); // Cyan color
     
+    // Q11: Log full prompt including question text
+    const isQ11 = questionNumber === '11';
+    if (isQ11) {
+      console.log(`📝 [AI PROMPT] Q11 - Full Prompt Details:`);
+      console.log(`📝 [AI PROMPT] Q11 - Question Text: ${questionText ? `✅ Present (${questionText.length} chars)` : '❌ Missing'}`);
+      if (questionText) {
+        console.log('\x1b[35m' + questionText.substring(0, 500) + (questionText.length > 500 ? '...' : '') + '\x1b[0m'); // Magenta color
+      }
+      console.log(`📝 [AI PROMPT] Q11 - Full OCR Text (${formattedOcrText.length} chars):`);
+      console.log('\x1b[36m' + formattedOcrText + '\x1b[0m'); // Cyan color
+    }
+    
     if (hasMarkingScheme) {
       // Convert JSON marking scheme to clean bulleted list format for logging
       const schemePlainText = formatMarkingSchemeAsBullets(JSON.stringify({ marks: normalizedScheme.marks }, null, 2));
@@ -263,6 +351,13 @@ export class MarkingInstructionService {
       
       console.log('📝 [AI PROMPT] Marking Scheme:');
       console.log('\x1b[33m' + schemePreview + '\x1b[0m'); // Yellow color
+      
+      // Q11: Log full marking scheme
+      if (isQ11) {
+        console.log(`📝 [AI PROMPT] Q11 - Full Marking Scheme (${schemePlainText.length} chars):`);
+        console.log('\x1b[33m' + schemePlainText + '\x1b[0m'); // Yellow color
+      }
+      
       console.log('📝 [AI PROMPT] Exam Stats:');
       // Extract exam information from the marking scheme
       // The examInfo is passed from the markingScheme.questionDetection.match
@@ -351,5 +446,3 @@ export class MarkingInstructionService {
     }
   }
 }
-
-

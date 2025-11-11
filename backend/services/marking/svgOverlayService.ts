@@ -18,6 +18,8 @@ export interface SVGOverlayConfig {
     cross: number;
     markingSchemeCode: number;
     studentScore: number;
+
+    
   };
   baseReferenceHeight: number;
   // Y Position Configuration (as percentages of block height)

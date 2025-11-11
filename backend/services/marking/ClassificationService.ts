@@ -3,6 +3,7 @@ import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
 import { getModelConfig, getDebugMode, validateModel } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
+import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 
 export interface ClassificationResult {
   category: "questionOnly" | "questionAnswer" | "metadata";
@@ -574,25 +575,34 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // Sanitize invalid escape sequences
       let sanitized = jsonString;
       
+      // CRITICAL: First, normalize excessive backslashes in LaTeX commands
+      // The AI sometimes returns sequences like \\\\pi (4 backslashes) or \\\pi (3 backslashes)
+      // In JSON source: \\ = single backslash in string, \\\\ = two backslashes in string
+      // We need: single backslash for LaTeX = \\ in JSON source
+      // Strategy: Iteratively reduce all excessive backslash sequences to exactly \\
+      // Do this in a loop to handle all cases (4→2, 3→2, 6→4→2, 5→3→2, etc.)
+      let previousLength = 0;
+      while (sanitized.length !== previousLength) {
+        previousLength = sanitized.length;
+        // Normalize even numbers: \\\\pi → \\pi, \\\\\\pi → \\\\pi (then will be normalized again)
+        sanitized = sanitized.replace(/(\\\\){2,}([a-zA-Z{])/g, '\\\\$2');
+        // Normalize odd numbers: \\\pi → \\pi, \\\\\pi → \\\pi (then will be normalized again)
+        sanitized = sanitized.replace(/(\\\\)\\([a-zA-Z{])/g, '\\\\$2');
+      }
+      
       // Fix invalid escape sequences (e.g., \x where x is not a valid escape character)
       // Valid escapes: \n, \r, \t, \\, \", \/, \b, \f, \uXXXX (where XXXX is 4 hex digits)
       // We need to escape backslashes that are not followed by valid escape characters
       // Be careful: \u must be followed by 4 hex digits, so we check for that separately
-      sanitized = sanitized.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+      // BUT: Skip if it's already a LaTeX command (\\command is already properly escaped)
+      sanitized = sanitized.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4}|\\[a-zA-Z{])/g, '\\\\');
       
-      // Fix common LaTeX escaping issues (similar to MarkingInstructionService)
+      // Fix common LaTeX escaping issues - only fix unescaped LaTeX commands
+      // Pattern: Match single backslash followed by LaTeX command (not already \\command)
       sanitized = sanitized
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{}
-        .replace(/\\times/g, '\\\\times') // Fix \times
-        .replace(/\\pi/g, '\\\\pi') // Fix \pi
-        .replace(/\\mathrm\{([^}]*)\}/g, '\\\\mathrm{$1}') // Fix \mathrm{}
-        .replace(/\\text\{([^}]*)\}/g, '\\\\text{$1}') // Fix \text{}
-        .replace(/\\sqrt\{([^}]+)\}/g, '\\\\sqrt{$1}') // Fix \sqrt{}
-        .replace(/\\[a-zA-Z]+/g, (match) => {
-          // Only fix if it's not already escaped
-          if (match.startsWith('\\\\')) return match;
-          return `\\\\${match.slice(1)}`;
-        });
+        .replace(/(?<!\\\\)\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{} if not already escaped
+        .replace(/(?<!\\\\)\\(times|pi|theta|alpha|beta|gamma|delta|omega|sqrt|mathrm|text)(?![a-zA-Z{])/g, '\\\\$1') // Fix common LaTeX commands
+        .replace(/(?<!\\\\)\\([a-zA-Z]+)/g, '\\\\$1'); // Fix any remaining LaTeX commands
       
       // Try parsing again after sanitization
       try {
@@ -659,8 +669,10 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             return;
           }
           
-          const baseNumber = String(q.questionNumber).replace(/[a-z]/i, '');
-          const subPart = String(q.questionNumber).replace(/\d+/g, '');
+          // Extract base number using shared utility (more reliable than removing letters)
+          const baseNumber = getBaseQuestionNumber(q.questionNumber);
+          // Extract sub-question part by removing leading digits
+          const subPart = String(q.questionNumber).replace(/^\d+/, '');
           
           if (subPart) {
             // This is a sub-question (e.g., "2a")
@@ -725,7 +737,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
     // Use shared parsing function
     const questions = this.parseQuestionsFromResponse(parsed);
-    
+
     return {
       category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
       reasoning: parsed.reasoning,
@@ -740,5 +752,3 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
 
 }
-
-

@@ -36,4 +36,6 @@ export interface MarkingTask {
   mathBlocks: MathBlock[];
   markingScheme: any | null; // Allow null for preliminary tasks
   sourcePages: number[];
+  classificationStudentWork?: string | null; // Student work extracted by classification (may include [DRAWING])
+  pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
 }
