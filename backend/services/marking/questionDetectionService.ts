@@ -119,15 +119,6 @@ export class QuestionDetectionService {
         };
       }
 
-      // Debug logging for Q21
-      const isQ21 = questionNumberHint === '21' || questionNumberHint === 21;
-      if (isQ21) {
-        console.log(`[QUESTION DETECTION DEBUG] Q21 Input:`);
-        console.log(`  - Question Text (first 200 chars): ${extractedQuestionText.substring(0, 200)}...`);
-        console.log(`  - Question Number Hint: ${questionNumberHint}`);
-        console.log(`  - Total exam papers in database: ${examPapers.length}`);
-      }
-
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
@@ -185,38 +176,6 @@ export class QuestionDetectionService {
             }
           }
         }
-        
-        // Debug logging for Q21 - show all matches attempted
-        if (isQ21 && match) {
-          console.log(`[QUESTION DETECTION DEBUG] Q21 Match Attempt:`);
-          console.log(`  - Paper Code: ${paperCode}`);
-          console.log(`  - Question Number: ${match.questionNumber}`);
-          console.log(`  - Confidence: ${match.confidence}`);
-          if (match.databaseQuestionText) {
-            const textSim = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
-            const classificationStart = normalizeTextForComparison(extractedQuestionText.substring(0, 60));
-            const databaseStart = normalizeTextForComparison(match.databaseQuestionText.substring(0, 60));
-            const classificationPrefix = classificationStart.substring(0, Math.min(30, classificationStart.length));
-            const databasePrefix = databaseStart.substring(0, Math.min(30, databaseStart.length));
-            const startsMatch = classificationPrefix && databasePrefix && 
-                               (databasePrefix.startsWith(classificationPrefix.substring(0, 20)) || 
-                                classificationPrefix.startsWith(databasePrefix.substring(0, 20)));
-            console.log(`  - Text Similarity: ${textSim.toFixed(3)}`);
-            console.log(`  - Starts Match: ${startsMatch ? 'Yes' : 'No'}`);
-            console.log(`  - Database Text Start: "${databaseStart.substring(0, 40)}..."`);
-          }
-        }
-      }
-      
-      // Debug logging for Q21 - show best match result
-      if (isQ21) {
-        console.log(`[QUESTION DETECTION DEBUG] Q21 Best Match:`);
-        console.log(`  - Found: ${bestMatch ? 'Yes' : 'No'}`);
-        console.log(`  - Best Score: ${bestScore}`);
-        if (bestMatch) {
-          console.log(`  - Paper Code: ${bestMatch.paperCode}`);
-          console.log(`  - Question Number: ${bestMatch.questionNumber}`);
-        }
       }
 
       if (bestMatch) {
@@ -224,13 +183,6 @@ export class QuestionDetectionService {
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
-        } else {
-          // Debug logging for marking scheme lookup failure
-          console.log(`[QUESTION DETECTION DEBUG] Marking scheme lookup failed for:`);
-          console.log(`  - Question Number: ${bestMatch.questionNumber}`);
-          console.log(`  - Board: ${bestMatch.board}`);
-          console.log(`  - Paper Code: ${bestMatch.paperCode}`);
-          console.log(`  - Year: ${bestMatch.year}`);
         }
         
         return {
@@ -406,17 +358,6 @@ export class QuestionDetectionService {
             // Only match if main question text exists
             if (questionContent) {
               const similarity = this.calculateSimilarity(questionText, questionContent);
-              
-              // Debug logging for Q21
-              const isQ21 = questionNumberHint === '21' || questionNumberHint === 21;
-              if (isQ21 && questionNumber === '21') {
-                console.log(`[QUESTION DETECTION DEBUG] Q21 Text Matching:`);
-                console.log(`  - Database Question Number: ${questionNumber}`);
-                console.log(`  - Paper Code: ${paperCode}`);
-                console.log(`  - Similarity: ${similarity.toFixed(3)}`);
-                console.log(`  - Classification Text (first 100 chars): ${questionText.substring(0, 100)}...`);
-                console.log(`  - Database Text (first 100 chars): ${questionContent.substring(0, 100)}...`);
-              }
               
               if (similarity > bestScore) {
                 bestScore = similarity;

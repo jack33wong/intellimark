@@ -1,4 +1,3 @@
-
 ## Data Flow: Question & Student Work Only
 
 ### Stage 1: Classification
@@ -85,28 +84,57 @@ Question text and student work are extracted as **text strings** (LaTeX format) 
 ### Stage 2: Question Detection
 
 **Input - Question Data:**
-- `ClassificationResult.questions[].text`
-- `ClassificationResult.questions[].questionNumber`
+- `ClassificationResult.questions[].text` (from classification)
+- `ClassificationResult.questions[].questionNumber` (optional hint)
 
 **Input - Student Work Data:**
 - ❌ Not used in this stage
 
 **Processing:**
-- `extractQuestionsFromClassification()` → Flattens main + subQuestions
-- For each question: `questionDetectionService.detectQuestion()` → Matches with database → Gets `databaseQuestionText`
+1. **Extract Questions**: `extractQuestionsFromClassification()` 
+   - Flattens hierarchical structure (main + subQuestions → flat array)
+   - Handles multi-page questions (merges questions with same questionNumber across pages)
+   - For each question: extracts `{text, questionNumber}`
+
+2. **Question Detection**: For each extracted question:
+   - `questionDetectionService.detectQuestion(questionText, questionNumberHint)`
+   - **Matching Process**:
+     ```
+     For each exam paper in database:
+       1. Match question number (exact match if hint provided)
+       2. Calculate text similarity between classification text and database question text
+       3. For main questions: threshold = 0.35 (lowered to handle OCR/classification variations)
+       4. For sub-questions: threshold = 0.40
+       5. If multiple papers have same confidence:
+          - Break tie by checking if database text starts with same words as classification
+          - Prefer match where database text prefix matches classification text prefix
+     ```
+   - **Marking Scheme Lookup**:
+     - Find marking scheme matching exam paper (board, qualification, paperCode, year)
+     - Extract question marks from marking scheme's `questions[questionNumber]` structure
+     - Store `databaseQuestionText` for later filtering
+
+3. **Grouping**: Group sub-questions by base question number and merge marking schemes
 
 **Output - Question Data:**
 - `markingSchemesMap: Map<string, SchemeData>`
-  - `questionNumber`: "1" (from database)
-  - `databaseQuestionText`: "Full question text from database..."
-  - `questionMarks`: {...}
+  - Key format: `"{questionNumber}_{Board}_{PaperCode}"` (e.g., "13_Pearson Edexcel_1MA1/2H")
+  - `questionNumber`: "13" (from database)
+  - `databaseQuestionText`: "Full question text from database..." (used for filtering OCR blocks)
+  - `questionMarks`: {...} (marking scheme criteria)
   - `totalMarks`: 5
+  - `board`, `paperCode`, `year`, `tier`
 
 **Output - Student Work Data:**
 - ❌ Not used in this stage
 
+**Key Design Decisions:**
+- **Lower threshold (0.35)**: Handles OCR/classification variations and multi-page questions
+- **Tie-breaking**: When multiple papers match with same confidence, prefer match where database text starts with same words as classification text
+- **Database text storage**: `databaseQuestionText` is stored for use in segmentation filtering (more reliable than classification text)
+
 **Notes:**
-Question text is **matched with database** to get authoritative question text. Student work from classification is **not used** here (only question text is matched).
+Question text is **matched with database** to get authoritative question text. Student work from classification is **not used** here (only question text is matched). The `databaseQuestionText` is critical for accurate filtering in segmentation.
 
 ---
 
@@ -130,7 +158,7 @@ Question text is **matched with database** to get authoritative question text. S
 - `mathpixLatex`: "\\text{Question 1}"
 - `googleVisionText`: "Question 1"
 - `coordinates`: {x, y, width, height}
-- `orderIndex`: 0, 1, 2...
+- `orderIndex`: 0, 1, 2... (reading order)
 
 **Notes:**
 OCR extracts **all blocks** (question text + student work + metadata) as **OCR blocks with coordinates**. No distinction yet between question text and student work.
@@ -141,20 +169,25 @@ OCR extracts **all blocks** (question text + student work + metadata) as **OCR b
 
 **Input - Question Data:**
 - Classification: `questions[].text`
-- Database: `markingSchemesMap[].databaseQuestionText`
+- Database: `markingSchemesMap[].databaseQuestionText` (preferred for filtering)
 
 **Input - Student Work Data:**
-- Classification: `questions[].studentWork` (optional)
+- Classification: `questions[].studentWork` (optional, used as whitelist)
 - OCR: All blocks (mixed)
 
-**Processing - STEP 1:**
-- Consolidate OCR blocks → Add `pageIndex`, `globalBlockId`, `originalOrderIndex`
+**Processing - STEP 1: OCR Block Consolidation**
+- Consolidate all OCR blocks from all pages
+- Add metadata: `pageIndex`, `globalBlockId`, `originalOrderIndex`
 - Filter out empty blocks
+- Result: `allMathBlocks[]` with consistent structure
 
-**Processing - STEP 2:**
-- Flatten questions → Q1 with [a, b] → ["1", "1a", "1b"]
+**Processing - STEP 2: Question Flattening**
+- Flatten hierarchical questions structure
+- Q1 with [a, b] → ["1", "1a", "1b"]
+- Handle multi-page questions (merge questions with same questionNumber)
+- Result: `flattenedQuestions[]`
 
-**Processing - STEP 3: Estimate Y Coordinates for Blocks with Null Y:**
+**Processing - STEP 3: Y-Coordinate Estimation**
 - Group blocks by page
 - For each page:
   - Sort blocks by `originalOrderIndex` (reading order)
@@ -167,29 +200,45 @@ OCR extracts **all blocks** (question text + student work + metadata) as **OCR b
     - If both: linear interpolation between before and after
 - Result: All blocks have Y coordinates (real or estimated)
 
-**Processing - STEP 4: Identify Question Text and Student Work Blocks (Single Pass):**
-- For each OCR block:
-  - Check if matches classification `studentWork` → Add to `studentWorkBlocks[]`
-  - Check if matches question text (similarity ≥ 0.70) → Add to `questionTextBlocks[]`
-  - Check if metadata → Add to `questionTextBlocks[]`
-  - Otherwise → Add to `studentWorkBlocks[]` (default)
-- Result: Both `questionTextBlocks[]` and `studentWorkBlocks[]` identified in one pass
+**Processing - STEP 4: Filter Question Text vs Student Work**
+- **Priority-based filtering** using `QuestionTextFilter` class:
+  ```
+  PRIORITY 0.05: Hardcoded footer patterns (always filter)
+  PRIORITY 0.1: Footer patterns (pipes, dashes, page numbers)
+  PRIORITY 0.6: Database question text matching (substring match)
+  PRIORITY 0.7: Database question text matching (similarity match)
+  PRIORITY 1: Database question text matching (main question)
+  PRIORITY 2: Database question text matching (sub-questions)
+  PRIORITY -1: Classification student work whitelist (conservative, prevent filtering valid student work)
+  ```
+- **For each OCR block**:
+  1. Check classification student work FIRST (PRIORITY -1) - if matches, KEEP
+  2. Check database question text (PRIORITY 0.6, 0.7, 1, 2) - if matches, FILTER
+  3. Check footer patterns (PRIORITY 0.05, 0.1) - if matches, FILTER
+  4. Check question headers, patterns, table data - if matches, FILTER
+  5. If uncertain, KEEP (conservative approach to avoid filtering valid student work)
+- **Key Matching Methods**:
+  - **Database matching**: Uses `calculateOcrToDatabaseSimilarity()` with one-directional substring matching
+  - **Classification whitelist**: Uses `findMatchingClassificationLines()` with conservative thresholds (0.60-0.70)
+  - **Tie-breaking**: Uses order index when block matches both database question text and classification student work
+- Result: Blocks identified as question text or student work
 
-**Processing - STEP 5: Calculate Boundaries:**
-- From `questionTextBlocks[]`
+**Processing - STEP 5: Calculate Question Boundaries**
+- From filtered question text blocks
+- Group questions by `schemeKey` (for grouped sub-questions, calculate one boundary from main question text)
 - Calculate `minY`, `maxEndY`, `maxOrderIndex` for each question
-- Result: `QuestionBoundary[]`
+- Result: `QuestionBoundary[]` with Y-coordinate ranges
 
-**Processing - STEP 6: Apply Y-Position Check and Assign to Schemes:**
-- For each scheme on each page:
-  - For each `studentWorkBlock`:
+**Processing - STEP 6: Assign Blocks to Questions**
+- For each page and each question scheme:
+  - For each student work block:
     - Find nearest question boundary ABOVE the block (boundary.endY < blockY)
-    - If boundary found:
-      - Check if boundary belongs to this scheme
-      - If yes: assign block to scheme
-    - If no boundary found above: skip (handled by fallback)
-  - Fallback for blocks with null Y (if estimation failed):
-    - Use order-based assignment (assign to same question as nearest assigned block)
+    - If boundary found and belongs to this scheme: assign block to scheme
+    - If no boundary found above: use fallback (order-based assignment)
+- **Block-to-Classification Mapping**:
+  - Map each OCR block to best matching classification line (one-to-one)
+  - If one classification maps to many OCR blocks, take highest confidence one
+  - Store in `blockToClassificationMap` for passing classification content to AI
 - Result: Blocks assigned to correct schemes based on Y-position
 
 **Output - Question Data:**
@@ -197,21 +246,32 @@ OCR extracts **all blocks** (question text + student work + metadata) as **OCR b
   - `questionNumber`: "1"
   - `schemeKey`: "1_AQA_1MA1/1H"
   - `markingScheme`: {questionMarks, totalMarks}
+  - `blockToClassificationMap`: Map<blockId, {classificationLine, similarity}>
 
 **Output - Student Work Data:**
 - `ocrBlocks[]`: Only student work blocks
   - Blocks with Y > nearest boundary.endY (below question text)
   - Blocks assigned to correct scheme based on Y-position
   - Blocks that match classification `studentWork` (always kept)
+  - **Classification content used**: If block maps to classification, use classification line instead of OCR text
 
 **Output - Question Text Blocks:**
 - Filtered out (not in `ocrBlocks[]`)
 
+**Key Design Principles:**
+1. **Conservative filtering**: When uncertain, KEEP blocks (avoid filtering valid student work)
+2. **Priority-based**: Classification whitelist runs FIRST, then database filtering
+3. **Database text preferred**: Use `databaseQuestionText` for filtering (more reliable than classification text)
+4. **One-directional matching**: Only check if database/classification contains OCR block (not reverse)
+5. **Tie-breaking**: Order index used when block matches both question text and student work
+6. **Classification content**: Pass classification content to AI instead of OCR when available (more reliable)
+
 **Notes:**
 - Y coordinates are estimated from block order when null, ensuring all blocks can be assigned by Y-position
-- Single pass identifies both question text and student work blocks
-- Y-position assignment uses nearest boundary above block (handles multiple schemes on same page)
-- No text matching in assignment step - only Y-position and order-based fallback
+- Question text filtering uses priority-based checks with database matching as primary filter
+- Classification student work acts as conservative whitelist to prevent filtering valid student work
+- Blocks are assigned by Y-position (nearest boundary above block)
+- Classification content is preferred over OCR text when mapping exists
 
 ## Question & Student Work Data Transformation Summary
 
@@ -229,9 +289,11 @@ Image → Classification (text string, optional)
      → OCR (all blocks, mixed)
      → Segmentation:
         - Estimate Y for null Y blocks (from order)
-        - Filter question text vs student work
+        - Filter question text vs student work (priority-based)
         - Assign by Y-position (nearest boundary above)
+        - Map to classification content (if available)
      → MarkingTask.ocrBlocks[] (only student work blocks)
+     → AI Marking (uses classification content if mapped, else OCR text)
 ```
 
 ### Key Distinctions:
@@ -241,8 +303,59 @@ Image → Classification (text string, optional)
 | **Source in Classification** | `questions[].text` | `questions[].studentWork` (optional) |
 | **Source in OCR** | OCR blocks matching question text | OCR blocks NOT matching question text |
 | **Final Destination** | ❌ Filtered out (not in MarkingTask) | ✅ Included in `MarkingTask.ocrBlocks[]` |
-| **Identification Method** | Text similarity match (≥0.70) | Negative: not question text + Y position check |
+| **Identification Method** | Priority-based filtering (database matching, patterns) | Negative: not question text + classification whitelist |
 | **Y-Position Rule** | Above `boundary.maxEndY` | Below nearest `boundary.endY` (nearest boundary above block) |
 | **Y Estimation** | N/A | Estimated from block order if null Y |
 | **Assignment Method** | N/A | Y-position only (no text matching) |
+| **Content Used for AI** | N/A | Classification content (if mapped) > OCR text |
 
+### Question Detection Details:
+
+**Matching Algorithm:**
+1. **Question Number Matching**: If hint provided, only match questions with exact question number
+2. **Text Similarity**: Calculate similarity between classification text and database question text
+3. **Thresholds**:
+   - Main questions: 0.35 (handles OCR/classification variations)
+   - Sub-questions: 0.40
+4. **Tie-Breaking**: When multiple papers have same confidence:
+   - Check if database text starts with same normalized words as classification text
+   - Prefer match where database text prefix matches classification text prefix
+5. **Marking Scheme Lookup**:
+   - Match by board, qualification, paperCode, year (exact paper code match required)
+   - Extract question marks from `questions[questionNumber]` structure
+   - Store `databaseQuestionText` for filtering
+
+**Multi-Page Questions:**
+- Questions with same `questionNumber` across pages are merged
+- Question text from page with actual text is used
+- Student work from all pages is combined
+
+### Segmentation Filtering Details:
+
+**QuestionTextFilter Priority Order:**
+1. **PRIORITY 0.05**: Hardcoded footer patterns (always filter)
+2. **PRIORITY 0.1**: Footer patterns (pipes, dashes, page numbers)
+3. **PRIORITY 0.6**: Database question text (substring match, sub-questions)
+4. **PRIORITY 0.7**: Database question text (similarity match, sub-questions)
+5. **PRIORITY 1**: Database question text (main question)
+6. **PRIORITY 2**: Database question text (sub-questions, thorough check)
+7. **PRIORITY -1**: Classification student work whitelist (conservative, prevent filtering)
+
+**Matching Methods:**
+- **Database Matching**: 
+  - Uses `calculateOcrToDatabaseSimilarity()` with one-directional substring matching
+  - Checks if database text contains OCR block (not reverse)
+  - Similarity threshold: 0.50 for main questions, 0.70 for math expressions
+- **Classification Whitelist**:
+  - Uses `findMatchingClassificationLines()` with conservative thresholds (0.60-0.70)
+  - One-directional substring matching (classification contains OCR block)
+  - Score normalization based on text length ratio
+- **Tie-Breaking**:
+  - Uses order index when block matches both database question text and classification student work
+  - Prefers classification match if similarity >= 0.70
+
+**Block-to-Classification Mapping:**
+- Resolves one-to-many mapping (one classification line → many OCR blocks)
+- Takes highest confidence match when multiple blocks map to same classification
+- Stores mapping in `blockToClassificationMap` for use in AI marking
+- AI uses classification content instead of OCR text when mapping exists (more reliable)

@@ -1555,13 +1555,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // Extract questions from AI classification result
     const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
-    console.log(`[QUESTION DETECTION] Extracted ${individualQuestions.length} question(s) from classification:`);
-    individualQuestions.forEach((q, index) => {
-      const qNum = q.questionNumber || '?';
-      const preview = q.text.substring(0, 60);
-      const truncated = q.text.length > 60 ? '...' : '';
-      console.log(`  ${index + 1}. Q${qNum}: "${preview}${truncated}"`);
-    });
     
     // Create a Map from the detection results
     const markingSchemesMap: Map<string, any> = new Map();
@@ -1593,34 +1586,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     for (const question of individualQuestions) {
         const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
-        // Debug logging for Q21 specifically
-        if (question.questionNumber === '21' || question.questionNumber === 21) {
-            console.log(`[QUESTION DETECTION DEBUG] Q21 Detection Result:`);
-            console.log(`  - Found: ${detectionResult.found}`);
-            console.log(`  - Message: ${detectionResult.message}`);
-            console.log(`  - Match: ${detectionResult.match ? 'Yes' : 'No'}`);
-            if (detectionResult.match) {
-                console.log(`  - Board: ${detectionResult.match.board}`);
-                console.log(`  - Paper Code: ${detectionResult.match.paperCode}`);
-                console.log(`  - Question Number: ${detectionResult.match.questionNumber}`);
-                console.log(`  - Confidence: ${detectionResult.match.confidence}`);
-                console.log(`  - Marking Scheme: ${detectionResult.match.markingScheme ? 'Yes' : 'No'}`);
-                if (!detectionResult.match.markingScheme) {
-                    console.log(`  - ❌ Q21 matched exam paper but NO marking scheme found`);
-                }
-            }
-        }
-        
         if (detectionResult.found && detectionResult.match?.markingScheme) {
             detectionResults.push({ question, detectionResult });
-        } else if (question.questionNumber === '21' || question.questionNumber === 21) {
-            console.log(`[QUESTION DETECTION DEBUG] Q21 NOT added to detectionResults:`);
-            console.log(`  - found: ${detectionResult.found}`);
-            console.log(`  - markingScheme exists: ${detectionResult.match?.markingScheme ? 'Yes' : 'No'}`);
         }
     }
-    
-    console.log(`[QUESTION DETECTION] Total detection results: ${detectionResults.length}`);
     
     // Second pass: Group sub-questions by base question number and merge
     const groupedResults = new Map<string, Array<{
@@ -1784,34 +1753,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }
     
     logQuestionDetectionComplete();
-    console.log(`[QUESTION DETECTION] Final markingSchemesMap (${markingSchemesMap.size}):`, Array.from(markingSchemesMap.keys()).join(', '));
-    
-    // Brief summary of question detection results
-    const summary = {
-      totalDetected: detectionResults.length,
-      totalGrouped: markingSchemesMap.size,
-      questions: Array.from(markingSchemesMap.entries()).map(([key, scheme]) => {
-        const parts = key.split('_');
-        const qNum = parts[0];
-        const examBoard = parts[1];
-        const paperCode = parts[2];
-        const subQuestions = scheme.subQuestionNumbers && Array.isArray(scheme.subQuestionNumbers) && scheme.subQuestionNumbers.length > 1
-          ? scheme.subQuestionNumbers.join(', ')
-          : undefined;
-        return {
-          question: `Q${qNum}`,
-          exam: `${examBoard} ${paperCode}`,
-          totalMarks: scheme.totalMarks || 0,
-          subQuestions: subQuestions
-        };
-      })
-    };
-    
-    console.log(`[QUESTION DETECTION SUMMARY] Detected ${summary.totalDetected} question(s), grouped into ${summary.totalGrouped} scheme(s):`);
-    summary.questions.forEach((q, idx) => {
-      const subQInfo = q.subQuestions ? ` (includes: ${q.subQuestions})` : '';
-      console.log(`  ${idx + 1}. ${q.question} → ${q.exam} [${q.totalMarks} marks]${subQInfo}`);
-    });
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================

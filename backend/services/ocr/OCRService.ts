@@ -722,20 +722,6 @@ export class OCRService {
        return 0; // Shouldn't reach here
     });
 
-    // Debug: Log OCR blocks for Q12
-    const hasQ12Content = sortedMathBlocks.some(b => {
-      const text = (b.mathpixLatex || b.googleVisionText || '').trim();
-      return text.includes('12') || text.includes('Here are some graphs') || text === 'H' || text === 'F' || text === 'J';
-    });
-    if (hasQ12Content) {
-      console.log(`[OCR SERVICE DEBUG] Q12 - OCR extracted ${sortedMathBlocks.length} mathBlocks:`);
-      sortedMathBlocks.forEach((block, idx) => {
-        const text = (block.mathpixLatex || block.googleVisionText || '').trim();
-        const y = block.coordinates?.y ?? 'null';
-        const x = block.coordinates?.x ?? 'null';
-        console.log(`[OCR SERVICE DEBUG]   Block ${idx + 1}: "${text}" (X=${x}, Y=${y})`);
-      });
-    }
 
     let cleanedOcrText = '';
     let cleanDataForMarking: any = null;

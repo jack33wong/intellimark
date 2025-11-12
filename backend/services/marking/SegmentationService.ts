@@ -1445,17 +1445,8 @@ export function segmentOcrResultsByQuestion(
     // STEP 4 (continued): Filter question text blocks ONCE per page (with Y-position check as priority)
     const questionTextBlocks: Array<MathBlock & { pageIndex: number }> = [];
     
-    // TEMPORARY DEBUG: Log raw OCR blocks for all questions
+    // Get questions on this page for debug logging
     const questionsOnThisPage = questionsOnPage.map(q => q.questionNumber).join(', ');
-    console.log(`\n[OCR RAW] ========== Page ${pageIndex} (Questions: ${questionsOnThisPage}) ==========`);
-    console.log(`[OCR RAW] Total OCR blocks: ${blocksOnPage.length}`);
-    blocksOnPage.forEach((block, idx) => {
-      const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-      const blockY = block.coordinates?.y ?? 'null';
-      const blockX = block.coordinates?.x ?? 'null';
-      console.log(`[OCR RAW]   Block ${idx + 1}: "${blockText.substring(0, 150)}${blockText.length > 150 ? '...' : ''}" (X=${blockX}, Y=${blockY})`);
-    });
-    console.log(`[OCR RAW] ============================================================\n`);
     
     // Track OCR block → classification line mapping (with similarity scores)
     // This will be used to pass classification content to AI instead of OCR blocks
@@ -2151,19 +2142,36 @@ export function segmentOcrResultsByQuestion(
     }
     
     // Build OCR blocks content - add to tableRows
+    // Find the first row that has classification but no blocks (the "Main:" or "Sub[...]:" header)
     let blockRowIndex = 0;
-    if (tableRows.length > 0) {
+    for (let i = 0; i < tableRows.length; i++) {
+      if (tableRows[i].classification && !tableRows[i].blocks) {
+        blockRowIndex = i;
+        break;
+      }
+    }
+    
+    // Add blocks header
+    if (tableRows.length > 0 && blockRowIndex < tableRows.length) {
       tableRows[blockRowIndex].blocks = `Blocks (${task.mathBlocks.length}):`;
       blockRowIndex++;
     } else {
       tableRows.push({ classification: '', blocks: `Blocks (${task.mathBlocks.length}):` });
-      blockRowIndex = 1;
+      blockRowIndex = tableRows.length;
     }
     
+    // Add blocks, ensuring we don't overwrite existing blocks entries
+    // Skip rows that already have blocks (from multi-line classification entries)
     task.mathBlocks.forEach((block, idx) => {
       const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
       const truncated = blockText.length > 80 ? blockText.substring(0, 80) + '...' : blockText;
       const blockNumber = `${BLUE}${idx + 1}${RESET}`;
+      
+      // Find next available row (one without blocks or with empty blocks)
+      while (blockRowIndex < tableRows.length && tableRows[blockRowIndex].blocks && tableRows[blockRowIndex].blocks.trim().length > 0) {
+        blockRowIndex++;
+      }
+      
       if (blockRowIndex < tableRows.length) {
         tableRows[blockRowIndex].blocks = `  ${blockNumber}. "${truncated}"`;
         blockRowIndex++;
@@ -2184,6 +2192,12 @@ export function segmentOcrResultsByQuestion(
         drawingLines.forEach((dl, lineIdx) => {
           const prefix = lineIdx === 0 ? `  ${blockNumber}. [SYNTHETIC] "` : '    ';
           const suffix = lineIdx === drawingLines.length - 1 ? '"' : '';
+          
+          // Find next available row (one without blocks or with empty blocks)
+          while (blockRowIndex < tableRows.length && tableRows[blockRowIndex].blocks && tableRows[blockRowIndex].blocks.trim().length > 0) {
+            blockRowIndex++;
+          }
+          
           if (blockRowIndex < tableRows.length) {
             tableRows[blockRowIndex].blocks = `${prefix}${dl}${suffix}`;
             blockRowIndex++;
@@ -2195,15 +2209,38 @@ export function segmentOcrResultsByQuestion(
       });
     }
     
+    // Helper function to strip ANSI color codes for width calculation
+    const stripAnsiCodes = (str: string): string => {
+      return str.replace(/\x1b\[[0-9;]*m/g, '');
+    };
+    
+    // Helper function to pad string accounting for ANSI codes
+    const padWithAnsi = (str: string, width: number): string => {
+      const visibleLength = stripAnsiCodes(str).length;
+      const padding = Math.max(0, width - visibleLength);
+      return str + ' '.repeat(padding);
+    };
+    
     // Print column-based table with green question number
     const questionNumberColored = `${GREEN}Q${questionId}${RESET}`;
     console.log(`${questionNumberColored}${schemeHeader}`);
     console.log('─'.repeat(150));
-    console.log('Classification Student Work'.padEnd(75) + ' | ' + 'Blocks to AI');
-    console.log('─'.repeat(150));
     
+    // Fixed column width for consistent alignment (accounting for ANSI codes)
+    const COLUMN_WIDTH = 75;
     tableRows.forEach(row => {
-      console.log(row.classification.padEnd(75) + ' | ' + row.blocks);
+      // Split classification into lines if it contains newlines
+      const classificationLines = row.classification.split('\n');
+      const blocksLines = row.blocks.split('\n');
+      const maxLines = Math.max(classificationLines.length, blocksLines.length);
+      
+      for (let i = 0; i < maxLines; i++) {
+        const classificationLine = classificationLines[i] || '';
+        const blocksLine = blocksLines[i] || '';
+        // Use ANSI-aware padding to ensure alignment
+        const paddedClassification = padWithAnsi(classificationLine, COLUMN_WIDTH);
+        console.log(paddedClassification + ' | ' + blocksLine);
+      }
     });
     console.log('─'.repeat(150));
   }

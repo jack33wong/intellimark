@@ -880,16 +880,6 @@ export class QuestionTextFilter {
               const isSubstring3 = isBlockWithoutLabelMeaningful && normalizedSubQText.includes(normalizedBlockWithoutLabel);
               const isSubstring = isSubstring1 || isSubstring2 || isSubstring3;
               
-              // DEBUG: Log substring check for Q12 and Q13
-              const isQ12OrQ13 = question.questionNumber === '12' || question.questionNumber === '13';
-              if (isQ12OrQ13 && (blockText.includes('Write down') || blockText.includes('were in a shop') || blockText.includes('(ii)') || blockText.includes('(iii)'))) {
-                console.log(`[DEBUG SUBSTRING] Q${question.questionNumber}${subQ.part || ''} - Block: "${blockText.substring(0, 60)}"`);
-                console.log(`[DEBUG SUBSTRING]   SubQ text (${source}): "${subQTextToUse.substring(0, 80)}"`);
-                console.log(`[DEBUG SUBSTRING]   Normalized block: "${normalizedBlockText.substring(0, 60)}"`);
-                console.log(`[DEBUG SUBSTRING]   Normalized subQ: "${normalizedSubQText.substring(0, 80)}"`);
-                console.log(`[DEBUG SUBSTRING]   Extracted label: "${extractedLabel}", blockWithoutLabel: "${normalizedBlockWithoutLabel}" (length=${normalizedBlockWithoutLabel.length})`);
-                console.log(`[DEBUG SUBSTRING]   Similarity: ${similarity.toFixed(3)}, isSubstring1: ${isSubstring1}, isSubstring2: ${isSubstring2}, isSubstring3: ${isSubstring3} (${normalizedSubQText.includes(normalizedBlockWithoutLabel)}), isSubstring: ${isSubstring}`);
-              }
               
               // SIMPLIFIED: Lower threshold (0.50) for sub-question text matching - be more aggressive
               // Require similarity >= 0.50 OR substring match (substring is strong signal)
@@ -898,10 +888,6 @@ export class QuestionTextFilter {
                 // Calculate question text score: prioritize substring match (0.75), otherwise use similarity
                 // CRITICAL FIX: Check isSubstring FIRST, otherwise when similarity=0.50 and isSubstring=true, it uses 0.50 instead of 0.75
                 const questionTextScore = isSubstring ? 0.75 : similarity;
-                
-                if (isQ12OrQ13 && (blockText.includes('Write down') || blockText.includes('were in a shop') || blockText.includes('(ii)') || blockText.includes('(iii)'))) {
-                  console.log(`[DEBUG SUBSTRING]   questionTextScore: ${questionTextScore.toFixed(3)}, will filter: ${questionTextScore >= 0.70}`);
-                }
                 
                 // CRITICAL: Before filtering, check if classification student work matches
                 // This protects valid student work that might match question text due to similar wording
@@ -1005,16 +991,6 @@ export class QuestionTextFilter {
           const isSubstring3 = isSubstring3a || isSubstring3b || isSubstring3c;
           const isSubstring = isSubstring1 || isSubstring2 || isSubstring3 || blockStartsWithQuestion || questionStartsWithBlock;
           
-          // DEBUG: Log substring check for Q13 "were in a shop"
-          const isQ13 = question.questionNumber === '13';
-          if (isQ13 && blockText.includes('were in a shop')) {
-            console.log(`[DEBUG SUBSTRING] Q${question.questionNumber} - Block: "${blockText}"`);
-            console.log(`[DEBUG SUBSTRING]   Question text: "${questionTextToUse.substring(0, 100)}"`);
-            console.log(`[DEBUG SUBSTRING]   Normalized block: "${normalizedBlockText}"`);
-            console.log(`[DEBUG SUBSTRING]   Normalized question: "${normalizedQuestionText.substring(0, 100)}"`);
-            console.log(`[DEBUG SUBSTRING]   Word-level matching (ignoring articles): ${isSubstring3}`);
-            console.log(`[DEBUG SUBSTRING]   Similarity: ${similarity.toFixed(3)}, isSubstring1: ${isSubstring1}, isSubstring2: ${isSubstring2}, isSubstring3: ${isSubstring3}, blockStartsWithQuestion: ${blockStartsWithQuestion}, questionStartsWithBlock: ${questionStartsWithBlock}, isSubstring: ${isSubstring}`);
-          }
           
               // SIMPLIFIED: Lower threshold (0.50) for main question text matching - be more aggressive
               // Require similarity >= 0.50 OR substring match (substring is strong signal)
@@ -1022,10 +998,6 @@ export class QuestionTextFilter {
                 // Calculate question text score: prioritize substring match (0.75), otherwise use similarity
                 // CRITICAL FIX: Check isSubstring FIRST, otherwise when similarity=0.50 and isSubstring=true, it uses 0.50 instead of 0.75
                 const questionTextScore = isSubstring ? 0.75 : similarity;
-                
-                if (isQ13 && blockText.includes('were in a shop')) {
-                  console.log(`[DEBUG SUBSTRING]   questionTextScore: ${questionTextScore.toFixed(3)}, will filter: ${questionTextScore >= 0.70}`);
-                }
                 
                 // CRITICAL: Before filtering, check if classification student work matches
                 // This protects valid student work that might match question text due to similar wording
