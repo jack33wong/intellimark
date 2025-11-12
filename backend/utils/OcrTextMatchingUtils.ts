@@ -158,16 +158,17 @@ export function calculateOcrToDatabaseSimilarity(
   // 3. Exact match check
   if (normOcr === normDb) return 1.0;
   
-  // 4. Aggressive substring matching for short/truncated OCR blocks
-  // OCR blocks are often incomplete, so substring matching is crucial
+  // 4. One-directional substring matching for short/truncated OCR blocks
+  // OCR blocks are line-by-line fragments, database/classification contains whole content
+  // Only check if database/classification contains OCR block (not the reverse)
   if (normOcr.length < 50 || normDb.length < 50) {
-    if (normOcr.includes(normDb) || normDb.includes(normOcr)) {
-      // Calculate substring similarity: length of shorter / length of longer
-      const shorter = normOcr.length < normDb.length ? normOcr : normDb;
-      const longer = normOcr.length >= normDb.length ? normOcr : normDb;
-      const substringScore = shorter.length / longer.length;
-      // Boost score for substring matches (minimum 0.7 for good substring matches)
-      return Math.max(0.7, substringScore);
+    if (normDb.includes(normOcr)) {
+      // Calculate substring similarity: OCR block length / database length
+      // This represents how much of the OCR block is covered by the database
+      const substringScore = normOcr.length / normDb.length;
+      // Use actual substring score, but ensure minimum quality (0.5 for substantial matches)
+      // Lower minimum from 0.7 to 0.5 to be more accurate - only boost if it's a good match
+      return Math.max(0.5, substringScore);
     }
   }
 

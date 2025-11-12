@@ -65,16 +65,33 @@ export async function executeMarkingForQuestion(
     };
     
     // 1. Prepare STEP DATA (still need this array for enriching annotations later)
+    // Use classification content instead of OCR blocks (more reliable)
     let stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
+      const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+      
+      // Use classification content if available (more reliable than OCR)
+      let textToUse: string;
+      let cleanedTextToUse: string;
+      
+      if (task.blockToClassificationMap && task.blockToClassificationMap.has(blockId)) {
+        // Use classification line text (more reliable)
+        const mapping = task.blockToClassificationMap.get(blockId)!;
+        textToUse = mapping.classificationLine;
+        cleanedTextToUse = mapping.classificationLine;
+      } else {
+        // Fallback to OCR text if no classification mapping
       const rawText = block.mathpixLatex || block.googleVisionText || '';
       const normalizedText = normalizeLaTeXSingleLetter(rawText);
+        textToUse = normalizedText;
+        cleanedTextToUse = normalizedText;
+      }
       
       return {
       unified_step_id: `q${questionId}_step_${stepIndex + 1}`, // Q-specific ID (or use globalBlockId if available)
       pageIndex: (block as any).pageIndex,         // Ensure pageIndex is passed
       globalBlockId: (block as any).globalBlockId, // Ensure globalBlockId is passed
-        text: normalizedText, // Use normalized text (LaTeX-wrapped single letters normalized)
-        cleanedText: normalizedText, // Use normalized text
+        text: textToUse, // Use classification content (more reliable) or OCR as fallback
+        cleanedText: cleanedTextToUse, // Use classification content (more reliable) or OCR as fallback
       bbox: [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
       };
     });

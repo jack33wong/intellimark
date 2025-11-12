@@ -38,4 +38,5 @@ export interface MarkingTask {
   sourcePages: number[];
   classificationStudentWork?: string | null; // Student work extracted by classification (may include [DRAWING])
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>; // OCR block → classification line mapping (resolved, one-to-one)
 }

@@ -365,7 +365,7 @@ function isQuestionTextBlock(
   classificationQuestions: QuestionForFiltering[],
   similarityThreshold: number = 0.70,
   boundaries?: QuestionBoundary[]
-): { isQuestionText: boolean; confidence?: number; matchedQuestion?: string } {
+): { isQuestionText: boolean; confidence?: number; matchedQuestion?: string; matchedClassificationLines?: Array<{ classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }> } {
   // Convert local QuestionForFiltering to FilterQuestionForFiltering
   const filterQuestions: FilterQuestionForFiltering[] = classificationQuestions.map(q => ({
     questionNumber: q.questionNumber || null,
@@ -391,10 +391,11 @@ function isQuestionTextBlock(
   
   // Use the new QuestionTextFilter class
   const result = QuestionTextFilter.filter(block, filterQuestions, filterBoundaries, similarityThreshold);
-  
-  // Return in the expected format (without reason field)
+            
+  // Return in the expected format (including matchedClassificationLines)
   return {
     isQuestionText: result.isQuestionText,
+    matchedClassificationLines: result.matchedClassificationLines,
     confidence: result.confidence,
     matchedQuestion: result.matchedQuestion
   };
@@ -717,103 +718,103 @@ function calculateQuestionBoundariesFromTextBlocks(
     } else {
       // Single question: calculate boundary from its own text
       for (const question of schemeQuestions) {
-        const questionNumber = question.questionNumber;
-        
-        const questionInfo = pageQuestions.find(q => {
-          if (q.questionNumber) {
-            const baseQNum = getBaseQuestionNumber(questionNumber);
-            const baseQNumFromFilter = getBaseQuestionNumber(q.questionNumber);
-            if (q.questionNumber === questionNumber || baseQNumFromFilter === baseQNum) {
-              return true;
-            }
-          }
-          const qNumMatch = (q.text || q.databaseText || '').match(/Q?(\d+[a-z]*)/i);
-          const qNum = qNumMatch ? qNumMatch[1] : '';
-          const baseQNum = getBaseQuestionNumber(questionNumber);
-          return qNum === baseQNum || qNum === questionNumber;
-        });
-        
-        if (!questionInfo) {
-          continue;
+    const questionNumber = question.questionNumber;
+    
+    const questionInfo = pageQuestions.find(q => {
+      if (q.questionNumber) {
+        const baseQNum = getBaseQuestionNumber(questionNumber);
+        const baseQNumFromFilter = getBaseQuestionNumber(q.questionNumber);
+        if (q.questionNumber === questionNumber || baseQNumFromFilter === baseQNum) {
+          return true;
         }
-        
-        const questionTextToUse = questionInfo.databaseText || questionInfo.text;
-        if (!questionTextToUse) {
-          continue;
-        }
-        
-        // Find question text blocks that match this question
-        const matchingBlocksWithConfidence: Array<{
-          block: MathBlock & { pageIndex: number };
-          confidence: number;
-        }> = [];
-        
-        questionTextBlocks.forEach(block => {
-          if (block.pageIndex !== pageIndex) return;
-          
-          const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-          if (!blockText) return;
-          
+      }
+      const qNumMatch = (q.text || q.databaseText || '').match(/Q?(\d+[a-z]*)/i);
+      const qNum = qNumMatch ? qNumMatch[1] : '';
+      const baseQNum = getBaseQuestionNumber(questionNumber);
+      return qNum === baseQNum || qNum === questionNumber;
+    });
+    
+    if (!questionInfo) {
+      continue;
+    }
+    
+    const questionTextToUse = questionInfo.databaseText || questionInfo.text;
+    if (!questionTextToUse) {
+      continue;
+    }
+    
+    // Find question text blocks that match this question
+    const matchingBlocksWithConfidence: Array<{
+      block: MathBlock & { pageIndex: number };
+      confidence: number;
+    }> = [];
+    
+    questionTextBlocks.forEach(block => {
+      if (block.pageIndex !== pageIndex) return;
+      
+      const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+      if (!blockText) return;
+      
           // Use OCR-optimized similarity calculation (handles truncation, LaTeX artifacts, OCR errors)
           const similarity = calculateOcrToDatabaseSimilarity(blockText, questionTextToUse);
           
           // Lower threshold for OCR matching (0.50-0.60) since OCR is noisier than classification text
           // Also check substring matching as fallback (handles very truncated blocks)
-          const normalizedBlock = normalizeTextForComparison(blockText);
-          const normalizedQuestion = normalizeTextForComparison(questionTextToUse);
-          const isSubstring1 = normalizedQuestion.includes(normalizedBlock);
+      const normalizedBlock = normalizeTextForComparison(blockText);
+      const normalizedQuestion = normalizeTextForComparison(questionTextToUse);
+      const isSubstring1 = normalizedQuestion.includes(normalizedBlock);
           const isSubstring2 = normalizedBlock.length > 10 && normalizedQuestion.includes(normalizedBlock.slice(0, 30));
           
           // Match if: OCR similarity high OR substring match (for very truncated blocks)
           const matches = similarity >= 0.50 || isSubstring1 || isSubstring2;
-          
-          if (matches) {
+      
+      if (matches) {
             // Boost confidence for substring matches (they're reliable even if similarity is lower)
             const confidence = isSubstring1 || isSubstring2 ? Math.max(similarity, 0.75) : similarity;
-            matchingBlocksWithConfidence.push({ block, confidence });
+        matchingBlocksWithConfidence.push({ block, confidence });
+      }
+    });
+    
+    if (matchingBlocksWithConfidence.length > 0) {
+      const yRanges = matchingBlocksWithConfidence
+        .map(({ block }) => {
+          const y = block.coordinates?.y;
+          const height = block.coordinates?.height ?? 0;
+          if (y !== null && y !== undefined) {
+            return { startY: y, endY: y + height };
           }
+          return null;
+        })
+        .filter((range): range is { startY: number; endY: number } => range !== null);
+      
+      const orderIndices = matchingBlocksWithConfidence
+        .map(({ block }) => (block as any).originalOrderIndex)
+        .filter((order): order is number => order != null);
+      const maxOrderIndex = orderIndices.length > 0 ? Math.max(...orderIndices) : undefined;
+      
+      if (yRanges.length > 0) {
+        const minY = Math.min(...yRanges.map(r => r.startY));
+        const maxEndY = Math.max(...yRanges.map(r => r.endY));
+        const avgConfidence = matchingBlocksWithConfidence.reduce((sum, m) => sum + m.confidence, 0) / matchingBlocksWithConfidence.length;
+        
+        boundaries.push({
+          questionNumber,
+          pageIndex,
+          startY: minY,
+          endY: maxEndY,
+          questionText: questionTextToUse,
+              maxOrderIndex
         });
         
-        if (matchingBlocksWithConfidence.length > 0) {
-          const yRanges = matchingBlocksWithConfidence
-            .map(({ block }) => {
-              const y = block.coordinates?.y;
-              const height = block.coordinates?.height ?? 0;
-              if (y !== null && y !== undefined) {
-                return { startY: y, endY: y + height };
-              }
-              return null;
-            })
-            .filter((range): range is { startY: number; endY: number } => range !== null);
-          
-          const orderIndices = matchingBlocksWithConfidence
-            .map(({ block }) => (block as any).originalOrderIndex)
-            .filter((order): order is number => order != null);
-          const maxOrderIndex = orderIndices.length > 0 ? Math.max(...orderIndices) : undefined;
-          
-          if (yRanges.length > 0) {
-            const minY = Math.min(...yRanges.map(r => r.startY));
-            const maxEndY = Math.max(...yRanges.map(r => r.endY));
-            const avgConfidence = matchingBlocksWithConfidence.reduce((sum, m) => sum + m.confidence, 0) / matchingBlocksWithConfidence.length;
-            
-            boundaries.push({
-              questionNumber,
-              pageIndex,
-              startY: minY,
-              endY: maxEndY,
-              questionText: questionTextToUse,
-              maxOrderIndex
-            });
-            
-            (boundaries[boundaries.length - 1] as any).logInfo = {
-              questionNumber,
-              pageIndex,
-              blockCount: matchingBlocksWithConfidence.length,
-              avgConfidence,
-              minY,
-              maxEndY,
-              maxOrderIndex
-            };
+        (boundaries[boundaries.length - 1] as any).logInfo = {
+          questionNumber,
+          pageIndex,
+          blockCount: matchingBlocksWithConfidence.length,
+          avgConfidence,
+          minY,
+          maxEndY,
+          maxOrderIndex
+        };
           }
         }
       }
@@ -1348,6 +1349,8 @@ export function segmentOcrResultsByQuestion(
   const pageFilteredBlocks = new Map<number, Array<MathBlock & { pageIndex: number; originalOrderIndex: number }>>();
   // Store question text max order per page (main question order)
   const pageQuestionTextMaxOrderMap = new Map<number, Map<string, number>>();
+  // Store OCR block → classification line mapping (resolved, one-to-one) per page
+  const pageBlockToClassificationMap = new Map<number, Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>>();
   // Store all boundaries from all pages for statistics calculation
   const allBoundaries: QuestionBoundary[] = [];
   
@@ -1442,21 +1445,29 @@ export function segmentOcrResultsByQuestion(
     // STEP 4 (continued): Filter question text blocks ONCE per page (with Y-position check as priority)
     const questionTextBlocks: Array<MathBlock & { pageIndex: number }> = [];
     
-    // Q14 DEBUG: Log all OCR blocks for page 4 (Q14 page)
-    const isQ14Page = pageIndex === 4;
-    if (isQ14Page) {
-      console.log(`\n[Q14 DEBUG] ========== STEP 4: Filtering OCR Blocks (Page ${pageIndex}) ==========`);
-      console.log(`[Q14 DEBUG] Total OCR blocks on page: ${blocksOnPage.length}`);
-      blocksOnPage.forEach((block, idx) => {
-        const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-        const blockY = block.coordinates?.y ?? 'null';
-        console.log(`[Q14 DEBUG]   Block ${idx + 1}: "${blockText.substring(0, 100)}${blockText.length > 100 ? '...' : ''}" (Y=${blockY})`);
-      });
-    }
+    // TEMPORARY DEBUG: Log raw OCR blocks for all questions
+    const questionsOnThisPage = questionsOnPage.map(q => q.questionNumber).join(', ');
+    console.log(`\n[OCR RAW] ========== Page ${pageIndex} (Questions: ${questionsOnThisPage}) ==========`);
+    console.log(`[OCR RAW] Total OCR blocks: ${blocksOnPage.length}`);
+    blocksOnPage.forEach((block, idx) => {
+      const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+      const blockY = block.coordinates?.y ?? 'null';
+      const blockX = block.coordinates?.x ?? 'null';
+      console.log(`[OCR RAW]   Block ${idx + 1}: "${blockText.substring(0, 150)}${blockText.length > 150 ? '...' : ''}" (X=${blockX}, Y=${blockY})`);
+    });
+    console.log(`[OCR RAW] ============================================================\n`);
+    
+    // Track OCR block → classification line mapping (with similarity scores)
+    // This will be used to pass classification content to AI instead of OCR blocks
+    const blockToClassificationMap = new Map<string, { block: MathBlock & { pageIndex: number }, matches: Array<{ classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }> }>();
+    
+    // TEMPORARY DEBUG: Track filtering results
+    const filteringResults: Array<{ blockText: string; isQuestionText: boolean; reason?: string; confidence?: number }> = [];
     
     const studentWorkBlocks = blocksOnPage.filter(block => {
       const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
       const blockTextFull = blockText;
+      const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
       
       const isQ5aBlock40 = pageIndex === 1 && (blockText === '40' || blockText === '40.' || blockText === '40,' || blockText.includes('40') && blockText.length <= 5);
       // Check for block "F" - handle both plain "F" and LaTeX "\( F \)" or "$F$"
@@ -1469,30 +1480,93 @@ export function segmentOcrResultsByQuestion(
       const result = isQuestionTextBlock(block, originalQuestionsForFiltering, 0.70, boundaries);
       if (result.isQuestionText) {
         questionTextBlocks.push(block);
+        filteringResults.push({
+          blockText: blockText.substring(0, 80),
+          isQuestionText: true,
+          reason: result.matchedQuestion || 'unknown',
+          confidence: result.confidence
+        });
         if (isQ5aBlock40) {
           console.warn(`[Q5a "40" TRACE] Block "${blockText}" (Y=${block.coordinates?.y ?? 'null'}) → FILTERED as question text (confidence=${result.confidence?.toFixed(3) ?? 'N/A'}, matched=${result.matchedQuestion ?? 'none'})`);
         }
-        // Q14 DEBUG: Log filtered blocks
-        if (isQ14Page) {
-          console.log(`[Q14 DEBUG]   ❌ FILTERED: "${blockText.substring(0, 80)}${blockText.length > 80 ? '...' : ''}" (reason=${result.matchedQuestion ?? 'unknown'}, confidence=${result.confidence?.toFixed(3) ?? 'N/A'})`);
-        }
         return false; // Filter out question text
       } else {
+        filteringResults.push({
+          blockText: blockText.substring(0, 80),
+          isQuestionText: false,
+          reason: 'student-work',
+          confidence: result.confidence
+        });
+        // Track classification matches for student work blocks
+        if (result.matchedClassificationLines && result.matchedClassificationLines.length > 0) {
+          blockToClassificationMap.set(blockId, {
+            block,
+            matches: result.matchedClassificationLines
+          });
+        }
+        
         if (isQ5aBlock40) {
           console.log(`[Q5a "40" TRACE] Block "${blockText}" (Y=${block.coordinates?.y ?? 'null'}) → KEPT as student work`);
-        }
-        // Q14 DEBUG: Log kept blocks
-        if (isQ14Page) {
-          console.log(`[Q14 DEBUG]   ✅ KEPT: "${blockText.substring(0, 80)}${blockText.length > 80 ? '...' : ''}"`);
         }
         return true; // Keep student work
       }
     });
     
-    // Q14 DEBUG: Log filtering results
-    if (isQ14Page) {
-      console.log(`[Q14 DEBUG] After Step 4 filtering: ${studentWorkBlocks.length} student work blocks, ${questionTextBlocks.length} question text blocks`);
+    // TEMPORARY DEBUG: Log filtering results
+    console.log(`\n[FILTERING] ========== Page ${pageIndex} (Questions: ${questionsOnThisPage}) ==========`);
+    console.log(`[FILTERING] Total blocks: ${blocksOnPage.length}, Filtered (QT): ${questionTextBlocks.length}, Kept (SW): ${studentWorkBlocks.length}`);
+    filteringResults.forEach((result, idx) => {
+      const status = result.isQuestionText ? '❌ FILTERED' : '✅ KEPT';
+      const reason = result.reason || 'unknown';
+      const conf = result.confidence !== undefined ? ` (conf=${result.confidence.toFixed(2)})` : '';
+      console.log(`[FILTERING]   Block ${idx + 1}: ${status} - "${result.blockText}${result.blockText.length >= 80 ? '...' : ''}" → ${reason}${conf}`);
+    });
+    console.log(`[FILTERING] ============================================================\n`);
+    
+    // Resolve one-to-many and many-to-one mappings using highest similarity
+    // Map: classificationLine -> { bestBlock, similarity }
+    const classificationToBlockMap = new Map<string, { blockId: string; block: MathBlock & { pageIndex: number }; similarity: number }>();
+    // Map: blockId -> { bestClassificationLine, similarity }
+    const resolvedBlockToClassificationMap = new Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>();
+    
+    // First pass: For each classification line, find the best matching OCR block
+    for (const [blockId, { block, matches }] of blockToClassificationMap.entries()) {
+      for (const match of matches) {
+        const existing = classificationToBlockMap.get(match.classificationLine);
+        if (!existing || match.similarity > existing.similarity) {
+          classificationToBlockMap.set(match.classificationLine, {
+            blockId,
+            block,
+            similarity: match.similarity
+          });
+        }
+      }
     }
+    
+    // Second pass: For each OCR block, find the best matching classification line
+    for (const [blockId, { block, matches }] of blockToClassificationMap.entries()) {
+      // Find the best match for this block (highest similarity)
+      const bestMatch = matches.reduce((best, current) => 
+        current.similarity > best.similarity ? current : best
+      );
+      
+      // Check if this classification line is already taken by a better block
+      const existingForLine = classificationToBlockMap.get(bestMatch.classificationLine);
+      if (existingForLine && existingForLine.blockId === blockId) {
+        // This block is the best match for this classification line
+        resolvedBlockToClassificationMap.set(blockId, bestMatch);
+      } else if (!existingForLine || bestMatch.similarity > existingForLine.similarity) {
+        // This block is better than the existing one, or no existing one
+        resolvedBlockToClassificationMap.set(blockId, bestMatch);
+        if (existingForLine) {
+          // Remove the old mapping
+          resolvedBlockToClassificationMap.delete(existingForLine.blockId);
+        }
+      }
+    }
+    
+    // Store resolved mapping for this page (will be merged later)
+    pageBlockToClassificationMap.set(pageIndex, resolvedBlockToClassificationMap);
     
     // Diagnostic: Log if Q2 or Q5 pages have very few student work blocks (potential filtering issue)
     if (pageIndex === 1 || pageIndex === 5) {
@@ -1532,19 +1606,6 @@ export function segmentOcrResultsByQuestion(
       // Trust STEP 4 filtering - no additional classification validation needed
       let blocksToAssign: Array<MathBlock & { pageIndex: number; originalOrderIndex: number }> = [];
       
-      // Q14 DEBUG: Check if this is Q14 scheme
-      const isQ14Scheme = schemeKey.includes('14_');
-      
-      // Q14 DEBUG: Log assignment start
-      if (isQ14Scheme) {
-        // Use pageIndex from the outer loop (already in scope)
-        const q14BlocksCount = studentWorkBlocks.filter(b => b.pageIndex === pageIndex).length;
-        console.log(`\n[Q14 DEBUG] ========== STEP 6: Assignment (Y-Position Based) ==========`);
-        console.log(`[Q14 DEBUG] Scheme: ${schemeKey}`);
-        console.log(`[Q14 DEBUG] Page: ${pageIndex}`);
-        console.log(`[Q14 DEBUG] Student work blocks available on page ${pageIndex}: ${q14BlocksCount}`);
-      }
-      
       // For each student block, find nearest question boundary above it
       // Check if block Y < boundary.endY (block is below question text)
       // This handles multiple schemes on the same page correctly
@@ -1580,15 +1641,6 @@ export function segmentOcrResultsByQuestion(
                 return b.startY - a.startY; // Sort descending (bottommost boundary first)
               });
             
-            // Q14 DEBUG: Log boundary matching
-            if (isQ14Scheme) {
-              const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-              console.log(`[Q14 DEBUG] Block Y=${blockY}, boundariesAboveBlock: ${boundariesAboveBlock.length}`);
-              if (boundariesAboveBlock.length === 0) {
-                console.log(`[Q14 DEBUG]   ⚠️ NO BOUNDARY ABOVE: "${blockText.substring(0, 60)}..." (blockY=${blockY}, all boundaries: ${pageBoundaries.map(b => `Q${b.questionNumber}@${b.startY}`).join(', ')})`);
-              }
-            }
-            
             if (boundariesAboveBlock.length > 0) {
               // Found nearest boundary above block - it's the first one (bottommost)
               const nearestBoundary = boundariesAboveBlock[0];
@@ -1601,26 +1653,11 @@ export function segmentOcrResultsByQuestion(
               // Find which scheme this boundary belongs to
               const questionInfo = questionsOnPage.find(q => q.questionNumber === nearestBoundary.questionNumber);
               
-              // Q14 DEBUG: Log scheme matching
-              if (isQ14Scheme) {
-                const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-                console.log(`[Q14 DEBUG]   Boundary found: Q${nearestBoundary.questionNumber}@${boundaryStartY}, schemeKey=${questionInfo?.schemeKey}, expected=${schemeKey}`);
-                if (!questionInfo || questionInfo.schemeKey !== schemeKey) {
-                  console.log(`[Q14 DEBUG]   ⚠️ SCHEME MISMATCH: "${blockText.substring(0, 60)}..." → SKIPPED (boundary belongs to different scheme)`);
-                }
-              }
-              
               if (questionInfo && questionInfo.schemeKey === schemeKey) {
                 // Block is below this scheme's question boundary start → assign to scheme
                 // STEP 4 already filtered question text, so we trust these blocks are student work
                 blocksToAssign.push(block);
                 assignedBlocksInPage.add(blockId);
-                
-                // Q14 DEBUG: Log assignment
-                if (isQ14Scheme) {
-                  const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-                  console.log(`[Q14 DEBUG]   ✅ ASSIGNED: "${blockText.substring(0, 80)}${blockText.length > 80 ? '...' : ''}" (Y=${blockY}, boundary=${boundaryStartY})`);
-                }
               }
             }
           }
@@ -1634,12 +1671,6 @@ export function segmentOcrResultsByQuestion(
             
             blocksToAssign.push(block);
             assignedBlocksInPage.add(blockId);
-            
-            // Q14 DEBUG: Log assignment
-            if (isQ14Scheme) {
-              const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-              console.log(`[Q14 DEBUG]   ✅ ASSIGNED (no boundary): "${blockText.substring(0, 80)}${blockText.length > 80 ? '...' : ''}"`);
-            }
           }
         }
       } else {
@@ -1652,12 +1683,6 @@ export function segmentOcrResultsByQuestion(
           
           blocksToAssign.push(block);
           assignedBlocksInPage.add(blockId);
-          
-          // Q14 DEBUG: Log assignment
-          if (isQ14Scheme) {
-            const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
-            console.log(`[Q14 DEBUG]   ✅ ASSIGNED (no boundaries): "${blockText.substring(0, 80)}${blockText.length > 80 ? '...' : ''}"`);
-          }
         }
       }
       
@@ -1873,13 +1898,24 @@ export function segmentOcrResultsByQuestion(
     // Get classification student work for this scheme key
     const classificationStudentWork = schemeKeyToStudentWork.get(schemeKey) || null;
     
+    // Collect block-to-classification mapping for blocks in this task
+    const taskBlockToClassificationMap = new Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>();
+    for (const block of blocks) {
+      const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+      const pageMapping = pageBlockToClassificationMap.get(block.pageIndex);
+      if (pageMapping && pageMapping.has(blockId)) {
+        taskBlockToClassificationMap.set(blockId, pageMapping.get(blockId)!);
+      }
+    }
+    
     tasks.push({
       questionNumber: schemeKey,
       mathBlocks: blocks,
       markingScheme: markingScheme || null, // Allow null for non-past paper questions
       sourcePages,
       classificationStudentWork, // Pass classification-extracted student work (may include [DRAWING])
-      pageDimensions // Pass page dimensions for accurate bbox estimation
+      pageDimensions, // Pass page dimensions for accurate bbox estimation
+      blockToClassificationMap: taskBlockToClassificationMap.size > 0 ? taskBlockToClassificationMap : undefined
     });
     
     const studentWorkInfo = classificationStudentWork ? ` (with student work: ${classificationStudentWork.substring(0, 50)}...)` : '';
@@ -1894,6 +1930,7 @@ export function segmentOcrResultsByQuestion(
   const RESET = '\x1b[0m';
   const CYAN = '\x1b[36m';
   const YELLOW = '\x1b[33m';
+  const BLUE = '\x1b[34m';
   
   console.log(`\n${CYAN}[SEGMENTATION SUMMARY]${RESET}`);
   console.log('═'.repeat(150));
@@ -2015,6 +2052,28 @@ export function segmentOcrResultsByQuestion(
       schemeHeader = ' (No scheme)';
     }
     
+    // Helper function to find matching OCR block numbers for a classification line
+    // Uses the real mapping from STEP 4 (blockToClassificationMap) instead of separate matching logic
+    const findMatchingBlockNumbers = (classificationLine: string): number[] => {
+      const matchingBlocks: number[] = [];
+      if (!task.blockToClassificationMap) return matchingBlocks;
+      
+      task.mathBlocks.forEach((block, idx) => {
+        const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+        const mapping = task.blockToClassificationMap!.get(blockId);
+        if (mapping && mapping.classificationLine.trim() === classificationLine.trim()) {
+          matchingBlocks.push(idx + 1); // 1-based index for display
+        }
+      });
+      return matchingBlocks;
+    };
+    
+    // Helper function to format block numbers in blue
+    const formatBlockNumbers = (blockNumbers: number[]): string => {
+      if (blockNumbers.length === 0) return '';
+      return `${BLUE}[${blockNumbers.join(',')}]${RESET} `;
+    };
+    
     // Build classification student work content with line breaks
     // We'll build a structure that tracks multi-line entries to maintain column alignment
     interface TableRow {
@@ -2036,13 +2095,19 @@ export function segmentOcrResultsByQuestion(
               const formatted = formatDrawingText(trimmed, 45);
               const drawingLines = formatted.split('\n');
               drawingLines.forEach((dl, idx) => {
+                // For drawings, find matching blocks (usually none, as drawings are synthetic)
+                const matchingBlocks = idx === 0 ? findMatchingBlockNumbers(trimmed) : [];
+                const blockNumbersStr = formatBlockNumbers(matchingBlocks);
                 tableRows.push({ 
-                  classification: `  ${dl}`, 
+                  classification: `  ${blockNumbersStr}${dl}`, 
                   blocks: idx === 0 ? '' : '' 
                 });
               });
             } else {
-              tableRows.push({ classification: `  ${trimmed}`, blocks: '' });
+              // Find matching OCR block numbers for this classification line
+              const matchingBlocks = findMatchingBlockNumbers(trimmed);
+              const blockNumbersStr = formatBlockNumbers(matchingBlocks);
+              tableRows.push({ classification: `  ${blockNumbersStr}${trimmed}`, blocks: '' });
             }
           });
         }
@@ -2062,13 +2127,19 @@ export function segmentOcrResultsByQuestion(
                   const formatted = formatDrawingText(trimmed, 45);
                   const drawingLines = formatted.split('\n');
                   drawingLines.forEach((dl, idx) => {
+                    // For drawings, find matching blocks (usually none, as drawings are synthetic)
+                    const matchingBlocks = idx === 0 ? findMatchingBlockNumbers(trimmed) : [];
+                    const blockNumbersStr = formatBlockNumbers(matchingBlocks);
                     tableRows.push({ 
-                      classification: `  ${dl}`, 
+                      classification: `  ${blockNumbersStr}${dl}`, 
                       blocks: idx === 0 ? '' : '' 
                     });
                   });
                 } else {
-                  tableRows.push({ classification: `  ${trimmed}`, blocks: '' });
+                  // Find matching OCR block numbers for this classification line
+                  const matchingBlocks = findMatchingBlockNumbers(trimmed);
+                  const blockNumbersStr = formatBlockNumbers(matchingBlocks);
+                  tableRows.push({ classification: `  ${blockNumbersStr}${trimmed}`, blocks: '' });
                 }
               });
             }
@@ -2092,11 +2163,12 @@ export function segmentOcrResultsByQuestion(
     task.mathBlocks.forEach((block, idx) => {
       const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
       const truncated = blockText.length > 80 ? blockText.substring(0, 80) + '...' : blockText;
+      const blockNumber = `${BLUE}${idx + 1}${RESET}`;
       if (blockRowIndex < tableRows.length) {
-        tableRows[blockRowIndex].blocks = `  ${idx + 1}. "${truncated}"`;
+        tableRows[blockRowIndex].blocks = `  ${blockNumber}. "${truncated}"`;
         blockRowIndex++;
       } else {
-        tableRows.push({ classification: '', blocks: `  ${idx + 1}. "${truncated}"` });
+        tableRows.push({ classification: '', blocks: `  ${blockNumber}. "${truncated}"` });
         blockRowIndex++;
       }
     });
@@ -2108,8 +2180,9 @@ export function segmentOcrResultsByQuestion(
         // Format drawing (truncate to 20 words, wrap to fit column)
         const formatted = formatDrawingText(drawing.trim(), 45);
         const drawingLines = formatted.split('\n');
+        const blockNumber = `${BLUE}${task.mathBlocks.length + idx + 1}${RESET}`;
         drawingLines.forEach((dl, lineIdx) => {
-          const prefix = lineIdx === 0 ? `  ${task.mathBlocks.length + idx + 1}. [SYNTHETIC] "` : '    ';
+          const prefix = lineIdx === 0 ? `  ${blockNumber}. [SYNTHETIC] "` : '    ';
           const suffix = lineIdx === drawingLines.length - 1 ? '"' : '';
           if (blockRowIndex < tableRows.length) {
             tableRows[blockRowIndex].blocks = `${prefix}${dl}${suffix}`;
