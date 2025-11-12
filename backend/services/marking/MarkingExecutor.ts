@@ -381,8 +381,9 @@ export async function executeMarkingForQuestion(
     // 2. Prepare OCR Text as PLAIN TEXT for the AI Prompt
     let ocrTextForPrompt = "Student's Work:\n";
     stepsDataForMapping.forEach((step, index) => {
-      // Use full unified_step_id format for robustness
-      ocrTextForPrompt += `${index + 1}. [${step.unified_step_id}] ${step.cleanedText}\n`;
+      // Use simplified step ID format for AI prompt (e.g., [step_1], [step_2])
+      const simplifiedStepId = `step_${index + 1}`;
+      ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}] ${step.cleanedText}\n`;
     });
 
     // *** Log for Verification ***
@@ -453,7 +454,6 @@ export async function executeMarkingForQuestion(
             // Match by step index (1-based)
             if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
               originalStep = stepsDataForMapping[stepNum - 1];
-              console.log(`[ENRICHMENT] Matched step_id "${aiStepId}" to step ${stepNum} using flexible matching`);
             }
           }
         }
@@ -466,8 +466,6 @@ export async function executeMarkingForQuestion(
           const isDrawingAnnotation = annotationText.includes('[drawing]') || aiStepId.toLowerCase().includes('drawing');
           
           if (isDrawingAnnotation) {
-            console.log(`[ENRICHMENT] [DRAWING] Attempting to match annotation: step_id="${aiStepId}", text="${annotationText.substring(0, 100)}"`);
-            
             // First, try to match by step_id if it contains a step number
             const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
             if (stepNumMatch && stepNumMatch[1]) {
@@ -476,7 +474,6 @@ export async function executeMarkingForQuestion(
                 const candidateStep = stepsDataForMapping[stepNum - 1];
                 if (candidateStep && (candidateStep.text || candidateStep.cleanedText || '').toLowerCase().includes('[drawing]')) {
                   originalStep = candidateStep;
-                  console.log(`[ENRICHMENT] [DRAWING] Matched by step number: step_id="${aiStepId}" → step ${stepNum} (${originalStep.unified_step_id})`);
                 }
               }
             }
@@ -507,13 +504,6 @@ export async function executeMarkingForQuestion(
                 const matchingWords = annotationWords.filter(word => stepWords.includes(word));
                 return matchingWords.length >= 2 || (matchingWords.length > 0 && matchingWords.length === annotationWords.length);
               });
-              
-              if (originalStep) {
-                console.log(`[ENRICHMENT] [DRAWING] Matched by text content: step_id="${aiStepId}" → ${originalStep.unified_step_id}`);
-              } else {
-                console.warn(`[ENRICHMENT] [DRAWING] Could not match annotation: step_id="${aiStepId}", text="${annotationText.substring(0, 100)}"`);
-                console.warn(`[ENRICHMENT] [DRAWING] Available drawing blocks: ${stepsDataForMapping.filter(s => (s.text || s.cleanedText || '').toLowerCase().includes('[drawing]')).map(s => `${s.unified_step_id}: "${(s.text || s.cleanedText || '').substring(0, 50)}"`).join(', ')}`);
-              }
             }
           }
         }

@@ -171,7 +171,6 @@ export class MarkingInstructionService {
             // Match by step index (1-based)
             if (stepNum > 0 && stepNum <= cleanDataForMarking.steps.length) {
               matchingStep = cleanDataForMarking.steps[stepNum - 1];
-              console.log(`[ENRICHMENT] Matched step_id "${aiStepId}" to step ${stepNum} using flexible matching`);
             }
           }
         }
@@ -225,9 +224,9 @@ export class MarkingInstructionService {
         // Format the OCR text nicely and normalize LaTeX delimiters
         formattedOcrText = `Question: ${parsedOcr.question}\n\nStudent's Work:\n${parsedOcr.steps.map((step: any, index: number) => {
           const normalizedText = normalizeLatexDelimiters(step.cleanedText || step.text || '');
-          // Use full unified_step_id format for robustness
-          const stepId = step.unified_step_id || `step_${index + 1}`;
-          return `${index + 1}. [${stepId}] ${normalizedText}`;
+          // Use simplified step ID format (e.g., [step_1], [step_2])
+          const simplifiedStepId = `step_${index + 1}`;
+          return `${index + 1}. [${simplifiedStepId}] ${normalizedText}`;
         }).join('\n')}`;
       }
     } catch (error) {

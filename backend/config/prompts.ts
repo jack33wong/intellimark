@@ -805,8 +805,8 @@ export const AI_PROMPTS = {
           - Focus on whether the student understood and applied the transformation/concept correctly, not perfect coordinate precision
           - Only penalize if the drawing is clearly wrong (wrong quadrant, wrong transformation type, completely incorrect shape)
        5.  **Matching:** The "textMatch" and "step_id" in your annotation MUST match the "cleanedText" and step ID from the "OCR TEXT".
-          - The OCR TEXT uses step IDs like "[q8_Pearson Edexcel_1MA1/1H_step_1]", "[q8_Pearson Edexcel_1MA1/1H_step_2]", etc.
-          - Your annotation's "step_id" should match these exactly (e.g., "q8_Pearson Edexcel_1MA1/1H_step_1", "q8_Pearson Edexcel_1MA1/1H_step_2")
+          - The OCR TEXT uses step IDs like "[step_1]", "[step_2]", etc.
+          - Your annotation's "step_id" should match these exactly (e.g., "step_1", "step_2")
           - The "textMatch" should match the "cleanedText" from that step
        6.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
        7.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
