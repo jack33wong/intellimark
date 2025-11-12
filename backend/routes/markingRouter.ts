@@ -1593,8 +1593,30 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     for (const question of individualQuestions) {
         const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
+        // Debug logging for Q21 specifically
+        if (question.questionNumber === '21' || question.questionNumber === 21) {
+            console.log(`[QUESTION DETECTION DEBUG] Q21 Detection Result:`);
+            console.log(`  - Found: ${detectionResult.found}`);
+            console.log(`  - Message: ${detectionResult.message}`);
+            console.log(`  - Match: ${detectionResult.match ? 'Yes' : 'No'}`);
+            if (detectionResult.match) {
+                console.log(`  - Board: ${detectionResult.match.board}`);
+                console.log(`  - Paper Code: ${detectionResult.match.paperCode}`);
+                console.log(`  - Question Number: ${detectionResult.match.questionNumber}`);
+                console.log(`  - Confidence: ${detectionResult.match.confidence}`);
+                console.log(`  - Marking Scheme: ${detectionResult.match.markingScheme ? 'Yes' : 'No'}`);
+                if (!detectionResult.match.markingScheme) {
+                    console.log(`  - ❌ Q21 matched exam paper but NO marking scheme found`);
+                }
+            }
+        }
+        
         if (detectionResult.found && detectionResult.match?.markingScheme) {
             detectionResults.push({ question, detectionResult });
+        } else if (question.questionNumber === '21' || question.questionNumber === 21) {
+            console.log(`[QUESTION DETECTION DEBUG] Q21 NOT added to detectionResults:`);
+            console.log(`  - found: ${detectionResult.found}`);
+            console.log(`  - markingScheme exists: ${detectionResult.match?.markingScheme ? 'Yes' : 'No'}`);
         }
     }
     

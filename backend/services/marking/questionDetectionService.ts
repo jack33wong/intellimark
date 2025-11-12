@@ -119,10 +119,19 @@ export class QuestionDetectionService {
         };
       }
 
+      // Debug logging for Q21
+      const isQ21 = questionNumberHint === '21' || questionNumberHint === 21;
+      if (isQ21) {
+        console.log(`[QUESTION DETECTION DEBUG] Q21 Input:`);
+        console.log(`  - Question Text (first 200 chars): ${extractedQuestionText.substring(0, 200)}...`);
+        console.log(`  - Question Number Hint: ${questionNumberHint}`);
+        console.log(`  - Total exam papers in database: ${examPapers.length}`);
+      }
 
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
+      let bestTextMatch: { match: ExamPaperMatch; textSimilarity: number } | null = null;
 
       for (const examPaper of examPapers) {
         const metadata = examPaper.metadata;
@@ -130,9 +139,83 @@ export class QuestionDetectionService {
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
         
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
-        if (match && match.confidence && match.confidence > bestScore) {
-          bestMatch = match;
-          bestScore = match.confidence;
+        if (match && match.confidence) {
+          // If this match has a higher confidence, it's definitely better
+          if (match.confidence > bestScore) {
+            bestMatch = match;
+            bestScore = match.confidence;
+            // Calculate text similarity for tie-breaking
+            if (match.databaseQuestionText) {
+              const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+              bestTextMatch = { match, textSimilarity };
+            }
+          } 
+          // If confidence is equal, break tie by checking actual text match quality
+          else if (match.confidence === bestScore && match.databaseQuestionText) {
+            const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+            
+            // Additional tie-breaking: check if database text starts with same words as classification
+            // This helps when similarity scores are identical but one is clearly the correct question
+            const classificationStart = normalizeTextForComparison(extractedQuestionText.substring(0, 60));
+            const databaseStart = normalizeTextForComparison(match.databaseQuestionText.substring(0, 60));
+            // Check if they start with the same normalized text (first 30 chars after normalization)
+            const classificationPrefix = classificationStart.substring(0, Math.min(30, classificationStart.length));
+            const databasePrefix = databaseStart.substring(0, Math.min(30, databaseStart.length));
+            const startsMatch = classificationPrefix && databasePrefix && 
+                               (databasePrefix.startsWith(classificationPrefix.substring(0, 20)) || 
+                                classificationPrefix.startsWith(databasePrefix.substring(0, 20)));
+            
+            // Check if current best match also starts with same words
+            let bestStartsMatch = false;
+            if (bestTextMatch && bestTextMatch.match.databaseQuestionText) {
+              const bestDatabaseStart = normalizeTextForComparison(bestTextMatch.match.databaseQuestionText.substring(0, 60));
+              const bestDatabasePrefix = bestDatabaseStart.substring(0, Math.min(30, bestDatabaseStart.length));
+              bestStartsMatch = bestDatabasePrefix && classificationPrefix && 
+                               (bestDatabasePrefix.startsWith(classificationPrefix.substring(0, 20)) || 
+                                classificationPrefix.startsWith(bestDatabasePrefix.substring(0, 20)));
+            }
+            
+            // Prefer match that starts with same words, or if both do, prefer higher text similarity
+            if (!bestTextMatch || 
+                (startsMatch && !bestStartsMatch) ||
+                (startsMatch && bestStartsMatch && textSimilarity > bestTextMatch.textSimilarity) ||
+                (!startsMatch && !bestStartsMatch && textSimilarity > bestTextMatch.textSimilarity)) {
+              bestMatch = match;
+              bestTextMatch = { match, textSimilarity };
+            }
+          }
+        }
+        
+        // Debug logging for Q21 - show all matches attempted
+        if (isQ21 && match) {
+          console.log(`[QUESTION DETECTION DEBUG] Q21 Match Attempt:`);
+          console.log(`  - Paper Code: ${paperCode}`);
+          console.log(`  - Question Number: ${match.questionNumber}`);
+          console.log(`  - Confidence: ${match.confidence}`);
+          if (match.databaseQuestionText) {
+            const textSim = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+            const classificationStart = normalizeTextForComparison(extractedQuestionText.substring(0, 60));
+            const databaseStart = normalizeTextForComparison(match.databaseQuestionText.substring(0, 60));
+            const classificationPrefix = classificationStart.substring(0, Math.min(30, classificationStart.length));
+            const databasePrefix = databaseStart.substring(0, Math.min(30, databaseStart.length));
+            const startsMatch = classificationPrefix && databasePrefix && 
+                               (databasePrefix.startsWith(classificationPrefix.substring(0, 20)) || 
+                                classificationPrefix.startsWith(databasePrefix.substring(0, 20)));
+            console.log(`  - Text Similarity: ${textSim.toFixed(3)}`);
+            console.log(`  - Starts Match: ${startsMatch ? 'Yes' : 'No'}`);
+            console.log(`  - Database Text Start: "${databaseStart.substring(0, 40)}..."`);
+          }
+        }
+      }
+      
+      // Debug logging for Q21 - show best match result
+      if (isQ21) {
+        console.log(`[QUESTION DETECTION DEBUG] Q21 Best Match:`);
+        console.log(`  - Found: ${bestMatch ? 'Yes' : 'No'}`);
+        console.log(`  - Best Score: ${bestScore}`);
+        if (bestMatch) {
+          console.log(`  - Paper Code: ${bestMatch.paperCode}`);
+          console.log(`  - Question Number: ${bestMatch.questionNumber}`);
         }
       }
 
@@ -141,6 +224,13 @@ export class QuestionDetectionService {
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
+        } else {
+          // Debug logging for marking scheme lookup failure
+          console.log(`[QUESTION DETECTION DEBUG] Marking scheme lookup failed for:`);
+          console.log(`  - Question Number: ${bestMatch.questionNumber}`);
+          console.log(`  - Board: ${bestMatch.board}`);
+          console.log(`  - Paper Code: ${bestMatch.paperCode}`);
+          console.log(`  - Year: ${bestMatch.year}`);
         }
         
         return {
@@ -317,6 +407,17 @@ export class QuestionDetectionService {
             if (questionContent) {
               const similarity = this.calculateSimilarity(questionText, questionContent);
               
+              // Debug logging for Q21
+              const isQ21 = questionNumberHint === '21' || questionNumberHint === 21;
+              if (isQ21 && questionNumber === '21') {
+                console.log(`[QUESTION DETECTION DEBUG] Q21 Text Matching:`);
+                console.log(`  - Database Question Number: ${questionNumber}`);
+                console.log(`  - Paper Code: ${paperCode}`);
+                console.log(`  - Similarity: ${similarity.toFixed(3)}`);
+                console.log(`  - Classification Text (first 100 chars): ${questionText.substring(0, 100)}...`);
+                console.log(`  - Database Text (first 100 chars): ${questionContent.substring(0, 100)}...`);
+              }
+              
               if (similarity > bestScore) {
                 bestScore = similarity;
                 bestQuestionMatch = questionNumber;
@@ -427,8 +528,9 @@ export class QuestionDetectionService {
 
       // If we found a good match, return the exam paper info
       // For sub-questions, use lower threshold (0.4) since they're shorter and more sensitive to small differences
-      // For main questions, use higher threshold (0.5) for better accuracy
-      const threshold = bestSubQuestionNumber ? 0.4 : 0.5;
+      // For main questions, use lower threshold (0.35) to handle OCR/classification variations and multi-page questions
+      // Q21 is a multi-page question where classification text may differ from database text due to formatting
+      const threshold = bestSubQuestionNumber ? 0.4 : 0.35;
       if (bestQuestionMatch && bestScore >= threshold) {
         // Use standardized fullExamPapers structure
         const metadata = examPaper.metadata;
@@ -563,6 +665,11 @@ export class QuestionDetectionService {
       }
       
       console.error(`[MARKING SCHEME LOOKUP] ❌ No matching marking scheme found for ${examPaperMatch.paperCode}`);
+      // Special debug for Q21
+      if (examPaperMatch.questionNumber === '21' || examPaperMatch.questionNumber === 21) {
+        console.error(`[MARKING SCHEME LOOKUP] Q21 SPECIFIC: Paper code "${examPaperMatch.paperCode}" not found in marking schemes`);
+        console.error(`[MARKING SCHEME LOOKUP] Q21 SPECIFIC: Total marking schemes checked: ${markingSchemes.length}`);
+      }
       
 
       return null;
@@ -646,6 +753,11 @@ export class QuestionDetectionService {
           console.error(`[QUESTION MARKS DEBUG] Question number: "${questionNumber}", Sub-question: "${examPaperMatch.subQuestionNumber || 'none'}"`);
           console.error(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 30).join(', ')}${Object.keys(questions).length > 30 ? '...' : ''}`);
           
+          // Special debug for Q21
+          if (questionNumber === '21' || questionNumber === 21) {
+            console.error(`[QUESTION MARKS DEBUG] Q21 SPECIFIC: Looking for key "${flatKey}"`);
+            console.error(`[QUESTION MARKS DEBUG] Q21 SPECIFIC: All available question keys: ${Object.keys(questions).join(', ')}`);
+          }
           
           return null; // Fail fast - no fallbacks
         }
