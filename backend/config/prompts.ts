@@ -803,13 +803,84 @@ export const AI_PROMPTS = {
           - **Coordinate Grid Transformations:**
             * If the shape is correctly transformed (rotation, translation, reflection) conceptually, award marks even if coordinates differ by 1-2 units
             * If coordinates are approximately correct (within 2 grid units of expected), award marks
-            * Only penalize if the transformation type is wrong (e.g., rotation instead of translation) or the shape is in completely wrong quadrant
+            * **MANDATORY: Evaluate partial credit systematically BEFORE awarding 0 marks** - You MUST follow this process:
+              - **STEP 1**: Identify all mark levels in the marking scheme (e.g., A2, A1, M1)
+              - **STEP 2**: Start with the highest mark level and check if full marks criteria are met (e.g., all shapes correctly transformed)
+              - **STEP 3**: If highest level NOT met, you MUST check each lower level for partial credit:
+                * Check if one shape is correctly transformed (even if others are wrong)
+                * Check if center of rotation/translation is marked correctly
+                * Check if transformation type is identified correctly (even if coordinates are slightly off)
+              - **STEP 4**: Only award M0/A0 if ALL of the following are true:
+                * Highest mark level criteria NOT met AND
+                * ALL lower mark level criteria NOT met
+              - **CRITICAL**: Many marking schemes have "OR" conditions (e.g., "M1 for triangle B OR triangle C OR rotating B"). If ANY of the OR conditions are met, award the mark. DO NOT require ALL conditions to be met.
+            * Only penalize if the transformation type is wrong (e.g., rotation instead of translation) or the shape is in completely wrong quadrant AND you have explicitly verified that NO partial credit criteria are met
           - **Histograms/Graphs:**
             * If the general shape, trend, or key features are correct, award marks even if exact values differ slightly
             * Be flexible about frequency vs frequency density - if the student understood the concept and drew appropriate bars, award marks
             * The classification service may describe histograms differently (frequency vs frequency density) - this is a description difference, not a student error
-            * Only penalize if the histogram/graph is fundamentally wrong (wrong data, wrong scale, completely incorrect shape)
+            * **CRITICAL INTERPRETATION RULE**: If the classification says "plotted using frequency values" or "frequency instead of frequency density", this is ONLY a description of what the student drew. It is NOT an automatic disqualifier. You MUST still check partial credit criteria.
+            * **MANDATORY: Evaluate partial credit systematically BEFORE awarding 0 marks** - You MUST follow this process:
+              - **STEP 1**: Identify all mark levels in the marking scheme (e.g., B3, B2, B1)
+              - **STEP 2**: Start with the highest mark level (e.g., B3) and check if full marks criteria are met
+              - **STEP 3**: If B3 criteria NOT met, you MUST check B2 criteria before awarding B0
+              - **STEP 4**: If B2 criteria NOT met, you MUST check B1 criteria before awarding B0
+              - **STEP 5**: Only award B0 if ALL of the following are true:
+                * B3 criteria NOT met AND
+                * B2 criteria NOT met AND
+                * B1 criteria NOT met
+              - **Common partial credit criteria for histograms** (check these explicitly):
+                * "2 correct bars of different widths" → Count how many bars are drawn and if they have different widths. **CRITICAL**: If the student drew bars with different widths (even if using frequency), this may meet B1 criteria. Check the actual bar widths, not the y-axis label.
+                * "frequency÷class width for at least 3 frequencies" → Check if frequency density values are present in the classification data (look for frequencyDensity field). Even if description says "frequency", the classification may have calculated frequency density values.
+                * "4 correct bars" → Count how many bars are drawn. **CRITICAL**: If 5 bars are drawn, check if at least 4 are correctly positioned/sized. Bars drawn with frequency can still be "correct bars" if they represent the data correctly.
+              - **CRITICAL INTERPRETATION**: "Plotted using frequency values" means the student used frequency on the y-axis. This does NOT mean:
+                * The bars are wrong (they may still be correctly drawn)
+                * The bars have wrong widths (they may still have different widths)
+                * The bars represent wrong data (they may still represent the correct frequencies)
+              - **EVALUATION PROCESS**: When you see "plotted using frequency values":
+                1. First, check: Are bars drawn? (If yes, continue to step 2)
+                2. Count how many bars are drawn
+                3. Check if bars have different widths (for unequal class intervals)
+                4. Check if bars represent the correct data ranges
+                5. Evaluate against B1 criteria: "2 correct bars of different widths" - if student has 5 bars with different widths, this likely meets B1
+                6. Evaluate against B2 criteria: "4 correct bars" - if student has 5 bars, check if at least 4 are correctly positioned
+                7. Only award B0 if bars are fundamentally wrong (wrong data ranges, wrong scale, completely incorrect shape) AND none of the above criteria are met
+              - **DO NOT award B0 just because frequency density wasn't used** - check partial credit first! Bars drawn with frequency can still earn B1 or B2 if they meet the criteria.
+            * Only penalize if the histogram/graph is fundamentally wrong (wrong data, wrong scale, completely incorrect shape) AND you have explicitly verified that NO partial credit criteria (B1, B2) are met
           - **General Principle:** Award marks if the student's work demonstrates correct mathematical understanding, even if the classification-extracted description doesn't match the expected format exactly. The classification service format is an approximation of what the student drew, not the student's actual work.
+          - **MANDATORY: SYSTEMATIC PARTIAL CREDIT EVALUATION (CRITICAL FOR ALL DRAWING TYPES):**
+            * **YOU MUST FOLLOW THIS PROCESS - DO NOT SKIP STEPS:**
+            * **Step 1**: Identify ALL mark levels in the marking scheme (e.g., B3, B2, B1 or M1, A1, A2 or A2, A1)
+            * **Step 2**: Start with the HIGHEST mark level and check if its criteria are fully met
+            * **Step 3**: If highest level NOT met, you MUST check EACH lower mark level in descending order
+            * **Step 4**: Award the HIGHEST mark level for which criteria are met (even if it's not full marks)
+            * **Step 5**: **CRITICAL RULE**: You CANNOT award 0 marks (M0, A0, B0, etc.) until you have:
+              - Explicitly checked the highest mark level AND
+              - Explicitly checked ALL lower mark levels AND
+              - Confirmed that NONE of the criteria are met
+            * **Step 6**: For each mark level, extract and check specific criteria from the marking scheme:
+              - **Count requirements**: "2 correct bars" → Count actual bars drawn, "4 correct bars" → Count actual bars
+              - **Feature requirements**: "different widths" → Check if bars have different widths, "axes labelled" → Check if axes are present
+              - **Calculation requirements**: "frequency÷class width for at least 3 frequencies" → Check if frequency density is used (even if classification says "frequency")
+              - **Alternative criteria**: Many marking schemes have "OR" conditions - check ALL alternatives
+            * **Step 7**: Evaluate objectively - IGNORE negative descriptions in classification text. If classification says "frequency instead of frequency density" or "plotted using frequency values", this is ONLY a description. You MUST still check if bars are drawn correctly and if they meet B1/B2 criteria.
+            * **Step 8**: **EXAMPLE FOR HISTOGRAMS**: If marking scheme has B3, B2, B1:
+              - Check B3: "fully correct histogram" → If not, continue
+              - Check B2: "4 correct bars OR frequency÷class width for all 5 and 2 correct bars" → Count bars (if 5 bars drawn, check if at least 4 are correctly positioned), check widths (even if using frequency, bars may have correct different widths)
+              - Check B1: "2 correct bars of different widths OR frequency÷class width for at least 3" → Count bars (if 5 bars drawn, check if at least 2 have different widths), check if different widths exist (even if using frequency, bars can have different widths for unequal class intervals)
+              - **CRITICAL**: "Plotted using frequency values" does NOT mean bars are wrong. Check:
+                * Are bars drawn? (If yes, potential for partial credit)
+                * Do bars have different widths? (If yes, may meet B1)
+                * How many bars? (If 4+, may meet B2)
+                * Do bars represent correct data? (If yes, may meet B1/B2)
+              - Only award B0 if B1, B2, and B3 all fail AND bars are fundamentally wrong (wrong data, wrong scale, completely incorrect)
+            * **Step 9**: **SPECIFIC RULE FOR "FREQUENCY" vs "FREQUENCY DENSITY"**: 
+              - If classification says "plotted using frequency values", this is a FACTUAL DESCRIPTION, not a judgment
+              - The student may have drawn bars correctly but used frequency on y-axis instead of frequency density
+              - You MUST still check: Are bars drawn? Do they have different widths? How many bars?
+              - Bars drawn with frequency can still meet B1 ("2 correct bars of different widths") if the bars themselves are correctly drawn with different widths
+              - Bars drawn with frequency can still meet B2 ("4 correct bars") if at least 4 bars are correctly positioned
+              - Only disqualify if the bars themselves are wrong (wrong data, wrong positions, wrong widths) - NOT just because frequency was used instead of frequency density
        5.  **Matching:** The "textMatch" and "step_id" in your annotation MUST match the "cleanedText" and step ID from the "OCR TEXT".
           - The OCR TEXT uses step IDs like "[step_1]", "[step_2]", etc.
           - Your annotation's "step_id" should match these exactly (e.g., "step_1", "step_2")
@@ -1172,12 +1243,51 @@ ${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i
 
     **CRITICAL:** If no student drawings are found, return {"drawings": []}. Do NOT extract question diagrams.`,
 
-    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null) => {
+    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null, markingScheme?: any | null) => {
       const qNumText = questionNumber ? `Question ${questionNumber}` : 'the question';
       const subQText = subQuestionPart ? `, sub-question part ${subQuestionPart}` : '';
+      
+      // Build marking scheme hints if available
+      let markingSchemeHints = '';
+      if (markingScheme && markingScheme.questionMarks && markingScheme.questionMarks.marks) {
+        const marks = markingScheme.questionMarks.marks;
+        markingSchemeHints = `\n\n🎯 **MARKING SCHEME HINTS (TO MAXIMIZE MARKS):**
+The marking scheme shows what elements are needed for marks:
+${marks.map((m: any, idx: number) => `- ${m.mark || `M${idx + 1}`}: ${m.answer || ''} ${m.comments || ''}`).join('\n')}
+
+**CRITICAL EXTRACTION GUIDANCE:**
+- **ONLY extract elements that contribute to marks** - Skip decorative elements, individual axis labels, or details not mentioned in the marking scheme
+- **MANDATORY: NEUTRAL DESCRIPTION ONLY** - You MUST describe what the student drew objectively, WITHOUT any judgment about correctness. DO NOT use phrases like "instead of", "incorrect", "wrong", "should be", or "failed to".
+  * ✅ CORRECT EXAMPLES:
+    - "Histogram with 5 bars plotted using frequency values on the y-axis"
+    - "Histogram with bars representing frequency density"
+    - "Coordinate grid with triangle drawn at vertices (3, -2), (4, -2), (4, 0)"
+  * ❌ FORBIDDEN PHRASES (DO NOT USE):
+    - "where the student plotted frequency instead of frequency density" ❌
+    - "incorrectly drawn" ❌
+    - "wrong coordinates" ❌
+    - "should be" ❌
+    - "failed to" ❌
+  * **CRITICAL RULE**: If you see the student used frequency, say "plotted using frequency values". If they used frequency density, say "plotted using frequency density". DO NOT compare or judge - just describe what you see.
+- **PARTIAL CREDIT ANALYSIS**: When extracting drawings, analyze if partial credit criteria from the marking scheme are met:
+  * Check if the marking scheme has multiple mark levels (e.g., B3, B2, B1) - these indicate partial credit is possible
+  * For histograms: Count how many bars are correctly drawn, check if bars have different widths (for frequency density), verify if frequency÷class width calculations are visible
+  * For coordinate grids: Count how many shapes/points are correctly positioned, check if transformation type matches
+  * For graphs/diagrams: Check if key features, trends, or required elements are present
+- **MARKING SCHEME INTERPRETATION**: 
+  * Identify the highest mark level (e.g., B3) and what it requires for full marks
+  * Identify lower mark levels (e.g., B2, B1) and what they require for partial credit
+  * Extract information that allows evaluation of each mark level
+- **GENERIC RULES FOR ALL DRAWING TYPES**:
+  * Extract main drawing elements (bars, shapes, coordinates, points) that are explicitly or implicitly required for marks
+  * Skip decorative elements, individual axis labels, or details not mentioned in the marking scheme
+  * If the marking scheme mentions specific coordinates, positions, values, or features, extract them with HIGH PRECISION
+  * Describe the drawing objectively - let the marking AI evaluate correctness based on the marking scheme`;
+      }
+      
       return `Analyze this image and extract ONLY student-drawn elements for ${qNumText}${subQText}.
 
-Question Text: "${questionText}"
+Question Text: "${questionText}"${markingSchemeHints}
 
 IMPORTANT:
 - Extract ONLY what the student has drawn (shapes, graphs, histograms, diagrams)
@@ -1187,6 +1297,7 @@ IMPORTANT:
 - Position should be in percentage (0-100) with 1 decimal precision
 - **CRITICAL: Return ONE entry per drawing element** - do NOT group multiple drawings together
 - Each triangle, mark, point, or shape must have its own entry with its own individual position
+${markingSchemeHints ? '- **PRIORITIZE**: Extract ONLY elements that contribute to marks according to the marking scheme - Skip decorative elements, individual axis labels, or details not required for marks' : ''}
 
 Return the JSON object with all student drawings found. Each drawing element should be a separate entry in the "drawings" array.`;
     }

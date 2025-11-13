@@ -11,17 +11,20 @@ export class DrawingEnhancementService {
   /**
    * Enhance drawings in classification results
    * Only enhances if normal classification already found [DRAWING] entries
+   * NOW RUNS AFTER QUESTION DETECTION so marking scheme hints can be passed
    * 
    * @param allClassificationResults Array of classification results per page
    * @param standardizedPages Array of standardized page data with image data
    * @param model Model to use for drawing classification
    * @param classificationResult Main classification result to update with enhanced questions
+   * @param markingSchemesMap Map of question keys to marking schemes (optional, for hints)
    */
   static async enhanceDrawingsInClassification(
     allClassificationResults: Array<{ pageIndex: number; result: ClassificationResult }>,
     standardizedPages: StandardizedPage[],
     model: ModelType,
-    classificationResult: ClassificationResult
+    classificationResult: ClassificationResult,
+    markingSchemesMap?: Map<string, any>
   ): Promise<void> {
     // Detect pages with drawings and enhance them
     const pagesWithDrawings: Array<{
@@ -71,6 +74,25 @@ export class DrawingEnhancementService {
           let enhancedStudentWork = q.studentWork;
           let enhancedSubQuestions = q.subQuestions;
 
+          // Look up marking scheme for this question (if available)
+          let markingScheme = null;
+          if (markingSchemesMap && q.questionNumber) {
+            // Try to find marking scheme by matching question number
+            // The key format is: `${questionNumber}_${examBoard}_${paperCode}`
+            // We need to try different combinations
+            for (const [key, scheme] of markingSchemesMap.entries()) {
+              const keyParts = key.split('_');
+              const schemeQuestionNumber = keyParts[0];
+              // Match if question numbers match (handle sub-questions)
+              if (schemeQuestionNumber === q.questionNumber || 
+                  q.questionNumber?.startsWith(schemeQuestionNumber) ||
+                  schemeQuestionNumber.startsWith(q.questionNumber || '')) {
+                markingScheme = scheme;
+                break;
+              }
+            }
+          }
+
           // Only enhance if normal classification already found [DRAWING] entries
           // Don't try to detect drawings from question text - trust the classification
           const hasDrawingsInStudentWork = q.studentWork && q.studentWork.includes('[DRAWING]');
@@ -82,7 +104,8 @@ export class DrawingEnhancementService {
                 q.text || '',
                 q.questionNumber || null,
                 null,
-                model
+                model,
+                markingScheme // Pass marking scheme for hints
               );
 
               if (drawingResult.drawings && drawingResult.drawings.length > 0) {
@@ -107,12 +130,14 @@ export class DrawingEnhancementService {
             enhancedSubQuestions = await Promise.all(q.subQuestions.map(async (sq) => {
               if (sq.studentWork && sq.studentWork.includes('[DRAWING]')) {
                 try {
+                  // Use same marking scheme for sub-questions (they share the parent scheme)
                   const drawingResult = await DrawingClassificationService.classifyDrawings(
                     imageData,
                     sq.text || '',
                     q.questionNumber || null,
                     sq.part || null,
-                    model
+                    model,
+                    markingScheme // Pass marking scheme for hints
                   );
 
                   if (drawingResult.drawings && drawingResult.drawings.length > 0) {

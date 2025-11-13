@@ -52,7 +52,8 @@ export class DrawingClassificationService {
     questionText: string,
     questionNumber?: string | null,
     subQuestionPart?: string | null,
-    model: ModelType = 'auto'
+    model: ModelType = 'auto',
+    markingScheme?: any | null
   ): Promise<DrawingClassificationResult> {
     try {
       const validatedModel = validateModel(model);
@@ -61,7 +62,7 @@ export class DrawingClassificationService {
       
       const { AI_PROMPTS } = await import('../../config/prompts.js');
       const systemPrompt = AI_PROMPTS.drawingClassification.system;
-      const userPrompt = AI_PROMPTS.drawingClassification.user(questionText, questionNumber, subQuestionPart);
+      const userPrompt = AI_PROMPTS.drawingClassification.user(questionText, questionNumber, subQuestionPart, markingScheme);
 
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, validatedModel);
       

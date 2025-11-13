@@ -1176,17 +1176,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     logClassificationComplete();
 
-    // ========================= DRAWING CLASSIFICATION (OPTION 1: POST-PROCESSING) =========================
-    // For pages with [DRAWING] entries, run specialized high-accuracy drawing classification
-    const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
-    
-    await DrawingEnhancementService.enhanceDrawingsInClassification(
-      allClassificationResults,
-      standardizedPages,
-      actualModel as ModelType,
-      classificationResult
-    );
-
     // ========================= MARK METADATA PAGES =========================
     // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
     // but still appear in final output
@@ -1784,6 +1773,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
+
+    // ========================= DRAWING CLASSIFICATION (POST-PROCESSING WITH MARKING SCHEME HINTS) =========================
+    // For pages with [DRAWING] entries, run specialized high-accuracy drawing classification
+    // NOW RUNS AFTER QUESTION DETECTION so we can pass marking scheme hints to maximize marks
+    const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
+    
+    await DrawingEnhancementService.enhanceDrawingsInClassification(
+      allClassificationResults,
+      standardizedPages,
+      actualModel as ModelType,
+      classificationResult,
+      markingSchemesMap // Pass marking schemes for hints
+    );
 
     // ========================= START: IMPLEMENT STAGE 3 =========================
     // --- Stage 3: Consolidation & Segmentation ---
