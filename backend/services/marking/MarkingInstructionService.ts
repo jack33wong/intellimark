@@ -8,6 +8,7 @@ interface NormalizedMarkingScheme {
   totalMarks: number;     // Total marks for the question
   questionNumber: string; // Question identifier
   questionLevelAnswer?: string; // Question-level answer (e.g., "H", "F", "J" for letter-based answers)
+  marksWithAnswers?: string[]; // Array of answers for each mark (for grouped sub-questions like Q12i, 12ii, 12iii)
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -46,11 +47,28 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     // Extract question-level answer if it exists (for letter-based answers like "H", "F", "J")
     const questionLevelAnswer = input.answer || input.questionMarks.answer || undefined;
     
+    // Extract sub-question-specific answers for grouped sub-questions (e.g., Q12i="H", 12ii="F", 12iii="J")
+    // Check multiple possible locations where sub-question answers might be stored
+    let marksWithAnswers: string[] | undefined = undefined;
+    if (input.subQuestionAnswers && Array.isArray(input.subQuestionAnswers) && input.subQuestionAnswers.length > 0) {
+      // Filter out empty strings and ensure we have valid answers
+      const validAnswers = input.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
+      if (validAnswers.length > 0) {
+        marksWithAnswers = validAnswers;
+      }
+    } else if (input.questionMarks?.subQuestionAnswers && Array.isArray(input.questionMarks.subQuestionAnswers) && input.questionMarks.subQuestionAnswers.length > 0) {
+      const validAnswers = input.questionMarks.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
+      if (validAnswers.length > 0) {
+        marksWithAnswers = validAnswers;
+      }
+    }
+    
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
       questionNumber: input.questionNumber || '1',
-      questionLevelAnswer: questionLevelAnswer
+      questionLevelAnswer: questionLevelAnswer,
+      marksWithAnswers: marksWithAnswers
     };
     
     
@@ -279,6 +297,10 @@ export class MarkingInstructionService {
         const schemeData: any = { marks: normalizedScheme.marks };
         if (normalizedScheme.questionLevelAnswer) {
           schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+        }
+        // Include sub-question-specific answers if available (for grouped sub-questions)
+        if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
+          schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
         }
         schemeJson = JSON.stringify(schemeData, null, 2);
       } catch (error) {

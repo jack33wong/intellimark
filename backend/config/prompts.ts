@@ -1212,15 +1212,26 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
     // Get question-level answer if available (for letter-based answers like "H", "F", "J")
     const questionLevelAnswer = scheme.questionLevelAnswer;
     
+    // For grouped sub-questions, check if marks array has sub-question-specific answers
+    // Some marking schemes store answers in marks array with index matching sub-question order
+    const marksWithAnswers = scheme.marksWithAnswers || [];
+    
     // Convert each mark to a clean Markdown bullet point
-    const bullets = scheme.marks.map((mark: any) => {
+    const bullets = scheme.marks.map((mark: any, index: number) => {
       const markCode = mark.mark || 'M1';
       let answer = mark.answer || '';
       const comments = mark.comments || '';
       
-      // If mark answer is "cao" (correct answer only) and we have a question-level answer, use that instead
-      if (answer.toLowerCase() === 'cao' && questionLevelAnswer) {
-        answer = questionLevelAnswer;
+      // If mark answer is "cao" (correct answer only), try to find the actual answer
+      if (answer.toLowerCase() === 'cao') {
+        // First, try sub-question-specific answer from marksWithAnswers array
+        if (marksWithAnswers[index]) {
+          answer = marksWithAnswers[index];
+        }
+        // Otherwise, try question-level answer (for single questions, not grouped sub-questions)
+        else if (questionLevelAnswer && scheme.marks.length === 1) {
+          answer = questionLevelAnswer;
+        }
       }
       
       // Combine answer and comments

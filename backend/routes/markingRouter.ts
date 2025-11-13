@@ -1667,9 +1667,23 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const combinedQuestionTexts: string[] = [];
             const combinedDatabaseQuestionTexts: string[] = []; // Store database question texts
             const questionNumbers: string[] = [];
+            const subQuestionAnswers: string[] = []; // Store answers for each sub-question (e.g., ["H", "F", "J"])
             
             for (const item of group) {
                 const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+                
+                // Extract answer for this sub-question (for letter-based answers like "H", "F", "J")
+                // Check multiple possible locations where the answer might be stored
+                const subQAnswer = item.detectionResult.match?.answer || 
+                                  item.detectionResult.match?.markingScheme?.answer ||
+                                  item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
+                                  undefined;
+                if (subQAnswer && typeof subQAnswer === 'string' && subQAnswer.toLowerCase() !== 'cao') {
+                    subQuestionAnswers.push(subQAnswer);
+                } else {
+                    // If no answer found, push empty string to maintain array alignment with marks
+                    subQuestionAnswers.push('');
+                }
                 
                 // More defensive extraction
                 let marksArray: any[] = [];
@@ -1729,7 +1743,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 questionDetection: questionDetection, // Store detection result for exam paper info (needed for exam tab storage)
                 questionText: combinedQuestionTexts.join('\n\n'), // Classification text (for backward compatibility)
                 databaseQuestionText: combinedDatabaseQuestionTexts.join('\n\n'), // Database question text for filtering
-                subQuestionNumbers: questionNumbers // Store sub-question numbers for reference
+                subQuestionNumbers: questionNumbers, // Store sub-question numbers for reference
+                subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined // Store answers for each sub-question (e.g., ["H", "F", "J"])
             };
             
             // Use base question number in unique key (e.g., "2_Pearson Edexcel_1MA1/1H" instead of "2a_...")
