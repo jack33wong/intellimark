@@ -260,16 +260,25 @@ function matchBlockToQuestion(
     
     if (!classificationQ) continue;
     
-    // Try to match against main question student work only
+    // Try to match against main question student work first
+    // If main question has no student work but has sub-questions, try sub-question student work
     // All blocks (including sub-question blocks) will be assigned to main question scheme
     // Marking router will merge sub-question schemes automatically
     let studentWorkToMatch: string | null = null;
     if (classificationQ.studentWork) {
       studentWorkToMatch = classificationQ.studentWork;
+    } else if (classificationQ.subQuestions && Array.isArray(classificationQ.subQuestions) && classificationQ.subQuestions.length > 0) {
+      // Main question has no student work, but has sub-questions - combine sub-question student work
+      const subQStudentWork = classificationQ.subQuestions
+        .map((sq: any) => sq.studentWork)
+        .filter((sw: any) => sw && sw !== 'null' && sw.trim().length > 0)
+        .join('\n');
+      if (subQStudentWork) {
+        studentWorkToMatch = subQStudentWork;
+      }
     }
     
-    // If no main student work, skip this question (don't try sub-question matching)
-    // This ensures all blocks go to main question scheme, not individual sub-questions
+    // If no student work at all (main or sub-questions), skip this question
     if (!studentWorkToMatch) continue;
     
     // Split multi-line student work into individual lines for better matching
@@ -1117,7 +1126,17 @@ export function segmentOcrResultsByQuestion(
     // Create entries for all pages this question spans (for multi-page merged questions)
     pageIndices.forEach((pageIndex: number) => {
       // If question has sub-questions, create separate entries for each sub-question
+      // ALSO add the main question number entry to support merged scheme keys (e.g., "17_..." for grouped Q17a, Q17b)
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        // Add main question number entry first (for merged scheme key matching)
+        if (mainQuestionNumber) {
+          flattenedQuestions.push({
+            questionNumber: String(mainQuestionNumber),
+            text: q.text || null,
+            sourceImageIndex: pageIndex
+          });
+        }
+        // Then add sub-question entries
         q.subQuestions.forEach((subQ) => {
           const combinedQuestionNumber = mainQuestionNumber 
             ? `${mainQuestionNumber}${subQ.part || ''}` 
@@ -1489,11 +1508,27 @@ export function segmentOcrResultsByQuestion(
           confidence: result.confidence
         });
         // Track classification matches for student work blocks
+        // CRITICAL: Even if similarity is low, we still want to track potential matches
+        // The order-based boost and positional fallback can improve these matches later
         if (result.matchedClassificationLines && result.matchedClassificationLines.length > 0) {
           blockToClassificationMap.set(blockId, {
             block,
             matches: result.matchedClassificationLines
           });
+        } else {
+          // If no matches found during filtering, still add block to map with empty matches
+          // This allows positional fallback to process it in the third pass
+          // Only do this if we have classification student work for questions on this page
+          const hasClassificationForPage = originalQuestionsForFiltering.some(q => 
+            q.sourceImageIndex === pageIndex && 
+            (q.studentWork || (q.subQuestions && q.subQuestions.some(sq => sq.studentWork)))
+          );
+          if (hasClassificationForPage) {
+            blockToClassificationMap.set(blockId, {
+              block,
+              matches: [] // Empty matches - will be filled by positional fallback
+            });
+          }
         }
         
         if (isQ5aBlock40) {
@@ -1514,15 +1549,119 @@ export function segmentOcrResultsByQuestion(
     });
     console.log(`[FILTERING] ============================================================\n`);
     
-    // Resolve one-to-many and many-to-one mappings using highest similarity
+    // Resolve one-to-many and many-to-one mappings using highest similarity + order-based matching
     // Map: classificationLine -> { bestBlock, similarity }
     const classificationToBlockMap = new Map<string, { blockId: string; block: MathBlock & { pageIndex: number }; similarity: number }>();
     // Map: blockId -> { bestClassificationLine, similarity }
     const resolvedBlockToClassificationMap = new Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>();
     
+    // Helper: Apply order-based boost to similarity scores
+    // For blocks that match classification lines at the same position, boost similarity
+    const applyOrderBasedBoost = (
+      block: MathBlock & { pageIndex: number },
+      matches: Array<{ classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>,
+      questionsOnPage: Array<{ questionNumber: string; schemeKey: string }>
+    ): Array<{ classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }> => {
+      const blockOrderIndex = (block as any).originalOrderIndex;
+      if (blockOrderIndex == null) return matches; // No order info available
+      
+      // Get classification student work for questions on this page
+      const classificationQuestionsOnPage = (classificationResult.questions || []).filter((q: any) => {
+        const pageIdx = q.sourceImageIndex ?? 0;
+        return pageIdx === block.pageIndex;
+      });
+      
+      // For each question, get student work lines in order
+      for (const qInfo of questionsOnPage) {
+        const classificationQ = classificationQuestionsOnPage.find((q: any) => {
+          const mainQNum = String(q.questionNumber || '');
+          const qNum = qInfo.questionNumber;
+          const baseQNum = getBaseQuestionNumber(qNum);
+          return mainQNum === baseQNum || mainQNum === qNum;
+        });
+        
+        if (!classificationQ) continue;
+        
+        // Get student work lines in order
+        let studentWorkLines: string[] = [];
+        if (classificationQ.studentWork) {
+          studentWorkLines = classificationQ.studentWork.split(/\n|\\newline|\\\\/)
+            .map(l => l.trim())
+            .filter(l => l.length > 0);
+        } else if (classificationQ.subQuestions && Array.isArray(classificationQ.subQuestions)) {
+          // Combine sub-question student work lines
+          for (const subQ of classificationQ.subQuestions) {
+            if (subQ.studentWork) {
+              const subQLines = subQ.studentWork.split(/\n|\\newline|\\\\/)
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+              studentWorkLines.push(...subQLines);
+            }
+          }
+        }
+        
+        if (studentWorkLines.length === 0) continue;
+        
+        // For order-based boost, we need to find this block's position relative to blocks
+        // that belong to THIS question. Since we don't know which blocks belong to which
+        // question yet, we'll use a conservative approach: only boost if the match's
+        // classification line is already in the matches list AND the block's position
+        // (relative to all blocks) aligns with the classification line's position.
+        // This prevents incorrect cross-question matching.
+        
+        // Get all student work blocks sorted by orderIndex
+        const allBlocksSorted = studentWorkBlocks
+          .map(b => ({ block: b, orderIndex: (b as any).originalOrderIndex ?? Infinity }))
+          .filter(b => b.orderIndex !== Infinity)
+          .sort((a, b) => a.orderIndex - b.orderIndex);
+        
+        // Find this block's position in the sorted list
+        const blockPosition = allBlocksSorted.findIndex(b => b.block === block);
+        if (blockPosition === -1) continue;
+        
+        // Only apply order-based boost if:
+        // 1. The block position is within the range of classification lines for this question
+        // 2. The match's classification line is already in the matches (indicating some similarity)
+        // 3. The match's classification line is at the expected position
+        // 4. CRITICAL: Only boost if there's no high-similarity match already (>= 0.65)
+        //    This prevents overriding correct matches with position-based incorrect ones
+        const hasHighSimilarityMatch = matches.some(m => m.similarity >= 0.65);
+        
+        if (blockPosition < studentWorkLines.length && !hasHighSimilarityMatch) {
+          const expectedLine = studentWorkLines[blockPosition];
+          
+          // Boost similarity for matches at the same position
+          return matches.map(match => {
+            // Only boost if:
+            // - The match line is the expected line at this position
+            // - Similarity is already decent (>= 0.30) but not too high (< 0.65) to avoid overriding good matches
+            // - The match is for this question (questionNumber matches)
+            if (match.classificationLine === expectedLine && 
+                match.similarity >= 0.30 && match.similarity < 0.65 &&
+                (match.questionNumber === qInfo.questionNumber || 
+                 getBaseQuestionNumber(match.questionNumber || '') === getBaseQuestionNumber(qInfo.questionNumber))) {
+              // Position matches - boost similarity by 0.15-0.20
+              // Larger boost for lower similarity (helps borderline cases like Q18)
+              const boost = Math.min(0.20, (0.60 - match.similarity) * 0.5);
+              return {
+                ...match,
+                similarity: Math.min(1.0, match.similarity + boost)
+              };
+            }
+            return match;
+          });
+        }
+      }
+      
+      return matches;
+    };
+    
     // First pass: For each classification line, find the best matching OCR block
     for (const [blockId, { block, matches }] of blockToClassificationMap.entries()) {
-      for (const match of matches) {
+      // Apply order-based boost to matches
+      const boostedMatches = applyOrderBasedBoost(block, matches, questionsOnPage);
+      
+      for (const match of boostedMatches) {
         const existing = classificationToBlockMap.get(match.classificationLine);
         if (!existing || match.similarity > existing.similarity) {
           classificationToBlockMap.set(match.classificationLine, {
@@ -1535,23 +1674,219 @@ export function segmentOcrResultsByQuestion(
     }
     
     // Second pass: For each OCR block, find the best matching classification line
+    // Also try positional matching for blocks with no matches or low similarity
     for (const [blockId, { block, matches }] of blockToClassificationMap.entries()) {
-      // Find the best match for this block (highest similarity)
-      const bestMatch = matches.reduce((best, current) => 
-        current.similarity > best.similarity ? current : best
-      );
+      // Apply order-based boost
+      const boostedMatches = applyOrderBasedBoost(block, matches, questionsOnPage);
       
-      // Check if this classification line is already taken by a better block
-      const existingForLine = classificationToBlockMap.get(bestMatch.classificationLine);
-      if (existingForLine && existingForLine.blockId === blockId) {
-        // This block is the best match for this classification line
-        resolvedBlockToClassificationMap.set(blockId, bestMatch);
-      } else if (!existingForLine || bestMatch.similarity > existingForLine.similarity) {
-        // This block is better than the existing one, or no existing one
-        resolvedBlockToClassificationMap.set(blockId, bestMatch);
-        if (existingForLine) {
-          // Remove the old mapping
-          resolvedBlockToClassificationMap.delete(existingForLine.blockId);
+      // Find the best match for this block (highest similarity)
+      const bestMatch = boostedMatches.length > 0 
+        ? boostedMatches.reduce((best, current) => 
+            current.similarity > best.similarity ? current : best
+          )
+        : null;
+      
+      if (bestMatch) {
+        // Check if this classification line is already taken by a better block
+        const existingForLine = classificationToBlockMap.get(bestMatch.classificationLine);
+        if (existingForLine && existingForLine.blockId === blockId) {
+          // This block is the best match for this classification line
+          resolvedBlockToClassificationMap.set(blockId, bestMatch);
+        } else if (!existingForLine || bestMatch.similarity > existingForLine.similarity) {
+          // This block is better than the existing one, or no existing one
+          resolvedBlockToClassificationMap.set(blockId, bestMatch);
+          if (existingForLine) {
+            // Remove the old mapping
+            resolvedBlockToClassificationMap.delete(existingForLine.blockId);
+          }
+        }
+      }
+    }
+    
+    // Third pass: Best-match fallback for blocks with no matches or very low similarity
+    // This helps cases like Q18 and Q20 where OCR quality is low but order is preserved
+    // NEW DESIGN: Find best match for each block (not index-based), use position as tie-breaker
+    const blocksWithoutMapping = studentWorkBlocks.filter(b => {
+      const blockId = (b as any).globalBlockId || `${b.pageIndex}_${b.coordinates?.x}_${b.coordinates?.y}`;
+      return !resolvedBlockToClassificationMap.has(blockId);
+    });
+    
+    // Debug: Log unmapped blocks for Q18 and Q20
+    if (blocksWithoutMapping.length > 0 && (pageIndex === 3 || pageIndex === 7)) {
+      console.log(`[DEBUG] Page ${pageIndex}: ${blocksWithoutMapping.length} blocks without mapping`);
+    }
+    
+    if (blocksWithoutMapping.length > 0) {
+      // Group blocks by question and try best-match with positional boost
+      for (const qInfo of questionsOnPage) {
+        const classificationQ = (classificationResult.questions || []).find((q: any) => {
+          const pageIdx = q.sourceImageIndex ?? 0;
+          const mainQNum = String(q.questionNumber || '');
+          const qNum = qInfo.questionNumber;
+          const baseQNum = getBaseQuestionNumber(qNum);
+          return pageIdx === pageIndex && (mainQNum === baseQNum || mainQNum === qNum);
+        });
+        
+        if (!classificationQ) continue;
+        
+        // Get student work lines in order
+        let studentWorkLines: string[] = [];
+        if (classificationQ.studentWork) {
+          studentWorkLines = classificationQ.studentWork.split(/\n|\\newline|\\\\/)
+            .map(l => l.trim())
+            .filter(l => l.length > 0);
+        } else if (classificationQ.subQuestions && Array.isArray(classificationQ.subQuestions)) {
+          for (const subQ of classificationQ.subQuestions) {
+            if (subQ.studentWork) {
+              const subQLines = subQ.studentWork.split(/\n|\\newline|\\\\/)
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+              studentWorkLines.push(...subQLines);
+            }
+          }
+        }
+        
+        if (studentWorkLines.length === 0) continue;
+        
+        // Get blocks for this question (sorted by orderIndex)
+        const blocksForQuestion = blocksWithoutMapping
+          .map(b => ({ block: b, orderIndex: (b as any).originalOrderIndex ?? Infinity }))
+          .filter(b => b.orderIndex !== Infinity)
+          .sort((a, b) => a.orderIndex - b.orderIndex);
+        
+        if (blocksForQuestion.length === 0) continue;
+        
+        // NEW APPROACH: For each block, find the best matching classification line
+        // Use position as a boost when similarity is close, not as a hard requirement
+        // This handles missing blocks, out-of-order blocks, and count mismatches
+        const usedLines = new Set<number>(); // Track which classification lines are already matched
+        
+        for (const { block, orderIndex } of blocksForQuestion) {
+          const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+          if (resolvedBlockToClassificationMap.has(blockId)) continue;
+          
+          const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
+          
+          // Skip obviously invalid blocks (very short, empty, or just punctuation)
+          // Also skip LaTeX empty patterns like "\( \_\_\_\_ \)" or similar
+          if (blockText.length < 3 || 
+              /^[_\-\s]+$/.test(blockText) ||
+              /^\\?\(?\s*[_\-\s]+\s*\\?\)?$/.test(blockText) ||
+              /^\\?\(?\s*\\_+\\_+\\_+\\_+\s*\\?\)?$/.test(blockText)) {
+            continue;
+          }
+          
+          // CRITICAL: Skip blocks that look like question text
+          // Check if block contains question text patterns (e.g., "Given that", "Work out", "Show that")
+          // This prevents question text blocks from matching student work
+          const questionTextPatterns = [
+            /given\s+that/i,
+            /work\s+out/i,
+            /show\s+that/i,
+            /find\s+the/i,
+            /calculate/i,
+            /determine/i,
+            /solve/i,
+            /prove/i,
+            /sketch/i,
+            /draw/i,
+            /plot/i
+          ];
+          
+          // If block contains question text patterns and is long (> 20 chars), likely question text
+          // Short blocks (< 10 chars) might be valid student work even with these words
+          if (blockText.length > 20 && questionTextPatterns.some(pattern => pattern.test(blockText))) {
+            // Additional check: if it also contains math expressions that look like question setup
+            // (e.g., "2^x = \frac{2^n}{\sqrt{2}}" is question text, not student work)
+            if (blockText.includes('=') && blockText.length > 30) {
+              continue; // Skip - likely question text
+            }
+          }
+          
+          // CRITICAL: Detect question setup blocks (multiple equations with exponents/fractions)
+          // These are typically the "given" equations in the question, not student work
+          // Pattern: Multiple equations (multiple '=' signs) with exponents (^{}) or fractions (\frac{})
+          // Example: "2^x = \frac{2^n}{\sqrt{2}} \quad 2^y = (\sqrt{2})^5" is question setup
+          const equationCount = (blockText.match(/=/g) || []).length;
+          const hasExponents = /\\?\^\{?[^}]+\}?/.test(blockText) || /\^[0-9a-zA-Z]/.test(blockText);
+          const hasFractions = /\\frac\{[^}]+\}\{[^}]+\}/.test(blockText);
+          const hasRoots = /\\sqrt/.test(blockText);
+          
+          // If block has multiple equations (>= 2) with exponents/fractions/roots, likely question setup
+          // Student work typically has one equation per block, or sequential equations
+          // Question setup often has multiple equations side-by-side (separated by \quad or spaces)
+          if (equationCount >= 2 && (hasExponents || hasFractions || hasRoots) && blockText.length > 30) {
+            // Additional check: if it contains \quad (LaTeX spacing) or multiple equations on same line
+            // This is a strong indicator of question setup (given equations)
+            if (blockText.includes('\\quad') || blockText.includes('\\qquad')) {
+              continue; // Skip - likely question setup (given equations)
+            }
+            // Also check if equations are side-by-side (no newlines between them)
+            // Student work typically has equations on separate lines
+            const equations = blockText.split('=');
+            if (equations.length >= 3) {
+              // Multiple equations in one block - likely question setup
+              continue; // Skip - likely question setup
+            }
+          }
+          
+          // Find best matching classification line for this block
+          let bestMatch: { lineIndex: number; similarity: number; classificationLine: string } | null = null;
+          
+          for (let lineIdx = 0; lineIdx < studentWorkLines.length; lineIdx++) {
+            if (usedLines.has(lineIdx)) continue; // Skip already matched lines
+            
+            const classificationLine = studentWorkLines[lineIdx];
+            const similarity = calculateOcrToDatabaseSimilarity(blockText, classificationLine);
+            
+            // Calculate position-based boost
+            // If block position aligns with line position, boost similarity
+            // This helps when blocks are in correct order
+            let boostedSimilarity = similarity;
+            const expectedPosition = lineIdx; // Expected position of this line
+            const blockPosition = blocksForQuestion.findIndex(b => b.block === block);
+            
+            // If block is at expected position (within ±1), boost similarity slightly
+            // BUT: Only boost if similarity is already reasonable (>= 0.40)
+            // This prevents wrong matches from being boosted just because they're in the right position
+            if (Math.abs(blockPosition - expectedPosition) <= 1 && similarity >= 0.40) {
+              // Boost by 0.05-0.10 if similarity is already decent (>= 0.40)
+              // Smaller boost to avoid overriding content validation
+              const positionBoost = Math.min(0.10, (0.60 - similarity) * 0.2);
+              boostedSimilarity = Math.min(1.0, similarity + positionBoost);
+            }
+            
+            // Track best match (considering both similarity and position boost)
+            if (!bestMatch || boostedSimilarity > bestMatch.similarity) {
+              bestMatch = {
+                lineIndex: lineIdx,
+                similarity: boostedSimilarity,
+                classificationLine
+              };
+            }
+          }
+          
+          // Only create mapping if best match has reasonable similarity
+          // Require minimum 0.45 similarity to ensure content validation
+          // This prevents question text blocks and wrong matches from being mapped
+          // Position boost helps borderline cases (0.40-0.45) by boosting them above 0.45
+          if (bestMatch && bestMatch.similarity >= 0.45) {
+            resolvedBlockToClassificationMap.set(blockId, {
+              classificationLine: bestMatch.classificationLine,
+              similarity: Math.max(bestMatch.similarity, 0.50), // Boost to at least 0.50 for matches
+              questionNumber: qInfo.questionNumber,
+              subQuestionPart: undefined
+            });
+            usedLines.add(bestMatch.lineIndex); // Mark this line as used
+            
+            // Debug: Log successful best-match for Q18 and Q20
+            if (pageIndex === 3 || pageIndex === 7) {
+              console.log(`[DEBUG] Best-match: block "${blockText.substring(0, 40)}..." → line[${bestMatch.lineIndex}] "${bestMatch.classificationLine.substring(0, 40)}..." (sim=${bestMatch.similarity.toFixed(3)})`);
+            }
+          } else if (pageIndex === 3 || pageIndex === 7) {
+            // Debug: Log failed best-match for Q18 and Q20
+            console.log(`[DEBUG] Best-match failed: block "${blockText.substring(0, 40)}..." (best sim=${bestMatch?.similarity.toFixed(3) ?? 'N/A'} < 0.35)`);
+          }
         }
       }
     }
@@ -1637,18 +1972,33 @@ export function segmentOcrResultsByQuestion(
               const nearestBoundary = boundariesAboveBlock[0];
               const boundaryStartY = nearestBoundary.startY;
               
-              // Check: block Y > boundary.startY means block is below question text start
-              // RELAXED: Use startY instead of endY to allow blocks slightly above endY
-              // So block Y > boundaryStartY, which means block is below the boundary start (correct for student work)
+              // Check if multiple boundaries have the same Y position (ambiguous assignment)
+              // If so, use student work matching instead of Y-position
+              const boundariesWithSameY = boundariesAboveBlock.filter(b => b.startY === boundaryStartY);
               
-              // Find which scheme this boundary belongs to
-              const questionInfo = questionsOnPage.find(q => q.questionNumber === nearestBoundary.questionNumber);
-              
-              if (questionInfo && questionInfo.schemeKey === schemeKey) {
-                // Block is below this scheme's question boundary start → assign to scheme
-                // STEP 4 already filtered question text, so we trust these blocks are student work
-                blocksToAssign.push(block);
-                assignedBlocksInPage.add(blockId);
+              if (boundariesWithSameY.length > 1 && hasMultipleDifferentSchemes) {
+                // Multiple boundaries at same Y position → use student work matching for disambiguation
+                const matchResult = matchBlockToQuestion(block, questionsOnPage, classificationResult);
+                if (matchResult && matchResult.schemeKey === schemeKey) {
+                  // Block matches this scheme's student work → assign to scheme
+                  blocksToAssign.push(block);
+                  assignedBlocksInPage.add(blockId);
+                }
+              } else {
+                // Single boundary or no ambiguity → use Y-position assignment
+                // Check: block Y > boundary.startY means block is below question text start
+                // RELAXED: Use startY instead of endY to allow blocks slightly above endY
+                // So block Y > boundaryStartY, which means block is below the boundary start (correct for student work)
+                
+                // Find which scheme this boundary belongs to
+                const questionInfo = questionsOnPage.find(q => q.questionNumber === nearestBoundary.questionNumber);
+                
+                if (questionInfo && questionInfo.schemeKey === schemeKey) {
+                  // Block is below this scheme's question boundary start → assign to scheme
+                  // STEP 4 already filtered question text, so we trust these blocks are student work
+                  blocksToAssign.push(block);
+                  assignedBlocksInPage.add(blockId);
+                }
               }
             }
           }
@@ -1936,7 +2286,7 @@ export function segmentOcrResultsByQuestion(
     }> = [];
     
     // Extract base question number from scheme key (e.g., "11" from "11" or "12_Pearson Edexcel_1MA1/1H")
-    const baseQuestionNumberFromSchemeKey = schemeKey.split('_')[0].replace(/^Q?(\d+).*/, '$1');
+    const baseQuestionNumberFromSchemeKey = String(schemeKey).split('_')[0].replace(/^Q?(\d+).*/, '$1');
     // Simplify question identifier (e.g., "10_Pearson Edexcel_1MA1/1H" → "10")
     const questionId = baseQuestionNumberFromSchemeKey;
     
