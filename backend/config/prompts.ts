@@ -797,13 +797,19 @@ export const AI_PROMPTS = {
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
        3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
-       4.  **Drawing/Diagram Tolerance:** For student work marked with [DRAWING] (coordinate grid transformations, histograms, graphs, geometric diagrams):
-          - CRITICAL: Be lenient when evaluating drawings - coordinate extraction may have minor inaccuracies
-          - If coordinates are approximately correct (within 1-2 grid units), award marks
-          - For transformations: if the shape is correctly transformed (rotation, translation, reflection) even if coordinates are slightly off, award marks
-          - For histograms/graphs: if the general shape, trend, or key features are correct, award marks even if exact values differ slightly
-          - Focus on whether the student understood and applied the transformation/concept correctly, not perfect coordinate precision
-          - Only penalize if the drawing is clearly wrong (wrong quadrant, wrong transformation type, completely incorrect shape)
+       4.  **Drawing/Diagram Tolerance - CRITICAL LENIENCY RULES:** For student work marked with [DRAWING] (coordinate grid transformations, histograms, graphs, geometric diagrams):
+          - **CRITICAL: Classification-extracted coordinates are approximations** - The classification service extracts coordinates from images, which may have minor inaccuracies. DO NOT penalize students for classification extraction differences.
+          - **CRITICAL: Focus on concept understanding, not exact coordinate matching** - If the student's work demonstrates understanding of the mathematical concept (transformation, graph interpretation, data representation), award marks even if extracted coordinates don't match exactly.
+          - **Coordinate Grid Transformations:**
+            * If the shape is correctly transformed (rotation, translation, reflection) conceptually, award marks even if coordinates differ by 1-2 units
+            * If coordinates are approximately correct (within 2 grid units of expected), award marks
+            * Only penalize if the transformation type is wrong (e.g., rotation instead of translation) or the shape is in completely wrong quadrant
+          - **Histograms/Graphs:**
+            * If the general shape, trend, or key features are correct, award marks even if exact values differ slightly
+            * Be flexible about frequency vs frequency density - if the student understood the concept and drew appropriate bars, award marks
+            * The classification service may describe histograms differently (frequency vs frequency density) - this is a description difference, not a student error
+            * Only penalize if the histogram/graph is fundamentally wrong (wrong data, wrong scale, completely incorrect shape)
+          - **General Principle:** Award marks if the student's work demonstrates correct mathematical understanding, even if the classification-extracted description doesn't match the expected format exactly. The classification service format is an approximation of what the student drew, not the student's actual work.
        5.  **Matching:** The "textMatch" and "step_id" in your annotation MUST match the "cleanedText" and step ID from the "OCR TEXT".
           - The OCR TEXT uses step IDs like "[step_1]", "[step_2]", etc.
           - Your annotation's "step_id" should match these exactly (e.g., "step_1", "step_2")
@@ -1038,6 +1044,152 @@ ${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i
     IMPORTANT: Use the actual text content from the OCR blocks above. Do not generate examples.
 
     Return only the JSON object with classified segments.`
+  },
+
+  // ============================================================================
+  // DRAWING CLASSIFICATION SERVICE PROMPTS
+  // ============================================================================
+  
+  drawingClassification: {
+    system: `You are an expert AI assistant specialized in analyzing student drawings on mathematics exam papers with EXTREME PRECISION.
+
+    🎯 **Primary Goal**
+    Extract ONLY student-drawn elements (drawings, diagrams, graphs, histograms) with HIGH ACCURACY.
+    IGNORE all printed question diagrams, coordinate grids, axes, or any elements that are part of the question itself.
+
+    📝 **Critical Rules:**
+
+    1. **ONLY Extract Student Work:**
+       - Extract ONLY drawings that the student has drawn/written
+       - IGNORE printed coordinate grids, axes, labels, or question diagrams
+       - IGNORE any printed elements that are part of the question
+       - If the student drew on a printed grid, extract ONLY what the student added
+
+    2. **High Accuracy Requirements:**
+       - **Position**: Extract position as percentage (x%, y%) with precision to 1 decimal place
+       - **Coordinates**: For coordinate grids, extract EXACT coordinates (e.g., (-3, -1), (4, 0))
+       - **Frequencies**: For histograms, extract EXACT frequency values and frequency density
+       - **Measurements**: Be precise with all numerical values
+
+    3. **Drawing Type Matching:**
+       - The question text will specify what type of drawing is expected
+       - You MUST match the EXACT terminology from the question:
+         * If question says "histogram" → classify as "Histogram" (NOT "Bar chart")
+         * If question says "bar chart" → classify as "Bar chart" (NOT "Histogram")
+         * If question says "graph" → classify as "Graph"
+         * If question says "coordinate grid" or "plot on grid" → classify as "Coordinate grid"
+         * If question says "diagram" → classify as "Diagram"
+       - The drawing type MUST match what the question asks for
+
+    4. **Output Format - CRITICAL: Separate Entry for Each Drawing Element:**
+      - Return ONE entry in the "drawings" array for EACH separate drawing element
+      - DO NOT group multiple drawings into a single entry
+      - Each triangle, mark, point, shape, or diagram must have its own entry with its own position
+      - Return a JSON object with this exact structure:
+      {
+        "drawings": [
+          {
+            "questionNumber": "11",
+            "subQuestionPart": null,
+            "drawingType": "Coordinate grid",
+            "description": "Triangle B drawn at vertices (3, -2), (4, -2), (4, 0)",
+            "position": {
+              "x": 60.0,
+              "y": 45.0
+            },
+            "coordinates": [
+              {"x": 3, "y": -2},
+              {"x": 4, "y": -2},
+              {"x": 4, "y": 0}
+            ],
+            "confidence": 0.95
+          },
+          {
+            "questionNumber": "11",
+            "subQuestionPart": null,
+            "drawingType": "Coordinate grid",
+            "description": "Triangle C drawn at vertices (-3, -1), (-3, 1), (-1, 1)",
+            "position": {
+              "x": 40.0,
+              "y": 40.0
+            },
+            "coordinates": [
+              {"x": -3, "y": -1},
+              {"x": -3, "y": 1},
+              {"x": -1, "y": 1}
+            ],
+            "confidence": 0.95
+          },
+          {
+            "questionNumber": "11",
+            "subQuestionPart": null,
+            "drawingType": "Coordinate grid",
+            "description": "Center of rotation marked at (1, 2)",
+            "position": {
+              "x": 53.0,
+              "y": 34.0
+            },
+            "coordinates": [
+              {"x": 1, "y": 2}
+            ],
+            "confidence": 0.95
+          }
+        ]
+      }
+
+    5. **For Histograms:**
+      - Return ONE entry for the histogram (histograms are typically single drawings)
+      {
+        "drawingType": "Histogram",
+        "description": "Histogram with 5 bars",
+        "position": {"x": 50.0, "y": 55.0},
+        "frequencies": [
+          {"range": "0-10", "frequency": 20, "frequencyDensity": 2.0},
+          {"range": "10-30", "frequency": 70, "frequencyDensity": 3.5},
+          {"range": "30-35", "frequency": 22, "frequencyDensity": 4.4},
+          {"range": "35-50", "frequency": 30, "frequencyDensity": 2.0},
+          {"range": "50-60", "frequency": 8, "frequencyDensity": 0.8}
+        ],
+        "confidence": 0.95
+      }
+
+    6. **For Coordinate Grids - CRITICAL: Separate Each Element:**
+      - Extract ALL drawn elements: shapes, points, lines, marks
+      - **EACH element must be a SEPARATE entry** in the drawings array
+      - For transformations: extract EACH transformed shape as a separate entry
+      - Each triangle, point, mark, or shape gets its own entry with its own position
+      - Position should be the center of THAT SPECIFIC drawing element (not the entire grid)
+      - Example: If student drew Triangle B, Triangle C, and marked point (1,2), return 3 separate entries:
+        * Entry 1: Triangle B with its own position
+        * Entry 2: Triangle C with its own position  
+        * Entry 3: Marked point with its own position
+
+    7. **Accuracy Standards:**
+       - Coordinates: Within 0.5 units of actual values
+       - Position: Within 2% of actual position
+       - Frequencies: Exact match to visible values
+       - Drawing type: Must match question terminology exactly
+
+    **CRITICAL:** If no student drawings are found, return {"drawings": []}. Do NOT extract question diagrams.`,
+
+    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null) => {
+      const qNumText = questionNumber ? `Question ${questionNumber}` : 'the question';
+      const subQText = subQuestionPart ? `, sub-question part ${subQuestionPart}` : '';
+      return `Analyze this image and extract ONLY student-drawn elements for ${qNumText}${subQText}.
+
+Question Text: "${questionText}"
+
+IMPORTANT:
+- Extract ONLY what the student has drawn (shapes, graphs, histograms, diagrams)
+- IGNORE all printed elements (grids, axes, question diagrams)
+- Match the drawing type to the question terminology exactly
+- Extract coordinates, frequencies, and positions with HIGH ACCURACY
+- Position should be in percentage (0-100) with 1 decimal precision
+- **CRITICAL: Return ONE entry per drawing element** - do NOT group multiple drawings together
+- Each triangle, mark, point, or shape must have its own entry with its own individual position
+
+Return the JSON object with all student drawings found. Each drawing element should be a separate entry in the "drawings" array.`;
+    }
   }
 };
 
@@ -1057,11 +1209,19 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       return schemeJson; // Return original if not in expected format
     }
     
+    // Get question-level answer if available (for letter-based answers like "H", "F", "J")
+    const questionLevelAnswer = scheme.questionLevelAnswer;
+    
     // Convert each mark to a clean Markdown bullet point
     const bullets = scheme.marks.map((mark: any) => {
       const markCode = mark.mark || 'M1';
-      const answer = mark.answer || '';
+      let answer = mark.answer || '';
       const comments = mark.comments || '';
+      
+      // If mark answer is "cao" (correct answer only) and we have a question-level answer, use that instead
+      if (answer.toLowerCase() === 'cao' && questionLevelAnswer) {
+        answer = questionLevelAnswer;
+      }
       
       // Combine answer and comments
       const fullText = comments ? `${answer} ${comments}` : answer;

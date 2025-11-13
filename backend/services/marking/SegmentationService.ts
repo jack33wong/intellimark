@@ -2151,16 +2151,22 @@ export function segmentOcrResultsByQuestion(
       }
     }
     
+    // Count synthetic drawing blocks separately
+    const drawingEntries = task.classificationStudentWork && task.classificationStudentWork.includes('[DRAWING]')
+      ? task.classificationStudentWork.split(/\n|\\n/).filter(e => e.trim().includes('[DRAWING]')).length
+      : 0;
+    const totalBlocks = task.mathBlocks.length + drawingEntries;
+    
     // Add blocks header
     if (tableRows.length > 0 && blockRowIndex < tableRows.length) {
-      tableRows[blockRowIndex].blocks = `Blocks (${task.mathBlocks.length}):`;
+      tableRows[blockRowIndex].blocks = `Blocks (${task.mathBlocks.length} OCR + ${drawingEntries} synthetic):`;
       blockRowIndex++;
     } else {
-      tableRows.push({ classification: '', blocks: `Blocks (${task.mathBlocks.length}):` });
+      tableRows.push({ classification: '', blocks: `Blocks (${task.mathBlocks.length} OCR + ${drawingEntries} synthetic):` });
       blockRowIndex = tableRows.length;
     }
     
-    // Add blocks, ensuring we don't overwrite existing blocks entries
+    // Add OCR blocks only (not synthetic drawing blocks)
     // Skip rows that already have blocks (from multi-line classification entries)
     task.mathBlocks.forEach((block, idx) => {
       const blockText = (block.mathpixLatex || block.googleVisionText || '').trim();
@@ -2181,10 +2187,10 @@ export function segmentOcrResultsByQuestion(
       }
     });
     
-    // Add synthetic drawing blocks if any
-    if (task.classificationStudentWork && task.classificationStudentWork.includes('[DRAWING]')) {
-      const drawingEntries = task.classificationStudentWork.split(/\n|\\n/).filter(e => e.trim().includes('[DRAWING]'));
-      drawingEntries.forEach((drawing, idx) => {
+    // Add synthetic drawing blocks separately (clearly marked as synthetic, not OCR)
+    if (drawingEntries > 0) {
+      const drawingEntriesList = task.classificationStudentWork!.split(/\n|\\n/).filter(e => e.trim().includes('[DRAWING]'));
+      drawingEntriesList.forEach((drawing, idx) => {
         // Format drawing (truncate to 20 words, wrap to fit column)
         const formatted = formatDrawingText(drawing.trim(), 45);
         const drawingLines = formatted.split('\n');

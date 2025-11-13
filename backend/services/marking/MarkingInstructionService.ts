@@ -7,6 +7,7 @@ interface NormalizedMarkingScheme {
   marks: any[];           // The marking scheme array
   totalMarks: number;     // Total marks for the question
   questionNumber: string; // Question identifier
+  questionLevelAnswer?: string; // Question-level answer (e.g., "H", "F", "J" for letter-based answers)
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -20,10 +21,14 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     try {
       const parsed = JSON.parse(input.markingScheme);
       
+      // Extract question-level answer if it exists
+      const questionLevelAnswer = input.answer || input.match?.answer || parsed.answer || undefined;
+      
       const normalized = {
         marks: parsed.marks || [],
         totalMarks: input.match?.marks || 0,
-        questionNumber: input.match?.questionNumber || '1'
+        questionNumber: input.match?.questionNumber || '1',
+        questionLevelAnswer: questionLevelAnswer
       };
       
       return normalized;
@@ -38,22 +43,30 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     // Extract marks array from questionMarks.marks
     const marksArray = input.questionMarks.marks || [];
     
+    // Extract question-level answer if it exists (for letter-based answers like "H", "F", "J")
+    const questionLevelAnswer = input.answer || input.questionMarks.answer || undefined;
+    
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
-      questionNumber: input.questionNumber || '1'
+      questionNumber: input.questionNumber || '1',
+      questionLevelAnswer: questionLevelAnswer
     };
     
     
     return normalized;
   }
   
-  // ========================= UNIFIED PIPELINE FORMAT =========================
-  if (input.questionMarks && input.totalMarks !== undefined) {
+  // ========================= UNIFIED PIPELINE FORMAT (duplicate check) =========================
+  if (input.questionMarks && input.totalMarks !== undefined && !Array.isArray(input.questionMarks)) {
+    // This is a duplicate path - already handled above, but keep for safety
+    const questionLevelAnswer = input.answer || input.questionMarks.answer || undefined;
+    
     const normalized = {
-      marks: Array.isArray(input.questionMarks) ? input.questionMarks : [],
+      marks: [],
       totalMarks: input.totalMarks,
-      questionNumber: input.questionNumber || '1'
+      questionNumber: input.questionNumber || '1',
+      questionLevelAnswer: questionLevelAnswer
     };
     return normalized;
   }
@@ -68,10 +81,14 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       marksArray = input.match.markingScheme.questionMarks;
     }
     
+    // Extract question-level answer if it exists
+    const questionLevelAnswer = input.answer || input.match.answer || input.match.markingScheme.answer || undefined;
+    
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.match.marks || 0,
-      questionNumber: input.match.questionNumber || '1'
+      questionNumber: input.match.questionNumber || '1',
+      questionLevelAnswer: questionLevelAnswer
     };
     
     return normalized;
@@ -258,7 +275,12 @@ export class MarkingInstructionService {
       let schemeJson = '';
       try {
         // Convert normalized scheme to JSON format for the prompt
-        schemeJson = JSON.stringify({ marks: normalizedScheme.marks }, null, 2);
+        // Include question-level answer if available
+        const schemeData: any = { marks: normalizedScheme.marks };
+        if (normalizedScheme.questionLevelAnswer) {
+          schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+        }
+        schemeJson = JSON.stringify(schemeData, null, 2);
       } catch (error) {
         schemeJson = '{}';
       }

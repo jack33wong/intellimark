@@ -125,12 +125,42 @@ export async function executeMarkingForQuestion(
           const pageWidth = pageDims?.width || 2000; // Default fallback
           const pageHeight = pageDims?.height || 3000; // Default fallback
           
-          // Drawing dimensions (generic default - works for triangles, histograms, diagrams, etc.)
-          // For coordinate grids: typically 300x300 for triangles
-          // For histograms: might be wider (400-500px), but 300x300 is a reasonable default
-          // For geometric diagrams: similar to coordinate grids
-          const drawingWidth = 300;
-          const drawingHeight = 300;
+          // Debug: Log input parameters
+          console.log(`[MARKING EXECUTOR] estimateBboxForDrawing called: position="${position}", pageIndex=${pageIndex}, pageDims=${pageDims ? `${pageDims.width}x${pageDims.height}` : 'none'}`);
+          
+          // Determine drawing dimensions based on type
+          // ALL positions from enhanced classification represent CENTER (consistent with histograms)
+          let drawingWidth = 300;
+          let drawingHeight = 300;
+          
+          // For single point marks (center of rotation, marked points): use small dimensions
+          // These are just marks on the grid, not full shapes
+          if (drawingText.includes('marked at') || drawingText.includes('Center of rotation') || 
+              drawingText.includes('Mark') || (drawingText.includes('at (') && !drawingText.includes('vertices'))) {
+            // Single point mark - use small bounding box (50x50 to 100x100)
+            // Position represents the center of the mark
+            drawingWidth = 80;
+            drawingHeight = 80;
+          } else if (drawingText.includes('Coordinate grid') || (drawingText.includes('triangle') && drawingText.includes('vertices'))) {
+            // For triangles on coordinate grids: use medium dimensions
+            // The position represents the center of the triangle, not the entire grid
+            // Triangles are typically 100-200px in size on the grid
+            const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
+            if (coordsMatch) {
+              // Coordinate grids with explicit coordinates - use medium size for triangle
+              // Position is center of triangle, so use triangle size (not full grid size)
+              drawingWidth = 200;
+              drawingHeight = 200;
+            } else {
+              // Default for coordinate grids without explicit coordinates
+              drawingWidth = 180;
+              drawingHeight = 180;
+            }
+          } else if (drawingText.includes('Histogram')) {
+            // Histograms: position represents center (current behavior works correctly)
+            drawingWidth = 400;
+            drawingHeight = 300;
+          }
           
           // STEP 1: Try order-based interpolation using preserved MathPix reading order
           // Match classification student work entries to OCR blocks by order
@@ -182,10 +212,11 @@ export async function executeMarkingForQuestion(
                   const yPercent = parseFloat(percentMatch[2]);
                   if (!isNaN(xPercent) && !isNaN(yPercent) && xPercent >= 0 && xPercent <= 100 && yPercent >= 0 && yPercent <= 100) {
                     // Use percentage directly (no blending with interpolation)
-                    // xPercent and yPercent represent the CENTER position of the drawing (per updated prompt specification)
+                    // ALL positions from enhanced classification represent CENTER (consistent for all drawing types)
                     // Subtract half width/height to get the left/top edge position for bbox
                     const pixelXFromPercent = (pageWidth * xPercent / 100) - drawingWidth / 2;
                     const pixelYFromPercent = (pageHeight * yPercent / 100) - drawingHeight / 2;
+                    
                     const finalX = Math.max(0, Math.min(pageWidth - drawingWidth, pixelXFromPercent));
                     const finalY = Math.max(0, Math.min(pageHeight - drawingHeight, pixelYFromPercent));
                     
@@ -234,14 +265,26 @@ export async function executeMarkingForQuestion(
               console.warn(`[MARKING EXECUTOR] Invalid percentage values in position "${position}": x=${xPercent}%, y=${yPercent}%`);
             } else {
               // Convert percentages to pixel coordinates
-              // x and y percentages represent the CENTER position of the drawing (per updated prompt specification)
+              // ALL positions from enhanced classification represent CENTER (consistent for all drawing types)
               // Subtract half width/height to get the left/top edge position for bbox
-              const pixelX = Math.max(0, Math.min(pageWidth - drawingWidth, (pageWidth * xPercent / 100) - drawingWidth / 2));
-              const pixelY = Math.max(0, Math.min(pageHeight - drawingHeight, (pageHeight * yPercent / 100) - drawingHeight / 2));
+              const centerX = pageWidth * xPercent / 100;
+              const centerY = pageHeight * yPercent / 100;
+              const pixelX = centerX - drawingWidth / 2;
+              const pixelY = centerY - drawingHeight / 2;
               
-              console.log(`[MARKING EXECUTOR] Parsed percentage position: "${position}" → x=${xPercent}%, y=${yPercent}% → pixels: [${pixelX}, ${pixelY}]`);
+              const finalX = Math.max(0, Math.min(pageWidth - drawingWidth, pixelX));
+              const finalY = Math.max(0, Math.min(pageHeight - drawingHeight, pixelY));
               
-              return [pixelX, pixelY, drawingWidth, drawingHeight];
+              // Extract coordinates if available for validation
+              const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
+              const coordsInfo = coordsMatch ? coordsMatch[1] : 'none';
+              
+              console.log(`[MARKING EXECUTOR] Drawing position calculation: "${drawingText.substring(0, 60)}..."`);
+              console.log(`[MARKING EXECUTOR]   Page dimensions: ${pageWidth}x${pageHeight}, Drawing size: ${drawingWidth}x${drawingHeight}`);
+              console.log(`[MARKING EXECUTOR]   AI Position: x=${xPercent}%, y=${yPercent}% → center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)}) → bbox: [${finalX.toFixed(1)}, ${finalY.toFixed(1)}]`);
+              console.log(`[MARKING EXECUTOR]   Coordinates: ${coordsInfo}`);
+              
+              return [finalX, finalY, drawingWidth, drawingHeight];
             }
           }
           

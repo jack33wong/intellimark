@@ -579,6 +579,12 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // The AI sometimes returns sequences like \\\\pi (4 backslashes) or \\\pi (3 backslashes)
       // In JSON source: \\ = single backslash in string, \\\\ = two backslashes in string
       // We need: single backslash for LaTeX = \\ in JSON source
+      
+      // Pre-processing: Fix triple backslashes specifically (common edge case)
+      // Pattern: \\\command → \\command (3 backslashes → 2 backslashes)
+      // This must run before JSON parsing to prevent "Bad escaped character" errors
+      sanitized = sanitized.replace(/(\\\\)\\([a-zA-Z{])/g, '\\\\$2');
+      
       // Strategy: Iteratively reduce all excessive backslash sequences to exactly \\
       // Do this in a loop to handle all cases (4→2, 3→2, 6→4→2, 5→3→2, etc.)
       let previousLength = 0;

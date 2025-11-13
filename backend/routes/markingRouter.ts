@@ -535,6 +535,8 @@ const upload = multer({
   }
 });
 
+
+
 const router = express.Router();
 
 // Helper function to convert multi-image stages to original progress format
@@ -1174,6 +1176,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     logClassificationComplete();
 
+    // ========================= DRAWING CLASSIFICATION (OPTION 1: POST-PROCESSING) =========================
+    // For pages with [DRAWING] entries, run specialized high-accuracy drawing classification
+    const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
+    
+    await DrawingEnhancementService.enhanceDrawingsInClassification(
+      allClassificationResults,
+      standardizedPages,
+      actualModel as ModelType,
+      classificationResult
+    );
+
     // ========================= MARK METADATA PAGES =========================
     // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
     // but still appear in final output
@@ -1762,11 +1775,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(5, 'Segmenting work by question...', MULTI_IMAGE_STEPS));
     const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
+    // Create page dimensions map from standardizedPages for accurate drawing position calculation
+    const pageDimensionsMap = new Map<number, { width: number; height: number }>();
+    standardizedPages.forEach((page, index) => {
+      if (page.width && page.height) {
+        pageDimensionsMap.set(index, { width: page.width, height: page.height });
+      }
+    });
+
     // Call the segmentation function
     markingTasks = segmentOcrResultsByQuestion(
       allPagesOcrData,
       classificationResult,
-      markingSchemesMap
+      markingSchemesMap,
+      pageDimensionsMap // Pass page dimensions for accurate bbox estimation
     );
 
     // Handle case where no student work is found
