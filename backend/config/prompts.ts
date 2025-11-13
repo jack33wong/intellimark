@@ -1087,9 +1087,21 @@ ${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i
 
     **CRITICAL:** If no student drawings are found, return {"drawings": []}. Do NOT extract question diagrams.`,
 
-    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null, markingScheme?: any | null) => {
+    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null, markingScheme?: any | null, subQuestions?: Array<{ part: string; text: string }> | null) => {
       const qNumText = questionNumber ? `Question ${questionNumber}` : 'the question';
-      const subQText = subQuestionPart ? `, sub-question part ${subQuestionPart}` : '';
+      
+      // Handle multiple sub-questions (grouped processing)
+      let subQText = '';
+      let questionTextsToAnalyze = questionText;
+      
+      if (subQuestions && subQuestions.length > 0) {
+        // Multiple sub-questions - analyze all together
+        subQText = `, sub-question parts ${subQuestions.map(sq => sq.part).join(', ')}`;
+        questionTextsToAnalyze = subQuestions.map(sq => `Part ${sq.part}: ${sq.text}`).join('\n\n');
+      } else if (subQuestionPart) {
+        // Single sub-question (backward compatibility)
+        subQText = `, sub-question part ${subQuestionPart}`;
+      }
       
       // Build marking scheme hints if available
       let markingSchemeHints = '';
@@ -1129,9 +1141,13 @@ ${marks.map((m: any, idx: number) => `- ${m.mark || `M${idx + 1}`}: ${m.answer |
   * Describe the drawing objectively - let the marking AI evaluate correctness based on the marking scheme`;
       }
       
+      const groupedProcessingNote = subQuestions && subQuestions.length > 0 
+        ? `\n\n**CRITICAL FOR GROUPED PROCESSING**: You are analyzing multiple sub-questions (${subQuestions.map(sq => sq.part).join(', ')}) together. For each drawing you extract, you MUST include the "subQuestionPart" field to indicate which sub-question it belongs to (e.g., "a", "b", "i", "ii"). If a drawing belongs to the main question (not a sub-question), set "subQuestionPart" to null.`
+        : '';
+
       return `Analyze this image and extract ONLY student-drawn elements for ${qNumText}${subQText}.
 
-Question Text: "${questionText}"${markingSchemeHints}
+Question Text: "${questionTextsToAnalyze}"${markingSchemeHints}${groupedProcessingNote}
 
 IMPORTANT:
 - Extract ONLY what the student has drawn (shapes, graphs, histograms, diagrams)
@@ -1141,6 +1157,7 @@ IMPORTANT:
 - Position should be in percentage (0-100) with 1 decimal precision
 - **CRITICAL: Return ONE entry per drawing element** - do NOT group multiple drawings together
 - Each triangle, mark, point, or shape must have its own entry with its own individual position
+${subQuestions && subQuestions.length > 0 ? '- **FOR GROUPED SUB-QUESTIONS**: Include "subQuestionPart" field in each drawing entry to indicate which sub-question it belongs to' : ''}
 ${markingSchemeHints ? '- **PRIORITIZE**: Extract ONLY elements that contribute to marks according to the marking scheme - Skip decorative elements, individual axis labels, or details not required for marks' : ''}
 
 Return the JSON object with all student drawings found. Each drawing element should be a separate entry in the "drawings" array.`;

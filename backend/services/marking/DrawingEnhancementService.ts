@@ -93,27 +93,79 @@ export class DrawingEnhancementService {
             }
           }
 
-          // Only enhance if normal classification already found [DRAWING] entries
-          // Don't try to detect drawings from question text - trust the classification
+          // Check if we have drawings in main question or sub-questions
           const hasDrawingsInStudentWork = q.studentWork && q.studentWork.includes('[DRAWING]');
-          
-          if (hasDrawingsInStudentWork) {
+          const subQuestionsWithDrawings = q.subQuestions?.filter(sq => sq.studentWork && sq.studentWork.includes('[DRAWING]')) || [];
+          const hasAnyDrawings = hasDrawingsInStudentWork || subQuestionsWithDrawings.length > 0;
+
+          if (hasAnyDrawings) {
             try {
+              // GROUPED PROCESSING: Make one API call per question (handles main + all sub-questions together)
+              // Collect all sub-questions that have drawings
+              const subQuestionsToProcess = subQuestionsWithDrawings.map(sq => ({
+                part: sq.part,
+                text: sq.text || ''
+              }));
+
+              // Use main question text, or combine with sub-question texts if no main question text
+              const combinedQuestionText = q.text || subQuestionsToProcess.map(sq => `Part ${sq.part}: ${sq.text}`).join('\n\n');
+
+              // Make ONE API call for the entire question (main + all sub-questions)
               const drawingResult = await DrawingClassificationService.classifyDrawings(
                 imageData,
-                q.text || '',
+                combinedQuestionText,
                 q.questionNumber || null,
-                null,
+                null, // No single sub-question part when processing grouped
                 model,
-                markingScheme // Pass marking scheme for hints
+                markingScheme, // Pass marking scheme for hints
+                subQuestionsToProcess.length > 0 ? subQuestionsToProcess : null // Pass sub-questions for grouped processing
               );
 
               if (drawingResult.drawings && drawingResult.drawings.length > 0) {
-                // Replace [DRAWING] entries with enhanced versions
-                enhancedStudentWork = this.mergeDrawingResults(q.studentWork || '', drawingResult.drawings);
+                // Map drawings back to main question or sub-questions based on questionNumber/subQuestionPart
+                const drawingsBySubQuestion = new Map<string, typeof drawingResult.drawings>();
+                const mainQuestionDrawings: typeof drawingResult.drawings = [];
+
+                drawingResult.drawings.forEach((drawing) => {
+                  if (drawing.subQuestionPart) {
+                    // Drawing belongs to a specific sub-question
+                    const part = drawing.subQuestionPart;
+                    if (!drawingsBySubQuestion.has(part)) {
+                      drawingsBySubQuestion.set(part, []);
+                    }
+                    drawingsBySubQuestion.get(part)!.push(drawing);
+                  } else {
+                    // Drawing belongs to main question
+                    mainQuestionDrawings.push(drawing);
+                  }
+                });
+
+                // Update main question student work if it has drawings
+                if (hasDrawingsInStudentWork && mainQuestionDrawings.length > 0) {
+                  enhancedStudentWork = this.mergeDrawingResults(q.studentWork || '', mainQuestionDrawings);
+                }
+
+                // Update sub-question student work
+                if (q.subQuestions && q.subQuestions.length > 0) {
+                  enhancedSubQuestions = q.subQuestions.map((sq) => {
+                    if (sq.studentWork && sq.studentWork.includes('[DRAWING]')) {
+                      const subQDrawings = drawingsBySubQuestion.get(sq.part) || [];
+                      if (subQDrawings.length > 0) {
+                        const enhanced = this.mergeDrawingResults(sq.studentWork || '', subQDrawings);
+                        return {
+                          ...sq,
+                          studentWork: enhanced
+                        };
+                      }
+                    }
+                    return sq;
+                  });
+                }
               } else {
                 // No enhanced drawings found - keep original
-                enhancedStudentWork = q.studentWork || '';
+                if (!hasDrawingsInStudentWork) {
+                  enhancedStudentWork = q.studentWork || '';
+                }
               }
             } catch (error) {
               console.warn(`[DRAWING CLASSIFICATION] Failed to enhance drawings for Q${q.questionNumber} on page ${pageIndex}:`, error);
@@ -123,37 +175,6 @@ export class DrawingEnhancementService {
           } else {
             // No drawings in normal classification - keep original student work
             enhancedStudentWork = q.studentWork || '';
-          }
-
-          // Enhance sub-question student work if it has drawings
-          if (q.subQuestions && q.subQuestions.length > 0) {
-            enhancedSubQuestions = await Promise.all(q.subQuestions.map(async (sq) => {
-              if (sq.studentWork && sq.studentWork.includes('[DRAWING]')) {
-                try {
-                  // Use same marking scheme for sub-questions (they share the parent scheme)
-                  const drawingResult = await DrawingClassificationService.classifyDrawings(
-                    imageData,
-                    sq.text || '',
-                    q.questionNumber || null,
-                    sq.part || null,
-                    model,
-                    markingScheme // Pass marking scheme for hints
-                  );
-
-                  if (drawingResult.drawings && drawingResult.drawings.length > 0) {
-                    const enhanced = this.mergeDrawingResults(sq.studentWork || '', drawingResult.drawings);
-                    
-                    return {
-                      ...sq,
-                      studentWork: enhanced
-                    };
-                  }
-                } catch (error) {
-                  console.warn(`[DRAWING CLASSIFICATION] Failed to enhance drawings for Q${q.questionNumber}${sq.part} on page ${pageIndex}:`, error);
-                }
-              }
-              return sq;
-            }));
           }
 
           return {

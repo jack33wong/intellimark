@@ -42,9 +42,12 @@ export class DrawingClassificationService {
    * Classify drawings on a page with high accuracy
    * Focuses ONLY on student drawings, ignores question diagrams
    * @param imageData Base64 image data
-   * @param questionText Question text to determine expected drawing type
+   * @param questionText Question text to determine expected drawing type (can be main question or combined)
    * @param questionNumber Question number for context
+   * @param subQuestionPart Single sub-question part (e.g., "a") - for backward compatibility
+   * @param subQuestions Array of sub-questions with their text and parts (for grouped processing)
    * @param model Model to use
+   * @param markingScheme Marking scheme for hints
    * @returns Drawing classification result
    */
   static async classifyDrawings(
@@ -53,7 +56,8 @@ export class DrawingClassificationService {
     questionNumber?: string | null,
     subQuestionPart?: string | null,
     model: ModelType = 'auto',
-    markingScheme?: any | null
+    markingScheme?: any | null,
+    subQuestions?: Array<{ part: string; text: string }> | null
   ): Promise<DrawingClassificationResult> {
     try {
       const validatedModel = validateModel(model);
@@ -62,7 +66,13 @@ export class DrawingClassificationService {
       
       const { AI_PROMPTS } = await import('../../config/prompts.js');
       const systemPrompt = AI_PROMPTS.drawingClassification.system;
-      const userPrompt = AI_PROMPTS.drawingClassification.user(questionText, questionNumber, subQuestionPart, markingScheme);
+      const userPrompt = AI_PROMPTS.drawingClassification.user(
+        questionText, 
+        questionNumber, 
+        subQuestionPart, 
+        markingScheme,
+        subQuestions // Pass sub-questions for grouped processing
+      );
 
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, validatedModel);
       
