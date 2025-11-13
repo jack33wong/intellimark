@@ -51,14 +51,15 @@ export const AI_PROMPTS = {
        - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
        - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
          * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
-         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]")
-       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
        - DO NOT extract only text if there are visible drawings on the coordinate grid
        
       - For text-based work: extract in LaTeX format
-      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): describe what the student drew
-      - CRITICAL: Extract student work from ANY diagram if present:
-        * CRITICAL: Before extracting any drawing, you MUST:
+      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): indicate with [DRAWING] prefix
+      - **SIMPLIFIED DRAWING EXTRACTION (INDICATOR ONLY):**
+        * **PURPOSE**: You only need to INDICATE that a drawing exists. A specialized drawing classification service will extract detailed coordinates, frequencies, and positions later.
+        * **CRITICAL**: Before extracting any drawing, you MUST:
           1. Read the question text to determine what type of drawing/chart/graph the question asks for
           2. Use the EXACT terminology from the question text when describing the student's drawing
           3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
@@ -66,10 +67,10 @@ export const AI_PROMPTS = {
           **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
           - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
           - Identify the drawing type from the question text and use that EXACT terminology
-          - Common drawing types you may encounter:
-            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..." (bars have different widths for frequency density)
-            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..." (bars have same width for frequency)
-            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] ... on coordinate grid"
+          - Common drawing types:
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..."
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..."
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid: ..."
             * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
             * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
           
@@ -79,118 +80,39 @@ export const AI_PROMPTS = {
           - If question says "bar chart" → use "Bar chart" (never "Histogram")
           - If question says "graph" → use "Graph" or "... graph"
           - The question text is the authoritative source for drawing type terminology
-        * Coordinate grid drawings: If student drew ANY elements on a coordinate grid (shapes, points, lines, curves, transformations, marks, labels):
-          - CRITICAL: Always extract coordinate grid drawings as "[DRAWING]" - never extract as plain text
-          - CRITICAL: If the question asks about transformations (translation, rotation, reflection) on a coordinate grid, and the student has drawn shapes/marks on the grid, you MUST extract them as [DRAWING] even if there is also text describing the transformation
-          - For transformation questions: Extract BOTH the text description AND the drawn elements:
-            * Text description: "Rotated 90° clockwise about the point (-4,1)"
-            * Drawn elements: "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]"
-            * Combined: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
-          - If you see shapes, points, or marks drawn on a coordinate grid, they are ALWAYS [DRAWING] entries, regardless of whether there is accompanying text
-          - CRITICAL: Read the EXACT coordinates from the coordinate grid by carefully identifying where each element intersects the grid lines
-          - CRITICAL: Look at the coordinate grid axes labels to understand the scale and origin (0,0) position
-          - CRITICAL: For each point/vertex, trace the grid lines to find where it sits - count the grid units from the origin
-          - CRITICAL: Read each coordinate by finding the intersection point: follow the horizontal grid line to find the x-coordinate, follow the vertical grid line to find the y-coordinate
-          - CRITICAL: Double-check each coordinate by visually verifying: if a point appears at grid intersection (3, -2), verify by counting: 3 units right from origin, 2 units down from origin
-          - Read coordinates as (x, y) pairs where x is the horizontal axis value and y is the vertical axis value
-          - Pay close attention to negative coordinates and zero values - negative x means left of origin, negative y means below origin
-          - For shapes (triangles, quadrilaterals, polygons): identify ALL vertices by looking at where the shape's corners intersect the grid lines
-            * For triangles: list all three vertices: "Triangle drawn at vertices (x1,y1), (x2,y2), (x3,y3)" - ensure all three are distinct
-            * For other polygons: list all key vertices in order
-          - For single points or marks: extract as "[DRAWING] Point/mark at (x,y)" or "[DRAWING] Mark 'X' at (x,y)"
-          - For lines or curves: extract key points along the line/curve
-          - For transformations: if the question describes a transformation, verify the drawn coordinates match the transformation
-          - Example shapes: "[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
-          - Example points: "[DRAWING] Point marked at (1,2) [POSITION: x=52%, y=30%]"
-          - Example multiple elements: "[DRAWING] Triangle B at vertices (3,-2), (4,-2), (4,0); Triangle C at vertices (-3,-1), (-2,-1), (-2,1); Mark 'x' at (1,2) [POSITION: x=50%, y=30%]"
-        * Graphs and charts: If student drew bars, lines, curves, or data points, describe them
-          Example: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
-        * Geometric diagrams: If student drew shapes, angles, constructions, or annotations on diagrams, describe them
-          Example: "[DRAWING] Angle bisector drawn from vertex A, intersecting side BC at point D [POSITION: x=50%, y=30%]"
-        * Annotations on existing diagrams: If student added marks, labels, or modifications to question diagrams, describe them
+        * **SIMPLIFIED EXTRACTION RULES** (detailed extraction done by specialized service):
+          - **Coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
+            * Extract as "[DRAWING] Coordinate grid: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Brief description examples: "Triangle drawn", "Multiple shapes drawn", "Points marked"
+            * You do NOT need to extract exact coordinates - the specialized service will do this
+            * Example: "[DRAWING] Coordinate grid: Triangle B and Triangle C drawn [POSITION: x=50%, y=30%]"
+          - **Histograms/Charts**: If student drew bars, lines, or data points:
+            * Extract as "[DRAWING] Histogram: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Brief description examples: "Histogram with bars drawn", "Bar chart with data plotted"
+            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
+            * Example: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
+          - **Geometric diagrams**: If student drew shapes, angles, or constructions:
+            * Extract as "[DRAWING] Diagram: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Example: "[DRAWING] Diagram: Angle bisector drawn [POSITION: x=50%, y=30%]"
+          - **Position estimation (simplified)**: Estimate the center position of the drawing:
+            * Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
+            * Identify which grid cell contains the CENTER of the drawing
+            * Use 5% or 10% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
+            * Format: [POSITION: x=XX%, y=YY%]
+            * Example: "[POSITION: x=50%, y=30%]"
+          - **Multiple drawings**: If there are multiple separate drawings, create separate [DRAWING] entries:
+            * Example: "[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle B drawn at vertices (3,-2), (4,-2), (4,0) [POSITION: x=75%, y=30%]\\n[DRAWING] Triangle C drawn at vertices (-3,-1), (-2,-1), (-2,1) [POSITION: x=25%, y=30%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=52%, y=30%]"
-      - Example histogram: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
+      - Example histogram: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
       - DO NOT extract question diagrams (they are part of the question, not student work)
         * Question diagrams are typically printed, professional, and part of the question text
         * Student work diagrams are typically hand-drawn, annotated, or modified by the student
-      - For drawings, include position as percentage-based coordinates: [POSITION: x=XX%, y=YY%]
-        **CRITICAL: Position accuracy is essential for correct annotation placement. Follow this systematic process:**
-        
-        **STEP 1: Understand what position represents**
-        - The percentages (x=XX%, y=YY%) represent the CENTER position of the drawing on the page
-        - x=XX%: horizontal position of CENTER from left edge (0% = left edge, 50% = page center, 100% = right edge)
-        - y=YY%: vertical position of CENTER from top edge (0% = top edge, 50% = page middle, 100% = bottom edge)
-        - CRITICAL: Always provide the CENTER position, never the left/top edge position
-        
-        **STEP 2: Visual measurement technique**
-        - Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
-        - Identify which grid cell contains the CENTER of the drawing
-        - Estimate the position within that cell (e.g., middle of cell = +5%, left edge = +0%, right edge = +10%)
-        - For more precision, use 5% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
-        
-        **STEP 3: Position estimation by drawing type**
-        
-        **For Coordinate Grid Drawings:**
-        - Step 3a: Identify where the coordinate grid is located on the page
-          * Look at the grid boundaries: left edge, right edge, top edge, bottom edge
-          * Estimate grid's page position (e.g., grid spans from 20% to 80% horizontally, 15% to 60% vertically)
-          * Identify where the grid origin (0,0) is located on the page
-        - Step 3b: For each element, calculate its page position from grid coordinate:
-          * If grid coordinate is (x, y) and grid origin is at (gridOriginX%, gridOriginY%):
-            - Estimate horizontal position: gridOriginX% + (x * gridScaleX%)
-            - Estimate vertical position: gridOriginY% - (y * gridScaleY%) [Note: y is inverted - positive y goes up]
-          * Example: Grid origin at (50%, 40%), point at (1, 2):
-            - x = 50% + (1 * ~3%) = ~53% (slightly right of center)
-            - y = 40% - (2 * ~3%) = ~34% (slightly above origin)
-          * Example: Grid origin at (50%, 40%), point at (-3, -1):
-            - x = 50% + (-3 * ~3%) = ~41% (left of center)
-            - y = 40% - (-1 * ~3%) = ~43% (below origin)
-        - Step 3c: For shapes (triangles, polygons), find the CENTROID:
-          * Calculate average of all vertex x-coordinates for centroid x
-          * Calculate average of all vertex y-coordinates for centroid y
-          * Then apply Step 3b to convert centroid grid coordinate to page position
-        
-        **For Histograms/Bar Charts:**
-        - Identify the geometric center of the entire chart
-          * Find the midpoint between leftmost and rightmost bars
-          * Find the midpoint between top and bottom of the chart
-          * This is the CENTER position
-        
-        **For Geometric Diagrams:**
-        - For single points/marks: position is the exact point location
-        - For lines/curves: position is the midpoint of the line/curve
-        - For shapes: position is the centroid (geometric center) of the shape
-        - For annotations: position is where the annotation mark is placed
-        
-        **STEP 4: Double-check your estimate**
-        - Verify: Does the estimated position make sense relative to page layout?
-        - Verify: For coordinate grids, does the position match the grid coordinate's relative position?
-        - Verify: Is the position clearly in the CENTER of the drawing, not at an edge?
-        - If uncertain, err on the side of being more precise (use 5% increments, not 10%)
-        
-        **STEP 5: Format the position**
-        - Always use format: [POSITION: x=XX%, y=YY%]
-        - Use whole numbers or one decimal place (e.g., 52% or 52.5%, not 52.34%)
-        - Round to nearest 5% for better accuracy (e.g., 52% → 52.5% if you're confident, or 50% if uncertain)
-        
-        **Examples with reasoning:**
-        - Triangle at vertices (-3,-1), (-3,0), (-1,-1) on grid with origin at (50%, 40%):
-          * Centroid grid coordinate: ((-3-3-1)/3, (-1+0-1)/3) = (-2.33, -0.67)
-          * Page position: x ≈ 50% + (-2.33 * 3%) ≈ 43%, y ≈ 40% - (-0.67 * 3%) ≈ 42%
-          * Result: "[POSITION: x=43%, y=42%]"
-        - Mark 'x' at grid coordinate (1,2) on grid with origin at (50%, 40%):
-          * Page position: x ≈ 50% + (1 * 3%) ≈ 53%, y ≈ 40% - (2 * 3%) ≈ 34%
-          * Result: "[POSITION: x=53%, y=34%]"
-        - Histogram centered on page:
-          * Result: "[POSITION: x=50%, y=45%]" (slightly above page center is typical)
-        
-        **CRITICAL: Accuracy is more important than precision - better to be approximately correct than precisely wrong**
       - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
-        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle drawn [POSITION: x=25%, y=30%]"
       - If no student work, set "studentWork" to null
 
     📤 **Output Format**
@@ -308,14 +230,15 @@ export const AI_PROMPTS = {
        - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
        - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
          * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
-         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]")
-       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
        - DO NOT extract only text if there are visible drawings on the coordinate grid
        
       - For text-based work: extract in LaTeX format
-      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): describe what the student drew
-      - CRITICAL: Extract student work from ANY diagram if present:
-        * CRITICAL: Before extracting any drawing, you MUST:
+      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): indicate with [DRAWING] prefix
+      - **SIMPLIFIED DRAWING EXTRACTION (INDICATOR ONLY):**
+        * **PURPOSE**: You only need to INDICATE that a drawing exists. A specialized drawing classification service will extract detailed coordinates, frequencies, and positions later.
+        * **CRITICAL**: Before extracting any drawing, you MUST:
           1. Read the question text to determine what type of drawing/chart/graph the question asks for
           2. Use the EXACT terminology from the question text when describing the student's drawing
           3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
@@ -323,10 +246,10 @@ export const AI_PROMPTS = {
           **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
           - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
           - Identify the drawing type from the question text and use that EXACT terminology
-          - Common drawing types you may encounter:
-            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..." (bars have different widths for frequency density)
-            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..." (bars have same width for frequency)
-            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] ... on coordinate grid"
+          - Common drawing types:
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..."
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..."
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid: ..."
             * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
             * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
           
@@ -336,118 +259,39 @@ export const AI_PROMPTS = {
           - If question says "bar chart" → use "Bar chart" (never "Histogram")
           - If question says "graph" → use "Graph" or "... graph"
           - The question text is the authoritative source for drawing type terminology
-        * Coordinate grid drawings: If student drew ANY elements on a coordinate grid (shapes, points, lines, curves, transformations, marks, labels):
-          - CRITICAL: Always extract coordinate grid drawings as "[DRAWING]" - never extract as plain text
-          - CRITICAL: If the question asks about transformations (translation, rotation, reflection) on a coordinate grid, and the student has drawn shapes/marks on the grid, you MUST extract them as [DRAWING] even if there is also text describing the transformation
-          - For transformation questions: Extract BOTH the text description AND the drawn elements:
-            * Text description: "Rotated 90° clockwise about the point (-4,1)"
-            * Drawn elements: "[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]"
-            * Combined: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Triangle C drawn at vertices (-3,0), (-1,0), (-3,-2) [POSITION: x=30%, y=55%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
-          - If you see shapes, points, or marks drawn on a coordinate grid, they are ALWAYS [DRAWING] entries, regardless of whether there is accompanying text
-          - CRITICAL: Read the EXACT coordinates from the coordinate grid by carefully identifying where each element intersects the grid lines
-          - CRITICAL: Look at the coordinate grid axes labels to understand the scale and origin (0,0) position
-          - CRITICAL: For each point/vertex, trace the grid lines to find where it sits - count the grid units from the origin
-          - CRITICAL: Read each coordinate by finding the intersection point: follow the horizontal grid line to find the x-coordinate, follow the vertical grid line to find the y-coordinate
-          - CRITICAL: Double-check each coordinate by visually verifying: if a point appears at grid intersection (3, -2), verify by counting: 3 units right from origin, 2 units down from origin
-          - Read coordinates as (x, y) pairs where x is the horizontal axis value and y is the vertical axis value
-          - Pay close attention to negative coordinates and zero values - negative x means left of origin, negative y means below origin
-          - For shapes (triangles, quadrilaterals, polygons): identify ALL vertices by looking at where the shape's corners intersect the grid lines
-            * For triangles: list all three vertices: "Triangle drawn at vertices (x1,y1), (x2,y2), (x3,y3)" - ensure all three are distinct
-            * For other polygons: list all key vertices in order
-          - For single points or marks: extract as "[DRAWING] Point/mark at (x,y)" or "[DRAWING] Mark 'X' at (x,y)"
-          - For lines or curves: extract key points along the line/curve
-          - For transformations: if the question describes a transformation, verify the drawn coordinates match the transformation
-          - Example shapes: "[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
-          - Example points: "[DRAWING] Point marked at (1,2) [POSITION: x=52%, y=30%]"
-          - Example multiple elements: "[DRAWING] Triangle B at vertices (3,-2), (4,-2), (4,0); Triangle C at vertices (-3,-1), (-2,-1), (-2,1); Mark 'x' at (1,2) [POSITION: x=50%, y=30%]"
-        * Graphs and charts: If student drew bars, lines, curves, or data points, describe them
-          Example: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
-        * Geometric diagrams: If student drew shapes, angles, constructions, or annotations on diagrams, describe them
-          Example: "[DRAWING] Angle bisector drawn from vertex A, intersecting side BC at point D [POSITION: x=50%, y=30%]"
-        * Annotations on existing diagrams: If student added marks, labels, or modifications to question diagrams, describe them
+        * **SIMPLIFIED EXTRACTION RULES** (detailed extraction done by specialized service):
+          - **Coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
+            * Extract as "[DRAWING] Coordinate grid: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Brief description examples: "Triangle drawn", "Multiple shapes drawn", "Points marked"
+            * You do NOT need to extract exact coordinates - the specialized service will do this
+            * Example: "[DRAWING] Coordinate grid: Triangle B and Triangle C drawn [POSITION: x=50%, y=30%]"
+          - **Histograms/Charts**: If student drew bars, lines, or data points:
+            * Extract as "[DRAWING] Histogram: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Brief description examples: "Histogram with bars drawn", "Bar chart with data plotted"
+            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
+            * Example: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
+          - **Geometric diagrams**: If student drew shapes, angles, or constructions:
+            * Extract as "[DRAWING] Diagram: [brief description] [POSITION: x=XX%, y=YY%]"
+            * Example: "[DRAWING] Diagram: Angle bisector drawn [POSITION: x=50%, y=30%]"
+          - **Position estimation (simplified)**: Estimate the center position of the drawing:
+            * Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
+            * Identify which grid cell contains the CENTER of the drawing
+            * Use 5% or 10% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
+            * Format: [POSITION: x=XX%, y=YY%]
+            * Example: "[POSITION: x=50%, y=30%]"
+          - **Multiple drawings**: If there are multiple separate drawings, create separate [DRAWING] entries:
+            * Example: "[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle B drawn at vertices (3,-2), (4,-2), (4,0) [POSITION: x=75%, y=30%]\\n[DRAWING] Triangle C drawn at vertices (-3,-1), (-2,-1), (-2,1) [POSITION: x=25%, y=30%]\\n[DRAWING] Mark 'x' at (1,2) [POSITION: x=52%, y=30%]"
-      - Example histogram: "[DRAWING] Histogram with 5 bars: 0-10 (height 3), 10-20 (height 5), 20-30 (height 8), 30-40 (height 4), 40-50 (height 2) [POSITION: x=50%, y=30%]"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
+      - Example histogram: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
       - DO NOT extract question diagrams (they are part of the question, not student work)
         * Question diagrams are typically printed, professional, and part of the question text
         * Student work diagrams are typically hand-drawn, annotated, or modified by the student
-      - For drawings, include position as percentage-based coordinates: [POSITION: x=XX%, y=YY%]
-        **CRITICAL: Position accuracy is essential for correct annotation placement. Follow this systematic process:**
-        
-        **STEP 1: Understand what position represents**
-        - The percentages (x=XX%, y=YY%) represent the CENTER position of the drawing on the page
-        - x=XX%: horizontal position of CENTER from left edge (0% = left edge, 50% = page center, 100% = right edge)
-        - y=YY%: vertical position of CENTER from top edge (0% = top edge, 50% = page middle, 100% = bottom edge)
-        - CRITICAL: Always provide the CENTER position, never the left/top edge position
-        
-        **STEP 2: Visual measurement technique**
-        - Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
-        - Identify which grid cell contains the CENTER of the drawing
-        - Estimate the position within that cell (e.g., middle of cell = +5%, left edge = +0%, right edge = +10%)
-        - For more precision, use 5% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
-        
-        **STEP 3: Position estimation by drawing type**
-        
-        **For Coordinate Grid Drawings:**
-        - Step 3a: Identify where the coordinate grid is located on the page
-          * Look at the grid boundaries: left edge, right edge, top edge, bottom edge
-          * Estimate grid's page position (e.g., grid spans from 20% to 80% horizontally, 15% to 60% vertically)
-          * Identify where the grid origin (0,0) is located on the page
-        - Step 3b: For each element, calculate its page position from grid coordinate:
-          * If grid coordinate is (x, y) and grid origin is at (gridOriginX%, gridOriginY%):
-            - Estimate horizontal position: gridOriginX% + (x * gridScaleX%)
-            - Estimate vertical position: gridOriginY% - (y * gridScaleY%) [Note: y is inverted - positive y goes up]
-          * Example: Grid origin at (50%, 40%), point at (1, 2):
-            - x = 50% + (1 * ~3%) = ~53% (slightly right of center)
-            - y = 40% - (2 * ~3%) = ~34% (slightly above origin)
-          * Example: Grid origin at (50%, 40%), point at (-3, -1):
-            - x = 50% + (-3 * ~3%) = ~41% (left of center)
-            - y = 40% - (-1 * ~3%) = ~43% (below origin)
-        - Step 3c: For shapes (triangles, polygons), find the CENTROID:
-          * Calculate average of all vertex x-coordinates for centroid x
-          * Calculate average of all vertex y-coordinates for centroid y
-          * Then apply Step 3b to convert centroid grid coordinate to page position
-        
-        **For Histograms/Bar Charts:**
-        - Identify the geometric center of the entire chart
-          * Find the midpoint between leftmost and rightmost bars
-          * Find the midpoint between top and bottom of the chart
-          * This is the CENTER position
-        
-        **For Geometric Diagrams:**
-        - For single points/marks: position is the exact point location
-        - For lines/curves: position is the midpoint of the line/curve
-        - For shapes: position is the centroid (geometric center) of the shape
-        - For annotations: position is where the annotation mark is placed
-        
-        **STEP 4: Double-check your estimate**
-        - Verify: Does the estimated position make sense relative to page layout?
-        - Verify: For coordinate grids, does the position match the grid coordinate's relative position?
-        - Verify: Is the position clearly in the CENTER of the drawing, not at an edge?
-        - If uncertain, err on the side of being more precise (use 5% increments, not 10%)
-        
-        **STEP 5: Format the position**
-        - Always use format: [POSITION: x=XX%, y=YY%]
-        - Use whole numbers or one decimal place (e.g., 52% or 52.5%, not 52.34%)
-        - Round to nearest 5% for better accuracy (e.g., 52% → 52.5% if you're confident, or 50% if uncertain)
-        
-        **Examples with reasoning:**
-        - Triangle at vertices (-3,-1), (-3,0), (-1,-1) on grid with origin at (50%, 40%):
-          * Centroid grid coordinate: ((-3-3-1)/3, (-1+0-1)/3) = (-2.33, -0.67)
-          * Page position: x ≈ 50% + (-2.33 * 3%) ≈ 43%, y ≈ 40% - (-0.67 * 3%) ≈ 42%
-          * Result: "[POSITION: x=43%, y=42%]"
-        - Mark 'x' at grid coordinate (1,2) on grid with origin at (50%, 40%):
-          * Page position: x ≈ 50% + (1 * 3%) ≈ 53%, y ≈ 40% - (2 * 3%) ≈ 34%
-          * Result: "[POSITION: x=53%, y=34%]"
-        - Histogram centered on page:
-          * Result: "[POSITION: x=50%, y=45%]" (slightly above page center is typical)
-        
-        **CRITICAL: Accuracy is more important than precision - better to be approximately correct than precisely wrong**
       - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
-        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Triangle drawn at vertices (-3,-1), (-3,0), (-1,-1) [POSITION: x=25%, y=30%]"
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle drawn [POSITION: x=25%, y=30%]"
       - If no student work, set "studentWork" to null
 
     Output format (raw JSON only, no markdown):
