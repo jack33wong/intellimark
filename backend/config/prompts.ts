@@ -961,10 +961,10 @@ ${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i
     Return only the JSON object with classified segments.`
   },
 
-  // ============================================================================
+// ============================================================================
   // DRAWING CLASSIFICATION SERVICE PROMPTS
-  // ============================================================================
-  
+// ============================================================================
+
   drawingClassification: {
     system: `You are an expert AI assistant specialized in analyzing student drawings on mathematics exam papers with EXTREME PRECISION.
 
@@ -1162,6 +1162,83 @@ ${markingSchemeHints ? '- **PRIORITIZE**: Extract ONLY elements that contribute 
 
 Return the JSON object with all student drawings found. Each drawing element should be a separate entry in the "drawings" array.`;
     }
+  },
+
+  // ============================================================================
+  // AI SEGMENTATION SERVICE PROMPTS
+  // ============================================================================
+  
+  aiSegmentation: {
+    system: `Map OCR blocks to classification and merge best results. **DEFAULT: Classification** (better LaTeX). **ONLY use OCR when it's mathematically correct and classification is wrong.**
+
+**RULES:**
+- OCR is line-by-line: multiple blocks → one classification line (normal)
+- Map ALL classification lines (complete solution)
+- Preserve [DRAWING] entries
+- Filter question text blocks
+
+**SOURCE SELECTION (use question text to validate):**
+
+1. **Classification missing?** → Use OCR
+2. **Check math correctness vs question:**
+   - Classification wrong per question AND OCR correct → Use OCR
+   - Classification correct OR OCR wrong → Use Classification
+3. **Missing final answer?** → Use OCR if it has the value
+4. **Default:** Use Classification
+
+**OUTPUT:**
+{
+  "mappings": [
+    {"q": "18", "block": "block_123", "content": "$0.1\\dot{5} + 0.2\\dot{7}$", "src": "c", "conf": 0.95}
+  ],
+  "unmapped": [{"block": "block_789"}]
+}
+
+Fields: q=questionNumber, block=ocrBlockId, content=mergedContent, src=source (o/c/m), conf=confidence (0.0-1.0)`,
+
+    user: (ocrBlocks: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>, classificationQuestions: Array<{ questionNumber: string; questionText?: string | null; studentWork?: string | null; subQuestions?: Array<{ part: string; questionText?: string | null; studentWork?: string | null }> }>) => {
+      // Ultra-compact OCR format (minimal tokens)
+      const ocrBlocksText = ocrBlocks.map(block => {
+        return `${block.id}|${block.pageIndex}|${block.text}`;
+      }).join('\n');
+
+      // Compact classification with question text
+      const classificationText = classificationQuestions.map(q => {
+        let result = `Q${q.questionNumber}`;
+        if (q.questionText) {
+          const qText = q.questionText.length > 150 ? q.questionText.substring(0, 150) + '...' : q.questionText;
+          result += ` [Q: ${qText}]`;
+        }
+        if (q.studentWork) {
+          result += ` | ${q.studentWork.replace(/\n/g, '|').replace(/\\newline/g, '|').replace(/\\\\/g, '|')}`;
+        }
+        if (q.subQuestions) {
+          q.subQuestions.forEach(subQ => {
+            if (subQ.studentWork) {
+              const subQNum = `${q.questionNumber}${subQ.part}`;
+              const work = subQ.studentWork.replace(/\n/g, '|').replace(/\\newline/g, '|').replace(/\\\\/g, '|');
+              result += `\nQ${subQNum}`;
+              if (subQ.questionText) {
+                const subQText = subQ.questionText.length > 100 ? subQ.questionText.substring(0, 100) + '...' : subQ.questionText;
+                result += ` [Q: ${subQText}]`;
+              }
+              result += ` | ${work}`;
+            }
+          });
+        }
+        return result;
+      }).join('\n');
+
+      return `Map OCR→classification, merge best. Use question text to validate math.
+
+OCR(${ocrBlocks.length}):
+${ocrBlocksText}
+
+Classification:
+${classificationText}
+
+Rules: Map all lines, use question text to check correctness, default=classification, filter question text. JSON format.`;
+    }
   }
 };
 
@@ -1188,6 +1265,19 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
     // Some marking schemes store answers in marks array with index matching sub-question order
     const marksWithAnswers = scheme.marksWithAnswers || [];
     
+    // Track "cao" replacement statistics
+    const caoReplacements = {
+      total: 0,
+      succeeded: 0,
+      failed: 0
+    };
+    
+    // Log available answers at the start
+    const questionNumber = scheme.questionNumber || '?';
+    if (marksWithAnswers.length > 0 || questionLevelAnswer) {
+      console.log(`[CAO REPLACEMENT] Q${questionNumber}: Available answers - Sub-questions: [${marksWithAnswers.join(', ')}], Question-level: ${questionLevelAnswer || 'none'}`);
+    }
+    
     // Convert each mark to a clean Markdown bullet point
     const bullets = scheme.marks.map((mark: any, index: number) => {
       const markCode = mark.mark || 'M1';
@@ -1196,13 +1286,26 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       
       // If mark answer is "cao" (correct answer only), try to find the actual answer
       if (answer.toLowerCase() === 'cao') {
+        caoReplacements.total++;
         // First, try sub-question-specific answer from marksWithAnswers array
         if (marksWithAnswers[index]) {
           answer = marksWithAnswers[index];
+          caoReplacements.succeeded++;
+          console.log(`[CAO REPLACEMENT] ✅ Q${questionNumber} Mark ${markCode} (index ${index}): "cao" → "${answer}"`);
         }
         // Otherwise, try question-level answer (for single questions, not grouped sub-questions)
         else if (questionLevelAnswer && scheme.marks.length === 1) {
           answer = questionLevelAnswer;
+          caoReplacements.succeeded++;
+          console.log(`[CAO REPLACEMENT] ✅ Q${questionNumber} Mark ${markCode} (index ${index}): "cao" → "${answer}" (question-level)`);
+        } else {
+          caoReplacements.failed++;
+          const reason = marksWithAnswers.length > 0 
+            ? `index ${index} out of range (have ${marksWithAnswers.length} answers)`
+            : questionLevelAnswer 
+              ? `multiple marks (${scheme.marks.length}) but question-level answer exists`
+              : 'no answers available';
+          console.warn(`[CAO REPLACEMENT] ❌ Q${questionNumber} Mark ${markCode} (index ${index}): Could not replace "cao" - ${reason}`);
         }
       }
       
@@ -1269,6 +1372,12 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       
       return `- **${markCode}** ${processedText}`;
     });
+    
+    // Log summary
+    if (caoReplacements.total > 0) {
+      const status = caoReplacements.failed === 0 ? '✅' : '⚠️';
+      console.log(`[CAO REPLACEMENT] ${status} Q${questionNumber} Summary: ${caoReplacements.succeeded}/${caoReplacements.total} replaced successfully${caoReplacements.failed > 0 ? `, ${caoReplacements.failed} failed` : ''}`);
+    }
     
     return bullets.join('\n');
   } catch (error) {

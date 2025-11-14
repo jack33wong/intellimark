@@ -24,7 +24,8 @@ import {
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
 import * as stringSimilarity from 'string-similarity';
-import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
+// import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js'; // Temporarily disabled - using AI segmentation
+import { segmentOcrResultsByQuestion } from '../services/marking/AISegmentationService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../utils/TextNormalizationUtils.js';
 
 // Helper functions for real model and API names
@@ -958,18 +959,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
     sendSseUpdate(res, createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
-    // Log uploaded files
-    console.log(`📁 [UPLOADED FILES] Processing ${standardizedPages.length} files:`);
-    standardizedPages.forEach((page, index) => {
-        console.log(`  ${index + 1}. ${page.originalFileName} (Page ${page.pageIndex})`);
-    });
-
     // --- Perform Classification on ALL Images ---
     const logClassificationComplete = logStep('Image Classification', actualModel);
     
     
     // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
-    console.log(`🔍 [CLASSIFICATION] Classifying ${standardizedPages.length} page(s) together for cross-page context...`);
     const allClassificationResults = await ClassificationService.classifyMultipleImages(
       standardizedPages.map((page, index) => ({
         imageData: page.imageData,
@@ -980,46 +974,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       false
     );
     
-    // Log results for each page
-    allClassificationResults.forEach(({ pageIndex, result }) => {
-      // Calculate total questions (main + sub-questions) for better visibility
-      const totalMainQuestions = result.questions?.length || 0;
-      const totalSubQuestions = result.questions?.reduce((sum: number, q: any) => {
-        return sum + (q.subQuestions && Array.isArray(q.subQuestions) ? q.subQuestions.length : 0);
-      }, 0) || 0;
-      
-      // Build question info with properly expanded sub-questions
-      const questionsInfo = result.questions?.map((q: any) => {
-        const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || 'null') : 'undefined';
-        const questionInfo: any = {
-          questionNumber: mainQuestionNumber,
-          text: q.text !== undefined ? (q.text ? q.text.substring(0, 50) + '...' : 'null') : 'undefined',
-          studentWork: q.studentWork !== undefined ? (q.studentWork || 'null') : 'undefined', // Full text, no truncation
-          confidence: q.confidence
-        };
-        
-        // Show sub-questions if they exist
-        if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
-          questionInfo.subQuestions = q.subQuestions.map((sq: any) => ({
-            part: sq.part,
-            text: sq.text ? sq.text.substring(0, 50) + '...' : 'null',
-            studentWork: sq.studentWork !== undefined ? (sq.studentWork || 'null') : 'undefined', // Full text, no truncation
-            confidence: sq.confidence
-          }));
-        } else {
-          questionInfo.subQuestions = [];
-        }
-        
-        return questionInfo;
-      }) || [];
-      
-      // Log with proper serialization
-      console.log(`🔍 [CLASSIFICATION OUTPUT] Page ${pageIndex + 1} result:`);
-      console.log(JSON.stringify({ 
-        category: result.category,
-        questions: questionsInfo
-      }, null, 2));
-    });
     
     // Combine questions from all images
     // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
@@ -1800,12 +1754,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     });
 
-    // Call the segmentation function
-    markingTasks = segmentOcrResultsByQuestion(
+    // Call the AI segmentation function
+    markingTasks = await segmentOcrResultsByQuestion(
       allPagesOcrData,
       classificationResult,
       markingSchemesMap,
-      pageDimensionsMap // Pass page dimensions for accurate bbox estimation
+      pageDimensionsMap, // Pass page dimensions for accurate bbox estimation
+      actualModel as ModelType // Pass model for AI segmentation
     );
 
     // Handle case where no student work is found
@@ -1890,7 +1845,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Calculate Overall Score and Per-Page Scores ---
     const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
-    const totalPossibleScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.totalMarks || 0), 0);
+    
+    // For total marks: avoid double-counting sub-questions that share the same parent question
+    // Group by base question number and only count total marks once per base question
+    const baseQuestionToTotalMarks = new Map<string, number>();
+    allQuestionResults.forEach((qr) => {
+      const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
+      const totalMarks = qr.score?.totalMarks || 0;
+      // Only set if not already set (first occurrence wins)
+      // This ensures sub-questions (Q17a, Q17b) share the same total marks as their parent (Q17)
+      if (!baseQuestionToTotalMarks.has(baseQNum)) {
+        baseQuestionToTotalMarks.set(baseQNum, totalMarks);
+      }
+    });
+    const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
     const overallScoreText = `${overallScore}/${totalPossibleScore}`;
     
     // Calculate per-page scores
@@ -1933,7 +1901,56 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
       
       pageScores[pageIndex].awarded += qr.score?.awardedMarks || 0;
-      pageScores[pageIndex].total += qr.score?.totalMarks || 0;
+      // Don't add totalMarks here - we'll calculate it after grouping by base question number
+    });
+    
+    // Calculate total marks per page by grouping by base question number (avoid double-counting sub-questions)
+    const pageBaseQuestionToTotalMarks = new Map<number, Map<string, number>>(); // pageIndex -> baseQNum -> totalMarks
+    allQuestionResults.forEach((qr) => {
+      let pageIndex: number | undefined;
+      
+      if (qr.annotations && qr.annotations.length > 0) {
+        const pageIndexCounts = new Map<number, number>();
+        qr.annotations.forEach(anno => {
+          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+          }
+        });
+        if (pageIndexCounts.size > 0) {
+          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+      
+      if (pageIndex === undefined) {
+        const matchingQuestion = classificationResult.questions.find((q: any) => {
+          const qNum = String(q.questionNumber || '').replace(/[a-z]/i, '');
+          const resultQNum = String(qr.questionNumber || '').split('_')[0].replace(/[a-z]/i, '');
+          return qNum === resultQNum;
+        });
+        pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
+      }
+      
+      if (pageIndex === undefined) {
+        pageIndex = 0;
+      }
+      
+      if (!pageBaseQuestionToTotalMarks.has(pageIndex)) {
+        pageBaseQuestionToTotalMarks.set(pageIndex, new Map<string, number>());
+      }
+      
+      const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
+      const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
+      if (!pageBaseQMap.has(baseQNum)) {
+        pageBaseQMap.set(baseQNum, qr.score?.totalMarks || 0);
+      }
+    });
+    
+    // Set total marks per page from grouped data
+    pageBaseQuestionToTotalMarks.forEach((baseQMap, pageIndex) => {
+      const pageTotal = Array.from(baseQMap.values()).reduce((sum, marks) => sum + marks, 0);
+      if (pageScores[pageIndex]) {
+        pageScores[pageIndex].total = pageTotal;
+      }
     });
     
     // Generate score text for each page
@@ -2230,7 +2247,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         processingStats: {
           apiUsed: getRealApiName(getRealModelName(actualModel)),
           modelUsed: getRealModelName(actualModel),
-          totalMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.totalMarks || 0), 0),
+          totalMarks: totalPossibleScore, // Use the grouped total marks calculation
           awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
           questionCount: allQuestionResults.length
         },

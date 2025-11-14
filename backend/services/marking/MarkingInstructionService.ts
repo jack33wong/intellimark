@@ -50,17 +50,26 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
     // Extract sub-question-specific answers for grouped sub-questions (e.g., Q12i="H", 12ii="F", 12iii="J")
     // Check multiple possible locations where sub-question answers might be stored
     let marksWithAnswers: string[] | undefined = undefined;
+    const questionNumber = input.questionNumber || '?';
+    
     if (input.subQuestionAnswers && Array.isArray(input.subQuestionAnswers) && input.subQuestionAnswers.length > 0) {
       // Filter out empty strings and ensure we have valid answers
       const validAnswers = input.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
+        console.log(`[MARKING INSTRUCTION] Q${questionNumber}: Found ${validAnswers.length} sub-question answer(s): ${validAnswers.join(', ')}`);
       }
     } else if (input.questionMarks?.subQuestionAnswers && Array.isArray(input.questionMarks.subQuestionAnswers) && input.questionMarks.subQuestionAnswers.length > 0) {
       const validAnswers = input.questionMarks.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
+        console.log(`[MARKING INSTRUCTION] Q${questionNumber}: Found ${validAnswers.length} sub-question answer(s): ${validAnswers.join(', ')}`);
       }
+    }
+    
+    // Only log if no answers found (to reduce noise)
+    if (!marksWithAnswers && (input.subQuestionAnswers || input.questionMarks?.subQuestionAnswers)) {
+      console.log(`[MARKING INSTRUCTION] Q${questionNumber}: No valid sub-question answers found (filtered out empty/cao values)`);
     }
     
     const normalized = {
@@ -187,7 +196,6 @@ export class MarkingInstructionService {
       const enrichedAnnotations = annotationData.annotations.map(anno => {
         const aiStepId = (anno as any).step_id?.trim();
         if (!aiStepId) {
-          console.warn(`[ENRICHMENT] AI annotation has missing step_id:`, anno);
           return null;
         }
         
@@ -217,7 +225,6 @@ export class MarkingInstructionService {
             pageIndex: matchingStep.pageIndex !== undefined ? matchingStep.pageIndex : 0 // Use correct pageIndex from matchingStep
           };
         } else {
-          console.warn(`[ENRICHMENT] No matching step found for "${aiStepId}"`);
           return null;
         }
       }).filter(anno => anno !== null);
@@ -337,8 +344,24 @@ export class MarkingInstructionService {
     console.log('\x1b[36m' + formattedOcrText + '\x1b[0m'); // Cyan color
     
     if (hasMarkingScheme) {
+      // Recreate schemeJson for logging (same logic as above to ensure consistency)
+      let schemeJsonForLogging = '';
+      try {
+        const schemeData: any = { marks: normalizedScheme.marks };
+        if (normalizedScheme.questionLevelAnswer) {
+          schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+        }
+        if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
+          schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
+        }
+        schemeJsonForLogging = JSON.stringify(schemeData, null, 2);
+      } catch (error) {
+        schemeJsonForLogging = '{}';
+      }
+      
       // Convert JSON marking scheme to clean bulleted list format for logging
-      const schemePlainText = formatMarkingSchemeAsBullets(JSON.stringify({ marks: normalizedScheme.marks }, null, 2));
+      // Use the same schemeData that was used for the actual prompt (includes marksWithAnswers)
+      const schemePlainText = formatMarkingSchemeAsBullets(schemeJsonForLogging);
       
       console.log(`📝 [AI PROMPT] Q${questionNumber} - Full Marking Scheme (${schemePlainText.length} chars):`);
       console.log('\x1b[33m' + schemePlainText + '\x1b[0m'); // Yellow color

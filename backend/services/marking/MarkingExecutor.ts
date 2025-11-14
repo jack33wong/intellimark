@@ -16,6 +16,8 @@ export interface MarkingTask {
   sourcePages: number[];
   classificationStudentWork?: string | null; // Student work extracted by classification (may include [DRAWING])
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  aiSegmentationResults?: Array<{ content: string; source: string; blockId: string }>; // AI segmentation merged content with source indicators
+  blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
 }
 
 export interface QuestionResult {
@@ -65,36 +67,172 @@ export async function executeMarkingForQuestion(
     };
     
     // 1. Prepare STEP DATA (still need this array for enriching annotations later)
-    // Use classification content instead of OCR blocks (more reliable)
-    let stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
-      const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
-      
-      // Use classification content if available (more reliable than OCR)
-      let textToUse: string;
-      let cleanedTextToUse: string;
-      
-      if (task.blockToClassificationMap && task.blockToClassificationMap.has(blockId)) {
-        // Use classification line text (more reliable)
-        const mapping = task.blockToClassificationMap.get(blockId)!;
-        textToUse = mapping.classificationLine;
-        cleanedTextToUse = mapping.classificationLine;
-      } else {
-        // Fallback to OCR text if no classification mapping
-      const rawText = block.mathpixLatex || block.googleVisionText || '';
-      const normalizedText = normalizeLaTeXSingleLetter(rawText);
-        textToUse = normalizedText;
-        cleanedTextToUse = normalizedText;
-      }
-      
-      return {
-      unified_step_id: `q${questionId}_step_${stepIndex + 1}`, // Q-specific ID (or use globalBlockId if available)
-      pageIndex: (block as any).pageIndex,         // Ensure pageIndex is passed
-      globalBlockId: (block as any).globalBlockId, // Ensure globalBlockId is passed
-        text: textToUse, // Use classification content (more reliable) or OCR as fallback
-        cleanedText: cleanedTextToUse, // Use classification content (more reliable) or OCR as fallback
-      bbox: [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
-      };
-    });
+    // Use AI segmentation results if available, otherwise fall back to OCR blocks
+    let stepsDataForMapping: Array<{
+      unified_step_id: string;
+      pageIndex: number;
+      globalBlockId?: string;
+      text: string;
+      cleanedText: string;
+      bbox: [number, number, number, number];
+    }>;
+    
+    if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
+      // Use AI segmentation results - map back to original blocks for coordinates
+      stepsDataForMapping = task.aiSegmentationResults.map((result, stepIndex) => {
+        // Find the corresponding block by blockId
+        const matchingBlock = task.mathBlocks.find(block => {
+          const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+          return blockId === result.blockId;
+        });
+        
+        // Use coordinates from matching block if found
+        let bbox: [number, number, number, number] = [0, 0, 0, 0];
+        if (matchingBlock?.coordinates && 
+          matchingBlock.coordinates.x != null && matchingBlock.coordinates.y != null &&
+          matchingBlock.coordinates.width != null && matchingBlock.coordinates.height != null) {
+          bbox = [matchingBlock.coordinates.x, matchingBlock.coordinates.y, matchingBlock.coordinates.width, matchingBlock.coordinates.height];
+        } else if (result.content?.includes('[DRAWING]')) {
+          // For drawings without OCR coordinates, estimate bbox from position information
+          // First try to get position from result.content, then fall back to classificationStudentWork
+          let positionMatch = result.content.match(/\[POSITION:\s*([^\]]+)\]/i);
+          let position: string | null = null;
+          
+          if (positionMatch) {
+            position = positionMatch[1];
+          } else if (task.classificationStudentWork) {
+            // If position not in merged content, try to find it in original classification
+            // The AI might have split the drawing into multiple entries, so search for any [DRAWING] with position
+            // Try to match by content similarity first, then fall back to first position found
+            const drawingEntries = task.classificationStudentWork.split(/\n|\\n/).filter(e => e.includes('[DRAWING]'));
+            let bestMatch: string | null = null;
+            
+            for (const entry of drawingEntries) {
+              const entryPositionMatch = entry.match(/\[POSITION:\s*([^\]]+)\]/i);
+              if (entryPositionMatch) {
+                // Try to match by content keywords (e.g., "Graph", "Y-axis label")
+                const entryKeywords = entry.toLowerCase();
+                const contentKeywords = result.content.toLowerCase();
+                const hasMatchingKeywords = 
+                  (entryKeywords.includes('graph') && contentKeywords.includes('graph')) ||
+                  (entryKeywords.includes('y-axis') && contentKeywords.includes('y-axis')) ||
+                  (entryKeywords.includes('label') && contentKeywords.includes('label'));
+                
+                if (hasMatchingKeywords || !bestMatch) {
+                  bestMatch = entryPositionMatch[1];
+                  if (hasMatchingKeywords) break; // Found a good match, use it
+                }
+              }
+            }
+            
+            if (bestMatch) {
+              position = bestMatch;
+            }
+          }
+          
+          if (position) {
+            const pageIndex = matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+            const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+            if (percentMatch) {
+              const pageDims = task.pageDimensions?.get(pageIndex);
+              const pageWidth = pageDims?.width || 2000;
+              const pageHeight = pageDims?.height || 3000;
+              const xPercent = parseFloat(percentMatch[1]);
+              const yPercent = parseFloat(percentMatch[2]);
+              
+              // Determine drawing dimensions based on type
+              let drawingWidth = 300;
+              let drawingHeight = 300;
+              if (result.content.includes('marked at') || result.content.includes('Center of rotation') || 
+                  result.content.includes('Mark') || (result.content.includes('at (') && !result.content.includes('vertices'))) {
+                drawingWidth = 80;
+                drawingHeight = 80;
+              } else if (result.content.includes('Coordinate grid') || (result.content.includes('triangle') && result.content.includes('vertices'))) {
+                drawingWidth = 200;
+                drawingHeight = 200;
+              } else if (result.content.includes('Histogram')) {
+                drawingWidth = 400;
+                drawingHeight = 300;
+              } else if (result.content.includes('Graph')) {
+                drawingWidth = 400;
+                drawingHeight = 300;
+              }
+              
+              // Position represents center, so calculate top-left corner
+              const centerX = (xPercent / 100) * pageWidth;
+              const centerY = (yPercent / 100) * pageHeight;
+              const x = centerX - (drawingWidth / 2);
+              const y = centerY - (drawingHeight / 2);
+              
+              bbox = [Math.max(0, x), Math.max(0, y), drawingWidth, drawingHeight];
+            }
+          }
+        }
+        
+        return {
+          unified_step_id: `q${questionId}_step_${stepIndex + 1}`,
+          pageIndex: matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : -1),
+          globalBlockId: result.blockId,
+          text: result.content, // Use AI segmentation merged content
+          cleanedText: result.content, // Use AI segmentation merged content
+          bbox
+        };
+      });
+    } else {
+      // Fallback to OCR blocks (for backward compatibility with old segmentation)
+      stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
+        const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+        
+        // Check if block has coordinates
+        if (!block.coordinates || block.coordinates.x == null || block.coordinates.y == null) {
+          console.warn(`[MARKING EXECUTOR] Q${questionId} block ${stepIndex + 1} missing coordinates:`, {
+            blockId,
+            hasCoordinates: !!block.coordinates,
+            coordinates: block.coordinates
+          });
+        }
+        
+        // Use classification content if available (more reliable than OCR)
+        let textToUse: string;
+        let cleanedTextToUse: string;
+        
+        if (task.blockToClassificationMap && task.blockToClassificationMap.has(blockId)) {
+          // Use classification line text (more reliable)
+          const mapping = task.blockToClassificationMap.get(blockId)!;
+          textToUse = mapping.classificationLine;
+          cleanedTextToUse = mapping.classificationLine;
+        } else {
+          // Fallback to OCR text if no classification mapping
+          const rawText = block.mathpixLatex || block.googleVisionText || '';
+          const normalizedText = normalizeLaTeXSingleLetter(rawText);
+          textToUse = normalizedText;
+          cleanedTextToUse = normalizedText;
+        }
+        
+        // Use coordinates if available, otherwise use default bbox
+        const bbox: [number, number, number, number] = block.coordinates && 
+          block.coordinates.x != null && block.coordinates.y != null &&
+          block.coordinates.width != null && block.coordinates.height != null
+          ? [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
+          : [0, 0, 0, 0]; // Default bbox if coordinates missing
+        
+        return {
+          unified_step_id: `q${questionId}_step_${stepIndex + 1}`, // Q-specific ID (or use globalBlockId if available)
+          pageIndex: (block as any).pageIndex ?? -1,         // Ensure pageIndex is passed
+          globalBlockId: (block as any).globalBlockId, // Ensure globalBlockId is passed
+          text: textToUse, // Use classification content (more reliable) or OCR as fallback
+          cleanedText: cleanedTextToUse, // Use classification content (more reliable) or OCR as fallback
+          bbox
+        };
+      });
+    }
+    
+    // Log summary of blocks with/without coordinates
+    const blocksWithCoords = stepsDataForMapping.filter(s => s.bbox[0] > 0 || s.bbox[1] > 0).length;
+    const blocksWithoutCoords = stepsDataForMapping.length - blocksWithCoords;
+    if (blocksWithoutCoords > 0) {
+      console.warn(`[MARKING EXECUTOR] Q${questionId}: ${blocksWithoutCoords}/${stepsDataForMapping.length} blocks missing coordinates`);
+    }
 
     // Handle [DRAWING] student work from classification (e.g., Q13a histogram, Q22a sine graph, Q11 coordinate grid)
     // If classification has [DRAWING] student work, create separate synthetic blocks for each drawing entry
@@ -422,12 +560,31 @@ export async function executeMarkingForQuestion(
     }
 
     // 2. Prepare OCR Text as PLAIN TEXT for the AI Prompt
+    // Use AI segmentation results if available (merged content with source), otherwise fall back to OCR blocks
     let ocrTextForPrompt = "Student's Work:\n";
-    stepsDataForMapping.forEach((step, index) => {
-      // Use simplified step ID format for AI prompt (e.g., [step_1], [step_2])
-      const simplifiedStepId = `step_${index + 1}`;
-      ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}] ${step.cleanedText}\n`;
-    });
+    
+    if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
+      // Use AI segmentation merged content (prioritizes classification, uses OCR only when needed)
+      task.aiSegmentationResults.forEach((result, index) => {
+        const simplifiedStepId = `step_${index + 1}`;
+        const sourceLabel = result.source === 'ocr' ? ' [OCR]' : result.source === 'merged' ? ' [MERGED]' : ' [CLASSIFICATION]';
+        // Clean content: replace escaped newlines and actual newlines with spaces to ensure single-line format per step
+        // This prevents formatting issues where content might have internal newlines
+        const cleanedContent = result.content
+          .replace(/\\n/g, ' ')  // Replace escaped newlines with space
+          .replace(/\n/g, ' ')   // Replace actual newlines with space
+          .replace(/\s+/g, ' ')  // Normalize multiple spaces to single space
+          .trim();                // Remove leading/trailing whitespace
+        ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}]${sourceLabel} ${cleanedContent}\n`;
+      });
+    } else {
+      // Fallback to OCR blocks (for backward compatibility with old segmentation)
+      stepsDataForMapping.forEach((step, index) => {
+        // Use simplified step ID format for AI prompt (e.g., [step_1], [step_2])
+        const simplifiedStepId = `step_${index + 1}`;
+        ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}] ${step.cleanedText}\n`;
+      });
+    }
 
     // *** Log for Verification ***
 
@@ -471,7 +628,60 @@ export async function executeMarkingForQuestion(
     // 4. Skip feedback generation - removed as requested
 
     // 5. Enrich Annotations
+    console.log(`[MARKING EXECUTOR] Q${questionId}: Enriching ${markingResult.annotations?.length || 0} annotations`);
+    console.log(`[MARKING EXECUTOR] Q${questionId}: Available steps: ${stepsDataForMapping.map(s => s.unified_step_id).join(', ')}`);
     
+    // Debug logging for Q15 "cm²" issue - trace source
+    if (questionId === '15' || questionId === 15) {
+      console.log(`[Q15 TRACE] ========== TRACING cm² SOURCE ==========`);
+      
+      // 1. Check OCR blocks (if using old segmentation)
+      if (task.mathBlocks && task.mathBlocks.length > 0) {
+        console.log(`[Q15 TRACE] Checking ${task.mathBlocks.length} OCR blocks:`);
+        task.mathBlocks.forEach((block, idx) => {
+          const blockText = block.mathpixLatex || block.googleVisionText || '';
+          if (blockText.includes('cm²') || blockText.includes('cm^2') || blockText.includes('cm^{2}')) {
+            console.log(`[Q15 TRACE]   ⚠️ OCR Block ${idx + 1}: "${blockText}"`);
+          }
+        });
+      }
+      
+      // 2. Check classification student work
+      if (task.classificationStudentWork) {
+        if (task.classificationStudentWork.includes('cm²') || task.classificationStudentWork.includes('cm^2') || task.classificationStudentWork.includes('cm^{2}')) {
+          console.log(`[Q15 TRACE]   ⚠️ Classification student work contains "cm²": "${task.classificationStudentWork}"`);
+        }
+      }
+      
+      // 3. Check AI segmentation results
+      if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
+        console.log(`[Q15 TRACE] Checking ${task.aiSegmentationResults.length} AI segmentation results:`);
+        task.aiSegmentationResults.forEach((result, idx) => {
+          if (result.content.includes('cm²') || result.content.includes('cm^2') || result.content.includes('cm^{2}')) {
+            console.log(`[Q15 TRACE]   ⚠️ AI Segmentation result ${idx + 1} [${result.source}]: "${result.content}"`);
+          }
+        });
+      }
+      
+      // 4. Check stepsDataForMapping (what's passed to marking AI)
+      console.log(`[Q15 TRACE] Checking ${stepsDataForMapping.length} steps passed to marking AI:`);
+      stepsDataForMapping.forEach((step, idx) => {
+        if (step.text?.includes('cm²') || step.text?.includes('cm^2') || step.cleanedText?.includes('cm²') || step.cleanedText?.includes('cm^2')) {
+          console.log(`[Q15 TRACE]   ⚠️ Step ${idx + 1} (${step.unified_step_id}): text="${step.text}", cleanedText="${step.cleanedText}"`);
+        }
+      });
+      
+      // 5. Check AI annotations (what marking AI generated)
+      console.log(`[Q15 TRACE] Checking ${markingResult.annotations?.length || 0} AI annotations:`);
+      (markingResult.annotations || []).forEach((anno, idx) => {
+        const textMatch = (anno as any).textMatch || '';
+        if (textMatch.includes('cm²') || textMatch.includes('cm^2')) {
+          console.log(`[Q15 TRACE]   ⚠️ AI Annotation ${idx + 1}: step_id="${(anno as any).step_id}", textMatch="${textMatch}"`);
+        }
+      });
+      
+      console.log(`[Q15 TRACE] ==========================================`);
+    }
     
     const enrichedAnnotations = (markingResult.annotations || []).map((anno, annoIndex) => {
         
@@ -479,7 +689,6 @@ export async function executeMarkingForQuestion(
         // Trim both IDs to protect against hidden whitespace
         const aiStepId = (anno as any).step_id?.trim(); 
         if (!aiStepId) {
-             console.warn(`[ENRICHMENT] AI annotation has missing or empty step_id:`, anno);
              return null;
         }
 
@@ -552,9 +761,11 @@ export async function executeMarkingForQuestion(
         }
         
         if (!originalStep) {
-             console.warn(`[ENRICHMENT] Could not find original step for step_id: ${aiStepId} (available: ${stepsDataForMapping.map(s => s.unified_step_id).join(', ')})`);
              return null; // Mark for filtering
         }
+
+        // Check if bbox is valid (not all zeros)
+        const hasValidBbox = originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
 
         const enriched = {
             ...anno,
@@ -563,6 +774,12 @@ export async function executeMarkingForQuestion(
             unified_step_id: originalStep.unified_step_id // Store unified_step_id for tracking
         };
         
+        if (hasValidBbox) {
+          // Debug logging for Q15 "cm²" issue
+          if ((questionId === '15' || questionId === 15) && (originalStep.text?.includes('cm²') || originalStep.text?.includes('cm^2') || originalStep.cleanedText?.includes('cm²') || originalStep.cleanedText?.includes('cm^2'))) {
+            console.log(`[Q15 DEBUG] ⚠️ Matched annotation "${aiStepId}" to step containing "cm²": step_id="${originalStep.unified_step_id}", text="${originalStep.text}", cleanedText="${originalStep.cleanedText}", annotation_textMatch="${(anno as any).textMatch}"`);
+          }
+        }
         
         return enriched;
     }).filter((anno) => {
@@ -575,8 +792,14 @@ export async function executeMarkingForQuestion(
         if (!anno.bbox || anno.bbox.length !== 4) {
           return false;
         }
+        // Also filter out bboxes that are all zeros (no coordinates)
+        if (anno.bbox[0] === 0 && anno.bbox[1] === 0 && anno.bbox[2] === 0 && anno.bbox[3] === 0) {
+          return false;
+        }
         return true;
     }); // Filter out nulls, invalid pageIndex, and invalid bbox
+    
+    console.log(`[MARKING EXECUTOR] Q${questionId}: Enriched ${enrichedAnnotations.length} annotations (from ${markingResult.annotations?.length || 0} original)`);
 
     // 6. Consolidate results for this question
     const score = markingResult.studentScore;
