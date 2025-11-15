@@ -201,6 +201,24 @@ export async function performQuestionDetection(extractedQuestionText: string | u
 export function logPerformanceSummary(stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } }, totalProcessingTime: number, actualModel: string, mode: string) {
   const totalTime = totalProcessingTime / 1000;
   
+  // Display name mapping for cleaner output
+  const displayNameMap: { [key: string]: string } = {
+    'classification': 'classification',
+    'image_classification': 'classification', // Legacy support
+    'drawing_classification': 'drawing_classification',
+    'ocr_processing': 'ocr_processing',
+    'question_detection': 'question_detection',
+    'segmentation': 'segmentation',
+    'marking': 'marking',
+    'ai_marking': 'marking',
+    'output_generation': 'output_generation',
+    'image_annotation': 'image_annotation',
+    'preprocessing': 'preprocessing',
+    'input_validation': 'input_validation',
+    'database_persistence': 'database_persistence',
+    'pdf_conversion': 'pdf_conversion'
+  };
+  
   console.log('\n=== PERFORMANCE SUMMARY ===');
   console.log(`Total Processing Time: ${totalTime.toFixed(1)}s`);
   console.log(`Model Used: ${actualModel}`);
@@ -215,7 +233,9 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
       .forEach(([stepName, timing]) => {
         const duration = (timing.duration || 0) / 1000;
         const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
-        const paddedStepName = stepName.padEnd(25); // Fixed 25-character width
+        // Use display name if available, otherwise use original step name
+        const displayName = displayNameMap[stepName] || stepName;
+        const paddedStepName = displayName.padEnd(25); // Fixed 25-character width
         console.log(`${paddedStepName} ${duration.toFixed(1)}s (${percentage}%)`);
       });
   }

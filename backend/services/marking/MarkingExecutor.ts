@@ -11,12 +11,13 @@ import type { MathBlock } from '../ocr/MathDetectionService.js';
 // Types for the marking executor
 export interface MarkingTask {
   questionNumber: number | string;
-  mathBlocks: MathBlock[];
+  mathBlocks: MathBlock[]; // Raw OCR blocks for this question
   markingScheme: any;
   sourcePages: number[];
-  classificationStudentWork?: string | null; // Student work extracted by classification (may include [DRAWING])
+  classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
-  aiSegmentationResults?: Array<{ content: string; source: string; blockId: string }>; // AI segmentation merged content with source indicators
+  // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
+  aiSegmentationResults?: Array<{ content: string; source: string; blockId: string }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
 }
 
@@ -170,7 +171,7 @@ export async function executeMarkingForQuestion(
         }
         
         return {
-          unified_step_id: `q${questionId}_step_${stepIndex + 1}`,
+          unified_step_id: `step_${stepIndex + 1}`, // Simplified format (matches AI prompt)
           pageIndex: matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : -1),
           globalBlockId: result.blockId,
           text: result.content, // Use AI segmentation merged content
@@ -179,50 +180,34 @@ export async function executeMarkingForQuestion(
         };
       });
     } else {
-      // Fallback to OCR blocks (for backward compatibility with old segmentation)
+      // Enhanced marking mode: Use OCR blocks directly (no matching logic)
+      // AI will handle mapping classification to OCR blocks
+      // We just provide OCR block coordinates for annotation enrichment
       stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
         const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
         
-        // Check if block has coordinates
-        if (!block.coordinates || block.coordinates.x == null || block.coordinates.y == null) {
-          console.warn(`[MARKING EXECUTOR] Q${questionId} block ${stepIndex + 1} missing coordinates:`, {
-            blockId,
-            hasCoordinates: !!block.coordinates,
-            coordinates: block.coordinates
-          });
-        }
+        const rawText = block.mathpixLatex || block.googleVisionText || '';
+        const normalizedText = normalizeLaTeXSingleLetter(rawText);
         
-        // Use classification content if available (more reliable than OCR)
-        let textToUse: string;
-        let cleanedTextToUse: string;
-        
-        if (task.blockToClassificationMap && task.blockToClassificationMap.has(blockId)) {
-          // Use classification line text (more reliable)
-          const mapping = task.blockToClassificationMap.get(blockId)!;
-          textToUse = mapping.classificationLine;
-          cleanedTextToUse = mapping.classificationLine;
-        } else {
-          // Fallback to OCR text if no classification mapping
-          const rawText = block.mathpixLatex || block.googleVisionText || '';
-          const normalizedText = normalizeLaTeXSingleLetter(rawText);
-          textToUse = normalizedText;
-          cleanedTextToUse = normalizedText;
-        }
-        
-        // Use coordinates if available, otherwise use default bbox
         const bbox: [number, number, number, number] = block.coordinates && 
           block.coordinates.x != null && block.coordinates.y != null &&
           block.coordinates.width != null && block.coordinates.height != null
           ? [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
-          : [0, 0, 0, 0]; // Default bbox if coordinates missing
+          : [0, 0, 0, 0];
+        
+        // Get pageIndex from block, or fallback to task.sourcePages, or default to 0
+        const blockPageIndex = (block as any).pageIndex;
+        const validPageIndex = blockPageIndex != null && blockPageIndex >= 0 
+          ? blockPageIndex 
+          : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
         
         return {
-          unified_step_id: `q${questionId}_step_${stepIndex + 1}`, // Q-specific ID (or use globalBlockId if available)
-          pageIndex: (block as any).pageIndex ?? -1,         // Ensure pageIndex is passed
-          globalBlockId: (block as any).globalBlockId, // Ensure globalBlockId is passed
-          text: textToUse, // Use classification content (more reliable) or OCR as fallback
-          cleanedText: cleanedTextToUse, // Use classification content (more reliable) or OCR as fallback
-          bbox
+          unified_step_id: `step_${stepIndex + 1}`, // Step ID based on OCR block order
+          pageIndex: validPageIndex,
+          globalBlockId: (block as any).globalBlockId || blockId,
+          text: normalizedText, // OCR block text
+          cleanedText: normalizedText, // OCR block text
+          bbox // OCR block coordinates
         };
       });
     }
@@ -541,10 +526,12 @@ export async function executeMarkingForQuestion(
             }
             
             // Create synthetic block for this individual drawing
+            // Use simplified step ID format to match AI prompt (step_1, step_2, etc.)
+            const drawingStepIndex = stepsDataForMapping.length + 1;
             const drawingBlock = {
-              unified_step_id: `q${questionId}_step_${stepsDataForMapping.length + 1}`,
+              unified_step_id: `step_${drawingStepIndex}`, // Simplified format (matches AI prompt)
               pageIndex: pageIndex,
-              globalBlockId: `drawing_${questionId}_${stepsDataForMapping.length + 1}`,
+              globalBlockId: `drawing_${questionId}_${drawingStepIndex}`,
               text: entry, // Only this drawing entry, not the full combined text
               cleanedText: entry,
               bbox: estimatedBbox as [number, number, number, number]
@@ -591,7 +578,21 @@ export async function executeMarkingForQuestion(
     // Extract question text from marking scheme (from fullExamPapers - source for question detection)
     const questionText = task.markingScheme?.questionText || task.markingScheme?.databaseQuestionText || null;
     
-    // Call Marking Instruction Service (Pass Plain Text + Question Text)
+    // Prepare raw OCR blocks for enhanced marking (bypass segmentation)
+    const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
+      const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${idx}`;
+      return {
+        id: blockId,
+        text: block.mathpixLatex || block.googleVisionText || '',
+        pageIndex: block.pageIndex ?? task.sourcePages[0] ?? 0,
+        coordinates: block.coordinates ? {
+          x: block.coordinates.x,
+          y: block.coordinates.y
+        } : undefined
+      };
+    });
+    
+    // Call Marking Instruction Service (Pass Raw OCR Blocks + Classification for Enhanced Marking)
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
     
     const markingResult = await MarkingInstructionService.executeMarking({
@@ -611,12 +612,14 @@ export async function executeMarkingForQuestion(
         imageDimensions: { width: 1000, height: 1000 },
         cleanDataForMarking: { steps: stepsDataForMapping },
         cleanedOcrText: ocrTextForPrompt,
-        unifiedLookupTable: {}
+        unifiedLookupTable: {},
+        // Enhanced marking: pass raw OCR blocks and classification
+        rawOcrBlocks: rawOcrBlocks,
+        classificationStudentWork: task.classificationStudentWork
       } as any, // Type assertion for mock object
       questionDetection: task.markingScheme, // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
       questionText: questionText // Pass question text from fullExamPapers to AI prompt
     });
-    
     
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
@@ -628,73 +631,18 @@ export async function executeMarkingForQuestion(
     // 4. Skip feedback generation - removed as requested
 
     // 5. Enrich Annotations
-    console.log(`[MARKING EXECUTOR] Q${questionId}: Enriching ${markingResult.annotations?.length || 0} annotations`);
-    console.log(`[MARKING EXECUTOR] Q${questionId}: Available steps: ${stepsDataForMapping.map(s => s.unified_step_id).join(', ')}`);
-    
-    // Debug logging for Q15 "cm²" issue - trace source
-    if (questionId === '15' || questionId === 15) {
-      console.log(`[Q15 TRACE] ========== TRACING cm² SOURCE ==========`);
-      
-      // 1. Check OCR blocks (if using old segmentation)
-      if (task.mathBlocks && task.mathBlocks.length > 0) {
-        console.log(`[Q15 TRACE] Checking ${task.mathBlocks.length} OCR blocks:`);
-        task.mathBlocks.forEach((block, idx) => {
-          const blockText = block.mathpixLatex || block.googleVisionText || '';
-          if (blockText.includes('cm²') || blockText.includes('cm^2') || blockText.includes('cm^{2}')) {
-            console.log(`[Q15 TRACE]   ⚠️ OCR Block ${idx + 1}: "${blockText}"`);
-          }
-        });
-      }
-      
-      // 2. Check classification student work
-      if (task.classificationStudentWork) {
-        if (task.classificationStudentWork.includes('cm²') || task.classificationStudentWork.includes('cm^2') || task.classificationStudentWork.includes('cm^{2}')) {
-          console.log(`[Q15 TRACE]   ⚠️ Classification student work contains "cm²": "${task.classificationStudentWork}"`);
-        }
-      }
-      
-      // 3. Check AI segmentation results
-      if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
-        console.log(`[Q15 TRACE] Checking ${task.aiSegmentationResults.length} AI segmentation results:`);
-        task.aiSegmentationResults.forEach((result, idx) => {
-          if (result.content.includes('cm²') || result.content.includes('cm^2') || result.content.includes('cm^{2}')) {
-            console.log(`[Q15 TRACE]   ⚠️ AI Segmentation result ${idx + 1} [${result.source}]: "${result.content}"`);
-          }
-        });
-      }
-      
-      // 4. Check stepsDataForMapping (what's passed to marking AI)
-      console.log(`[Q15 TRACE] Checking ${stepsDataForMapping.length} steps passed to marking AI:`);
-      stepsDataForMapping.forEach((step, idx) => {
-        if (step.text?.includes('cm²') || step.text?.includes('cm^2') || step.cleanedText?.includes('cm²') || step.cleanedText?.includes('cm^2')) {
-          console.log(`[Q15 TRACE]   ⚠️ Step ${idx + 1} (${step.unified_step_id}): text="${step.text}", cleanedText="${step.cleanedText}"`);
-        }
-      });
-      
-      // 5. Check AI annotations (what marking AI generated)
-      console.log(`[Q15 TRACE] Checking ${markingResult.annotations?.length || 0} AI annotations:`);
-      (markingResult.annotations || []).forEach((anno, idx) => {
-        const textMatch = (anno as any).textMatch || '';
-        if (textMatch.includes('cm²') || textMatch.includes('cm^2')) {
-          console.log(`[Q15 TRACE]   ⚠️ AI Annotation ${idx + 1}: step_id="${(anno as any).step_id}", textMatch="${textMatch}"`);
-        }
-      });
-      
-      console.log(`[Q15 TRACE] ==========================================`);
-    }
-    
     const enrichedAnnotations = (markingResult.annotations || []).map((anno, annoIndex) => {
         
         // ================== START OF FIX ==================
         // Trim both IDs to protect against hidden whitespace
         const aiStepId = (anno as any).step_id?.trim(); 
         if (!aiStepId) {
-             return null;
+            return null;
         }
 
-        // Try exact match first
+        // Try exact match first (check both unified_step_id and globalBlockId)
         let originalStep = stepsDataForMapping.find(step => 
-            step.unified_step_id?.trim() === aiStepId
+            step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
         );
         
         // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
@@ -707,6 +655,16 @@ export async function executeMarkingForQuestion(
             if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
               originalStep = stepsDataForMapping[stepNum - 1];
             }
+          }
+        }
+        
+        // If still not found, check if AI is using OCR block ID format (block_X_Y)
+        if (!originalStep && aiStepId && aiStepId.startsWith('block_')) {
+          originalStep = stepsDataForMapping.find(step => 
+            step.globalBlockId?.trim() === aiStepId
+          );
+          if (originalStep) {
+            console.log(`[MARKING EXECUTOR] Q${questionId}: ✅ Matched OCR block ID "${aiStepId}" to step "${originalStep.unified_step_id}"`);
           }
         }
         
@@ -773,13 +731,6 @@ export async function executeMarkingForQuestion(
             pageIndex: originalStep.pageIndex ?? -1,
             unified_step_id: originalStep.unified_step_id // Store unified_step_id for tracking
         };
-        
-        if (hasValidBbox) {
-          // Debug logging for Q15 "cm²" issue
-          if ((questionId === '15' || questionId === 15) && (originalStep.text?.includes('cm²') || originalStep.text?.includes('cm^2') || originalStep.cleanedText?.includes('cm²') || originalStep.cleanedText?.includes('cm^2'))) {
-            console.log(`[Q15 DEBUG] ⚠️ Matched annotation "${aiStepId}" to step containing "cm²": step_id="${originalStep.unified_step_id}", text="${originalStep.text}", cleanedText="${originalStep.cleanedText}", annotation_textMatch="${(anno as any).textMatch}"`);
-          }
-        }
         
         return enriched;
     }).filter((anno) => {

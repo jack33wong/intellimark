@@ -24,8 +24,9 @@ import {
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
 import * as stringSimilarity from 'string-similarity';
-// import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js'; // Temporarily disabled - using AI segmentation
-import { segmentOcrResultsByQuestion } from '../services/marking/AISegmentationService.js';
+// Segmentation bypassed - using enhanced marking instruction with raw OCR and classification
+// import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
+// import { segmentOcrResultsByQuestion } from '../services/marking/AISegmentationService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../utils/TextNormalizationUtils.js';
 
 // Helper functions for real model and API names
@@ -129,6 +130,138 @@ const extractQuestionNumberFromFilename = (fileName?: string): string[] | null =
   return matches ? matches.map(m => m.replace('q', '')) : null;
 };
 
+
+/**
+ * Create marking tasks directly from classification results (bypasses segmentation)
+ * This function creates tasks with raw OCR blocks and classification student work
+ * for the enhanced marking instruction approach.
+ */
+const createMarkingTasksFromClassification = (
+  classificationResult: any,
+  allPagesOcrData: PageOcrResult[],
+  markingSchemesMap: Map<string, any>,
+  pageDimensionsMap: Map<number, { width: number; height: number }>
+): MarkingTask[] => {
+  const tasks: MarkingTask[] = [];
+  
+  if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
+    return tasks;
+  }
+  
+  // Helper to get base question number (e.g., "17a" -> "17")
+  const getBaseQuestionNumber = (qNum: string | null | undefined): string => {
+    if (!qNum) return '';
+    const match = String(qNum).match(/^(\d+)/);
+    return match ? match[1] : String(qNum);
+  };
+  
+  // Process each question in classification
+  for (const q of classificationResult.questions) {
+    const mainQuestionNumber = q.questionNumber || null;
+    const sourceImageIndex = q.sourceImageIndex ?? 0;
+    
+    // Process main question if it has student work
+    if (q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '') {
+      const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
+      
+      // Find marking scheme by iterating through map (keys are like "QNum_ExamBoard_PaperCode")
+      let markingScheme: any = null;
+      for (const [key, scheme] of markingSchemesMap.entries()) {
+        // Check if key starts with question number (base or exact)
+        if (key.startsWith(`${baseQNum}_`) || (mainQuestionNumber && key.startsWith(`${mainQuestionNumber}_`))) {
+          // Verify question number matches
+          const keyQNum = key.split('_')[0];
+          if (keyQNum === baseQNum || keyQNum === mainQuestionNumber) {
+            markingScheme = scheme;
+            break;
+          }
+        }
+      }
+      
+      if (markingScheme) {
+        // Get all OCR blocks from the source page
+        const pageOcrData = allPagesOcrData[sourceImageIndex];
+        const mathBlocks: MathBlock[] = pageOcrData?.ocrData?.mathBlocks || [];
+        
+        // Assign global block IDs if not present
+        const blocksWithIds = mathBlocks.map((block, idx) => {
+          if (!(block as any).globalBlockId) {
+            (block as any).globalBlockId = `block_${sourceImageIndex}_${idx}`;
+          }
+          return block;
+        });
+        
+        tasks.push({
+          questionNumber: mainQuestionNumber || baseQNum,
+          mathBlocks: blocksWithIds,
+          markingScheme: markingScheme,
+          sourcePages: [sourceImageIndex],
+          classificationStudentWork: q.studentWork,
+          pageDimensions: pageDimensionsMap
+        });
+      }
+    }
+    
+    // Process sub-questions
+    if (q.subQuestions && Array.isArray(q.subQuestions)) {
+      for (const subQ of q.subQuestions) {
+        if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
+          const subQNum = mainQuestionNumber ? `${mainQuestionNumber}${subQ.part || ''}` : null;
+          if (!subQNum) continue;
+          
+          const baseQNum = getBaseQuestionNumber(subQNum);
+          
+          // Find marking scheme by iterating through map (keys are like "QNum_ExamBoard_PaperCode")
+          // For sub-questions, try base question number first (grouped sub-questions share parent scheme)
+          let markingScheme: any = null;
+          for (const [key, scheme] of markingSchemesMap.entries()) {
+            // Check if key starts with base question number (for grouped sub-questions)
+            if (key.startsWith(`${baseQNum}_`)) {
+              const keyQNum = key.split('_')[0];
+              if (keyQNum === baseQNum) {
+                markingScheme = scheme;
+                break;
+              }
+            }
+            // Also try exact sub-question match
+            if (key.startsWith(`${subQNum}_`)) {
+              const keyQNum = key.split('_')[0];
+              if (keyQNum === subQNum) {
+                markingScheme = scheme;
+                break;
+              }
+            }
+          }
+          
+          if (markingScheme) {
+            // Get all OCR blocks from the source page
+            const pageOcrData = allPagesOcrData[sourceImageIndex];
+            const mathBlocks: MathBlock[] = pageOcrData?.ocrData?.mathBlocks || [];
+            
+            // Assign global block IDs if not present
+            const blocksWithIds = mathBlocks.map((block, idx) => {
+              if (!(block as any).globalBlockId) {
+                (block as any).globalBlockId = `block_${sourceImageIndex}_${idx}`;
+              }
+              return block;
+            });
+            
+            tasks.push({
+              questionNumber: subQNum,
+              mathBlocks: blocksWithIds,
+              markingScheme: markingScheme,
+              sourcePages: [sourceImageIndex],
+              classificationStudentWork: subQ.studentWork,
+              pageDimensions: pageDimensionsMap
+            });
+          }
+        }
+      }
+    }
+  }
+  
+  return tasks;
+};
 
 // ========================= START: REPLACED SEGMENTATION LOGIC =========================
 
@@ -959,8 +1092,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Stage 2: Parallel OCR/Classify (Common for Multi-Page PDF & Multi-Image) ---
     sendSseUpdate(res, createProgressData(3, `Running OCR & Classification on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
-    // --- Perform Classification on ALL Images ---
-    const logClassificationComplete = logStep('Image Classification', actualModel);
+    // --- Perform Classification on ALL Images (Question & Student Work) ---
+    const logClassificationComplete = logStep('Classification', actualModel);
     
     
     // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
@@ -1731,6 +1864,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= DRAWING CLASSIFICATION (POST-PROCESSING WITH MARKING SCHEME HINTS) =========================
     // For pages with [DRAWING] entries, run specialized high-accuracy drawing classification
     // NOW RUNS AFTER QUESTION DETECTION so we can pass marking scheme hints to maximize marks
+    const logDrawingClassificationComplete = logStep('Drawing Classification', actualModel);
     const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
     
     await DrawingEnhancementService.enhanceDrawingsInClassification(
@@ -1740,10 +1874,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       classificationResult,
       markingSchemesMap // Pass marking schemes for hints
     );
+    logDrawingClassificationComplete();
 
     // ========================= START: IMPLEMENT STAGE 3 =========================
-    // --- Stage 3: Consolidation & Segmentation ---
-    sendSseUpdate(res, createProgressData(5, 'Segmenting work by question...', MULTI_IMAGE_STEPS));
+    // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---
+    sendSseUpdate(res, createProgressData(5, 'Preparing marking tasks...', MULTI_IMAGE_STEPS));
     const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
     // Create page dimensions map from standardizedPages for accurate drawing position calculation
@@ -1754,18 +1889,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     });
 
-    // Call the AI segmentation function
-    markingTasks = await segmentOcrResultsByQuestion(
-      allPagesOcrData,
+    // Create marking tasks directly from classification results (bypass segmentation)
+    markingTasks = createMarkingTasksFromClassification(
       classificationResult,
+      allPagesOcrData,
       markingSchemesMap,
-      pageDimensionsMap, // Pass page dimensions for accurate bbox estimation
-      actualModel as ModelType // Pass model for AI segmentation
+      pageDimensionsMap
     );
 
     // Handle case where no student work is found
     if (markingTasks.length === 0) {
-      sendSseUpdate(res, createProgressData(5, 'Segmentation complete. No student work found to mark.', MULTI_IMAGE_STEPS));
+      sendSseUpdate(res, createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
       const finalOutput = { 
         submissionId, 
         annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
@@ -1775,7 +1909,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       res.end();
       return; // Exit early
     }
-    sendSseUpdate(res, createProgressData(5, `Segmentation complete. Identified student work for ${markingTasks.length} question(s).`, MULTI_IMAGE_STEPS));
+    sendSseUpdate(res, createProgressData(5, `Prepared ${markingTasks.length} marking task(s).`, MULTI_IMAGE_STEPS));
     logSegmentationComplete();
     // ========================== END: IMPLEMENT STAGE 3 ==========================
 

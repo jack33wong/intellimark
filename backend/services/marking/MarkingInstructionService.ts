@@ -166,12 +166,18 @@ export class MarkingInstructionService {
       // Normalize the marking scheme data to a standard format
       const normalizedScheme = normalizeMarkingScheme(questionDetection);
       
+      // Extract raw OCR blocks and classification for enhanced marking
+      const rawOcrBlocks = (processedImage as any).rawOcrBlocks;
+      const classificationStudentWork = (processedImage as any).classificationStudentWork;
+      
       const annotationData = await this.generateFromOCR(
         model,
         cleanedOcrText, // Use the plain text directly instead of JSON
         normalizedScheme, // Pass the normalized scheme instead of raw questionDetection
         questionDetection?.match, // Pass exam info for logging
-        questionText // Pass question text from fullExamPapers
+        questionText, // Pass question text from fullExamPapers
+        rawOcrBlocks, // Pass raw OCR blocks for enhanced marking
+        classificationStudentWork // Pass classification student work for enhanced marking
       );
       
       // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
@@ -200,9 +206,9 @@ export class MarkingInstructionService {
         }
         
         // Find matching step in cleanDataForMarking.steps
-        // Try exact match first
+        // Try exact match first (check both unified_step_id and globalBlockId)
         let matchingStep = cleanDataForMarking.steps.find((step: any) => 
-          step.unified_step_id?.trim() === aiStepId
+          step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
         );
         
         // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
@@ -218,11 +224,39 @@ export class MarkingInstructionService {
           }
         }
         
+        // If still not found, check if AI is using OCR block ID format (block_X_Y)
+        if (!matchingStep && aiStepId && aiStepId.startsWith('block_')) {
+          matchingStep = cleanDataForMarking.steps.find((step: any) => 
+            step.globalBlockId?.trim() === aiStepId
+          );
+        }
+        
         if (matchingStep && matchingStep.bbox) {
+          // Get pageIndex from matchingStep, but treat -1 as invalid and use fallback
+          let pageIndex = matchingStep.pageIndex;
+          if (pageIndex == null || pageIndex < 0) {
+            // Try to get pageIndex from rawOcrBlocks if available
+            if (rawOcrBlocks && rawOcrBlocks.length > 0) {
+              // Find the OCR block that matches this step
+              const matchingBlock = rawOcrBlocks.find((block: any) => 
+                block.id === matchingStep.globalBlockId || 
+                (matchingStep.globalBlockId && block.id?.trim() === matchingStep.globalBlockId.trim())
+              );
+              if (matchingBlock && matchingBlock.pageIndex != null && matchingBlock.pageIndex >= 0) {
+                pageIndex = matchingBlock.pageIndex;
+              } else {
+                // Use first block's pageIndex as fallback
+                pageIndex = rawOcrBlocks[0]?.pageIndex ?? 0;
+              }
+            } else {
+              pageIndex = 0; // Default fallback
+            }
+          }
+          
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
-            pageIndex: matchingStep.pageIndex !== undefined ? matchingStep.pageIndex : 0 // Use correct pageIndex from matchingStep
+            pageIndex: pageIndex
           };
         } else {
           return null;
@@ -256,7 +290,9 @@ export class MarkingInstructionService {
     ocrText: string,
     normalizedScheme?: NormalizedMarkingScheme | null,
     examInfo?: any,
-    questionText?: string | null
+    questionText?: string | null,
+    rawOcrBlocks?: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>,
+    classificationStudentWork?: string | null
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -314,14 +350,11 @@ export class MarkingInstructionService {
         schemeJson = '{}';
       }
       
-      // Get the total marks from the normalized scheme
+      // Get total marks from normalized scheme
       const totalMarks = normalizedScheme.totalMarks;
       
-      // Convert JSON marking scheme to plain text bullets for the prompt
-      const schemePlainText = formatMarkingSchemeAsBullets(schemeJson);
-      
-      userPrompt = prompt.user(formattedOcrText, schemePlainText, totalMarks, questionText);
-      // ========================== END OF FIX ==========================
+      // Call user prompt with enhanced parameters (raw OCR blocks and classification)
+      userPrompt = prompt.user(formattedOcrText, schemeJson, totalMarks, questionText, rawOcrBlocks, classificationStudentWork);
     } else {
       // Use the basic prompt
       const prompt = AI_PROMPTS.markingInstructions.basic;
@@ -335,14 +368,90 @@ export class MarkingInstructionService {
     const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
     // Log what's being sent to AI for debugging with better formatting
-    console.log(`📝 [AI PROMPT] Q${questionNumber} - Full Prompt Details:`);
-    console.log(`📝 [AI PROMPT] Q${questionNumber} - Question Text: ${questionText ? `✅ Present (${questionText.length} chars)` : '❌ Missing'}`);
-    if (questionText) {
-      console.log('\x1b[35m' + questionText + '\x1b[0m'); // Magenta color
-    }
-    console.log(`📝 [AI PROMPT] Q${questionNumber} - Full OCR Text (${formattedOcrText.length} chars):`);
-    console.log('\x1b[36m' + formattedOcrText + '\x1b[0m'); // Cyan color
+    // Color codes
+    const GREEN = '\x1b[32m';      // Question header, Marking scheme
+    const MAGENTA = '\x1b[35m';    // Question text
+    const YELLOW = '\x1b[33m';     // Classification student work
+    const CYAN = '\x1b[36m';       // OCR blocks
+    const RESET = '\x1b[0m';
     
+    // Add empty newline before each question (separates questions)
+    console.log('');
+    console.log(`${GREEN}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
+    
+    // 1. Question Text
+    if (questionText) {
+      console.log(`${MAGENTA}Question Text:${RESET}`);
+      console.log(MAGENTA + questionText + RESET);
+    }
+    
+    // 2. Classification Student Work (formatted for AI)
+    if (classificationStudentWork && rawOcrBlocks && rawOcrBlocks.length > 0) {
+      // Recreate the classificationLines format that's sent to AI (same logic as in prompts.ts)
+      let lines = classificationStudentWork.split(/\n|\\newline|\\\\/).map(l => l.trim()).filter(l => l.length > 0);
+      const expandedLines: string[] = [];
+      lines.forEach(line => {
+        const dollarMatches = line.match(/\$/g);
+        const hasMultipleSteps = dollarMatches && dollarMatches.length >= 4;
+        if (hasMultipleSteps) {
+          const parts: string[] = [];
+          let lastIndex = 0;
+          const regex = /\$[^$]+\$/g;
+          let match;
+          while ((match = regex.exec(line)) !== null) {
+            if (match.index > lastIndex) {
+              const beforeText = line.substring(lastIndex, match.index).trim();
+              if (beforeText) parts.push(beforeText);
+            }
+            parts.push(match[0]);
+            lastIndex = regex.lastIndex;
+          }
+          if (lastIndex < line.length) {
+            const afterText = line.substring(lastIndex).trim();
+            if (afterText) parts.push(afterText);
+          }
+          let currentStep = '';
+          parts.forEach((part) => {
+            if (part.startsWith('$')) {
+              if (currentStep.trim()) expandedLines.push(currentStep.trim());
+              currentStep = part;
+            } else {
+              if (part.match(/^\d+[\.\)]/) && currentStep.trim()) {
+                expandedLines.push(currentStep.trim());
+                currentStep = part;
+              } else {
+                currentStep += (currentStep ? ' ' : '') + part;
+              }
+            }
+          });
+          if (currentStep.trim()) expandedLines.push(currentStep.trim());
+        } else {
+          expandedLines.push(line);
+        }
+      });
+      const classificationLines = expandedLines.map((line, idx) => {
+        const stepId = `step_${idx + 1}`;
+        return `${idx + 1}. [${stepId}] ${line.trim()}`;
+      }).join('\n').trim();
+      
+      console.log(`${YELLOW}Classification Student Work:${RESET}`);
+      console.log(YELLOW + classificationLines + RESET);
+    }
+    
+    // 3. OCR Blocks (formatted for AI)
+    if (rawOcrBlocks && rawOcrBlocks.length > 0) {
+      // Format OCR blocks similar to how they appear in the prompt
+      const ocrBlocksFormatted = rawOcrBlocks.map((block, idx) => {
+        const stepId = `step_${idx + 1}`;
+        const text = block.text.substring(0, 100) + (block.text.length > 100 ? '...' : '');
+        return `${idx + 1}. [${stepId}] ${text}`;
+      }).join('\n');
+      
+      console.log(`${CYAN}OCR Blocks:${RESET}`);
+      console.log(CYAN + ocrBlocksFormatted + RESET);
+    }
+    
+    // 4. Marking Scheme
     if (hasMarkingScheme) {
       // Recreate schemeJson for logging (same logic as above to ensure consistency)
       let schemeJsonForLogging = '';
@@ -360,19 +469,10 @@ export class MarkingInstructionService {
       }
       
       // Convert JSON marking scheme to clean bulleted list format for logging
-      // Use the same schemeData that was used for the actual prompt (includes marksWithAnswers)
       const schemePlainText = formatMarkingSchemeAsBullets(schemeJsonForLogging);
       
-      console.log(`📝 [AI PROMPT] Q${questionNumber} - Full Marking Scheme (${schemePlainText.length} chars):`);
-      console.log('\x1b[33m' + schemePlainText + '\x1b[0m'); // Yellow color
-      
-      console.log('📝 [AI PROMPT] Exam Stats:');
-      // Extract exam information from the marking scheme
-      // The examInfo is passed from the markingScheme.questionDetection.match
-      const examStats = `${examInfo?.board || 'Unknown'} ${examInfo?.qualification || ''} ${examInfo?.paperCode || ''} (${examInfo?.year || ''}) Q${normalizedScheme.questionNumber} | ${normalizedScheme.totalMarks} marks | ${normalizedScheme.marks.length} criteria`;
-      console.log('\x1b[32m' + examStats + '\x1b[0m'); // Green color
-    } else {
-      console.log('📝 [AI PROMPT] No marking scheme - using basic prompt');
+      console.log(`${GREEN}Marking Scheme:${RESET}`);
+      console.log(GREEN + schemePlainText + RESET);
     }
 
     let aiResponseString = ''; // Declare outside try block for error logging
@@ -399,16 +499,22 @@ export class MarkingInstructionService {
       try {
         parsedResponse = JSON.parse(jsonString);
       } catch (error) {
-        // If parsing fails, fix common LaTeX escaping issues
-        // The issue is often single backslashes in string values like "\\mathbf{A}" 
-        // which should be "\\\\mathbf{A}" in JSON
+        // If parsing fails, fix common JSON issues
         let fixedJson = jsonString;
         
-        // Fix unescaped backslashes in string values
-        // The AI may return single backslashes like \mathbf{A} which need to be \\mathbf{A} in JSON
-        // Simple approach: escape all backslashes that aren't already part of valid escape sequences
-        fixedJson = jsonString;
+        // Fix 1: Missing closing brace before comma (e.g., "reasoning": "...",\n,\n{)
+        // Pattern: field value followed by newline, comma, newline, opening brace
+        // Should be: field value, closing brace, comma, newline, opening brace
+        // Handle various indentation levels and values that may contain escaped quotes
+        fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
+          // Preserve the indentation of the comma line
+          const indentMatch = match.match(/\n(\s*),\s*\n/);
+          const indent = indentMatch ? indentMatch[1] : '    ';
+          // Value is already properly escaped in JSON, use as-is
+          return `"${field}": "${value}"\n${indent}},\n${indent}{`;
+        });
         
+        // Fix 2: Unescaped backslashes in string values
         // Replace single backslashes that aren't followed by valid escape characters
         // Valid escapes: \", \\, \n, \r, \t, \b, \f, \uXXXX
         fixedJson = fixedJson.replace(/\\(?![\\"/nrtbfu])/g, '\\\\');
@@ -416,7 +522,7 @@ export class MarkingInstructionService {
         try {
           parsedResponse = JSON.parse(fixedJson);
         } catch (secondError) {
-          // If still failing, try escaping ALL backslashes (more aggressive)
+          // Fix 3: More aggressive backslash escaping
           fixedJson = jsonString.replace(/\\/g, '\\\\');
           // But then un-escape the ones that should stay as single (like \n, \", etc.)
           fixedJson = fixedJson.replace(/\\\\n/g, '\\n');
@@ -425,6 +531,15 @@ export class MarkingInstructionService {
           fixedJson = fixedJson.replace(/\\\\t/g, '\\t');
           fixedJson = fixedJson.replace(/\\\\b/g, '\\b');
           fixedJson = fixedJson.replace(/\\\\f/g, '\\f');
+          
+          // Fix 4: Missing closing brace before comma (retry after backslash fixes)
+          fixedJson = fixedJson.replace(/"([^"]+)":\s*"((?:[^"\\]|\\.)*)"\s*\n\s*,\s*\n\s*\{/g, (match, field, value) => {
+            // Preserve the indentation of the comma line
+            const indentMatch = match.match(/\n(\s*),\s*\n/);
+            const indent = indentMatch ? indentMatch[1] : '    ';
+            // Value is already properly escaped in JSON, use as-is
+            return `"${field}": "${value}"\n${indent}},\n${indent}{`;
+          });
           
           try {
             parsedResponse = JSON.parse(fixedJson);
@@ -452,12 +567,22 @@ export class MarkingInstructionService {
           const action = ann.action || 'unknown';
           const text = ann.text || '';
           const textMatch = ann.textMatch || '';
+          const stepId = ann.step_id || 'MISSING';
           const reasoning = ann.reasoning || '';
           const actionColor = action === 'tick' ? '\x1b[32m' : action === 'cross' ? '\x1b[31m' : '\x1b[0m';
           const resetColor = '\x1b[0m';
           const shortMatch = textMatch.length > 50 ? textMatch.substring(0, 50) + '...' : textMatch;
-          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} "${shortMatch}"${reasoning ? ` - ${reasoning}` : ''}`);
+          const stepIdColor = stepId === 'MISSING' ? '\x1b[31m' : '\x1b[36m'; // Red if missing, cyan if present
+          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${stepIdColor}step_id="${stepId}"${resetColor} "${shortMatch}"${reasoning ? ` - ${reasoning}` : ''}`);
         });
+        // Log step_id summary
+        const stepIds = parsedResponse.annotations.map((a: any) => a.step_id || 'MISSING');
+        const missingCount = stepIds.filter((id: string) => id === 'MISSING').length;
+        if (missingCount > 0) {
+          console.log(`  ⚠️ ${missingCount}/${parsedResponse.annotations.length} annotations missing step_id`);
+        }
+      } else {
+        console.log('  ⚠️ No annotations in parsed response');
       }
 
       // Return the correct MarkingInstructions structure
