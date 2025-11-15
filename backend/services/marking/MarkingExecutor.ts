@@ -16,6 +16,15 @@ export interface MarkingTask {
   sourcePages: number[];
   classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  // Sub-question metadata for grouped sub-questions
+  subQuestionMetadata?: {
+    hasSubQuestions: boolean;
+    subQuestions: Array<{
+      part: string;        // "a", "b", "i", "ii", etc.
+      text?: string;       // Sub-question text (optional)
+    }>;
+    subQuestionNumbers?: string[];  // ["22a", "22b"] for reference
+  };
   // Legacy fields (kept for backward compatibility, but not used in enhanced marking)
   aiSegmentationResults?: Array<{ content: string; source: string; blockId: string }>;
   blockToClassificationMap?: Map<string, { classificationLine: string; similarity: number; questionNumber?: string; subQuestionPart?: string }>;
@@ -592,6 +601,43 @@ export async function executeMarkingForQuestion(
       };
     });
     
+    // Add synthetic drawing blocks to rawOcrBlocks if classification has [DRAWING] entries
+    // This ensures the AI can find drawing blocks in the prompt (they have IDs like "drawing_Q22a_1")
+    if (task.classificationStudentWork && task.classificationStudentWork.includes('[DRAWING]')) {
+      // Find drawing blocks that were added to stepsDataForMapping
+      const drawingBlocks = stepsDataForMapping.filter(step => 
+        step.text.includes('[DRAWING]') || step.cleanedText.includes('[DRAWING]')
+      );
+      
+      // Add each drawing block to rawOcrBlocks
+      drawingBlocks.forEach((drawingBlock) => {
+        // Extract position from drawing text for coordinates
+        const positionMatch = drawingBlock.text.match(/\[POSITION:\s*x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+        let coordinates: { x: number; y: number } | undefined = undefined;
+        
+        if (positionMatch && drawingBlock.bbox) {
+          // Use bbox center as coordinates (bbox is [x, y, width, height])
+          coordinates = {
+            x: drawingBlock.bbox[0] + drawingBlock.bbox[2] / 2,
+            y: drawingBlock.bbox[1] + drawingBlock.bbox[3] / 2
+          };
+        } else if (drawingBlock.bbox) {
+          // Fallback: use bbox center
+          coordinates = {
+            x: drawingBlock.bbox[0] + drawingBlock.bbox[2] / 2,
+            y: drawingBlock.bbox[1] + drawingBlock.bbox[3] / 2
+          };
+        }
+        
+        rawOcrBlocks.push({
+          id: drawingBlock.globalBlockId || `drawing_${questionId}_${rawOcrBlocks.length}`,
+          text: drawingBlock.text,
+          pageIndex: drawingBlock.pageIndex,
+          coordinates: coordinates
+        });
+      });
+    }
+    
     // Call Marking Instruction Service (Pass Raw OCR Blocks + Classification for Enhanced Marking)
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
     
@@ -615,10 +661,13 @@ export async function executeMarkingForQuestion(
         unifiedLookupTable: {},
         // Enhanced marking: pass raw OCR blocks and classification
         rawOcrBlocks: rawOcrBlocks,
-        classificationStudentWork: task.classificationStudentWork
+        classificationStudentWork: task.classificationStudentWork,
+        // Pass sub-question metadata for grouped sub-questions
+        subQuestionMetadata: task.subQuestionMetadata
       } as any, // Type assertion for mock object
       questionDetection: task.markingScheme, // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
-      questionText: questionText // Pass question text from fullExamPapers to AI prompt
+      questionText: questionText, // Pass question text from fullExamPapers to AI prompt
+      questionNumber: String(questionId) // Pass question number (may include sub-question part like "17a", "17b")
     });
     
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));

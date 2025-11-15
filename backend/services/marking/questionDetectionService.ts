@@ -133,8 +133,8 @@ export class QuestionDetectionService {
         if (match && match.confidence) {
           // If this match has a higher confidence, it's definitely better
           if (match.confidence > bestScore) {
-            bestMatch = match;
-            bestScore = match.confidence;
+          bestMatch = match;
+          bestScore = match.confidence;
             // Calculate text similarity for tie-breaking
             if (match.databaseQuestionText) {
               const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);

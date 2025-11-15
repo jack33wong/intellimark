@@ -9,6 +9,7 @@ interface NormalizedMarkingScheme {
   questionNumber: string; // Question identifier
   questionLevelAnswer?: string; // Question-level answer (e.g., "H", "F", "J" for letter-based answers)
   marksWithAnswers?: string[]; // Array of answers for each mark (for grouped sub-questions like Q12i, 12ii, 12iii)
+  subQuestionNumbers?: string[]; // Array of sub-question numbers (e.g., ["22a", "22b"]) for grouped sub-questions
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -72,12 +73,20 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       console.log(`[MARKING INSTRUCTION] Q${questionNumber}: No valid sub-question answers found (filtered out empty/cao values)`);
     }
     
+    // Extract sub-question numbers if available (for grouped sub-questions)
+    // Check multiple possible locations where sub-question numbers might be stored
+    const subQuestionNumbers = input.subQuestionNumbers || 
+                               input.questionMarks?.subQuestionNumbers || 
+                               (input as any).subQuestionNumbers || 
+                               undefined;
+    
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
       questionNumber: input.questionNumber || '1',
       questionLevelAnswer: questionLevelAnswer,
-      marksWithAnswers: marksWithAnswers
+      marksWithAnswers: marksWithAnswers,
+      subQuestionNumbers: subQuestionNumbers
     };
     
     
@@ -135,7 +144,7 @@ export interface MarkingInputs {
   questionDetection?: any;
   questionMarks?: any;
   totalMarks?: number;
-  questionNumber?: string;
+  questionNumber?: string; // Question number (may include sub-question part like "17a", "17b")
   questionText?: string | null; // Question text from fullExamPapers (source for question detection)
 }
 
@@ -144,7 +153,7 @@ export class MarkingInstructionService {
    * Execute complete marking flow - moved from LLMOrchestrator
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
-    const { imageData: _imageData, model, processedImage, questionDetection, questionText } = inputs;
+    const { imageData: _imageData, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber } = inputs;
 
 
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
@@ -164,11 +173,81 @@ export class MarkingInstructionService {
 
       // Step 1: Generate raw annotations from cleaned OCR text
       // Normalize the marking scheme data to a standard format
-      const normalizedScheme = normalizeMarkingScheme(questionDetection);
+      // CRITICAL: Ensure questionDetection only contains the current question's scheme
+      // If it's an array or contains multiple schemes, extract only the one for this question
+      let questionDetectionForNormalization = questionDetection;
+      if (questionDetection && Array.isArray(questionDetection)) {
+        // If it's an array, find the one matching the current question
+        const currentQNum = inputQuestionNumber || 'Unknown';
+        questionDetectionForNormalization = questionDetection.find((q: any) => 
+          q.questionNumber === currentQNum || 
+          String(q.questionNumber || '').replace(/[a-z]/i, '') === String(currentQNum).replace(/[a-z]/i, '')
+        ) || questionDetection[0]; // Fallback to first if not found
+      }
+      
+      // CRITICAL: Filter marks to only include current question's marks
+      // If questionDetection contains marks from multiple questions, filter them
+      const currentQNum = inputQuestionNumber || 'Unknown';
+      const baseCurrentQNum = String(currentQNum).replace(/[a-z]/i, '');
+      
+      if (questionDetectionForNormalization && 
+          questionDetectionForNormalization.questionMarks && 
+          questionDetectionForNormalization.questionMarks.marks && 
+          Array.isArray(questionDetectionForNormalization.questionMarks.marks)) {
+        // Check if marks array contains marks from multiple questions
+        // Filter to only include marks for the current question
+        const originalMarks = questionDetectionForNormalization.questionMarks.marks;
+        const filteredMarks = originalMarks.filter((mark: any) => {
+          // If mark has a questionNumber field, use it to filter
+          if (mark.questionNumber) {
+            const markQNum = String(mark.questionNumber).replace(/[a-z]/i, '');
+            return markQNum === baseCurrentQNum || mark.questionNumber === currentQNum;
+          }
+          // If no questionNumber field, assume all marks belong to the current question
+          // (This handles the case where marks don't have questionNumber metadata)
+          return true;
+        });
+        
+        // Only filter if we found marks with questionNumber metadata and filtering changed the array
+        if (originalMarks.some((m: any) => m.questionNumber) && filteredMarks.length !== originalMarks.length) {
+          console.warn(`[MARKING INSTRUCTION] Q${currentQNum}: Filtered marks from ${originalMarks.length} to ${filteredMarks.length} (removed marks from other questions)`);
+          questionDetectionForNormalization = {
+            ...questionDetectionForNormalization,
+            questionMarks: {
+              ...questionDetectionForNormalization.questionMarks,
+              marks: filteredMarks
+            }
+          };
+        }
+      }
+      
+      const normalizedScheme = normalizeMarkingScheme(questionDetectionForNormalization);
+      
+      // CRITICAL: Verify normalized scheme belongs to current question
+      // If questionNumber doesn't match, the scheme is wrong and should be skipped
+      if (normalizedScheme && normalizedScheme.questionNumber) {
+        const schemeQNum = String(normalizedScheme.questionNumber).replace(/[a-z]/i, '');
+        const currentQNumBase = String(currentQNum).replace(/[a-z]/i, '');
+        
+        // Check if question numbers match (base number or exact match)
+        const questionNumbersMatch = schemeQNum === currentQNumBase || 
+                                     normalizedScheme.questionNumber === currentQNum ||
+                                     // For sub-questions, check if current question is a sub-question of the scheme's question
+                                     (normalizedScheme.subQuestionNumbers && 
+                                      normalizedScheme.subQuestionNumbers.includes(currentQNum));
+        
+        if (!questionNumbersMatch) {
+          console.warn(`[MARKING INSTRUCTION] Q${currentQNum}: Normalized scheme question number (${normalizedScheme.questionNumber}) doesn't match current question. Skipping scheme.`);
+          // Set normalizedScheme to null to skip marking scheme in prompt
+          normalizedScheme.marks = [];
+          normalizedScheme.totalMarks = 0;
+        }
+      }
       
       // Extract raw OCR blocks and classification for enhanced marking
       const rawOcrBlocks = (processedImage as any).rawOcrBlocks;
       const classificationStudentWork = (processedImage as any).classificationStudentWork;
+      const subQuestionMetadata = (processedImage as any).subQuestionMetadata;
       
       const annotationData = await this.generateFromOCR(
         model,
@@ -177,7 +256,9 @@ export class MarkingInstructionService {
         questionDetection?.match, // Pass exam info for logging
         questionText, // Pass question text from fullExamPapers
         rawOcrBlocks, // Pass raw OCR blocks for enhanced marking
-        classificationStudentWork // Pass classification student work for enhanced marking
+        classificationStudentWork, // Pass classification student work for enhanced marking
+        inputQuestionNumber, // Pass question number (may include sub-question part)
+        subQuestionMetadata // Pass sub-question metadata for grouped sub-questions
       );
       
       // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
@@ -292,7 +373,9 @@ export class MarkingInstructionService {
     examInfo?: any,
     questionText?: string | null,
     rawOcrBlocks?: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>,
-    classificationStudentWork?: string | null
+    classificationStudentWork?: string | null,
+    inputQuestionNumber?: string,
+    subQuestionMetadata?: { hasSubQuestions: boolean; subQuestions: Array<{ part: string; text?: string }>; subQuestionNumbers?: string[] }
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -333,28 +416,55 @@ export class MarkingInstructionService {
       systemPrompt = prompt.system;
       
       // Format marking scheme for the prompt using normalized data
+      // CRITICAL: Verify this scheme belongs to the current question before passing to AI
+      const schemeQuestionNumber = normalizedScheme.questionNumber;
+      const currentQuestionNumber = inputQuestionNumber || normalizedScheme.questionNumber || 'Unknown';
+      const baseSchemeQNum = String(schemeQuestionNumber || '').replace(/[a-z]/i, '');
+      const baseCurrentQNum = String(currentQuestionNumber || '').replace(/[a-z]/i, '');
+      
       let schemeJson = '';
-      try {
-        // Convert normalized scheme to JSON format for the prompt
-        // Include question-level answer if available
-        const schemeData: any = { marks: normalizedScheme.marks };
-        if (normalizedScheme.questionLevelAnswer) {
-          schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+      // Only use this scheme if it matches the current question
+      if (baseSchemeQNum === baseCurrentQNum || schemeQuestionNumber === currentQuestionNumber) {
+        try {
+          // Convert normalized scheme to JSON format for the prompt
+          // Include question-level answer if available
+          const schemeData: any = { marks: normalizedScheme.marks };
+          if (normalizedScheme.questionLevelAnswer) {
+            schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+          }
+          // Include sub-question-specific answers if available (for grouped sub-questions)
+          if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
+            schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
+          }
+          schemeJson = JSON.stringify(schemeData, null, 2);
+        } catch (error) {
+          schemeJson = '{}';
         }
-        // Include sub-question-specific answers if available (for grouped sub-questions)
-        if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
-          schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
-        }
-        schemeJson = JSON.stringify(schemeData, null, 2);
-      } catch (error) {
+      } else {
+        // Scheme doesn't match current question - don't pass it to AI
+        console.warn(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Marking scheme question number (${schemeQuestionNumber}) doesn't match current question. Skipping scheme.`);
+        hasMarkingScheme = false;
         schemeJson = '{}';
       }
       
       // Get total marks from normalized scheme
       const totalMarks = normalizedScheme.totalMarks;
       
+      // Extract sub-question info for prompt (prefer from metadata, fallback to scheme)
+      const subQuestionNumbers = subQuestionMetadata?.subQuestionNumbers || normalizedScheme.subQuestionNumbers;
+      const subQuestionAnswers = normalizedScheme.marksWithAnswers;
+      
       // Call user prompt with enhanced parameters (raw OCR blocks and classification)
-      userPrompt = prompt.user(formattedOcrText, schemeJson, totalMarks, questionText, rawOcrBlocks, classificationStudentWork);
+      userPrompt = prompt.user(
+        formattedOcrText, 
+        schemeJson, 
+        totalMarks, 
+        questionText, 
+        rawOcrBlocks, 
+        classificationStudentWork,
+        subQuestionNumbers,
+        subQuestionAnswers
+      );
     } else {
       // Use the basic prompt
       const prompt = AI_PROMPTS.markingInstructions.basic;
@@ -364,115 +474,48 @@ export class MarkingInstructionService {
     
     // ========================== END: USE SINGLE PROMPT ==========================
 
-    // Extract question number for logging
-    const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
+    // Extract question number for logging (prefer input questionNumber which may include sub-question part)
+    const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
-    // Log what's being sent to AI for debugging with better formatting
-    // Color codes
-    const GREEN = '\x1b[32m';      // Question header, Marking scheme
-    const MAGENTA = '\x1b[35m';    // Question text
-    const YELLOW = '\x1b[33m';     // Classification student work
-    const CYAN = '\x1b[36m';       // OCR blocks
+    // Log only content sections by extracting them from the actual userPrompt (no duplicate logic)
+    const GREEN = '\x1b[32m';
+    const MAGENTA = '\x1b[35m';
+    const YELLOW = '\x1b[33m';
+    const CYAN = '\x1b[36m';
     const RESET = '\x1b[0m';
     
-    // Add empty newline before each question (separates questions)
     console.log('');
     console.log(`${GREEN}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
     
-    // 1. Question Text
-    if (questionText) {
-      console.log(`${MAGENTA}Question Text:${RESET}`);
-      console.log(MAGENTA + questionText + RESET);
-    }
-    
-    // 2. Classification Student Work (formatted for AI)
-    if (classificationStudentWork && rawOcrBlocks && rawOcrBlocks.length > 0) {
-      // Recreate the classificationLines format that's sent to AI (same logic as in prompts.ts)
-      let lines = classificationStudentWork.split(/\n|\\newline|\\\\/).map(l => l.trim()).filter(l => l.length > 0);
-      const expandedLines: string[] = [];
-      lines.forEach(line => {
-        const dollarMatches = line.match(/\$/g);
-        const hasMultipleSteps = dollarMatches && dollarMatches.length >= 4;
-        if (hasMultipleSteps) {
-          const parts: string[] = [];
-          let lastIndex = 0;
-          const regex = /\$[^$]+\$/g;
-          let match;
-          while ((match = regex.exec(line)) !== null) {
-            if (match.index > lastIndex) {
-              const beforeText = line.substring(lastIndex, match.index).trim();
-              if (beforeText) parts.push(beforeText);
-            }
-            parts.push(match[0]);
-            lastIndex = regex.lastIndex;
-          }
-          if (lastIndex < line.length) {
-            const afterText = line.substring(lastIndex).trim();
-            if (afterText) parts.push(afterText);
-          }
-          let currentStep = '';
-          parts.forEach((part) => {
-            if (part.startsWith('$')) {
-              if (currentStep.trim()) expandedLines.push(currentStep.trim());
-              currentStep = part;
-            } else {
-              if (part.match(/^\d+[\.\)]/) && currentStep.trim()) {
-                expandedLines.push(currentStep.trim());
-                currentStep = part;
-              } else {
-                currentStep += (currentStep ? ' ' : '') + part;
-              }
-            }
-          });
-          if (currentStep.trim()) expandedLines.push(currentStep.trim());
-        } else {
-          expandedLines.push(line);
-        }
-      });
-      const classificationLines = expandedLines.map((line, idx) => {
-        const stepId = `step_${idx + 1}`;
-        return `${idx + 1}. [${stepId}] ${line.trim()}`;
-      }).join('\n').trim();
-      
-      console.log(`${YELLOW}Classification Student Work:${RESET}`);
-      console.log(YELLOW + classificationLines + RESET);
-    }
-    
-    // 3. OCR Blocks (formatted for AI)
-    if (rawOcrBlocks && rawOcrBlocks.length > 0) {
-      // Format OCR blocks similar to how they appear in the prompt
-      const ocrBlocksFormatted = rawOcrBlocks.map((block, idx) => {
-        const stepId = `step_${idx + 1}`;
-        const text = block.text.substring(0, 100) + (block.text.length > 100 ? '...' : '');
-        return `${idx + 1}. [${stepId}] ${text}`;
-      }).join('\n');
-      
-      console.log(`${CYAN}OCR Blocks:${RESET}`);
-      console.log(CYAN + ocrBlocksFormatted + RESET);
-    }
-    
-    // 4. Marking Scheme
-    if (hasMarkingScheme) {
-      // Recreate schemeJson for logging (same logic as above to ensure consistency)
-      let schemeJsonForLogging = '';
-      try {
-        const schemeData: any = { marks: normalizedScheme.marks };
-        if (normalizedScheme.questionLevelAnswer) {
-          schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
-        }
-        if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
-          schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
-        }
-        schemeJsonForLogging = JSON.stringify(schemeData, null, 2);
-      } catch (error) {
-        schemeJsonForLogging = '{}';
+    // Extract content sections from the actual userPrompt (reuse the real prompt, just extract content)
+    if (userPrompt) {
+      // 1. Extract Question Text
+      const questionTextMatch = userPrompt.match(/ORIGINAL QUESTION:\s*\n([\s\S]*?)(?=\n\n|⚠️|MANDATORY|RAW OCR|CLASSIFICATION|MARKING SCHEME|$)/);
+      if (questionTextMatch && questionTextMatch[1]) {
+        console.log(`${MAGENTA}Question Text:${RESET}`);
+        console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
       }
       
-      // Convert JSON marking scheme to clean bulleted list format for logging
-      const schemePlainText = formatMarkingSchemeAsBullets(schemeJsonForLogging);
+      // 2. Extract Classification Student Work
+      const classificationMatch = userPrompt.match(/\*\*CLASSIFICATION STUDENT WORK\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*MARKING SCHEME|$)/);
+      if (classificationMatch && classificationMatch[1]) {
+        console.log(`${YELLOW}Classification Student Work:${RESET}`);
+        console.log(YELLOW + classificationMatch[1].trim() + RESET);
+      }
       
-      console.log(`${GREEN}Marking Scheme:${RESET}`);
-      console.log(GREEN + schemePlainText + RESET);
+      // 3. Extract OCR Blocks
+      const ocrBlocksMatch = userPrompt.match(/\*\*RAW OCR BLOCKS\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*CLASSIFICATION|$)/);
+      if (ocrBlocksMatch && ocrBlocksMatch[1]) {
+        console.log(`${CYAN}OCR Blocks:${RESET}`);
+        console.log(CYAN + ocrBlocksMatch[1].trim() + RESET);
+      }
+      
+      // 4. Extract Marking Scheme
+      const markingSchemeMatch = userPrompt.match(/\*\*MARKING SCHEME\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*TOTAL MARKS|\*\*YOUR TASK|$)/);
+      if (markingSchemeMatch && markingSchemeMatch[1]) {
+        console.log(`${GREEN}Marking Scheme:${RESET}`);
+        console.log(GREEN + markingSchemeMatch[1].trim() + RESET);
+      }
     }
 
     let aiResponseString = ''; // Declare outside try block for error logging
@@ -555,7 +598,9 @@ export class MarkingInstructionService {
       const questionNumber = normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
       // Log clean AI response with better formatting
-      console.log(`🤖 [AI RESPONSE] Q${questionNumber} - Clean response received:`);
+      const GREEN = '\x1b[32m';
+      const RESET = '\x1b[0m';
+      console.log(`🤖 [AI RESPONSE] ${GREEN}Q${questionNumber}${RESET} - Clean response received:`);
       console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
       console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
@@ -566,14 +611,30 @@ export class MarkingInstructionService {
         parsedResponse.annotations.forEach((ann: any, idx: number) => {
           const action = ann.action || 'unknown';
           const text = ann.text || '';
-          const textMatch = ann.textMatch || '';
           const stepId = ann.step_id || 'MISSING';
           const reasoning = ann.reasoning || '';
           const actionColor = action === 'tick' ? '\x1b[32m' : action === 'cross' ? '\x1b[31m' : '\x1b[0m';
           const resetColor = '\x1b[0m';
-          const shortMatch = textMatch.length > 50 ? textMatch.substring(0, 50) + '...' : textMatch;
-          const stepIdColor = stepId === 'MISSING' ? '\x1b[31m' : '\x1b[36m'; // Red if missing, cyan if present
-          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${stepIdColor}step_id="${stepId}"${resetColor} "${shortMatch}"${reasoning ? ` - ${reasoning}` : ''}`);
+          const blueColor = '\x1b[34m'; // Blue for student answer
+          
+          // Look up student answer text from rawOcrBlocks based on step_id
+          let studentAnswer = '';
+          if (rawOcrBlocks && stepId !== 'MISSING') {
+            const matchingBlock = rawOcrBlocks.find(block => block.id === stepId);
+            if (matchingBlock && matchingBlock.text) {
+              // Truncate long text and clean up for display
+              const fullText = matchingBlock.text;
+              studentAnswer = fullText.length > 80 ? fullText.substring(0, 80) + '...' : fullText;
+            }
+          }
+          
+          // If not found in rawOcrBlocks, try textMatch as fallback
+          if (!studentAnswer && ann.textMatch) {
+            studentAnswer = ann.textMatch.length > 80 ? ann.textMatch.substring(0, 80) + '...' : ann.textMatch;
+          }
+          
+          const studentAnswerDisplay = studentAnswer ? `${blueColor}"${studentAnswer}"${resetColor}` : '""';
+          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${studentAnswerDisplay}${reasoning ? ` - ${reasoning}` : ''}`);
         });
         // Log step_id summary
         const stepIds = parsedResponse.annotations.map((a: any) => a.step_id || 'MISSING');

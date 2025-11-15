@@ -1989,15 +1989,15 @@ export function segmentOcrResultsByQuestion(
                 // Check: block Y > boundary.startY means block is below question text start
                 // RELAXED: Use startY instead of endY to allow blocks slightly above endY
                 // So block Y > boundaryStartY, which means block is below the boundary start (correct for student work)
+              
+              // Find which scheme this boundary belongs to
+              const questionInfo = questionsOnPage.find(q => q.questionNumber === nearestBoundary.questionNumber);
                 
-                // Find which scheme this boundary belongs to
-                const questionInfo = questionsOnPage.find(q => q.questionNumber === nearestBoundary.questionNumber);
-                
-                if (questionInfo && questionInfo.schemeKey === schemeKey) {
+              if (questionInfo && questionInfo.schemeKey === schemeKey) {
                   // Block is below this scheme's question boundary start → assign to scheme
                   // STEP 4 already filtered question text, so we trust these blocks are student work
-                  blocksToAssign.push(block);
-                  assignedBlocksInPage.add(blockId);
+                blocksToAssign.push(block);
+                assignedBlocksInPage.add(blockId);
                 }
               }
             }

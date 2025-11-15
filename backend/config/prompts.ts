@@ -762,14 +762,21 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
        4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
-      user: (ocrText: string, schemeJson: string, totalMarks?: number, questionText?: string | null, rawOcrBlocks?: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>, classificationStudentWork?: string | null) => {
-        // Convert JSON marking scheme to clean bulleted list format
-        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+      user: (ocrText: string, schemeJson: string, totalMarks?: number, questionText?: string | null, rawOcrBlocks?: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>, classificationStudentWork?: string | null, subQuestionNumbers?: string[], subQuestionAnswers?: string[]) => {
+        // Convert JSON marking scheme to clean bulleted list format (with sub-question grouping if applicable)
+        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson, subQuestionNumbers, subQuestionAnswers);
         
         const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
         
         // Add question text section if available (from fullExamPapers - source for question detection)
         const questionSection = questionText ? `ORIGINAL QUESTION:\n${questionText}\n\n` : '';
+        
+        // Add sub-question header if this is a grouped question
+        const subQuestionHeader = subQuestionNumbers && subQuestionNumbers.length > 0
+          ? `\n⚠️ **IMPORTANT: GROUPED SUB-QUESTIONS**\n` +
+            `This question has ${subQuestionNumbers.length} sub-question(s): ${subQuestionNumbers.join(', ')}\n` +
+            `You must mark EACH sub-question separately using the corresponding marks and student work.\n\n`
+          : '';
         
         // Enhanced prompt with raw OCR blocks and classification (if provided)
         if (rawOcrBlocks && rawOcrBlocks.length > 0 && classificationStudentWork) {
@@ -779,122 +786,193 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
             return `${block.id}|Page${block.pageIndex}${coords}|${block.text}`;
           }).join('\n');
           
-          // Format classification student work with step IDs (trust classification - already filtered by classification AI)
-          // Split by newlines first
-          let lines = classificationStudentWork.split(/\n|\\newline|\\\\/).map(l => l.trim()).filter(l => l.length > 0);
-          
-          // If any line contains multiple concatenated steps (indicated by multiple $...$ patterns or step numbers), split them
-          const expandedLines: string[] = [];
-          lines.forEach(line => {
-            // Detect concatenated steps: look for patterns like $...$$...$ or $...$ followed by a number (step indicator)
-            // Pattern: multiple $...$ expressions that are clearly separate steps
-            // Split by $...$ boundaries when followed by a digit (likely a step number) or when there are 3+ $ expressions
-            const dollarMatches = line.match(/\$/g);
-            const hasMultipleSteps = dollarMatches && dollarMatches.length >= 4; // At least 2 LaTeX expressions ($...$ $...$)
+          // Parse grouped student work with sub-question labels
+          const parseGroupedStudentWork = (work: string): Array<{ label: string; content: string; stepIdPrefix: string }> => {
+            const sections: Array<{ label: string; content: string; stepIdPrefix: string }> = [];
             
-            if (hasMultipleSteps) {
-              // Split by $...$ patterns, but keep the $ delimiters with their content
-              // Use a regex that matches $...$ and splits, preserving the matches
-              const parts: string[] = [];
-              let lastIndex = 0;
-              const regex = /\$[^$]+\$/g;
-              let match;
+            // Extract main question student work
+            const mainMatch = work.match(/\[MAIN QUESTION STUDENT WORK\]\s*\n([\s\S]*?)(?=\[SUB-QUESTION|$)/);
+            if (mainMatch && mainMatch[1]) {
+              sections.push({
+                label: 'Main Question',
+                content: mainMatch[1].trim(),
+                stepIdPrefix: 'main'
+              });
+            }
+            
+            // Extract sub-question sections
+            const subQRegex = /\[SUB-QUESTION ([A-Z]+) STUDENT WORK\]\s*\n([\s\S]*?)(?=\[SUB-QUESTION|\[MAIN QUESTION|$)/g;
+            let match;
+            while ((match = subQRegex.exec(work)) !== null) {
+              const part = match[1];
+              const content = match[2].trim();
+              sections.push({
+                label: `Sub-Question ${part}`,
+                content: content,
+                stepIdPrefix: `sub_${part.toLowerCase()}`
+              });
+            }
+            
+            // If no labels found, treat as single question
+            if (sections.length === 0) {
+              sections.push({
+                label: 'Student Work',
+                content: work.trim(),
+                stepIdPrefix: 'step'
+              });
+            }
+            
+            return sections;
+          };
+          
+          // Helper to expand concatenated steps in a section
+          const expandSteps = (content: string): string[] => {
+            let lines = content.split(/\n|\\newline|\\\\/).map(l => l.trim()).filter(l => l.length > 0);
+            const expandedLines: string[] = [];
+            
+            lines.forEach(line => {
+              const dollarMatches = line.match(/\$/g);
+              const hasMultipleSteps = dollarMatches && dollarMatches.length >= 4;
               
-              while ((match = regex.exec(line)) !== null) {
-                // Add text before this LaTeX expression (if any)
-                if (match.index > lastIndex) {
-                  const beforeText = line.substring(lastIndex, match.index).trim();
-                  if (beforeText) {
-                    parts.push(beforeText);
+              if (hasMultipleSteps) {
+                const parts: string[] = [];
+                let lastIndex = 0;
+                const regex = /\$[^$]+\$/g;
+                let match;
+                
+                while ((match = regex.exec(line)) !== null) {
+                  if (match.index > lastIndex) {
+                    const beforeText = line.substring(lastIndex, match.index).trim();
+                    if (beforeText) parts.push(beforeText);
                   }
+                  parts.push(match[0]);
+                  lastIndex = regex.lastIndex;
                 }
-                // Add the LaTeX expression
-                parts.push(match[0]);
-                lastIndex = regex.lastIndex;
-              }
-              
-              // Add remaining text after last LaTeX expression
-              if (lastIndex < line.length) {
-                const afterText = line.substring(lastIndex).trim();
-                if (afterText) {
-                  parts.push(afterText);
+                
+                if (lastIndex < line.length) {
+                  const afterText = line.substring(lastIndex).trim();
+                  if (afterText) parts.push(afterText);
                 }
-              }
-              
-              // Each LaTeX expression (or LaTeX + following text) becomes a separate step
-              // Group: LaTeX expression + any text immediately after it (until next LaTeX or end)
-              let currentStep = '';
-              parts.forEach((part, idx) => {
-                if (part.startsWith('$')) {
-                  // This is a LaTeX expression
-                  if (currentStep.trim()) {
-                    expandedLines.push(currentStep.trim());
-                  }
-                  currentStep = part;
-                } else {
-                  // This is text - if it starts with a digit, it's likely a new step indicator
-                  if (part.match(/^\d+[\.\)]/) && currentStep.trim()) {
-                    // New step - save current and start new
-                    expandedLines.push(currentStep.trim());
+                
+                let currentStep = '';
+                parts.forEach((part) => {
+                  if (part.startsWith('$')) {
+                    if (currentStep.trim()) expandedLines.push(currentStep.trim());
                     currentStep = part;
                   } else {
-                    // Continue current step
-                    currentStep += (currentStep ? ' ' : '') + part;
+                    if (part.match(/^\d+[\.\)]/) && currentStep.trim()) {
+                      expandedLines.push(currentStep.trim());
+                      currentStep = part;
+                    } else {
+                      currentStep += (currentStep ? ' ' : '') + part;
+                    }
                   }
-                }
-              });
-              if (currentStep.trim()) {
-                expandedLines.push(currentStep.trim());
+                });
+                if (currentStep.trim()) expandedLines.push(currentStep.trim());
+              } else {
+                expandedLines.push(line);
               }
-            } else {
-              // Single step or already properly separated
-              expandedLines.push(line);
-            }
+            });
+            
+            return expandedLines;
+          };
+          
+          // Parse grouped student work
+          const sections = parseGroupedStudentWork(classificationStudentWork);
+          
+          // Format each section with step IDs and labels
+          const classificationSections = sections.map((section) => {
+            const expandedLines = expandSteps(section.content);
+            const formattedLines = expandedLines.map((line, idx) => {
+              const stepId = `${section.stepIdPrefix}_step_${idx + 1}`;
+              return `${idx + 1}. [${stepId}] ${line.trim()}`;
+            }).join('\n');
+            
+            return `**${section.label.toUpperCase()}:**\n${formattedLines}`;
           });
           
-          // Format with step IDs and ensure each step is on its own line
-          const classificationLines = expandedLines.map((line, idx) => {
-            const stepId = `step_${idx + 1}`;
-            return `${idx + 1}. [${stepId}] ${line.trim()}`;
-          }).join('\n').trim(); // Join with newlines to ensure proper line breaks
+          const classificationLines = classificationSections.join('\n\n');
           
-          return `${questionSection}**MANDATORY MAPPING-BASED MARKING:**
+          return `${subQuestionHeader}${questionSection}**MANDATORY MAPPING-BASED MARKING:**
 
 **UNDERSTANDING THE DATA:**
 - **RAW OCR BLOCKS** (step_1, step_2, step_3...): These include question text AND student work
   - **PURPOSE**: Provide COORDINATES for placing annotations on the image
   - Each OCR block has coordinates that will be used to mark the student's work visually
   - You must map classification steps to OCR blocks to get the correct coordinates
+  - **FALLBACK CONTENT**: Use OCR content when classification is mathematically wrong
 - **CLASSIFICATION STUDENT WORK** (step_1, step_2, step_3...): Contains ONLY student work (already filtered)
-  - **PURPOSE**: This is the SOURCE OF TRUTH for student work content
-  - Classification is more accurate than OCR (better LaTeX extraction, no question text)
-  - Use classification content for marking decisions
+  - **PURPOSE**: This is the DEFAULT SOURCE OF TRUTH for student work content
+  - Classification is usually more accurate than OCR (better LaTeX extraction, no question text)
+  - **VALIDATE before using**: Check if classification is mathematically correct and matches question requirements
+  - Use classification content for marking decisions UNLESS it's wrong
 
 **STEP 1: MAP CLASSIFICATION STEPS TO OCR BLOCKS (Segmentation)**
-- **YOUR MAPPING TASK**: For each classification step, find which OCR block(s) match it by content similarity
-- Example: Classification step_1 might map to OCR step_3 (because OCR step_1, step_2 are question text)
+- **YOUR MAPPING TASK**: For each classification step, find which OCR block matches it by content similarity
+- **CRITICAL: ONE-TO-ONE MAPPING** - Each classification step maps to exactly ONE OCR block, and each OCR block can only be mapped to ONE classification step
+- If multiple classification steps match the same OCR block, choose the classification step with the best content match and use that OCR block only once
+- If a classification step matches multiple OCR blocks, choose the OCR block with the best content similarity
+- Example (single question): Classification step_1 might map to OCR block block_5_3 (because OCR blocks block_5_0, block_5_1, block_5_2 are question text)
+- Example (grouped sub-questions): Classification sub_b_step_1 might map to OCR block block_5_3 (because earlier OCR blocks are question text)
+- **SPECIAL CASE: DRAWING ENTRIES**
+  - If classification step contains "[DRAWING]", **DO NOT map it to OCR blocks** (drawings are visual, not text)
+  - Drawings have synthetic step IDs (like "step_0" or drawing-specific IDs) that are already in the OCR blocks list
+  - Use the synthetic drawing step_id directly (it will be in the format "drawing_Q22_1" or similar)
+  - **CRITICAL**: Never map "[DRAWING]" entries to question text OCR blocks
 - **IGNORE OCR blocks that don't map to any classification step** (they're question text and should not be marked)
 
-**STEP 2: FOR EACH MAPPED STEP, CHOOSE THE BEST CONTENT (AIM FOR HIGHEST SCORE)**
+**STEP 2: VALIDATE AND SELECT CONTENT**
 For each classification step with a mapped OCR block:
-1. Evaluate classification content against marking scheme → calculate potential score
-2. Evaluate OCR content against marking scheme → calculate potential score
-3. **Choose the content (classification OR OCR) that gives the HIGHER score** for marking decisions
-4. Use your chosen content (classification or OCR) for marking decisions
-5. **CRITICAL: Use the OCR block step ID in your annotation** (so coordinates can be found)
+1. **CRITICAL: Classification is DEFAULT - Only use OCR if classification would get 0 marks**
+   - Classification is usually MORE ACCURATE than OCR (better LaTeX extraction, proper recurring decimal notation, correct mathematical symbols)
+   - OCR often has errors (truncated decimals, missing symbols, OCR artifacts)
+   - **DEFAULT DECISION: Use classification content** unless it would receive 0 marks according to the marking scheme
+2. **Validate classification content against marking scheme**:
+   - **DEFINITION OF "WRONG"**: Classification is "wrong" if it would receive 0 marks (M0, A0, P0, etc.) according to the marking scheme
+   - Check: Would classification content receive any marks according to the marking scheme?
+   - Check: Does it match the question requirements?
+   - Check: Does it lead to a logical result?
+   - **Compare with OCR**: Is classification better than OCR? (e.g., classification has proper recurring decimal notation like 0.3\dot{7}\dot{8}, OCR has truncated 0.3782)
+3. **ONLY if classification would get 0 marks AND OCR might get marks** → Use OCR content instead
+   - Classification must receive 0 marks according to the marking scheme
+   - OCR must potentially receive marks according to the marking scheme
+   - Example: Classification says "x = 5" but marking scheme requires "x = 10" (would get 0 marks), AND OCR correctly shows "x = 10" (would get marks)
+4. **If classification would get ANY marks OR UNCERTAIN** → Use classification content
+   - If classification would receive even partial marks (M1, P1, etc.), use classification
+   - When in doubt, use classification (it's the source of truth)
+   - Classification has better LaTeX extraction and mathematical notation
+5. **CRITICAL: Always use the OCR block step ID in your annotation** (so coordinates can be found)
+6. **CRITICAL: ONE annotation per OCR block** - If multiple classification steps map to the same OCR block, create only ONE annotation using the best evaluation (highest mark or most accurate assessment)
 
 **STEP 3: FOR UNMAPPED CLASSIFICATION STEPS**
-- If a classification step has no mapped OCR block, use classification only
-- Mark classification content directly
-- Use a default step_id (e.g., "step_0") if no OCR block matches
+- **For DRAWING entries**: These are visual elements, not text
+  - Look for synthetic drawing blocks in OCR blocks list (they contain "[DRAWING]" in their text)
+  - Use the synthetic drawing step_id (e.g., "drawing_Q22_1" or similar)
+  - If no synthetic block found, use "step_0" as fallback
+  - **DO NOT map drawings to question text OCR blocks**
+- **For regular text steps**: If a classification step has no mapped OCR block, use classification only
+  - Mark classification content directly
+  - Use a default step_id (e.g., "step_0") if no OCR block matches
 
 **CRITICAL RULES:**
 - **DO NOT create annotations for unmapped OCR blocks** (they cannot be student work if they don't map to classification)
 - **DO NOT use OCR blocks that don't map to classification** (safe from question text)
-- **Always aim for the HIGHEST possible score** based on marking scheme
-- **Classification is your source of truth** - it defines what to mark and provides accurate content
+  - **CRITICAL: VALIDATION-BASED SOURCE SELECTION**
+  - **DEFAULT**: Use classification student work (it's the source of truth)
+  - **FALLBACK**: ONLY if classification would receive 0 marks according to the marking scheme, use OCR student work instead
+  - **DEFINITION OF "WRONG"**: Classification is "wrong" if it would receive 0 marks (M0, A0, P0, etc.) according to the marking scheme
+  - **VALIDATION CHECK**: Before using classification, verify:
+    * Would classification receive any marks according to the marking scheme? (If yes, use classification)
+    * Does it match the question requirements?
+    * Does it lead to a logical result?
+    * **Is it better than OCR?** (e.g., proper recurring decimal notation vs truncated decimals)
+  - **CRITICAL RULE**: When comparing classification vs OCR:
+    * Classification usually has BETTER mathematical notation (proper recurring decimals, correct LaTeX)
+    * OCR often has ERRORS (truncated decimals, missing symbols, OCR artifacts)
+    * **Only use OCR if classification would get 0 marks AND OCR might get marks**
+- **Classification is your default source of truth** - it defines what to mark and provides accurate content
 - **OCR provides coordinates** - use OCR block step IDs in annotations to get coordinates
-- **OCR content is optional enhancement** - use it only if it improves the score for a mapped step
+- **OCR content is a LAST RESORT fallback** - use it ONLY when classification would get 0 marks according to the marking scheme, not when uncertain
 - **MANDATORY: Every annotation MUST include "step_id" field with OCR block step ID**
   - If classification step_1 maps to OCR step_3, use "step_3" in your annotation (NOT "step_1")
   - Without step_id, the annotation cannot be placed on the image
@@ -902,24 +980,58 @@ For each classification step with a mapped OCR block:
 **RAW OCR BLOCKS** (provide coordinates for annotations - map classification steps to these):
 ${ocrBlocksText}
 
-**CLASSIFICATION STUDENT WORK** (source of truth for student work content):
-Student's Work:
+**CLASSIFICATION STUDENT WORK** ${subQuestionNumbers && subQuestionNumbers.length > 0 ? `(GROUPED BY SUB-QUESTION - ${subQuestionNumbers.join(', ')})` : ''} (source of truth for student work content):
 ${classificationLines}
 
-**YOUR TASK:**
-1. **Map each classification step to the corresponding OCR block(s)** by content similarity
-   - Example: Classification step_1 → OCR step_3 (find which OCR block matches this classification line)
-   - Example: Classification step_2 → OCR step_5
-2. **For each mapped step, compare classification vs OCR** and choose the content that gives higher score
-3. **Mark ALL classification steps** (use mapped OCR content only if it improves the score)
-4. **Ignore unmapped OCR blocks completely** (do not create annotations for them)
-5. **MANDATORY: Use OCR block step IDs in annotations**
-   - If you mapped classification step_1 to OCR step_3, use "step_3" in your annotation's "step_id" field (NOT "step_1")
-   - The "step_id" field is REQUIRED in every annotation - do not omit it
-   - Without step_id, annotations cannot be placed on the image
+**MARKING SCHEME** ${subQuestionNumbers && subQuestionNumbers.length > 0 ? `(GROUPED BY SUB-QUESTION - ${subQuestionNumbers.join(', ')})` : '(SINGLE QUESTION)'}:
+${formattedScheme}${marksInfo}
 
-MARKING SCHEME CONTEXT:
-${formattedScheme}${marksInfo}`;
+${subQuestionNumbers && subQuestionNumbers.length > 0 
+  ? `**YOUR TASK FOR GROUPED SUB-QUESTIONS:**
+1. **For EACH sub-question separately:**
+   - Identify which classification steps belong to this sub-question (look for section labels like "SUB-QUESTION A" or "SUB-QUESTION B")
+   - Map those steps to OCR blocks by content similarity
+     - Example: Classification sub_a_step_1 (drawing) → OCR block drawing_22_10 → use "drawing_22_10" in annotation
+     - Example: Classification sub_b_step_1 (text) → OCR block block_5_3 → use "block_5_3" in annotation
+   - Use ONLY the marks for this sub-question (from the corresponding "SUB-QUESTION X MARKS" section above)
+   - Mark this sub-question independently
+2. **Generate annotations for ALL sub-questions** in your response
+3. **Use correct step_ids** from OCR blocks for coordinate mapping
+   - **CRITICAL**: Use the OCR block ID (e.g., "drawing_22_10", "block_5_3") in your annotation's "step_id" field, NOT the classification step ID (e.g., "sub_a_step_1")
+4. **CRITICAL: ONE annotation per OCR block/step_id** - Each OCR block can only have ONE annotation. If multiple classification steps map to the same OCR block, create only ONE annotation using the best evaluation
+5. **CRITICAL**: Each sub-question must be marked using its own marks - do not mix marks between sub-questions`
+  : `**YOUR TASK:**
+1. **Map each classification step to the corresponding OCR block** by content similarity
+   - **CRITICAL: ONE-TO-ONE MAPPING** - Each classification step maps to exactly ONE OCR block, and each OCR block can only be mapped to ONE classification step
+   - If multiple classification steps match the same OCR block, choose the classification step with the best content match and use that OCR block only once
+   - If a classification step matches multiple OCR blocks, choose the OCR block with the best content similarity
+   - **For DRAWING entries**: Find synthetic drawing blocks in OCR blocks list (they contain "[DRAWING]" in their text)
+     - Example: Classification sub_a_step_1 (contains "[DRAWING]") → OCR block drawing_22_10
+     - Use the synthetic drawing step_id directly (e.g., "drawing_22_10") in your annotation
+     - **DO NOT map drawings to question text OCR blocks**
+   - **For regular text steps**: Map by content similarity
+     - Example: Classification sub_b_step_1 → OCR block block_5_3 (find which OCR block matches this classification line)
+     - Example: Classification sub_b_step_2 → OCR block block_5_4
+     - Example: Classification step_1 → OCR block block_5_3 (for single questions without sub-questions)
+2. **For each mapped step, validate and select the BEST content**:
+   - **DEFAULT: Use classification content** (it's usually more accurate)
+   - **DEFINITION OF "WRONG"**: Classification is "wrong" if it would receive 0 marks (M0, A0, P0, etc.) according to the marking scheme
+   - **Compare classification vs OCR**:
+     * Classification often has better notation (proper recurring decimals like 0.3\dot{7}\dot{8}, correct LaTeX)
+     * OCR often has errors (truncated decimals like 0.3782, missing symbols, OCR artifacts)
+   - **ONLY use OCR if**:
+     * Classification would receive 0 marks according to the marking scheme AND
+     * OCR might receive marks according to the marking scheme
+   - **When in doubt, use classification** (it's the source of truth)
+3. **Mark ALL classification steps** (use OCR content ONLY when classification would get 0 marks)
+4. **Ignore unmapped OCR blocks completely** (do not create annotations for them)
+5. **CRITICAL: ONE annotation per OCR block/step_id** - Each OCR block can only have ONE annotation. If multiple classification steps map to the same OCR block, create only ONE annotation using the best evaluation (prioritize correct marks over incorrect ones, higher marks over lower ones)
+6. **MANDATORY: Use OCR block step IDs in annotations**
+   - If you mapped classification sub_b_step_1 to OCR block block_5_3, use "block_5_3" in your annotation's "step_id" field (NOT "sub_b_step_1")
+   - If you mapped classification sub_a_step_1 to OCR block drawing_22_10, use "drawing_22_10" in your annotation's "step_id" field (NOT "sub_a_step_1")
+   - For drawings, use the synthetic drawing step_id from OCR blocks (e.g., "drawing_22_10")
+   - The "step_id" field is REQUIRED in every annotation - do not omit it
+   - Without step_id, annotations cannot be placed on the image`}`;
         }
         
         // Fallback to original format if raw data not provided
@@ -1424,10 +1536,21 @@ Rules: Map all lines, use question text to check correctness, default=classifica
 /**
  * Convert JSON marking scheme to clean bulleted list format
  */
-export function formatMarkingSchemeAsBullets(schemeJson: string): string {
+export function formatMarkingSchemeAsBullets(
+  schemeJson: string,
+  subQuestionNumbers?: string[],
+  subQuestionAnswers?: string[]
+): string {
   try {
     // Parse the JSON marking scheme
     const scheme = JSON.parse(schemeJson);
+    
+    // CRITICAL: Ensure we only process a single question's scheme
+    // If scheme is an array, take only the first one (shouldn't happen, but safety check)
+    if (Array.isArray(scheme)) {
+      console.warn('[formatMarkingSchemeAsBullets] Received array of schemes, using first one only');
+      return formatMarkingSchemeAsBullets(JSON.stringify(scheme[0]), subQuestionNumbers, subQuestionAnswers);
+    }
     
     if (!scheme.marks || !Array.isArray(scheme.marks)) {
       return schemeJson; // Return original if not in expected format
@@ -1438,7 +1561,7 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
     
     // For grouped sub-questions, check if marks array has sub-question-specific answers
     // Some marking schemes store answers in marks array with index matching sub-question order
-    const marksWithAnswers = scheme.marksWithAnswers || [];
+    const marksWithAnswers = scheme.marksWithAnswers || subQuestionAnswers || [];
     
     // Track "cao" replacement statistics
     const caoReplacements = {
@@ -1446,6 +1569,100 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       succeeded: 0,
       failed: 0
     };
+    
+    // Helper function to format marks for a single sub-question
+    const formatMarksForSubQuestion = (
+      marks: any[],
+      subQIndex: number,
+      subQNum: string
+    ): string => {
+      const subQBullets = marks.map((mark: any, localIndex: number) => {
+        const globalIndex = (subQIndex * marks.length) + localIndex;
+      const markCode = mark.mark || 'M1';
+        let answer = mark.answer || '';
+      const comments = mark.comments || '';
+        
+        // If mark answer is "cao", use sub-question-specific answer
+        if (answer.toLowerCase() === 'cao') {
+          caoReplacements.total++;
+          if (marksWithAnswers && marksWithAnswers[subQIndex]) {
+            answer = marksWithAnswers[subQIndex];
+            caoReplacements.succeeded++;
+          } else {
+            caoReplacements.failed++;
+          }
+        }
+      
+      // Combine answer and comments
+      const fullText = comments ? `${answer} ${comments}` : answer;
+      
+      // Convert LaTeX math expressions to clean Markdown + Inline LaTeX format
+      let processedText = fullText;
+      processedText = normalizeLatexDelimiters(processedText);
+      processedText = processedText.replace(/\$/g, '');
+      processedText = processedText.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$\\frac{$1}{$2}$');
+      processedText = processedText.replace(/\\times/g, '$\\times$');
+      processedText = processedText.replace(/\\div/g, '$\\div$');
+      processedText = processedText.replace(/\\pi/g, '$\\pi$');
+      processedText = processedText.replace(/\\alpha/g, '$\\alpha$');
+      processedText = processedText.replace(/\\beta/g, '$\\beta$');
+      processedText = processedText.replace(/\\gamma/g, '$\\gamma$');
+      processedText = processedText.replace(/\\delta/g, '$\\delta$');
+      processedText = processedText.replace(/\\theta/g, '$\\theta$');
+      processedText = processedText.replace(/\\lambda/g, '$\\lambda$');
+      processedText = processedText.replace(/\\mu/g, '$\\mu$');
+      processedText = processedText.replace(/\\sigma/g, '$\\sigma$');
+      processedText = processedText.replace(/\\phi/g, '$\\phi$');
+      processedText = processedText.replace(/\\omega/g, '$\\omega$');
+      processedText = processedText.replace(/\^(\d+)/g, '^$1');
+      processedText = processedText.replace(/\\sqrt\{([^}]+)\}/g, '$\\sqrt{$1}$');
+      processedText = processedText.replace(/\\approx/g, '$\\approx$');
+      processedText = processedText.replace(/\\approxeq/g, '$\\approxeq$');
+      processedText = processedText.replace(/\\leq/g, '$\\leq$');
+      processedText = processedText.replace(/\\geq/g, '$\\geq$');
+      processedText = processedText.replace(/\\neq/g, '$\\neq$');
+      processedText = processedText.replace(/\\pm/g, '$\\pm$');
+      processedText = processedText.replace(/\\mp/g, '$\\mp$');
+      processedText = processedText.replace(/\\infty/g, '$\\infty$');
+      processedText = processedText.replace(/\\sum/g, '$\\sum$');
+      processedText = processedText.replace(/\\prod/g, '$\\prod$');
+      processedText = processedText.replace(/\\int/g, '$\\int$');
+      processedText = processedText.replace(/\\/g, '');
+      
+      return `- **${markCode}** ${processedText}`;
+    });
+    
+      return subQBullets.join('\n');
+    };
+    
+    // If grouped sub-questions, format with labels
+    if (subQuestionNumbers && subQuestionNumbers.length > 0) {
+      const marksPerSubQuestion = Math.ceil(scheme.marks.length / subQuestionNumbers.length);
+      const sections: string[] = [];
+      
+      subQuestionNumbers.forEach((subQNum, index) => {
+        const startIndex = index * marksPerSubQuestion;
+        const endIndex = Math.min(startIndex + marksPerSubQuestion, scheme.marks.length);
+        const subQMarks = scheme.marks.slice(startIndex, endIndex);
+        
+        const subQBullets = formatMarksForSubQuestion(subQMarks, index, subQNum);
+        sections.push(`**SUB-QUESTION ${subQNum.toUpperCase()} MARKS:**\n${subQBullets}`);
+      });
+      
+      return sections.join('\n\n');
+    }
+    
+    // Single question - format normally
+    // For single questions: find all "cao" marks and match them to marksWithAnswers
+    let caoMarkIndices: number[] = [];
+    if (marksWithAnswers && marksWithAnswers.length > 0) {
+      // Find all indices where mark answer is "cao"
+      scheme.marks.forEach((mark: any, index: number) => {
+        if (mark.answer && mark.answer.toLowerCase() === 'cao') {
+          caoMarkIndices.push(index);
+        }
+      });
+    }
     
     // Convert each mark to a clean Markdown bullet point
     const bullets = scheme.marks.map((mark: any, index: number) => {
@@ -1456,16 +1673,38 @@ export function formatMarkingSchemeAsBullets(schemeJson: string): string {
       // If mark answer is "cao" (correct answer only), try to find the actual answer
       if (answer.toLowerCase() === 'cao') {
         caoReplacements.total++;
-        // First, try sub-question-specific answer from marksWithAnswers array
-        if (marksWithAnswers[index]) {
+        let replacementFound = false;
+        
+        // Strategy 1: For single questions, match "cao" marks sequentially to marksWithAnswers
+        if (marksWithAnswers && marksWithAnswers.length > 0 && caoMarkIndices.length > 0) {
+          const caoIndexInList = caoMarkIndices.indexOf(index);
+          if (caoIndexInList >= 0 && caoIndexInList < marksWithAnswers.length) {
+            answer = marksWithAnswers[caoIndexInList];
+            caoReplacements.succeeded++;
+            replacementFound = true;
+          } else if (caoIndexInList >= 0 && marksWithAnswers.length > 0) {
+            // If more "cao" marks than answers, use the last answer for remaining marks
+            answer = marksWithAnswers[marksWithAnswers.length - 1];
+            caoReplacements.succeeded++;
+            replacementFound = true;
+          }
+        }
+        
+        // Strategy 2: Try direct index match (for non-grouped questions or edge cases)
+        if (!replacementFound && marksWithAnswers && marksWithAnswers[index]) {
           answer = marksWithAnswers[index];
           caoReplacements.succeeded++;
+          replacementFound = true;
         }
-        // Otherwise, try question-level answer (for single questions, not grouped sub-questions)
-        else if (questionLevelAnswer && scheme.marks.length === 1) {
+        
+        // Strategy 3: Try question-level answer (for single questions, not grouped sub-questions)
+        if (!replacementFound && questionLevelAnswer && scheme.marks.length === 1) {
           answer = questionLevelAnswer;
           caoReplacements.succeeded++;
-        } else {
+          replacementFound = true;
+        }
+        
+        if (!replacementFound) {
           caoReplacements.failed++;
         }
       }
