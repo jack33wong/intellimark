@@ -1655,14 +1655,12 @@ export function formatMarkingSchemeAsBullets(
     // Single question - format normally
     // For single questions: find all "cao" marks and match them to marksWithAnswers
     let caoMarkIndices: number[] = [];
-    if (marksWithAnswers && marksWithAnswers.length > 0) {
-      // Find all indices where mark answer is "cao"
-      scheme.marks.forEach((mark: any, index: number) => {
-        if (mark.answer && mark.answer.toLowerCase() === 'cao') {
-          caoMarkIndices.push(index);
-        }
-      });
-    }
+    // Always find all "cao" marks (not just when marksWithAnswers exists)
+    scheme.marks.forEach((mark: any, index: number) => {
+      if (mark.answer && mark.answer.toLowerCase() === 'cao') {
+        caoMarkIndices.push(index);
+      }
+    });
     
     // Convert each mark to a clean Markdown bullet point
     const bullets = scheme.marks.map((mark: any, index: number) => {
@@ -1698,10 +1696,18 @@ export function formatMarkingSchemeAsBullets(
         }
         
         // Strategy 3: Try question-level answer (for single questions, not grouped sub-questions)
-        if (!replacementFound && questionLevelAnswer && scheme.marks.length === 1) {
-          answer = questionLevelAnswer;
-          caoReplacements.succeeded++;
-          replacementFound = true;
+        // Use it for the LAST "cao" mark (or any "cao" mark if there's only one)
+        if (!replacementFound && questionLevelAnswer) {
+          const isLastCaoMark = caoMarkIndices.length > 0 && index === caoMarkIndices[caoMarkIndices.length - 1];
+          const isOnlyCaoMark = caoMarkIndices.length === 1 && index === caoMarkIndices[0];
+          // Also use it if there's only one mark total (original behavior)
+          const isSingleMark = scheme.marks.length === 1;
+          
+          if (isLastCaoMark || isOnlyCaoMark || isSingleMark) {
+            answer = questionLevelAnswer;
+            caoReplacements.succeeded++;
+            replacementFound = true;
+          }
         }
         
         if (!replacementFound) {

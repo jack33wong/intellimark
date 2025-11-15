@@ -431,6 +431,37 @@ export class MarkingInstructionService {
           const schemeData: any = { marks: normalizedScheme.marks };
           if (normalizedScheme.questionLevelAnswer) {
             schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
+          } else if (classificationStudentWork && !subQuestionMetadata?.hasSubQuestions) {
+            // For single questions (not grouped), extract final answer from classification if not available
+            // Look for the last step that contains an equals sign (likely the final answer)
+            const classificationLines = classificationStudentWork.split('\n').filter(line => line.trim());
+            for (let i = classificationLines.length - 1; i >= 0; i--) {
+              const line = classificationLines[i];
+              // Match lines like: "10. [main_step_10] $k = -5$" or "3. [main_step_3] $= 15\pi$"
+              const stepMatch = line.match(/\[main_step_\d+\]\s*\$(.+?)\$/);
+              if (stepMatch && stepMatch[1]) {
+                const content = stepMatch[1].trim();
+                // If it contains an equals sign, it's likely a final answer
+                if (content.includes('=')) {
+                  // For variable assignments like "k = -5", use the full equation
+                  // For expressions like "= 15\pi", use just the right side
+                  if (content.match(/^[a-zA-Z]\s*=/)) {
+                    // Variable assignment: use full equation (e.g., "k = -5")
+                    schemeData.questionLevelAnswer = content;
+                  } else {
+                    // Expression: use right side only (e.g., "15\pi")
+                    const equalsMatch = content.match(/=\s*(.+)$/);
+                    if (equalsMatch && equalsMatch[1]) {
+                      schemeData.questionLevelAnswer = equalsMatch[1].trim();
+                    } else {
+                      schemeData.questionLevelAnswer = content;
+                    }
+                  }
+                  console.log(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Extracted final answer from classification: ${schemeData.questionLevelAnswer}`);
+                  break;
+                }
+              }
+            }
           }
           // Include sub-question-specific answers if available (for grouped sub-questions)
           if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
