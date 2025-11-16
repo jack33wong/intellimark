@@ -141,7 +141,29 @@ function AdminPage() {
     try {
       const authToken = await getAuthToken();
       const data = await ApiClient.get('/api/admin/json/collections/fullExamPapers', authToken);
-      setJsonEntries(Array.isArray(data.entries) ? data.entries : []);
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      
+      // Sort entries by exam board, exam series, subject
+      const sortedEntries = entries.sort((a, b) => {
+        const examDataA = a.data || a;
+        const examMetaA = examDataA.exam || examDataA.metadata || {};
+        const examDataB = b.data || b;
+        const examMetaB = examDataB.exam || examDataB.metadata || {};
+        
+        const boardA = (examMetaA.board || examMetaA.exam_board || '').toLowerCase();
+        const boardB = (examMetaB.board || examMetaB.exam_board || '').toLowerCase();
+        if (boardA !== boardB) return boardA.localeCompare(boardB);
+        
+        const seriesA = (examMetaA.exam_series || '').toLowerCase();
+        const seriesB = (examMetaB.exam_series || '').toLowerCase();
+        if (seriesA !== seriesB) return seriesA.localeCompare(seriesB);
+        
+        const subjectA = (examMetaA.subject || examMetaA.qualification || '').toLowerCase();
+        const subjectB = (examMetaB.subject || examMetaB.qualification || '').toLowerCase();
+        return subjectA.localeCompare(subjectB);
+      });
+      
+      setJsonEntries(sortedEntries);
       setLoading(false); // Set loading to false when data is loaded (even if empty)
     } catch (e) {
       setError(`Failed to load JSON entries: ${e.message}`);
@@ -149,13 +171,87 @@ function AdminPage() {
       setTimeout(() => setError(null), 4000);
     }
   }, [getAuthToken]);
+  
+  // Helper function to check if marking scheme exists for an exam paper
+  const hasMarkingScheme = useCallback((examPaper) => {
+    const examData = examPaper.data || examPaper;
+    const examMeta = examData.exam || examData.metadata || {};
+    const board = examMeta.board || examMeta.exam_board || '';
+    const examSeries = examMeta.exam_series || '';
+    const code = examMeta.code || examMeta.exam_code || '';
+    
+    if (!board || !examSeries || !code) return false;
+    
+    return markingSchemeEntries.some(entry => {
+      const schemeData = entry.data || entry;
+      const examDetails = schemeData.examDetails || schemeData.exam || {};
+      const schemeBoard = examDetails.exam_board || examDetails.board || '';
+      const schemeSeries = examDetails.exam_series || examDetails.date || '';
+      const schemeCode = examDetails.exam_code || examDetails.code || examDetails.paperCode || '';
+      
+      return schemeBoard === board && 
+             (schemeSeries === examSeries || schemeSeries === examSeries.replace(/^June\s+/i, '')) &&
+             schemeCode === code;
+    });
+  }, [markingSchemeEntries]);
+  
+  // Helper function to check if grade boundary exists for an exam paper
+  const hasGradeBoundary = useCallback((examPaper) => {
+    const examData = examPaper.data || examPaper;
+    const examMeta = examData.exam || examData.metadata || {};
+    const board = examMeta.board || examMeta.exam_board || '';
+    const examSeries = examMeta.exam_series || '';
+    const subject = examMeta.subject || examMeta.qualification || '';
+    const code = examMeta.code || examMeta.exam_code || '';
+    
+    if (!board || !examSeries || !subject || !code) return false;
+    
+    return gradeBoundaryEntries.some(entry => {
+      const boundaryData = entry.data || entry;
+      const boundaryBoard = boundaryData.exam_board || '';
+      const boundarySeries = boundaryData.exam_series || '';
+      
+      if (boundaryBoard !== board || boundarySeries !== examSeries) return false;
+      
+      // Check if subject matches
+      const subjects = boundaryData.subjects || [];
+      return subjects.some(subj => {
+        const subjectName = (subj.name || '').toLowerCase();
+        const subjectCode = subj.code || '';
+        const normalizedSubject = (subject || '').toLowerCase();
+        
+        // Extract subject code from exam code (e.g., "1MA1/1H" -> "1MA1")
+        const examCodePrefix = code.split('/')[0];
+        
+        return subjectName.includes(normalizedSubject) || 
+               normalizedSubject.includes(subjectName) ||
+               subjectCode === examCodePrefix;
+      });
+    });
+  }, [gradeBoundaryEntries]);
 
   // Load marking scheme entries
   const loadMarkingSchemeEntries = useCallback(async () => {
     try {
       const authToken = await getAuthToken();
       const data = await ApiClient.get('/api/admin/json/collections/markingSchemes', authToken);
-      setMarkingSchemeEntries(data.entries || []);
+      const entries = data.entries || [];
+      
+      // Sort entries by exam board, exam series
+      const sortedEntries = entries.sort((a, b) => {
+        const examDetailsA = a.examDetails || a.markingSchemeData?.examDetails || {};
+        const examDetailsB = b.examDetails || b.markingSchemeData?.examDetails || {};
+        
+        const boardA = (examDetailsA.board || examDetailsA.exam_board || '').toLowerCase();
+        const boardB = (examDetailsB.board || examDetailsB.exam_board || '').toLowerCase();
+        if (boardA !== boardB) return boardA.localeCompare(boardB);
+        
+        const seriesA = (examDetailsA.exam_series || examDetailsA.date || '').toLowerCase();
+        const seriesB = (examDetailsB.exam_series || examDetailsB.date || '').toLowerCase();
+        return seriesA.localeCompare(seriesB);
+      });
+      
+      setMarkingSchemeEntries(sortedEntries);
     } catch (error) {
       console.error('Error loading marking scheme entries:', error);
       setMarkingSchemeEntries([]);
@@ -573,14 +669,12 @@ function AdminPage() {
                 <thead>
                   <tr>
                         <th className="admin-table__header">Exam Paper</th>
-                    <th className="admin-table__header">Board</th>
                     <th className="admin-table__header">Exam Series</th>
-                    <th className="admin-table__header">Session</th>
-                        <th className="admin-table__header">Tier</th>
-                    <th className="admin-table__header">Paper</th>
-                        <th className="admin-table__header">Code</th>
+                    <th className="admin-table__header">Qualification</th>
+                    <th className="admin-table__header">Subject</th>
                     <th className="admin-table__header">Questions</th>
-                    <th className="admin-table__header">Uploaded</th>
+                    <th className="admin-table__header">Has Marking Scheme</th>
+                    <th className="admin-table__header">Has Grade Boundary</th>
                     <th className="admin-table__header">Actions</th>
                   </tr>
                 </thead>
@@ -593,15 +687,19 @@ function AdminPage() {
                         // Map new field names to old field names for compatibility
                         const board = examMeta.board || examMeta.exam_board || 'N/A';
                         const examSeries = examMeta.exam_series || 'N/A';
+                        const qualification = examMeta.qualification || 'N/A';
+                        const subject = examMeta.subject || 'N/A';
                         const session = examMeta.session || examMeta.time_allowed || 'N/A';
-                        const tier = examMeta.tier || examMeta.level || 'N/A';
-                        const paper = examMeta.paper || examMeta.paper_title || 'N/A';
                         const code = examMeta.code || examMeta.exam_code || 'N/A';
                         
                         // Use database fields for question counts
                         const questionCount = examMeta.totalQuestions || examMeta.total_questions || (examData.questions ? examData.questions.length : 0);
                         const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions || (examData.questions ? 
                           examData.questions.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0) : 0);
+                        
+                        // Check if marking scheme and grade boundary exist
+                        const hasScheme = hasMarkingScheme(entry);
+                        const hasBoundary = hasGradeBoundary(entry);
 
                         return (
                           <React.Fragment key={entry.id}>
@@ -631,12 +729,9 @@ function AdminPage() {
                             </span>
                           </div>
                         </td>
-                              <td className="admin-table__cell">{board}</td>
                               <td className="admin-table__cell">{examSeries}</td>
-                              <td className="admin-table__cell">{session}</td>
-                              <td className="admin-table__cell">{tier}</td>
-                              <td className="admin-table__cell">{paper}</td>
-                              <td className="admin-table__cell">{code}</td>
+                              <td className="admin-table__cell">{qualification}</td>
+                              <td className="admin-table__cell">{subject}</td>
                               <td className="admin-table__cell">
                                 {questionCount ? (
                             <span className="question-count">
@@ -646,7 +741,20 @@ function AdminPage() {
                             <span className="no-questions">No questions</span>
                           )}
                         </td>
-                              <td className="admin-table__cell">{formatDate(entry.uploadedAt)}</td>
+                              <td className="admin-table__cell">
+                                {hasScheme ? (
+                                  <span className="status-badge status-badge--success">Yes</span>
+                                ) : (
+                                  <span className="status-badge status-badge--warning">No</span>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">
+                                {hasBoundary ? (
+                                  <span className="status-badge status-badge--success">Yes</span>
+                                ) : (
+                                  <span className="status-badge status-badge--warning">No</span>
+                                )}
+                              </td>
                         <td className="admin-table__cell actions-cell">
                           <button
                             className="admin-btn admin-btn--icon"
@@ -667,7 +775,7 @@ function AdminPage() {
                       
                             {expandedJsonId === entry.id && (
                         <tr className="admin-expanded-row">
-                                <td colSpan="10">
+                                <td colSpan="8">
                             <div className="admin-expanded-content">
                                                           <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Exam Paper Content: {
@@ -834,10 +942,9 @@ function AdminPage() {
                     <thead>
                       <tr>
                         <th className="admin-table__header">Marking Scheme</th>
-                        <th className="admin-table__header">Board</th>
                         <th className="admin-table__header">Qualification</th>
-                        <th className="admin-table__header">Paper Code</th>
-                        <th className="admin-table__header">Date</th>
+                        <th className="admin-table__header">Subject</th>
+                        <th className="admin-table__header">Exam Series</th>
                         <th className="admin-table__header">Questions</th>
                         <th className="admin-table__header">Marks</th>
                         <th className="admin-table__header">Uploaded</th>
@@ -853,6 +960,7 @@ function AdminPage() {
                         // Get display values
                         const board = examDetails.board || 'N/A';
                         const qualification = examDetails.qualification || 'N/A';
+                        const subject = examDetails.subject || 'N/A';
                         const paperCode = examDetails.paperCode || 'N/A';
                         const examSeries = examDetails.exam_series || 'N/A';
                         
@@ -893,9 +1001,8 @@ function AdminPage() {
                                   </span>
                                 </div>
                               </td>
-                              <td className="admin-table__cell">{board}</td>
                               <td className="admin-table__cell">{qualification}</td>
-                              <td className="admin-table__cell">{paperCode}</td>
+                              <td className="admin-table__cell">{subject}</td>
                               <td className="admin-table__cell">{examSeries}</td>
                               <td className="admin-table__cell">
                                 {questionCount ? (
@@ -937,7 +1044,7 @@ function AdminPage() {
                             {/* Expanded content row */}
                             {expandedMarkingSchemeId === entry.id && (
                               <tr className="admin-expanded-row">
-                                <td colSpan="10" className="admin-expanded-cell">
+                                <td colSpan="8" className="admin-expanded-cell">
                                   <div className="admin-expanded-content">
                                     <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Marking Scheme Details: {

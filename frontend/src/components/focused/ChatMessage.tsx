@@ -341,6 +341,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             <ExamPaperTab 
               detectedQuestion={message.detectedQuestion} 
               studentScore={message.studentScore}
+              grade={(message as any).grade || null}
             />
           )}
           

@@ -161,7 +161,8 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
       ...parsedData, // Spread the parsed data directly (examDetails and questions)
       examDetails: {
         board: examDetails.board || 'Unknown',
-        qualification: examDetails.qualification || 'Unknown',
+        qualification: examDetails.qualification || 'GCSE', // Default to GCSE
+        subject: examDetails.subject || 'MATHEMATICS', // Default to MATHEMATICS
         paperCode: examDetails.paperCode || 'Unknown',
         tier: examDetails.tier || 'Unknown',
         paper: examDetails.paper || 'Unknown',

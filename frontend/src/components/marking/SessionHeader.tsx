@@ -178,6 +178,10 @@ const SessionHeader: React.FC = () => {
   const tokens = getTokenData();
   const modelUsed = getModelUsed();
   const processingTime = getProcessingTime();
+  // Grade is only available from the message (calculated during marking pipeline)
+  // No API fallback - if grade is not in message, it won't be displayed
+  const messageWithGrade = currentSession?.messages?.find((m: any) => m.grade);
+  const grade = messageWithGrade?.grade || null;
 
   const renderStars = () => {
     return Array.from({ length: 5 }, (_, index) => {
@@ -338,13 +342,19 @@ const SessionHeader: React.FC = () => {
                             <span className="value">{examCode || 'N/A'}</span>
                           </div>
                           <div className="label-value-item">
-                            <span className="label">Year:</span>
+                            <span className="label">Exam Series:</span>
                             <span className="value">{examSeries || 'N/A'}</span>
                           </div>
                           {tier && (
                             <div className="label-value-item">
                               <span className="label">Tier:</span>
                               <span className="value">{tier}</span>
+                            </div>
+                          )}
+                          {grade && (
+                            <div className="label-value-item">
+                              <span className="label">Grade:</span>
+                              <span className="value grade-value">{grade}</span>
                             </div>
                           )}
                         </div>

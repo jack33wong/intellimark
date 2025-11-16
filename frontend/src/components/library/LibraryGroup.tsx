@@ -26,7 +26,7 @@ const LibraryGroup: React.FC<LibraryGroupProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-  const groupTitle = `${examBoard} ${subject} ${examSeries}`;
+  const groupTitle = `${examBoard} ${subject} (${examSeries})`;
   const itemCount = items.length;
 
   return (

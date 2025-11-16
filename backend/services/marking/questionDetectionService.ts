@@ -480,7 +480,8 @@ export class QuestionDetectionService {
         }
         
         const board = metadata.exam_board;
-        const qualification = metadata.subject;
+        // Use qualification field if available, fallback to subject for backward compatibility
+        const qualification = metadata.qualification || metadata.subject;
         const paperCode = metadata.exam_code;
         const examSeries = metadata.exam_series;
         const tier = metadata.tier;

@@ -411,6 +411,29 @@
   border-bottom: none;
 }
 
+/* Status badges for marking scheme and grade boundary */
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge--success {
+  background: var(--function-success-tsp);
+  color: var(--function-success);
+  border: 1px solid var(--function-success);
+}
+
+.status-badge--warning {
+  background: var(--function-warning-tsp);
+  color: var(--function-warning);
+  border: 1px solid var(--function-warning);
+}
+
 /* ==========================================================================
    13. EXAM PAPER LINKS
    ========================================================================== */

@@ -36,16 +36,23 @@
 
 .tab-item.student-score {
   color: var(--function-error);
-  background: rgba(255, 0, 0, 0.1);
-  border: 1px solid var(--function-error);
+  background:  var(--background-gray-main);
+  border: 1px solid var(--border-dark);
   font-weight: bold;
 }
 
 .tab-item.total-score {
   color: #ef4444; /* Red color */
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid #ef4444;
+  background:  var(--background-gray-main);
+  border: 1px solid  var(--border-dark);
   font-weight: bold;
+}
+
+.tab-item.grade {
+  color: var(--text-blue); /* Blue color */
+  background: var(--background-gray-main);
+  border: 1px solid var(--border-dark);
+  font-weight: 600;
 }
 
 .exam-paper-line {

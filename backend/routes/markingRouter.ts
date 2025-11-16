@@ -53,6 +53,7 @@ import { SVGOverlayService } from '../services/marking/svgOverlayService.js';
 import { executeMarkingForQuestion, QuestionResult, EnrichedAnnotation } from '../services/marking/MarkingExecutor.js';
 import { questionDetectionService } from '../services/marking/questionDetectionService.js';
 import { ImageStorageService } from '../services/imageStorageService.js';
+import { GradeBoundaryService } from '../services/marking/GradeBoundaryService.js';
 // import { getMarkingScheme } from '../services/marking/questionDetectionService.js';
 
 // Placeholder function removed - schemes are now fetched in Question Detection stage
@@ -2428,6 +2429,94 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Reuse overallScore and totalPossibleScore calculated earlier (line 2042-2057)
       // overallScoreText is already calculated as `${overallScore}/${totalPossibleScore}`
       
+      // Calculate grade based on grade boundaries (if exam data is available)
+      let calculatedGrade: string | null = null;
+      let gradeBoundaryType: 'Paper-Specific' | 'Overall-Total' | null = null;
+      
+      // Try to get exam data from questionDetection (question mode) or markingSchemesMap (marking mode)
+      let examDataForGrade: any = null;
+      
+      // First, try questionDetection (available in question mode)
+      if (typeof questionDetection !== 'undefined' && questionDetection && questionDetection.found && questionDetection.examPapers && questionDetection.examPapers.length > 0) {
+        examDataForGrade = questionDetection;
+      } else if (markingSchemesMap && markingSchemesMap.size > 0) {
+        // Fallback: extract exam data from markingSchemesMap (marking mode)
+        const firstScheme = Array.from(markingSchemesMap.values())[0];
+        const firstDetection = firstScheme?.questionDetection;
+        
+        if (firstDetection && firstDetection.found && firstDetection.match) {
+          const match = firstDetection.match;
+          // Get subject from marking scheme if available, otherwise try to infer from exam code
+          let subject = '';
+          if (firstDetection.markingScheme?.examDetails?.subject) {
+            subject = firstDetection.markingScheme.examDetails.subject;
+          } else {
+            // Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS")
+            const examCode = match.paperCode || '';
+            if (examCode.includes('1MA1') || examCode.includes('MA1')) {
+              subject = 'MATHEMATICS';
+            } else if (examCode.includes('1PH0') || examCode.includes('PH0')) {
+              subject = 'PHYSICS';
+            } else if (examCode.includes('1CH0') || examCode.includes('CH0')) {
+              subject = 'CHEMISTRY';
+            } else {
+              // Fallback: use qualification (but this is wrong, should be subject)
+              subject = match.qualification || '';
+            }
+          }
+          
+          examDataForGrade = {
+            found: true,
+            examPapers: [{
+              examBoard: match.board || '',
+              examCode: match.paperCode || '',
+              examSeries: match.examSeries || (match as any).year || '',
+              tier: match.tier || '',
+              subject: subject
+            }]
+          };
+        }
+      }
+      
+      // Only attempt grade calculation if we have exam data and scores
+      if (examDataForGrade && examDataForGrade.found && examDataForGrade.examPapers && examDataForGrade.examPapers.length > 0) {
+        console.log(`📊 [GRADE BOUNDARY] Attempting grade calculation for score: ${overallScore}/${totalPossibleScore}`);
+        try {
+          const firstExamPaper = examDataForGrade.examPapers[0];
+          console.log(`📊 [GRADE BOUNDARY] Exam details: ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year} ${firstExamPaper.examCode} ${firstExamPaper.tier}`);
+          
+          const gradeResult = await GradeBoundaryService.calculateGradeForExamPaper(
+            firstExamPaper.examBoard,
+            firstExamPaper.examSeries || (firstExamPaper as any).year, // Migration support
+            firstExamPaper.subject,
+            firstExamPaper.examCode,
+            firstExamPaper.tier,
+            overallScore,
+            totalPossibleScore
+          );
+          
+          if (gradeResult.grade) {
+            calculatedGrade = gradeResult.grade;
+            gradeBoundaryType = gradeResult.boundaryType;
+            console.log(`✅ [GRADE BOUNDARY] Calculated grade: ${calculatedGrade} (${gradeResult.boundaryType}) for ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year}`);
+          } else if (gradeResult.error) {
+            console.log(`ℹ️ [GRADE BOUNDARY] Grade not calculated: ${gradeResult.error}`);
+          }
+        } catch (gradeError) {
+          console.error('❌ [GRADE BOUNDARY] Error calculating grade in pipeline:', gradeError);
+          // Don't fail the marking pipeline if grade calculation fails
+        }
+      } else {
+        // Log why grade calculation is skipped
+        if (!examDataForGrade) {
+          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam data available (questionDetection not in scope for marking mode)`);
+        } else if (!examDataForGrade.found) {
+          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: exam data found but not valid`);
+        } else if (!examDataForGrade.examPapers || examDataForGrade.examPapers.length === 0) {
+          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam papers found`);
+        }
+      }
+      
       dbAiMessage = SessionManagementService.createAIMessageForDatabase({
         allQuestionResults,
         finalAnnotatedOutput,
@@ -2442,8 +2531,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           totalMarks: totalPossibleScore,
           awardedMarks: overallScore,
           scoreText: overallScoreText
-        }
+        },
+        grade: calculatedGrade,
+        gradeBoundaryType: gradeBoundaryType
       });
+      
+      // Log grade storage confirmation
+      if (calculatedGrade) {
+        console.log(`✅ [GRADE BOUNDARY] Grade stored in message: ${calculatedGrade} (${gradeBoundaryType})`);
+      }
       
       // Add suggested follow-ups
       (dbAiMessage as any).suggestedFollowUps = await getSuggestedFollowUps();

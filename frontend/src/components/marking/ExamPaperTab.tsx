@@ -11,9 +11,13 @@ type StudentScore = components['schemas']['UnifiedMessage']['studentScore'];
 interface ExamPaperTabProps {
   detectedQuestion: DetectedQuestion | null;
   studentScore?: StudentScore;
+  grade?: string | null; // Grade from message (if available from pipeline)
 }
 
-const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentScore }) => {
+const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentScore, grade: gradeFromProps }) => {
+  // Grade is only available from the message (calculated during marking pipeline)
+  // No API fallback - if grade is not in message, it won't be displayed
+
   if (!detectedQuestion || !detectedQuestion.found) {
     return null;
   }
@@ -187,6 +191,9 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
           )}
           {studentScore && studentScore.scoreText && (
             <span className="tab-item total-score">{studentScore.scoreText}</span>
+          )}
+          {gradeFromProps && (
+            <span className="tab-item grade">Grade: {gradeFromProps}</span>
           )}
         </div>
       </div>

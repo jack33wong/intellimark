@@ -53,6 +53,8 @@ export interface AIMessageData {
     awardedMarks: number;
     scoreText: string;
   };
+  grade?: string | null;
+  gradeBoundaryType?: 'Paper-Specific' | 'Overall-Total' | null;
 }
 
 export class SessionManagementService {
@@ -665,7 +667,9 @@ export class SessionManagementService {
       globalQuestionText,
       resolvedAIMessageId,
       questionOnlyResponses,
-      studentScore
+      studentScore,
+      grade,
+      gradeBoundaryType
     } = aiData;
 
     // Calculate real processing stats for the AI message
@@ -729,6 +733,12 @@ export class SessionManagementService {
     // Add studentScore if provided
     if (studentScore) {
       (dbAiMessage as any).studentScore = studentScore;
+    }
+
+    // Add grade if provided
+    if (grade) {
+      (dbAiMessage as any).grade = grade;
+      (dbAiMessage as any).gradeBoundaryType = gradeBoundaryType;
     }
 
     return dbAiMessage;

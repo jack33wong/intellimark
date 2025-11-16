@@ -94,6 +94,11 @@
   font-weight: 600;
 }
 
+.label-value-item .value.grade-value {
+  color: #3b82f6; /* Blue color for grade */
+  font-weight: 600;
+}
+
 /* Title Edit Container */
 .title-edit-container {
   display: flex;
