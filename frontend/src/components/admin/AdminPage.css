@@ -1249,6 +1249,46 @@
 }
 
 /* ==========================================================================
+   GRADE BOUNDARIES STYLES
+   ========================================================================== */
+
+.grade-boundaries-list {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--background-menu-gray);
+  border-radius: 6px;
+}
+
+.grade-boundaries-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.grade-boundary-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: var(--background-menu-white);
+  border: 1px solid var(--border-main);
+  border-radius: 4px;
+  gap: 4px;
+}
+
+.grade-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-brand);
+}
+
+.grade-mark {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
    MARKDOWN MARKING SCHEME STYLES
    ========================================================================== */
 

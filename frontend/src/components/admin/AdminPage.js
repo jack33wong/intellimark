@@ -4,7 +4,8 @@ import {
   Trash2, 
   Database,
   ClipboardList,
-  Search
+  Search,
+  Award
 } from 'lucide-react';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
@@ -89,6 +90,14 @@ function AdminPage() {
     markingSchemeData: ''
   });
   
+  // Grade boundaries state
+  const [gradeBoundaryEntries, setGradeBoundaryEntries] = useState([]);
+  const [expandedGradeBoundaryId, setExpandedGradeBoundaryId] = useState(null);
+  const [gradeBoundaryForm, setGradeBoundaryForm] = useState({
+    gradeBoundaryData: ''
+  });
+  const [isDeletingAllGradeBoundaries, setIsDeletingAllGradeBoundaries] = useState(false);
+  
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
   const [isClearingMarkingResults, setIsClearingMarkingResults] = useState(false);
@@ -103,6 +112,10 @@ function AdminPage() {
   const isMarkingSchemeFormValid = useCallback(() => {
     return markingSchemeForm.markingSchemeData.trim().length > 0;
   }, [markingSchemeForm.markingSchemeData]);
+
+  const isGradeBoundaryFormValid = useCallback(() => {
+    return gradeBoundaryForm.gradeBoundaryData.trim().length > 0;
+  }, [gradeBoundaryForm.gradeBoundaryData]);
   
   // Reset forms to initial state
   const resetJsonForm = useCallback(() => {
@@ -114,6 +127,12 @@ function AdminPage() {
   const resetMarkingSchemeForm = useCallback(() => {
     setMarkingSchemeForm({
       markingSchemeData: ''
+    });
+  }, []);
+
+  const resetGradeBoundaryForm = useCallback(() => {
+    setGradeBoundaryForm({
+      gradeBoundaryData: ''
     });
   }, []);
 
@@ -140,6 +159,18 @@ function AdminPage() {
     } catch (error) {
       console.error('Error loading marking scheme entries:', error);
       setMarkingSchemeEntries([]);
+    }
+  }, [getAuthToken]);
+
+  // Load grade boundary entries
+  const loadGradeBoundaryEntries = useCallback(async () => {
+    try {
+      const authToken = await getAuthToken();
+      const data = await ApiClient.get('/api/admin/json/collections/gradeBoundaries', authToken);
+      setGradeBoundaryEntries(data.entries || []);
+    } catch (error) {
+      console.error('Error loading grade boundary entries:', error);
+      setGradeBoundaryEntries([]);
     }
   }, [getAuthToken]);
   
@@ -225,6 +256,49 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
+
+  // Delete all grade boundary entries
+  const deleteAllGradeBoundaryEntries = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete ALL grade boundaries? This action cannot be undone.')) {
+      return;
+    }
+    
+    setIsDeletingAllGradeBoundaries(true);
+    try {
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/json/collections/gradeBoundaries/clear-all', authToken);
+      console.log('All grade boundaries deleted:', result.message);
+      setGradeBoundaryEntries([]);
+      setError(`✅ All grade boundaries deleted successfully.`);
+      setTimeout(() => setError(null), 5000);
+    } catch (error) {
+      console.error('Error deleting all grade boundaries:', error);
+      setError(`Error deleting all grade boundaries: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsDeletingAllGradeBoundaries(false);
+    }
+  }, [getAuthToken]);
+
+  // Delete individual grade boundary entry
+  const deleteGradeBoundaryEntry = useCallback(async (entryId) => {
+    if (!window.confirm('Are you sure you want to delete this grade boundary? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`, authToken);
+      console.log('Grade boundary deleted:', result.message);
+      setGradeBoundaryEntries(prev => prev.filter(entry => entry.id !== entryId));
+      setError(`✅ Grade boundary deleted successfully.`);
+      setTimeout(() => setError(null), 3000);
+    } catch (error) {
+      console.error('Error deleting grade boundary:', error);
+      setError(`Error deleting grade boundary: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  }, [getAuthToken]);
   
   // Upload JSON data
   const uploadJsonData = useCallback(async () => {
@@ -273,6 +347,30 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     }
   }, [markingSchemeForm, getAuthToken, resetMarkingSchemeForm, isMarkingSchemeFormValid, loadMarkingSchemeEntries]);
+
+  // Upload grade boundary data
+  const uploadGradeBoundaryData = useCallback(async () => {
+    if (!isGradeBoundaryFormValid()) {
+      setError('Please enter valid grade boundary data');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      const authToken = await getAuthToken();
+      const parsedData = JSON.parse(gradeBoundaryForm.gradeBoundaryData);
+      const result = await ApiClient.post('/api/admin/json/collections/gradeBoundaries', parsedData, authToken);
+      console.log('Grade boundary uploaded successfully:', result);
+      setGradeBoundaryEntries(prev => [result.entry, ...prev]);
+      resetGradeBoundaryForm();
+      setError(`✅ Grade boundary uploaded successfully.`);
+      setTimeout(() => setError(null), 5000);
+    } catch (error) {
+      console.error('Error uploading grade boundary:', error);
+      setError(`Error uploading grade boundary: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  }, [gradeBoundaryForm, getAuthToken, resetGradeBoundaryForm, isGradeBoundaryFormValid]);
 
   // Clear all sessions data
   const clearAllSessions = useCallback(async () => {
@@ -333,12 +431,18 @@ function AdminPage() {
   const handleMarkingSchemeInputChange = useCallback((field, value) => {
     setMarkingSchemeForm(prev => ({ ...prev, [field]: value }));
   }, []);
+
+  // Handle grade boundary form input changes
+  const handleGradeBoundaryInputChange = useCallback((field, value) => {
+    setGradeBoundaryForm(prev => ({ ...prev, [field]: value }));
+  }, []);
   
   // Load data on component mount
   useEffect(() => {
     loadJsonEntries();
     loadMarkingSchemeEntries();
-  }, [loadJsonEntries, loadMarkingSchemeEntries]);
+    loadGradeBoundaryEntries();
+  }, [loadJsonEntries, loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
 
   // Loading state is now managed in the individual load functions
 
@@ -383,6 +487,13 @@ function AdminPage() {
           >
             <ClipboardList size={16} />
             Marking Scheme
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'grade-boundaries' ? 'admin-tab--active' : ''}`}
+            onClick={() => setActiveTab('grade-boundaries')}
+          >
+            <Award size={16} />
+            Grade Boundaries
           </button>
           <button
             className={`admin-tab ${activeTab === 'query' ? 'admin-tab--active' : ''}`}
@@ -1008,6 +1119,286 @@ function AdminPage() {
           </div>
               )}
           </div>
+          </div>
+        )}
+
+        {/* Grade Boundaries Tab */}
+        {activeTab === 'grade-boundaries' && (
+          <div className="admin-tab-content">
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Grade Boundaries</h2>
+              <p>Manage grade boundary data for exam papers</p>
+            </div>
+
+            {/* Grade Boundary Upload Form */}
+            <div className="admin-upload-section">
+              <div className="upload-form">
+                <div className="admin-form-group">
+                  <textarea
+                    id="gradeBoundaryData"
+                    value={gradeBoundaryForm.gradeBoundaryData}
+                    onChange={(e) => handleGradeBoundaryInputChange('gradeBoundaryData', e.target.value)}
+                    placeholder="Paste your grade boundary JSON data here..."
+                    rows={8}
+                    className="admin-form-control"
+                  />
+                </div>
+                <div className="admin-form-actions">
+                  <button
+                    type="button"
+                    onClick={uploadGradeBoundaryData}
+                    disabled={!isGradeBoundaryFormValid()}
+                    className="admin-btn admin-btn--primary"
+                  >
+                    <FileText size={16} />
+                    Upload Grade Boundary
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetGradeBoundaryForm}
+                    className="admin-btn admin-btn--secondary"
+                  >
+                    Clear Form
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Grade Boundary List */}
+            <div className="admin-data-section">
+              <div className="admin-data-section__header">
+                <h3 className="admin-data-section__title">Grade Boundaries ({gradeBoundaryEntries.length})</h3>
+                {gradeBoundaryEntries.length > 0 && (
+                  <button
+                    onClick={deleteAllGradeBoundaryEntries}
+                    className="admin-btn admin-btn--danger"
+                    disabled={isDeletingAllGradeBoundaries}
+                  >
+                    <Trash2 size={16} />
+                    Delete All
+                  </button>
+                )}
+              </div>
+
+              {gradeBoundaryEntries.length === 0 ? (
+                <div className="empty-state">
+                  <Database size={48} />
+                  <p>No grade boundary data found</p>
+                  <p>Upload JSON data to get started</p>
+                </div>
+              ) : (
+                <div className="admin-table-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th className="admin-table__header">Grade Boundary</th>
+                        <th className="admin-table__header">Exam Board</th>
+                        <th className="admin-table__header">Qualification</th>
+                        <th className="admin-table__header">Exam Series</th>
+                        <th className="admin-table__header">Subjects</th>
+                        <th className="admin-table__header">Uploaded</th>
+                        <th className="admin-table__header">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gradeBoundaryEntries.map(entry => {
+                        const examBoard = entry.exam_board || entry.examBoard || 'N/A';
+                        const qualification = entry.qualification || 'N/A';
+                        const examSeries = entry.exam_series || entry.examSeries || 'N/A';
+                        const subjects = entry.subjects || [];
+                        const subjectCount = subjects.length;
+                        const subjectNames = subjects.map(s => s.name || s.subject || 'Unknown').join(', ');
+
+                        return (
+                          <React.Fragment key={entry.id}>
+                            <tr className="admin-table__row">
+                              <td className="admin-table__cell exam-paper-link">
+                                <div
+                                  className="clickable-exam-paper"
+                                  onClick={() => {
+                                    setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id);
+                                  }}
+                                  title="Click to view grade boundary details"
+                                >
+                                  <span className="exam-paper-name">
+                                    {examBoard !== 'N/A' ? 
+                                      `${examBoard} ${qualification} (${examSeries})` :
+                                      `Grade Boundary ${entry.id}`
+                                    }
+                                  </span>
+                                  <span className="expand-indicator">
+                                    {expandedGradeBoundaryId === entry.id ? '▼' : '▶'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="admin-table__cell">{examBoard}</td>
+                              <td className="admin-table__cell">{qualification}</td>
+                              <td className="admin-table__cell">{examSeries}</td>
+                              <td className="admin-table__cell">
+                                {subjectCount > 0 ? (
+                                  <span className="question-count">
+                                    {subjectCount} {subjectCount === 1 ? 'subject' : 'subjects'}
+                                  </span>
+                                ) : (
+                                  <span className="no-questions">No subjects</span>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">{formatDate(entry.uploadedAt)}</td>
+                              <td className="admin-table__cell actions-cell">
+                                <button
+                                  className="admin-btn admin-btn--icon"
+                                  onClick={() => setExpandedGradeBoundaryId(expandedGradeBoundaryId === entry.id ? null : entry.id)}
+                                  title="View"
+                                >
+                                  <FileText size={16} />
+                                </button>
+                                <button
+                                  className="admin-btn admin-btn--icon btn-danger"
+                                  onClick={() => deleteGradeBoundaryEntry(entry.id)}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                            
+                            {/* Expanded content row */}
+                            {expandedGradeBoundaryId === entry.id && (
+                              <tr className="admin-expanded-row">
+                                <td colSpan="7" className="admin-expanded-cell">
+                                  <div className="admin-expanded-content">
+                                    <div className="admin-content-header">
+                                      <h4 className="admin-content-header__title">Grade Boundary Details: {
+                                        examBoard !== 'N/A' ? 
+                                          `${examBoard} ${qualification} (${examSeries})` :
+                                          `Grade Boundary ${entry.id}`
+                                      }</h4>
+                                      <div className="admin-content-info">
+                                        <button 
+                                          className="admin-close-btn"
+                                          onClick={() => setExpandedGradeBoundaryId(null)}
+                                          title="Close"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Exam Information */}
+                                    <div className="admin-questions-content">
+                                      <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                      <div className="admin-questions-summary">
+                                        <span className="admin-summary-item">
+                                          <strong>Exam Board:</strong> {examBoard}
+                                        </span>
+                                        <span className="admin-summary-item">
+                                          <strong>Qualification:</strong> {qualification}
+                                        </span>
+                                        <span className="admin-summary-item">
+                                          <strong>Exam Series:</strong> {examSeries}
+                                        </span>
+                                        <span className="admin-summary-item">
+                                          <strong>Total Subjects:</strong> {subjectCount}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Subjects and Grade Boundaries */}
+                                    {subjects.length > 0 && (
+                                      <div className="admin-questions-content">
+                                        <h6 className="admin-questions-summary__title">Subjects and Grade Boundaries</h6>
+                                        <div className="admin-questions-list">
+                                          {subjects.map((subject, sIndex) => {
+                                            const subjectName = subject.name || 'Unknown';
+                                            const subjectCode = subject.code || 'N/A';
+                                            const maxMark = subject.max_mark || 0;
+                                            const tiers = subject.tiers || [];
+
+                                            return (
+                                              <div key={sIndex} className="admin-question-item">
+                                                <div className="admin-question-header">
+                                                  <div className="admin-question-main">
+                                                    <span className="admin-question-number">{subjectName}</span>
+                                                    <span className="admin-question-text">Code: {subjectCode} | Max Mark: {maxMark}</span>
+                                                  </div>
+                                                </div>
+
+                                                {tiers.length > 0 && (
+                                                  <div className="admin-sub-questions">
+                                                    {tiers.map((tier, tIndex) => {
+                                                      const tierLevel = tier.tier_level || 'Unknown';
+                                                      const paperCodes = tier.paper_codes || [];
+                                                      const boundaries = tier.papers_combined_boundaries?.total_raw_mark_required || {};
+
+                                                      return (
+                                                        <div key={tIndex} className="admin-sub-question-item">
+                                                          <div className="admin-sub-question-content">
+                                                            <span className="admin-sub-question-number">{tierLevel}</span>
+                                                            <span className="admin-sub-question-text">
+                                                              Papers: {paperCodes.join(', ')}
+                                                            </span>
+                                                          </div>
+                                                          {Object.keys(boundaries).length > 0 && (
+                                                            <div className="grade-boundaries-list">
+                                                              <strong>Grade Boundaries:</strong>
+                                                              <div className="grade-boundaries-grid">
+                                                                {Object.entries(boundaries)
+                                                                  .sort(([a], [b]) => {
+                                                                    const numA = parseInt(a);
+                                                                    const numB = parseInt(b);
+                                                                    if (!isNaN(numA) && !isNaN(numB)) {
+                                                                      return numB - numA; // Descending order (9, 8, 7...)
+                                                                    }
+                                                                    return b.localeCompare(a);
+                                                                  })
+                                                                  .map(([grade, mark]) => (
+                                                                    <div key={grade} className="grade-boundary-item">
+                                                                      <span className="grade-label">Grade {grade}:</span>
+                                                                      <span className="grade-mark">{mark} marks</span>
+                                                                    </div>
+                                                                  ))}
+                                                              </div>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Metadata */}
+                                    <div className="admin-metadata-section">
+                                      <h6>Metadata</h6>
+                                      <div className="metadata-info">
+                                        <p><strong>ID:</strong> {entry.id}</p>
+                                        <p><strong>Uploaded:</strong> {formatDate(entry.uploadedAt)}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <details style={{ marginTop: '16px' }}>
+                                      <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Grade Boundary Data</summary>
+                                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+                                        {JSON.stringify(entry, null, 2)}
+                                      </pre>
+                                    </details>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
