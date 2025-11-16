@@ -471,33 +471,6 @@ export class OCRService {
         // All heuristic filtering (margin, ambiguous prose, math expression checks) is removed
         // Accurate filtering happens in segmentation stage where we have question context
         
-        // Q4/Q5 DEBUG: Log raw OCR lines before filtering
-        const isQ4Page = ungroupedLines.some(line => {
-            const text = (line.latex_styled || line.text || '').toLowerCase();
-            return text.includes('venn') || text.includes('set p') || text.includes('5/9') || text.includes('frac{5}{9}');
-        });
-        const isQ5Page = ungroupedLines.some(line => {
-            const text = (line.latex_styled || line.text || '').toLowerCase();
-            return text.includes('sophie') || text.includes('513') || text.includes('0.81');
-        });
-        
-        if (isQ4Page) {
-            console.log(`[Q4 OCR DEBUG] Raw OCR lines before filtering (${ungroupedLines.length} lines):`);
-            ungroupedLines.forEach((line, idx) => {
-                const text = line.latex_styled || line.text || '';
-                const coords = this.extractBoundingBox(line);
-                console.log(`[Q4 OCR DEBUG]   Line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
-            });
-        }
-        
-        if (isQ5Page) {
-            console.log(`[Q5 OCR DEBUG] Raw OCR lines before filtering (${ungroupedLines.length} lines):`);
-            ungroupedLines.forEach((line, idx) => {
-                const text = line.latex_styled || line.text || '';
-                const coords = this.extractBoundingBox(line);
-                console.log(`[Q5 OCR DEBUG]   Line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
-            });
-        }
         
         const studentWorkLines = ungroupedLines.filter((line, idx) => {
             const text = line.latex_styled || line.text || '';
@@ -510,9 +483,6 @@ export class OCRService {
             
             // 1. Discard empty lines (after cleaning)
             if (!cleanedText) {
-                if (isQ4Page || isQ5Page) {
-                    console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} FILTERED: empty after cleaning`);
-                }
                 return false;
             }
 
@@ -530,9 +500,6 @@ export class OCRService {
             
             for (const pattern of knownMetadataPatterns) {
                 if (pattern.test(cleanedText)) {
-                    if (isQ4Page || isQ5Page) {
-                        console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} FILTERED: known metadata pattern "${cleanedText.substring(0, 50)}"`);
-                    }
                     return false; // Known metadata - filter it
                 }
             }
@@ -544,29 +511,9 @@ export class OCRService {
             // - Question text (segmentation will filter it)
             // - Student work (must keep)
             // - Any ambiguous content (let segmentation decide)
-            if (isQ4Page || isQ5Page) {
-                console.log(`[${isQ4Page ? 'Q4' : 'Q5'} OCR DEBUG]   Line ${idx + 1} KEPT: "${cleanedText.substring(0, 80)}"`);
-            }
             return true;
         });
         
-        if (isQ4Page) {
-            console.log(`[Q4 OCR DEBUG] After filtering: ${studentWorkLines.length} lines kept (from ${ungroupedLines.length} raw lines)`);
-            studentWorkLines.forEach((line, idx) => {
-                const text = line.latex_styled || line.text || '';
-                const coords = this.extractBoundingBox(line);
-                console.log(`[Q4 OCR DEBUG]   Kept line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
-            });
-        }
-        
-        if (isQ5Page) {
-            console.log(`[Q5 OCR DEBUG] After filtering: ${studentWorkLines.length} lines kept (from ${ungroupedLines.length} raw lines)`);
-            studentWorkLines.forEach((line, idx) => {
-                const text = line.latex_styled || line.text || '';
-                const coords = this.extractBoundingBox(line);
-                console.log(`[Q5 OCR DEBUG]   Kept line ${idx + 1}: "${text.substring(0, 80)}" ${coords ? `Y=${coords.y}` : 'no coords'}`);
-            });
-        }
         
 
         // PREPARE FINAL MATHBLOCKS

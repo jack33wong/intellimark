@@ -222,7 +222,11 @@ export class DrawingEnhancementService {
           enhancedAllQuestions.push({
             ...question,
             sourceImage: standardizedPages[pageIndex].originalFileName,
-            sourceImageIndex: pageIndex
+            sourceImageIndex: pageIndex,
+            // Ensure sourceImageIndices is set for single-page questions too
+            sourceImageIndices: question.sourceImageIndices && Array.isArray(question.sourceImageIndices) && question.sourceImageIndices.length > 0
+              ? question.sourceImageIndices
+              : [pageIndex]
           });
         } else {
           // Merge logic (same as before)
@@ -235,11 +239,18 @@ export class DrawingEnhancementService {
             .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
             .join('\n');
           
+          // Merge sub-questions if present (group by part, combine student work)
+          // Also track which pages each sub-question came from
           const mergedSubQuestions = new Map<string, any>();
-          questionInstances.forEach(({ question }) => {
+          const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
+          
+          questionInstances.forEach(({ question, pageIndex }) => {
             if (question.subQuestions && Array.isArray(question.subQuestions)) {
               question.subQuestions.forEach((subQ: any) => {
                 const part = subQ.part || '';
+                // Track that this page has sub-questions
+                subQuestionPageIndices.add(pageIndex);
+                
                 if (!mergedSubQuestions.has(part)) {
                   mergedSubQuestions.set(part, {
                     part: subQ.part,
@@ -263,14 +274,20 @@ export class DrawingEnhancementService {
             }
           });
           
-          const allPageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+          // Collect all page indices for this merged question
+          // Include both question instance pages AND pages that have sub-questions
+          const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+          const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
+          
           const merged = {
             ...pageWithText.question,
             studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
             subQuestions: Array.from(mergedSubQuestions.values()),
             sourceImage: standardizedPages[allPageIndices[0]].originalFileName,
             sourceImageIndex: allPageIndices[0],
-            allSourceImageIndices: allPageIndices,
+            // Store all page indices this question spans (for multi-page questions)
+            // Use sourceImageIndices (not allSourceImageIndices) to match main merging logic
+            sourceImageIndices: allPageIndices,
             confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
           };
           

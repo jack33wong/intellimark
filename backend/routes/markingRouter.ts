@@ -184,14 +184,18 @@ const createMarkingTasksFromClassification = (
     subQuestions: Array<{ part: string; studentWork: string; text?: string }>;
     markingScheme: any;
     baseQNum: string;
-    sourceImageIndex: number;
+    sourceImageIndices: number[]; // Array of page indices (for multi-page questions)
   }>();
   
   // First pass: Collect all questions and sub-questions, group by base question number
   for (const q of classificationResult.questions) {
     const mainQuestionNumber = q.questionNumber || null;
     const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
-    const sourceImageIndex = q.sourceImageIndex ?? 0;
+    
+    // Use sourceImageIndices if available (from merged questions), otherwise use sourceImageIndex as array
+    const sourceImageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+      ? q.sourceImageIndices
+      : [q.sourceImageIndex ?? 0];
     
     if (!baseQNum) continue;
     
@@ -216,8 +220,13 @@ const createMarkingTasksFromClassification = (
         subQuestions: [],
         markingScheme: markingScheme,
         baseQNum: baseQNum,
-        sourceImageIndex: sourceImageIndex
+        sourceImageIndices: sourceImageIndices
       });
+    } else {
+      // If group exists, merge page indices (in case sub-questions are on different pages)
+      const existingGroup = questionGroups.get(baseQNum)!;
+      const mergedIndices = [...new Set([...existingGroup.sourceImageIndices, ...sourceImageIndices])].sort((a, b) => a - b);
+      existingGroup.sourceImageIndices = mergedIndices;
     }
     
     const group = questionGroups.get(baseQNum)!;
@@ -246,16 +255,23 @@ const createMarkingTasksFromClassification = (
     
     if (!hasMainWork && !hasSubWork) continue;
     
-    // Get all OCR blocks from the source page
-    const pageOcrData = allPagesOcrData[group.sourceImageIndex];
-    const mathBlocks: MathBlock[] = pageOcrData?.ocrData?.mathBlocks || [];
-    
-    // Assign global block IDs if not present
-    const blocksWithIds = mathBlocks.map((block, idx) => {
-      if (!(block as any).globalBlockId) {
-        (block as any).globalBlockId = `block_${group.sourceImageIndex}_${idx}`;
+    // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
+    const allMathBlocks: MathBlock[] = [];
+    group.sourceImageIndices.forEach((pageIndex) => {
+      const pageOcrData = allPagesOcrData[pageIndex];
+      if (pageOcrData?.ocrData?.mathBlocks) {
+        pageOcrData.ocrData.mathBlocks.forEach((block: MathBlock, idx: number) => {
+          // Ensure pageIndex is set on the block
+          if (!(block as any).pageIndex) {
+            (block as any).pageIndex = pageIndex;
+          }
+          // Assign global block ID if not present
+          if (!(block as any).globalBlockId) {
+            (block as any).globalBlockId = `block_${pageIndex}_${idx}`;
+          }
+          allMathBlocks.push(block);
+        });
       }
-      return block;
     });
     
     // Format combined student work with sub-question labels
@@ -270,9 +286,9 @@ const createMarkingTasksFromClassification = (
     // Create task with grouped sub-questions
     tasks.push({
       questionNumber: baseQNum, // Use base question number (e.g., "22")
-      mathBlocks: blocksWithIds,
+      mathBlocks: allMathBlocks,
       markingScheme: group.markingScheme,
-      sourcePages: [group.sourceImageIndex],
+      sourcePages: group.sourceImageIndices,
       classificationStudentWork: combinedStudentWork,
       pageDimensions: pageDimensionsMap,
       subQuestionMetadata: {
@@ -1133,7 +1149,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       false
     );
     
-    
     // Combine questions from all images
     // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
     const questionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
@@ -1143,6 +1158,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       if (result.questions && Array.isArray(result.questions)) {
         result.questions.forEach((question: any) => {
           const qNum = question.questionNumber;
+          
           
           // Only merge if questionNumber exists and is not null/undefined
           if (qNum && qNum !== 'null' && qNum !== 'undefined') {
@@ -1165,11 +1181,116 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     });
     
+    
+    // Fix orphaned questions (assign question numbers using AI)
+    if (questionsWithoutNumber.length > 0) {
+      console.log(`[FIX ORPHANED] Found ${questionsWithoutNumber.length} orphaned question(s), attempting to fix...`);
+      
+      // Prepare classified questions for context
+      const classifiedQuestionsForContext: Array<{
+        questionNumber: string;
+        pageIndices: number[];
+        text: string | null;
+        subQuestions?: Array<{
+          part: string;
+          pageIndex: number;
+          text?: string;
+        }>;
+      }> = [];
+      
+      questionsByNumber.forEach((questionInstances, questionNumber) => {
+        const pageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+        const firstQuestion = questionInstances[0].question;
+        
+        // Extract sub-questions with page indices
+        const subQuestions = firstQuestion.subQuestions?.map((sq: any) => {
+          // Find which page this sub-question came from
+          const subQPageIndex = questionInstances.find(({ question }) => 
+            question.subQuestions?.some((qsq: any) => qsq.part === sq.part)
+          )?.pageIndex ?? pageIndices[0];
+          
+          return {
+            part: sq.part,
+            pageIndex: subQPageIndex,
+            text: sq.text?.substring(0, 100) // First 100 chars for context
+          };
+        });
+        
+        classifiedQuestionsForContext.push({
+          questionNumber,
+          pageIndices,
+          text: firstQuestion.text,
+          subQuestions
+        });
+      });
+      
+      // Prepare orphaned questions
+      const orphanedQuestionsForFix: Array<{
+        pageIndex: number;
+        text: string | null;
+        subQuestions?: Array<{
+          part: string;
+          text: string;
+        }>;
+      }> = questionsWithoutNumber.map(({ question, pageIndex }) => ({
+        pageIndex,
+        text: question.text,
+        subQuestions: question.subQuestions?.map((sq: any) => ({
+          part: sq.part,
+          text: sq.text || ''
+        }))
+      }));
+      
+      // Call AI to fix orphaned questions
+      const assignments = await ClassificationService.fixOrphanedQuestionNumbers(
+        classifiedQuestionsForContext,
+        orphanedQuestionsForFix,
+        standardizedPages.length,
+        'auto'
+      );
+      
+      // Apply assignments: move fixed questions from questionsWithoutNumber to questionsByNumber
+      const fixedQuestions: Array<{ question: any; pageIndex: number; questionNumber: string }> = [];
+      const remainingOrphans: Array<{ question: any; pageIndex: number }> = [];
+      
+      questionsWithoutNumber.forEach(({ question, pageIndex }, index) => {
+        const assignedQNum = assignments.get(index);
+        if (assignedQNum) {
+          // Question was fixed - move to questionsByNumber
+          fixedQuestions.push({ question, pageIndex, questionNumber: assignedQNum });
+          question.questionNumber = assignedQNum; // Update the question object
+        } else {
+          // Question couldn't be fixed - keep as orphan
+          remainingOrphans.push({ question, pageIndex });
+        }
+      });
+      
+      // Add fixed questions to questionsByNumber
+      fixedQuestions.forEach(({ question, pageIndex, questionNumber }) => {
+        if (!questionsByNumber.has(questionNumber)) {
+          questionsByNumber.set(questionNumber, []);
+        }
+        questionsByNumber.get(questionNumber)!.push({ question, pageIndex });
+      });
+      
+      // Update questionsWithoutNumber to only include unfixed orphans
+      questionsWithoutNumber.length = 0;
+      questionsWithoutNumber.push(...remainingOrphans);
+      
+      if (fixedQuestions.length > 0) {
+        console.log(`[FIX ORPHANED] Successfully fixed ${fixedQuestions.length} orphaned question(s)`);
+      }
+      if (remainingOrphans.length > 0) {
+        console.log(`[FIX ORPHANED] ${remainingOrphans.length} orphaned question(s) could not be fixed`);
+      }
+    }
+    
     // Merge questions with same questionNumber
     const allQuestions: any[] = [];
     
     // Process merged questions
     questionsByNumber.forEach((questionInstances, questionNumber) => {
+      
       if (questionInstances.length === 1) {
         // Single page - no merge needed
         const { question, pageIndex } = questionInstances[0];
@@ -1192,11 +1313,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           .join('\n');
         
         // Merge sub-questions if present (group by part, combine student work)
+        // Also track which pages each sub-question came from
         const mergedSubQuestions = new Map<string, any>();
-        questionInstances.forEach(({ question }) => {
+        const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
+        
+        questionInstances.forEach(({ question, pageIndex }) => {
           if (question.subQuestions && Array.isArray(question.subQuestions)) {
             question.subQuestions.forEach((subQ: any) => {
               const part = subQ.part || '';
+              // Track that this page has sub-questions
+              subQuestionPageIndices.add(pageIndex);
+              
               if (!mergedSubQuestions.has(part)) {
                 mergedSubQuestions.set(part, {
                   part: subQ.part,
@@ -1223,7 +1350,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         });
         
         // Collect all page indices for this merged question
-        const allPageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+        // Include both question instance pages AND pages that have sub-questions
+        const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+        const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
+        
         
         const merged = {
           ...pageWithText.question,
@@ -1246,6 +1376,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           // Use highest confidence
           confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
         };
+        
         
         allQuestions.push(merged);
       }
@@ -1281,6 +1412,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       hasMixedContent: hasMixedContent,
       hasAnyStudentWork: hasAnyStudentWork
     };
+    
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
       ? classificationResult.questions[0].text 
@@ -1770,6 +1902,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             const combinedDatabaseQuestionTexts: string[] = []; // Store database question texts
             const questionNumbers: string[] = [];
             const subQuestionAnswers: string[] = []; // Store answers for each sub-question (e.g., ["H", "F", "J"])
+            // CRITICAL: Preserve sub-question-to-marks mapping to prevent mix-up (e.g., Q3a marks assigned to Q3b)
+            const subQuestionMarksMap = new Map<string, any[]>(); // Map sub-question number to its marks array
             
             for (const item of group) {
                 const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
@@ -1818,6 +1952,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                     console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
                 }
                 
+                // CRITICAL: Preserve sub-question-to-marks mapping (don't flatten yet)
+                subQuestionMarksMap.set(displayQNum, marksArray);
+                // Still maintain mergedMarks for backward compatibility
                 mergedMarks.push(...marksArray);
                 combinedQuestionTexts.push(item.question.text); // Classification text (for backward compatibility)
                 // Store database question text for filtering
@@ -1828,9 +1965,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 questionNumbers.push(displayQNum); // Use original question number for display
             }
             
-            // Create merged marking scheme
+            // Create merged marking scheme with sub-question marks mapping
             const mergedQuestionMarks = {
-                marks: mergedMarks
+                marks: mergedMarks, // Keep for backward compatibility
+                subQuestionMarks: Object.fromEntries(subQuestionMarksMap) // Preserve per-sub-question marks mapping
             };
             
             // Store questionDetection from first item for exam paper info (board, code, year, tier)

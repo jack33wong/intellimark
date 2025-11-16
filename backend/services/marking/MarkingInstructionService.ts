@@ -10,6 +10,7 @@ interface NormalizedMarkingScheme {
   questionLevelAnswer?: string; // Question-level answer (e.g., "H", "F", "J" for letter-based answers)
   marksWithAnswers?: string[]; // Array of answers for each mark (for grouped sub-questions like Q12i, 12ii, 12iii)
   subQuestionNumbers?: string[]; // Array of sub-question numbers (e.g., ["22a", "22b"]) for grouped sub-questions
+  subQuestionMarks?: { [subQuestionNumber: string]: any[] }; // Map sub-question number to its marks array (prevents mix-up of marks between sub-questions)
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -80,13 +81,20 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
                                (input as any).subQuestionNumbers || 
                                undefined;
     
+    // CRITICAL: Extract sub-question marks mapping if available (prevents mix-up of marks between sub-questions)
+    // This preserves which marks belong to which sub-question (e.g., Q3a marks vs Q3b marks)
+    const subQuestionMarks = input.questionMarks?.subQuestionMarks || 
+                            (input as any).subQuestionMarks || 
+                            undefined;
+    
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
       questionNumber: input.questionNumber || '1',
       questionLevelAnswer: questionLevelAnswer,
       marksWithAnswers: marksWithAnswers,
-      subQuestionNumbers: subQuestionNumbers
+      subQuestionNumbers: subQuestionNumbers,
+      subQuestionMarks: subQuestionMarks // Preserve sub-question-to-marks mapping
     };
     
     
@@ -467,6 +475,10 @@ export class MarkingInstructionService {
           if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
             schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
           }
+          // CRITICAL: Include sub-question marks mapping to prevent mix-up (e.g., Q3a marks assigned to Q3b)
+          if (normalizedScheme.subQuestionMarks && typeof normalizedScheme.subQuestionMarks === 'object') {
+            schemeData.subQuestionMarks = normalizedScheme.subQuestionMarks;
+          }
           schemeJson = JSON.stringify(schemeData, null, 2);
         } catch (error) {
           schemeJson = '{}';
@@ -484,6 +496,7 @@ export class MarkingInstructionService {
       // Extract sub-question info for prompt (prefer from metadata, fallback to scheme)
       const subQuestionNumbers = subQuestionMetadata?.subQuestionNumbers || normalizedScheme.subQuestionNumbers;
       const subQuestionAnswers = normalizedScheme.marksWithAnswers;
+      
       
       // Call user prompt with enhanced parameters (raw OCR blocks and classification)
       userPrompt = prompt.user(
@@ -510,44 +523,46 @@ export class MarkingInstructionService {
 
     // Log only content sections by extracting them from the actual userPrompt (no duplicate logic)
     const GREEN = '\x1b[32m';
+    const RED = '\x1b[31m';
     const MAGENTA = '\x1b[35m';
     const YELLOW = '\x1b[33m';
     const CYAN = '\x1b[36m';
     const RESET = '\x1b[0m';
     
-    console.log('');
-    console.log(`${GREEN}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
+    // TEMPORARILY DISABLED: Detailed prompt logging
+    // console.log('');
+    // console.log(`${RED}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
     
     // Extract content sections from the actual userPrompt (reuse the real prompt, just extract content)
-    if (userPrompt) {
-      // 1. Extract Question Text
-      const questionTextMatch = userPrompt.match(/ORIGINAL QUESTION:\s*\n([\s\S]*?)(?=\n\n|⚠️|MANDATORY|RAW OCR|CLASSIFICATION|MARKING SCHEME|$)/);
-      if (questionTextMatch && questionTextMatch[1]) {
-        console.log(`${MAGENTA}Question Text:${RESET}`);
-        console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
-      }
+    // if (userPrompt) {
+    //   // 1. Extract Question Text
+    //   const questionTextMatch = userPrompt.match(/ORIGINAL QUESTION:\s*\n([\s\S]*?)(?=\n\n|⚠️|MANDATORY|RAW OCR|CLASSIFICATION|MARKING SCHEME|$)/);
+    //   if (questionTextMatch && questionTextMatch[1]) {
+    //     console.log(`${MAGENTA}Question Text:${RESET}`);
+    //     console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
+    //   }
       
-      // 2. Extract Classification Student Work
-      const classificationMatch = userPrompt.match(/\*\*CLASSIFICATION STUDENT WORK\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*MARKING SCHEME|$)/);
-      if (classificationMatch && classificationMatch[1]) {
-        console.log(`${YELLOW}Classification Student Work:${RESET}`);
-        console.log(YELLOW + classificationMatch[1].trim() + RESET);
-      }
+    //   // 2. Extract Classification Student Work
+    //   const classificationMatch = userPrompt.match(/\*\*CLASSIFICATION STUDENT WORK\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*MARKING SCHEME|$)/);
+    //   if (classificationMatch && classificationMatch[1]) {
+    //     console.log(`${YELLOW}Classification Student Work:${RESET}`);
+    //     console.log(YELLOW + classificationMatch[1].trim() + RESET);
+    //   }
       
-      // 3. Extract OCR Blocks
-      const ocrBlocksMatch = userPrompt.match(/\*\*RAW OCR BLOCKS\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*CLASSIFICATION|$)/);
-      if (ocrBlocksMatch && ocrBlocksMatch[1]) {
-        console.log(`${CYAN}OCR Blocks:${RESET}`);
-        console.log(CYAN + ocrBlocksMatch[1].trim() + RESET);
-      }
+    //   // 3. Extract OCR Blocks
+    //   const ocrBlocksMatch = userPrompt.match(/\*\*RAW OCR BLOCKS\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*CLASSIFICATION|$)/);
+    //   if (ocrBlocksMatch && ocrBlocksMatch[1]) {
+    //     console.log(`${CYAN}OCR Blocks:${RESET}`);
+    //     console.log(CYAN + ocrBlocksMatch[1].trim() + RESET);
+    //   }
       
-      // 4. Extract Marking Scheme
-      const markingSchemeMatch = userPrompt.match(/\*\*MARKING SCHEME\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*TOTAL MARKS|\*\*YOUR TASK|$)/);
-      if (markingSchemeMatch && markingSchemeMatch[1]) {
-        console.log(`${GREEN}Marking Scheme:${RESET}`);
-        console.log(GREEN + markingSchemeMatch[1].trim() + RESET);
-      }
-    }
+    //   // 4. Extract Marking Scheme
+    //   const markingSchemeMatch = userPrompt.match(/\*\*MARKING SCHEME\*\*[^\n]*:\s*\n([\s\S]*?)(?=\n\*\*TOTAL MARKS|\*\*YOUR TASK|$)/);
+    //   if (markingSchemeMatch && markingSchemeMatch[1]) {
+    //     console.log(`${GREEN}Marking Scheme:${RESET}`);
+    //     console.log(GREEN + markingSchemeMatch[1].trim() + RESET);
+    //   }
+    // }
 
     let aiResponseString = ''; // Declare outside try block for error logging
     
@@ -630,8 +645,9 @@ export class MarkingInstructionService {
 
       // Log clean AI response with better formatting
       const GREEN = '\x1b[32m';
+      const RED = '\x1b[31m';
       const RESET = '\x1b[0m';
-      console.log(`🤖 [AI RESPONSE] ${GREEN}Q${questionNumber}${RESET} - Clean response received:`);
+      console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
       console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
       console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color

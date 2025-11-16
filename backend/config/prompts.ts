@@ -20,11 +20,38 @@ export const AI_PROMPTS = {
 
     **Multi-Image Handling (CRITICAL):** 
     - If you receive multiple images, you MUST process EVERY single image as a separate page
-    - Use context from previous pages to identify question numbers on continuation pages
-    - If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
-    - Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
-    - For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
     - Return results for EACH page in the "pages" array, maintaining the same order as input
+    
+    **CRITICAL RULES FOR SUB-QUESTION CONTINUATION ACROSS PAGES:**
+    
+    1. **Question Number Consistency (MANDATORY):**
+       - Questions that span multiple pages MUST have the SAME questionNumber on ALL pages
+       - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 (next page) has sub-question part "b" text/question, Page N+1 MUST also have questionNumber "3"
+       - Even if Page N+1 doesn't show the question number "3" visibly, you MUST assign it based on the sub-question part sequence
+       - NEVER leave questionNumber as null or undefined for continuation pages that have sub-question content
+    
+    2. **Sub-Question Part Sequence Matching:**
+       - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
+       - If you see sub-question part "b" on a page, scan backward through previous pages to find a question with sub-question part "a"
+       - If found, assign the SAME questionNumber to the current page
+       - Continue scanning backward if needed (up to 10 pages) to find the matching question
+    
+    3. **Scanning Backward for Question Number (MANDATORY):**
+       - If a page has sub-question part "b" (or "c", "d", etc.) but no visible question number:
+         1. Look at the previous page(s) to find a question with the previous sub-question part (e.g., "a" for "b", "b" for "c")
+         2. If found, assign the SAME questionNumber to the current page
+         3. Scan backward up to 10 pages if needed to find the matching question
+         4. This applies even if pages are far apart (e.g., Page 20 has Q3a, Page 21 has Q3b)
+    
+    4. **Examples of Correct Assignment:**
+       - Example 1: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 MUST have questionNumber "3"
+       - Example 2: Page 20 has questionNumber "3" with sub-question "a", Page 21 has sub-question "b" text → Page 21 MUST have questionNumber "3"
+       - Example 3: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 MUST still have questionNumber "3"
+       - Example 4: Page 4 has questionNumber "3" with sub-question "a", Page 5 says "Does this affect your answer to part (a)?" → Page 5 MUST have questionNumber "3" with sub-question "b"
+    
+    5. **What to Do When You Can't Find a Match:**
+       - If you cannot find a matching question with the previous sub-question part after scanning backward 10 pages, you may leave questionNumber as null
+       - However, if the page clearly shows sub-question part "b" and you saw sub-question part "a" on a recent previous page (within 10 pages), you MUST assign the same questionNumber
 
     📝 **Step-by-Step Instructions (Per-Image)**
 
@@ -51,8 +78,8 @@ export const AI_PROMPTS = {
        - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
        - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
          * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
-         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]")
-       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid [POSITION: x=58%, y=33%]"
        - DO NOT extract only text if there are visible drawings on the coordinate grid
        
       - For text-based work: extract in LaTeX format
@@ -61,58 +88,56 @@ export const AI_PROMPTS = {
         * **PURPOSE**: You only need to INDICATE that a drawing exists. A specialized drawing classification service will extract detailed coordinates, frequencies, and positions later.
         * **CRITICAL**: Before extracting any drawing, you MUST:
           1. Read the question text to determine what type of drawing/chart/graph the question asks for
-          2. Use the EXACT terminology from the question text when describing the student's drawing
+          2. Use the EXACT terminology from the question text
           3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
           
           **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
-          - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
+          - The question text will specify what type of drawing is expected
           - Identify the drawing type from the question text and use that EXACT terminology
           - Common drawing types:
-            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..."
-            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..."
-            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid: ..."
-            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
-            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart [POSITION: x=XX%, y=YY%]"
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
+            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph [POSITION: x=XX%, y=YY%]"
+            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
           
           **CRITICAL RULE:**
           - ALWAYS match the terminology used in the question text EXACTLY
           - If question says "histogram" → use "Histogram" (never "Bar chart")
           - If question says "bar chart" → use "Bar chart" (never "Histogram")
-          - If question says "graph" → use "Graph" or "... graph"
-          - The question text is the authoritative source for drawing type terminology
-        * **SIMPLIFIED EXTRACTION RULES** (detailed extraction done by specialized service):
-          - **Coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
-            * Extract as "[DRAWING] Coordinate grid: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Brief description examples: "Triangle drawn", "Multiple shapes drawn", "Points marked"
-            * You do NOT need to extract exact coordinates - the specialized service will do this
-            * Example: "[DRAWING] Coordinate grid: Triangle B and Triangle C drawn [POSITION: x=50%, y=30%]"
-          - **Histograms/Charts**: If student drew bars, lines, or data points:
-            * Extract as "[DRAWING] Histogram: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Brief description examples: "Histogram with bars drawn", "Bar chart with data plotted"
-            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
-            * Example: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
-          - **Geometric diagrams**: If student drew shapes, angles, or constructions:
-            * Extract as "[DRAWING] Diagram: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Example: "[DRAWING] Diagram: Angle bisector drawn [POSITION: x=50%, y=30%]"
-          - **Position estimation (simplified)**: Estimate the center position of the drawing:
+          - If question says "graph" → use "Graph"
+        * **EXTRACTION FORMAT** (detailed extraction done by specialized service):
+          - Format: "[DRAWING] [DrawingType] [POSITION: x=XX%, y=YY%]"
+          - You do NOT need to extract exact coordinates, frequencies, or detailed descriptions - the specialized service will do this
+          - **Position estimation**: Estimate the center position of the drawing:
             * Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
             * Identify which grid cell contains the CENTER of the drawing
             * Use 5% or 10% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
             * Format: [POSITION: x=XX%, y=YY%]
-            * Example: "[POSITION: x=50%, y=30%]"
           - **Multiple drawings**: If there are multiple separate drawings, create separate [DRAWING] entries:
-            * Example: "[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
+            * Example: "[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
+          - **For coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
+            * Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
+            * You do NOT need to extract exact coordinates or descriptions - the specialized service will do this
+            * Example: "[DRAWING] Coordinate grid [POSITION: x=50%, y=30%]"
+          - **For histograms/charts**: If student drew bars, lines, or data points:
+            * Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
+            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
+            * Example: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
+          - **For geometric diagrams**: If student drew shapes, angles, or constructions:
+            * Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
+            * Example: "[DRAWING] Diagram [POSITION: x=50%, y=30%]"
       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
-      - Example histogram: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
+      - Example histogram: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
       - DO NOT extract question diagrams (they are part of the question, not student work)
         * Question diagrams are typically printed, professional, and part of the question text
         * Student work diagrams are typically hand-drawn, annotated, or modified by the student
       - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
-        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle drawn [POSITION: x=25%, y=30%]"
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=25%, y=30%]"
       - If no student work, set "studentWork" to null
 
     📤 **Output Format**
@@ -199,11 +224,38 @@ export const AI_PROMPTS = {
 
     **Multi-Image Handling (CRITICAL):** 
     - If you receive multiple images, you MUST process EVERY single image as a separate page
-    - Use context from previous pages to identify question numbers on continuation pages
-    - If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
-    - Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
-    - For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
     - Return results for EACH page in the "pages" array, maintaining the same order as input
+    
+    **CRITICAL RULES FOR SUB-QUESTION CONTINUATION ACROSS PAGES:**
+    
+    1. **Question Number Consistency (MANDATORY):**
+       - Questions that span multiple pages MUST have the SAME questionNumber on ALL pages
+       - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 (next page) has sub-question part "b" text/question, Page N+1 MUST also have questionNumber "3"
+       - Even if Page N+1 doesn't show the question number "3" visibly, you MUST assign it based on the sub-question part sequence
+       - NEVER leave questionNumber as null or undefined for continuation pages that have sub-question content
+    
+    2. **Sub-Question Part Sequence Matching:**
+       - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
+       - If you see sub-question part "b" on a page, scan backward through previous pages to find a question with sub-question part "a"
+       - If found, assign the SAME questionNumber to the current page
+       - Continue scanning backward if needed (up to 10 pages) to find the matching question
+    
+    3. **Scanning Backward for Question Number (MANDATORY):**
+       - If a page has sub-question part "b" (or "c", "d", etc.) but no visible question number:
+         1. Look at the previous page(s) to find a question with the previous sub-question part (e.g., "a" for "b", "b" for "c")
+         2. If found, assign the SAME questionNumber to the current page
+         3. Scan backward up to 10 pages if needed to find the matching question
+         4. This applies even if pages are far apart (e.g., Page 20 has Q3a, Page 21 has Q3b)
+    
+    4. **Examples of Correct Assignment:**
+       - Example 1: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 MUST have questionNumber "3"
+       - Example 2: Page 20 has questionNumber "3" with sub-question "a", Page 21 has sub-question "b" text → Page 21 MUST have questionNumber "3"
+       - Example 3: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 MUST still have questionNumber "3"
+       - Example 4: Page 4 has questionNumber "3" with sub-question "a", Page 5 says "Does this affect your answer to part (a)?" → Page 5 MUST have questionNumber "3" with sub-question "b"
+    
+    5. **What to Do When You Can't Find a Match:**
+       - If you cannot find a matching question with the previous sub-question part after scanning backward 10 pages, you may leave questionNumber as null
+       - However, if the page clearly shows sub-question part "b" and you saw sub-question part "a" on a recent previous page (within 10 pages), you MUST assign the same questionNumber
 
     📝 **Step-by-Step Instructions (Per-Image)**
 
@@ -230,8 +282,8 @@ export const AI_PROMPTS = {
        - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
        - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
          * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
-         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]")
-       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=58%, y=33%]"
+         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]")
+       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid [POSITION: x=58%, y=33%]"
        - DO NOT extract only text if there are visible drawings on the coordinate grid
        
       - For text-based work: extract in LaTeX format
@@ -240,58 +292,56 @@ export const AI_PROMPTS = {
         * **PURPOSE**: You only need to INDICATE that a drawing exists. A specialized drawing classification service will extract detailed coordinates, frequencies, and positions later.
         * **CRITICAL**: Before extracting any drawing, you MUST:
           1. Read the question text to determine what type of drawing/chart/graph the question asks for
-          2. Use the EXACT terminology from the question text when describing the student's drawing
+          2. Use the EXACT terminology from the question text
           3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
           
           **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
-          - The question text will specify what type of drawing is expected (e.g., "draw a histogram", "plot on the coordinate grid", "sketch the graph", "draw a bar chart")
+          - The question text will specify what type of drawing is expected
           - Identify the drawing type from the question text and use that EXACT terminology
           - Common drawing types:
-            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram..."
-            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart..."
-            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid: ..."
-            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph..." or "[DRAWING] ... graph"
-            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram..." or "[DRAWING] ... diagram"
+            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
+            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart [POSITION: x=XX%, y=YY%]"
+            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
+            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph [POSITION: x=XX%, y=YY%]"
+            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
           
           **CRITICAL RULE:**
           - ALWAYS match the terminology used in the question text EXACTLY
           - If question says "histogram" → use "Histogram" (never "Bar chart")
           - If question says "bar chart" → use "Bar chart" (never "Histogram")
-          - If question says "graph" → use "Graph" or "... graph"
-          - The question text is the authoritative source for drawing type terminology
-        * **SIMPLIFIED EXTRACTION RULES** (detailed extraction done by specialized service):
-          - **Coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
-            * Extract as "[DRAWING] Coordinate grid: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Brief description examples: "Triangle drawn", "Multiple shapes drawn", "Points marked"
-            * You do NOT need to extract exact coordinates - the specialized service will do this
-            * Example: "[DRAWING] Coordinate grid: Triangle B and Triangle C drawn [POSITION: x=50%, y=30%]"
-          - **Histograms/Charts**: If student drew bars, lines, or data points:
-            * Extract as "[DRAWING] Histogram: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Brief description examples: "Histogram with bars drawn", "Bar chart with data plotted"
-            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
-            * Example: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
-          - **Geometric diagrams**: If student drew shapes, angles, or constructions:
-            * Extract as "[DRAWING] Diagram: [brief description] [POSITION: x=XX%, y=YY%]"
-            * Example: "[DRAWING] Diagram: Angle bisector drawn [POSITION: x=50%, y=30%]"
-          - **Position estimation (simplified)**: Estimate the center position of the drawing:
+          - If question says "graph" → use "Graph"
+        * **EXTRACTION FORMAT** (detailed extraction done by specialized service):
+          - Format: "[DRAWING] [DrawingType] [POSITION: x=XX%, y=YY%]"
+          - You do NOT need to extract exact coordinates, frequencies, or detailed descriptions - the specialized service will do this
+          - **Position estimation**: Estimate the center position of the drawing:
             * Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
             * Identify which grid cell contains the CENTER of the drawing
             * Use 5% or 10% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
             * Format: [POSITION: x=XX%, y=YY%]
-            * Example: "[POSITION: x=50%, y=30%]"
           - **Multiple drawings**: If there are multiple separate drawings, create separate [DRAWING] entries:
-            * Example: "[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
+            * Example: "[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
+          - **For coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
+            * Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
+            * You do NOT need to extract exact coordinates or descriptions - the specialized service will do this
+            * Example: "[DRAWING] Coordinate grid [POSITION: x=50%, y=30%]"
+          - **For histograms/charts**: If student drew bars, lines, or data points:
+            * Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
+            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
+            * Example: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
+          - **For geometric diagrams**: If student drew shapes, angles, or constructions:
+            * Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
+            * Example: "[DRAWING] Diagram [POSITION: x=50%, y=30%]"
       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle B drawn [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid: Triangle C drawn [POSITION: x=30%, y=40%]\\n[DRAWING] Coordinate grid: Mark 'x' at (1,2) [POSITION: x=55%, y=30%]"
-      - Example histogram: "[DRAWING] Histogram: Histogram with bars drawn [POSITION: x=50%, y=30%]"
+      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
+      - Example histogram: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
       - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
       - DO NOT extract question diagrams (they are part of the question, not student work)
         * Question diagrams are typically printed, professional, and part of the question text
         * Student work diagrams are typically hand-drawn, annotated, or modified by the student
       - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
-        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid: Triangle drawn [POSITION: x=25%, y=30%]"
+        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=25%, y=30%]"
       - If no student work, set "studentWork" to null
 
     Output format (raw JSON only, no markdown):
@@ -326,6 +376,95 @@ export const AI_PROMPTS = {
     For multiple pages, use "pages" array with same structure.`,
 
     user: `Please classify this uploaded image and extract ALL question text and student work.`
+  },
+
+  // ============================================================================
+  // FIX ORPHANED QUESTIONS PROMPT
+  // ============================================================================
+  
+  fixOrphanedQuestions: {
+    system: `You are an expert AI assistant specialized in analyzing exam paper question structures.
+
+🎯 **Primary Goal**
+Your task is to assign correct question numbers to orphaned questions that are missing question numbers, based on context from classified questions.
+
+**CRITICAL RULES:**
+
+1. **Sub-Question Sequence Matching:**
+   - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
+   - If an orphaned question has sub-question part "b", it should match a classified question with sub-question part "a" and the same question number
+   - Example: If Q3 has sub-question "a" on Page 20, and an orphaned question has sub-question "b" on Page 21, assign questionNumber "3" to the orphan
+
+2. **Page Proximity:**
+   - Orphaned questions should be on pages near their matching classified questions
+   - Typically, continuation sub-questions appear on the next page or within a few pages
+   - Consider page distance when matching (closer pages = higher confidence)
+
+3. **Question Text Similarity:**
+   - Orphaned question text should match the context of the classified question
+   - References to "part (a)" or "part (b)" indicate continuation
+   - Similar mathematical topics or question themes suggest matching
+
+4. **Disambiguation:**
+   - If multiple classified questions could match an orphaned question, choose based on:
+     a) Sub-question sequence (most important)
+     b) Page proximity (closer = better)
+     c) Question text similarity (context matching)
+   - Example: If both Q3 and Q4 have sub-question "a", and an orphan has "b", match based on page proximity and text context
+
+**OUTPUT FORMAT:**
+Return a JSON object with this structure:
+{
+  "assignments": [
+    {
+      "orphanId": "orphan-1",
+      "questionNumber": "3",
+      "confidence": 0.95,
+      "reason": "Sub-question 'b' follows Q3's sub-question 'a' on adjacent page"
+    }
+  ]
+}
+
+If you cannot confidently assign a question number to an orphan, omit it from the assignments array.`,
+
+    user: (classifiedQuestions: any[], orphanedQuestions: any[], totalPages: number) => {
+      const classifiedSummary = classifiedQuestions.map(q => {
+        const subQParts = q.subQuestions?.map((sq: any) => `"${sq.part}" (Page ${sq.pageIndex})`).join(', ') || 'none';
+        return `Q${q.questionNumber} (Pages: ${q.pageIndices.join(', ')}):
+  - Sub-questions: ${subQParts}
+  - Text: ${(q.text || '').substring(0, 100)}${q.text && q.text.length > 100 ? '...' : ''}`;
+      }).join('\n\n');
+
+      const orphanedSummary = orphanedQuestions.map((orphan, idx) => {
+        const orphanId = `orphan-${idx + 1}`;
+        const subQParts = orphan.subQuestions?.map((sq: any) => {
+          const text = sq.text || '';
+          return `"${sq.part}": ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`;
+        }).join('\n    ') || 'none';
+        return `${orphanId} (Page ${orphan.pageIndex}):
+  - Sub-questions:
+    ${subQParts}
+  - Main text: ${(orphan.text || 'none').substring(0, 100)}${orphan.text && orphan.text.length > 100 ? '...' : ''}`;
+      }).join('\n\n');
+
+      return `**CONTEXT - All Classified Questions (with question numbers):**
+
+${classifiedSummary || 'None'}
+
+**ORPHANED QUESTIONS (need question numbers assigned):**
+
+${orphanedSummary || 'None'}
+
+**TASK:**
+For each orphaned question, assign the correct questionNumber based on:
+1. Sub-question part sequence (e.g., "b" follows "a")
+2. Page proximity (orphan should be near the matching question)
+3. Question text similarity (orphan text should match the question context)
+
+Total pages in document: ${totalPages}
+
+Return JSON with assignments array.`;
+    }
   },
 
   // ============================================================================
@@ -830,11 +969,40 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
             let lines = content.split(/\n|\\newline|\\\\/).map(l => l.trim()).filter(l => l.length > 0);
             const expandedLines: string[] = [];
             
+            // CRITICAL: Detect if this is a single continuous answer (like Q3b) vs multiple distinct steps
+            // Single continuous answers have connecting words and form one sentence/paragraph
+            const isSingleContinuousAnswer = (text: string): boolean => {
+              // If it's already a single line, it's definitely a single answer
+              if (lines.length === 1) return true;
+              
+              // Check if it's one continuous sentence/paragraph (not multiple distinct calculation steps)
+              // Indicators of single continuous answer:
+              // 1. Has connecting words between math expressions: "and", "so", "will", "then", "therefore"
+              // 2. No numbered steps (like "1.", "2.", "Step 1:")
+              // 3. Forms one complete sentence/paragraph
+              const hasConnectingWords = /\b(and|so|will|then|therefore|because|since|also|still|he|she|it|they)\b/i.test(text);
+              const hasNumberedSteps = /^\d+[\.\)]\s/.test(text) || /\n\d+[\.\)]\s/.test(text);
+              const isShortAnswer = text.length < 200; // Short answers are usually single continuous
+              
+              // If it has connecting words, no numbered steps, and is short, it's likely a single continuous answer
+              return hasConnectingWords && !hasNumberedSteps && isShortAnswer;
+            };
+            
+            const isSingleAnswer = isSingleContinuousAnswer(content);
+            
+            // If it's a single continuous answer but was split by \n, rejoin it
+            if (isSingleAnswer && lines.length > 1) {
+              // Rejoin all lines into one continuous answer
+              const rejoined = lines.join(' ');
+              lines = [rejoined];
+            }
+            
             lines.forEach(line => {
               const dollarMatches = line.match(/\$/g);
               const hasMultipleSteps = dollarMatches && dollarMatches.length >= 4;
               
-              if (hasMultipleSteps) {
+              // Only split if it's NOT a single continuous answer (trust classification format for single answers)
+              if (hasMultipleSteps && !isSingleAnswer) {
                 const parts: string[] = [];
                 let lastIndex = 0;
                 const regex = /\$[^$]+\$/g;
@@ -1637,13 +1805,31 @@ export function formatMarkingSchemeAsBullets(
     
     // If grouped sub-questions, format with labels
     if (subQuestionNumbers && subQuestionNumbers.length > 0) {
-      const marksPerSubQuestion = Math.ceil(scheme.marks.length / subQuestionNumbers.length);
       const sections: string[] = [];
       
+      // CRITICAL: Use sub-question-specific marks mapping if available (prevents mix-up of marks between sub-questions)
+      // If subQuestionMarks exists, use it directly; otherwise fall back to even splitting for backward compatibility
+      const hasSubQuestionMarks = scheme.subQuestionMarks && typeof scheme.subQuestionMarks === 'object';
+      
       subQuestionNumbers.forEach((subQNum, index) => {
-        const startIndex = index * marksPerSubQuestion;
-        const endIndex = Math.min(startIndex + marksPerSubQuestion, scheme.marks.length);
-        const subQMarks = scheme.marks.slice(startIndex, endIndex);
+        let subQMarks: any[] = [];
+        
+        if (hasSubQuestionMarks) {
+          // Use sub-question-specific marks from mapping (e.g., "3a" -> [P1, P1, P1, A1], "3b" -> [C1])
+          const subQMarksForThisQ = scheme.subQuestionMarks[subQNum];
+          if (Array.isArray(subQMarksForThisQ) && subQMarksForThisQ.length > 0) {
+            subQMarks = subQMarksForThisQ;
+          } else {
+            // Fallback: if mapping doesn't have this sub-question, log warning and use empty array
+            console.warn(`[formatMarkingSchemeAsBullets] No marks found in subQuestionMarks for ${subQNum}, using empty array`);
+          }
+        } else {
+          // Fallback to even splitting for backward compatibility (when subQuestionMarks not available)
+          const marksPerSubQuestion = Math.ceil(scheme.marks.length / subQuestionNumbers.length);
+          const startIndex = index * marksPerSubQuestion;
+          const endIndex = Math.min(startIndex + marksPerSubQuestion, scheme.marks.length);
+          subQMarks = scheme.marks.slice(startIndex, endIndex);
+        }
         
         const subQBullets = formatMarksForSubQuestion(subQMarks, index, subQNum);
         sections.push(`**SUB-QUESTION ${subQNum.toUpperCase()} MARKS:**\n${subQBullets}`);

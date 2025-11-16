@@ -63,13 +63,36 @@ export class ClassificationService {
     const userPrompt = getPrompt('classification.user');
     
     // Enhanced prompt for multi-image context
-    const multiImageSystemPrompt = systemPrompt + `\n\nIMPORTANT FOR MULTI-PAGE DOCUMENTS:
+    const multiImageSystemPrompt = systemPrompt + `\n\nIMPORTANT FOR MULTI-PAGE DOCUMENTS (${images.length} pages):
 - You are analyzing ${images.length} pages/images together
-- Use context from previous pages to identify question numbers on continuation pages
-- If a page references "part (a)" or "part (b)", look at previous pages to find the main question number
-- Continuation pages may only show sub-question parts (e.g., "b") - infer the full question number from context
-- For example: If Page 4 has Q3 with sub-question "a", and Page 5 says "Does this affect your answer to part (a)?", infer that Page 5 is Q3b
-- Return results for EACH page in the "pages" array, maintaining the same order as input`;
+- Return results for EACH page in the "pages" array, maintaining the same order as input
+
+**CRITICAL RULES FOR SUB-QUESTION CONTINUATION ACROSS PAGES:**
+
+1. **Question Number Consistency (MANDATORY):**
+   - Questions that span multiple pages MUST have the SAME questionNumber on ALL pages
+   - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 (next page) has sub-question part "b" text/question, Page N+1 MUST also have questionNumber "3"
+   - Even if Page N+1 doesn't show the question number "3" visibly, you MUST assign it based on the sub-question part sequence
+   - NEVER leave questionNumber as null or undefined for continuation pages that have sub-question content
+
+2. **Sub-Question Part Sequence Matching:**
+   - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
+   - If you see sub-question part "b" on a page, scan backward through previous pages to find a question with sub-question part "a"
+   - If found, assign the SAME questionNumber to the current page
+   - Continue scanning backward if needed (up to 10 pages) to find the matching question
+
+3. **Scanning Backward for Question Number (MANDATORY):**
+   - If a page has sub-question part "b" (or "c", "d", etc.) but no visible question number:
+     1. Look at the previous page(s) to find a question with the previous sub-question part (e.g., "a" for "b", "b" for "c")
+     2. If found, assign the SAME questionNumber to the current page
+     3. Scan backward up to 10 pages if needed to find the matching question
+     4. This applies even if pages are far apart (e.g., Page 20 has Q3a, Page 21 has Q3b)
+
+4. **Examples of Correct Assignment:**
+   - Example 1: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 MUST have questionNumber "3"
+   - Example 2: Page 20 has questionNumber "3" with sub-question "a", Page 21 has sub-question "b" text → Page 21 MUST have questionNumber "3"
+   - Example 3: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 MUST still have questionNumber "3"
+   - Example 4: Page 4 has questionNumber "3" with sub-question "a", Page 5 says "Does this affect your answer to part (a)?" → Page 5 MUST have questionNumber "3" with sub-question "b"`;
     
     const multiImageUserPrompt = `Please classify all ${images.length} pages/images together and extract ALL question text from each page. Use context from previous pages to identify question numbers on continuation pages.
 
@@ -754,7 +777,87 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     };
   }
 
+  /**
+   * Fix orphaned questions by assigning question numbers using AI
+   * @param classifiedQuestions Questions that have question numbers (for context)
+   * @param orphanedQuestions Questions without question numbers (to fix)
+   * @param totalPages Total number of pages in document
+   * @param model Model to use
+   * @returns Map of orphan index to assigned question number
+   */
+  static async fixOrphanedQuestionNumbers(
+    classifiedQuestions: Array<{
+      questionNumber: string;
+      pageIndices: number[];
+      text: string | null;
+      subQuestions?: Array<{
+        part: string;
+        pageIndex: number;
+        text?: string;
+      }>;
+    }>,
+    orphanedQuestions: Array<{
+      pageIndex: number;
+      text: string | null;
+      subQuestions?: Array<{
+        part: string;
+        text: string;
+      }>;
+    }>,
+    totalPages: number,
+    model: ModelType = 'auto'
+  ): Promise<Map<number, string>> {
+    // If no orphaned questions, return empty map
+    if (orphanedQuestions.length === 0) {
+      return new Map();
+    }
 
+    try {
+      const { getPrompt } = await import('../../config/prompts.js');
+      const systemPrompt = getPrompt('fixOrphanedQuestions.system');
+      const userPrompt = getPrompt('fixOrphanedQuestions.user', classifiedQuestions, orphanedQuestions, totalPages);
 
+      const validatedModel = validateModel(model);
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      
+      // Use text-only API call (no images needed) with JSON response
+      const response = await ModelProvider.callGeminiText(
+        systemPrompt,
+        userPrompt,
+        validatedModel,
+        true // forceJsonResponse = true
+      );
+
+      // Parse JSON response
+      const cleanContent = this.cleanGeminiResponse(response.content);
+      const parsed = this.parseJsonWithSanitization(cleanContent);
+
+      // Build result map: orphan index -> question number
+      const assignments = new Map<number, string>();
+      
+      if (parsed.assignments && Array.isArray(parsed.assignments)) {
+        parsed.assignments.forEach((assignment: any) => {
+          const orphanId = assignment.orphanId;
+          const questionNumber = assignment.questionNumber;
+          
+          // Extract index from orphanId (e.g., "orphan-1" -> 0)
+          const match = orphanId?.match(/orphan-(\d+)/);
+          if (match && questionNumber) {
+            const orphanIndex = parseInt(match[1], 10) - 1; // Convert to 0-based index
+            if (orphanIndex >= 0 && orphanIndex < orphanedQuestions.length) {
+              assignments.set(orphanIndex, String(questionNumber));
+              console.log(`[FIX ORPHANED] Assigned Q${questionNumber} to orphan ${orphanId} (Page ${orphanedQuestions[orphanIndex].pageIndex})`);
+            }
+          }
+        });
+      }
+
+      return assignments;
+    } catch (error) {
+      console.error('[FIX ORPHANED] Error fixing orphaned questions:', error);
+      // Return empty map on error - questions will remain orphaned
+      return new Map();
+    }
+  }
 
 }
