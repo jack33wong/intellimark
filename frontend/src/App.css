@@ -29,6 +29,17 @@
   height: 100vh; /* Fixed height to contain scroll */
 }
 
+/* Library page specific - full height without header */
+.right-side:has(.library-page) {
+  height: 100vh;
+}
+
+.right-side:has(.library-page) .main-content {
+  height: 100vh;
+  overflow: hidden;
+  padding: 0;
+}
+
 .mark-homework-right-side {
   flex: 1;
   display: flex;

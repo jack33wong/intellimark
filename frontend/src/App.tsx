@@ -7,6 +7,7 @@ import OptionalAuthRoute from './components/auth/OptionalAuthRoute';
 import { Sidebar, Header } from './components/layout';
 import AdminPage from './components/admin/AdminPage';
 import MarkingPage from './pages/MarkingPage';
+import LibraryPage from './pages/LibraryPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
 import './App.css';
@@ -54,7 +55,7 @@ function AppContent() {
     // architecture in the sidebar handles the actual data refresh.
   };
 
-  const AdminLayout = ({ children }: { children: React.ReactNode }) => (
+  const AdminLayout = ({ children, hideHeader = false }: { children: React.ReactNode; hideHeader?: boolean }) => (
     <div className="app-container">
       <div className="app-body">
         <Sidebar 
@@ -65,7 +66,7 @@ function AppContent() {
           onMarkingResultSaved={handleMarkingResultSaved}
         />
         <div className="right-side">
-          <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+          {!hideHeader && <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />}
           <div className="main-content">
             {children}
           </div>
@@ -79,6 +80,14 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/upgrade" element={<SubscriptionPage />} />
+        
+        <Route path="/library" element={
+          <OptionalAuthRoute>
+            <AdminLayout hideHeader={true}>
+              <LibraryPage />
+            </AdminLayout>
+          </OptionalAuthRoute>
+        } />
         
         <Route path="/admin" element={
           <ProtectedRoute requireAdmin={true}>

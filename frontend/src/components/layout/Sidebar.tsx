@@ -12,7 +12,8 @@ import {
   Edit3,
   Heart,
   FileText,
-  MessageSquare
+  MessageSquare,
+  Library
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -300,6 +301,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
           <BookOpen size={20} />
           Mark Homework
+        </button>
+        <button 
+          className="mark-homework-main-btn" 
+          onClick={() => navigate('/library')}
+          style={{ marginTop: '8px' }}
+        >
+          <Library size={20} />
+          Library
         </button>
         <div className="sidebar-section">
             <div className="mark-history-tabs">

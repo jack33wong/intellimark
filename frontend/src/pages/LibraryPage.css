@@ -1,0 +1,220 @@
+/* Library Page Styles - Aligned with existing design system */
+
+.library-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-gray-main);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Header - Sticky/Floating */
+.library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.library-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.library-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Filters */
+.library-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-dropdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background-color: var(--background-menu-white);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.filter-dropdown:hover {
+  background-color: var(--background-menu-gray);
+}
+
+.favorite-filter-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background-color: var(--background-menu-white);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.favorite-filter-btn:hover {
+  background-color: var(--background-menu-gray);
+  color: var(--text-primary);
+}
+
+.favorite-filter-btn.active {
+  color: var(--function-warning);
+  border-color: var(--function-warning);
+}
+
+/* Search */
+.library-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.search-input {
+  padding: 8px 12px 8px 36px;
+  background-color: var(--background-menu-white);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  width: 200px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--text-brand);
+  box-shadow: 0 0 0 3px var(--fill-blue);
+}
+
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* View Toggle */
+.library-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background-color: var(--background-menu-white);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.view-toggle-btn:hover {
+  background-color: var(--background-menu-gray);
+  color: var(--text-primary);
+}
+
+.view-toggle-btn.active {
+  background-color: var(--text-brand);
+  color: white;
+  border-color: var(--text-brand);
+}
+
+/* Content */
+.library-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Allow flex item to shrink */
+}
+
+/* Custom scrollbar styling */
+.library-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.library-content::-webkit-scrollbar-track {
+  background: var(--background-nav);
+  border-radius: 4px;
+}
+
+.library-content::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+.library-content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Loading State */
+.library-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-main);
+  border-top-color: var(--text-brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.library-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
