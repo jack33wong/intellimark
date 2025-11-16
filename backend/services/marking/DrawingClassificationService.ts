@@ -156,6 +156,10 @@ export class DrawingClassificationService {
         return drawing;
       });
 
+      // Debug: Log drawing classification response
+      console.log(`[DEBUG DRAWING CLASSIFICATION] Q${questionNumber || '?'}: Found ${validatedDrawings.length} drawing(s)`, 
+        validatedDrawings.length > 0 ? `- Types: ${validatedDrawings.map(d => d.drawingType).join(', ')}` : '');
+
       return {
         drawings: validatedDrawings,
         usageTokens: result.usageMetadata?.totalTokenCount || 0

@@ -37,7 +37,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
             </div>
           ))}
           {studentScore && studentScore.scoreText && (
-            <span className="tab-item student-score">{studentScore.scoreText}</span>
+            <span className="tab-item total-score">{studentScore.scoreText}</span>
           )}
         </div>
       </div>
@@ -114,7 +114,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
             </span>
           )}
           {studentScore && studentScore.scoreText && (
-            <span className="tab-item student-score">{studentScore.scoreText}</span>
+            <span className="tab-item total-score">{studentScore.scoreText}</span>
           )}
         </div>
       </div>

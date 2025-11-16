@@ -258,7 +258,6 @@ export async function executeMarkingForQuestion(
           const pageHeight = pageDims?.height || 3000; // Default fallback
           
           // Debug: Log input parameters
-          console.log(`[MARKING EXECUTOR] estimateBboxForDrawing called: position="${position}", pageIndex=${pageIndex}, pageDims=${pageDims ? `${pageDims.width}x${pageDims.height}` : 'none'}`);
           
           // Determine drawing dimensions based on type
           // ALL positions from enhanced classification represent CENTER (consistent with histograms)

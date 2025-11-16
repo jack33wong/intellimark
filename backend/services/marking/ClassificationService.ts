@@ -603,27 +603,38 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // In JSON source: \\ = single backslash in string, \\\\ = two backslashes in string
       // We need: single backslash for LaTeX = \\ in JSON source
       
-      // Pre-processing: Fix triple backslashes specifically (common edge case)
-      // Pattern: \\\command → \\command (3 backslashes → 2 backslashes)
-      // This must run before JSON parsing to prevent "Bad escaped character" errors
+      // Strategy: Fix all problematic backslash sequences before JSON parsing
+      // Handle cases like: \\\sin, \\\\sin, \\\\\sin, etc.
+      // Pattern explanation:
+      // - (\\\\)+ matches one or more pairs of backslashes (each pair = one backslash in string)
+      // - \\ matches a single backslash (invalid escape in JSON)
+      // - ([a-zA-Z{]) matches the LaTeX command character
+      // We want to normalize to exactly \\ (two backslashes in JSON = one backslash in string)
+      
+      // First, fix triple backslashes (most common): \\\command → \\command
+      // This handles the case where we have: \\ (one backslash) + \ (invalid escape) + command
       sanitized = sanitized.replace(/(\\\\)\\([a-zA-Z{])/g, '\\\\$2');
       
-      // Strategy: Iteratively reduce all excessive backslash sequences to exactly \\
-      // Do this in a loop to handle all cases (4→2, 3→2, 6→4→2, 5→3→2, etc.)
-      let previousLength = 0;
-      while (sanitized.length !== previousLength) {
-        previousLength = sanitized.length;
-        // Normalize even numbers: \\\\pi → \\pi, \\\\\\pi → \\\\pi (then will be normalized again)
-        sanitized = sanitized.replace(/(\\\\){2,}([a-zA-Z{])/g, '\\\\$2');
-        // Normalize odd numbers: \\\pi → \\pi, \\\\\pi → \\\pi (then will be normalized again)
-        sanitized = sanitized.replace(/(\\\\)\\([a-zA-Z{])/g, '\\\\$2');
-      }
+      // Then fix sequences of 4+ backslashes: \\\\command → \\command
+      sanitized = sanitized.replace(/(\\\\){2,}([a-zA-Z{])/g, '\\\\$2');
+      
+      // Also handle cases where backslashes appear before LaTeX commands in math mode ($...$)
+      // Fix patterns like: $...\\\command...$ or $...\\\\command...$
+      sanitized = sanitized.replace(/\$([^$]*?)(\\\\)\\([a-zA-Z{])/g, '$$1\\\\$3');
+      sanitized = sanitized.replace(/\$([^$]*?)(\\\\){2,}([a-zA-Z{])/g, '$$1\\\\$3');
       
       // Fix invalid escape sequences (e.g., \x where x is not a valid escape character)
       // Valid escapes: \n, \r, \t, \\, \", \/, \b, \f, \uXXXX (where XXXX is 4 hex digits)
       // We need to escape backslashes that are not followed by valid escape characters
       // Be careful: \u must be followed by 4 hex digits, so we check for that separately
       // BUT: Skip if it's already a LaTeX command (\\command is already properly escaped)
+      // Also skip if it's inside a string value (we'll handle those separately)
+      
+      // More aggressive: Fix any remaining triple+ backslash sequences before LaTeX commands
+      // This catches cases that might have been missed in the previous steps
+      sanitized = sanitized.replace(/(\\\\){3,}([a-zA-Z{])/g, '\\\\$2');
+      
+      // Fix invalid escape sequences that aren't part of LaTeX commands
       sanitized = sanitized.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4}|\\[a-zA-Z{])/g, '\\\\');
       
       // Fix common LaTeX escaping issues - only fix unescaped LaTeX commands
@@ -775,89 +786,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       questions: questions,
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
-  }
-
-  /**
-   * Fix orphaned questions by assigning question numbers using AI
-   * @param classifiedQuestions Questions that have question numbers (for context)
-   * @param orphanedQuestions Questions without question numbers (to fix)
-   * @param totalPages Total number of pages in document
-   * @param model Model to use
-   * @returns Map of orphan index to assigned question number
-   */
-  static async fixOrphanedQuestionNumbers(
-    classifiedQuestions: Array<{
-      questionNumber: string;
-      pageIndices: number[];
-      text: string | null;
-      subQuestions?: Array<{
-        part: string;
-        pageIndex: number;
-        text?: string;
-      }>;
-    }>,
-    orphanedQuestions: Array<{
-      pageIndex: number;
-      text: string | null;
-      subQuestions?: Array<{
-        part: string;
-        text: string;
-      }>;
-    }>,
-    totalPages: number,
-    model: ModelType = 'auto'
-  ): Promise<Map<number, string>> {
-    // If no orphaned questions, return empty map
-    if (orphanedQuestions.length === 0) {
-      return new Map();
-    }
-
-    try {
-      const { getPrompt } = await import('../../config/prompts.js');
-      const systemPrompt = getPrompt('fixOrphanedQuestions.system');
-      const userPrompt = getPrompt('fixOrphanedQuestions.user', classifiedQuestions, orphanedQuestions, totalPages);
-
-      const validatedModel = validateModel(model);
-      const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      
-      // Use text-only API call (no images needed) with JSON response
-      const response = await ModelProvider.callGeminiText(
-        systemPrompt,
-        userPrompt,
-        validatedModel,
-        true // forceJsonResponse = true
-      );
-
-      // Parse JSON response
-      const cleanContent = this.cleanGeminiResponse(response.content);
-      const parsed = this.parseJsonWithSanitization(cleanContent);
-
-      // Build result map: orphan index -> question number
-      const assignments = new Map<number, string>();
-      
-      if (parsed.assignments && Array.isArray(parsed.assignments)) {
-        parsed.assignments.forEach((assignment: any) => {
-          const orphanId = assignment.orphanId;
-          const questionNumber = assignment.questionNumber;
-          
-          // Extract index from orphanId (e.g., "orphan-1" -> 0)
-          const match = orphanId?.match(/orphan-(\d+)/);
-          if (match && questionNumber) {
-            const orphanIndex = parseInt(match[1], 10) - 1; // Convert to 0-based index
-            if (orphanIndex >= 0 && orphanIndex < orphanedQuestions.length) {
-              assignments.set(orphanIndex, String(questionNumber));
-              console.log(`[FIX ORPHANED] Assigned Q${questionNumber} to orphan ${orphanId} (Page ${orphanedQuestions[orphanIndex].pageIndex})`);
-            }
-          }
-        });
-      }
-
-      return assignments;
-    } catch (error) {
-      console.error('[FIX ORPHANED] Error fixing orphaned questions:', error);
-      // Return empty map on error - questions will remain orphaned
-      return new Map();
-    }
   }
 
 }

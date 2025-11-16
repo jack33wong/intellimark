@@ -1182,109 +1182,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
     
     
-    // Fix orphaned questions (assign question numbers using AI)
-    if (questionsWithoutNumber.length > 0) {
-      console.log(`[FIX ORPHANED] Found ${questionsWithoutNumber.length} orphaned question(s), attempting to fix...`);
-      
-      // Prepare classified questions for context
-      const classifiedQuestionsForContext: Array<{
-        questionNumber: string;
-        pageIndices: number[];
-        text: string | null;
-        subQuestions?: Array<{
-          part: string;
-          pageIndex: number;
-          text?: string;
-        }>;
-      }> = [];
-      
-      questionsByNumber.forEach((questionInstances, questionNumber) => {
-        const pageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
-        const firstQuestion = questionInstances[0].question;
-        
-        // Extract sub-questions with page indices
-        const subQuestions = firstQuestion.subQuestions?.map((sq: any) => {
-          // Find which page this sub-question came from
-          const subQPageIndex = questionInstances.find(({ question }) => 
-            question.subQuestions?.some((qsq: any) => qsq.part === sq.part)
-          )?.pageIndex ?? pageIndices[0];
-          
-          return {
-            part: sq.part,
-            pageIndex: subQPageIndex,
-            text: sq.text?.substring(0, 100) // First 100 chars for context
-          };
-        });
-        
-        classifiedQuestionsForContext.push({
-          questionNumber,
-          pageIndices,
-          text: firstQuestion.text,
-          subQuestions
-        });
-      });
-      
-      // Prepare orphaned questions
-      const orphanedQuestionsForFix: Array<{
-        pageIndex: number;
-        text: string | null;
-        subQuestions?: Array<{
-          part: string;
-          text: string;
-        }>;
-      }> = questionsWithoutNumber.map(({ question, pageIndex }) => ({
-        pageIndex,
-        text: question.text,
-        subQuestions: question.subQuestions?.map((sq: any) => ({
-          part: sq.part,
-          text: sq.text || ''
-        }))
-      }));
-      
-      // Call AI to fix orphaned questions
-      const assignments = await ClassificationService.fixOrphanedQuestionNumbers(
-        classifiedQuestionsForContext,
-        orphanedQuestionsForFix,
-        standardizedPages.length,
-        'auto'
-      );
-      
-      // Apply assignments: move fixed questions from questionsWithoutNumber to questionsByNumber
-      const fixedQuestions: Array<{ question: any; pageIndex: number; questionNumber: string }> = [];
-      const remainingOrphans: Array<{ question: any; pageIndex: number }> = [];
-      
-      questionsWithoutNumber.forEach(({ question, pageIndex }, index) => {
-        const assignedQNum = assignments.get(index);
-        if (assignedQNum) {
-          // Question was fixed - move to questionsByNumber
-          fixedQuestions.push({ question, pageIndex, questionNumber: assignedQNum });
-          question.questionNumber = assignedQNum; // Update the question object
-        } else {
-          // Question couldn't be fixed - keep as orphan
-          remainingOrphans.push({ question, pageIndex });
-        }
-      });
-      
-      // Add fixed questions to questionsByNumber
-      fixedQuestions.forEach(({ question, pageIndex, questionNumber }) => {
-        if (!questionsByNumber.has(questionNumber)) {
-          questionsByNumber.set(questionNumber, []);
-        }
-        questionsByNumber.get(questionNumber)!.push({ question, pageIndex });
-      });
-      
-      // Update questionsWithoutNumber to only include unfixed orphans
-      questionsWithoutNumber.length = 0;
-      questionsWithoutNumber.push(...remainingOrphans);
-      
-      if (fixedQuestions.length > 0) {
-        console.log(`[FIX ORPHANED] Successfully fixed ${fixedQuestions.length} orphaned question(s)`);
-      }
-      if (remainingOrphans.length > 0) {
-        console.log(`[FIX ORPHANED] ${remainingOrphans.length} orphaned question(s) could not be fixed`);
-      }
-    }
-    
     // Merge questions with same questionNumber
     const allQuestions: any[] = [];
     
@@ -2257,6 +2154,51 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       pageScore.scoreText = `${pageScore.awarded}/${pageScore.total}`;
     });
 
+    // --- Determine First Page After Sorting (for total score placement) ---
+    // Helper function to extract page number from filename (same as used in sorting)
+    const extractPageNumber = (filename: string | undefined): number | null => {
+      if (!filename) return null;
+      const patterns = [
+        /page[-_\s]?(\d+)/i,
+        /p[-_\s]?(\d+)/i,
+        /(\d+)(?:\.(jpg|jpeg|png|pdf))?$/i
+      ];
+      for (const pattern of patterns) {
+        const match = filename.match(pattern);
+        if (match && match[1]) {
+          const pageNum = parseInt(match[1], 10);
+          if (!isNaN(pageNum) && pageNum > 0) {
+            return pageNum;
+          }
+        }
+      }
+      return null;
+    };
+
+    // Create array to determine which page will be first after sorting
+    const pagesForSorting = standardizedPages.map((page, index) => ({
+      page,
+      pageIndex: page.pageIndex,
+      pageNumber: extractPageNumber(page.originalFileName),
+      isMetadataPage: (page as any).isMetadataPage || false,
+      originalIndex: index
+    }));
+
+    // Sort to find first page (same logic as final sorting)
+    pagesForSorting.sort((a, b) => {
+      if (a.isMetadataPage && !b.isMetadataPage) return -1;
+      if (!a.isMetadataPage && b.isMetadataPage) return 1;
+      if (a.pageNumber !== null && b.pageNumber !== null) {
+        return a.pageNumber - b.pageNumber;
+      }
+      if (a.pageNumber !== null && b.pageNumber === null) return -1;
+      if (a.pageNumber === null && b.pageNumber !== null) return 1;
+      return a.originalIndex - b.originalIndex;
+    });
+
+    // Get the pageIndex of the first page after sorting
+    const firstPageIndexAfterSorting = pagesForSorting[0]?.pageIndex ?? 0;
+
     // --- Parallel Annotation Drawing using SVGOverlayService ---
     sendSseUpdate(res, createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
     const annotationPromises = standardizedPages.map(async (page) => {
@@ -2269,16 +2211,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           scoreText: pageScore.scoreText 
         } : undefined;
 
-        // Log exactly what's being sent to the drawing service
+        // Add total score with double underline on first page AFTER reordering
+        const totalScoreToDraw = (pageIndex === firstPageIndexAfterSorting) ? overallScoreText : undefined;
 
         // Only call service if there's something to draw
-        if (annotationsForThisPage.length > 0 || scoreToDraw) {
+        if (annotationsForThisPage.length > 0 || scoreToDraw || totalScoreToDraw) {
             try {
                 return await SVGOverlayService.burnSVGOverlayServerSide(
                     page.imageData,
                     annotationsForThisPage,
                     imageDimensions,
-                    scoreToDraw
+                    scoreToDraw,
+                    totalScoreToDraw
                 );
             } catch (drawError) {
                 console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);
@@ -2322,9 +2266,41 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             annotatedImageLinks = await Promise.all(uploadPromises);
         }
 
+        // --- Sort Final Annotated Output by Page Number ---
+        // Reuse extractPageNumber function defined earlier (line 2159)
+        // Create array with page info and annotated output for sorting
+        const pagesWithOutput = standardizedPages.map((page, index) => ({
+          page,
+          annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
+          pageNumber: extractPageNumber(page.originalFileName),
+          isMetadataPage: (page as any).isMetadataPage || false,
+          originalIndex: index
+        }));
+
+        // Sort: metadata pages first, then by page number, then by upload sequence
+        pagesWithOutput.sort((a, b) => {
+          // 1. Metadata pages come first
+          if (a.isMetadataPage && !b.isMetadataPage) return -1;
+          if (!a.isMetadataPage && b.isMetadataPage) return 1;
+          
+          // 2. If both have page numbers, sort by page number
+          if (a.pageNumber !== null && b.pageNumber !== null) {
+            return a.pageNumber - b.pageNumber;
+          }
+          
+          // 3. If only one has page number, prioritize it (after metadata)
+          if (a.pageNumber !== null && b.pageNumber === null) return -1;
+          if (a.pageNumber === null && b.pageNumber !== null) return 1;
+          
+          // 4. Otherwise, use upload sequence (originalIndex)
+          return a.originalIndex - b.originalIndex;
+        });
+
+        // Extract sorted annotated output
+        const finalAnnotatedOutput: string[] = pagesWithOutput.map(item => item.annotatedOutput);
+        
         // --- Construct Final Output (Always Images) ---
         const outputFormat: 'images' = 'images'; // Explicitly set to images
-        const finalAnnotatedOutput: string[] = isAuthenticated ? annotatedImageLinks : annotatedImagesBase64;
         logAnnotationComplete();
 
         // Add PDF context if available
@@ -2449,6 +2425,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Create AI message for database
       const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, null, 'marking');
       
+      // Reuse overallScore and totalPossibleScore calculated earlier (line 2042-2057)
+      // overallScoreText is already calculated as `${overallScore}/${totalPossibleScore}`
+      
       dbAiMessage = SessionManagementService.createAIMessageForDatabase({
         allQuestionResults,
         finalAnnotatedOutput,
@@ -2458,7 +2437,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         markingSchemesMap,
         globalQuestionText,
         resolvedAIMessageId,
-        questionOnlyResponses: isMixedContent ? questionOnlyResponses : undefined
+        questionOnlyResponses: isMixedContent ? questionOnlyResponses : undefined,
+        studentScore: {
+          totalMarks: totalPossibleScore,
+          awardedMarks: overallScore,
+          scoreText: overallScoreText
+        }
       });
       
       // Add suggested follow-ups

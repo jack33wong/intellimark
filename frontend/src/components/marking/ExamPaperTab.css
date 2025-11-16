@@ -31,13 +31,20 @@
 }
 
 .tab-item.marks {
-  color: var(--function-error);
+  color: #22c55e; /* Green color */
 }
 
 .tab-item.student-score {
   color: var(--function-error);
   background: rgba(255, 0, 0, 0.1);
   border: 1px solid var(--function-error);
+  font-weight: bold;
+}
+
+.tab-item.total-score {
+  color: #ef4444; /* Red color */
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
   font-weight: bold;
 }
 

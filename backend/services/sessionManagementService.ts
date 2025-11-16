@@ -47,6 +47,11 @@ export interface AIMessageData {
   globalQuestionText: string;
   resolvedAIMessageId: string;
   questionOnlyResponses?: string[];
+  studentScore?: {
+    totalMarks: number;
+    awardedMarks: number;
+    scoreText: string;
+  };
 }
 
 export class SessionManagementService {
@@ -630,7 +635,8 @@ export class SessionManagementService {
       markingSchemesMap,
       globalQuestionText,
       resolvedAIMessageId,
-      questionOnlyResponses
+      questionOnlyResponses,
+      studentScore
     } = aiData;
 
     // Calculate real processing stats for the AI message
@@ -690,6 +696,11 @@ export class SessionManagementService {
       suggestedFollowUps: [], // Will be populated by caller
       detectedQuestion: detectedQuestion
     });
+
+    // Add studentScore if provided
+    if (studentScore) {
+      (dbAiMessage as any).studentScore = studentScore;
+    }
 
     return dbAiMessage;
   }

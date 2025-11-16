@@ -59,13 +59,11 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       const validAnswers = input.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
-        console.log(`[MARKING INSTRUCTION] Q${questionNumber}: Found ${validAnswers.length} sub-question answer(s): ${validAnswers.join(', ')}`);
       }
     } else if (input.questionMarks?.subQuestionAnswers && Array.isArray(input.questionMarks.subQuestionAnswers) && input.questionMarks.subQuestionAnswers.length > 0) {
       const validAnswers = input.questionMarks.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
-        console.log(`[MARKING INSTRUCTION] Q${questionNumber}: Found ${validAnswers.length} sub-question answer(s): ${validAnswers.join(', ')}`);
       }
     }
     

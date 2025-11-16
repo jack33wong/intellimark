@@ -46,13 +46,23 @@ export class DrawingEnhancementService {
       if (result.category === 'questionAnswer' && result.questions) {
         // Only enhance if normal classification already found [DRAWING] entries
         // Don't try to detect drawings from question text - trust the classification
+        const questionsWithDrawings: string[] = [];
         const hasDrawings = result.questions.some(q => {
           // Check if student work has [DRAWING] entries
           const hasDrawingsInWork = (q.studentWork && q.studentWork.includes('[DRAWING]')) ||
                                     (q.subQuestions && q.subQuestions.some(sq => sq.studentWork && sq.studentWork.includes('[DRAWING]')));
           
+          if (hasDrawingsInWork) {
+            questionsWithDrawings.push(`Q${q.questionNumber || '?'}`);
+          }
+          
           return hasDrawingsInWork;
         });
+        
+        // Debug: Log questions with drawing indicators after classification
+        if (questionsWithDrawings.length > 0) {
+          console.log(`[DEBUG DRAWING] Page ${pageIndex}: Questions with [DRAWING] indicator: ${questionsWithDrawings.join(', ')}`);
+        }
         
         if (hasDrawings && standardizedPages[index]) {
           pagesWithDrawings.push({
