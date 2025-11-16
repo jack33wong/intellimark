@@ -124,7 +124,7 @@ export class SuggestedFollowUpService {
           ...q,
           examBoard: examPaper.examBoard,
           examCode: examPaper.examCode,
-          year: examPaper.year,
+          examSeries: examPaper.examSeries,
           tier: examPaper.tier
         }))
       );
@@ -137,9 +137,9 @@ export class SuggestedFollowUpService {
         questionText = allQuestions.map((q, index) => {
           const separator = '\n' + '='.repeat(50) + '\n';
           if (index === 0) {
-            return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.year}) ${q.tier}:\n${q.questionText}`;
+            return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
           }
-          return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.year}) ${q.tier}:\n${q.questionText}`;
+          return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
         }).join('\n\n');
         
         // Aggregate all marking schemes in a readable format

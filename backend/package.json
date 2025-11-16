@@ -17,6 +17,8 @@
     "deploy:prepare": "npm run build:deploy",
     "cleanup-sessions": "tsx scripts/cleanup-sessions.ts",
     "cleanup-old-marking-results": "tsx scripts/cleanup-old-marking-results.ts",
+    "migrate:exam-series": "tsx scripts/migrateExamSeries.ts",
+    "migrate:exam-series:dry-run": "cross-env DRY_RUN=true tsx scripts/migrateExamSeries.ts",
     "test-image-config": "tsx scripts/test-image-config.ts",
     "generate-api-with-examples": "echo 'API generation scripts removed'",
     "check-storage-buckets": "tsx scripts/check-storage-buckets.ts",

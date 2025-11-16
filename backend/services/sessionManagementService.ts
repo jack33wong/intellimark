@@ -183,10 +183,10 @@ export class SessionManagementService {
         const examPapers = [{
           examBoard: match.board || '',
           examCode: match.paperCode || '',
-          year: match.year || '',
+          examSeries: match.examSeries || '',
           tier: match.tier || '',
           subject: match.qualification || '',
-          paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+          paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
           questions: [{
             questionNumber: match.questionNumber || '',
             questionText: context.questionDetection.questionText || '',
@@ -263,27 +263,27 @@ export class SessionManagementService {
         // Check if we have multiple exam papers
         const examBoards = new Set();
         const examCodes = new Set();
-        const years = new Set();
+        const examSeriesSet = new Set();
         
         Array.from(context.markingSchemesMap.values()).forEach(scheme => {
           const questionDetection = scheme.questionDetection;
           if (questionDetection?.match) {
             examBoards.add(questionDetection.match.board);
             examCodes.add(questionDetection.match.paperCode);
-            years.add(questionDetection.match.year);
+            examSeriesSet.add(questionDetection.match.examSeries);
           }
         });
         
-        // If different exam boards, codes, or years, use simplified title
-        if (examBoards.size > 1 || examCodes.size > 1 || years.size > 1) {
+        // If different exam boards, codes, or exam series, use simplified title
+        if (examBoards.size > 1 || examCodes.size > 1 || examSeriesSet.size > 1) {
           return `Past paper - ${questionNumberDisplay}`;
         }
         
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
-          const { board, qualification, paperCode, year, tier } = firstQuestionDetection.match;
-          return `${board} ${qualification} ${paperCode} (${year}) ${questionNumberDisplay} ${totalMarks} marks`;
+          const { board, qualification, paperCode, examSeries, tier } = firstQuestionDetection.match;
+          return `${board} ${qualification} ${paperCode} (${examSeries}) ${questionNumberDisplay} ${totalMarks} marks`;
         }
       }
     }
@@ -845,20 +845,20 @@ export class SessionManagementService {
         
         const examBoard = match.board || '';
         const examCode = match.paperCode || '';
-        const year = match.year || '';
+        const examSeries = match.examSeries || '';
         const tier = match.tier || '';
         
         // Create unique key for exam paper grouping
-        const examPaperKey = `${examBoard}_${examCode}_${year}_${tier}`;
+        const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
         
         if (!examPaperGroups.has(examPaperKey)) {
           examPaperGroups.set(examPaperKey, {
             examBoard,
             examCode,
-            year,
+            examSeries,
             tier,
             subject: match.qualification || '',
-            paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+            paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
             questions: [],
             totalMarks: 0
           });
@@ -957,10 +957,10 @@ export class SessionManagementService {
     const examPapers = [{
       examBoard: match.board || '',
       examCode: match.paperCode || '',
-      year: match.year || '',
+      examSeries: match.examSeries || '',
       tier: match.tier || '',
       subject: match.qualification || '',
-      paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.year})` : '',
+      paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
       questions: questionsArray,
       totalMarks: schemeData.totalMarks || match.marks || 0
     }];

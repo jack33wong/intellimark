@@ -573,9 +573,9 @@ function AdminPage() {
                 <thead>
                   <tr>
                         <th className="admin-table__header">Exam Paper</th>
-                        <th className="admin-table__header">Board</th>
-                    <th className="admin-table__header">Year</th>
-                        <th className="admin-table__header">Session</th>
+                    <th className="admin-table__header">Board</th>
+                    <th className="admin-table__header">Exam Series</th>
+                    <th className="admin-table__header">Session</th>
                         <th className="admin-table__header">Tier</th>
                     <th className="admin-table__header">Paper</th>
                         <th className="admin-table__header">Code</th>
@@ -592,7 +592,7 @@ function AdminPage() {
                         
                         // Map new field names to old field names for compatibility
                         const board = examMeta.board || examMeta.exam_board || 'N/A';
-                        const year = examMeta.year || 'N/A';
+                        const examSeries = examMeta.exam_series || 'N/A';
                         const session = examMeta.session || examMeta.time_allowed || 'N/A';
                         const tier = examMeta.tier || examMeta.level || 'N/A';
                         const paper = examMeta.paper || examMeta.paper_title || 'N/A';
@@ -622,7 +622,7 @@ function AdminPage() {
                                 >
                                   <span className="exam-paper-name">
                                     {board !== 'N/A' ? 
-                                      `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
+                                      `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                       examData.originalName || examData.filename || entry.id
                                     }
                                   </span>
@@ -632,7 +632,7 @@ function AdminPage() {
                           </div>
                         </td>
                               <td className="admin-table__cell">{board}</td>
-                              <td className="admin-table__cell">{year}</td>
+                              <td className="admin-table__cell">{examSeries}</td>
                               <td className="admin-table__cell">{session}</td>
                               <td className="admin-table__cell">{tier}</td>
                               <td className="admin-table__cell">{paper}</td>
@@ -672,7 +672,7 @@ function AdminPage() {
                                                           <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Exam Paper Content: {
                                         board !== 'N/A' ? 
-                                          `${board} ${year} ${code}`.replace(/\s+/g, ' ').trim() :
+                                          `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                           examData.originalName || examData.filename || entry.id
                                       }</h4>
                               <div className="admin-content-info">
@@ -691,7 +691,7 @@ function AdminPage() {
                                 <div className="admin-questions-content">
                                   <div className="admin-questions-summary">
                                     <span className="admin-summary-item">
-                                            <strong>Year:</strong> {year}
+                                            <strong>Exam Series:</strong> {examSeries}
                                     </span>
                                     <span className="admin-summary-item">
                                             <strong>Total Questions:</strong> {questionCount}
@@ -854,7 +854,7 @@ function AdminPage() {
                         const board = examDetails.board || 'N/A';
                         const qualification = examDetails.qualification || 'N/A';
                         const paperCode = examDetails.paperCode || 'N/A';
-                        const date = examDetails.date || 'N/A';
+                        const examSeries = examDetails.exam_series || 'N/A';
                         
                         // Calculate counts
                         const sortedQuestionKeys = Object.keys(questions).sort((a, b) => {
@@ -896,7 +896,7 @@ function AdminPage() {
                               <td className="admin-table__cell">{board}</td>
                               <td className="admin-table__cell">{qualification}</td>
                               <td className="admin-table__cell">{paperCode}</td>
-                              <td className="admin-table__cell">{date}</td>
+                              <td className="admin-table__cell">{examSeries}</td>
                               <td className="admin-table__cell">
                                 {questionCount ? (
                                   <span className="question-count">
@@ -975,7 +975,7 @@ function AdminPage() {
                                     <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
                                   </span>
                                   <span className="admin-summary-item">
-                                    <strong>Date:</strong> {entry.examDetails?.date || entry.markingSchemeData?.examDetails?.date || 'Unknown'}
+                                    <strong>Exam Series:</strong> {entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || 'Unknown'}
                                   </span>
                                 </div>
                               </div>

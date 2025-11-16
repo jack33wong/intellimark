@@ -813,7 +813,7 @@ export class FirestoreService {
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
         tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || '',
+        examSeries: questionDetection.match?.examSeries || '',
         marks: questionDetection.match?.marks
       } : {
         found: false,
@@ -825,7 +825,7 @@ export class FirestoreService {
         paperTitle: '',
         subject: '',
         tier: '',
-        year: ''
+        examSeries: ''
       };
 
       // Create original image message using centralized factory
@@ -919,7 +919,7 @@ export class FirestoreService {
         paperTitle: questionDetection.match?.qualification || '',
         subject: questionDetection.match?.qualification || '', // Using qualification as subject
         tier: questionDetection.match?.tier || '',
-        year: questionDetection.match?.year || '',
+        examSeries: questionDetection.match?.examSeries || '',
         marks: questionDetection.match?.marks
       } : {
         found: false,
@@ -931,7 +931,7 @@ export class FirestoreService {
         paperTitle: '',
         subject: '',
         tier: '',
-        year: ''
+        examSeries: ''
       };
 
       // Create question image message using centralized factory

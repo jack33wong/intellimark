@@ -42,7 +42,7 @@ export interface ExamPaperMatch {
   board: string;
   qualification: string;
   paperCode: string;
-  year: string;
+  examSeries: string;
   tier?: string;  // Add tier field
   questionNumber?: string;
   subQuestionNumber?: string;  // Optional sub-question number if matched
@@ -188,7 +188,7 @@ export class QuestionDetectionService {
         return {
           found: true,
           match: bestMatch,
-          message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.year})`
+          message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
         };
       }
 
@@ -482,12 +482,12 @@ export class QuestionDetectionService {
         const board = metadata.exam_board;
         const qualification = metadata.subject;
         const paperCode = metadata.exam_code;
-        const year = metadata.year;
+        const examSeries = metadata.exam_series;
         const tier = metadata.tier;
         
         // Validate required fields
-        if (!board || !qualification || !paperCode || !year) {
-          throw new Error(`Exam paper missing required fields: board=${board}, qualification=${qualification}, paperCode=${paperCode}, year=${year}`);
+        if (!board || !qualification || !paperCode || !examSeries) {
+          throw new Error(`Exam paper missing required fields: board=${board}, qualification=${qualification}, paperCode=${paperCode}, exam_series=${examSeries}`);
         }
           
           // Extract marks for the matched question
@@ -543,7 +543,7 @@ export class QuestionDetectionService {
           board: board,
           qualification: qualification,
           paperCode: paperCode,
-          year: year,
+          examSeries: examSeries,
           tier: tier,
           questionNumber: bestQuestionMatch,
           subQuestionNumber: bestSubQuestionNumber || undefined,
@@ -653,10 +653,10 @@ export class QuestionDetectionService {
         return null; // Reject - paper codes must match exactly
       }
       
-      const yearMatch = this.calculateSimilarity(examPaperMatch.year, examDetails.date || '');
+      const examSeriesMatch = this.calculateSimilarity(examPaperMatch.examSeries, examDetails.exam_series || '');
       
       // Calculate overall match score (paper code already matched, so we can proceed)
-      const overallScore = (boardMatch + qualificationMatch + 1.0 + yearMatch) / 4;
+      const overallScore = (boardMatch + qualificationMatch + 1.0 + examSeriesMatch) / 4;
       
       if (overallScore > 0.7) { // High confidence threshold for marking scheme matching
         // Get question marks for the specific question - FLAT STRUCTURE ONLY
@@ -712,7 +712,7 @@ export class QuestionDetectionService {
             paperCode: examDetails.paperCode,
             tier: examDetails.tier,
             paper: examDetails.paper,
-            date: examDetails.date
+            exam_series: examDetails.exam_series
           },
           questionMarks: questionMarks,
           totalQuestions: markingScheme.totalQuestions || 0,

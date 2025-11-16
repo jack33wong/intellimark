@@ -246,7 +246,7 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
   return questionDetection?.found && questionDetection.match 
-    ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.year})`
+    ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.examSeries})`
     : generateNonPastPaperTitle(extractedQuestionText, mode);
 }
 

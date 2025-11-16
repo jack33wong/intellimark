@@ -110,12 +110,16 @@ const SessionHeader: React.FC = () => {
   };
 
   const getDetectedQuestion = () => {
-    // Find the first message with detectedQuestion data
-    const messageWithQuestion = currentSession?.messages?.find((msg: any) => 
-      msg.detectedQuestion && msg.detectedQuestion.found
-    );
+    // Check session-level detectedQuestion first
+    let detectedQuestion = currentSession?.detectedQuestion;
     
-    const detectedQuestion = messageWithQuestion?.detectedQuestion;
+    // Fallback: Find the first message with detectedQuestion data
+    if (!detectedQuestion) {
+      const messageWithQuestion = currentSession?.messages?.find((msg: any) => 
+        msg.detectedQuestion && msg.detectedQuestion.found
+      );
+      detectedQuestion = messageWithQuestion?.detectedQuestion;
+    }
     
     // Fail fast if old data structure is detected
     if (detectedQuestion && detectedQuestion.message) {
@@ -124,15 +128,39 @@ const SessionHeader: React.FC = () => {
       throw new Error('Old detectedQuestion data structure detected. Please clear database and create new sessions.');
     }
     
-    // Fail fast if required new fields are missing
+    // Validate new structure (with examPapers array)
     if (detectedQuestion && detectedQuestion.found) {
-      const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject', 'year'];
-      const missingFields = requiredFields.filter(field => !detectedQuestion.hasOwnProperty(field));
-      
-      if (missingFields.length > 0) {
-        console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion missing required fields:', missingFields);
-        console.error('❌ [ERROR DETAILS] detectedQuestion:', detectedQuestion);
-        throw new Error(`detectedQuestion missing required fields: ${missingFields.join(', ')}. Please clear database and create new sessions.`);
+      // New structure: fields are in examPapers[]
+      if (detectedQuestion.examPapers && Array.isArray(detectedQuestion.examPapers) && detectedQuestion.examPapers.length > 0) {
+        const firstExamPaper = detectedQuestion.examPapers[0];
+        // Check for required fields, but allow 'year' as fallback for 'examSeries' during migration
+        const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject'];
+        const missingFields = requiredFields.filter(field => !firstExamPaper.hasOwnProperty(field));
+        
+        // Check for examSeries or year (for migration compatibility)
+        const hasExamSeries = firstExamPaper.hasOwnProperty('examSeries') || firstExamPaper.hasOwnProperty('year');
+        
+        if (missingFields.length > 0 || !hasExamSeries) {
+          const allMissing = hasExamSeries ? missingFields : [...missingFields, 'examSeries (or year)'];
+          console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion.examPapers[0] missing required fields:', allMissing);
+          console.error('❌ [ERROR DETAILS] firstExamPaper:', firstExamPaper);
+          throw new Error(`detectedQuestion.examPapers[0] missing required fields: ${allMissing.join(', ')}. Please clear database and create new sessions.`);
+        }
+      } 
+      // Old flat structure: fields are at top level (for backward compatibility with question-only mode)
+      else {
+        const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject'];
+        const missingFields = requiredFields.filter(field => !detectedQuestion.hasOwnProperty(field));
+        
+        // Check for examSeries or year (for migration compatibility)
+        const hasExamSeries = detectedQuestion.hasOwnProperty('examSeries') || detectedQuestion.hasOwnProperty('year');
+        
+        if (missingFields.length > 0 || !hasExamSeries) {
+          const allMissing = hasExamSeries ? missingFields : [...missingFields, 'examSeries (or year)'];
+          console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion missing required fields:', allMissing);
+          console.error('❌ [ERROR DETAILS] detectedQuestion:', detectedQuestion);
+          throw new Error(`detectedQuestion missing required fields: ${allMissing.join(', ')}. Please clear database and create new sessions.`);
+        }
       }
     }
     
@@ -273,28 +301,50 @@ const SessionHeader: React.FC = () => {
                   {(() => {
                     const detectedQuestion = getDetectedQuestion();
                     if (detectedQuestion && detectedQuestion.found) {
+                      // Extract fields from new structure (examPapers[]) or use old flat structure
+                      let examBoard, subject, examCode, examSeries, tier;
+                      
+                      if (detectedQuestion.examPapers && Array.isArray(detectedQuestion.examPapers) && detectedQuestion.examPapers.length > 0) {
+                        // New structure: extract from first exam paper
+                        const firstExamPaper = detectedQuestion.examPapers[0];
+                        examBoard = firstExamPaper.examBoard;
+                        subject = firstExamPaper.subject;
+                        examCode = firstExamPaper.examCode;
+                        // Support both examSeries and year during migration
+                        examSeries = firstExamPaper.examSeries || firstExamPaper.year;
+                        tier = firstExamPaper.tier;
+                      } else {
+                        // Old flat structure (for backward compatibility)
+                        examBoard = detectedQuestion.examBoard;
+                        subject = detectedQuestion.subject;
+                        examCode = detectedQuestion.examCode;
+                        // Support both examSeries and year during migration
+                        examSeries = detectedQuestion.examSeries || detectedQuestion.year;
+                        tier = detectedQuestion.tier;
+                      }
+                      
                       return (
                         <div className="exam-paper-section">
                           <div className="label-value-item">
                             <span className="label">Board:</span>
-                            <span className="value">{detectedQuestion.examBoard || 'N/A'}</span>
+                            <span className="value">{examBoard || 'N/A'}</span>
                           </div>
                           <div className="label-value-item">
                             <span className="label">Subject:</span>
-                            <span className="value">{detectedQuestion.subject || 'N/A'}</span>
+                            <span className="value">{subject || 'N/A'}</span>
                           </div>
                           <div className="label-value-item">
                             <span className="label">Paper Code:</span>
-                            <span className="value">{detectedQuestion.examCode || 'N/A'}</span>
+                            <span className="value">{examCode || 'N/A'}</span>
                           </div>
                           <div className="label-value-item">
                             <span className="label">Year:</span>
-                            <span className="value">{detectedQuestion.year || 'N/A'}</span>
+                            <span className="value">{examSeries || 'N/A'}</span>
                           </div>
-                          {detectedQuestion.tier && (
+                          {tier && (
                             <div className="label-value-item">
                               <span className="label">Tier:</span>
-                              <span className="value">{detectedQuestion.tier}</span>
+                              <span className="value">{tier}</span>
                             </div>
                           )}
                         </div>

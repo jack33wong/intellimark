@@ -172,10 +172,10 @@ export interface DetectedQuestion {
     // Exam paper identification
     examBoard: string;
     examCode: string;
-    year: string;
+    examSeries: string;
     tier: string;
     subject: string;
-    paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (2022)"
+    paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (June 2022)"
     
     // Aggregated data for this exam paper
     totalMarks: number; // Sum of all questions in this exam paper

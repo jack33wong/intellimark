@@ -10,8 +10,8 @@
  */
 export function generateSessionTitle(detectedQuestion: any): string {
   if (detectedQuestion?.found) {
-    const { examBoard, subject, examCode, year, tier, questionNumber, marks } = detectedQuestion;
-    return `${examBoard} ${subject} ${examCode} (${year}) Q${questionNumber} ${marks} marks`;
+    const { examBoard, subject, examCode, examSeries, tier, questionNumber, marks } = detectedQuestion;
+    return `${examBoard} ${subject} ${examCode} (${examSeries}) Q${questionNumber} ${marks} marks`;
   }
   return 'Processing...';
 }

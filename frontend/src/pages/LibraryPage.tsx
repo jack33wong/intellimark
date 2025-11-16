@@ -20,7 +20,7 @@ export interface LibraryItem {
   favorite: boolean;
   examBoard: string;
   subject: string;
-  year: string;
+  examSeries: string;
   examCode: string;
   tier: string;
   images: SessionImage[];
@@ -51,14 +51,14 @@ const LibraryPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Extract exam metadata from session
-  const getExamMetadata = (session: UnifiedSession): { examBoard: string; subject: string; year: string; examCode: string; tier: string } | null => {
+  const getExamMetadata = (session: UnifiedSession): { examBoard: string; subject: string; examSeries: string; examCode: string; tier: string } | null => {
     // Check session-level detectedQuestion first
     if (session.detectedQuestion?.found && session.detectedQuestion.examPapers?.length) {
       const firstExamPaper = session.detectedQuestion.examPapers[0];
       return {
         examBoard: firstExamPaper.examBoard || 'Unknown',
         subject: firstExamPaper.subject || 'Unknown',
-        year: firstExamPaper.year || 'Unknown',
+        examSeries: firstExamPaper.examSeries || 'Unknown',
         examCode: firstExamPaper.examCode || '',
         tier: firstExamPaper.tier || ''
       };
@@ -78,7 +78,7 @@ const LibraryPage: React.FC = () => {
     return {
       examBoard: firstExamPaper.examBoard || 'Unknown',
       subject: firstExamPaper.subject || 'Unknown',
-      year: firstExamPaper.year || 'Unknown',
+      examSeries: firstExamPaper.examSeries || 'Unknown',
       examCode: firstExamPaper.examCode || '',
       tier: firstExamPaper.tier || ''
     };
@@ -204,7 +204,7 @@ const LibraryPage: React.FC = () => {
         item.sessionTitle.toLowerCase().includes(query) ||
         item.examBoard.toLowerCase().includes(query) ||
         item.subject.toLowerCase().includes(query) ||
-        item.year.toLowerCase().includes(query) ||
+        item.examSeries.toLowerCase().includes(query) ||
         item.images.some(img => img.filename?.toLowerCase().includes(query))
       );
     }
@@ -223,17 +223,17 @@ const LibraryPage: React.FC = () => {
       if (!filtered[item.examBoard][item.subject]) {
         filtered[item.examBoard][item.subject] = {};
       }
-      if (!filtered[item.examBoard][item.subject][item.year]) {
-        filtered[item.examBoard][item.subject][item.year] = [];
+      if (!filtered[item.examBoard][item.subject][item.examSeries]) {
+        filtered[item.examBoard][item.subject][item.examSeries] = [];
       }
-      filtered[item.examBoard][item.subject][item.year].push(item);
+      filtered[item.examBoard][item.subject][item.examSeries].push(item);
     });
 
     // Sort items within each group by date (newest first)
     Object.keys(filtered).forEach(board => {
       Object.keys(filtered[board]).forEach(subject => {
-        Object.keys(filtered[board][subject]).forEach(year => {
-          filtered[board][subject][year].sort((a, b) => {
+        Object.keys(filtered[board][subject]).forEach(examSeries => {
+          filtered[board][subject][examSeries].sort((a, b) => {
             const dateA = new Date(a.date).getTime();
             const dateB = new Date(b.date).getTime();
             return dateB - dateA; // Newest first
@@ -318,13 +318,13 @@ const LibraryPage: React.FC = () => {
         ) : (
           Object.keys(filteredGroupedLibrary).map(examBoard => (
             Object.keys(filteredGroupedLibrary[examBoard]).map(subject => (
-              Object.keys(filteredGroupedLibrary[examBoard][subject]).map(year => (
+              Object.keys(filteredGroupedLibrary[examBoard][subject]).map(examSeries => (
                 <LibraryGroup
-                  key={`${examBoard}-${subject}-${year}`}
+                  key={`${examBoard}-${subject}-${examSeries}`}
                   examBoard={examBoard}
                   subject={subject}
-                  year={year}
-                  items={filteredGroupedLibrary[examBoard][subject][year]}
+                  examSeries={examSeries}
+                  items={filteredGroupedLibrary[examBoard][subject][examSeries]}
                   onThumbnailClick={handleThumbnailClick}
                 />
               ))

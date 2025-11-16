@@ -43,7 +43,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
           {detectedQuestion.examPapers.map((examPaper, index) => (
             <div key={index} className="exam-paper-line">
               <span className="tab-item">
-                {examPaper.examBoard} {examPaper.subject} {examPaper.examCode} ({examPaper.year}) {examPaper.tier}
+                {examPaper.examBoard} {examPaper.subject} {examPaper.examCode} ({examPaper.examSeries}) {examPaper.tier}
               </span>
               <span className="tab-item">
                 {(() => {
@@ -101,8 +101,8 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
         parts.push(firstExamPaper.examCode);
       }
       
-      if (firstExamPaper.year) {
-        parts.push(`(${firstExamPaper.year})`);
+      if (firstExamPaper.examSeries) {
+        parts.push(`(${firstExamPaper.examSeries})`);
       }
       
       if (firstExamPaper.tier) {

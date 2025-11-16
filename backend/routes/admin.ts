@@ -165,7 +165,7 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
         paperCode: examDetails.paperCode || 'Unknown',
         tier: examDetails.tier || 'Unknown',
         paper: examDetails.paper || 'Unknown',
-        date: examDetails.date || 'Unknown'
+        exam_series: examDetails.exam_series || 'Unknown'
       },
       totalQuestions,
       totalMarks,

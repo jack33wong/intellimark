@@ -12,7 +12,7 @@ import type { LibraryItem as LibraryItemType } from '../../pages/LibraryPage';
 interface LibraryGroupProps {
   examBoard: string;
   subject: string;
-  year: string;
+  examSeries: string;
   items: LibraryItemType[];
   onThumbnailClick: (item: LibraryItemType, imageIndex: number) => void;
 }
@@ -20,13 +20,13 @@ interface LibraryGroupProps {
 const LibraryGroup: React.FC<LibraryGroupProps> = ({
   examBoard,
   subject,
-  year,
+  examSeries,
   items,
   onThumbnailClick
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-  const groupTitle = `${examBoard} ${subject} ${year}`;
+  const groupTitle = `${examBoard} ${subject} ${examSeries}`;
   const itemCount = items.length;
 
   return (

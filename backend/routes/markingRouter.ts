@@ -1375,20 +1375,20 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       allQuestionDetections.forEach(qd => {
         const examBoard = qd.detection.match?.board || '';
         const examCode = qd.detection.match?.paperCode || '';
-        const year = qd.detection.match?.year || '';
+        const examSeries = qd.detection.match?.examSeries || '';
         const tier = qd.detection.match?.tier || '';
         
         // Create unique key for exam paper grouping
-        const examPaperKey = `${examBoard}_${examCode}_${year}_${tier}`;
+        const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
         
         if (!examPaperGroups.has(examPaperKey)) {
           examPaperGroups.set(examPaperKey, {
             examBoard,
             examCode,
-            year,
+            examSeries,
             tier,
             subject: qd.detection.match?.qualification || '',
-            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.year})` : '',
+            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
             questions: [],
             totalMarks: 0
           });
@@ -1427,10 +1427,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           sourceImageIndex: qd.sourceImageIndex,
           examBoard: qd.detection.match?.board || '',
           examCode: qd.detection.match?.paperCode || '',
-          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.year})` : '',
+          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
           subject: qd.detection.match?.qualification || '',
           tier: qd.detection.match?.tier || '',
-          year: qd.detection.match?.year || ''
+          examSeries: qd.detection.match?.examSeries || ''
         }))
       };
       
