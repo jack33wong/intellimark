@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import { generateSessionTitle } from '../services/marking/MarkingHelpers.js';
 import { createUserMessage, createAIMessage, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { ImageStorageService } from './imageStorageService.js';
+import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import type { 
   SessionContext, 
   MarkingSessionContext, 
@@ -225,11 +226,39 @@ export class SessionManagementService {
       const firstQuestionScheme = allQuestionNumbers.length > 0 ? context.markingSchemesMap.get(allQuestionNumbers[0]) : null;
       
       if (allQuestionNumbers.length > 0 && firstQuestionScheme) {
-        // Extract just the question number from unique keys (e.g., "13_Pearson Edexcel_1MA1/2H" -> "13")
-        const questionNumbersOnly = allQuestionNumbers.map(key => key.split('_')[0]);
-        const questionNumberDisplay = questionNumbersOnly.length > 1 
-          ? questionNumbersOnly.join(', ') 
-          : questionNumbersOnly[0];
+        // Extract base question numbers, sort, and check for sequence
+        const baseNumbers = allQuestionNumbers
+          .map(key => {
+            const qNum = key.split('_')[0];
+            const baseNum = getBaseQuestionNumber(qNum);
+            // getBaseQuestionNumber returns string, convert to number
+            const num = parseInt(baseNum, 10);
+            return isNaN(num) ? 0 : num;
+          })
+          .filter(num => num > 0)
+          .sort((a, b) => a - b);
+        
+        const uniqueNumbers = Array.from(new Set(baseNumbers));
+        
+        // Format question number display
+        let questionNumberDisplay: string;
+        if (uniqueNumbers.length === 0) {
+          // Fallback: show all question numbers as-is
+          questionNumberDisplay = allQuestionNumbers.map(key => key.split('_')[0]).join(', ');
+        } else if (uniqueNumbers.length === 1) {
+          questionNumberDisplay = `Q${uniqueNumbers[0]}`;
+        } else {
+          // Check if in sequence
+          const isSequence = uniqueNumbers.every((num, index) => 
+            index === 0 || num === uniqueNumbers[index - 1] + 1
+          );
+          
+          if (isSequence) {
+            questionNumberDisplay = `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
+          } else {
+            questionNumberDisplay = uniqueNumbers.map(num => `Q${num}`).join(', ');
+          }
+        }
         
         // Check if we have multiple exam papers
         const examBoards = new Set();
@@ -247,14 +276,14 @@ export class SessionManagementService {
         
         // If different exam boards, codes, or years, use simplified title
         if (examBoards.size > 1 || examCodes.size > 1 || years.size > 1) {
-          return `Past paper - Q${questionNumberDisplay}`;
+          return `Past paper - ${questionNumberDisplay}`;
         }
         
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
           const { board, qualification, paperCode, year, tier } = firstQuestionDetection.match;
-          return `${board} ${qualification} ${paperCode} (${year}) Q${questionNumberDisplay} ${totalMarks} marks`;
+          return `${board} ${qualification} ${paperCode} (${year}) ${questionNumberDisplay} ${totalMarks} marks`;
         }
       }
     }

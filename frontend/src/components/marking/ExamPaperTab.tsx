@@ -18,6 +18,23 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     return null;
   }
 
+  // Helper function to extract base question number (e.g., "3a" -> "3", "22" -> "22")
+  const getBaseQuestionNumber = (questionNumber: string): number => {
+    const match = questionNumber.match(/^(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  // Helper function to check if numbers are in sequence
+  const isSequence = (numbers: number[]): boolean => {
+    if (numbers.length <= 1) return false;
+    for (let i = 1; i < numbers.length; i++) {
+      if (numbers[i] !== numbers[i - 1] + 1) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   // Handle multiple exam papers case
   if (detectedQuestion.multipleExamPapers && detectedQuestion.examPapers) {
     return (
@@ -29,10 +46,32 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                 {examPaper.examBoard} {examPaper.subject} {examPaper.examCode} ({examPaper.year}) {examPaper.tier}
               </span>
               <span className="tab-item">
-                Q{examPaper.questions.map(q => q.questionNumber.split('_')[0]).join(', Q')}
+                {(() => {
+                  const baseNumbers = examPaper.questions
+                    .map(q => getBaseQuestionNumber(q.questionNumber.split('_')[0]))
+                    .filter(num => num > 0)
+                    .sort((a, b) => a - b);
+                  const uniqueNumbers = Array.from(new Set(baseNumbers));
+                  
+                  if (uniqueNumbers.length === 0) {
+                    return examPaper.questions.map(q => `Q${q.questionNumber.split('_')[0]}`).join(', ');
+                  }
+                  
+                  if (isSequence(uniqueNumbers)) {
+                    return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
+                  }
+                  
+                  return uniqueNumbers.map(num => `Q${num}`).join(', ');
+                })()}
               </span>
               <span className="tab-item marks">
-                {examPaper.questions.map(q => q.marks).join(' + ')} = {examPaper.totalMarks} marks
+                {(() => {
+                  const questionCount = examPaper.questions.length;
+                  if (questionCount > 5) {
+                    return `${examPaper.totalMarks} marks`;
+                  }
+                  return `${examPaper.questions.map(q => q.marks).join(' + ')} = ${examPaper.totalMarks} marks`;
+                })()}
               </span>
             </div>
           ))}
@@ -80,11 +119,38 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     return '';
   };
 
+  // Helper function to format question numbers
+  const formatQuestionNumbers = (questions: any[]): string => {
+    if (questions.length === 0) return '';
+    
+    // Extract base question numbers and sort
+    const baseNumbers = questions
+      .map(q => getBaseQuestionNumber(q.questionNumber))
+      .filter(num => num > 0)
+      .sort((a, b) => a - b);
+    
+    // Remove duplicates
+    const uniqueNumbers = Array.from(new Set(baseNumbers));
+    
+    if (uniqueNumbers.length === 0) {
+      // Fallback: show all question numbers as-is
+      return questions.map(q => `Q${q.questionNumber}`).join(', ');
+    }
+    
+    // Check if in sequence
+    if (isSequence(uniqueNumbers)) {
+      return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
+    }
+    
+    // Not in sequence, show all
+    return uniqueNumbers.map(num => `Q${num}`).join(', ');
+  };
+
   const formatQuestionInfo = () => {
     // Extract all questions from examPapers
     if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
       const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
-      return allQuestions.map(q => `Q${q.questionNumber}`).join(', ');
+      return formatQuestionNumbers(allQuestions);
     }
     
     return '';
@@ -106,6 +172,12 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
                 // Extract all questions from examPapers
                 if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
                   const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
+                  const questionCount = allQuestions.length;
+                  
+                  if (questionCount > 5) {
+                    return `${detectedQuestion.totalMarks} marks`;
+                  }
+                  
                   return `${allQuestions.map(q => `${q.marks}`).join(' + ')} = ${detectedQuestion.totalMarks} marks`;
                 }
                 
