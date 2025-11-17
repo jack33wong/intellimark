@@ -2,6 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import './MarkdownMathRenderer.css';
 import { detectAndWrapMath } from '../../utils/simpleMathDetector';
@@ -50,7 +51,7 @@ const MarkdownMathRenderer = ({
     <div className={`markdown-math-renderer ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
-        rehypePlugins={[[rehypeKatex, defaultOptions]]}
+        rehypePlugins={[rehypeRaw, [rehypeKatex, defaultOptions]]}
         components={{
           p: ({ node, children }) => {
             const textContent = node.children.map(child => child.value || '').join('').trim();

@@ -9,6 +9,7 @@ import { generateSessionTitle } from '../services/marking/MarkingHelpers.js';
 import { createUserMessage, createAIMessage, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
+import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
 import type { 
   SessionContext, 
   MarkingSessionContext, 
@@ -181,6 +182,22 @@ export class SessionManagementService {
     if (context.questionDetection?.found) {
       const match = context.questionDetection.match;
       if (match) {
+        // Extract question text - use database question text (not classification text)
+        const questionText = match.databaseQuestionText || context.questionDetection.questionText || '';
+        
+        // markingScheme must be plain text (fail-fast for old format)
+        let plainTextMarkingScheme = '';
+        if (context.questionDetection.markingScheme) {
+          if (typeof context.questionDetection.markingScheme !== 'string') {
+            throw new Error(`[QUESTION MODE] Invalid marking scheme format: expected plain text string, got ${typeof context.questionDetection.markingScheme}. Please clear old data and create new sessions.`);
+          }
+          // Fail-fast if it looks like JSON (old format)
+          if (context.questionDetection.markingScheme.trim().startsWith('{') || context.questionDetection.markingScheme.trim().startsWith('[')) {
+            throw new Error(`[QUESTION MODE] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+          }
+          plainTextMarkingScheme = context.questionDetection.markingScheme;
+        }
+        
         // Create single exam paper structure
         const examPapers = [{
           examBoard: match.board || '',
@@ -191,14 +208,9 @@ export class SessionManagementService {
           paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
           questions: [{
             questionNumber: match.questionNumber || '',
-            questionText: context.questionDetection.questionText || '',
+            questionText: questionText,
             marks: match.marks || 0,
-            sourceImageIndex: 0,
-            markingScheme: (context.questionDetection.markingScheme || '').split('\n').map(line => ({
-              mark: '',
-              answer: line.trim(),
-              comments: ''
-            })).filter(item => item.answer)
+            markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
           }],
           totalMarks: match.marks || 0
         }];
@@ -888,41 +900,94 @@ export class SessionManagementService {
           }
         }
         
-        // Extract question text - prioritize the stored questionText field from markingRouter
+        // Extract question text - use database question text (not classification text)
         let questionTextForThisQ = '';
         
-        // First try the questionText stored directly in the scheme data
-        if (data.questionText) {
-          questionTextForThisQ = data.questionText;
+        // Prioritize databaseQuestionText (from database), fallback to classification text
+        if (data.databaseQuestionText) {
+          questionTextForThisQ = data.databaseQuestionText;
+        } else if (data.questionText) {
+          questionTextForThisQ = data.questionText; // Fallback to classification text
+        } else if (data.questionDetection?.match?.databaseQuestionText) {
+          questionTextForThisQ = data.questionDetection.match.databaseQuestionText;
         } else if (data.questionDetection?.questionText) {
           questionTextForThisQ = data.questionDetection.questionText;
-        } else if (data.questionDetection?.match?.questionText) {
-          questionTextForThisQ = data.questionDetection.match.questionText;
         } else {
-          // Fallback to global question text
+          // Last fallback to global question text
           questionTextForThisQ = globalQuestionText || '';
         }
         
         // Extract question number from key (e.g., "1_Pearson Edexcel_1MA1/1H" -> "1")
         const extractedQNum = qNum.split('_')[0];
         
+        // Check if this is a grouped sub-question (has subQuestionNumbers array)
+        const hasSubQuestions = data.subQuestionNumbers && Array.isArray(data.subQuestionNumbers) && data.subQuestionNumbers.length > 0;
+        const subQuestionMarksMap = data.questionMarks?.subQuestionMarks;
+        
+        // Calculate total marks for all sub-questions (if grouped) or use totalMarks (if single)
+        let totalMarksForQuestion = data.totalMarks || 0;
+        if (hasSubQuestions && subQuestionMarksMap && typeof subQuestionMarksMap === 'object') {
+          // Calculate total marks by summing all sub-question marks
+          totalMarksForQuestion = data.subQuestionNumbers.reduce((sum: number, subQNum: string) => {
+            const subQMarks = subQuestionMarksMap[subQNum] || [];
+            return sum + subQMarks.length; // Each mark is worth 1 point
+          }, 0);
+        }
+        
+        // Convert marking scheme to plain text (FULL marking scheme for all sub-questions)
+        let plainTextMarkingScheme = '';
+        try {
+          // Create JSON structure that formatMarkingSchemeAsBullets expects
+          const schemeData: any = { marks: marksArray };
+          
+          // Include sub-question marks mapping if available (for grouped sub-questions)
+          if (data.questionMarks?.subQuestionMarks && typeof data.questionMarks.subQuestionMarks === 'object') {
+            schemeData.subQuestionMarks = data.questionMarks.subQuestionMarks;
+          }
+          
+          // Include question-level answer if available
+          if (data.questionMarks?.answer) {
+            schemeData.questionLevelAnswer = data.questionMarks.answer;
+          }
+          
+          const schemeJson = JSON.stringify(schemeData, null, 2);
+          // Format with sub-question numbers and answers to get FULL marking scheme (all sub-questions combined)
+          plainTextMarkingScheme = formatMarkingSchemeAsBullets(
+            schemeJson,
+            data.subQuestionNumbers,
+            data.subQuestionAnswers
+          );
+        } catch (error) {
+          console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for Q${extractedQNum}:`, error);
+          plainTextMarkingScheme = '';
+        }
+        
+        // Store ONE entry per question (not per sub-question) with FULL question text + FULL marking scheme
         examPaper.questions.push({
-          questionNumber: extractedQNum,
-          questionText: questionTextForThisQ,
-          marks: data.totalMarks || 0,
-          sourceImageIndex: index, // Use index as sourceImageIndex
-          markingScheme: marksArray.map((mark: any) => ({
-            mark: mark.mark || '',
-            answer: mark.answer || '',
-            comments: mark.comments || ''
-          }))
+          questionNumber: extractedQNum, // Use base question number (e.g., "12", not "12(i)")
+          questionText: questionTextForThisQ, // FULL question text (main + all sub-questions)
+          marks: totalMarksForQuestion, // Total marks for all sub-questions
+          markingScheme: plainTextMarkingScheme // FULL marking scheme (all sub-questions combined, same format as sent to AI)
         });
-        examPaper.totalMarks += data.totalMarks || 0;
+        examPaper.totalMarks += totalMarksForQuestion;
       });
       
       // Convert to array and determine if multiple exam papers
       const examPapers = Array.from(examPaperGroups.values());
       const multipleExamPapers = examPapers.length > 1;
+      
+      // Validate that we have at least one question in at least one exam paper
+      const hasQuestions = examPapers.some(ep => ep.questions && ep.questions.length > 0);
+      if (!hasQuestions) {
+        console.warn('[DETECTED QUESTION] No questions found in exam papers after processing');
+        return {
+          found: false,
+          multipleExamPapers: false,
+          multipleQuestions: false,
+          totalMarks: 0,
+          examPapers: []
+        };
+      }
       
       // Calculate total marks across all questions
       const totalMarks = Array.from(markingSchemesMap.values()).reduce((sum, data) => sum + (data.totalMarks || 0), 0);
@@ -950,17 +1015,51 @@ export class SessionManagementService {
       }
     }
     
+    // Extract question text - use database question text (not classification text)
+    let questionTextForSingleQ = '';
+    if (schemeData.databaseQuestionText) {
+      questionTextForSingleQ = schemeData.databaseQuestionText;
+    } else if (schemeData.questionText) {
+      questionTextForSingleQ = schemeData.questionText; // Fallback to classification text
+    } else if (questionDetection?.match?.databaseQuestionText) {
+      questionTextForSingleQ = questionDetection.match.databaseQuestionText;
+    } else {
+      questionTextForSingleQ = globalQuestionText || '';
+    }
+    
+    // Convert marking scheme to plain text format (same as sent to AI)
+    let plainTextMarkingScheme = '';
+    try {
+      // Create JSON structure that formatMarkingSchemeAsBullets expects
+      const schemeDataForFormat: any = { marks: singleMarkingScheme };
+      
+      // Include sub-question marks mapping if available
+      if (schemeData.questionMarks?.subQuestionMarks && typeof schemeData.questionMarks.subQuestionMarks === 'object') {
+        schemeDataForFormat.subQuestionMarks = schemeData.questionMarks.subQuestionMarks;
+      }
+      
+      // Include question-level answer if available
+      if (schemeData.questionMarks?.answer) {
+        schemeDataForFormat.questionLevelAnswer = schemeData.questionMarks.answer;
+      }
+      
+      const schemeJson = JSON.stringify(schemeDataForFormat, null, 2);
+      plainTextMarkingScheme = formatMarkingSchemeAsBullets(
+        schemeJson,
+        schemeData.subQuestionNumbers,
+        schemeData.subQuestionAnswers
+      );
+    } catch (error) {
+      console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for single question:`, error);
+      plainTextMarkingScheme = '';
+    }
+    
     // Create single question array for consistency
     const questionsArray = [{
       questionNumber: questionNumber.split('_')[0], // Extract just the question number
-      questionText: globalQuestionText || '',
+      questionText: questionTextForSingleQ,
       marks: schemeData.totalMarks || match.marks || 0,
-      sourceImageIndex: 0,
-      markingScheme: singleMarkingScheme.map((mark: any) => ({
-        mark: mark.mark || '',
-        answer: mark.answer || '',
-        comments: mark.comments || ''
-      }))
+      markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
     }];
     
     // Create single exam paper structure

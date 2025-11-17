@@ -55,3 +55,8 @@ ul {
   color: var(--text-katex);
   font-size: 1.1em;
 }
+
+/* --- Model Answer Question Text Styling --- */
+.markdown-math-renderer .model_question {
+  color: var(--text-tertiary);
+}

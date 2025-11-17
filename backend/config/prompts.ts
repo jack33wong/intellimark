@@ -1139,37 +1139,88 @@ ${subQuestionNumbers && subQuestionNumbers.length > 0
     - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate calculations unless the marking scheme explicitly requires them.
     - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code.
 
-    ## Handling Multiple Questions
-    - If you receive multiple questions, provide a separate model answer for EACH question
-    - Clearly label each answer with its question number
-    - Use the marking scheme that corresponds to each question
-    - Each question's answer should be complete and independent
+    ## Response Format (CRITICAL)
+    You will receive ONE question at a time. The question text may include a main question and multiple sub-questions (e.g., parts a), b), i), ii), iii)).
+    The marking scheme includes marks for ALL sub-questions combined.
+    
+    **Your response MUST follow this exact format:**
+    
+    **For questions WITH sub-questions (e.g., Question 12 with parts i), ii), iii)):**
+    
+        Question 12
+        
+        [Main question text here]
+        
+        i) [Sub-question i) text here]
+        
+        [Model answer for sub-question i)]
+        
+        ii) [Sub-question ii) text here]
+        
+        [Model answer for sub-question ii)]
+        
+        iii) [Sub-question iii) text here]
+        
+        [Model answer for sub-question iii)]
+    
+    **For questions WITHOUT sub-questions (e.g., Question 1):**
+    
+        Question 1
+        
+        [Question text here]
+        
+        [Model answer]
+    
+    **IMPORTANT:**
+    - Start with "Question X" (use the base question number, e.g., "Question 12", not "Question 12i")
+    - Include the FULL question text (main + all sub-questions) after the header
+    - For sub-questions, use labels like "a)", "b)", "i)", "ii)", "iii)" (matching the format in the question text)
+    - Each sub-question's model answer should be on its own line(s) after the sub-question label and text
+    - Do NOT repeat "Question" in sub-question labels (use "a)", not "Question a)")
+    - **CRITICAL FOR MARKDOWN STYLING:** Wrap ALL question text and sub-question text in HTML span tags with class "model_question" for markdown rendering purposes. Example: <span class="model_question">[question text here]</span>
 
     ## Formatting Rules
     1.  **Markdown Only:** The entire response must be in markdown.
     2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
     3.  **Layout:**
-      - Start with the full question text on the first line. add three tabs, then the total marks in bold (e.g., 4 **Marks**).
-      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with a line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
+      - Start with "Question X" header (where X is the base question number)
+      - Include the full question text (main + all sub-questions) after the header, wrapped in <span class="model_question">...</span>
+      - For sub-questions, format as "a) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]" or "i) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]"
+      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
       - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
+      - **QUESTION TEXT STYLING:** ALL question text (main question text and sub-question text) MUST be wrapped in <span class="model_question">...</span> tags for proper markdown rendering
     4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
     5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
-    6.  **Multiple Questions:** If answering multiple questions, clearly separate them with "## Question X" headings.
     ---
     # [Task Data]
     `,
 
-    user: (questionText: string, schemeJson: string, totalMarks?: number) => {
-      // Convert JSON marking scheme to clean bulleted list format
-      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
+      // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
+      // Fail-fast if it looks like JSON (old format)
+      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+        throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+      }
       
       const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
       
-      return `**QUESTION:**
+      return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
+**QUESTION:**
 ${questionText}${marksInfo}
 
 **MARKING SCHEME:**
-${formattedScheme}
+${schemeText}
+
+**IMPORTANT:** 
+- The question text above includes the FULL question (main question + all sub-questions if any).
+- The marking scheme above includes marks for ALL sub-questions combined.
+- **CRITICAL: You MUST start your response with "Question ${questionNumber || 'X'}" (use this exact number: ${questionNumber || 'X'}, do NOT infer it from the question text).**
+- Generate a model answer following the exact format specified in the system instructions:
+  * Start with "Question ${questionNumber || 'X'}" (use the question number provided above: ${questionNumber || 'X'})
+  * Include the full question text after the header, wrapped in <span class="model_question">...</span> tags
+  * For sub-questions, format as "a) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]" or "i) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]"
+  * **CRITICAL FOR MARKDOWN STYLING:** ALL question text (main question text and ALL sub-question text) MUST be wrapped in <span class="model_question">...</span> tags for proper markdown rendering
+  * Each sub-question's model answer should be complete and include all required mark codes.
 
 Please generate a model answer that would receive full marks according to the marking scheme.`;
     }
@@ -1184,17 +1235,25 @@ Please generate a model answer that would receive full marks according to the ma
 
             Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
             Keep it concise and focus on the key marking points.
-            Your response MUST be in markdown format.`,
+            Your response MUST be in markdown format.
+            
+            **IMPORTANT FOR MULTIPLE QUESTIONS:**
+            - If you receive multiple questions, you MUST respond to them in ascending question number order (Q1, Q2, Q3, etc.)
+            - Clearly label each response with its question number (e.g., "**Question 1:**", "**Question 2:**")
+            - Separate each question's explanation with clear dividers`,
 
-    user: (questionText: string, schemeJson: string) => {
-      // Convert JSON marking scheme to clean bulleted list format
-      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+    user: (questionText: string, schemeText: string) => {
+      // schemeText must be plain text (same format as stored in detectedQuestion)
+      // Fail-fast if it looks like JSON (old format)
+      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+        throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+      }
       
       return `**QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
-${formattedScheme}
+${schemeText}
 
 Provide a brief explanation of this marking scheme. Keep it simple and concise.`;
     }
@@ -1204,27 +1263,68 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
 
             Your task is to create exactly 3 similar questions that test the same concepts and skills.
             Format your response with a clear title and numbered list of 3 questions.
-            Your response MUST be in markdown format with clear structure.`,
+            Your response MUST be in markdown format with clear structure.
+            
+            **IMPORTANT FOR MULTIPLE QUESTIONS:**
+            - If you receive multiple original questions, generate similar questions for EACH one
+            - You MUST organize your response by original question number in ascending order (Q1, Q2, Q3, etc.)
+            - For each original question, generate the specified number of similar questions
+            - Clearly label each section with the original question number (e.g., "**Similar Questions for Question 1:**", "**Similar Questions for Question 2:**")`,
 
     user: (questionText: string, schemeJson: string, questionCount?: number) => {
       // Convert JSON marking scheme to clean bulleted list format
       const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
       
-      // If questionCount is provided, use it to determine how many similar questions to generate
-      const numSimilarQuestions = questionCount ? 1 : 3;
+      // Number of similar questions to generate per original question
+      const numSimilarQuestionsPerQuestion = 3;
       
-      return `**ORIGINAL QUESTION${questionCount && questionCount > 1 ? 'S' : ''}:**
+      // Check if multiple questions are provided
+      const hasMultipleQuestions = questionCount && questionCount > 1;
+      
+      if (hasMultipleQuestions) {
+        return `**ORIGINAL QUESTIONS (${questionCount} questions):**
+${questionText}
+
+**MARKING SCHEMES:**
+${formattedScheme}
+
+**CRITICAL INSTRUCTIONS:**
+- You have received ${questionCount} original questions above
+- You MUST generate ${numSimilarQuestionsPerQuestion} similar practice questions for EACH original question
+- Organize your response by original question number in ascending order (Q1, Q2, Q3, etc.)
+- For each original question, clearly label the section: "**Similar Questions for Question X:**"
+- Under each section, list ${numSimilarQuestionsPerQuestion} similar questions numbered 1, 2, 3
+- Format your response as:
+
+**Similar Questions for Question 1:**
+
+1. [Similar question 1 for Q1]
+2. [Similar question 2 for Q1]
+3. [Similar question 3 for Q1]
+
+**Similar Questions for Question 2:**
+
+1. [Similar question 1 for Q2]
+2. [Similar question 2 for Q2]
+3. [Similar question 3 for Q2]
+
+... (continue for all ${questionCount} questions)
+
+**IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
+      } else {
+        return `**ORIGINAL QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
 ${formattedScheme}
 
-Generate exactly ${numSimilarQuestions} similar practice question${numSimilarQuestions > 1 ? 's' : ''}. Format your response as:
+Generate exactly ${numSimilarQuestionsPerQuestion} similar practice questions. Format your response as:
 
-Similar Practice Question${numSimilarQuestions > 1 ? 's' : ''}
+Similar Practice Questions
 
-${Array.from({ length: numSimilarQuestions }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
+${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
 `;
+      }
     }
   },
 

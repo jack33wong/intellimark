@@ -28,6 +28,7 @@ import * as stringSimilarity from 'string-similarity';
 // import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
 // import { segmentOcrResultsByQuestion } from '../services/marking/AISegmentationService.js';
 import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../utils/TextNormalizationUtils.js';
+import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
 
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
@@ -119,6 +120,66 @@ const extractQuestionsFromClassification = (
   
   return [];
 };
+
+/**
+ * Convert marking scheme to plain text format (same as sent to AI for marking instruction)
+ * This ensures stored data matches what we send to AI
+ */
+function convertMarkingSchemeToPlainText(
+  markingScheme: any,
+  questionNumber: string,
+  subQuestionNumbers?: string[],
+  subQuestionAnswers?: string[]
+): string {
+  if (!markingScheme) {
+    return '';
+  }
+
+  try {
+    // Extract marks array from various possible structures
+    let marksArray: any[] = [];
+    let questionLevelAnswer: string | undefined = undefined;
+    
+    // Handle different marking scheme structures
+    if (markingScheme.questionMarks) {
+      const questionMarks = markingScheme.questionMarks;
+      if (Array.isArray(questionMarks.marks)) {
+        marksArray = questionMarks.marks;
+      } else if (Array.isArray(questionMarks)) {
+        marksArray = questionMarks;
+      }
+      questionLevelAnswer = questionMarks.answer || markingScheme.answer;
+    } else if (Array.isArray(markingScheme.marks)) {
+      marksArray = markingScheme.marks;
+      questionLevelAnswer = markingScheme.answer;
+    } else if (Array.isArray(markingScheme)) {
+      marksArray = markingScheme;
+    }
+
+    // If no marks found, return empty string
+    if (marksArray.length === 0) {
+      return '';
+    }
+
+    // Create JSON structure that formatMarkingSchemeAsBullets expects
+    const schemeData: any = { marks: marksArray };
+    if (questionLevelAnswer) {
+      schemeData.questionLevelAnswer = questionLevelAnswer;
+    }
+    
+    // Include sub-question marks mapping if available (for grouped sub-questions)
+    if (markingScheme.questionMarks?.subQuestionMarks && typeof markingScheme.questionMarks.subQuestionMarks === 'object') {
+      schemeData.subQuestionMarks = markingScheme.questionMarks.subQuestionMarks;
+    }
+
+    // Convert to JSON string, then to plain text bullets (same format as sent to AI)
+    const schemeJson = JSON.stringify(schemeData, null, 2);
+    return formatMarkingSchemeAsBullets(schemeJson, subQuestionNumbers, subQuestionAnswers);
+  } catch (error) {
+    console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for Q${questionNumber}:`, error);
+    return '';
+  }
+}
 
 /**
  * Extract question number from filename (e.g., "q19.png" -> "19")
@@ -302,6 +363,19 @@ const createMarkingTasksFromClassification = (
       }
     });
   }
+  
+  // Sort tasks by question number (ascending) to ensure consistent ordering
+  // This ensures Q1, Q2, ..., Q18, ... are processed in numerical order
+  // regardless of the order they appear in classification results
+  tasks.sort((a, b) => {
+    const numA = parseInt(String(a.questionNumber).replace(/\D/g, '')) || 0;
+    const numB = parseInt(String(b.questionNumber).replace(/\D/g, '')) || 0;
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    // If base numbers are equal, compare full strings (e.g., "3a" vs "3b")
+    return String(a.questionNumber || '').localeCompare(String(b.questionNumber || ''), undefined, { numeric: true });
+  });
   
   return tasks;
 };
@@ -1417,22 +1491,38 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         multipleExamPapers,
         examPapers,
         totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
-        // Legacy fields for backward compatibility
+        // Legacy fields for backward compatibility (removed unnecessary fields: questionIndex, sourceImageIndex)
         multipleQuestions: allQuestionDetections.length > 1,
-        questions: allQuestionDetections.map(qd => ({
-          questionNumber: qd.detection.match?.questionNumber || '',
-          questionText: qd.questionText,
-          marks: qd.detection.match?.marks || 0,
-          markingScheme: qd.detection.markingScheme || '',
-          questionIndex: qd.questionIndex,
-          sourceImageIndex: qd.sourceImageIndex,
-          examBoard: qd.detection.match?.board || '',
-          examCode: qd.detection.match?.paperCode || '',
-          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-          subject: qd.detection.match?.qualification || '',
-          tier: qd.detection.match?.tier || '',
-          examSeries: qd.detection.match?.examSeries || ''
-        }))
+        questions: allQuestionDetections.map(qd => {
+          // Use database question text if available, fallback to classification text
+          const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
+          
+          // markingScheme must be plain text (fail-fast for old format)
+          let markingSchemePlainText = '';
+          if (qd.detection.markingScheme) {
+            if (typeof qd.detection.markingScheme !== 'string') {
+              throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text string, got ${typeof qd.detection.markingScheme}. Please clear old data and create new sessions.`);
+            }
+            // Fail-fast if it looks like JSON (old format)
+            if (qd.detection.markingScheme.trim().startsWith('{') || qd.detection.markingScheme.trim().startsWith('[')) {
+              throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text, got JSON. Please clear old data and create new sessions.`);
+            }
+            markingSchemePlainText = qd.detection.markingScheme;
+          }
+          
+          return {
+            questionNumber: qd.detection.match?.questionNumber || '',
+            questionText: questionText,
+            marks: qd.detection.match?.marks || 0,
+            markingScheme: markingSchemePlainText,
+            examBoard: qd.detection.match?.board || '',
+            examCode: qd.detection.match?.paperCode || '',
+            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
+            subject: qd.detection.match?.qualification || '',
+            tier: qd.detection.match?.tier || '',
+            examSeries: qd.detection.match?.examSeries || ''
+          };
+        })
       };
       
       logQuestionDetectionComplete();
@@ -1874,13 +1964,75 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             // Note: We use the first item's detection result which has the correct exam paper match info
             const questionDetection = firstItem.detectionResult;
             
+            // Get main question text from parent question in the exam paper
+            // For grouped sub-questions, we need to get the main question text (not just sub-question texts)
+            // The main question text is stored in the exam paper's question structure for the base question number
+            // We need to fetch it from Firestore using the detection result's exam paper info
+            let mainQuestionDatabaseText = '';
+            const firstMatch = firstItem.detectionResult.match;
+            if (firstMatch) {
+                try {
+                    // Fetch exam paper from Firestore using match info
+                    // Use QuestionDetectionService's private getAllExamPapers method via a workaround
+                    // Or fetch directly from Firestore
+                    const { getFirestore } = await import('../config/firebase.js');
+                    const db = getFirestore();
+                    if (!db) {
+                        throw new Error('Firestore not available');
+                    }
+                    
+                    // Query exam papers collection
+                    const examPapersSnapshot = await db.collection('fullExamPapers')
+                        .where('metadata.exam_board', '==', firstMatch.board)
+                        .where('metadata.exam_code', '==', firstMatch.paperCode)
+                        .where('metadata.exam_series', '==', firstMatch.examSeries)
+                        .get();
+                    
+                    const examPapers = examPapersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    const matchedExamPaper = examPapers.find((ep: any) => {
+                        const metadata = ep.metadata || {};
+                        return metadata.exam_board === firstMatch.board &&
+                               metadata.exam_code === firstMatch.paperCode &&
+                               metadata.exam_series === firstMatch.examSeries &&
+                               metadata.tier === firstMatch.tier;
+                    });
+                    
+                    if (matchedExamPaper) {
+                        // Find the question with the base question number
+                        const questions = matchedExamPaper.questions || [];
+                        const mainQuestion = Array.isArray(questions) 
+                            ? questions.find((q: any) => {
+                                const qNum = q.question_number || q.number;
+                                return String(qNum) === String(baseQuestionNumber);
+                            })
+                            : questions[baseQuestionNumber];
+                        
+                        if (mainQuestion) {
+                            // Get the main question text (this is the FULL question text including main + sub-questions)
+                            mainQuestionDatabaseText = mainQuestion.question_text || mainQuestion.text || mainQuestion.question || '';
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`[MARKING ROUTER] Failed to get main question text for Q${baseQuestionNumber}:`, error);
+                    // Continue without main question text - will use sub-question texts only
+                }
+            }
+            
+            // Build FULL question text: main question text + sub-question texts
+            // If main question text exists, use it (it should already include sub-questions)
+            // Otherwise, fallback to combining sub-question texts
+            const fullDatabaseQuestionText = mainQuestionDatabaseText 
+                ? mainQuestionDatabaseText // Main question text already includes all sub-questions
+                : combinedDatabaseQuestionTexts.join('\n\n'); // Fallback to sub-question texts only if main text not available
+            
             const schemeWithTotalMarks = {
                 questionMarks: mergedQuestionMarks,
                 totalMarks: parentQuestionMarks, // Use parent question marks from database, not sum of sub-question marks
                 questionNumber: baseQuestionNumber, // Use base question number for grouped sub-questions
                 questionDetection: questionDetection, // Store detection result for exam paper info (needed for exam tab storage)
                 questionText: combinedQuestionTexts.join('\n\n'), // Classification text (for backward compatibility)
-                databaseQuestionText: combinedDatabaseQuestionTexts.join('\n\n'), // Database question text for filtering
+                databaseQuestionText: fullDatabaseQuestionText, // FULL database question text (main + all sub-questions)
                 subQuestionNumbers: questionNumbers, // Store sub-question numbers for reference
                 subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined // Store answers for each sub-question (e.g., ["H", "F", "J"])
             };
@@ -2267,33 +2419,75 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             annotatedImageLinks = await Promise.all(uploadPromises);
         }
 
-        // --- Sort Final Annotated Output by Page Number ---
+        // --- Sort Final Annotated Output ---
         // Reuse extractPageNumber function defined earlier (line 2159)
+        // Check if this is a past paper (has marking schemes)
+        const isPastPaper = markingSchemesMap && markingSchemesMap.size > 0;
+        
+        // Create mapping from pageIndex to question numbers (for past paper sorting)
+        const pageToQuestionNumbers = new Map<number, number[]>();
+        if (isPastPaper) {
+          allQuestionResults.forEach((qr) => {
+            // Get pageIndex from annotations (most common pageIndex if question spans multiple pages)
+            let pageIndex: number | undefined;
+            if (qr.annotations && qr.annotations.length > 0) {
+              const pageIndexCounts = new Map<number, number>();
+              qr.annotations.forEach(anno => {
+                if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+                  pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+                }
+              });
+              if (pageIndexCounts.size > 0) {
+                pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+              }
+            }
+            
+            if (pageIndex !== undefined) {
+              // Extract numeric question number
+              const qNum = parseInt(String(qr.questionNumber || '').replace(/\D/g, '')) || 0;
+              if (qNum > 0) {
+                if (!pageToQuestionNumbers.has(pageIndex)) {
+                  pageToQuestionNumbers.set(pageIndex, []);
+                }
+                pageToQuestionNumbers.get(pageIndex)!.push(qNum);
+              }
+            }
+          });
+        }
+        
         // Create array with page info and annotated output for sorting
         const pagesWithOutput = standardizedPages.map((page, index) => ({
           page,
           annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
           pageNumber: extractPageNumber(page.originalFileName),
           isMetadataPage: (page as any).isMetadataPage || false,
-          originalIndex: index
+          originalIndex: index,
+          pageIndex: page.pageIndex,
+          // For past paper: get lowest question number on this page
+          lowestQuestionNumber: isPastPaper 
+            ? (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity
+            : Infinity
         }));
 
-        // Sort: metadata pages first, then by page number, then by upload sequence
+        // Sort: metadata pages first, then by question number (past paper) or upload sequence (non-past paper)
         pagesWithOutput.sort((a, b) => {
           // 1. Metadata pages come first
           if (a.isMetadataPage && !b.isMetadataPage) return -1;
           if (!a.isMetadataPage && b.isMetadataPage) return 1;
           
-          // 2. If both have page numbers, sort by page number
-          if (a.pageNumber !== null && b.pageNumber !== null) {
-            return a.pageNumber - b.pageNumber;
+          // 2. For past paper: sort by question number
+          if (isPastPaper) {
+            if (a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber !== Infinity) {
+              return a.lowestQuestionNumber - b.lowestQuestionNumber;
+            }
+            // If one page has questions and one doesn't, prioritize the one with questions
+            if (a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber === Infinity) return -1;
+            if (a.lowestQuestionNumber === Infinity && b.lowestQuestionNumber !== Infinity) return 1;
+            // Both have no questions, fall back to upload sequence
+            return a.originalIndex - b.originalIndex;
           }
           
-          // 3. If only one has page number, prioritize it (after metadata)
-          if (a.pageNumber !== null && b.pageNumber === null) return -1;
-          if (a.pageNumber === null && b.pageNumber !== null) return 1;
-          
-          // 4. Otherwise, use upload sequence (originalIndex)
+          // 3. For non-past paper: sort by upload sequence (originalIndex)
           return a.originalIndex - b.originalIndex;
         });
 

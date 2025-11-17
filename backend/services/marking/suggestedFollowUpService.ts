@@ -67,14 +67,34 @@ export class SuggestedFollowUpService {
     
     if (sourceMessageId) {
       // Find the specific message that triggered this follow-up
-      return existingSession?.messages?.find((msg: any) => 
+      const targetMsg = existingSession?.messages?.find((msg: any) => 
         msg.id === sourceMessageId
       );
+      
+      if (targetMsg) {
+        console.log(`[MODEL ANSWER] Found target message ${sourceMessageId}: has detectedQuestion=${!!targetMsg.detectedQuestion}, found=${targetMsg.detectedQuestion?.found}`);
+        if (targetMsg.detectedQuestion?.examPapers) {
+          const totalQuestions = targetMsg.detectedQuestion.examPapers.reduce((sum: number, ep: any) => 
+            sum + (ep.questions?.length || 0), 0);
+          console.log(`[MODEL ANSWER] Target message has ${totalQuestions} questions across ${targetMsg.detectedQuestion.examPapers.length} exam papers`);
+        }
+      }
+      
+      return targetMsg;
     } else {
       // Fallback: Find the most recent assistant message
       const messagesWithDetectedQuestion = existingSession?.messages?.filter((msg: any) => 
         msg.role === 'assistant' && msg.detectedQuestion?.found
       ) || [];
+      
+      if (messagesWithDetectedQuestion.length === 0) {
+        console.warn(`[MODEL ANSWER] No assistant messages with detectedQuestion.found=true found in session ${sessionId}`);
+        const allAssistantMessages = existingSession?.messages?.filter((msg: any) => msg.role === 'assistant') || [];
+        console.log(`[MODEL ANSWER] Found ${allAssistantMessages.length} assistant messages total`);
+        allAssistantMessages.forEach((msg: any, idx: number) => {
+          console.log(`[MODEL ANSWER] Assistant message ${idx}: has detectedQuestion=${!!msg.detectedQuestion}, found=${msg.detectedQuestion?.found}`);
+        });
+      }
       
       return messagesWithDetectedQuestion.length > 0 
         ? messagesWithDetectedQuestion[messagesWithDetectedQuestion.length - 1]
@@ -112,10 +132,6 @@ export class SuggestedFollowUpService {
     
     // Use new clean structure if available, otherwise fall back to legacy
     const detectedQuestion = targetMessage.detectedQuestion;
-    let questionText: string;
-    let markingScheme: string;
-    let totalMarks: number | undefined;
-    let questionCount: number | undefined;
     
     if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
       // Extract all questions from examPapers
@@ -129,12 +145,106 @@ export class SuggestedFollowUpService {
         }))
       );
       
-      questionCount = allQuestions.length;
+      // Log all extracted questions for debugging
+      console.log(`📋 [${mode.toUpperCase()}] Extracted ${allQuestions.length} questions: ${allQuestions.map(q => q.questionNumber).join(', ')}`);
+      
+      // Sort all questions by question number (ascending) for consistent ordering across all modes
+      const sortedAllQuestions = [...allQuestions].sort((a, b) => {
+        const numA = parseInt(String(a.questionNumber || '').replace(/\D/g, '')) || 0;
+        const numB = parseInt(String(b.questionNumber || '').replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+      
+      console.log(`📋 [${mode.toUpperCase()}] Questions sorted: ${sortedAllQuestions.map(q => q.questionNumber).join(', ')}`);
+      
+      // For model answer mode with multiple questions: run in parallel
+      if (mode === 'modelanswer' && sortedAllQuestions.length > 1) {
+        console.log(`🚀 [MODEL ANSWER] Running parallel generation for ${sortedAllQuestions.length} questions`);
+        
+        // Use already sorted questions (sorted above)
+        const sortedQuestions = sortedAllQuestions;
+        
+        // Run parallel AI calls for each question (1 call per question, not per sub-question)
+        // Each question already has FULL question text + FULL marking scheme stored
+        const { ModelProvider } = await import('../../utils/ModelProvider.js');
+        const systemPrompt = getPrompt(`${config.promptKey}.system`);
+        
+        const parallelResults = await Promise.all(
+          sortedQuestions.map(async (q) => {
+            const questionNumberStr = String(q.questionNumber || '');
+            
+            // Question text is already FULL (main + all sub-questions) - just clean prefix if needed
+            let cleanedQuestionText = q.questionText || '';
+            
+            // Remove question number prefix from question text (e.g., "Question 12", "Q12", "12")
+            const questionNumberPattern = questionNumberStr.replace(/[()]/g, '\\$&'); // Escape special chars
+            const patterns = [
+              new RegExp(`^Question\\s+${questionNumberPattern}\\s*[)\\-:\\.]?\\s*`, 'i'),
+              new RegExp(`^Q\\s*${questionNumberPattern}\\s*[)\\-:\\.]?\\s*`, 'i'),
+              new RegExp(`^${questionNumberPattern}\\s*[)\\-:\\.]\\s*`, 'i'), // "12)", "12:", "12."
+              new RegExp(`^${questionNumberPattern}\\s+`, 'i') // "12 "
+            ];
+            
+            for (const pattern of patterns) {
+              cleanedQuestionText = cleanedQuestionText.replace(pattern, '');
+            }
+            cleanedQuestionText = cleanedQuestionText.trim();
+            
+            console.log(`    📝 [MODEL ANSWER] Q${questionNumberStr}: original length: ${q.questionText?.length || 0}, cleaned length: ${cleanedQuestionText.length}`);
+            
+            // markingScheme must be plain text (FULL marking scheme - all sub-questions combined, same format as sent to AI for marking instruction)
+            if (typeof q.markingScheme !== 'string') {
+              throw new Error(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
+            }
+            const markingScheme = q.markingScheme; // FULL marking scheme (all sub-questions combined)
+            const userPrompt = getPrompt(`${config.promptKey}.user`, cleanedQuestionText, markingScheme, q.marks, questionNumberStr);
+            
+            console.log(`  🔄 [MODEL ANSWER] Generating for Q${questionNumberStr}...`);
+            const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+            
+            return {
+              questionNumber: q.questionNumber,
+              response: aiResult.content, // AI returns response in the format we specify (Question X, then sub-questions if any)
+              usageTokens: aiResult.usageTokens || 0
+            };
+          })
+        );
+        
+        // Simply combine all responses with separators (no parsing logic needed)
+        // AI already returns responses in the correct format: "Question X\n\nquestion text\n\na) sub question text\n\nmodel answer\n\nb) sub question text\n\nmodel answer"
+        const separator = '\n\n' + '='.repeat(50) + '\n\n';
+        const combinedResponse = parallelResults
+          .map(result => result.response) // Use AI response directly (already in correct format)
+          .join(separator);
+        
+        const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
+        
+        console.log(`✅ [MODEL ANSWER] Completed parallel generation for ${parallelResults.length} questions`);
+        console.log(`   Total tokens used: ${totalUsageTokens}`);
+        
+        // Complete progress tracking
+        progressTracker.completeCurrentStep();
+        progressTracker.finish();
+        
+        return {
+          response: combinedResponse,
+          apiUsed: `Gemini API (${model}) - Parallel execution`,
+          progressData: null
+        };
+      }
+      
+      // For other modes or single question: use original sequential logic
+      let questionText: string;
+      let markingScheme: string;
+      let totalMarks: number | undefined;
+      let questionCount: number | undefined;
+      
+      questionCount = sortedAllQuestions.length;
       
       // For multiple questions, format each separately in the prompt
-      if (allQuestions.length > 1) {
-        // Aggregate all question texts with clear separation
-        questionText = allQuestions.map((q, index) => {
+      if (sortedAllQuestions.length > 1) {
+        // Aggregate all question texts with clear separation (already sorted by question number)
+        questionText = sortedAllQuestions.map((q, index) => {
           const separator = '\n' + '='.repeat(50) + '\n';
           if (index === 0) {
             return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
@@ -142,54 +252,55 @@ export class SuggestedFollowUpService {
           return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
         }).join('\n\n');
         
-        // Aggregate all marking schemes in a readable format
-        const combinedScheme = allQuestions.map(q => ({
-          questionNumber: q.questionNumber,
-          marks: q.marks,
-          examBoard: q.examBoard,
-          examCode: q.examCode,
-          markingScheme: q.markingScheme
-        }));
+        // Aggregate all marking schemes (must be plain text format)
+        // Format them with question labels for clarity (already sorted by question number)
+        const combinedSchemeText = sortedAllQuestions.map(q => {
+          if (typeof q.markingScheme !== 'string') {
+            throw new Error(`[MULTI-QUESTION] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
+          }
+          return `**Question ${q.questionNumber} (${q.marks} marks):**\n${q.markingScheme}`;
+        }).join('\n\n');
         
-        markingScheme = JSON.stringify(combinedScheme, null, 2);
+        markingScheme = combinedSchemeText;
         
         // Sum total marks across all questions
-        totalMarks = allQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
+        totalMarks = sortedAllQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
         
         // Enhanced debug logging for multiple questions
-        console.log('📋 [MULTI-QUESTION] Aggregating data for', allQuestions.length, 'questions');
-        allQuestions.forEach(q => {
+        console.log(`📋 [${mode.toUpperCase()}] Aggregating data for ${sortedAllQuestions.length} questions (sorted by question number)`);
+        sortedAllQuestions.forEach(q => {
           console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points (${q.examBoard} ${q.examCode})`);
           console.log(`    Text: ${q.questionText?.substring(0, 60)}...`);
         });
       } else {
-        // Single question
-        const q = allQuestions[0];
+        // Single question (use sorted array for consistency)
+        const q = sortedAllQuestions[0];
         questionText = q.questionText;
-        markingScheme = JSON.stringify(q.markingScheme || [], null, 2);
+        // markingScheme must be plain text (same format as sent to AI for marking instruction)
+        if (typeof q.markingScheme !== 'string') {
+          throw new Error(`[SINGLE QUESTION] Invalid marking scheme format: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
+        }
+        markingScheme = q.markingScheme;
         totalMarks = q.marks;
       }
-    } else {
-      // No exam papers found
-      questionText = '';
-      markingScheme = '';
-      totalMarks = 0;
-    }
-    
-    const systemPrompt = getPrompt(`${config.promptKey}.system`);
-    const userPrompt = getPrompt(`${config.promptKey}.user`, 
-      questionText,
-      markingScheme,
-      questionCount  // Pass question count for similar questions prompt
-    );
-    
-    // DEBUG: Print the detectedQuestion data and user prompt for all multi-question follow-ups
-    if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
-      const allQuestions = detectedQuestion.examPapers.flatMap(ep => ep.questions);
-      if (allQuestions.length > 1) {
+      
+      const systemPrompt = getPrompt(`${config.promptKey}.system`);
+      // For model answer mode, pass question number; for other modes (e.g., similar questions), pass questionCount
+      const singleQuestionNumber = mode === 'modelanswer' && sortedAllQuestions.length === 1 
+        ? String(sortedAllQuestions[0].questionNumber || '') 
+        : undefined;
+      const userPrompt = getPrompt(`${config.promptKey}.user`, 
+        questionText,
+        markingScheme,
+        mode === 'modelanswer' ? totalMarks : questionCount,  // For model answer: pass totalMarks, for similar questions: pass questionCount
+        mode === 'modelanswer' ? singleQuestionNumber : undefined  // For model answer: pass question number
+      );
+      
+      // DEBUG: Print the detectedQuestion data and user prompt for all multi-question follow-ups
+      if (sortedAllQuestions.length > 1) {
         console.log('='.repeat(80));
-        console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${allQuestions.length} questions):`);
-        allQuestions.forEach((q, idx) => {
+        console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${sortedAllQuestions.length} questions, sorted by question number):`);
+        sortedAllQuestions.forEach((q, idx) => {
           console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
         });
         console.log('Aggregated questionText length:', questionText.length);
@@ -200,28 +311,44 @@ export class SuggestedFollowUpService {
         console.log(userPrompt.substring(0, 500) + '...');
         console.log('='.repeat(80));
       }
+      
+      // Use ModelProvider directly with custom prompts
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+      
+      const contextualResult = {
+        response: aiResult.content,
+        apiUsed: `Gemini API (${model})`,
+        confidence: 0.85,
+        usageTokens: aiResult.usageTokens
+      };
+      
+      // Complete progress tracking
+      progressTracker.completeCurrentStep();
+      progressTracker.finish();
+      
+      return {
+        response: contextualResult.response,
+        apiUsed: contextualResult.apiUsed,
+        progressData: null // Will be set by the calling method
+      };
+    } else {
+      // No exam papers found - fallback to empty
+      const systemPrompt = getPrompt(`${config.promptKey}.system`);
+      const userPrompt = getPrompt(`${config.promptKey}.user`, '', '', undefined);
+      
+      const { ModelProvider } = await import('../../utils/ModelProvider.js');
+      const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+      
+      progressTracker.completeCurrentStep();
+      progressTracker.finish();
+      
+      return {
+        response: aiResult.content,
+        apiUsed: `Gemini API (${model})`,
+        progressData: null
+      };
     }
-    
-    // Use ModelProvider directly with custom prompts
-    const { ModelProvider } = await import('../../utils/ModelProvider.js');
-    const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
-    
-    const contextualResult = {
-      response: aiResult.content,
-      apiUsed: `Gemini API (${model})`,
-      confidence: 0.85,
-      usageTokens: aiResult.usageTokens
-    };
-    
-    // Complete progress tracking
-    progressTracker.completeCurrentStep();
-    progressTracker.finish();
-    
-    return {
-      response: contextualResult.response,
-      apiUsed: contextualResult.apiUsed,
-      progressData: null // Will be set by the calling method
-    };
   }
 
 }
