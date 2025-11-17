@@ -6,12 +6,29 @@ import { useAuth } from './AuthContext';
 import { simpleSessionService } from '../services/markingApiService';
 import { useScrollManager } from '../hooks/useScrollManager';
 import { createAIMessageId } from '../utils/messageUtils.js';
+import { STORAGE_KEYS, AI_MODELS } from '../utils/constants.js';
 
 const MarkingPageContext = createContext();
 
+// Helper function to get saved model from localStorage with validation
+const getSavedModel = () => {
+  try {
+    const savedModel = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
+    // Validate that saved model is one of the allowed models
+    const validModels = [AI_MODELS.AUTO, AI_MODELS.GEMINI_2_5_FLASH, AI_MODELS.OPENAI_GPT_5_MINI];
+    if (savedModel && validModels.includes(savedModel)) {
+      return savedModel;
+    }
+  } catch (error) {
+    // localStorage might not be available (e.g., private browsing)
+    console.warn('Failed to read selected model from localStorage:', error);
+  }
+  return AI_MODELS.AUTO; // Default fallback
+};
+
 const initialState = {
   pageMode: 'upload',
-  selectedModel: 'auto',
+  selectedModel: getSavedModel(),
   showInfoDropdown: false,
   hoveredRating: 0,
 };
@@ -350,7 +367,17 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     return null;
   }, []);
   
-  const handleModelChange = useCallback((model) => dispatch({ type: 'SET_SELECTED_MODEL', payload: model }), []);
+  const handleModelChange = useCallback((model) => {
+    // Save to localStorage
+    try {
+      localStorage.setItem(STORAGE_KEYS.SELECTED_MODEL, model);
+    } catch (error) {
+      // localStorage might not be available (e.g., private browsing)
+      console.warn('Failed to save selected model to localStorage:', error);
+    }
+    // Update state
+    dispatch({ type: 'SET_SELECTED_MODEL', payload: model });
+  }, []);
   const onToggleInfoDropdown = useCallback(() => dispatch({ type: 'TOGGLE_INFO_DROPDOWN' }), []);
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
   

@@ -74,7 +74,7 @@
   box-shadow: var(--shadow-lg);
   max-height: none;
   overflow: visible;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .model-selector-option {

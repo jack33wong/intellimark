@@ -67,6 +67,7 @@ export const STORAGE_KEYS = {
   THEME: 'intellimark-theme',
   LAST_SESSION: 'intellimark-last-session',
   USER_PREFERENCES: 'intellimark-user-preferences',
+  SELECTED_MODEL: 'intellimark-selected-model',
 };
 
 // Error Messages
