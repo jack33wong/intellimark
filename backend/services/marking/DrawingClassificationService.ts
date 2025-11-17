@@ -62,7 +62,6 @@ export class DrawingClassificationService {
     try {
       const validatedModel = validateModel(model);
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = await ModelProvider.getGeminiAccessToken();
       
       const { AI_PROMPTS } = await import('../../config/prompts.js');
       const systemPrompt = AI_PROMPTS.drawingClassification.system;
@@ -74,19 +73,36 @@ export class DrawingClassificationService {
         subQuestions // Pass sub-questions for grouped processing
       );
 
-      const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, validatedModel);
+      // Check if OpenAI model - use vision API, otherwise use Gemini
+      const isOpenAI = validatedModel.startsWith('openai-');
+      let content: string;
+      let usageTokens = 0;
       
-      // Check if response is HTML (error page) - same as ClassificationService
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('text/html')) {
-        const htmlContent = await response.text();
-        console.error('❌ [DRAWING CLASSIFICATION] Received HTML response instead of JSON:');
-        console.error('❌ [DRAWING CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
-        throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
-      }
+      if (isOpenAI) {
+        // Use OpenAI vision API for image classification
+        // Extract model name from full ID (e.g., 'openai-gpt-5-mini' -> 'gpt-5-mini')
+        const openaiModelName = validatedModel.replace('openai-', '');
+        const result = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModelName);
+        content = result.content;
+        usageTokens = result.usageTokens || 0;
+      } else {
+        // Use Gemini with image
+        const accessToken = await ModelProvider.getGeminiAccessToken();
+        const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, validatedModel);
+        
+        // Check if response is HTML (error page) - same as ClassificationService
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+          const htmlContent = await response.text();
+          console.error('❌ [DRAWING CLASSIFICATION] Received HTML response instead of JSON:');
+          console.error('❌ [DRAWING CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
+          throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
+        }
 
-      const result = await response.json() as any;
-      const content = await this.extractGeminiContent(result);
+        const result = await response.json() as any;
+        content = await this.extractGeminiContent(result);
+        usageTokens = result.usageMetadata?.totalTokenCount || 0;
+      }
       const cleanContent = this.cleanGeminiResponse(content);
       const parsed = this.parseJsonWithSanitization(cleanContent);
 
@@ -162,7 +178,7 @@ export class DrawingClassificationService {
 
       return {
         drawings: validatedDrawings,
-        usageTokens: result.usageMetadata?.totalTokenCount || 0
+        usageTokens: usageTokens
       };
     } catch (error) {
       console.error(`❌ [DRAWING CLASSIFICATION] Error: ${error instanceof Error ? error.message : 'Unknown error'}`);

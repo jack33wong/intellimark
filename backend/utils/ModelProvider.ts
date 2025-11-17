@@ -115,16 +115,42 @@ export class ModelProvider {
   }
 
   // ----------------------------------------------------------------------------
-  // OpenAI Chat Completions (fallback)
+  // Unified Text Call - Routes to Gemini or OpenAI based on model type
   // ----------------------------------------------------------------------------
-  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string): Promise<{ content: string; usageTokens: number; modelName: string }> {
+  static async callText(
+    systemPrompt: string, 
+    userPrompt: string, 
+    model: ModelType = 'auto', 
+    forceJsonResponse: boolean = false
+  ): Promise<{ content: string; usageTokens: number }> {
+    // Resolve 'auto' to default model
+    const resolvedModel = model === 'auto' ? 'gemini-2.5-flash' : model;
+    
+    // Detect provider from model name
+    const isOpenAI = resolvedModel.startsWith('openai-');
+    
+    if (isOpenAI) {
+      // Use OpenAI - extract model name from full ID (e.g., 'openai-gpt-4o' -> 'gpt-4o')
+      const openaiModelName = resolvedModel.replace('openai-', '');
+      const result = await this.callOpenAIText(systemPrompt, userPrompt, openaiModelName, forceJsonResponse);
+      return { content: result.content, usageTokens: result.usageTokens };
+    } else {
+      // Use existing Gemini method
+      return await this.callGeminiText(systemPrompt, userPrompt, resolvedModel as ModelType, forceJsonResponse);
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // OpenAI Chat Completions (fallback and direct calls)
+  // ----------------------------------------------------------------------------
+  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string, modelName?: string): Promise<{ content: string; usageTokens: number; modelName: string }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
     }
     const { getOpenAIEndpoint, getOpenAIModelName } = await import('../config/aiModels.js');
     const endpoint = getOpenAIEndpoint();
-    const model = getOpenAIModelName();
+    const model = modelName || getOpenAIModelName();
 
     // Build messages. If imageData is provided, use array content with image_url per OpenAI vision design
     const userContent = imageData
@@ -208,6 +234,59 @@ export class ModelProvider {
     const content = json.choices?.[0]?.message?.content || '';
     const usageTokens = json.usage?.total_tokens || 0;
     return { content, usageTokens, modelName: model };
+  }
+
+  /**
+   * OpenAI text-only call (no images)
+   * Similar to callGeminiText but for OpenAI
+   */
+  static async callOpenAIText(
+    systemPrompt: string,
+    userPrompt: string,
+    modelName: string = 'gpt-4o-mini',
+    forceJsonResponse: boolean = false
+  ): Promise<{ content: string; usageTokens: number }> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    const { getOpenAIEndpoint } = await import('../config/aiModels.js');
+    const endpoint = getOpenAIEndpoint();
+
+    const messages: any[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ];
+
+    const body: any = {
+      model: modelName,
+      messages,
+      temperature: 0
+    };
+
+    // Add JSON response format if requested
+    if (forceJsonResponse) {
+      body.response_format = { type: 'json_object' };
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${text}`);
+    }
+
+    const json = await response.json() as any;
+    const content = json.choices?.[0]?.message?.content || '';
+    const usageTokens = json.usage?.total_tokens || 0;
+    return { content, usageTokens };
   }
 
 }

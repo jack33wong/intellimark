@@ -25,9 +25,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const models = [
-    { id: 'auto', name: 'Auto (Recommended)' },
+    { id: 'auto', name: 'Auto' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'openai-gpt-5-mini', name: 'GPT 5.1 mini' },
   ];
 
   const handleToggle = () => {
@@ -71,7 +71,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
           {models.map((model) => (
             <div
               key={model.id}
-              className={`dropdown-item ${selectedModel === model.id ? 'selected' : ''}`}
+              className={`model-selector-option ${selectedModel === model.id ? 'selected' : ''}`}
               onClick={() => handleSelect(model.id)}
             >
               {model.name}

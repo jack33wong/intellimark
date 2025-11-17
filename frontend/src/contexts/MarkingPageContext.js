@@ -136,7 +136,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         headers,
         body: JSON.stringify({ 
           message: trimmedText, 
-          model: 'auto', 
+          model: selectedModel || 'auto', 
           sessionId: currentSession?.id || null,
           aiMessageId: aiMessageId // Pass the AI message ID to backend
         })
@@ -146,7 +146,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       
       if (data.success) {
         // Use the new standardized completion handler
-        simpleSessionService.handleTextChatComplete(data, 'auto');
+        simpleSessionService.handleTextChatComplete(data, selectedModel || 'auto');
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
@@ -161,7 +161,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       // Reset the request flag on error
       textRequestInProgress.current = false;
     }
-  }, [getAuthToken, currentSession, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
+  }, [getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
   
   useEffect(() => {
     if (selectedMarkingResult) {

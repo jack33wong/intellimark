@@ -44,7 +44,8 @@ export const MESSAGE_TYPES = {
 // AI Models
 export const AI_MODELS = {
   AUTO: 'auto',
-  GEMINI_2_5_PRO: 'gemini-2.5-pro',
+  GEMINI_2_5_FLASH: 'gemini-2.5-flash',
+  OPENAI_GPT_5_MINI: 'openai-gpt-5-mini',
 };
 
 // File Types

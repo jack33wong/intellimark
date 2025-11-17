@@ -35,6 +35,7 @@ interface ChatMessageProps {
   session?: any; // Session data to access isPastPaper
   addMessage?: (message: any) => void; // Function to add messages to chat
   startAIThinking?: (progressData: any, aiMessageId?: string) => void;
+  selectedModel?: string; // Selected AI model for follow-up requests
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ 
@@ -46,7 +47,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   scrollToBottom,
   session,
   addMessage,
-  startAIThinking
+  startAIThinking,
+  selectedModel = 'auto'
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
@@ -198,7 +200,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const requestBody = {
         message: suggestion,
         sessionId: session?.id,
-        model: 'auto',
+        model: selectedModel || 'auto', // Use selected model from props, fallback to 'auto'
         mode: mode,
         sourceMessageId: message.id  // Pass the specific message ID that triggered this follow-up
       };
@@ -219,7 +221,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       if (result.success) {
         // Use the standardized completion handler (same as text mode chat)
         const { simpleSessionService } = await import('../../services/markingApiService.js');
-        simpleSessionService.handleTextChatComplete(result, 'auto');
+        simpleSessionService.handleTextChatComplete(result, selectedModel || 'auto');
       } else {
         console.error('❌ [FOLLOW-UP] Failed:', result.error);
         alert(`Action failed: ${result.error}`);

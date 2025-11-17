@@ -64,6 +64,24 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     maxTokens: 64000,
     temperature: 0.1
+  },
+  'openai-gpt-4o': {
+    name: 'OpenAI GPT-4o',
+    apiEndpoint: 'openai', // Special marker for OpenAI provider
+    maxTokens: 16384,
+    temperature: 0.1
+  },
+  'openai-gpt-4o-mini': {
+    name: 'OpenAI GPT-4o Mini',
+    apiEndpoint: 'openai', // Special marker for OpenAI provider
+    maxTokens: 16384,
+    temperature: 0.1
+  },
+  'openai-gpt-5-mini': {
+    name: 'OpenAI GPT-5 Mini',
+    apiEndpoint: 'openai', // Special marker for OpenAI provider
+    maxTokens: 16384,
+    temperature: 0.1
   }
 };
 

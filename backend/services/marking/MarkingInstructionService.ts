@@ -567,7 +567,7 @@ export class MarkingInstructionService {
     try {
       // Use the provided model parameter
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const res = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, true);
+      const res = await ModelProvider.callText(systemPrompt, userPrompt, model, true);
       
       aiResponseString = res.content;
       const usageTokens = res.usageTokens;

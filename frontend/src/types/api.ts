@@ -29,7 +29,7 @@ export interface paths {
                     "application/json": {
                         imageData: string;
                         /** @enum {string} */
-                        model?: "auto" | "gemini-2.5-pro" | "gemini-2.5-flash";
+                        model?: "auto" | "gemini-2.5-flash" | "openai-gpt-5-mini";
                         sessionId?: string;
                     };
                 };
@@ -1615,7 +1615,7 @@ export interface components {
         MarkHomeworkRequest: {
             imageData: string;
             /** @enum {string} */
-            model: "auto" | "gemini-2.5-pro" | "gemini-2.5-flash";
+            model: "auto" | "gemini-2.5-flash" | "openai-gpt-5-mini";
             additionalInstructions?: string;
         };
         MarkHomeworkResponse: {
@@ -1639,7 +1639,7 @@ export interface components {
         ChatRequest: {
             message: string;
             /** @enum {string} */
-            model: "auto" | "gemini-2.5-pro" | "gemini-2.5-flash";
+            model: "auto" | "gemini-2.5-flash" | "openai-gpt-5-mini";
             imageData?: string;
             sessionId?: string;
             /** @enum {string} */

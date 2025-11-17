@@ -185,7 +185,7 @@ export class SuggestedFollowUpService {
             const markingScheme = q.markingScheme; // FULL marking scheme (all sub-questions combined)
             const userPrompt = getPrompt(`${config.promptKey}.user`, cleanedQuestionText, markingScheme, q.marks, questionNumberStr);
             
-            const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+            const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
             
             return {
               questionNumber: q.questionNumber,
@@ -296,7 +296,7 @@ export class SuggestedFollowUpService {
       
       // Use ModelProvider directly with custom prompts
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
       
       const contextualResult = {
         response: aiResult.content,
@@ -320,7 +320,7 @@ export class SuggestedFollowUpService {
       const userPrompt = getPrompt(`${config.promptKey}.user`, '', '', undefined);
       
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
+      const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
       
       progressTracker.completeCurrentStep();
       progressTracker.finish();

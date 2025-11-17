@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'openai-gpt-5-mini';
 
 export interface AIModelConfig {
   name: string;

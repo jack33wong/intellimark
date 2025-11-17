@@ -147,70 +147,12 @@ async function performAISegmentation(
 
   try {
     const { ModelProvider } = await import('../../utils/ModelProvider.js');
-    const accessToken = await ModelProvider.getGeminiAccessToken();
-    const endpoint = modelConfig.apiEndpoint;
     
-    const requestBody = {
-      contents: [{
-        parts: [
-          { text: systemPrompt },
-          { text: userPrompt }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.0, // Zero temperature for maximum consistency and speed
-        topK: 20, // Further reduced for faster generation
-        topP: 0.7, // Further reduced for faster, more focused generation
-        maxOutputTokens: Math.min(maxOutputTokens, 32000), // Cap at 32k for speed (actual output typically < 10k tokens)
-      },
-      safetySettings: [
-        {
-          category: "HARM_CATEGORY_HARASSMENT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_HATE_SPEECH",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-          threshold: "BLOCK_NONE"
-        },
-        {
-          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-          threshold: "BLOCK_NONE"
-        }
-      ]
-    };
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI Segmentation API error: ${response.status} ${errorText}`);
-    }
-
-    // Check if response is HTML (error page)
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('text/html')) {
-      const htmlContent = await response.text();
-      console.error('❌ [AI SEGMENTATION] Received HTML response instead of JSON:');
-      console.error('❌ [AI SEGMENTATION] HTML content:', htmlContent.substring(0, 200) + '...');
-      throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
-    }
-
-    const data = await response.json();
+    // Use unified ModelProvider method that routes to Gemini or OpenAI
+    const result = await ModelProvider.callText(systemPrompt, userPrompt, validatedModel, false);
     
-    // Use ModelProvider's extraction method (same as ClassificationService)
-    const aiResponse = await ModelProvider.extractGeminiTextContent(data);
-    const parsedResponse = parseAISegmentationResponse(aiResponse);
+    // Parse the AI response (expects JSON format)
+    const parsedResponse = parseAISegmentationResponse(result.content);
 
     // 4. Convert AI response to MarkingTask[]
     return convertToMarkingTasks(

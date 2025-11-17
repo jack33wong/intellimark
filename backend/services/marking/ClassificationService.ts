@@ -345,8 +345,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       if (shouldFallback && isOpenAIConfigured()) {
         try {
           console.warn('⚠️ [CLASSIFICATION] Gemini RECITATION-style error detected. Falling back to OpenAI.');
-          const systemPrompt = getPrompt('classificationOpenAI.system');
-          const userPrompt = getPrompt('classificationOpenAI.user');
+          // Reuse the same classification prompt for OpenAI fallback
+          const systemPrompt = getPrompt('classification.system');
+          const userPrompt = getPrompt('classification.user');
           const { ModelProvider } = await import('../../utils/ModelProvider.js');
           // Pass the image as data URL so OpenAI vision-capable models can see it
           const openai = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData);

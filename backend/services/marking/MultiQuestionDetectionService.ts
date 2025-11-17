@@ -148,7 +148,7 @@ export class MultiQuestionDetectionService {
     // Debug: Log what we're sending to AI
 
     try {
-      const response = await ModelProvider.callGeminiText(
+      const response = await ModelProvider.callText(
         systemPrompt,
         userPrompt,
         model,

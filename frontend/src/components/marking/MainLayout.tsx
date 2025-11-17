@@ -60,6 +60,7 @@ const MainLayout: React.FC = () => {
                   session={currentSession}
                   addMessage={addMessage}
                   startAIThinking={startAIThinking}
+                  selectedModel={selectedModel}
                 />
               ))}
               
