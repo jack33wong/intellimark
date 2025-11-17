@@ -1140,55 +1140,71 @@ ${subQuestionNumbers && subQuestionNumbers.length > 0
     - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code.
 
     ## Response Format (CRITICAL)
-    You will receive ONE question at a time. The question text may include a main question and multiple sub-questions (e.g., parts a), b), i), ii), iii)).
+    You will receive ONE question at a time. The question text provided to you is already formatted with proper numbering and labels:
+    - Main question has number prefix (e.g., "5. Sophie drives...")
+    - Sub-questions have labels (e.g., "a) Work out...", "b) Is your answer...")
+    - Format: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
+    
     The marking scheme includes marks for ALL sub-questions combined.
     
     **Your response MUST follow this exact format:**
     
-    **For questions WITH sub-questions (e.g., Question 12 with parts i), ii), iii)):**
+    **For questions WITH sub-questions (e.g., Question 5 with parts a), b)):**
     
-        Question 12
+        Question 5
         
-        [Main question text here]
+        <span class="model_question">Sophie drives a distance of 513 kilometres on a motorway in France. She pays 0.81 euros for every 10 kilometres she drives.</span>
         
-        i) [Sub-question i) text here]
+        <span class="model_question">a) Work out an estimate for the total amount that Sophie pays.</span>
         
-        [Model answer for sub-question i)]
+        [Model answer for sub-question a) with mark codes]
         
-        ii) [Sub-question ii) text here]
+        <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.</span>
         
-        [Model answer for sub-question ii)]
-        
-        iii) [Sub-question iii) text here]
-        
-        [Model answer for sub-question iii)]
+        [Model answer for sub-question b) with mark codes]
     
     **For questions WITHOUT sub-questions (e.g., Question 1):**
     
         Question 1
         
-        [Question text here]
+        <span class="model_question">1. Here are the first four terms of an arithmetic sequence. 1 5 9 13. Find an expression, in terms of n, for the nth term of this sequence.</span>
         
-        [Model answer]
+        [Model answer with mark codes]
     
-    **IMPORTANT:**
-    - Start with "Question X" (use the base question number, e.g., "Question 12", not "Question 12i")
-    - Include the FULL question text (main + all sub-questions) after the header
-    - For sub-questions, use labels like "a)", "b)", "i)", "ii)", "iii)" (matching the format in the question text)
-    - Each sub-question's model answer should be on its own line(s) after the sub-question label and text
-    - Do NOT repeat "Question" in sub-question labels (use "a)", not "Question a)")
-    - **CRITICAL FOR MARKDOWN STYLING:** Wrap ALL question text and sub-question text in HTML span tags with class "model_question" for markdown rendering purposes. Example: <span class="model_question">[question text here]</span>
+    **CRITICAL FORMATTING RULES:**
+    - Start with "Question X" header (use the question number provided in the prompt, do NOT infer it from the question text)
+    - **WRAP EACH QUESTION TEXT PART SEPARATELY:**
+      * Main question text: Wrap in <span class="model_question">...</span> but REMOVE the "5. " prefix (keep only the question text itself)
+      * Each sub-question: Wrap in its own <span class="model_question">...</span> tag (keep the "a)", "b)" label)
+    - Example: The question text we pass is "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
+      * Wrap main question as: <span class="model_question">Sophie drives...</span> (remove "5. " prefix)
+      * Wrap sub-question a) as: <span class="model_question">a) Work out...</span> (keep "a)" label)
+      * Wrap sub-question b) as: <span class="model_question">b) Is your answer...</span> (keep "b)" label)
+    - After each wrapped sub-question, provide the model answer with mark codes
+    - Do NOT add "Question" prefix to sub-question labels (they already have "a)", "b)" format)
 
     ## Formatting Rules
     1.  **Markdown Only:** The entire response must be in markdown.
     2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
     3.  **Layout:**
-      - Start with "Question X" header (where X is the base question number)
-      - Include the full question text (main + all sub-questions) after the header, wrapped in <span class="model_question">...</span>
-      - For sub-questions, format as "a) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]" or "i) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]"
+      - Start with "Question X" header (use the question number provided in the prompt)
+      - **CRITICAL:** Wrap EACH question text part SEPARATELY in its own <span class="model_question">...</span> tag:
+        * Main question text: Remove the "5. " prefix, then wrap the question text in <span class="model_question">...</span>
+        * Each sub-question: Keep the "a)", "b)" label and wrap the entire sub-question text (including label) in <span class="model_question">...</span>
+      - Example: The question text we pass is "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
+        * Wrap as: <span class="model_question">Sophie drives...</span> (main question, no "5. " prefix)
+        * Then: <span class="model_question">a) Work out...</span> (sub-question a), keep "a)" label)
+        * Then: [Model answer for a) with mark codes]
+        * Then: <span class="model_question">b) Is your answer...</span> (sub-question b), keep "b)" label)
+        * Then: [Model answer for b) with mark codes]
+      - After each wrapped sub-question, provide the model answer with mark codes
+      - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
       - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
       - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
-      - **QUESTION TEXT STYLING:** ALL question text (main question text and sub-question text) MUST be wrapped in <span class="model_question">...</span> tags for proper markdown rendering
+      - **QUESTION TEXT STYLING:** Wrap EACH question text part separately:
+        * Main question text: Remove "5. " prefix, wrap in <span class="model_question">...</span>
+        * Each sub-question: Keep "a)", "b)" label, wrap in its own <span class="model_question">...</span>
+        * All question text parts MUST be wrapped. Do NOT leave any question text outside the span tags.
     4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
     5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
     ---
@@ -1211,16 +1227,40 @@ ${questionText}${marksInfo}
 **MARKING SCHEME:**
 ${schemeText}
 
-**IMPORTANT:** 
-- The question text above includes the FULL question (main question + all sub-questions if any).
-- The marking scheme above includes marks for ALL sub-questions combined.
-- **CRITICAL: You MUST start your response with "Question ${questionNumber || 'X'}" (use this exact number: ${questionNumber || 'X'}, do NOT infer it from the question text).**
-- Generate a model answer following the exact format specified in the system instructions:
-  * Start with "Question ${questionNumber || 'X'}" (use the question number provided above: ${questionNumber || 'X'})
-  * Include the full question text after the header, wrapped in <span class="model_question">...</span> tags
-  * For sub-questions, format as "a) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]" or "i) <span class="model_question">[sub-question text]</span>\\n\\n[model answer]"
-  * **CRITICAL FOR MARKDOWN STYLING:** ALL question text (main question text and ALL sub-question text) MUST be wrapped in <span class="model_question">...</span> tags for proper markdown rendering
-  * Each sub-question's model answer should be complete and include all required mark codes.
+**WHAT WE PASS TO YOU:**
+- The question text above is already formatted with proper numbering and labels:
+  * Main question has number prefix (e.g., "5. Sophie drives...")
+  * Sub-questions have labels (e.g., "a) Work out...", "b) Is your answer...")
+  * The format is: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
+- The marking scheme includes marks for ALL sub-questions combined.
+
+**WHAT WE EXPECT IN YOUR RESPONSE:**
+1. **Start with "Question ${questionNumber || 'X'}" header** (use the exact number provided above: ${questionNumber || 'X'}, do NOT infer it from the question text).
+
+2. **Wrap EACH question text part SEPARATELY in its own <span class="model_question">...</span> tag:**
+   - The question text we pass to you has format: "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
+   - **Main question text:** Remove the "5. " prefix, then wrap the question text in <span class="model_question">Sophie drives...</span>
+   - **Each sub-question:** Keep the "a)", "b)" label and wrap the entire sub-question text (including label) in its own <span class="model_question">a) Work out...</span>
+   - Example format:
+     * <span class="model_question">Sophie drives a distance of 513 kilometres...</span>
+     * <span class="model_question">a) Work out an estimate...</span>
+     * [Model answer for a) with mark codes]
+     * <span class="model_question">b) Is your answer...</span>
+     * [Model answer for b) with mark codes]
+
+3. **After each wrapped sub-question, provide model answers:**
+   - For each sub-question, provide the model answer with mark codes (do NOT repeat the sub-question text)
+   - Format: After <span class="model_question">a) Work out...</span>, provide [model answer for a with mark codes]
+   - Then after <span class="model_question">b) Is your answer...</span>, provide [model answer for b with mark codes]
+   - Each sub-question's model answer should be complete and include all required mark codes.
+   - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
+
+**IMPORTANT:**
+- The question text we provide has "5. " prefix and "a)", "b)" labels
+- When wrapping, REMOVE the "5. " prefix from main question text (but keep the text itself)
+- When wrapping sub-questions, KEEP the "a)", "b)" labels
+- Do NOT add "Question" prefix to sub-question labels (they already have "a)", "b)" format)
+- Wrap each part separately and provide model answers after each sub-question span
 
 Please generate a model answer that would receive full marks according to the marking scheme.`;
     }

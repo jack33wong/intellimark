@@ -116,14 +116,15 @@ const LibraryPage: React.FC = () => {
         total?: number;
         limit?: number;
       };
+      
       if (response.success && response.sessions) {
-        // Filter only marking sessions
+        // Filter for marking sessions OR mixed sessions (which can contain marking content)
         const markingSessions = response.sessions.filter(
-          (session: UnifiedSession) => session.messageType === 'Marking'
+          (session: UnifiedSession) => session.messageType === 'Marking' || session.messageType === 'Mixed'
         );
         setSessions(markingSessions);
       } else {
-        console.error('Failed to load sessions');
+        console.error('Failed to load sessions:', response);
         setSessions([]);
       }
     } catch (error) {
@@ -144,19 +145,12 @@ const LibraryPage: React.FC = () => {
 
     sessions.forEach(session => {
       const metadata = getExamMetadata(session);
-      if (!metadata) return; // Skip if no exam metadata
+      if (!metadata) {
+        return; // Skip if no exam metadata
+      }
 
       const images = getSessionImages(session);
       if (images.length === 0) {
-        console.log('[Library] Skipping session (no images):', session.id, {
-          messageCount: session.messages?.length,
-          messageTypes: session.messages?.map(m => ({ 
-            role: m.role, 
-            type: m.type, 
-            hasImage: !!(m.imageData || m.imageLink || m.imageDataArray?.length),
-            imageDataArrayLength: m.imageDataArray?.length
-          }))
-        });
         return; // Skip if no images
       }
 

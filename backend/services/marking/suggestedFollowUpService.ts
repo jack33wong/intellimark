@@ -72,12 +72,7 @@ export class SuggestedFollowUpService {
       );
       
       if (targetMsg) {
-        console.log(`[MODEL ANSWER] Found target message ${sourceMessageId}: has detectedQuestion=${!!targetMsg.detectedQuestion}, found=${targetMsg.detectedQuestion?.found}`);
-        if (targetMsg.detectedQuestion?.examPapers) {
-          const totalQuestions = targetMsg.detectedQuestion.examPapers.reduce((sum: number, ep: any) => 
-            sum + (ep.questions?.length || 0), 0);
-          console.log(`[MODEL ANSWER] Target message has ${totalQuestions} questions across ${targetMsg.detectedQuestion.examPapers.length} exam papers`);
-        }
+        // Target message found
       }
       
       return targetMsg;
@@ -88,12 +83,7 @@ export class SuggestedFollowUpService {
       ) || [];
       
       if (messagesWithDetectedQuestion.length === 0) {
-        console.warn(`[MODEL ANSWER] No assistant messages with detectedQuestion.found=true found in session ${sessionId}`);
-        const allAssistantMessages = existingSession?.messages?.filter((msg: any) => msg.role === 'assistant') || [];
-        console.log(`[MODEL ANSWER] Found ${allAssistantMessages.length} assistant messages total`);
-        allAssistantMessages.forEach((msg: any, idx: number) => {
-          console.log(`[MODEL ANSWER] Assistant message ${idx}: has detectedQuestion=${!!msg.detectedQuestion}, found=${msg.detectedQuestion?.found}`);
-        });
+        // No assistant messages with detectedQuestion found
       }
       
       return messagesWithDetectedQuestion.length > 0 
@@ -159,8 +149,6 @@ export class SuggestedFollowUpService {
       
       // For model answer mode with multiple questions: run in parallel
       if (mode === 'modelanswer' && sortedAllQuestions.length > 1) {
-        console.log(`🚀 [MODEL ANSWER] Running parallel generation for ${sortedAllQuestions.length} questions`);
-        
         // Use already sorted questions (sorted above)
         const sortedQuestions = sortedAllQuestions;
         
@@ -190,8 +178,6 @@ export class SuggestedFollowUpService {
             }
             cleanedQuestionText = cleanedQuestionText.trim();
             
-            console.log(`    📝 [MODEL ANSWER] Q${questionNumberStr}: original length: ${q.questionText?.length || 0}, cleaned length: ${cleanedQuestionText.length}`);
-            
             // markingScheme must be plain text (FULL marking scheme - all sub-questions combined, same format as sent to AI for marking instruction)
             if (typeof q.markingScheme !== 'string') {
               throw new Error(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
@@ -199,7 +185,6 @@ export class SuggestedFollowUpService {
             const markingScheme = q.markingScheme; // FULL marking scheme (all sub-questions combined)
             const userPrompt = getPrompt(`${config.promptKey}.user`, cleanedQuestionText, markingScheme, q.marks, questionNumberStr);
             
-            console.log(`  🔄 [MODEL ANSWER] Generating for Q${questionNumberStr}...`);
             const aiResult = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model as any);
             
             return {
@@ -218,9 +203,6 @@ export class SuggestedFollowUpService {
           .join(separator);
         
         const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
-        
-        console.log(`✅ [MODEL ANSWER] Completed parallel generation for ${parallelResults.length} questions`);
-        console.log(`   Total tokens used: ${totalUsageTokens}`);
         
         // Complete progress tracking
         progressTracker.completeCurrentStep();

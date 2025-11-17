@@ -584,7 +584,8 @@ export async function executeMarkingForQuestion(
     // *** Log for Verification ***
 
     // Extract question text from marking scheme (from fullExamPapers - source for question detection)
-    const questionText = task.markingScheme?.questionText || task.markingScheme?.databaseQuestionText || null;
+    // Use databaseQuestionText (formatted with common function) - no backward compatibility needed
+    const questionText = task.markingScheme?.databaseQuestionText || null;
     
     // Prepare raw OCR blocks for enhanced marking (bypass segmentation)
     const rawOcrBlocks = task.mathBlocks.map((block, idx) => {

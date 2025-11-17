@@ -27,7 +27,7 @@ import * as stringSimilarity from 'string-similarity';
 // Segmentation bypassed - using enhanced marking instruction with raw OCR and classification
 // import { segmentOcrResultsByQuestion } from '../services/marking/SegmentationService.js';
 // import { segmentOcrResultsByQuestion } from '../services/marking/AISegmentationService.js';
-import { getBaseQuestionNumber, normalizeSubQuestionPart } from '../utils/TextNormalizationUtils.js';
+import { getBaseQuestionNumber, normalizeSubQuestionPart, formatFullQuestionText } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
 
 // Helper functions for real model and API names
@@ -2019,20 +2019,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 }
             }
             
-            // Build FULL question text: main question text + sub-question texts
-            // If main question text exists, use it (it should already include sub-questions)
-            // Otherwise, fallback to combining sub-question texts
-            const fullDatabaseQuestionText = mainQuestionDatabaseText 
-                ? mainQuestionDatabaseText // Main question text already includes all sub-questions
-                : combinedDatabaseQuestionTexts.join('\n\n'); // Fallback to sub-question texts only if main text not available
+            // Build FULL question text using common formatting function
+            // This ensures consistent format across: AI Marking Instruction, detectedQuestion storage, Model Answer
+            const fullDatabaseQuestionText = formatFullQuestionText(
+                baseQuestionNumber,
+                mainQuestionDatabaseText || '',
+                questionNumbers, // e.g., ["5a", "5b"]
+                combinedDatabaseQuestionTexts // e.g., ["Work out...", "Is your answer..."]
+            );
             
             const schemeWithTotalMarks = {
                 questionMarks: mergedQuestionMarks,
                 totalMarks: parentQuestionMarks, // Use parent question marks from database, not sum of sub-question marks
                 questionNumber: baseQuestionNumber, // Use base question number for grouped sub-questions
                 questionDetection: questionDetection, // Store detection result for exam paper info (needed for exam tab storage)
-                questionText: combinedQuestionTexts.join('\n\n'), // Classification text (for backward compatibility)
-                databaseQuestionText: fullDatabaseQuestionText, // FULL database question text (main + all sub-questions)
+                databaseQuestionText: fullDatabaseQuestionText, // FULL database question text (main + all sub-questions) - formatted with common function
                 subQuestionNumbers: questionNumbers, // Store sub-question numbers for reference
                 subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined // Store answers for each sub-question (e.g., ["H", "F", "J"])
             };

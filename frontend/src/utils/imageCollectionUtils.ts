@@ -39,9 +39,9 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
   const images: SessionImage[] = [];
   const seenImageSrcs = new Set<string>(); // Track by src to avoid duplicates
   
-  // For marking sessions, ONLY include annotated images (final output)
+  // For marking sessions OR mixed sessions (which can contain marking content), ONLY include annotated images (final output)
   // Find the marking_annotated message which contains the final results
-  if (session.messageType === 'Marking') {
+  if (session.messageType === 'Marking' || session.messageType === 'Mixed') {
     // Try to find marking_annotated message first
     let annotatedMessage = session.messages.find(
       m => m.type === 'marking_annotated' && hasImage(m)

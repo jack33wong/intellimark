@@ -713,6 +713,7 @@ export class FirestoreService {
           favorite: sessionData.favorite || false,
           rating: sessionData.rating || 0,
           messages: unifiedMessages, // Include the actual messages array
+          detectedQuestion: sessionData.detectedQuestion || null, // Include detectedQuestion for Library page
           lastMessage: lastMessage ? {
             content: lastMessage.content,
             role: lastMessage.role,

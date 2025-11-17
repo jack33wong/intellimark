@@ -195,4 +195,65 @@ export function normalizeSubQuestionPart(part: string | null | undefined): strin
     .toLowerCase(); // Convert to lowercase
 }
 
+/**
+ * Format full question text with proper numbering and labels
+ * 
+ * Formats question text in the standard format:
+ * - Main question: "{baseQuestionNumber}. {mainQuestionText}"
+ * - Sub-questions: "{part}) {subQuestionText}"
+ * 
+ * Used consistently for:
+ * - AI Marking Instruction prompts
+ * - detectedQuestion storage
+ * - Model Answer prompts
+ * 
+ * @param baseQuestionNumber - Base question number (e.g., "5")
+ * @param mainQuestionText - Main question text (e.g., "Sophie drives...")
+ * @param subQuestionNumbers - Array of full sub-question numbers (e.g., ["5a", "5b"])
+ * @param subQuestionTexts - Array of sub-question texts (e.g., ["Work out...", "Is your answer..."])
+ * @returns Formatted full question text with proper numbering and labels
+ * 
+ * @example
+ * formatFullQuestionText(
+ *   "5",
+ *   "Sophie drives a distance of 513 kilometres...",
+ *   ["5a", "5b"],
+ *   ["Work out an estimate...", "Is your answer..."]
+ * )
+ * // Returns:
+ * // "5. Sophie drives a distance of 513 kilometres...
+ * //
+ * // a) Work out an estimate...
+ * //
+ * // b) Is your answer..."
+ */
+export function formatFullQuestionText(
+  baseQuestionNumber: string,
+  mainQuestionText: string,
+  subQuestionNumbers: string[],
+  subQuestionTexts: string[]
+): string {
+  const parts: string[] = [];
+  
+  // Format main question with number prefix
+  if (mainQuestionText) {
+    parts.push(`${baseQuestionNumber}. ${mainQuestionText}`);
+  }
+  
+  // Format sub-questions with labels
+  if (subQuestionNumbers.length > 0 && subQuestionTexts.length > 0) {
+    const formattedSubQuestions = subQuestionTexts.map((subQText, index) => {
+      if (index < subQuestionNumbers.length) {
+        const fullSubQNum = subQuestionNumbers[index]; // e.g., "5a"
+        const subQPart = fullSubQNum.replace(/^\d+/, ''); // Extract "a" from "5a"
+        return `${subQPart}) ${subQText}`;
+      }
+      return subQText; // Fallback if no matching number
+    });
+    parts.push(...formattedSubQuestions);
+  }
+  
+  return parts.join('\n\n');
+}
+
 
