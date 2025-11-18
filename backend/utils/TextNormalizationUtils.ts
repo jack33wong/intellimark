@@ -256,4 +256,16 @@ export function formatFullQuestionText(
   return parts.join('\n\n');
 }
 
+/**
+ * Extract question numbers from filename (e.g., "q19.png" -> ["19"], "q13-14.png" -> ["13", "14"])
+ * @param fileName - The filename to extract question numbers from
+ * @returns Array of question numbers found in filename, or null if none found
+ */
+export function extractQuestionNumberFromFilename(fileName?: string): string[] | null {
+  if (!fileName) return null;
+  
+  // Extract question numbers from filename patterns like "q13-14", "q21", etc.
+  const matches = fileName.toLowerCase().match(/q(\d+[a-z]?)/g);
+  return matches ? matches.map(m => m.replace('q', '')) : null;
+}
 

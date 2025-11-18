@@ -382,3 +382,336 @@ export function buildMarkingResponse({
     };
   }
 }
+
+/**
+ * Extract questions from AI classification result
+ * 
+ * DESIGN: Support 1...N questions in classification response
+ * - Classification AI extracts question text (no question numbers needed)
+ * - Question Detection finds exam paper and marking schemes from database records
+ * - Database records contain the actual question numbers (Q13, Q14, etc.)
+ * - Classification returns array of questions with text only, NO numbers
+ */
+export function extractQuestionsFromClassification(
+  classification: any, 
+  fileName?: string
+): Array<{text: string; questionNumber?: string | null}> {
+  // Handle hierarchical questions array structure
+  if (classification?.questions && Array.isArray(classification.questions)) {
+    const extractedQuestions: Array<{text: string; questionNumber?: string | null}> = [];
+    
+    for (const q of classification.questions) {
+      const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
+      
+      // If question has sub-questions, extract each sub-question separately
+      if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        for (const subQ of q.subQuestions) {
+          const combinedQuestionNumber = mainQuestionNumber 
+            ? `${mainQuestionNumber}${subQ.part || ''}` 
+            : null;
+          extractedQuestions.push({
+            questionNumber: combinedQuestionNumber,
+            text: subQ.text || ''
+          });
+        }
+      } else {
+        // Main question without sub-questions (or main text exists)
+        if (q.text) {
+          extractedQuestions.push({
+            questionNumber: mainQuestionNumber,
+            text: q.text
+          });
+        }
+        // If main text is null but no sub-questions, skip (empty question)
+      }
+    }
+    
+    return extractedQuestions;
+  }
+  
+  // Fallback: Handle old extractedQuestionText structure
+  if (classification?.extractedQuestionText) {
+    return [{
+      text: classification.extractedQuestionText
+      // No questionNumber in legacy format
+    }];
+  }
+  
+  return [];
+}
+
+/**
+ * Convert marking scheme to plain text format (same as sent to AI for marking instruction)
+ * This ensures stored data matches what we send to AI
+ */
+export function convertMarkingSchemeToPlainText(
+  markingScheme: any,
+  questionNumber: string,
+  subQuestionNumbers?: string[],
+  subQuestionAnswers?: string[]
+): string {
+  if (!markingScheme) {
+    return '';
+  }
+
+  try {
+    // Extract marks array from various possible structures
+    let marksArray: any[] = [];
+    let questionLevelAnswer: string | undefined = undefined;
+    
+    // Handle different marking scheme structures
+    if (markingScheme.questionMarks) {
+      const questionMarks = markingScheme.questionMarks;
+      if (Array.isArray(questionMarks.marks)) {
+        marksArray = questionMarks.marks;
+      } else if (Array.isArray(questionMarks)) {
+        marksArray = questionMarks;
+      }
+      questionLevelAnswer = questionMarks.answer || markingScheme.answer;
+    } else if (Array.isArray(markingScheme.marks)) {
+      marksArray = markingScheme.marks;
+      questionLevelAnswer = markingScheme.answer;
+    } else if (Array.isArray(markingScheme)) {
+      marksArray = markingScheme;
+    }
+
+    // If no marks found, return empty string
+    if (marksArray.length === 0) {
+      return '';
+    }
+
+    // Create JSON structure that formatMarkingSchemeAsBullets expects
+    const schemeData: any = { marks: marksArray };
+    if (questionLevelAnswer) {
+      schemeData.questionLevelAnswer = questionLevelAnswer;
+    }
+    
+    // Include sub-question marks mapping if available (for grouped sub-questions)
+    if (markingScheme.questionMarks?.subQuestionMarks && typeof markingScheme.questionMarks.subQuestionMarks === 'object') {
+      schemeData.subQuestionMarks = markingScheme.questionMarks.subQuestionMarks;
+    }
+
+    // Convert to JSON string, then to plain text bullets (same format as sent to AI)
+    const schemeJson = JSON.stringify(schemeData, null, 2);
+    return formatMarkingSchemeAsBullets(schemeJson, subQuestionNumbers, subQuestionAnswers);
+  } catch (error) {
+    console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for Q${questionNumber}:`, error);
+    return '';
+  }
+}
+
+/**
+ * Format grouped student work with sub-question labels
+ */
+export function formatGroupedStudentWork(
+  mainStudentWork: string | null,
+  subQuestions: Array<{ part: string; studentWork: string; text?: string }>
+): string {
+  const parts: string[] = [];
+  
+  // Add main question student work if exists
+  if (mainStudentWork && mainStudentWork !== 'null' && mainStudentWork.trim() !== '') {
+    parts.push(`[MAIN QUESTION STUDENT WORK]\n${mainStudentWork.trim()}`);
+  }
+  
+  // Add each sub-question with clear label
+  subQuestions.forEach((subQ) => {
+    if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
+      const subQLabel = `[SUB-QUESTION ${subQ.part.toUpperCase()} STUDENT WORK]`;
+      parts.push(`${subQLabel}\n${subQ.studentWork.trim()}`);
+    }
+  });
+  
+  return parts.join('\n\n');
+}
+
+/**
+ * Convert question numbers to sortable numeric values for page sorting
+ * Examples: "3" → 3.0, "3a" → 3.01, "3b" → 3.02, "12i" → 12.01, "12ii" → 12.02
+ */
+export function getQuestionSortValue(questionNumber: string | null | undefined): number {
+  if (!questionNumber) return Infinity;
+  
+  const baseNum = parseInt(String(questionNumber).replace(/\D/g, '')) || 0;
+  if (baseNum === 0) return Infinity;
+  
+  // Extract sub-question part (e.g., "a", "b", "i", "ii")
+  const subPart = String(questionNumber).replace(/^\d+/, '').toLowerCase();
+  
+  if (!subPart) {
+    // Main question (e.g., "3") → 3.0
+    return baseNum;
+  }
+  
+  // Convert sub-question part to numeric offset
+  let subOffset = 0;
+  
+  // Letter sub-questions: a=0.01, b=0.02, c=0.03, etc.
+  if (subPart.match(/^[a-z]$/)) {
+    subOffset = (subPart.charCodeAt(0) - 'a'.charCodeAt(0) + 1) * 0.01;
+  }
+  // Roman numerals: i=0.01, ii=0.02, iii=0.03, iv=0.04, v=0.05, etc.
+  else if (subPart.match(/^[ivx]+$/i)) {
+    const romanMap: Record<string, number> = {
+      'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
+      'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10
+    };
+    const romanValue = romanMap[subPart.toLowerCase()] || 0;
+    subOffset = romanValue * 0.01;
+  }
+  // Numeric sub-questions: (1)=0.01, (2)=0.02, etc.
+  else if (subPart.match(/^\(?\d+\)?$/)) {
+    const numMatch = subPart.match(/\d+/);
+    if (numMatch) {
+      subOffset = parseInt(numMatch[0]) * 0.01;
+    }
+  }
+  
+  // Return base number + sub-question offset
+  return baseNum + subOffset;
+}
+
+/**
+ * Build mapping from classification result: page -> sub-question number
+ * This tells us which sub-question (e.g., "3a", "3b") is on which page
+ */
+export function buildClassificationPageToSubQuestionMap(
+  classificationResult: any
+): Map<number, Map<string, string>> {
+  const classificationPageToSubQuestion = new Map<number, Map<string, string>>(); // pageIndex -> baseQNum -> subQNum
+  
+  if (classificationResult?.questions) {
+    for (const q of classificationResult.questions) {
+      const baseQNum = String(q.questionNumber || '');
+      if (!baseQNum) continue;
+      
+      const pageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+        ? q.sourceImageIndices
+        : (q.sourceImageIndex !== undefined ? [q.sourceImageIndex] : []);
+      
+      if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        // If sub-questions are on the same page, they're in the same question entry
+        // If they're on different pages, they might be in separate entries
+        // Map each sub-question to its page(s)
+        q.subQuestions.forEach((subQ: any, subIndex: number) => {
+          const part = subQ.part || '';
+          if (!part) return;
+          
+          const subQNum = `${baseQNum}${part}`;
+          // For each page this question spans, map the sub-question
+          // If multiple pages, assign sub-questions in order (first sub-question to first page, etc.)
+          pageIndices.forEach((pageIndex, pageIdx) => {
+            // If only one sub-question or first sub-question, use first page
+            // Otherwise, try to match sub-question index to page index
+            if (q.subQuestions.length === 1 || subIndex === pageIdx || (subIndex === 0 && pageIdx === 0)) {
+              if (!classificationPageToSubQuestion.has(pageIndex)) {
+                classificationPageToSubQuestion.set(pageIndex, new Map());
+              }
+              // Only set if not already set (first occurrence wins)
+              if (!classificationPageToSubQuestion.get(pageIndex)!.has(baseQNum)) {
+                classificationPageToSubQuestion.get(pageIndex)!.set(baseQNum, subQNum);
+              }
+            }
+          });
+        });
+      }
+    }
+  }
+  
+  return classificationPageToSubQuestion;
+}
+
+/**
+ * Build mapping from pageIndex to question numbers (for past paper sorting)
+ */
+export function buildPageToQuestionNumbersMap(
+  allQuestionResults: Array<{ questionNumber: string | number | null | undefined; annotations?: Array<{ pageIndex?: number }> }>,
+  markingSchemesMap: Map<string, any>,
+  classificationPageToSubQuestion: Map<number, Map<string, string>>
+): Map<number, number[]> {
+  const pageToQuestionNumbers = new Map<number, number[]>();
+  
+  allQuestionResults.forEach((qr) => {
+    const baseQNum = String(qr.questionNumber || '');
+    
+    // Check if this is a grouped sub-question (has sub-question numbers in markingSchemesMap)
+    let subQuestionNumbers: string[] | undefined = undefined;
+    for (const [key, scheme] of markingSchemesMap.entries()) {
+      const keyQNum = key.split('_')[0];
+      if (keyQNum === baseQNum && scheme.subQuestionNumbers && Array.isArray(scheme.subQuestionNumbers)) {
+        subQuestionNumbers = scheme.subQuestionNumbers;
+        break;
+      }
+    }
+    
+    if (subQuestionNumbers && subQuestionNumbers.length > 0) {
+      // This is a grouped sub-question - map each page to its corresponding sub-question number
+      // Get all pages that have annotations for this question
+      const pageIndexCounts = new Map<number, number>();
+      if (qr.annotations && qr.annotations.length > 0) {
+        qr.annotations.forEach(anno => {
+          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+          }
+        });
+      }
+      
+      // For each page with annotations, look up the actual sub-question number from classification
+      pageIndexCounts.forEach((count, pageIndex) => {
+        // Try to get the sub-question number from classification mapping
+        const pageSubQuestionMap = classificationPageToSubQuestion.get(pageIndex);
+        let subQNum: string | undefined = undefined;
+        
+        if (pageSubQuestionMap && pageSubQuestionMap.has(baseQNum)) {
+          // Found exact mapping from classification
+          subQNum = pageSubQuestionMap.get(baseQNum);
+        } else {
+          // Fallback: use order-based assignment (first page gets first sub-question, etc.)
+          const sortedPages = Array.from(pageIndexCounts.keys()).sort((a, b) => a - b);
+          const pageIndexInOrder = sortedPages.indexOf(pageIndex);
+          if (pageIndexInOrder >= 0 && pageIndexInOrder < subQuestionNumbers.length) {
+            subQNum = subQuestionNumbers[pageIndexInOrder];
+          }
+        }
+        
+        if (subQNum) {
+          const sortValue = getQuestionSortValue(subQNum);
+          if (sortValue !== Infinity && sortValue > 0) {
+            if (!pageToQuestionNumbers.has(pageIndex)) {
+              pageToQuestionNumbers.set(pageIndex, []);
+            }
+            pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
+          }
+        }
+      });
+    } else {
+      // Single question (not grouped sub-questions) - use base question number
+      // Get pageIndex from annotations (most common pageIndex if question spans multiple pages)
+      let pageIndex: number | undefined;
+      if (qr.annotations && qr.annotations.length > 0) {
+        const pageIndexCounts = new Map<number, number>();
+        qr.annotations.forEach(anno => {
+          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+          }
+        });
+        if (pageIndexCounts.size > 0) {
+          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+        }
+      }
+      
+      if (pageIndex !== undefined) {
+        // Convert question number to sortable value (preserves sub-question order)
+        const sortValue = getQuestionSortValue(baseQNum);
+        if (sortValue !== Infinity && sortValue > 0) {
+          if (!pageToQuestionNumbers.has(pageIndex)) {
+            pageToQuestionNumbers.set(pageIndex, []);
+          }
+          pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
+        }
+      }
+    }
+  });
+  
+  return pageToQuestionNumbers;
+}

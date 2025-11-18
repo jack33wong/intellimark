@@ -8,6 +8,9 @@ import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { MarkingInstructions, Annotation } from '../../types/index.js';
 import type { MathBlock } from '../ocr/MathDetectionService.js';
 import type { ModelType } from '../../config/aiModels.js';
+import type { PageOcrResult } from '../../types/markingRouter.js';
+import { formatGroupedStudentWork } from './MarkingHelpers.js';
+import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 
 // Types for the marking executor
 export interface MarkingTask {
@@ -830,4 +833,178 @@ export async function executeMarkingForQuestion(
     // Re-throw the error so Promise.all catches it
     throw error;
   }
+}
+
+/**
+ * Create marking tasks directly from classification results (bypasses segmentation)
+ * This function creates tasks with raw OCR blocks and classification student work
+ * for the enhanced marking instruction approach.
+ */
+export function createMarkingTasksFromClassification(
+  classificationResult: any,
+  allPagesOcrData: PageOcrResult[],
+  markingSchemesMap: Map<string, any>,
+  pageDimensionsMap: Map<number, { width: number; height: number }>
+): MarkingTask[] {
+  const tasks: MarkingTask[] = [];
+  
+  if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
+    return tasks;
+  }
+  
+  // Group questions by base question number
+  const questionGroups = new Map<string, {
+    mainQuestion: any;
+    subQuestions: Array<{ part: string; studentWork: string; text?: string }>;
+    markingScheme: any;
+    baseQNum: string;
+    sourceImageIndices: number[]; // Array of page indices (for multi-page questions)
+  }>();
+  
+  // First pass: Collect all questions and sub-questions, group by base question number
+  for (const q of classificationResult.questions) {
+    const mainQuestionNumber = q.questionNumber || null;
+    const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
+    
+    // Use sourceImageIndices if available (from merged questions), otherwise use sourceImageIndex as array
+    const sourceImageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+      ? q.sourceImageIndices
+      : [q.sourceImageIndex ?? 0];
+    
+    // For non-past papers, questionNumber might be null - use a placeholder or skip grouping
+    // If no baseQNum, we can't group, but we can still create a task if there's student work
+    if (!baseQNum) {
+      // For non-past papers without question numbers, use a placeholder
+      // Check if there's student work - if yes, create a task with null markingScheme
+      const hasMainWork = q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '';
+      const hasSubWork = q.subQuestions && q.subQuestions.some((sq: any) => sq.studentWork && sq.studentWork !== 'null' && sq.studentWork.trim() !== '');
+      
+      if (hasMainWork || hasSubWork) {
+        // Create a task directly without grouping (for non-past papers)
+        // We'll handle this after the grouping loop
+      }
+      continue; // Skip grouping for questions without baseQNum
+    }
+    
+    // Find marking scheme (same for all sub-questions in a group)
+    let markingScheme: any = null;
+    for (const [key, scheme] of markingSchemesMap.entries()) {
+      if (key.startsWith(`${baseQNum}_`)) {
+        const keyQNum = key.split('_')[0];
+        if (keyQNum === baseQNum) {
+          markingScheme = scheme;
+          break;
+        }
+      }
+    }
+    
+    if (!markingScheme) {
+      // Continue to create task with null markingScheme (for non-past papers)
+    }
+    
+    // Initialize group if not exists
+    if (!questionGroups.has(baseQNum)) {
+      questionGroups.set(baseQNum, {
+        mainQuestion: q,
+        subQuestions: [],
+        markingScheme: markingScheme,
+        baseQNum: baseQNum,
+        sourceImageIndices: sourceImageIndices
+      });
+    } else {
+      // If group exists, merge page indices (in case sub-questions are on different pages)
+      const existingGroup = questionGroups.get(baseQNum)!;
+      const mergedIndices = [...new Set([...existingGroup.sourceImageIndices, ...sourceImageIndices])].sort((a, b) => a - b);
+      existingGroup.sourceImageIndices = mergedIndices;
+    }
+    
+    const group = questionGroups.get(baseQNum)!;
+    
+    // Collect sub-questions
+    if (q.subQuestions && Array.isArray(q.subQuestions)) {
+      for (const subQ of q.subQuestions) {
+        if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
+          group.subQuestions.push({
+            part: subQ.part || '',
+            studentWork: subQ.studentWork,
+            text: subQ.text
+          });
+        }
+      }
+    }
+  }
+  
+  // Second pass: Create one task per main question (with all sub-questions grouped)
+  for (const [baseQNum, group] of questionGroups.entries()) {
+    // Skip if no student work at all (neither main nor sub-questions)
+    const hasMainWork = group.mainQuestion.studentWork && 
+                        group.mainQuestion.studentWork !== 'null' && 
+                        group.mainQuestion.studentWork.trim() !== '';
+    const hasSubWork = group.subQuestions.length > 0;
+    
+    if (!hasMainWork && !hasSubWork) {
+      continue;
+    }
+    
+    // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
+    const allMathBlocks: MathBlock[] = [];
+    group.sourceImageIndices.forEach((pageIndex) => {
+      const pageOcrData = allPagesOcrData[pageIndex];
+      if (pageOcrData?.ocrData?.mathBlocks) {
+        pageOcrData.ocrData.mathBlocks.forEach((block: MathBlock, idx: number) => {
+          // Ensure pageIndex is set on the block
+          if (!(block as any).pageIndex) {
+            (block as any).pageIndex = pageIndex;
+          }
+          // Assign global block ID if not present
+          if (!(block as any).globalBlockId) {
+            (block as any).globalBlockId = `block_${pageIndex}_${idx}`;
+          }
+          allMathBlocks.push(block);
+        });
+      }
+    });
+    
+    // Format combined student work with sub-question labels
+    const combinedStudentWork = formatGroupedStudentWork(
+      hasMainWork ? group.mainQuestion.studentWork : null,
+      group.subQuestions
+    );
+    
+    // Extract sub-question numbers for metadata
+    const subQuestionNumbers = group.subQuestions.map(sq => `${baseQNum}${sq.part}`);
+    
+    // Create task with grouped sub-questions
+    tasks.push({
+      questionNumber: baseQNum, // Use base question number (e.g., "22")
+      mathBlocks: allMathBlocks,
+      markingScheme: group.markingScheme,
+      sourcePages: group.sourceImageIndices,
+      classificationStudentWork: combinedStudentWork,
+      pageDimensions: pageDimensionsMap,
+      subQuestionMetadata: {
+        hasSubQuestions: group.subQuestions.length > 0,
+        subQuestions: group.subQuestions.map(sq => ({
+          part: sq.part,
+          text: sq.text
+        })),
+        subQuestionNumbers: subQuestionNumbers.length > 0 ? subQuestionNumbers : undefined
+      }
+    });
+  }
+  
+  // Sort tasks by question number (ascending) to ensure consistent ordering
+  // This ensures Q1, Q2, ..., Q18, ... are processed in numerical order
+  // regardless of the order they appear in classification results
+  tasks.sort((a, b) => {
+    const numA = parseInt(String(a.questionNumber).replace(/\D/g, '')) || 0;
+    const numB = parseInt(String(b.questionNumber).replace(/\D/g, '')) || 0;
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    // If base numbers are equal, compare full strings (e.g., "3a" vs "3b")
+    return String(a.questionNumber || '').localeCompare(String(b.questionNumber || ''), undefined, { numeric: true });
+  });
+  
+  return tasks;
 }
