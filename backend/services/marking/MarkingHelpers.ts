@@ -1,5 +1,5 @@
 /**
- * Helper functions for MarkingPipeline
+ * Helper functions for Marking
  * Contains utility functions for progress tracking, question detection, performance logging, and session management
  */
 

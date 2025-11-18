@@ -8,7 +8,6 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { optionalAuth } from '../middleware/auth.js';
 import type { ModelType } from '../types/index.js';
-// import { runOriginalSingleImagePipeline } from './originalPipeline.js'; // Removed - using unified pipeline only
 import PdfProcessingService from '../services/pdf/PdfProcessingService.js';
 import sharp from 'sharp';
 import { ImageUtils } from '../utils/ImageUtils.js';
