@@ -42,16 +42,24 @@ export function withPerformanceLogging<T>(
 ): Promise<T> {
   const stepKey = stepName.toLowerCase().replace(/\s+/g, '_');
   const startTime = Date.now();
+  const green = '\x1b[32m';
+  const bold = '\x1b[1m';
+  const reset = '\x1b[0m';
+  const stepNameUpper = stepName.toUpperCase();
+  const modelInfoUpper = modelInfo.toUpperCase();
   
-  console.log(`🔄 [${stepName}] Starting...`);
+  console.log(`${bold}${green}🔄 [${stepNameUpper}]${reset} ${bold}STARTING...${reset}`);
   
   return operation().then(result => {
     const duration = Date.now() - startTime;
-    console.log(`✅ [${stepName}] Completed in ${duration}ms (${modelInfo})`);
+    const durationSec = (duration / 1000).toFixed(1);
+    console.log(`${bold}${green}✅ [${stepNameUpper}]${reset} ${bold}COMPLETED${reset} in ${bold}${durationSec}s${reset} (${green}${bold}${modelInfoUpper}${reset})`);
     return result;
   }).catch(error => {
     const duration = Date.now() - startTime;
-    console.log(`❌ [${stepName}] Failed after ${duration}ms (${modelInfo}): ${error.message}`);
+    const durationSec = (duration / 1000).toFixed(1);
+    const red = '\x1b[31m';
+    console.log(`${bold}${red}❌ [${stepNameUpper}]${reset} ${bold}FAILED${reset} after ${bold}${durationSec}s${reset} (${green}${bold}${modelInfoUpper}${reset}): ${error.message}`);
     throw error;
   });
 }

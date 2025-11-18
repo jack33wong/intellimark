@@ -181,7 +181,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         }
         
         const result = await response.json() as any;
-        content = this.extractGeminiContent(result);
+        content = await this.extractGeminiContent(result);
         const cleanContent = this.cleanGeminiResponse(content);
         parsed = this.parseJsonWithSanitization(cleanContent);
         usageTokens = result.usageMetadata?.totalTokenCount || 0;

@@ -413,6 +413,7 @@ export class SessionManagementService {
   /**
    * Create unified session data for frontend
    * FIXED: Uses database objects and creates proper response objects
+   * FIXED: Fetches sessionStats from database to include cost calculation
    */
   private static async createUnifiedSessionData(
     currentSessionId: string,
@@ -428,6 +429,11 @@ export class SessionManagementService {
     const dbMessages = MessageFactory.createForDatabase(context.userMessage, dbAiMessage);
     const responseMessages = MessageFactory.createForResponse(dbMessages);
     
+    // FIXED: Fetch sessionStats from database to include cost (calculated in createUnifiedSessionWithMessages)
+    const { FirestoreService } = await import('../services/firestoreService.js');
+    const dbSession = await FirestoreService.getUnifiedSession(currentSessionId);
+    const dbSessionStats = dbSession?.sessionStats || this.createSessionStats(context);
+    
     return {
       id: currentSessionId,
       title: sessionTitle,
@@ -437,7 +443,7 @@ export class SessionManagementService {
       createdAt: context.userMessage.timestamp,
       updatedAt: dbAiMessage.timestamp,
       isPastPaper: false,
-      sessionStats: this.createSessionStats(context)
+      sessionStats: dbSessionStats // Use sessionStats from database (includes cost)
     };
   }
 

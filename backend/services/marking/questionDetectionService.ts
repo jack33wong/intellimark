@@ -5,6 +5,7 @@
 
 import { getFirestore } from '../../config/firebase.js';
 import { normalizeTextForComparison } from '../../utils/TextNormalizationUtils.js';
+import * as stringSimilarity from 'string-similarity';
 
 // Common function to convert full subject names to short forms
 function getShortSubjectName(qualification: string): string {
@@ -102,18 +103,11 @@ export class QuestionDetectionService {
     questionNumberHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
-      // Debug: Check if this is question 1
-      const isQ1 = questionNumberHint === '1' || String(questionNumberHint) === '1' || 
-                   (extractedQuestionText && /^1[)\-:\s]/.test(extractedQuestionText.trim()));
+      // Debug: Extract question number for logging
+      const questionNum = questionNumberHint || (extractedQuestionText ? extractedQuestionText.match(/^(\d+)/)?.[1] : null) || '?';
+      const debugPrefix = `[Q${questionNum} DETECTION]`;
       
-      if (isQ1) {
-        console.log(`[Q1 DETECTION DEBUG] Starting detection for Q1, hint="${questionNumberHint}", text="${extractedQuestionText.substring(0, 100)}..."`);
-      }
-
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
-        if (isQ1) {
-          console.log(`[Q1 DETECTION DEBUG] ❌ No question text provided`);
-        }
         return {
           found: false,
           message: 'No question text provided'
@@ -124,23 +118,17 @@ export class QuestionDetectionService {
       const examPapers = await this.getAllExamPapers();
       
       if (examPapers.length === 0) {
-        if (isQ1) {
-          console.log(`[Q1 DETECTION DEBUG] ❌ No exam papers found in database`);
-        }
         return {
           found: false,
           message: 'No exam papers found in database'
         };
       }
 
-      if (isQ1) {
-        console.log(`[Q1 DETECTION DEBUG] Checking ${examPapers.length} exam papers`);
-      }
-
       // Try to match with each exam paper
       let bestMatch: ExamPaperMatch | null = null;
       let bestScore = 0;
       let bestTextMatch: { match: ExamPaperMatch; textSimilarity: number } | null = null;
+      let bestFailedMatch: ExamPaperMatch | null = null; // Track best match even if below threshold
 
       for (const examPaper of examPapers) {
         const metadata = examPaper.metadata;
@@ -149,14 +137,19 @@ export class QuestionDetectionService {
         
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
         if (match && match.confidence) {
-          // If this match has a higher confidence, it's definitely better
+          // Track best match even if below threshold (for failure logging)
           if (match.confidence > bestScore) {
-          bestMatch = match;
-          bestScore = match.confidence;
-            // Calculate text similarity for tie-breaking
-            if (match.databaseQuestionText) {
-              const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
-              bestTextMatch = { match, textSimilarity };
+            bestFailedMatch = match;
+            bestScore = match.confidence;
+            // Only accept as bestMatch if above threshold (0.50 for main, 0.40 for sub)
+            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+            if (match.confidence >= threshold) {
+              bestMatch = match;
+              // Calculate text similarity for tie-breaking
+              if (match.databaseQuestionText) {
+                const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+                bestTextMatch = { match, textSimilarity };
+              }
             }
           } 
           // If confidence is equal, break tie by checking actual text match quality
@@ -185,10 +178,12 @@ export class QuestionDetectionService {
             }
             
             // Prefer match that starts with same words, or if both do, prefer higher text similarity
-            if (!bestTextMatch || 
+            const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+            if (match.confidence >= threshold && (!bestMatch || 
+                !bestTextMatch || 
                 (startsMatch && !bestStartsMatch) ||
                 (startsMatch && bestStartsMatch && textSimilarity > bestTextMatch.textSimilarity) ||
-                (!startsMatch && !bestStartsMatch && textSimilarity > bestTextMatch.textSimilarity)) {
+                (!startsMatch && !bestStartsMatch && textSimilarity > bestTextMatch.textSimilarity))) {
               bestMatch = match;
               bestTextMatch = { match, textSimilarity };
             }
@@ -197,20 +192,11 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
-        if (isQ1) {
-          console.log(`[Q1 DETECTION DEBUG] ✅ Found match: paperCode="${bestMatch.paperCode}", questionNumber="${bestMatch.questionNumber}", confidence=${bestScore.toFixed(3)}`);
-        }
+        console.log(`${debugPrefix} ✅ Match: ${bestMatch.paperCode} Q${bestMatch.questionNumber} (score=${bestScore.toFixed(3)})`);
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
-          if (isQ1) {
-            console.log(`[Q1 DETECTION DEBUG] ✅ Marking scheme found`);
-          }
-        } else {
-          if (isQ1) {
-            console.log(`[Q1 DETECTION DEBUG] ⚠️ Marking scheme NOT found`);
-          }
         }
         
         return {
@@ -220,8 +206,18 @@ export class QuestionDetectionService {
         };
       }
 
-      if (isQ1) {
-        console.log(`[Q1 DETECTION DEBUG] ❌ No match found. Best score was: ${bestScore.toFixed(3)} (threshold: 0.50)`);
+      // Log failures with text comparison for troubleshooting
+      if (bestScore > 0) {
+        const bestMatchForLog = bestTextMatch?.match || bestFailedMatch;
+        if (bestMatchForLog?.databaseQuestionText) {
+          const normClassification = normalizeTextForComparison(extractedQuestionText);
+          const normDatabase = normalizeTextForComparison(bestMatchForLog.databaseQuestionText);
+          console.log(`${debugPrefix} ❌ Failed: bestScore=${bestScore.toFixed(3)} < threshold=0.50`);
+          console.log(`  Classification: "${normClassification.substring(0, 100)}${normClassification.length > 100 ? '...' : ''}"`);
+          console.log(`  Database:       "${normDatabase.substring(0, 100)}${normDatabase.length > 100 ? '...' : ''}"`);
+        } else {
+          console.log(`${debugPrefix} ❌ Failed: bestScore=${bestScore.toFixed(3)} < threshold=0.50`);
+        }
       }
 
       return {
@@ -510,15 +506,44 @@ export class QuestionDetectionService {
       const metadata = examPaper.metadata;
       const paperCode = metadata?.exam_code || 'unknown';
       
-      // Debug: Log Q1 matching attempts
-      const isQ1Hint = questionNumberHint === '1' || String(questionNumberHint) === '1';
-      if (isQ1Hint && bestQuestionMatch) {
-        console.log(`[Q1 DETECTION DEBUG] Match attempt: questionNumber="${bestQuestionMatch}", similarity=${bestScore.toFixed(3)}, threshold=${threshold.toFixed(2)}, paperCode="${paperCode}"`);
-      } else if (isQ1Hint && !bestQuestionMatch) {
-        console.log(`[Q1 DETECTION DEBUG] No match found in paperCode="${paperCode}", bestScore=${bestScore.toFixed(3)}`);
+      // Debug: Only log best matches or failures for troubleshooting
+      const questionNum = questionNumberHint || (questionText ? questionText.match(/^(\d+)/)?.[1] : null) || '?';
+      const debugPrefix = `[Q${questionNum} DETECTION]`;
+      
+      // Only log if we have a match attempt (bestQuestionMatch exists) and it's the target paper or close to threshold
+      if (bestQuestionMatch && (paperCode === '1MA1/1H' || bestScore >= threshold * 0.8)) {
+        // Get database text for comparison
+        let databaseText = '';
+        if (bestSubQuestionNumber && bestMatchedQuestion) {
+          const matchedSubQuestions = bestMatchedQuestion?.sub_questions || bestMatchedQuestion?.subQuestions || [];
+          const matchedSubQ = matchedSubQuestions.find((sq: any) => {
+            if (!sq.question_part) return false;
+            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
+          });
+          if (matchedSubQ) {
+            databaseText = matchedSubQ.text || matchedSubQ.question || matchedSubQ.question_text || '';
+          }
+        } else if (bestMatchedQuestion) {
+          databaseText = bestMatchedQuestion.question_text || bestMatchedQuestion.text || bestMatchedQuestion.question || '';
+        }
+        
+        // Show normalized text comparison for troubleshooting
+        if (databaseText) {
+          const normClassification = normalizeTextForComparison(questionText);
+          const normDatabase = normalizeTextForComparison(databaseText);
+          console.log(`${debugPrefix} ${paperCode} Q${bestQuestionMatch}: similarity=${bestScore.toFixed(3)} (threshold=${threshold.toFixed(2)})`);
+          if (bestScore < threshold) {
+            console.log(`  Classification: "${normClassification.substring(0, 80)}${normClassification.length > 80 ? '...' : ''}"`);
+            console.log(`  Database:       "${normDatabase.substring(0, 80)}${normDatabase.length > 80 ? '...' : ''}"`);
+          }
+        } else {
+          console.log(`${debugPrefix} ${paperCode} Q${bestQuestionMatch}: similarity=${bestScore.toFixed(3)} (threshold=${threshold.toFixed(2)})`);
+        }
       }
       
-      if (bestQuestionMatch && bestScore >= threshold) {
+      // Return match even if below threshold (for logging purposes)
+      // The caller will check threshold and reject if needed
+      if (bestQuestionMatch) {
         // Use standardized fullExamPapers structure
         if (!metadata) {
           throw new Error('Exam paper missing required metadata structure');
@@ -582,7 +607,7 @@ export class QuestionDetectionService {
           databaseQuestionText = bestMatchedQuestion.question_text || bestMatchedQuestion.text || bestMatchedQuestion.question || '';
         }
         
-        return {
+        const match: ExamPaperMatch = {
           board: board,
           qualification: qualification,
           paperCode: paperCode,
@@ -595,8 +620,15 @@ export class QuestionDetectionService {
           confidence: bestScore,
           databaseQuestionText: databaseQuestionText // Store database question text for filtering
         };
+        
+        // Only return if above threshold, but we've already logged it above
+        if (bestScore >= threshold) {
+          return match;
+        }
+        
+        // Return match even if below threshold (for logging in caller)
+        return match;
       }
-
 
       return null;
     } catch (error) {
@@ -723,6 +755,24 @@ export class QuestionDetectionService {
         if (questions[flatKey]) {
           questionMarks = questions[flatKey];
         } else {
+          // Fallback: If main question doesn't exist but sub-questions do (e.g., "3" doesn't exist but "3a", "3b" do)
+          // This happens when classification extracts main question text but database only has sub-question schemes
+          if (!examPaperMatch.subQuestionNumber) {
+            // Check if any sub-questions exist for this question number
+            const subQuestionKeys = Object.keys(questions).filter(key => {
+              // Check if key starts with questionNumber followed by a letter (e.g., "3a", "3b" for question "3")
+              const baseMatch = key.match(/^(\d+)([a-z]+)$/i);
+              return baseMatch && baseMatch[1] === questionNumber;
+            });
+            
+            if (subQuestionKeys.length > 0) {
+              // Main question doesn't have a marking scheme, but sub-questions do
+              // This is expected - main questions with sub-questions typically don't have their own scheme
+              // Return null to allow question to proceed without marking scheme (will use basic prompt)
+              return null;
+            }
+          }
+          
           // Fail fast - no matching structure found
           return null; // Fail fast - no fallbacks
         }
@@ -753,8 +803,9 @@ export class QuestionDetectionService {
   }
 
   /**
-   * Calculate similarity between two strings using simple fuzzy matching
+   * Calculate similarity between two strings using string-similarity library and n-grams
    * Returns a score between 0 and 1
+   * Optimized for math expressions (space-less text after normalization)
    */
   private calculateSimilarity(str1: string, str2: string): number {
     if (!str1 || !str2) return 0;
@@ -780,187 +831,52 @@ export class QuestionDetectionService {
       }
     }
 
-    // Extract key phrases that should match
-    const keyPhrases1 = this.extractKeyPhrases(norm1);
-    const keyPhrases2 = this.extractKeyPhrases(norm2);
-
-    // Calculate key phrase similarity (higher weight)
-    const keyPhraseScore = this.calculateKeyPhraseSimilarity(keyPhrases1, keyPhrases2);
-
-    // Word-based similarity with fuzzy matching (Levenshtein)
-    const words1 = norm1.split(' ');
-    const words2 = norm2.split(' ');
-
-    let matchedCount = 0;
-    const usedWord2Indexes: Set<number> = new Set();
-    const matchedWord2Indexes: Array<number | null> = [];
-    const totalWords = Math.max(words1.length, words2.length);
-
-    for (let i = 0; i < words1.length; i++) {
-      const queryWord = words1[i];
-      let foundExact = false;
-
-      for (let j = 0; j < words2.length; j++) {
-        if (usedWord2Indexes.has(j)) continue;
-        if (queryWord === words2[j]) {
-          usedWord2Indexes.add(j);
-          matchedCount++;
-          matchedWord2Indexes.push(j);
-          foundExact = true;
-          break;
-        }
-      }
-
-      if (foundExact) continue;
-
-      // Fuzzy match using Levenshtein distance
-      for (let j = 0; j < words2.length; j++) {
-        if (usedWord2Indexes.has(j)) continue;
-        const candidateWord = words2[j];
-        const maxLen = Math.max(queryWord.length, candidateWord.length);
-        const threshold = Math.floor(maxLen / 5); // heuristic: word length / 5
-        const distance = this.levenshteinDistance(queryWord, candidateWord);
-        if (distance <= threshold) {
-          usedWord2Indexes.add(j);
-          matchedCount++;
-          matchedWord2Indexes.push(j);
-          break;
-        }
-      }
-
-      // If no match found for this query word, record null to maintain order tracking
-      if (matchedWord2Indexes.length < i + 1) {
-        matchedWord2Indexes.push(null);
-      }
-    }
-
-    const wordSimilarity = totalWords === 0 ? 0 : matchedCount / totalWords;
-
-    // Order-based score: reward longest run of consecutive, in-order matches
-    let longestRun = 0;
-    let currentRun = 0;
-    let prevJ: number | null = null;
-    for (const j of matchedWord2Indexes) {
-      if (j === null) {
-        currentRun = 0;
-        prevJ = null;
-        continue;
-      }
-      if (prevJ !== null && j === prevJ + 1) {
-        currentRun += 1;
-      } else {
-        currentRun = 1;
-      }
-      longestRun = Math.max(longestRun, currentRun);
-      prevJ = j;
-    }
-    const orderScore = totalWords === 0 ? 0 : longestRun / totalWords;
-
-    // Combine scores with weighted approach
-    // Key phrases get 40% weight, word similarity gets 40%, order gets 20%
-    const combinedScore = (keyPhraseScore * 0.4) + (wordSimilarity * 0.4) + (orderScore * 0.2);
+    // Use string-similarity library (Dice coefficient) - works well for general text
+    const diceScore = stringSimilarity.compareTwoStrings(norm1, norm2);
     
-    return Math.max(combinedScore, wordSimilarity, orderScore);
+    // N-gram similarity for space-less math expressions (works better than word-based matching)
+    const ngramScore = this.calculateNgramSimilarity(norm1, norm2, 3);
+    
+    // Return the best score (n-grams are better for math, Dice is better for general text)
+    return Math.max(diceScore, ngramScore);
   }
 
   /**
-   * Extract key phrases from question text that are important for matching
+   * Calculate similarity using character n-grams (for space-less text like math expressions)
+   * @param text1 First normalized text
+   * @param text2 Second normalized text
+   * @param n N-gram size (default: 3 for trigrams)
+   * @returns Similarity score between 0 and 1
    */
-  private extractKeyPhrases(text: string): string[] {
-    const phrases: string[] = [];
+  private calculateNgramSimilarity(text1: string, text2: string, n: number = 3): number {
+    const ngrams1 = this.extractNgrams(text1, n);
+    const ngrams2 = this.extractNgrams(text2, n);
     
-    // Common question patterns
-    const patterns = [
-      /work out how much/g,
-      /work out the/g,
-      /find the/g,
-      /calculate the/g,
-      /show that/g,
-      /prove that/g,
-      /solve the/g,
-      /write down/g,
-      /draw a/g,
-      /complete the/g
-    ];
+    if (ngrams1.length === 0 && ngrams2.length === 0) return 1.0;
+    if (ngrams1.length === 0 || ngrams2.length === 0) return 0.0;
     
-    for (const pattern of patterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        phrases.push(...matches);
-      }
-    }
+    // Jaccard similarity: intersection / union
+    const set1 = new Set(ngrams1);
+    const set2 = new Set(ngrams2);
     
-    // Extract numbers and units
-    const numberPatterns = [
-      /\d+\s*m²/g,
-      /\d+\s*£/g,
-      /\d+\s*pounds/g,
-      /\d+\s*per\s+\w+/g,
-      /\d+\s*bags/g,
-      /\d+\s*seeds/g
-    ];
+    const intersection = [...set1].filter(x => set2.has(x)).length;
+    const union = new Set([...set1, ...set2]).size;
     
-    for (const pattern of numberPatterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        phrases.push(...matches);
-      }
-    }
-    
-    return phrases.map(p => p.toLowerCase().trim());
+    return union === 0 ? 1.0 : intersection / union;
   }
 
   /**
-   * Calculate similarity based on key phrases
+   * Extract character n-grams from text
+   * @param text Input text
+   * @param n N-gram size
+   * @returns Array of n-grams
    */
-  private calculateKeyPhraseSimilarity(phrases1: string[], phrases2: string[]): number {
-    if (phrases1.length === 0 && phrases2.length === 0) return 1.0;
-    if (phrases1.length === 0 || phrases2.length === 0) return 0.0;
-    
-    let matchedPhrases = 0;
-    const usedPhrases2: Set<number> = new Set();
-    
-    for (const phrase1 of phrases1) {
-      for (let i = 0; i < phrases2.length; i++) {
-        if (usedPhrases2.has(i)) continue;
-        if (phrase1 === phrases2[i]) {
-          matchedPhrases++;
-          usedPhrases2.add(i);
-          break;
-        }
-      }
+  private extractNgrams(text: string, n: number): string[] {
+    const ngrams: string[] = [];
+    for (let i = 0; i <= text.length - n; i++) {
+      ngrams.push(text.substring(i, i + n));
     }
-    
-    return matchedPhrases / Math.max(phrases1.length, phrases2.length);
-  }
-
-  /**
-   * Compute Levenshtein edit distance between two strings
-   */
-  private levenshteinDistance(a: string, b: string): number {
-    const lenA = a.length;
-    const lenB = b.length;
-    if (lenA === 0) return lenB;
-    if (lenB === 0) return lenA;
-
-    const dp: number[] = new Array(lenB + 1);
-    for (let j = 0; j <= lenB; j++) dp[j] = j;
-
-    for (let i = 1; i <= lenA; i++) {
-      let prev = dp[0];
-      dp[0] = i;
-      for (let j = 1; j <= lenB; j++) {
-        const temp = dp[j];
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        dp[j] = Math.min(
-          dp[j] + 1,        // deletion
-          dp[j - 1] + 1,    // insertion
-          prev + cost       // substitution
-        );
-        prev = temp;
-      }
-    }
-    return dp[lenB];
+    return ngrams;
   }
 }
 

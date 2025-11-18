@@ -851,7 +851,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     return () => {
       if (stepTimings[stepKey]) {
         stepTimings[stepKey].duration = Date.now() - stepTimings[stepKey].start;
-        console.log(`✅ [${stepName}] Completed in ${stepTimings[stepKey].duration}ms (${modelInfo})`);
+        const green = '\x1b[32m';
+        const bold = '\x1b[1m';
+        const reset = '\x1b[0m';
+        const duration = stepTimings[stepKey].duration;
+        const durationSec = (duration / 1000).toFixed(1);
+        const stepNameUpper = stepName.toUpperCase();
+        const modelInfoUpper = modelInfo.toUpperCase();
+        console.log(`${bold}${green}✅ [${stepNameUpper}]${reset} ${bold}COMPLETED${reset} in ${bold}${durationSec}s${reset} (${green}${bold}${modelInfoUpper}${reset})`);
       }
     };
   };
@@ -1844,14 +1851,66 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
+    
+    // Track detection statistics
+    const detectionStats = {
+        totalQuestions: individualQuestions.length,
+        detected: 0,
+        notDetected: 0,
+        withMarkingScheme: 0,
+        withoutMarkingScheme: 0,
+        bySimilarityRange: {
+            high: 0,      // ≥ 0.90
+            medium: 0,   // 0.70-0.89
+            low: 0       // 0.40-0.69
+        },
+        questionDetails: [] as Array<{
+            questionNumber: string | null | undefined;
+            detected: boolean;
+            similarity?: number;
+            hasMarkingScheme: boolean;
+        }>
+    };
+    
     for (const question of individualQuestions) {
         const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
-        // Allow questions with or without marking schemes (for non-past papers)
-        // If found but no marking scheme, still add it (will use basic prompt)
-        // If not found, don't add to detectionResults but question will still be processed in createMarkingTasksFromClassification
+        const similarity = detectionResult.match?.confidence || 0;
+        const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
+        
+        // Track statistics
         if (detectionResult.found) {
+            detectionStats.detected++;
+            if (hasMarkingScheme) {
+                detectionStats.withMarkingScheme++;
+            } else {
+                detectionStats.withoutMarkingScheme++;
+            }
+            
+            // Categorize by similarity
+            if (similarity >= 0.90) {
+                detectionStats.bySimilarityRange.high++;
+            } else if (similarity >= 0.70) {
+                detectionStats.bySimilarityRange.medium++;
+            } else if (similarity >= 0.40) {
+                detectionStats.bySimilarityRange.low++;
+            }
+            
+            detectionStats.questionDetails.push({
+                questionNumber: question.questionNumber,
+                detected: true,
+                similarity,
+                hasMarkingScheme
+            });
+            
             detectionResults.push({ question, detectionResult });
+        } else {
+            detectionStats.notDetected++;
+            detectionStats.questionDetails.push({
+                questionNumber: question.questionNumber,
+                detected: false,
+                hasMarkingScheme: false
+            });
         }
         // Note: Questions with detectionResult.found = false are still in classificationResult.questions
         // and will be processed in createMarkingTasksFromClassification with null markingScheme
@@ -2134,6 +2193,42 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     logQuestionDetectionComplete();
     
+    // Log detection statistics
+    const detectionRate = detectionStats.totalQuestions > 0 
+        ? ((detectionStats.detected / detectionStats.totalQuestions) * 100).toFixed(0)
+        : '0';
+    
+    console.log(`\n📊 [QUESTION DETECTION STATISTICS]`);
+    console.log(`   Total questions: ${detectionStats.totalQuestions}`);
+    console.log(`   Detected: ${detectionStats.detected}/${detectionStats.totalQuestions} (${detectionRate}%)`);
+    console.log(`   Not detected: ${detectionStats.notDetected}`);
+    console.log(`   With marking scheme: ${detectionStats.withMarkingScheme}`);
+    console.log(`   Without marking scheme: ${detectionStats.withoutMarkingScheme}`);
+    console.log(`   Similarity ranges:`);
+    console.log(`     ≥ 0.90: ${detectionStats.bySimilarityRange.high}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.high / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
+    console.log(`     0.70-0.89: ${detectionStats.bySimilarityRange.medium}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.medium / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
+    console.log(`     0.40-0.69: ${detectionStats.bySimilarityRange.low}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.low / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
+    
+    // Log questions without marking schemes
+    const questionsWithoutScheme = detectionStats.questionDetails
+        .filter(q => q.detected && !q.hasMarkingScheme)
+        .map(q => `Q${q.questionNumber || '?'}`)
+        .join(', ');
+    if (questionsWithoutScheme) {
+        console.log(`   Questions without marking scheme: ${questionsWithoutScheme}`);
+    }
+    
+    // Log low similarity questions
+    const lowSimilarityQuestions = detectionStats.questionDetails
+        .filter(q => q.detected && q.similarity !== undefined && q.similarity < 0.70 && q.similarity >= 0.40)
+        .map(q => `Q${q.questionNumber || '?'} (${q.similarity?.toFixed(3)})`)
+        .join(', ');
+    if (lowSimilarityQuestions) {
+        console.log(`   Low similarity questions (0.40-0.69): ${lowSimilarityQuestions}`);
+    }
+    
+    console.log(`\n`);
+    
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
 
@@ -2200,11 +2295,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // ========================= START: VALIDATE SCHEMES =========================
     // --- Stage 3.5: Validate that schemes were attached during segmentation ---
-    // Schemes are now attached during segmentation, so we just need to validate and filter
+    // Allow tasks without marking schemes - they'll use basic prompt (for non-past papers or failed detection)
+    const tasksWithoutScheme: string[] = [];
     const tasksWithSchemes: MarkingTask[] = markingTasks.filter(task => {
         if (!task.markingScheme) {
-            console.warn(`[SEGMENTATION] ⚠️ Task for Q${task.questionNumber} has no marking scheme, skipping`);
-            return false;
+            tasksWithoutScheme.push(String(task.questionNumber || '?'));
+            console.warn(`[SEGMENTATION] ⚠️ Task for Q${task.questionNumber} has no marking scheme, will use basic prompt`);
+            // Don't skip - allow task to proceed with null markingScheme (basic prompt will be used)
+            return true;
         }
         return true;
     });
@@ -2225,7 +2323,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       actualModel,
       async () => {
         const markingPromises = tasksWithSchemes.map(task => // <-- Use tasksWithSchemes
-          executeMarkingForQuestion(task, res, submissionId) // Pass res and submissionId
+          executeMarkingForQuestion(task, res, submissionId, actualModel) // Pass res, submissionId, and actualModel
         );
         return Promise.all(markingPromises);
       }
@@ -2495,32 +2593,173 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Check if this is a past paper (has marking schemes)
         const isPastPaper = markingSchemesMap && markingSchemesMap.size > 0;
         
+        // Helper function to convert question numbers to sortable numeric values
+        // Examples: "3" → 3.0, "3a" → 3.01, "3b" → 3.02, "12i" → 12.01, "12ii" → 12.02
+        const getQuestionSortValue = (questionNumber: string | null | undefined): number => {
+          if (!questionNumber) return Infinity;
+          
+          const baseNum = parseInt(String(questionNumber).replace(/\D/g, '')) || 0;
+          if (baseNum === 0) return Infinity;
+          
+          // Extract sub-question part (e.g., "a", "b", "i", "ii")
+          const subPart = String(questionNumber).replace(/^\d+/, '').toLowerCase();
+          
+          if (!subPart) {
+            // Main question (e.g., "3") → 3.0
+            return baseNum;
+          }
+          
+          // Convert sub-question part to numeric offset
+          let subOffset = 0;
+          
+          // Letter sub-questions: a=0.01, b=0.02, c=0.03, etc.
+          if (subPart.match(/^[a-z]$/)) {
+            subOffset = (subPart.charCodeAt(0) - 'a'.charCodeAt(0) + 1) * 0.01;
+          }
+          // Roman numerals: i=0.01, ii=0.02, iii=0.03, iv=0.04, v=0.05, etc.
+          else if (subPart.match(/^[ivx]+$/i)) {
+            const romanMap: Record<string, number> = {
+              'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5,
+              'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10
+            };
+            const romanValue = romanMap[subPart.toLowerCase()] || 0;
+            subOffset = romanValue * 0.01;
+          }
+          // Numeric sub-questions: (1)=0.01, (2)=0.02, etc.
+          else if (subPart.match(/^\(?\d+\)?$/)) {
+            const numMatch = subPart.match(/\d+/);
+            if (numMatch) {
+              subOffset = parseInt(numMatch[0]) * 0.01;
+            }
+          }
+          
+          // Return base number + sub-question offset
+          return baseNum + subOffset;
+        };
+
+        // Build mapping from classification result: page -> sub-question number
+        // This tells us which sub-question (e.g., "3a", "3b") is on which page
+        // Note: Sub-questions on different pages may appear in separate question entries
+        const classificationPageToSubQuestion = new Map<number, Map<string, string>>(); // pageIndex -> baseQNum -> subQNum
+        if (isPastPaper && classificationResult?.questions) {
+          for (const q of classificationResult.questions) {
+            const baseQNum = String(q.questionNumber || '');
+            if (!baseQNum) continue;
+            
+            const pageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
+              ? q.sourceImageIndices
+              : (q.sourceImageIndex !== undefined ? [q.sourceImageIndex] : []);
+            
+            if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+              // If sub-questions are on the same page, they're in the same question entry
+              // If they're on different pages, they might be in separate entries
+              // Map each sub-question to its page(s)
+              q.subQuestions.forEach((subQ: any, subIndex: number) => {
+                const part = subQ.part || '';
+                if (!part) return;
+                
+                const subQNum = `${baseQNum}${part}`;
+                // For each page this question spans, map the sub-question
+                // If multiple pages, assign sub-questions in order (first sub-question to first page, etc.)
+                pageIndices.forEach((pageIndex, pageIdx) => {
+                  // If only one sub-question or first sub-question, use first page
+                  // Otherwise, try to match sub-question index to page index
+                  if (q.subQuestions.length === 1 || subIndex === pageIdx || (subIndex === 0 && pageIdx === 0)) {
+                    if (!classificationPageToSubQuestion.has(pageIndex)) {
+                      classificationPageToSubQuestion.set(pageIndex, new Map());
+                    }
+                    // Only set if not already set (first occurrence wins)
+                    if (!classificationPageToSubQuestion.get(pageIndex)!.has(baseQNum)) {
+                      classificationPageToSubQuestion.get(pageIndex)!.set(baseQNum, subQNum);
+                    }
+                  }
+                });
+              });
+            }
+          }
+        }
+        
         // Create mapping from pageIndex to question numbers (for past paper sorting)
         const pageToQuestionNumbers = new Map<number, number[]>();
         if (isPastPaper) {
           allQuestionResults.forEach((qr) => {
-            // Get pageIndex from annotations (most common pageIndex if question spans multiple pages)
-            let pageIndex: number | undefined;
-            if (qr.annotations && qr.annotations.length > 0) {
-              const pageIndexCounts = new Map<number, number>();
-              qr.annotations.forEach(anno => {
-                if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
-                  pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
-                }
-              });
-              if (pageIndexCounts.size > 0) {
-                pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+            const baseQNum = String(qr.questionNumber || '');
+            
+            // Check if this is a grouped sub-question (has sub-question numbers in markingSchemesMap)
+            let subQuestionNumbers: string[] | undefined = undefined;
+            for (const [key, scheme] of markingSchemesMap.entries()) {
+              const keyQNum = key.split('_')[0];
+              if (keyQNum === baseQNum && scheme.subQuestionNumbers && Array.isArray(scheme.subQuestionNumbers)) {
+                subQuestionNumbers = scheme.subQuestionNumbers;
+                break;
               }
             }
             
-            if (pageIndex !== undefined) {
-              // Extract numeric question number
-              const qNum = parseInt(String(qr.questionNumber || '').replace(/\D/g, '')) || 0;
-              if (qNum > 0) {
-                if (!pageToQuestionNumbers.has(pageIndex)) {
-                  pageToQuestionNumbers.set(pageIndex, []);
+            if (subQuestionNumbers && subQuestionNumbers.length > 0) {
+              // This is a grouped sub-question - map each page to its corresponding sub-question number
+              // Get all pages that have annotations for this question
+              const pageIndexCounts = new Map<number, number>();
+              if (qr.annotations && qr.annotations.length > 0) {
+                qr.annotations.forEach(anno => {
+                  if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+                    pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+                  }
+                });
+              }
+              
+              // For each page with annotations, look up the actual sub-question number from classification
+              pageIndexCounts.forEach((count, pageIndex) => {
+                // Try to get the sub-question number from classification mapping
+                const pageSubQuestionMap = classificationPageToSubQuestion.get(pageIndex);
+                let subQNum: string | undefined = undefined;
+                
+                if (pageSubQuestionMap && pageSubQuestionMap.has(baseQNum)) {
+                  // Found exact mapping from classification
+                  subQNum = pageSubQuestionMap.get(baseQNum);
+                } else {
+                  // Fallback: use order-based assignment (first page gets first sub-question, etc.)
+                  const sortedPages = Array.from(pageIndexCounts.keys()).sort((a, b) => a - b);
+                  const pageIndexInOrder = sortedPages.indexOf(pageIndex);
+                  if (pageIndexInOrder >= 0 && pageIndexInOrder < subQuestionNumbers.length) {
+                    subQNum = subQuestionNumbers[pageIndexInOrder];
+                  }
                 }
-                pageToQuestionNumbers.get(pageIndex)!.push(qNum);
+                
+                if (subQNum) {
+                  const sortValue = getQuestionSortValue(subQNum);
+                  if (sortValue !== Infinity && sortValue > 0) {
+                    if (!pageToQuestionNumbers.has(pageIndex)) {
+                      pageToQuestionNumbers.set(pageIndex, []);
+                    }
+                    pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
+                  }
+                }
+              });
+            } else {
+              // Single question (not grouped sub-questions) - use base question number
+              // Get pageIndex from annotations (most common pageIndex if question spans multiple pages)
+              let pageIndex: number | undefined;
+              if (qr.annotations && qr.annotations.length > 0) {
+                const pageIndexCounts = new Map<number, number>();
+                qr.annotations.forEach(anno => {
+                  if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+                    pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+                  }
+                });
+                if (pageIndexCounts.size > 0) {
+                  pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+                }
+              }
+              
+              if (pageIndex !== undefined) {
+                // Convert question number to sortable value (preserves sub-question order)
+                const sortValue = getQuestionSortValue(baseQNum);
+                if (sortValue !== Infinity && sortValue > 0) {
+                  if (!pageToQuestionNumbers.has(pageIndex)) {
+                    pageToQuestionNumbers.set(pageIndex, []);
+                  }
+                  pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
+                }
               }
             }
           });

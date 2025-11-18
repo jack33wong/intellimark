@@ -152,7 +152,7 @@
 
 /* Main Mark Homework Button */
 .mark-homework-main-btn {
-  background: var(--background-gray-main);
+  background: var(--background-nav);
   color: var(--text-primary);
   border: none;
   padding: 10px 15px;

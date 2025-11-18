@@ -7,6 +7,7 @@ import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { sendSseUpdate } from '../../utils/sseUtils.js';
 import type { MarkingInstructions, Annotation } from '../../types/index.js';
 import type { MathBlock } from '../ocr/MathDetectionService.js';
+import type { ModelType } from '../../config/aiModels.js';
 
 // Types for the marking executor
 export interface MarkingTask {
@@ -52,7 +53,8 @@ export interface EnrichedAnnotation extends Annotation {
 export async function executeMarkingForQuestion(
   task: MarkingTask,
   res: any, // Pass the Response object for SSE updates
-  submissionId: string // Pass submissionId for context in SSE
+  submissionId: string, // Pass submissionId for context in SSE
+  model: ModelType = 'auto' // Pass the AI model to use for marking
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;
@@ -643,7 +645,7 @@ export async function executeMarkingForQuestion(
     
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: '', // Not needed for text-based marking
-      model: 'auto',
+      model: model, // Use the passed model instead of hardcoded 'auto'
       processedImage: {
         ocrText: ocrTextForPrompt,
         boundingBoxes: stepsDataForMapping.map(step => ({

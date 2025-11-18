@@ -31,7 +31,9 @@ export function createStepLogger(totalSteps: number, startStep: number = 0) {
         const paddedName = stepName.padEnd(25);
         const durationStr = `[${duration}s]`;
         const modelStr = `[${modelInfo}]`;
-        console.log(`${progress} ${paddedName} ${durationStr} ${modelStr}`);
+        const green = '\x1b[32m';
+        const reset = '\x1b[0m';
+        console.log(`${progress} ${green}${paddedName}${reset} ${durationStr} ${green}${modelStr}${reset}`);
       };
     }
   };

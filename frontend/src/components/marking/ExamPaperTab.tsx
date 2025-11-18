@@ -28,6 +28,14 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     return match ? parseInt(match[1], 10) : 0;
   };
 
+  // Helper function to check if question has sub-question part (e.g., "3a" -> true, "3" -> false)
+  const hasSubQuestionPart = (questionNumber: string): boolean => {
+    const baseMatch = questionNumber.match(/^(\d+)/);
+    if (!baseMatch) return false;
+    const afterBase = questionNumber.substring(baseMatch[0].length);
+    return afterBase.length > 0 && /^[a-z0-9()]+/i.test(afterBase);
+  };
+
   // Helper function to check if numbers are in sequence
   const isSequence = (numbers: number[]): boolean => {
     if (numbers.length <= 1) return false;
@@ -51,20 +59,60 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
               </span>
               <span className="tab-item">
                 {(() => {
-                  const baseNumbers = examPaper.questions
-                    .map(q => getBaseQuestionNumber(q.questionNumber.split('_')[0]))
+                  // Get all question numbers (remove suffix after '_' if present)
+                  const questionNumbers = examPaper.questions
+                    .map(q => q.questionNumber.split('_')[0])
+                    .filter(qNum => qNum && qNum.length > 0);
+                  
+                  if (questionNumbers.length === 0) {
+                    return '';
+                  }
+                  
+                  // Check if all questions have sub-question parts
+                  const allHaveSubParts = questionNumbers.every(qNum => hasSubQuestionPart(qNum));
+                  
+                  // If all have sub-parts, show them all
+                  if (allHaveSubParts) {
+                    // Group by base number
+                    const grouped = new Map<number, string[]>();
+                    questionNumbers.forEach(qNum => {
+                      const baseNum = getBaseQuestionNumber(qNum);
+                      if (baseNum > 0) {
+                        if (!grouped.has(baseNum)) {
+                          grouped.set(baseNum, []);
+                        }
+                        grouped.get(baseNum)!.push(qNum);
+                      }
+                    });
+                    
+                    // Sort base numbers and format
+                    const sortedBases = Array.from(grouped.keys()).sort((a, b) => a - b);
+                    return sortedBases.map(baseNum => {
+                      const subQuestions = grouped.get(baseNum)!.sort();
+                      if (subQuestions.length === 1) {
+                        return `Q${subQuestions[0]}`;
+                      }
+                      return `Q${subQuestions.join(', Q')}`;
+                    }).join(', ');
+                  }
+                  
+                  // Extract base question numbers
+                  const baseNumbers = questionNumbers
+                    .map(qNum => getBaseQuestionNumber(qNum))
                     .filter(num => num > 0)
                     .sort((a, b) => a - b);
                   const uniqueNumbers = Array.from(new Set(baseNumbers));
                   
                   if (uniqueNumbers.length === 0) {
-                    return examPaper.questions.map(q => `Q${q.questionNumber.split('_')[0]}`).join(', ');
+                    return questionNumbers.map(qNum => `Q${qNum}`).join(', ');
                   }
                   
+                  // Check if sequential
                   if (isSequence(uniqueNumbers)) {
                     return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
                   }
                   
+                  // Not sequential - show all unique base numbers
                   return uniqueNumbers.map(num => `Q${num}`).join(', ');
                 })()}
               </span>
@@ -127,9 +175,46 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
   const formatQuestionNumbers = (questions: any[]): string => {
     if (questions.length === 0) return '';
     
-    // Extract base question numbers and sort
-    const baseNumbers = questions
-      .map(q => getBaseQuestionNumber(q.questionNumber))
+    // Get all question numbers (remove suffix after '_' if present)
+    const questionNumbers = questions
+      .map(q => (q.questionNumber || '').split('_')[0])
+      .filter(qNum => qNum && qNum.length > 0);
+    
+    if (questionNumbers.length === 0) {
+      return '';
+    }
+    
+    // Check if all questions have sub-question parts
+    const allHaveSubParts = questionNumbers.every(qNum => hasSubQuestionPart(qNum));
+    
+    // If all have sub-parts, show them all grouped by base number
+    if (allHaveSubParts) {
+      // Group by base number
+      const grouped = new Map<number, string[]>();
+      questionNumbers.forEach(qNum => {
+        const baseNum = getBaseQuestionNumber(qNum);
+        if (baseNum > 0) {
+          if (!grouped.has(baseNum)) {
+            grouped.set(baseNum, []);
+          }
+          grouped.get(baseNum)!.push(qNum);
+        }
+      });
+      
+      // Sort base numbers and format
+      const sortedBases = Array.from(grouped.keys()).sort((a, b) => a - b);
+      return sortedBases.map(baseNum => {
+        const subQuestions = grouped.get(baseNum)!.sort();
+        if (subQuestions.length === 1) {
+          return `Q${subQuestions[0]}`;
+        }
+        return `Q${subQuestions.join(', Q')}`;
+      }).join(', ');
+    }
+    
+    // Extract base question numbers
+    const baseNumbers = questionNumbers
+      .map(qNum => getBaseQuestionNumber(qNum))
       .filter(num => num > 0)
       .sort((a, b) => a - b);
     
@@ -138,7 +223,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
     
     if (uniqueNumbers.length === 0) {
       // Fallback: show all question numbers as-is
-      return questions.map(q => `Q${q.questionNumber}`).join(', ');
+      return questionNumbers.map(qNum => `Q${qNum}`).join(', ');
     }
     
     // Check if in sequence
@@ -146,7 +231,7 @@ const ExamPaperTab: React.FC<ExamPaperTabProps> = ({ detectedQuestion, studentSc
       return `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
     }
     
-    // Not in sequence, show all
+    // Not in sequence, show all unique base numbers
     return uniqueNumbers.map(num => `Q${num}`).join(', ');
   };
 
