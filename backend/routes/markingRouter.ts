@@ -229,7 +229,10 @@ const createMarkingTasksFromClassification = (
 ): MarkingTask[] => {
   const tasks: MarkingTask[] = [];
   
+  console.log(`[CREATE TASKS DEBUG] Starting, classificationResult.questions=${classificationResult?.questions?.length || 0}, markingSchemesMap.size=${markingSchemesMap.size}`);
+  
   if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
+    console.log('[CREATE TASKS DEBUG] ❌ No questions in classificationResult, returning empty tasks');
     return tasks;
   }
   
@@ -250,6 +253,9 @@ const createMarkingTasksFromClassification = (
   }>();
   
   // First pass: Collect all questions and sub-questions, group by base question number
+  console.log(`[CREATE TASKS DEBUG] Processing ${classificationResult.questions.length} questions from classification`);
+  console.log(`[CREATE TASKS DEBUG] markingSchemesMap keys: ${Array.from(markingSchemesMap.keys()).join(', ')}`);
+  
   for (const q of classificationResult.questions) {
     const mainQuestionNumber = q.questionNumber || null;
     const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
@@ -259,7 +265,23 @@ const createMarkingTasksFromClassification = (
       ? q.sourceImageIndices
       : [q.sourceImageIndex ?? 0];
     
-    if (!baseQNum) continue;
+    // For non-past papers, questionNumber might be null - use a placeholder or skip grouping
+    // If no baseQNum, we can't group, but we can still create a task if there's student work
+    if (!baseQNum) {
+      // For non-past papers without question numbers, use a placeholder
+      // Check if there's student work - if yes, create a task with null markingScheme
+      const hasMainWork = q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '';
+      const hasSubWork = q.subQuestions && q.subQuestions.some((sq: any) => sq.studentWork && sq.studentWork !== 'null' && sq.studentWork.trim() !== '');
+      
+      if (hasMainWork || hasSubWork) {
+        console.log(`[CREATE TASKS DEBUG] ⚠️ Question with no baseQNum but has student work - will use basic prompt for non-past paper`);
+        // Create a task directly without grouping (for non-past papers)
+        // We'll handle this after the grouping loop
+      } else {
+        console.log(`[CREATE TASKS DEBUG] Skipping question with no baseQNum and no student work, questionNumber="${mainQuestionNumber}"`);
+      }
+      continue; // Skip grouping for questions without baseQNum
+    }
     
     // Find marking scheme (same for all sub-questions in a group)
     let markingScheme: any = null;
@@ -273,7 +295,12 @@ const createMarkingTasksFromClassification = (
       }
     }
     
-    if (!markingScheme) continue;
+    if (!markingScheme) {
+      console.log(`[CREATE TASKS DEBUG] ⚠️ No marking scheme found for baseQNum="${baseQNum}" (questionNumber="${mainQuestionNumber}") - will use basic prompt for non-past paper`);
+      // Continue to create task with null markingScheme (for non-past papers)
+    } else {
+      console.log(`[CREATE TASKS DEBUG] ✅ Found marking scheme for baseQNum="${baseQNum}"`);
+    }
     
     // Initialize group if not exists
     if (!questionGroups.has(baseQNum)) {
@@ -307,6 +334,8 @@ const createMarkingTasksFromClassification = (
     }
   }
   
+  console.log(`[CREATE TASKS DEBUG] Created ${questionGroups.size} question groups`);
+  
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
     // Skip if no student work at all (neither main nor sub-questions)
@@ -315,7 +344,12 @@ const createMarkingTasksFromClassification = (
                         group.mainQuestion.studentWork.trim() !== '';
     const hasSubWork = group.subQuestions.length > 0;
     
-    if (!hasMainWork && !hasSubWork) continue;
+    if (!hasMainWork && !hasSubWork) {
+      console.log(`[CREATE TASKS DEBUG] Skipping baseQNum="${baseQNum}" - no student work (hasMainWork=${hasMainWork}, hasSubWork=${hasSubWork})`);
+      continue;
+    }
+    
+    console.log(`[CREATE TASKS DEBUG] Creating task for baseQNum="${baseQNum}" (hasMainWork=${hasMainWork}, hasSubWork=${hasSubWork})`);
     
     // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
     const allMathBlocks: MathBlock[] = [];
@@ -1821,9 +1855,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     for (const question of individualQuestions) {
         const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
         
-        if (detectionResult.found && detectionResult.match?.markingScheme) {
+        // Allow questions with or without marking schemes (for non-past papers)
+        // If found but no marking scheme, still add it (will use basic prompt)
+        // If not found, don't add to detectionResults but question will still be processed in createMarkingTasksFromClassification
+        if (detectionResult.found) {
             detectionResults.push({ question, detectionResult });
         }
+        // Note: Questions with detectionResult.found = false are still in classificationResult.questions
+        // and will be processed in createMarkingTasksFromClassification with null markingScheme
     }
     
     // Second pass: Group sub-questions by base question number and merge
@@ -1838,6 +1877,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     
     // Group detection results by base question number and exam paper
     for (const { question, detectionResult } of detectionResults) {
+        // Skip if no match (for non-past papers that don't match any exam paper)
+        if (!detectionResult.match) {
+            continue;
+        }
+        
         const actualQuestionNumber = detectionResult.match.questionNumber; // Database question number (e.g., "2")
         const originalQuestionNumber = question.questionNumber; // Original classification question number (e.g., "2a", "2b")
             const examBoard = detectionResult.match.board || 'Unknown';
@@ -2045,6 +2089,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         } else {
             // Single question (not grouped): store as-is
             const item = group[0];
+            
+            // Skip if no marking scheme (for non-past papers)
+            if (!item.detectionResult.match?.markingScheme) {
+                continue; // Skip questions without marking schemes (they'll be handled separately)
+            }
+            
             const actualQuestionNumber = item.actualQuestionNumber;
             const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
             
@@ -2071,6 +2121,26 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         }
     }
     
+    // Update classificationResult.questions with detected question numbers
+    // This ensures createMarkingTasksFromClassification can match questions to marking schemes
+    for (const { question, detectionResult } of detectionResults) {
+        if (detectionResult.found && detectionResult.match?.questionNumber) {
+            const detectedQuestionNumber = detectionResult.match.questionNumber;
+            // Find matching question in classificationResult.questions by text similarity
+            const matchingQuestion = classificationResult.questions.find((q: any) => {
+                const textSimilarity = question.text && q.text 
+                    ? stringSimilarity.compareTwoStrings(question.text.toLowerCase(), q.text.toLowerCase())
+                    : 0;
+                return textSimilarity > 0.8; // High similarity threshold
+            });
+            
+            if (matchingQuestion && (!matchingQuestion.questionNumber || matchingQuestion.questionNumber === 'null' || matchingQuestion.questionNumber === null)) {
+                matchingQuestion.questionNumber = detectedQuestionNumber;
+                console.log(`[QUESTION DETECTION DEBUG] Updated classification question number: "${matchingQuestion.questionNumber}" (from detection)`);
+            }
+        }
+    }
+    
     logQuestionDetectionComplete();
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
@@ -2090,10 +2160,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       markingSchemesMap // Pass marking schemes for hints
     );
     logDrawingClassificationComplete();
+    console.log('[PIPELINE DEBUG] ✅ Drawing Classification completed, proceeding to create marking tasks...');
 
     // ========================= START: IMPLEMENT STAGE 3 =========================
     // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---
     sendSseUpdate(res, createProgressData(5, 'Preparing marking tasks...', MULTI_IMAGE_STEPS));
+    console.log('[PIPELINE DEBUG] Starting createMarkingTasksFromClassification...');
     const logSegmentationComplete = logStep('Segmentation', 'segmentation');
 
     // Create page dimensions map from standardizedPages for accurate drawing position calculation
@@ -2105,15 +2177,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
 
     // Create marking tasks directly from classification results (bypass segmentation)
-    markingTasks = createMarkingTasksFromClassification(
-      classificationResult,
-      allPagesOcrData,
-      markingSchemesMap,
-      pageDimensionsMap
-    );
+    try {
+      markingTasks = createMarkingTasksFromClassification(
+        classificationResult,
+        allPagesOcrData,
+        markingSchemesMap,
+        pageDimensionsMap
+      );
+      console.log(`[PIPELINE DEBUG] ✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
+    } catch (error) {
+      console.error('[PIPELINE DEBUG] ❌ createMarkingTasksFromClassification failed:', error);
+      throw error;
+    }
 
     // Handle case where no student work is found
     if (markingTasks.length === 0) {
+      console.log('[PIPELINE DEBUG] No marking tasks created, exiting early');
       sendSseUpdate(res, createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
       const finalOutput = { 
         submissionId, 

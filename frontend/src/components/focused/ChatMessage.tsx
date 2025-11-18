@@ -52,7 +52,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
-  const { getAuthToken } = useAuth();
+  const { getAuthToken, user } = useAuth();
   
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -197,13 +197,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       }
       
       // Send to backend via chat endpoint with mode parameter and source message ID
-      const requestBody = {
+      // For unauthenticated users, pass detectedQuestion directly since it's not in Firestore
+      const requestBody: any = {
         message: suggestion,
         sessionId: session?.id,
         model: selectedModel || 'auto', // Use selected model from props, fallback to 'auto'
         mode: mode,
         sourceMessageId: message.id  // Pass the specific message ID that triggered this follow-up
       };
+      
+      // Only send detectedQuestion for unauthenticated users (authenticated users have it in Firestore)
+      if (!user && message.detectedQuestion) {
+        requestBody.detectedQuestion = message.detectedQuestion;
+      }
       
       // Get auth token for authentication
       const authToken = await getAuthToken();

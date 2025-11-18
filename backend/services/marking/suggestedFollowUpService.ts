@@ -13,6 +13,7 @@ export interface SuggestedFollowUpRequest {
   sessionId: string;
   sourceMessageId?: string;
   model: string;
+  detectedQuestion?: any; // Optional: for unauthenticated users who don't have sessions in Firestore
 }
 
 export interface SuggestedFollowUpResult {
@@ -26,7 +27,7 @@ export class SuggestedFollowUpService {
    * Handle any follow-up request with common logic
    */
   static async handleSuggestedFollowUp(request: SuggestedFollowUpRequest): Promise<SuggestedFollowUpResult> {
-    const { mode, sessionId, sourceMessageId, model } = request;
+    const { mode, sessionId, sourceMessageId, model, detectedQuestion } = request;
     
     // Validate inputs
     if (!isValidSuggestedFollowUpMode(mode)) {
@@ -38,7 +39,19 @@ export class SuggestedFollowUpService {
     }
 
     // Get target message with detected question data
-    const targetMessage = await this.getTargetMessage(sessionId, sourceMessageId);
+    // For unauthenticated users, use detectedQuestion from request if provided
+    // For authenticated users, fetch from Firestore
+    let targetMessage;
+    if (detectedQuestion) {
+      // Unauthenticated user: use provided detectedQuestion directly
+      targetMessage = {
+        detectedQuestion: detectedQuestion
+      };
+    } else {
+      // Authenticated user: fetch from Firestore
+      targetMessage = await this.getTargetMessage(sessionId, sourceMessageId);
+    }
+    
     if (!targetMessage?.detectedQuestion?.found) {
       throw new Error(`No detected question found for ${mode}`);
     }

@@ -22,8 +22,9 @@ class MarkHomeworkPage {
     this.chatHeaderTitle = page.locator('.session-title');
     
     // Locators for message elements
-    this.userMessages = page.locator('.message.user, .user-message, .chat-message.user');
-    this.aiMessages = page.locator('.message.ai, .ai-message, .chat-message.assistant');
+    // Based on actual DOM structure: <div class="chat-message user"> and <div class="chat-message assistant">
+    this.userMessages = page.locator('.chat-message.user');
+    this.aiMessages = page.locator('.chat-message.assistant');
     
     // Upload area and buttons
     this.uploadArea = page.locator('.upload-area, .dropzone, .main-upload-input-bar');
@@ -35,7 +36,7 @@ class MarkHomeworkPage {
     
     // Model selector
     this.modelSelector = page.locator('.model-selector-button');
-    this.modelOption = page.locator('.dropdown-item');
+    this.modelOption = page.locator('.model-selector-option');
   }
 
   /**
@@ -176,7 +177,7 @@ class MarkHomeworkPage {
 
   /**
    * Selects the AI model from the model selector dropdown.
-   * @param {string} model - The model to select ('auto', 'gemini-2.5-pro')
+   * @param {string} model - The model to select ('auto', 'gemini-2.5-flash', 'openai-gpt-5-mini')
    */
   async selectModel(model) {
     // Click on the model selector to open dropdown
@@ -184,7 +185,14 @@ class MarkHomeworkPage {
     await this.modelSelector.click();
     
     // Wait for dropdown to appear and select the model
-    const modelOption = this.modelOption.filter({ hasText: model === 'auto' ? 'Auto' : model === 'gemini-2.5-pro' ? 'Gemini 2.5 Pro' : 'Gemini 1.5 Pro' });
+    // Map model IDs to display names based on ModelSelector component
+    const modelNameMap = {
+      'auto': 'Auto',
+      'gemini-2.5-flash': 'Gemini 2.5 Flash',
+      'openai-gpt-5-mini': 'GPT 5.1 mini'
+    };
+    const modelDisplayName = modelNameMap[model] || model;
+    const modelOption = this.modelOption.filter({ hasText: modelDisplayName });
     await expect(modelOption, `Model option for ${model} should be visible`).toBeVisible();
     await modelOption.click();
     
@@ -212,7 +220,7 @@ class MarkHomeworkPage {
 
         // 2. Poll until the last AI message is visible and meets our content criteria.
         await this.page.waitForFunction(async () => {
-          const lastMessage = document.querySelector('.message.ai, .ai-message, .chat-message.assistant:last-child');
+          const lastMessage = document.querySelector('.chat-message.assistant:last-child');
           if (!lastMessage) {
             console.log('🔍 DEBUG: No AI message found yet...');
             return false;
@@ -496,8 +504,8 @@ class MarkHomeworkPage {
    * ]
    */
   async verifyMessageOrder(expectedOrder) {
-    // Get all message elements in order - use more specific selectors
-    const allMessages = await this.page.locator('.message.user, .message.ai, .chat-message.user, .chat-message.assistant, .user-message, .ai-message').all();
+    // Get all message elements in order - use correct selectors matching actual DOM structure
+    const allMessages = await this.page.locator('.chat-message.user, .chat-message.assistant').all();
     
     if (allMessages.length !== expectedOrder.length) {
       throw new Error(`Expected ${expectedOrder.length} messages, but found ${allMessages.length}`);
@@ -507,21 +515,18 @@ class MarkHomeworkPage {
       const message = allMessages[i];
       const expected = expectedOrder[i];
       
-      // Check message type using multiple approaches
-      const isUserMessage = await message.locator('.user, .user-message, [class*="user"]').count() > 0;
-      const isAIMessage = await message.locator('.ai, .ai-message, .assistant, [class*="ai"], [class*="assistant"]').count() > 0;
-      
-      // Alternative: check by looking at the message container classes
+      // Check message type by looking at the message container classes
+      // Messages are already selected as .chat-message.user or .chat-message.assistant
       const messageClasses = await message.getAttribute('class');
       
-      const hasUserClass = messageClasses && (messageClasses.includes('user') || messageClasses.includes('User'));
-      const hasAIClass = messageClasses && (messageClasses.includes('ai') || messageClasses.includes('AI') || messageClasses.includes('assistant') || messageClasses.includes('Assistant'));
+      const hasUserClass = messageClasses && messageClasses.includes('user');
+      const hasAIClass = messageClasses && messageClasses.includes('assistant');
       
-      if (expected.type === 'user' && !isUserMessage && !hasUserClass) {
+      if (expected.type === 'user' && !hasUserClass) {
         throw new Error(`Message ${i + 1} should be user message, but found AI message. Classes: ${messageClasses}`);
       }
       
-      if (expected.type === 'ai' && !isAIMessage && !hasAIClass) {
+      if (expected.type === 'ai' && !hasAIClass) {
         throw new Error(`Message ${i + 1} should be AI message, but found user message. Classes: ${messageClasses}`);
       }
       

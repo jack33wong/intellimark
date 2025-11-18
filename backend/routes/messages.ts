@@ -118,7 +118,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           mode,
           sessionId: currentSessionId,
           sourceMessageId,
-          model: resolvedModel
+          model: resolvedModel,
+          detectedQuestion: req.body.detectedQuestion  // Pass detectedQuestion from request (for unauthenticated users)
         });
         
         aiResponse = followUpResult.response;
