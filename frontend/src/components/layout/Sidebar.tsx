@@ -13,7 +13,8 @@ import {
   Heart,
   FileText,
   MessageSquare,
-  Library
+  Library,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import MarkingHistoryService from '../../services/markingHistoryService';
@@ -309,6 +310,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         >
           <Library size={20} />
           Library
+        </button>
+        <button 
+          className="mark-homework-main-btn" 
+          onClick={() => navigate('/analysis')}
+          style={{ marginTop: '8px' }}
+        >
+          <BarChart3 size={20} />
+          Analysis
         </button>
         <div className="sidebar-section">
             <div className="mark-history-tabs">

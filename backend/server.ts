@@ -83,6 +83,7 @@ import markingRouter from './routes/markingRouter.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import messagesRoutes from './routes/messages.js';
+import analysisRouter from './routes/analysisRouter.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -96,6 +97,9 @@ app.use('/api/admin', adminRoutes);
 
 // Enable messages API (new UnifiedMessage system)
 app.use('/api/messages', messagesRoutes);
+
+// Enable analysis API
+app.use('/api/analysis', analysisRouter);
 
 
 // Enable payment system

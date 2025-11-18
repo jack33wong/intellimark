@@ -1,0 +1,134 @@
+/* Analysis Page Styles */
+
+.analysis-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 100px);
+}
+
+.analysis-page-header {
+  margin-bottom: 24px;
+}
+
+.analysis-page-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.analysis-page-header p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.analysis-page-content {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 24px;
+}
+
+.analysis-session-list {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  padding: 16px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  border: 1px solid var(--border-main);
+}
+
+.no-sessions {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.no-sessions .hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.session-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--background-tertiary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.session-item:hover {
+  background: var(--background-gray-main);
+  border-color: var(--border-main);
+}
+
+.session-item.active {
+  border-color: var(--text-brand);
+  background: var(--background-gray-main);
+}
+
+.session-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.session-date {
+  color: var(--text-tertiary);
+}
+
+.session-score {
+  color: var(--text-brand);
+  font-weight: 600;
+}
+
+.analysis-report-container {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  padding: 24px;
+  min-height: 600px;
+  border: 1px solid var(--border-main);
+  overflow-y: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.analysis-empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.analysis-loading {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .analysis-page-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .analysis-session-list {
+    max-height: 200px;
+    margin-bottom: 16px;
+  }
+}
+

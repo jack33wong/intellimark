@@ -8,6 +8,7 @@ import { Sidebar, Header } from './components/layout';
 import AdminPage from './components/admin/AdminPage';
 import MarkingPage from './pages/MarkingPage';
 import LibraryPage from './pages/LibraryPage';
+import AnalysisPage from './pages/AnalysisPage';
 import Login from './components/auth/Login';
 import SubscriptionPage from './components/subscription/SubscriptionPage';
 import './App.css';
@@ -85,6 +86,14 @@ function AppContent() {
           <OptionalAuthRoute>
             <AdminLayout hideHeader={true}>
               <LibraryPage />
+            </AdminLayout>
+          </OptionalAuthRoute>
+        } />
+        
+        <Route path="/analysis" element={
+          <OptionalAuthRoute>
+            <AdminLayout hideHeader={true}>
+              <AnalysisPage />
             </AdminLayout>
           </OptionalAuthRoute>
         } />
