@@ -20,6 +20,7 @@ export interface SuggestedFollowUpResult {
   response: string;
   apiUsed: string;
   progressData: any;
+  usageTokens?: number;
 }
 
 export class SuggestedFollowUpService {
@@ -235,7 +236,8 @@ export class SuggestedFollowUpService {
         return {
           response: combinedResponse,
           apiUsed: `${getRealApiName(model)} (${model}) - Parallel execution`,
-          progressData: null
+          progressData: null,
+          usageTokens: totalUsageTokens
         };
       }
       
@@ -347,7 +349,8 @@ export class SuggestedFollowUpService {
       return {
         response: contextualResult.response,
         apiUsed: contextualResult.apiUsed,
-        progressData: null // Will be set by the calling method
+        progressData: null, // Will be set by the calling method
+        usageTokens: contextualResult.usageTokens
       };
     } else {
       // No exam papers found - fallback to empty
@@ -374,7 +377,8 @@ export class SuggestedFollowUpService {
       return {
         response: aiResult.content,
         apiUsed: `${getRealApiName(model)} (${model})`,
-        progressData: null
+        progressData: null,
+        usageTokens: aiResult.usageTokens || 0
       };
     }
   }

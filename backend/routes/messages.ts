@@ -125,6 +125,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
         aiResponse = followUpResult.response;
         apiUsed = followUpResult.apiUsed;
         finalProgressData = followUpResult.progressData;
+        // Store usageTokens for processingStats
+        contextualResult = {
+          response: followUpResult.response,
+          apiUsed: followUpResult.apiUsed,
+          usageTokens: followUpResult.usageTokens || 0
+        };
       } else {
         // For text-only messages, use contextual response with progress tracking
         
