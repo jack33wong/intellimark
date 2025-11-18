@@ -23,8 +23,7 @@ import {
 } from '../utils/markingRouterHelpers.js';
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
-import * as stringSimilarity from 'string-similarity';
-import { getBaseQuestionNumber, normalizeSubQuestionPart, formatFullQuestionText } from '../utils/TextNormalizationUtils.js';
+import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
 
 // Helper functions for real model and API names
@@ -52,6 +51,7 @@ import { executeMarkingForQuestion, QuestionResult, EnrichedAnnotation } from '.
 import { questionDetectionService } from '../services/marking/questionDetectionService.js';
 import { ImageStorageService } from '../services/imageStorageService.js';
 import { GradeBoundaryService } from '../services/marking/GradeBoundaryService.js';
+import { MarkingSchemeOrchestrationService } from '../services/marking/MarkingSchemeOrchestrationService.js';
 // import { getMarkingScheme } from '../services/marking/questionDetectionService.js';
 
 // Placeholder function removed - schemes are now fetched in Question Detection stage
@@ -1008,7 +1008,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       allCategories.every(cat => cat === "metadata") ? "metadata" :
       "questionAnswer";
     
-    const classificationResult = {
+    let classificationResult = {
       category: combinedCategory,
       reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
       questions: allQuestions,
@@ -1418,417 +1418,26 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= START: ADD QUESTION DETECTION STAGE =========================
     sendSseUpdate(res, createProgressData(4, 'Detecting questions and fetching schemes...', MULTI_IMAGE_STEPS));
 
-    // Consolidate necessary data for Question Detection (e.g., all OCR text)
-    const allOcrTextForDetection = allPagesOcrData.map(p => p.ocrData.text).join('\n\n--- Page Break ---\n\n');
-    // Or pass structured blocks if needed by the service
-
     // Extract questions from AI classification result
     const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
-    
-    // Create a Map from the detection results
-    const markingSchemesMap: Map<string, any> = new Map();
-    
-    // Helper function to check if a question number is a sub-question
-    // Uses normalization to handle various formats: "2a", "2(i)", "12(ii)", etc.
-    const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
-        if (!questionNumber) return false;
-        const qNumStr = String(questionNumber);
-        // Extract sub-question part: digits followed by optional sub-question part
-        // Examples: "12(i)", "12i", "12(ii)", "12ii", "8a", "8(a)"
-        const subQPartMatch = qNumStr.match(/^(\d+)(\(?[a-zivx]+\)?)?$/i);
-        if (subQPartMatch && subQPartMatch[2]) {
-            // Has sub-question part (normalized check ensures consistent detection)
-            const normalizedPart = normalizeSubQuestionPart(subQPartMatch[2]);
-            return normalizedPart.length > 0; // If normalization produces a non-empty string, it's a sub-question
-        }
-        return false;
-    };
-    
-    // First pass: Collect all detection results
-    const detectionResults: Array<{
-        question: { text: string; questionNumber?: string | null };
-        detectionResult: any;
-    }> = [];
     
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
     
-    // Track detection statistics
-    const detectionStats = {
-        totalQuestions: individualQuestions.length,
-        detected: 0,
-        notDetected: 0,
-        withMarkingScheme: 0,
-        withoutMarkingScheme: 0,
-        bySimilarityRange: {
-            high: 0,      // ≥ 0.90
-            medium: 0,   // 0.70-0.89
-            low: 0       // 0.40-0.69
-        },
-        questionDetails: [] as Array<{
-            questionNumber: string | null | undefined;
-            detected: boolean;
-            similarity?: number;
-            hasMarkingScheme: boolean;
-        }>
-    };
+    // Orchestrate marking scheme lookup (detection, grouping, merging)
+    const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
+      individualQuestions,
+      classificationResult
+    );
     
-    for (const question of individualQuestions) {
-        const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
-        
-        const similarity = detectionResult.match?.confidence || 0;
-        const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
-        
-        // Track statistics
-        if (detectionResult.found) {
-            detectionStats.detected++;
-            if (hasMarkingScheme) {
-                detectionStats.withMarkingScheme++;
-            } else {
-                detectionStats.withoutMarkingScheme++;
-            }
-            
-            // Categorize by similarity
-            if (similarity >= 0.90) {
-                detectionStats.bySimilarityRange.high++;
-            } else if (similarity >= 0.70) {
-                detectionStats.bySimilarityRange.medium++;
-            } else if (similarity >= 0.40) {
-                detectionStats.bySimilarityRange.low++;
-            }
-            
-            detectionStats.questionDetails.push({
-                questionNumber: question.questionNumber,
-                detected: true,
-                similarity,
-                hasMarkingScheme
-            });
-            
-            detectionResults.push({ question, detectionResult });
-        } else {
-            detectionStats.notDetected++;
-            detectionStats.questionDetails.push({
-                questionNumber: question.questionNumber,
-                detected: false,
-                hasMarkingScheme: false
-            });
-        }
-        // Note: Questions with detectionResult.found = false are still in classificationResult.questions
-        // and will be processed in createMarkingTasksFromClassification with null markingScheme
-    }
-    
-    // Second pass: Group sub-questions by base question number and merge
-    const groupedResults = new Map<string, Array<{
-        question: { text: string; questionNumber?: string | null };
-        detectionResult: any;
-        actualQuestionNumber: string; // Database question number (e.g., "2")
-        originalQuestionNumber: string | null | undefined; // Original classification question number (e.g., "2a", "2b")
-        examBoard: string;
-        paperCode: string;
-    }>>();
-    
-    // Group detection results by base question number and exam paper
-    for (const { question, detectionResult } of detectionResults) {
-        // Skip if no match (for non-past papers that don't match any exam paper)
-        if (!detectionResult.match) {
-            continue;
-        }
-        
-        const actualQuestionNumber = detectionResult.match.questionNumber; // Database question number (e.g., "2")
-        const originalQuestionNumber = question.questionNumber; // Original classification question number (e.g., "2a", "2b")
-            const examBoard = detectionResult.match.board || 'Unknown';
-            const paperCode = detectionResult.match.paperCode || 'Unknown';
-        
-        // Create group key: base question number + exam board + paper code
-        // Use original question number if available, otherwise use database question number
-        const questionNumberForGrouping = originalQuestionNumber || actualQuestionNumber;
-        const baseQuestionNumber = getBaseQuestionNumber(questionNumberForGrouping);
-        const groupKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
-        
-        if (!groupedResults.has(groupKey)) {
-            groupedResults.set(groupKey, []);
-        }
-        
-        groupedResults.get(groupKey)!.push({
-            question,
-            detectionResult,
-            actualQuestionNumber, // Database question number (e.g., "2")
-            originalQuestionNumber, // Original classification question number (e.g., "2a", "2b")
-            examBoard,
-            paperCode
-        });
-    }
-    
-    // Third pass: Merge grouped sub-questions or store single questions
-    for (const [groupKey, group] of groupedResults.entries()) {
-        const baseQuestionNumber = groupKey.split('_')[0];
-        const examBoard = group[0].examBoard;
-        const paperCode = group[0].paperCode;
-        
-        // Check if this group contains sub-questions
-        // Use originalQuestionNumber (from classification) to detect sub-questions, not actualQuestionNumber (from database)
-        const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
-        
-        if (hasSubQuestions && group.length > 1) {
-            // Group sub-questions: merge marking schemes, combine texts, use parent question marks
-            // Get parent question marks from the first item (all items have same parent question)
-            // The parent question marks is stored in parentQuestionMarks field (added to detection result)
-            const firstItem = group[0];
-            const parentQuestionMarks = firstItem.detectionResult.match?.parentQuestionMarks;
-            
-            if (!parentQuestionMarks) {
-                throw new Error(`Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Expected structure: match.parentQuestionMarks`);
-            }
-            
-            // Merge marking schemes
-            const mergedMarks: any[] = [];
-            const combinedQuestionTexts: string[] = [];
-            const combinedDatabaseQuestionTexts: string[] = []; // Store database question texts
-            const questionNumbers: string[] = [];
-            const subQuestionAnswers: string[] = []; // Store answers for each sub-question (e.g., ["H", "F", "J"])
-            // CRITICAL: Preserve sub-question-to-marks mapping to prevent mix-up (e.g., Q3a marks assigned to Q3b)
-            const subQuestionMarksMap = new Map<string, any[]>(); // Map sub-question number to its marks array
-            
-            for (const item of group) {
-                const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
-                
-                // Extract answer for this sub-question (for letter-based answers like "H", "F", "J")
-                // Check multiple possible locations where the answer might be stored
-                const subQAnswer = item.detectionResult.match?.answer || 
-                                  item.detectionResult.match?.markingScheme?.answer ||
-                                  item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
-                                  undefined;
-                if (subQAnswer && typeof subQAnswer === 'string' && subQAnswer.toLowerCase() !== 'cao') {
-                    subQuestionAnswers.push(subQAnswer);
-                } else {
-                    // If no answer found, push empty string to maintain array alignment with marks
-                    subQuestionAnswers.push('');
-                }
-                
-                // More defensive extraction
-                let marksArray: any[] = [];
-                const markingScheme = item.detectionResult.match?.markingScheme;
-                let questionMarks: any = null;
-                
-                if (markingScheme) {
-                    questionMarks = markingScheme.questionMarks;
-                    
-                    if (questionMarks) {
-                        // Try multiple extraction paths
-                        if (Array.isArray(questionMarks.marks)) {
-                            marksArray = questionMarks.marks;
-                        } else if (Array.isArray(questionMarks)) {
-                            marksArray = questionMarks;
-                        } else if (questionMarks.marks && Array.isArray(questionMarks.marks)) {
-                            marksArray = questionMarks.marks;
-                        } else if (typeof questionMarks === 'object' && 'marks' in questionMarks) {
-                            // Handle case where marks is a property but might be nested
-                            const marksValue = questionMarks.marks;
-                            if (Array.isArray(marksValue)) {
-                                marksArray = marksValue;
-                            } else if (marksValue && typeof marksValue === 'object' && Array.isArray(marksValue.marks)) {
-                                marksArray = marksValue.marks;
-                            }
-                        }
-                    }
-                }
-                if (marksArray.length === 0) {
-                    console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
-                }
-                
-                // CRITICAL: Preserve sub-question-to-marks mapping (don't flatten yet)
-                subQuestionMarksMap.set(displayQNum, marksArray);
-                // Still maintain mergedMarks for backward compatibility
-                mergedMarks.push(...marksArray);
-                combinedQuestionTexts.push(item.question.text); // Classification text (for backward compatibility)
-                // Store database question text for filtering
-                const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
-                if (dbQuestionText) {
-                    combinedDatabaseQuestionTexts.push(dbQuestionText);
-                }
-                questionNumbers.push(displayQNum); // Use original question number for display
-            }
-            
-            // Create merged marking scheme with sub-question marks mapping
-            const mergedQuestionMarks = {
-                marks: mergedMarks, // Keep for backward compatibility
-                subQuestionMarks: Object.fromEntries(subQuestionMarksMap) // Preserve per-sub-question marks mapping
-            };
-            
-            // Store questionDetection from first item for exam paper info (board, code, year, tier)
-            // This is needed for exam tab display in the frontend
-            // Note: We use the first item's detection result which has the correct exam paper match info
-            const questionDetection = firstItem.detectionResult;
-            
-            // Get main question text from parent question in the exam paper
-            // For grouped sub-questions, we need to get the main question text (not just sub-question texts)
-            // The main question text is stored in the exam paper's question structure for the base question number
-            // We need to fetch it from Firestore using the detection result's exam paper info
-            let mainQuestionDatabaseText = '';
-            const firstMatch = firstItem.detectionResult.match;
-            if (firstMatch) {
-                try {
-                    // Fetch exam paper from Firestore using match info
-                    // Use QuestionDetectionService's private getAllExamPapers method via a workaround
-                    // Or fetch directly from Firestore
-                    const { getFirestore } = await import('../config/firebase.js');
-                    const db = getFirestore();
-                    if (!db) {
-                        throw new Error('Firestore not available');
-                    }
-                    
-                    // Query exam papers collection
-                    const examPapersSnapshot = await db.collection('fullExamPapers')
-                        .where('metadata.exam_board', '==', firstMatch.board)
-                        .where('metadata.exam_code', '==', firstMatch.paperCode)
-                        .where('metadata.exam_series', '==', firstMatch.examSeries)
-                        .get();
-                    
-                    const examPapers = examPapersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    
-                    const matchedExamPaper = examPapers.find((ep: any) => {
-                        const metadata = ep.metadata || {};
-                        return metadata.exam_board === firstMatch.board &&
-                               metadata.exam_code === firstMatch.paperCode &&
-                               metadata.exam_series === firstMatch.examSeries &&
-                               metadata.tier === firstMatch.tier;
-                    });
-                    
-                    if (matchedExamPaper) {
-                        // Find the question with the base question number
-                        const questions = matchedExamPaper.questions || [];
-                        const mainQuestion = Array.isArray(questions) 
-                            ? questions.find((q: any) => {
-                                const qNum = q.question_number || q.number;
-                                return String(qNum) === String(baseQuestionNumber);
-                            })
-                            : questions[baseQuestionNumber];
-                        
-                        if (mainQuestion) {
-                            // Get the main question text (this is the FULL question text including main + sub-questions)
-                            mainQuestionDatabaseText = mainQuestion.question_text || mainQuestion.text || mainQuestion.question || '';
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`[MARKING ROUTER] Failed to get main question text for Q${baseQuestionNumber}:`, error);
-                    // Continue without main question text - will use sub-question texts only
-                }
-            }
-            
-            // Build FULL question text using common formatting function
-            // This ensures consistent format across: AI Marking Instruction, detectedQuestion storage, Model Answer
-            const fullDatabaseQuestionText = formatFullQuestionText(
-                baseQuestionNumber,
-                mainQuestionDatabaseText || '',
-                questionNumbers, // e.g., ["5a", "5b"]
-                combinedDatabaseQuestionTexts // e.g., ["Work out...", "Is your answer..."]
-            );
-            
-            const schemeWithTotalMarks = {
-                questionMarks: mergedQuestionMarks,
-                totalMarks: parentQuestionMarks, // Use parent question marks from database, not sum of sub-question marks
-                questionNumber: baseQuestionNumber, // Use base question number for grouped sub-questions
-                questionDetection: questionDetection, // Store detection result for exam paper info (needed for exam tab storage)
-                databaseQuestionText: fullDatabaseQuestionText, // FULL database question text (main + all sub-questions) - formatted with common function
-                subQuestionNumbers: questionNumbers, // Store sub-question numbers for reference
-                subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined // Store answers for each sub-question (e.g., ["H", "F", "J"])
-            };
-            
-            // Use base question number in unique key (e.g., "2_Pearson Edexcel_1MA1/1H" instead of "2a_...")
-            const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
-            markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
-            
-        } else {
-            // Single question (not grouped): store as-is
-            const item = group[0];
-            
-            // Skip if no marking scheme (for non-past papers)
-            if (!item.detectionResult.match?.markingScheme) {
-                continue; // Skip questions without marking schemes (they'll be handled separately)
-            }
-            
-            const actualQuestionNumber = item.actualQuestionNumber;
-            const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
-            
-            
-            // Extract the specific question's marks from the marking scheme
-            let questionSpecificMarks = null;
-            
-            if (item.detectionResult.match.markingScheme.questionMarks) {
-                questionSpecificMarks = item.detectionResult.match.markingScheme.questionMarks;
-            } else {
-                questionSpecificMarks = item.detectionResult.match.markingScheme;
-            }
-            
-            const schemeWithTotalMarks = {
-                questionMarks: questionSpecificMarks,
-                totalMarks: item.detectionResult.match.marks,
-                questionNumber: actualQuestionNumber,
-                questionDetection: item.detectionResult, // Store the full question detection result
-                questionText: item.question.text, // Classification text (for backward compatibility)
-                databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '' // Database question text for filtering
-            };
-            
-            markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
-        }
-    }
-    
-    // Update classificationResult.questions with detected question numbers
-    // This ensures createMarkingTasksFromClassification can match questions to marking schemes
-    for (const { question, detectionResult } of detectionResults) {
-        if (detectionResult.found && detectionResult.match?.questionNumber) {
-            const detectedQuestionNumber = detectionResult.match.questionNumber;
-            // Find matching question in classificationResult.questions by text similarity
-            const matchingQuestion = classificationResult.questions.find((q: any) => {
-                const textSimilarity = question.text && q.text 
-                    ? stringSimilarity.compareTwoStrings(question.text.toLowerCase(), q.text.toLowerCase())
-                    : 0;
-                return textSimilarity > 0.8; // High similarity threshold
-            });
-            
-            if (matchingQuestion && (!matchingQuestion.questionNumber || matchingQuestion.questionNumber === 'null' || matchingQuestion.questionNumber === null)) {
-                matchingQuestion.questionNumber = detectedQuestionNumber;
-            }
-        }
-    }
+    const markingSchemesMap = orchestrationResult.markingSchemesMap;
+    const detectionStats = orchestrationResult.detectionStats;
+    classificationResult = orchestrationResult.updatedClassificationResult;
     
     logQuestionDetectionComplete();
     
     // Log detection statistics
-    const detectionRate = detectionStats.totalQuestions > 0 
-        ? ((detectionStats.detected / detectionStats.totalQuestions) * 100).toFixed(0)
-        : '0';
-    
-    console.log(`\n📊 [QUESTION DETECTION STATISTICS]`);
-    console.log(`   Total questions: ${detectionStats.totalQuestions}`);
-    console.log(`   Detected: ${detectionStats.detected}/${detectionStats.totalQuestions} (${detectionRate}%)`);
-    console.log(`   Not detected: ${detectionStats.notDetected}`);
-    console.log(`   With marking scheme: ${detectionStats.withMarkingScheme}`);
-    console.log(`   Without marking scheme: ${detectionStats.withoutMarkingScheme}`);
-    console.log(`   Similarity ranges:`);
-    console.log(`     ≥ 0.90: ${detectionStats.bySimilarityRange.high}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.high / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
-    console.log(`     0.70-0.89: ${detectionStats.bySimilarityRange.medium}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.medium / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
-    console.log(`     0.40-0.69: ${detectionStats.bySimilarityRange.low}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.low / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
-    
-    // Log questions without marking schemes
-    const questionsWithoutScheme = detectionStats.questionDetails
-        .filter(q => q.detected && !q.hasMarkingScheme)
-        .map(q => `Q${q.questionNumber || '?'}`)
-        .join(', ');
-    if (questionsWithoutScheme) {
-        console.log(`   Questions without marking scheme: ${questionsWithoutScheme}`);
-    }
-    
-    // Log low similarity questions
-    const lowSimilarityQuestions = detectionStats.questionDetails
-        .filter(q => q.detected && q.similarity !== undefined && q.similarity < 0.70 && q.similarity >= 0.40)
-        .map(q => `Q${q.questionNumber || '?'} (${q.similarity?.toFixed(3)})`)
-        .join(', ');
-    if (lowSimilarityQuestions) {
-        console.log(`   Low similarity questions (0.40-0.69): ${lowSimilarityQuestions}`);
-    }
-    
-    console.log(`\n`);
+    MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
     
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================

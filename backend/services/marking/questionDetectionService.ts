@@ -103,10 +103,6 @@ export class QuestionDetectionService {
     questionNumberHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
-      // Debug: Extract question number for logging
-      const questionNum = questionNumberHint || (extractedQuestionText ? extractedQuestionText.match(/^(\d+)/)?.[1] : null) || '?';
-      const debugPrefix = `[Q${questionNum} DETECTION]`;
-      
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
         return {
           found: false,
@@ -192,7 +188,6 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
-        console.log(`${debugPrefix} ✅ Match: ${bestMatch.paperCode} Q${bestMatch.questionNumber} (score=${bestScore.toFixed(3)})`);
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
@@ -204,20 +199,6 @@ export class QuestionDetectionService {
           match: bestMatch,
           message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
         };
-      }
-
-      // Log failures with text comparison for troubleshooting
-      if (bestScore > 0) {
-        const bestMatchForLog = bestTextMatch?.match || bestFailedMatch;
-        if (bestMatchForLog?.databaseQuestionText) {
-          const normClassification = normalizeTextForComparison(extractedQuestionText);
-          const normDatabase = normalizeTextForComparison(bestMatchForLog.databaseQuestionText);
-          console.log(`${debugPrefix} ❌ Failed: bestScore=${bestScore.toFixed(3)} < threshold=0.50`);
-          console.log(`  Classification: "${normClassification.substring(0, 100)}${normClassification.length > 100 ? '...' : ''}"`);
-          console.log(`  Database:       "${normDatabase.substring(0, 100)}${normDatabase.length > 100 ? '...' : ''}"`);
-        } else {
-          console.log(`${debugPrefix} ❌ Failed: bestScore=${bestScore.toFixed(3)} < threshold=0.50`);
-        }
       }
 
       return {
@@ -506,40 +487,6 @@ export class QuestionDetectionService {
       const metadata = examPaper.metadata;
       const paperCode = metadata?.exam_code || 'unknown';
       
-      // Debug: Only log best matches or failures for troubleshooting
-      const questionNum = questionNumberHint || (questionText ? questionText.match(/^(\d+)/)?.[1] : null) || '?';
-      const debugPrefix = `[Q${questionNum} DETECTION]`;
-      
-      // Only log if we have a match attempt (bestQuestionMatch exists) and it's the target paper or close to threshold
-      if (bestQuestionMatch && (paperCode === '1MA1/1H' || bestScore >= threshold * 0.8)) {
-        // Get database text for comparison
-        let databaseText = '';
-        if (bestSubQuestionNumber && bestMatchedQuestion) {
-          const matchedSubQuestions = bestMatchedQuestion?.sub_questions || bestMatchedQuestion?.subQuestions || [];
-          const matchedSubQ = matchedSubQuestions.find((sq: any) => {
-            if (!sq.question_part) return false;
-            return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
-          });
-          if (matchedSubQ) {
-            databaseText = matchedSubQ.text || matchedSubQ.question || matchedSubQ.question_text || '';
-          }
-        } else if (bestMatchedQuestion) {
-          databaseText = bestMatchedQuestion.question_text || bestMatchedQuestion.text || bestMatchedQuestion.question || '';
-        }
-        
-        // Show normalized text comparison for troubleshooting
-        if (databaseText) {
-          const normClassification = normalizeTextForComparison(questionText);
-          const normDatabase = normalizeTextForComparison(databaseText);
-          console.log(`${debugPrefix} ${paperCode} Q${bestQuestionMatch}: similarity=${bestScore.toFixed(3)} (threshold=${threshold.toFixed(2)})`);
-          if (bestScore < threshold) {
-            console.log(`  Classification: "${normClassification.substring(0, 80)}${normClassification.length > 80 ? '...' : ''}"`);
-            console.log(`  Database:       "${normDatabase.substring(0, 80)}${normDatabase.length > 80 ? '...' : ''}"`);
-          }
-        } else {
-          console.log(`${debugPrefix} ${paperCode} Q${bestQuestionMatch}: similarity=${bestScore.toFixed(3)} (threshold=${threshold.toFixed(2)})`);
-        }
-      }
       
       // Return match even if below threshold (for logging purposes)
       // The caller will check threshold and reject if needed
