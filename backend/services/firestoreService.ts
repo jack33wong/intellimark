@@ -533,6 +533,21 @@ export class FirestoreService {
       const totalPayloadSizeMB = totalPayloadSize / (1024 * 1024);
       console.log(`🔍 [DIAGNOSTIC] Total unifiedMessages payload: ${totalPayloadSize.toLocaleString()} bytes (${totalPayloadSizeMB.toFixed(2)}MB)`);
       
+      // Calculate cost for the session if sessionStats exists
+      let finalSessionStats = sessionStats || null;
+      if (sessionStats) {
+        const { calculateTotalCost } = await import('../utils/CostCalculator.js');
+        const cost = calculateTotalCost(sessionStats);
+        finalSessionStats = {
+          ...sessionStats,
+          totalCost: cost.total,
+          costBreakdown: {
+            llmCost: cost.llmCost,
+            mathpixCost: cost.mathpixCost
+          }
+        };
+      }
+      
       const sessionDoc: any = {
         id: sessionId,
         title,
@@ -543,7 +558,7 @@ export class FirestoreService {
         favorite: false,
         rating: 0,
         isPastPaper: sessionData.isPastPaper || false,
-        sessionStats: sessionStats || null,
+        sessionStats: finalSessionStats,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
       
@@ -1047,6 +1062,30 @@ export class FirestoreService {
       // Add the new message to the array
       const updatedMessages = [...existingMessages, sanitizedMessage];
       
+      // Get existing sessionStats and accumulate token counts
+      const existingStats = sessionData?.sessionStats || {};
+      const newMessageTokens = sanitizedMessage?.processingStats?.llmTokens || 0;
+      const newMessageMathpix = sanitizedMessage?.processingStats?.mathpixCalls || 0;
+      
+      // Accumulate token counts (fix bug where they were being reset)
+      const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + newMessageTokens;
+      const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + newMessageMathpix;
+      
+      // Calculate cost based on accumulated stats
+      const { calculateTotalCost } = await import('../utils/CostCalculator.js');
+      const updatedStats = {
+        ...existingStats,
+        totalLlmTokens: accumulatedLlmTokens,
+        totalMathpixCalls: accumulatedMathpixCalls,
+        totalTokens: accumulatedLlmTokens + accumulatedMathpixCalls,
+        lastModelUsed: sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'auto',
+        lastApiUsed: sanitizedMessage?.processingStats?.apiUsed || existingStats.lastApiUsed || 'Unknown',
+        totalMessages: updatedMessages.length,
+        hasImage: updatedMessages.some((msg: any) => msg.imageLink)
+      };
+      
+      const cost = calculateTotalCost(updatedStats);
+      
       // Update the session with new message and metadata
       const updateData = {
         unifiedMessages: updatedMessages,
@@ -1054,8 +1093,16 @@ export class FirestoreService {
         updatedAt: new Date().toISOString(),
         'sessionStats.totalMessages': updatedMessages.length,
         'sessionStats.hasImage': updatedMessages.some((msg: any) => msg.imageLink),
-        'sessionStats.lastApiUsed': sanitizedMessage?.processingStats?.apiUsed || 'Unknown',
-        'sessionStats.lastModelUsed': sanitizedMessage?.processingStats?.modelUsed || 'Unknown'
+        'sessionStats.lastApiUsed': updatedStats.lastApiUsed,
+        'sessionStats.lastModelUsed': updatedStats.lastModelUsed,
+        'sessionStats.totalLlmTokens': accumulatedLlmTokens,
+        'sessionStats.totalMathpixCalls': accumulatedMathpixCalls,
+        'sessionStats.totalTokens': updatedStats.totalTokens,
+        'sessionStats.totalCost': cost.total,
+        'sessionStats.costBreakdown': {
+          llmCost: cost.llmCost,
+          mathpixCost: cost.mathpixCost
+        }
       };
       
       await sessionRef.update(updateData);
@@ -1076,6 +1123,17 @@ export class FirestoreService {
       
       if (!sessionDoc.exists) {
         throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      // If sessionStats is being updated, calculate cost
+      if (updates.sessionStats) {
+        const { calculateTotalCost } = await import('../utils/CostCalculator.js');
+        const cost = calculateTotalCost(updates.sessionStats);
+        updates.sessionStats.totalCost = cost.total;
+        updates.sessionStats.costBreakdown = {
+          llmCost: cost.llmCost,
+          mathpixCost: cost.mathpixCost
+        };
       }
       
       // Sanitize updates and add timestamp

@@ -2,6 +2,20 @@ import type { ModelType } from '../types/index.js';
 import * as path from 'path';
 
 export class ModelProvider {
+  /**
+   * Check if an OpenAI model supports temperature 0
+   * Some newer models (e.g., gpt-5-mini) only support default temperature (1)
+   * @param modelName - The OpenAI model name (e.g., 'gpt-5-mini', 'gpt-4o')
+   * @returns true if model supports temperature 0, false if it requires default
+   */
+  private static supportsTemperatureZero(modelName: string): boolean {
+    // Models that only support default temperature (1)
+    const modelsRequiringDefault = ['gpt-5-mini', 'gpt-5'];
+    
+    // Check if model name contains any of the restricted models
+    return !modelsRequiringDefault.some(restricted => modelName.includes(restricted));
+  }
+
   static async callGeminiText(systemPrompt: string, userPrompt: string, model: ModelType = 'auto', forceJsonResponse: boolean = false): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
     const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
@@ -165,12 +179,16 @@ export class ModelProvider {
       { role: 'user', content: userContent }
     ];
 
-    const body = {
+    const body: any = {
       model,
       messages,
-      temperature: 0,
       response_format: { type: 'json_object' }
-    } as any;
+    };
+    
+    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
+    if (this.supportsTemperatureZero(model)) {
+      body.temperature = 0;
+    }
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -194,7 +212,8 @@ export class ModelProvider {
 
   static async callOpenAIChatWithMultipleImages(
     systemPrompt: string, 
-    userContent: Array<{ type: string; text?: string; image_url?: { url: string } }>
+    userContent: Array<{ type: string; text?: string; image_url?: { url: string } }>,
+    modelName?: string
   ): Promise<{ content: string; usageTokens: number; modelName: string }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -202,19 +221,23 @@ export class ModelProvider {
     }
     const { getOpenAIEndpoint, getOpenAIModelName } = await import('../config/aiModels.js');
     const endpoint = getOpenAIEndpoint();
-    const model = getOpenAIModelName();
+    const model = modelName || getOpenAIModelName();
 
     const messages: any[] = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userContent }
     ];
 
-    const body = {
+    const body: any = {
       model,
       messages,
-      temperature: 0,
       response_format: { type: 'json_object' }
-    } as any;
+    };
+    
+    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
+    if (this.supportsTemperatureZero(model)) {
+      body.temperature = 0;
+    }
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -260,9 +283,13 @@ export class ModelProvider {
 
     const body: any = {
       model: modelName,
-      messages,
-      temperature: 0
+      messages
     };
+
+    // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
+    if (this.supportsTemperatureZero(modelName)) {
+      body.temperature = 0;
+    }
 
     // Add JSON response format if requested
     if (forceJsonResponse) {

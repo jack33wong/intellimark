@@ -318,6 +318,13 @@ export interface UnifiedSession {
     totalAnnotations?: number;    // For "Annotations" display
     lastApiUsed?: string;         // For consistency
     lastModelUsed?: string;       // For consistency
+    
+    // Cost calculation (in USD)
+    totalCost?: number;           // Total cost for the session
+    costBreakdown?: {
+      llmCost: number;           // LLM API cost
+      mathpixCost: number;       // Mathpix API cost
+    };
   };
 }
 

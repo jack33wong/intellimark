@@ -381,6 +381,9 @@ export function calculateMessageProcessingStats(
     if (modelName.includes('gemini')) {
       return 'Google Gemini API';
     }
+    if (modelName.includes('openai') || modelName.includes('gpt-')) {
+      return 'OpenAI API';
+    }
     return 'Unknown API';
   };
 
@@ -431,6 +434,9 @@ export function calculateSessionStats(
   const getRealApiName = (modelName: string): string => {
     if (modelName.includes('gemini')) {
       return 'Google Gemini API';
+    }
+    if (modelName.includes('openai') || modelName.includes('gpt-')) {
+      return 'OpenAI API';
     }
     return 'Unknown API';
   };

@@ -155,6 +155,39 @@
   border: 1px solid #111827; /* Darker border to match chat input */
 }
 
+/* Cost Section */
+.cost-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #2a2a2b; /* Darker background for contrast */
+  border-radius: 12px; /* More rounded corners */
+  border: 1px solid #111827; /* Darker border to match chat input */
+}
+
+.cost-section .label-value-item {
+  border-bottom: 1px solid #111827;
+  padding: 8px 0;
+}
+
+.cost-section .label-value-item:last-child {
+  border-bottom: none;
+}
+
+.cost-breakdown {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #111827;
+}
+
+.cost-breakdown .label-value-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #111827;
+}
+
+.cost-breakdown .label-value-item:last-child {
+  border-bottom: none;
+}
+
 .agent-info {
   display: flex;
   flex-direction: column;

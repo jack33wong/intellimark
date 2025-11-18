@@ -217,13 +217,24 @@ export class SuggestedFollowUpService {
         
         const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
         
+        // Get real API name based on model
+        const getRealApiName = (modelName: string): string => {
+          if (modelName.includes('gemini')) {
+            return 'Google Gemini API';
+          }
+          if (modelName.includes('openai') || modelName.includes('gpt-')) {
+            return 'OpenAI API';
+          }
+          return 'Unknown API';
+        };
+        
         // Complete progress tracking
         progressTracker.completeCurrentStep();
         progressTracker.finish();
         
         return {
           response: combinedResponse,
-          apiUsed: `Gemini API (${model}) - Parallel execution`,
+          apiUsed: `${getRealApiName(model)} (${model}) - Parallel execution`,
           progressData: null
         };
       }
@@ -311,9 +322,20 @@ export class SuggestedFollowUpService {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
       
+      // Get real API name based on model
+      const getRealApiName = (modelName: string): string => {
+        if (modelName.includes('gemini')) {
+          return 'Google Gemini API';
+        }
+        if (modelName.includes('openai') || modelName.includes('gpt-')) {
+          return 'OpenAI API';
+        }
+        return 'Unknown API';
+      };
+      
       const contextualResult = {
         response: aiResult.content,
-        apiUsed: `Gemini API (${model})`,
+        apiUsed: `${getRealApiName(model)} (${model})`,
         confidence: 0.85,
         usageTokens: aiResult.usageTokens
       };
@@ -335,12 +357,23 @@ export class SuggestedFollowUpService {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
       
+      // Get real API name based on model
+      const getRealApiName = (modelName: string): string => {
+        if (modelName.includes('gemini')) {
+          return 'Google Gemini API';
+        }
+        if (modelName.includes('openai') || modelName.includes('gpt-')) {
+          return 'OpenAI API';
+        }
+        return 'Unknown API';
+      };
+      
       progressTracker.completeCurrentStep();
       progressTracker.finish();
       
       return {
         response: aiResult.content,
-        apiUsed: `Gemini API (${model})`,
+        apiUsed: `${getRealApiName(model)} (${model})`,
         progressData: null
       };
     }

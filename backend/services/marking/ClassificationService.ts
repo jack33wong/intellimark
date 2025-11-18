@@ -101,50 +101,97 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     try {
       const validatedModel = validateModel(model);
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = await ModelProvider.getGeminiAccessToken();
       
-      // Build parts array with all images
-      const parts: any[] = [
-        { text: multiImageSystemPrompt },
-        { text: multiImageUserPrompt }
-      ];
+      // Check if OpenAI model - use vision API, otherwise use Gemini
+      const isOpenAI = validatedModel.startsWith('openai-');
+      let content: string;
+      let usageTokens = 0;
+      let apiUsed: string;
+      let parsed: any;
       
-      // Add all images with page indicators
-      images.forEach((img, index) => {
-        const imageData = img.imageData.includes(',') ? img.imageData.split(',')[1] : img.imageData;
-        parts.push({ 
-          text: `\n--- Page ${index + 1} ${img.fileName ? `(${img.fileName})` : ''} ---` 
+      if (isOpenAI) {
+        // Use OpenAI vision API for multi-image classification
+        // Extract model name from full ID (e.g., 'openai-gpt-5-mini' -> 'gpt-5-mini')
+        const openaiModelName = validatedModel.replace('openai-', '');
+        
+        // Build user content with all images and page indicators
+        const userContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+          { type: 'text', text: multiImageUserPrompt }
+        ];
+        
+        // Add all images with page indicators
+        images.forEach((img, index) => {
+          const imageData = img.imageData.includes(',') ? img.imageData : `data:image/jpeg;base64,${img.imageData}`;
+          userContent.push({ 
+            type: 'text', 
+            text: `\n--- Page ${index + 1} ${img.fileName ? `(${img.fileName})` : ''} ---` 
+          });
+          userContent.push({ 
+            type: 'image_url', 
+            image_url: { url: imageData } 
+          });
         });
-        parts.push({ 
-          inline_data: { 
-            mime_type: 'image/jpeg', 
-            data: imageData 
-          } 
+        
+        const result = await ModelProvider.callOpenAIChatWithMultipleImages(multiImageSystemPrompt, userContent, openaiModelName);
+        content = result.content;
+        usageTokens = result.usageTokens || 0;
+        apiUsed = `OpenAI ${result.modelName}`;
+        
+        // Parse OpenAI JSON response
+        try {
+          parsed = JSON.parse(content);
+        } catch (parseErr) {
+          console.error('❌ [CLASSIFICATION] OpenAI JSON parse failed:', parseErr);
+          throw new Error('OpenAI returned non-JSON content');
+        }
+      } else {
+        // Use Gemini with images
+        const accessToken = await ModelProvider.getGeminiAccessToken();
+        
+        // Build parts array with all images
+        const parts: any[] = [
+          { text: multiImageSystemPrompt },
+          { text: multiImageUserPrompt }
+        ];
+        
+        // Add all images with page indicators
+        images.forEach((img, index) => {
+          const imageData = img.imageData.includes(',') ? img.imageData.split(',')[1] : img.imageData;
+          parts.push({ 
+            text: `\n--- Page ${index + 1} ${img.fileName ? `(${img.fileName})` : ''} ---` 
+          });
+          parts.push({ 
+            inline_data: { 
+              mime_type: 'image/jpeg', 
+              data: imageData 
+            } 
+          });
         });
-      });
-      
-      // Make single API call with all images
-      const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);
-      
-      // Check if response is HTML (error page)
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('text/html')) {
-        const htmlContent = await response.text();
-        console.error('❌ [CLASSIFICATION] Received HTML response instead of JSON:');
-        console.error('❌ [CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
-        throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
+        
+        // Make single API call with all images
+        const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);
+        
+        // Check if response is HTML (error page)
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('text/html')) {
+          const htmlContent = await response.text();
+          console.error('❌ [CLASSIFICATION] Received HTML response instead of JSON:');
+          console.error('❌ [CLASSIFICATION] HTML content:', htmlContent.substring(0, 200) + '...');
+          throw new Error('Gemini API returned HTML error page instead of JSON. Check API key and permissions.');
+        }
+        
+        const result = await response.json() as any;
+        content = this.extractGeminiContent(result);
+        const cleanContent = this.cleanGeminiResponse(content);
+        parsed = this.parseJsonWithSanitization(cleanContent);
+        usageTokens = result.usageMetadata?.totalTokenCount || 0;
+        
+        // Get dynamic API name
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        const modelConfig = getModelConfig(validatedModel);
+        const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
+        apiUsed = `Google ${modelName} (Service Account)`;
       }
-      
-      const result = await response.json() as any;
-      const content = await this.extractGeminiContent(result);
-      const cleanContent = this.cleanGeminiResponse(content);
-      const parsed = this.parseJsonWithSanitization(cleanContent);
-      
-      // Get dynamic API name
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(validatedModel);
-      const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
-      const apiUsed = `Google ${modelName} (Service Account)`;
       
       // Parse response - handle both single result and per-page results
       let results: Array<{ pageIndex: number; result: ClassificationResult }> = [];
@@ -161,7 +208,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               questions: processedQuestions,
               extractedQuestionText: pageResult.extractedQuestionText,
               apiUsed,
-              usageTokens: result.usageMetadata?.totalTokenCount || 0
+              usageTokens: usageTokens
             }
           });
         });
@@ -174,7 +221,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           questions: processedQuestions,
           extractedQuestionText: parsed.extractedQuestionText,
           apiUsed,
-          usageTokens: result.usageMetadata?.totalTokenCount || 0
+          usageTokens: usageTokens
         };
         
         // Distribute single result to all pages (fallback behavior)

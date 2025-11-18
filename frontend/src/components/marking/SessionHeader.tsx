@@ -373,6 +373,43 @@ const SessionHeader: React.FC = () => {
                             <span className="value">{processingTime}</span>
                         </div>
                    </div>
+                   {(() => {
+                     const sessionStats = currentSession?.sessionStats;
+                     const totalCost = sessionStats?.totalCost;
+                     const costBreakdown = sessionStats?.costBreakdown;
+                     
+                     // Debug: Log cost data to check if it exists
+                     if (process.env.NODE_ENV === 'development') {
+                       console.log('[COST DEBUG] sessionStats:', sessionStats);
+                       console.log('[COST DEBUG] totalCost:', totalCost);
+                       console.log('[COST DEBUG] costBreakdown:', costBreakdown);
+                     }
+                     
+                     // Show cost section if totalCost exists and is greater than 0
+                     if (totalCost !== undefined && totalCost !== null && totalCost > 0) {
+                       return (
+                         <div className="cost-section">
+                           <div className="label-value-item">
+                             <span className="label">Total Cost:</span>
+                             <span className="value">${totalCost.toFixed(2)}</span>
+                           </div>
+                           {costBreakdown && (
+                             <div className="cost-breakdown">
+                               <div className="label-value-item">
+                                 <span className="label">LLM Cost:</span>
+                                 <span className="value">${costBreakdown.llmCost?.toFixed(2) || '0.00'}</span>
+                               </div>
+                               <div className="label-value-item">
+                                 <span className="label">Mathpix Cost:</span>
+                                 <span className="value">${costBreakdown.mathpixCost?.toFixed(2) || '0.00'}</span>
+                               </div>
+                             </div>
+                           )}
+                         </div>
+                       );
+                     }
+                     return null;
+                   })()}
                   <div className="dropdown-rating-section">
                     <div className="rating-container">
                       <div className="rating-label"><span className="label">Rate this task:</span></div>

@@ -20,6 +20,7 @@ interface UnifiedChatInputProps {
   // New props for multi-image support
   onAnalyzeMultiImage?: (files: File[], text: string) => void;
   onFollowUpMultiImage?: (files: File[], text: string) => void;
+  currentSession?: any; // Session data to check if model selection should be disabled
 }
 
 const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
@@ -32,6 +33,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   onSendMessage,
   onAnalyzeMultiImage,
   onFollowUpMultiImage,
+  currentSession,
 }) => {
   const { user } = useAuth();
   const [chatInput, setChatInput] = useState<string>('');
@@ -372,8 +374,14 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   <button className="followup-upload-button" onClick={handleUploadClick} disabled={isProcessing} title="Upload image(s)/PDF(s)">
                     <Plus size={14} />
                   </button>
-                  {/* 👇 FIX 1: Changed `isProcessing` to the correct `disabled` prop. */}
-                  <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} disabled={isProcessing} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />
+                  {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
+                  <ModelSelector 
+                    selectedModel={selectedModel} 
+                    onModelChange={onModelChange} 
+                    disabled={isProcessing || (currentSession && currentSession.messages && currentSession.messages.length > 0)} 
+                    size={mode === 'first-time' ? 'main' : 'small'} 
+                    onError={handleError} 
+                  />
                 </div>
                 {/* 👇 FIX 2: Added the required `onError` prop. */}
                 <SendButton onClick={handleSendClick} disabled={isProcessing || (!imageFile && !imageFiles.length && !chatInput?.trim())} loading={isProcessing} variant={(imageFile || imageFiles.length > 0) ? 'success' : 'primary'} size={mode === 'first-time' ? 'main' : 'small'} onError={handleError} />

@@ -229,10 +229,7 @@ const createMarkingTasksFromClassification = (
 ): MarkingTask[] => {
   const tasks: MarkingTask[] = [];
   
-  console.log(`[CREATE TASKS DEBUG] Starting, classificationResult.questions=${classificationResult?.questions?.length || 0}, markingSchemesMap.size=${markingSchemesMap.size}`);
-  
   if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
-    console.log('[CREATE TASKS DEBUG] ❌ No questions in classificationResult, returning empty tasks');
     return tasks;
   }
   
@@ -253,9 +250,6 @@ const createMarkingTasksFromClassification = (
   }>();
   
   // First pass: Collect all questions and sub-questions, group by base question number
-  console.log(`[CREATE TASKS DEBUG] Processing ${classificationResult.questions.length} questions from classification`);
-  console.log(`[CREATE TASKS DEBUG] markingSchemesMap keys: ${Array.from(markingSchemesMap.keys()).join(', ')}`);
-  
   for (const q of classificationResult.questions) {
     const mainQuestionNumber = q.questionNumber || null;
     const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
@@ -274,11 +268,8 @@ const createMarkingTasksFromClassification = (
       const hasSubWork = q.subQuestions && q.subQuestions.some((sq: any) => sq.studentWork && sq.studentWork !== 'null' && sq.studentWork.trim() !== '');
       
       if (hasMainWork || hasSubWork) {
-        console.log(`[CREATE TASKS DEBUG] ⚠️ Question with no baseQNum but has student work - will use basic prompt for non-past paper`);
         // Create a task directly without grouping (for non-past papers)
         // We'll handle this after the grouping loop
-      } else {
-        console.log(`[CREATE TASKS DEBUG] Skipping question with no baseQNum and no student work, questionNumber="${mainQuestionNumber}"`);
       }
       continue; // Skip grouping for questions without baseQNum
     }
@@ -296,10 +287,7 @@ const createMarkingTasksFromClassification = (
     }
     
     if (!markingScheme) {
-      console.log(`[CREATE TASKS DEBUG] ⚠️ No marking scheme found for baseQNum="${baseQNum}" (questionNumber="${mainQuestionNumber}") - will use basic prompt for non-past paper`);
       // Continue to create task with null markingScheme (for non-past papers)
-    } else {
-      console.log(`[CREATE TASKS DEBUG] ✅ Found marking scheme for baseQNum="${baseQNum}"`);
     }
     
     // Initialize group if not exists
@@ -334,8 +322,6 @@ const createMarkingTasksFromClassification = (
     }
   }
   
-  console.log(`[CREATE TASKS DEBUG] Created ${questionGroups.size} question groups`);
-  
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
     // Skip if no student work at all (neither main nor sub-questions)
@@ -345,11 +331,8 @@ const createMarkingTasksFromClassification = (
     const hasSubWork = group.subQuestions.length > 0;
     
     if (!hasMainWork && !hasSubWork) {
-      console.log(`[CREATE TASKS DEBUG] Skipping baseQNum="${baseQNum}" - no student work (hasMainWork=${hasMainWork}, hasSubWork=${hasSubWork})`);
       continue;
     }
-    
-    console.log(`[CREATE TASKS DEBUG] Creating task for baseQNum="${baseQNum}" (hasMainWork=${hasMainWork}, hasSubWork=${hasSubWork})`);
     
     // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
     const allMathBlocks: MathBlock[] = [];
@@ -893,6 +876,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Determine authentication status early
     const userId = (req as any)?.user?.uid || null;
     const isAuthenticated = !!userId;
+    
+    // Extract and resolve model from request
+    const requestedModel = req.body.model || 'auto';
+    if (requestedModel === 'auto') {
+      const { getDefaultModel } = await import('../config/aiModels.js');
+      actualModel = getDefaultModel();
+    } else {
+      actualModel = requestedModel;
+    }
 
     // --- Input Validation ---
     if (!files || files.length === 0) {
@@ -1254,7 +1246,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         fileName: page.originalFileName,
         pageIndex: index
       })),
-      'auto',
+      actualModel as ModelType,
       false
     );
     
@@ -2136,7 +2128,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             
             if (matchingQuestion && (!matchingQuestion.questionNumber || matchingQuestion.questionNumber === 'null' || matchingQuestion.questionNumber === null)) {
                 matchingQuestion.questionNumber = detectedQuestionNumber;
-                console.log(`[QUESTION DETECTION DEBUG] Updated classification question number: "${matchingQuestion.questionNumber}" (from detection)`);
             }
         }
     }

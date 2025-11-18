@@ -110,8 +110,11 @@ class SimpleSessionService {
     const serverMeta = newSessionData.sessionStats || {};
     mergedSession.sessionStats = {
         ...localMeta,
-        ...serverMeta,
-        lastModelUsed: serverMeta.lastModelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.lastModelUsed || 'N/A'
+        ...serverMeta, // This should preserve totalCost and costBreakdown from server
+        lastModelUsed: serverMeta.lastModelUsed || modelUsed || serverMeta.lastModelUsed || localMeta.lastModelUsed || 'N/A',
+        // Explicitly preserve cost data from server (in case it gets overwritten)
+        totalCost: serverMeta.totalCost !== undefined ? serverMeta.totalCost : localMeta.totalCost,
+        costBreakdown: serverMeta.costBreakdown || localMeta.costBreakdown
     };
     
     // 👇 SIMPLIFIED: Use server messages directly since we now have stable IDs
@@ -345,17 +348,26 @@ class SimpleSessionService {
         if (data.sessionTitle && this.state.currentSession) {
           // Extract processing stats from AI message for task details
           const processingStats = data.aiMessage?.processingStats || {};
+          const existingStats = this.state.currentSession.sessionStats || {};
+          
+          // Accumulate token counts (fix bug where they were being reset)
+          const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + (processingStats.llmTokens || 0);
+          const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + (processingStats.mathpixCalls || 0);
+          
           const sessionStats = {
-            ...this.state.currentSession.sessionStats,
-            lastModelUsed: processingStats.modelUsed || 'N/A',
-            totalProcessingTimeMs: processingStats.processingTimeMs || 0,
-            lastApiUsed: processingStats.apiUsed || 'N/A',
-            totalLlmTokens: processingStats.llmTokens || 0,
-            totalMathpixCalls: processingStats.mathpixCalls || 0,
-            totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
-            averageConfidence: processingStats.confidence || 0,
-            imageSize: processingStats.imageSize || 0,
-            totalAnnotations: processingStats.annotations || 0
+            ...existingStats,
+            lastModelUsed: processingStats.modelUsed || existingStats.lastModelUsed || 'N/A',
+            totalProcessingTimeMs: processingStats.processingTimeMs || existingStats.totalProcessingTimeMs || 0,
+            lastApiUsed: processingStats.apiUsed || existingStats.lastApiUsed || 'N/A',
+            totalLlmTokens: accumulatedLlmTokens,
+            totalMathpixCalls: accumulatedMathpixCalls,
+            totalTokens: accumulatedLlmTokens + accumulatedMathpixCalls,
+            averageConfidence: processingStats.confidence || existingStats.averageConfidence || 0,
+            imageSize: processingStats.imageSize || existingStats.imageSize || 0,
+            totalAnnotations: processingStats.annotations || existingStats.totalAnnotations || 0,
+            // Preserve cost data from database (should not be overwritten by processing stats)
+            totalCost: existingStats.totalCost,
+            costBreakdown: existingStats.costBreakdown
           };
           
           // For unauthenticated users: Only update title if it's the first AI response
@@ -399,17 +411,26 @@ class SimpleSessionService {
         if (data.sessionTitle && this.state.currentSession) {
           // Extract processing stats from AI message for task details
           const processingStats = data.aiMessage?.processingStats || {};
+          const existingStats = this.state.currentSession.sessionStats || {};
+          
+          // Accumulate token counts (fix bug where they were being reset)
+          const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + (processingStats.llmTokens || 0);
+          const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + (processingStats.mathpixCalls || 0);
+          
           const sessionStats = {
-            ...this.state.currentSession.sessionStats,
-            lastModelUsed: processingStats.modelUsed || 'N/A',
-            totalProcessingTimeMs: processingStats.processingTimeMs || 0,
-            lastApiUsed: processingStats.apiUsed || 'N/A',
-            totalLlmTokens: processingStats.llmTokens || 0,
-            totalMathpixCalls: processingStats.mathpixCalls || 0,
-            totalTokens: (processingStats.llmTokens || 0) + (processingStats.mathpixCalls || 0),
-            averageConfidence: processingStats.confidence || 0,
-            imageSize: processingStats.imageSize || 0,
-            totalAnnotations: processingStats.annotations || 0
+            ...existingStats,
+            lastModelUsed: processingStats.modelUsed || existingStats.lastModelUsed || 'N/A',
+            totalProcessingTimeMs: processingStats.processingTimeMs || existingStats.totalProcessingTimeMs || 0,
+            lastApiUsed: processingStats.apiUsed || existingStats.lastApiUsed || 'N/A',
+            totalLlmTokens: accumulatedLlmTokens,
+            totalMathpixCalls: accumulatedMathpixCalls,
+            totalTokens: accumulatedLlmTokens + accumulatedMathpixCalls,
+            averageConfidence: processingStats.confidence || existingStats.averageConfidence || 0,
+            imageSize: processingStats.imageSize || existingStats.imageSize || 0,
+            totalAnnotations: processingStats.annotations || existingStats.totalAnnotations || 0,
+            // Preserve cost data from database (should not be overwritten by processing stats)
+            totalCost: existingStats.totalCost,
+            costBreakdown: existingStats.costBreakdown
           };
           
           // For unauthenticated users: Only update title if it's the first AI response

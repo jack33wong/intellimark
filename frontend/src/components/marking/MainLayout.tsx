@@ -92,6 +92,7 @@ const MainLayout: React.FC = () => {
                 onFollowUpMultiImage={onFollowUpMultiImage}
                 onSendMessage={onSendMessage}
                 mode={isFollowUp ? 'follow-up' : 'first-time'}
+                currentSession={currentSession}
             />
         </div>
       </div>

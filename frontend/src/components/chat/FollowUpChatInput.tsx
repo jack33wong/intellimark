@@ -17,6 +17,7 @@ interface FollowUpChatInputProps {
   onSendMessage: (text: string) => Promise<void>;
   onAnalyzeMultiImage?: (files: File[], text: string) => Promise<void>;
   onFollowUpMultiImage?: (files: File[], text: string) => Promise<void>;
+  currentSession?: any; // Session data to check if model selection should be disabled
 }
 
 const FollowUpChatInput: React.FC<FollowUpChatInputProps> = (props) => {

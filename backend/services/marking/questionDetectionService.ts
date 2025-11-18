@@ -102,7 +102,18 @@ export class QuestionDetectionService {
     questionNumberHint?: string | null
   ): Promise<QuestionDetectionResult> {
     try {
+      // Debug: Check if this is question 1
+      const isQ1 = questionNumberHint === '1' || String(questionNumberHint) === '1' || 
+                   (extractedQuestionText && /^1[)\-:\s]/.test(extractedQuestionText.trim()));
+      
+      if (isQ1) {
+        console.log(`[Q1 DETECTION DEBUG] Starting detection for Q1, hint="${questionNumberHint}", text="${extractedQuestionText.substring(0, 100)}..."`);
+      }
+
       if (!extractedQuestionText || extractedQuestionText.trim().length === 0) {
+        if (isQ1) {
+          console.log(`[Q1 DETECTION DEBUG] ❌ No question text provided`);
+        }
         return {
           found: false,
           message: 'No question text provided'
@@ -113,10 +124,17 @@ export class QuestionDetectionService {
       const examPapers = await this.getAllExamPapers();
       
       if (examPapers.length === 0) {
+        if (isQ1) {
+          console.log(`[Q1 DETECTION DEBUG] ❌ No exam papers found in database`);
+        }
         return {
           found: false,
           message: 'No exam papers found in database'
         };
+      }
+
+      if (isQ1) {
+        console.log(`[Q1 DETECTION DEBUG] Checking ${examPapers.length} exam papers`);
       }
 
       // Try to match with each exam paper
@@ -179,23 +197,19 @@ export class QuestionDetectionService {
       }
 
       if (bestMatch) {
-        // Debug: Log exam paper match found
-        if (bestMatch.paperCode === '8300/2H' || bestMatch.paperCode === '1MA1/1H') {
-          console.log(`[QUESTION DETECTION DEBUG] paperCode="${bestMatch.paperCode}": Exam paper match found, questionNumber="${bestMatch.questionNumber}", subQuestionNumber="${bestMatch.subQuestionNumber || 'none'}"`);
+        if (isQ1) {
+          console.log(`[Q1 DETECTION DEBUG] ✅ Found match: paperCode="${bestMatch.paperCode}", questionNumber="${bestMatch.questionNumber}", confidence=${bestScore.toFixed(3)}`);
         }
-        
         // Try to find corresponding marking scheme
         const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
         if (markingScheme) {
           bestMatch.markingScheme = markingScheme;
-          // Debug: Log marking scheme found
-          if (bestMatch.paperCode === '8300/2H' || bestMatch.paperCode === '1MA1/1H') {
-            console.log(`[QUESTION DETECTION DEBUG] paperCode="${bestMatch.paperCode}": Marking scheme found, hasQuestionMarks=${!!markingScheme.questionMarks}`);
+          if (isQ1) {
+            console.log(`[Q1 DETECTION DEBUG] ✅ Marking scheme found`);
           }
         } else {
-          // Debug: Log marking scheme not found
-          if (bestMatch.paperCode === '8300/2H' || bestMatch.paperCode === '1MA1/1H') {
-            console.log(`[QUESTION DETECTION DEBUG] paperCode="${bestMatch.paperCode}": Marking scheme NOT found`);
+          if (isQ1) {
+            console.log(`[Q1 DETECTION DEBUG] ⚠️ Marking scheme NOT found`);
           }
         }
         
@@ -206,9 +220,8 @@ export class QuestionDetectionService {
         };
       }
 
-      // Debug: Log no exam paper match
-      if (extractedQuestionText && (extractedQuestionText.includes('8300') || extractedQuestionText.includes('1MA1'))) {
-        console.log(`[QUESTION DETECTION DEBUG] No exam paper match found for question text: "${extractedQuestionText.substring(0, 100)}..."`);
+      if (isQ1) {
+        console.log(`[Q1 DETECTION DEBUG] ❌ No match found. Best score was: ${bestScore.toFixed(3)} (threshold: 0.50)`);
       }
 
       return {
@@ -492,9 +505,21 @@ export class QuestionDetectionService {
       // The previous 0.35 threshold was too low and allowed non-past papers to match past papers incorrectly
       // 0.50 is still lenient enough for OCR/classification variations but strict enough to reject false positives
       const threshold = bestSubQuestionNumber ? 0.4 : 0.50;
+      
+      // Get paper code for debug logging
+      const metadata = examPaper.metadata;
+      const paperCode = metadata?.exam_code || 'unknown';
+      
+      // Debug: Log Q1 matching attempts
+      const isQ1Hint = questionNumberHint === '1' || String(questionNumberHint) === '1';
+      if (isQ1Hint && bestQuestionMatch) {
+        console.log(`[Q1 DETECTION DEBUG] Match attempt: questionNumber="${bestQuestionMatch}", similarity=${bestScore.toFixed(3)}, threshold=${threshold.toFixed(2)}, paperCode="${paperCode}"`);
+      } else if (isQ1Hint && !bestQuestionMatch) {
+        console.log(`[Q1 DETECTION DEBUG] No match found in paperCode="${paperCode}", bestScore=${bestScore.toFixed(3)}`);
+      }
+      
       if (bestQuestionMatch && bestScore >= threshold) {
         // Use standardized fullExamPapers structure
-        const metadata = examPaper.metadata;
         if (!metadata) {
           throw new Error('Exam paper missing required metadata structure');
         }
@@ -502,14 +527,8 @@ export class QuestionDetectionService {
         const board = metadata.exam_board;
         // Use qualification field if available, fallback to subject for backward compatibility
         const qualification = metadata.qualification || metadata.subject;
-        const paperCode = metadata.exam_code;
         const examSeries = metadata.exam_series;
         const tier = metadata.tier;
-        
-        // Debug: Log what values are being used from fullExamPapers
-        if (paperCode === '8300/2H' || paperCode === '1MA1/1H') {
-          console.log(`[FULLEXAMPAPERS DEBUG] paperCode="${paperCode}": metadata.qualification="${metadata.qualification}", metadata.subject="${metadata.subject}", using="${qualification}"`);
-        }
         
         // Validate required fields
         if (!board || !qualification || !paperCode || !examSeries) {
@@ -534,7 +553,6 @@ export class QuestionDetectionService {
           // Use ONLY question_part - fail fast if missing
           const matchedSubQ = matchedSubQuestions.find((sq: any) => {
             if (!sq.question_part) {
-              console.error(`[QUESTION MARKS DEBUG] ❌ Sub-question missing question_part field. Expected structure: sub_questions[].question_part`);
               return false; // Skip - invalid structure
             }
             return String(sq.question_part).toLowerCase() === bestSubQuestionNumber.toLowerCase();
@@ -544,7 +562,6 @@ export class QuestionDetectionService {
             questionMarks = matchedSubQ.marks; // Use sub-question's marks directly from fullExamPapers
           } else {
             // Fail fast - sub-question matched but marks not found
-            console.error(`[QUESTION MARKS DEBUG] ❌ Sub-question Q${bestQuestionMatch}${bestSubQuestionNumber} matched but marks not found in sub_questions[].marks. Expected structure: sub_questions[].question_part and sub_questions[].marks`);
             throw new Error(`Sub-question Q${bestQuestionMatch}${bestSubQuestionNumber} matched but marks extraction failed - invalid database structure`);
           }
         }
@@ -613,10 +630,6 @@ export class QuestionDetectionService {
       let bestMatch: MarkingSchemeMatch | null = null;
       let bestScore = 0;
       
-      // Debug: Log what we're looking for
-      console.log(`[MARKING SCHEME LOOKUP] 🔍 Looking for: paperCode="${examPaperMatch.paperCode}", board="${examPaperMatch.board}", examSeries="${examPaperMatch.examSeries}", qualification="${examPaperMatch.qualification}"`);
-      console.log(`[MARKING SCHEME LOOKUP] 📊 Total marking schemes in database: ${markingSchemes.length}`);
-      
       for (const markingScheme of markingSchemes) {
         const match = this.matchMarkingSchemeWithExamPaper(examPaperMatch, markingScheme);
         if (match) {
@@ -632,17 +645,8 @@ export class QuestionDetectionService {
       }
       
       if (bestMatch) {
-        console.log(`[MARKING SCHEME LOOKUP] ✅ Found match: paperCode="${bestMatch.examDetails.paperCode}", score=${bestScore.toFixed(3)}`);
         return bestMatch;
       }
-      
-      console.error(`[MARKING SCHEME LOOKUP] ❌ No matching marking scheme found for ${examPaperMatch.paperCode}`);
-      // Special debug for Q21
-      if (examPaperMatch.questionNumber === '21' || examPaperMatch.questionNumber === 21) {
-        console.error(`[MARKING SCHEME LOOKUP] Q21 SPECIFIC: Paper code "${examPaperMatch.paperCode}" not found in marking schemes`);
-        console.error(`[MARKING SCHEME LOOKUP] Q21 SPECIFIC: Total marking schemes checked: ${markingSchemes.length}`);
-      }
-      
 
       return null;
     } catch (error) {
@@ -696,13 +700,11 @@ export class QuestionDetectionService {
         let questionMarks = null;
         
         if (!examPaperMatch.questionNumber) {
-          console.error(`[QUESTION MARKS DEBUG] ❌ examPaperMatch.questionNumber is missing`);
           return null; // Fail fast
         }
         
         // Check if markingScheme has questions property
         if (!markingScheme.questions) {
-          console.error(`[QUESTION MARKS DEBUG] ❌ markingScheme.questions is missing for ${examDetails.paperCode}`);
           return null; // Fail fast
         }
         
@@ -720,27 +722,8 @@ export class QuestionDetectionService {
         // FLAT STRUCTURE ONLY - no fallbacks, no nested structures
         if (questions[flatKey]) {
           questionMarks = questions[flatKey];
-          // Debug: Log successful question marks extraction
-          if (examPaperMatch.paperCode === '8300/2H' || examPaperMatch.paperCode === '1MA1/1H') {
-            console.log(`[QUESTION MARKS DEBUG] ✅ paperCode="${examPaperMatch.paperCode}": Found question marks for key "${flatKey}"`);
-          }
         } else {
           // Fail fast - no matching structure found
-          console.error(`[QUESTION MARKS DEBUG] ❌ Not found: questions["${flatKey}"] in ${examDetails.paperCode}`);
-          console.error(`[QUESTION MARKS DEBUG] Question number: "${questionNumber}", Sub-question: "${examPaperMatch.subQuestionNumber || 'none'}"`);
-          console.error(`[QUESTION MARKS DEBUG] Available keys: ${Object.keys(questions).slice(0, 30).join(', ')}${Object.keys(questions).length > 30 ? '...' : ''}`);
-          
-          // Debug: Log failure for 8300/2H and 1MA1/1H
-          if (examPaperMatch.paperCode === '8300/2H' || examPaperMatch.paperCode === '1MA1/1H') {
-            console.error(`[QUESTION MARKS DEBUG] ❌ paperCode="${examPaperMatch.paperCode}": Question marks NOT found for key "${flatKey}"`);
-          }
-          
-          // Special debug for Q21
-          if (questionNumber === '21' || questionNumber === 21) {
-            console.error(`[QUESTION MARKS DEBUG] Q21 SPECIFIC: Looking for key "${flatKey}"`);
-            console.error(`[QUESTION MARKS DEBUG] Q21 SPECIFIC: All available question keys: ${Object.keys(questions).join(', ')}`);
-          }
-          
           return null; // Fail fast - no fallbacks
         }
         
