@@ -7,6 +7,9 @@ import { questionDetectionService } from './questionDetectionService.js';
 import { createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
 import { getDebugMode } from '../../config/aiModels.js';
+import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
+import type { QuestionResult } from './MarkingExecutor.js';
+import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 
 // Debug mode helper function
 export async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
@@ -714,4 +717,136 @@ export function buildPageToQuestionNumbersMap(
   });
   
   return pageToQuestionNumbers;
+}
+
+/**
+ * Get page index from question result (from annotations or classification result)
+ */
+function getPageIndexFromQuestionResult(
+  qr: QuestionResult,
+  classificationResult: any
+): number {
+  // Get pageIndex from annotations (they have pageIndex) or from the first annotation's pageIndex
+  // If no annotations, use the first page that has blocks for this question
+  let pageIndex: number | undefined;
+  
+  if (qr.annotations && qr.annotations.length > 0) {
+    // Get the most common pageIndex from annotations (in case question spans multiple pages)
+    const pageIndexCounts = new Map<number, number>();
+    qr.annotations.forEach(anno => {
+      if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+        pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
+      }
+    });
+    // Use the page with the most annotations
+    if (pageIndexCounts.size > 0) {
+      pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    }
+  }
+  
+  // Fallback: try to match by question number from classificationResult
+  if (pageIndex === undefined) {
+    const matchingQuestion = classificationResult.questions?.find((q: any) => {
+      const qNum = String(q.questionNumber || '').replace(/[a-z]/i, '');
+      const resultQNum = String(qr.questionNumber || '').split('_')[0].replace(/[a-z]/i, '');
+      return qNum === resultQNum;
+    });
+    pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
+  }
+  
+  if (pageIndex === undefined) {
+    pageIndex = 0; // Final fallback
+  }
+  
+  return pageIndex;
+}
+
+/**
+ * Calculate overall score from question results
+ * Avoids double-counting sub-questions that share the same parent question
+ */
+export function calculateOverallScore(
+  allQuestionResults: QuestionResult[]
+): {
+  overallScore: number;
+  totalPossibleScore: number;
+  overallScoreText: string;
+} {
+  const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
+  
+  // For total marks: avoid double-counting sub-questions that share the same parent question
+  // Group by base question number and only count total marks once per base question
+  const baseQuestionToTotalMarks = new Map<string, number>();
+  allQuestionResults.forEach((qr) => {
+    const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
+    const totalMarks = qr.score?.totalMarks || 0;
+    // Only set if not already set (first occurrence wins)
+    // This ensures sub-questions (Q17a, Q17b) share the same total marks as their parent (Q17)
+    if (!baseQuestionToTotalMarks.has(baseQNum)) {
+      baseQuestionToTotalMarks.set(baseQNum, totalMarks);
+    }
+  });
+  const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
+  const overallScoreText = `${overallScore}/${totalPossibleScore}`;
+  
+  return {
+    overallScore,
+    totalPossibleScore,
+    overallScoreText
+  };
+}
+
+/**
+ * Calculate per-page scores from question results
+ * Groups by page index and avoids double-counting sub-questions
+ */
+export function calculatePerPageScores(
+  allQuestionResults: QuestionResult[],
+  classificationResult: any
+): { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } {
+  const pageScores: { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } = {};
+  
+  // First pass: Calculate awarded marks per page
+  allQuestionResults.forEach((qr) => {
+    const pageIndex = getPageIndexFromQuestionResult(qr, classificationResult);
+    
+    if (!pageScores[pageIndex]) {
+      pageScores[pageIndex] = { awarded: 0, total: 0, scoreText: '' };
+    }
+    
+    pageScores[pageIndex].awarded += qr.score?.awardedMarks || 0;
+    // Don't add totalMarks here - we'll calculate it after grouping by base question number
+  });
+  
+  // Second pass: Calculate total marks per page by grouping by base question number (avoid double-counting sub-questions)
+  const pageBaseQuestionToTotalMarks = new Map<number, Map<string, number>>(); // pageIndex -> baseQNum -> totalMarks
+  allQuestionResults.forEach((qr) => {
+    const pageIndex = getPageIndexFromQuestionResult(qr, classificationResult);
+    
+    if (!pageBaseQuestionToTotalMarks.has(pageIndex)) {
+      pageBaseQuestionToTotalMarks.set(pageIndex, new Map<string, number>());
+    }
+    
+    const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
+    const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
+    if (!pageBaseQMap.has(baseQNum)) {
+      pageBaseQMap.set(baseQNum, qr.score?.totalMarks || 0);
+    }
+  });
+  
+  // Set total marks per page from grouped data
+  pageBaseQuestionToTotalMarks.forEach((baseQMap, pageIndex) => {
+    const pageTotal = Array.from(baseQMap.values()).reduce((sum, marks) => sum + marks, 0);
+    if (pageScores[pageIndex]) {
+      pageScores[pageIndex].total = pageTotal;
+    }
+  });
+  
+  // Generate score text for each page
+  Object.keys(pageScores).forEach(pageIndex => {
+    const pageScore = pageScores[parseInt(pageIndex)];
+    pageScore.scoreText = `${pageScore.awarded}/${pageScore.total}`;
+  });
+  
+  return pageScores;
 }

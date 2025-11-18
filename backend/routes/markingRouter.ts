@@ -13,7 +13,7 @@ import sharp from 'sharp';
 import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/sseUtils.js';
 import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
-import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps, extractQuestionsFromClassification, convertMarkingSchemeToPlainText, formatGroupedStudentWork, getQuestionSortValue, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap } from '../services/marking/MarkingHelpers.js';
+import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps, extractQuestionsFromClassification, convertMarkingSchemeToPlainText, formatGroupedStudentWork, getQuestionSortValue, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap, calculateOverallScore, calculatePerPageScores } from '../services/marking/MarkingHelpers.js';
 import { 
   generateSessionTitle, 
   sendProgressUpdate, 
@@ -51,6 +51,7 @@ import { questionDetectionService } from '../services/marking/questionDetectionS
 import { ImageStorageService } from '../services/imageStorageService.js';
 import { GradeBoundaryService } from '../services/marking/GradeBoundaryService.js';
 import { MarkingSchemeOrchestrationService } from '../services/marking/MarkingSchemeOrchestrationService.js';
+import { QuestionModeHandlerService } from '../services/marking/QuestionModeHandlerService.js';
 // import { getMarkingScheme } from '../services/marking/questionDetectionService.js';
 
 // Placeholder function removed - schemes are now fetched in Question Detection stage
@@ -723,301 +724,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     if (isQuestionMode) {
       // ========================= ENHANCED QUESTION MODE =========================
       // Question mode: Handle multiple question-only images with detailed responses
-      
-      console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
-      
-      // Step 1: Enhanced Question Detection for Multiple Questions
-      sendSseUpdate(res, createProgressData(4, 'Detecting question types...', MULTI_IMAGE_STEPS));
-      const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-      
-      // Extract individual questions from classification result
-      const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
-      
-      // Detect each question individually to get proper exam data and marking schemes
-      const allQuestionDetections = await Promise.all(
-        individualQuestions.map(async (question, index) => {
-          const detection = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
-          return {
-            questionIndex: index,
-            questionText: question.text,
-            detection: detection,
-            sourceImageIndex: classificationResult.questions[index]?.sourceImageIndex ?? index
-          };
-        })
-      );
-      
-      // Group questions by exam paper (board + code + year + tier)
-      const examPaperGroups = new Map<string, any>();
-      
-      allQuestionDetections.forEach(qd => {
-        const examBoard = qd.detection.match?.board || '';
-        const examCode = qd.detection.match?.paperCode || '';
-        const examSeries = qd.detection.match?.examSeries || '';
-        const tier = qd.detection.match?.tier || '';
-        
-        // Create unique key for exam paper grouping
-        const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
-        
-        if (!examPaperGroups.has(examPaperKey)) {
-          examPaperGroups.set(examPaperKey, {
-            examBoard,
-            examCode,
-            examSeries,
-            tier,
-            subject: qd.detection.match?.qualification || '',
-            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-            questions: [],
-            totalMarks: 0
-          });
-        }
-        
-        const examPaper = examPaperGroups.get(examPaperKey);
-        examPaper.questions.push({
-          questionNumber: qd.detection.match?.questionNumber || '',
-          questionText: qd.questionText,
-          marks: qd.detection.match?.marks || 0,
-          markingScheme: qd.detection.markingScheme || '',
-          questionIndex: qd.questionIndex,
-          sourceImageIndex: qd.sourceImageIndex
-        });
-        examPaper.totalMarks += qd.detection.match?.marks || 0;
-      });
-      
-      // Convert to array and determine if multiple exam papers
-      const examPapers = Array.from(examPaperGroups.values());
-      const multipleExamPapers = examPapers.length > 1;
-      
-      // Create enhanced question detection result
-      const questionDetection = {
-        found: allQuestionDetections.some(qd => qd.detection.found),
-        multipleExamPapers,
-        examPapers,
-        totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
-        // Legacy fields for backward compatibility (removed unnecessary fields: questionIndex, sourceImageIndex)
-        multipleQuestions: allQuestionDetections.length > 1,
-        questions: allQuestionDetections.map(qd => {
-          // Use database question text if available, fallback to classification text
-          const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
-          
-          // markingScheme must be plain text (fail-fast for old format)
-          let markingSchemePlainText = '';
-          if (qd.detection.markingScheme) {
-            if (typeof qd.detection.markingScheme !== 'string') {
-              throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text string, got ${typeof qd.detection.markingScheme}. Please clear old data and create new sessions.`);
-            }
-            // Fail-fast if it looks like JSON (old format)
-            if (qd.detection.markingScheme.trim().startsWith('{') || qd.detection.markingScheme.trim().startsWith('[')) {
-              throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text, got JSON. Please clear old data and create new sessions.`);
-            }
-            markingSchemePlainText = qd.detection.markingScheme;
-          }
-          
-          return {
-            questionNumber: qd.detection.match?.questionNumber || '',
-            questionText: questionText,
-            marks: qd.detection.match?.marks || 0,
-            markingScheme: markingSchemePlainText,
-            examBoard: qd.detection.match?.board || '',
-            examCode: qd.detection.match?.paperCode || '',
-            paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-            subject: qd.detection.match?.qualification || '',
-            tier: qd.detection.match?.tier || '',
-            examSeries: qd.detection.match?.examSeries || ''
-          };
-        })
-      };
-      
-      logQuestionDetectionComplete();
-      
-      // Step 2: Enhanced AI Response Generation for Multiple Questions
-      sendSseUpdate(res, createProgressData(6, 'Generating responses...', MULTI_IMAGE_STEPS));
-      const logAiResponseComplete = logStep('AI Response Generation', actualModel);
-      const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
-      
-      // Generate AI responses for each question individually
-      const aiResponses = await Promise.all(
-        allQuestionDetections.map(async (qd, index) => {
-          const imageData = standardizedPages[qd.sourceImageIndex]?.imageData || standardizedPages[0].imageData;
-          const response = await MarkingServiceLocator.generateChatResponse(
-            imageData,
-            qd.questionText,
-            actualModel as ModelType,
-            "questionOnly", // category
-            false // debug
-          );
-          return {
-            questionIndex: index,
-            questionNumber: qd.detection.match?.questionNumber || `Q${index + 1}`,
-            response: response.response,
-            apiUsed: response.apiUsed,
-            usageTokens: response.usageTokens
-          };
-        })
-      );
-      
-      // Debug logging for multi-question responses
-      console.log(`🔍 [QUESTION MODE] Generated ${aiResponses.length} individual AI responses:`);
-      aiResponses.forEach((ar, index) => {
-        console.log(`  ${index + 1}. ${ar.questionNumber}: ${ar.response.substring(0, 100)}...`);
-      });
-      
-      // Combine all responses into a single comprehensive response with clear separation
-      const combinedResponse = aiResponses.map(ar => 
-        `## ${ar.questionNumber}\n\n${ar.response}`
-      ).join('\n\n' + '='.repeat(50) + '\n\n');
-      
-      const aiResponse = {
-        response: combinedResponse,
-        apiUsed: aiResponses[0]?.apiUsed || 'Unknown',
-        usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0)
-      };
-      
-      logAiResponseComplete();
-      
-      // Generate suggested follow-ups (same as marking mode)
-      const suggestedFollowUps = await getSuggestedFollowUps();
-      
-      // Complete progress
-      sendSseUpdate(res, createProgressData(7, 'Question analysis complete!', MULTI_IMAGE_STEPS));
-      
-      // Create AI message for question mode with real processing stats
-      const realProcessingStats = calculateMessageProcessingStats(
-        aiResponse,
+      await QuestionModeHandlerService.handleQuestionMode({
+        classificationResult,
+        standardizedPages,
+        files,
         actualModel,
-        Date.now() - startTime,
-        [], // No annotations in question mode - no annotation means question mode
-        standardizedPages[0].imageData.length,
-        [] // No question results in question mode
-      );
-
-      // Transform question detection result to match frontend DetectedQuestion structure
-      const transformedDetectedQuestion = questionDetection ? {
-        found: questionDetection.found,
-        multipleExamPapers: questionDetection.multipleExamPapers,
-        multipleQuestions: questionDetection.multipleQuestions,
-        totalMarks: questionDetection.totalMarks,
-        examPapers: questionDetection.examPapers
-      } : undefined;
-
-      const aiMessage = createAIMessage({
-        content: aiResponse.response,
-        imageDataArray: undefined, // No annotation means question mode - no image data returned to frontend
-        progressData: {
-          currentStepDescription: 'Question analysis complete',
-          allSteps: MULTI_IMAGE_STEPS,
-          currentStepIndex: 7,
-          isComplete: true
-        },
-        suggestedFollowUps: suggestedFollowUps,
-        processingStats: realProcessingStats,
-        detectedQuestion: transformedDetectedQuestion // FIXED: Include transformed detected question for exam paper tab display
+        userId,
+        submissionId,
+        req,
+        res,
+        startTime,
+        logStep
       });
-      
-      // FIXED: Don't add image data to AI message for question mode
-      // (aiMessage as any).imageData = standardizedPages[0].imageData;
-      // (aiMessage as any).imageLink = null; // No image link for question mode
-      
-      // ========================= DATABASE PERSISTENCE FOR QUESTION MODE =========================
-      let persistenceResult: any = null;
-      let userMessage: any = null;
-      try {
-        // Upload original files for authenticated users
-        const uploadResult = await SessionManagementService.uploadOriginalFiles(
-          files,
-          userId || 'anonymous',
-          submissionId,
-          !!userId
-        );
-
-        // Create structured data
-        const { structuredImageDataArray } = SessionManagementService.createStructuredData(
-          files,
-          false, // isPdf
-          false, // isMultiplePdfs
-          undefined // pdfContext
-        );
-
-        // Create user message for question mode
-        userMessage = SessionManagementService.createUserMessageForDatabase(
-          {
-            content: `I have uploaded 1 file(s) for analysis.`,
-            files,
-            isPdf: false,
-            isMultiplePdfs: false,
-            sessionId: req.body.sessionId || submissionId,
-            model: req.body.model || 'auto'
-          },
-          structuredImageDataArray,
-          undefined, // structuredPdfContexts
-          uploadResult.originalImageLinks
-        );
-        
-        // Override timestamp for database consistency (same as marking mode)
-        const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
-        const aiTimestamp = new Date().toISOString(); // AI message current time
-        (userMessage as any).timestamp = userTimestamp;
-        (aiMessage as any).timestamp = aiTimestamp;
-        
-        // Persist question session
-        const questionContext: QuestionSessionContext = {
-          req,
-          submissionId,
-          startTime,
-          userMessage,
-          aiMessage,
-          questionDetection,
-          globalQuestionText: globalQuestionText || '',
-          mode: 'Question'
-        };
-        persistenceResult = await SessionManagementService.persistQuestionSession(questionContext);
-        
-        // Update the AI message with session data
-        (aiMessage as any).sessionId = persistenceResult.sessionId;
-        
-      } catch (dbError) {
-        console.error('❌ [QUESTION MODE] Database persistence failed:', dbError);
-        // Continue with response even if database fails
-      }
-      
-      // Create unifiedSession for unauthenticated users (same as marking mode)
-      const isAuthenticated = !!(req as any)?.user?.uid;
-      let unifiedSession = persistenceResult?.unifiedSession;
-      
-      if (!isAuthenticated && !unifiedSession) {
-        // For unauthenticated users, create a temporary session structure
-        unifiedSession = SessionManagementService.createUnauthenticatedSession(
-          submissionId,
-          userMessage,
-          aiMessage,
-          [], // No question results in question mode
-          startTime,
-          actualModel,
-          files,
-          'Question'
-        );
-      }
-      
-      // Send final result
-      const finalResult = {
-        success: true,
-        message: aiMessage,
-        sessionId: submissionId,
-        mode: 'Question',
-        unifiedSession: unifiedSession // Include unified session data for both user types
-      };
-      
-      // Send final result with completion flag
-      const finalProgressData = createProgressData(7, 'Complete!', MULTI_IMAGE_STEPS);
-      finalProgressData.isComplete = true;
-      sendSseUpdate(res, finalProgressData);
-      
-      // Send completion event in the format expected by frontend
-      const completionEvent = {
-        type: 'complete',
-        result: finalResult
-      };
-      res.write(`data: ${JSON.stringify(completionEvent)}\n\n`);
-      res.end();
       return;
     }
 
@@ -1239,120 +957,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
 
     // --- Calculate Overall Score and Per-Page Scores ---
-    const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
-    
-    // For total marks: avoid double-counting sub-questions that share the same parent question
-    // Group by base question number and only count total marks once per base question
-    const baseQuestionToTotalMarks = new Map<string, number>();
-    allQuestionResults.forEach((qr) => {
-      const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
-      const totalMarks = qr.score?.totalMarks || 0;
-      // Only set if not already set (first occurrence wins)
-      // This ensures sub-questions (Q17a, Q17b) share the same total marks as their parent (Q17)
-      if (!baseQuestionToTotalMarks.has(baseQNum)) {
-        baseQuestionToTotalMarks.set(baseQNum, totalMarks);
-      }
-    });
-    const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
-    const overallScoreText = `${overallScore}/${totalPossibleScore}`;
-    
-    // Calculate per-page scores
-    const pageScores: { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } = {};
-    allQuestionResults.forEach((qr) => {
-      // Get pageIndex from annotations (they have pageIndex) or from the first annotation's pageIndex
-      // If no annotations, use the first page that has blocks for this question
-      let pageIndex: number | undefined;
-      
-      if (qr.annotations && qr.annotations.length > 0) {
-        // Get the most common pageIndex from annotations (in case question spans multiple pages)
-        const pageIndexCounts = new Map<number, number>();
-        qr.annotations.forEach(anno => {
-          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
-            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
-          }
-        });
-        // Use the page with the most annotations
-        if (pageIndexCounts.size > 0) {
-          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-        }
-      }
-      
-      // Fallback: try to match by question number from classificationResult
-      if (pageIndex === undefined) {
-        const matchingQuestion = classificationResult.questions.find((q: any) => {
-          const qNum = String(q.questionNumber || '').replace(/[a-z]/i, '');
-          const resultQNum = String(qr.questionNumber || '').split('_')[0].replace(/[a-z]/i, '');
-          return qNum === resultQNum;
-        });
-        pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
-      }
-      
-      if (pageIndex === undefined) {
-        pageIndex = 0; // Final fallback
-      }
-      
-      if (!pageScores[pageIndex]) {
-        pageScores[pageIndex] = { awarded: 0, total: 0, scoreText: '' };
-      }
-      
-      pageScores[pageIndex].awarded += qr.score?.awardedMarks || 0;
-      // Don't add totalMarks here - we'll calculate it after grouping by base question number
-    });
-    
-    // Calculate total marks per page by grouping by base question number (avoid double-counting sub-questions)
-    const pageBaseQuestionToTotalMarks = new Map<number, Map<string, number>>(); // pageIndex -> baseQNum -> totalMarks
-    allQuestionResults.forEach((qr) => {
-      let pageIndex: number | undefined;
-      
-      if (qr.annotations && qr.annotations.length > 0) {
-        const pageIndexCounts = new Map<number, number>();
-        qr.annotations.forEach(anno => {
-          if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
-            pageIndexCounts.set(anno.pageIndex, (pageIndexCounts.get(anno.pageIndex) || 0) + 1);
-          }
-        });
-        if (pageIndexCounts.size > 0) {
-          pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
-        }
-      }
-      
-      if (pageIndex === undefined) {
-        const matchingQuestion = classificationResult.questions.find((q: any) => {
-          const qNum = String(q.questionNumber || '').replace(/[a-z]/i, '');
-          const resultQNum = String(qr.questionNumber || '').split('_')[0].replace(/[a-z]/i, '');
-          return qNum === resultQNum;
-        });
-        pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
-      }
-      
-      if (pageIndex === undefined) {
-        pageIndex = 0;
-      }
-      
-      if (!pageBaseQuestionToTotalMarks.has(pageIndex)) {
-        pageBaseQuestionToTotalMarks.set(pageIndex, new Map<string, number>());
-      }
-      
-      const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
-      const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
-      if (!pageBaseQMap.has(baseQNum)) {
-        pageBaseQMap.set(baseQNum, qr.score?.totalMarks || 0);
-      }
-    });
-    
-    // Set total marks per page from grouped data
-    pageBaseQuestionToTotalMarks.forEach((baseQMap, pageIndex) => {
-      const pageTotal = Array.from(baseQMap.values()).reduce((sum, marks) => sum + marks, 0);
-      if (pageScores[pageIndex]) {
-        pageScores[pageIndex].total = pageTotal;
-      }
-    });
-    
-    // Generate score text for each page
-    Object.keys(pageScores).forEach(pageIndex => {
-      const pageScore = pageScores[parseInt(pageIndex)];
-      pageScore.scoreText = `${pageScore.awarded}/${pageScore.total}`;
-    });
+    const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(allQuestionResults);
+    const pageScores = calculatePerPageScores(allQuestionResults, classificationResult);
 
     // --- Determine First Page After Sorting (for total score placement) ---
     // Helper function to extract page number from filename (same as used in sorting)
@@ -1650,92 +1256,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // overallScoreText is already calculated as `${overallScore}/${totalPossibleScore}`
       
       // Calculate grade based on grade boundaries (if exam data is available)
-      let calculatedGrade: string | null = null;
-      let gradeBoundaryType: 'Paper-Specific' | 'Overall-Total' | null = null;
-      
-      // Try to get exam data from questionDetection (question mode) or markingSchemesMap (marking mode)
-      let examDataForGrade: any = null;
-      
-      // First, try questionDetection (available in question mode)
-      if (typeof questionDetection !== 'undefined' && questionDetection && questionDetection.found && questionDetection.examPapers && questionDetection.examPapers.length > 0) {
-        examDataForGrade = questionDetection;
-      } else if (markingSchemesMap && markingSchemesMap.size > 0) {
-        // Fallback: extract exam data from markingSchemesMap (marking mode)
-        const firstScheme = Array.from(markingSchemesMap.values())[0];
-        const firstDetection = firstScheme?.questionDetection;
-        
-        if (firstDetection && firstDetection.found && firstDetection.match) {
-          const match = firstDetection.match;
-          // Get subject from marking scheme if available, otherwise try to infer from exam code
-          let subject = '';
-          if (firstDetection.markingScheme?.examDetails?.subject) {
-            subject = firstDetection.markingScheme.examDetails.subject;
-          } else {
-            // Infer subject from exam code (e.g., "1MA1" -> "MATHEMATICS")
-            const examCode = match.paperCode || '';
-            if (examCode.includes('1MA1') || examCode.includes('MA1')) {
-              subject = 'MATHEMATICS';
-            } else if (examCode.includes('1PH0') || examCode.includes('PH0')) {
-              subject = 'PHYSICS';
-            } else if (examCode.includes('1CH0') || examCode.includes('CH0')) {
-              subject = 'CHEMISTRY';
-            } else {
-              // Fallback: use qualification (but this is wrong, should be subject)
-              subject = match.qualification || '';
-            }
-          }
-          
-          examDataForGrade = {
-            found: true,
-            examPapers: [{
-              examBoard: match.board || '',
-              examCode: match.paperCode || '',
-              examSeries: match.examSeries || (match as any).year || '',
-              tier: match.tier || '',
-              subject: subject
-            }]
-          };
-        }
-      }
-      
-      // Only attempt grade calculation if we have exam data and scores
-      if (examDataForGrade && examDataForGrade.found && examDataForGrade.examPapers && examDataForGrade.examPapers.length > 0) {
-        console.log(`📊 [GRADE BOUNDARY] Attempting grade calculation for score: ${overallScore}/${totalPossibleScore}`);
-        try {
-          const firstExamPaper = examDataForGrade.examPapers[0];
-          console.log(`📊 [GRADE BOUNDARY] Exam details: ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year} ${firstExamPaper.examCode} ${firstExamPaper.tier}`);
-          
-          const gradeResult = await GradeBoundaryService.calculateGradeForExamPaper(
-            firstExamPaper.examBoard,
-            firstExamPaper.examSeries || (firstExamPaper as any).year, // Migration support
-            firstExamPaper.subject,
-            firstExamPaper.examCode,
-            firstExamPaper.tier,
-            overallScore,
-            totalPossibleScore
-          );
-          
-          if (gradeResult.grade) {
-            calculatedGrade = gradeResult.grade;
-            gradeBoundaryType = gradeResult.boundaryType;
-            console.log(`✅ [GRADE BOUNDARY] Calculated grade: ${calculatedGrade} (${gradeResult.boundaryType}) for ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year}`);
-          } else if (gradeResult.error) {
-            console.log(`ℹ️ [GRADE BOUNDARY] Grade not calculated: ${gradeResult.error}`);
-          }
-        } catch (gradeError) {
-          console.error('❌ [GRADE BOUNDARY] Error calculating grade in pipeline:', gradeError);
-          // Don't fail the marking pipeline if grade calculation fails
-        }
-      } else {
-        // Log why grade calculation is skipped
-        if (!examDataForGrade) {
-          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam data available (questionDetection not in scope for marking mode)`);
-        } else if (!examDataForGrade.found) {
-          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: exam data found but not valid`);
-        } else if (!examDataForGrade.examPapers || examDataForGrade.examPapers.length === 0) {
-          console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam papers found`);
-        }
-      }
+      const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
+        overallScore,
+        totalPossibleScore,
+        typeof questionDetection !== 'undefined' ? questionDetection : undefined,
+        markingSchemesMap
+      );
+      const calculatedGrade = gradeResult.grade;
+      const gradeBoundaryType = gradeResult.boundaryType;
       
       dbAiMessage = SessionManagementService.createAIMessageForDatabase({
         allQuestionResults,
