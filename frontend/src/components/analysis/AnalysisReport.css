@@ -1,7 +1,6 @@
 /* Analysis Report Styles - Reuse marking page CSS variables */
 
 .analysis-report {
-  padding: 20px;
   background: var(--background-secondary);
   color: var(--text-primary);
   border-radius: 8px;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { MarkingPageProvider } from './contexts/MarkingPageContext';
@@ -25,6 +25,18 @@ function AppContent() {
   const [selectedMarkingResult, setSelectedMarkingResult] = useState<MarkingResult | null>(null);
   const [markHomeworkResetKey, setMarkHomeworkResetKey] = useState<number>(0);
   const [isChatMode, setIsChatMode] = useState<boolean>(false);
+
+  // Listen for custom event to load marking session from other pages
+  useEffect(() => {
+    const handleLoadMarkingSession = (event: CustomEvent<{ session: MarkingResult }>) => {
+      setSelectedMarkingResult(event.detail.session);
+    };
+
+    window.addEventListener('loadMarkingSession', handleLoadMarkingSession as EventListener);
+    return () => {
+      window.removeEventListener('loadMarkingSession', handleLoadMarkingSession as EventListener);
+    };
+  }, []);
 
   const handleMarkingHistoryClick = async (result: MarkingResult) => {
     try {

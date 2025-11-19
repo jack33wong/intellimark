@@ -1664,7 +1664,8 @@ Keep the analysis concise, educational, and actionable. Focus on helping the stu
       if (markingData.includes('GRADE BOUNDARIES:') || markingData.includes('GRADE IMPROVEMENT ANALYSIS:')) {
         prompt += `\n\nCRITICAL: For the gradeAnalysis field, provide ONE PARAGRAPH (2-3 lines maximum) with improvement strategy:\n`;
         prompt += `- Format as continuous text (no bullet points, no lists)\n`;
-        prompt += `- First line: State gap to next grade OR if at highest grade, state marks to perfect score (e.g., "Need 5 marks for Grade 8" OR "Need 7 marks for perfect 80/80")\n`;
+        prompt += `- First line: State gap to next grade OR if at highest grade, state marks to perfect score\n`;
+        prompt += `- **CRITICAL: Use the EXACT overall score from "OVERALL PERFORMANCE" section (e.g., ${markingData.includes('Average Score:') ? 'use that exact score' : '76/80'}), NOT the sum of question results**\n`;
         prompt += `- Next 1-2 lines: MUST analyze WEAK QUESTIONS to identify what student usually gets wrong\n`;
         prompt += `- Be SPECIFIC: Reference actual question numbers from WEAK QUESTIONS section and explain the weakness (e.g., "Q12 geometry shows calculation errors (3/5, +2 marks available) - focus on double-checking arithmetic. Q8 algebra shows method mark losses (4/5, +1 mark) - show all working steps clearly.")\n`;
         prompt += `- Identify patterns: What type of errors does the student make? (calculation, method, presentation, understanding)\n`;

@@ -2,6 +2,8 @@
 
 .marking-results-container {
   margin-bottom: 32px;
+  overflow: visible; /* Allow dropdown to overflow */
+  position: relative; /* Create stacking context */
 }
 
 .exam-board-group {
@@ -9,7 +11,7 @@
   background: var(--background-tertiary);
   border-radius: 8px;
   border: 1px solid var(--border-main);
-  overflow: hidden;
+  overflow: visible; /* Allow dropdown to overflow */
 }
 
 .exam-board-header {
@@ -60,6 +62,7 @@
 
 .marking-results-table-wrapper {
   overflow-x: auto;
+  overflow-y: visible; /* Allow dropdown to overflow vertically */
 }
 
 .marking-results-table {
@@ -149,28 +152,121 @@
 
 .actions-cell {
   text-align: center;
+  width: 40px;
 }
 
-.delete-button {
-  padding: 6px 12px;
-  background: #ef4444;
-  color: white;
+/* Actions Container */
+.marking-result-actions-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dropdown Button */
+.marking-result-dropdown-btn {
+  background: transparent;
   border: none;
-  border-radius: 6px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.marking-result-dropdown-btn:hover {
+  background: var(--background-gray-main);
+  color: var(--text-primary);
+}
+
+.marking-result-dropdown-btn svg {
+  color: var(--text-tertiary);
+  stroke: var(--text-tertiary);
+  width: 16px;
+  height: 16px;
+}
+
+.marking-result-dropdown-btn:hover svg {
+  color: var(--text-primary);
+  stroke: var(--text-primary);
+}
+
+/* Dropdown Menu - Match Sidebar Style */
+.marking-result-dropdown {
+  position: fixed; /* Use fixed positioning to escape container constraints */
+  background: #363537;
+  border: 1px solid #111827;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  min-width: 200px;
+  z-index: 99999 !important; /* Very high z-index to appear above all containers */
+  overflow: hidden;
+  animation: dropdownSlideIn 0.3s ease-out;
+}
+
+/* Dropdown Items */
+.marking-result-dropdown .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border-bottom: none;
+  cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s ease;
 }
 
-.delete-button:hover:not(:disabled) {
-  background: #dc2626;
+.marking-result-dropdown .dropdown-item:last-child {
+  border-bottom: none;
 }
 
-.delete-button:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
+.marking-result-dropdown .dropdown-item:hover:not(:disabled) {
+  background: #2a2a2b;
+  color: #ffffff;
+  transform: translateX(2px);
+  transition: all 0.2s ease;
+}
+
+.marking-result-dropdown .dropdown-item.danger {
+  color: #ef4444;
+}
+
+.marking-result-dropdown .dropdown-item.danger:hover:not(:disabled) {
+  background: #2a2a2b;
+  color: #ffffff;
+  transform: translateX(2px);
+  transition: all 0.2s ease;
+}
+
+.marking-result-dropdown .dropdown-item.disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.marking-result-dropdown .dropdown-item svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Dropdown Animations */
+@keyframes dropdownSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .marking-results-empty {

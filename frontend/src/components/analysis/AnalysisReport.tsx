@@ -53,6 +53,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       setError(null);
       setIsGenerating(false);
       setReAnalysisNeeded(reAnalysisNeededProp);
+      // Load analysis when subject changes (user explicitly visits/navigates to this subject)
       loadAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -61,10 +62,8 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   useEffect(() => {
     setReAnalysisNeeded(reAnalysisNeededProp);
     
-    // If re-analysis flag is true and we have cached analysis, trigger regeneration
-    if (reAnalysisNeededProp && analysis && subject && !isGenerating) {
-      triggerBackgroundAnalysis();
-    }
+    // Don't trigger analysis automatically when flag changes - only when user explicitly visits the page
+    // Analysis will be triggered in loadAnalysis() when component first loads
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reAnalysisNeededProp]);
   
@@ -99,8 +98,13 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
           }
           setReAnalysisNeeded(needsReAnalysis);
           
-          // If re-analysis is needed, trigger it in background
+          // Only trigger re-analysis when user explicitly visits the analysis page
+          // This happens when:
+          // 1. Component first loads (subject changes) AND flag is true
+          // 2. User clicks "Generate Analysis" button
+          // NOT when flag changes due to deletion (that's handled by the useEffect watching reAnalysisNeededProp being removed)
           if (needsReAnalysis && !isGenerating) {
+            // Trigger analysis when user visits the page and flag is set
             triggerBackgroundAnalysis();
           }
         }

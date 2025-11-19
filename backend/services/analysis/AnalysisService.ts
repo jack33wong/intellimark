@@ -454,6 +454,7 @@ export class AnalysisService {
     formatted += `OVERALL PERFORMANCE (${markingData.sessionCount && markingData.sessionCount > 1 ? 'AVERAGE ACROSS ALL SESSIONS' : 'SINGLE SESSION'}):\n`;
     formatted += `- Average Score: ${markingData.overallScore.awarded}/${markingData.overallScore.total}\n`;
     formatted += `- Average Percentage: ${markingData.overallScore.percentage}%\n`;
+    formatted += `- **IMPORTANT: Use this exact score (${markingData.overallScore.awarded}/${markingData.overallScore.total}) for grade analysis, NOT the sum of question results**\n`;
     if (markingData.grade) {
       formatted += `- Highest Grade Achieved: ${markingData.grade}\n`;
     }
@@ -555,6 +556,7 @@ export class AnalysisService {
     
     formatted += `QUESTION-BY-QUESTION RESULTS:\n`;
     formatted += `(Analyze these to identify student weaknesses, patterns of errors, and specific improvement targets)\n`;
+    formatted += `**IMPORTANT: The sum of question results may differ from the actual overall score. Always use the overall score ${markingData.overallScore.awarded}/${markingData.overallScore.total} from above for grade calculations.**\n`;
     markingData.questionResults.forEach((qr) => {
       const marksLost = qr.score.totalMarks - qr.score.awardedMarks;
       const percentage = qr.score.totalMarks > 0 ? Math.round((qr.score.awardedMarks / qr.score.totalMarks) * 100) : 0;
