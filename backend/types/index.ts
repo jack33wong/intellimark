@@ -329,6 +329,110 @@ export interface UnifiedSession {
 }
 
 
+// Subject Marking Result types
+export interface SubjectMarkingResult {
+  // Identity
+  userId: string;
+  subject: string; // "Mathematics", "Physics"
+  
+  // All marking results for this subject (across all sessions, exam series, qualifications)
+  markingResults: Array<{
+    // Session reference
+    sessionId: string;
+    sessionTitle?: string;
+    timestamp: string; // ISO date
+    
+    // Exam metadata
+    examMetadata: {
+      examBoard: string;        // "Pearson Edexcel"
+      examCode: string;          // "1MA1/1H"
+      examSeries: string;        // "June 2024", "November 2024"
+      qualification: string;     // "GCSE", "A-Level"
+      tier?: string;             // "Higher", "Foundation"
+      paperTitle: string;        // Full paper title
+      subject: string;           // "Mathematics"
+    };
+    
+    // Marking results
+    questionResults: Array<{
+      questionNumber: string;    // "1", "2a", "3b", "12i"
+      questionText: string;       // Full question text (main + sub-questions)
+      markingScheme: string;      // Plain text marking scheme
+      score: {
+        awardedMarks: number;
+        totalMarks: number;
+        scoreText: string;        // "8/10"
+      };
+      annotations: Array<{
+        action: string;          // "tick", "cross", "mark"
+        markCode?: string;        // "A1", "C1", "M1"
+        text?: string;            // Annotation text
+        bbox?: { x: number; y: number; width: number; height: number };
+        pageIndex?: number;
+      }>;
+    }>;
+    
+    // Overall score for this session
+    overallScore: {
+      awardedMarks: number;
+      totalMarks: number;
+      scoreText: string;          // "76/80"
+      percentage: number;         // 95
+    };
+    
+    // Grade information
+    grade?: string;               // "9", "8", "A*"
+    
+    // AI model used
+    modelUsed: string;            // "gemini-2.5-flash", "gpt-5-mini"
+  }>;
+  
+  // Aggregated statistics (calculated from all markingResults)
+  statistics: {
+    totalSessions: number;
+    totalQuestions: number;
+    averageScore: {
+      awardedMarks: number;
+      totalMarks: number;
+      percentage: number;
+    };
+    highestGrade?: string;         // Highest grade achieved
+    averageGrade?: string;         // Most common grade
+    examSeries: string[];         // All unique exam series
+    qualifications: string[];     // All unique qualifications
+    examBoards: string[];         // All unique exam boards
+  };
+  
+  // AI-generated analysis report (generated from all markingResults)
+  analysis?: {
+    performance: {
+      overallScore: string;
+      percentage: number;
+      grade?: string;
+      averageGrade?: string;
+      summary: string;
+    };
+    strengths: string[];
+    weaknesses: string[];
+    topicAnalysis: Array<{
+      topic: string;
+      performance: 'strong' | 'weak' | 'average';
+      score: string;
+      recommendation: string;
+    }>;
+    nextSteps: string[];
+    generatedAt: string;          // ISO date
+    modelUsed: string;            // AI model used for analysis
+  };
+  
+  // Flag to indicate if re-analysis is needed (new marking results added)
+  reAnalysisNeeded: boolean;
+  
+  // Metadata
+  updatedAt: string;              // ISO date (updated when new marking result added)
+  createdAt: string;              // ISO date (first marking result for this subject)
+}
+
 // Subscription types
 export interface UserSubscription {
   id: string;

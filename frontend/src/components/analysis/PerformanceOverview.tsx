@@ -8,10 +8,11 @@ interface PerformanceOverviewProps {
   performance: {
     overallScore: string;
     percentage: number;
-    grade?: string;
+    grade?: string; // Highest grade
+    averageGrade?: string; // Average grade
     summary: string;
   };
-  grade?: string | null;
+  grade?: string | null; // Legacy support
 }
 
 const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ performance, grade }) => {
@@ -29,8 +30,14 @@ const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ performance, 
         </div>
         {(performance.grade || grade) && (
           <div className="stat-item">
-            <span className="stat-label">Grade</span>
+            <span className="stat-label">Highest Grade</span>
             <span className="stat-value grade">{performance.grade || grade}</span>
+          </div>
+        )}
+        {performance.averageGrade && (
+          <div className="stat-item">
+            <span className="stat-label">Average Grade</span>
+            <span className="stat-value grade">{performance.averageGrade}</span>
           </div>
         )}
       </div>

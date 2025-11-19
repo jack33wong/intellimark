@@ -1,0 +1,185 @@
+/**
+ * Subject Marking Result Service
+ * Handles conversion and persistence of marking results to subjectMarkingResults collection
+ */
+
+import { FirestoreService } from './firestoreService.js';
+import type { UnifiedSession, UnifiedMessage, DetectedQuestion } from '../types/index.js';
+
+/**
+ * Extract subject from detectedQuestion
+ * Returns normalized subject name or null if not found
+ */
+export function extractSubjectFromDetectedQuestion(detectedQuestion: DetectedQuestion | null | undefined): string | null {
+  if (!detectedQuestion || !detectedQuestion.found) {
+    return null;
+  }
+
+  if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
+    const subject = detectedQuestion.examPapers[0].subject;
+    if (subject) {
+      return normalizeSubjectName(subject);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Normalize subject name (e.g., "MATHEMATICS" -> "Mathematics")
+ */
+export function normalizeSubjectName(subject: string): string {
+  if (!subject) return '';
+  
+  // Map common variations to standard names
+  const subjectMap: { [key: string]: string } = {
+    'mathematics': 'Mathematics',
+    'maths': 'Mathematics',
+    'math': 'Mathematics',
+    'physics': 'Physics',
+    'chemistry': 'Chemistry',
+    'biology': 'Biology'
+  };
+  
+  const lowerSubject = subject.toLowerCase().trim();
+  
+  // Check if it's a known subject variation
+  if (subjectMap[lowerSubject]) {
+    return subjectMap[lowerSubject];
+  }
+  
+  // Convert to title case
+  return subject.charAt(0).toUpperCase() + subject.slice(1).toLowerCase();
+}
+
+/**
+ * Convert UnifiedSession marking result to subjectMarkingResults format
+ */
+export function convertMarkingResultToSubjectFormat(
+  session: UnifiedSession,
+  markingMessage: UnifiedMessage
+): any | null {
+  try {
+    const detectedQuestion = markingMessage.detectedQuestion || session.detectedQuestion;
+    
+    if (!detectedQuestion || !detectedQuestion.found) {
+      return null;
+    }
+
+    const subject = extractSubjectFromDetectedQuestion(detectedQuestion);
+    if (!subject) {
+      return null; // Skip if no subject
+    }
+
+    if (!markingMessage.studentScore) {
+      return null; // Skip if no student score
+    }
+
+    // Extract exam metadata from first exam paper
+    const firstExamPaper = detectedQuestion.examPapers?.[0];
+    if (!firstExamPaper) {
+      return null;
+    }
+
+    // Build question results from detectedQuestion
+    const questionResults: any[] = [];
+    
+    if (detectedQuestion.examPapers) {
+      detectedQuestion.examPapers.forEach((examPaper: any) => {
+        if (examPaper.questions && Array.isArray(examPaper.questions)) {
+          examPaper.questions.forEach((q: any) => {
+            // Calculate question score from overall percentage
+            const overallPercentage = markingMessage.studentScore!.totalMarks > 0
+              ? markingMessage.studentScore!.awardedMarks / markingMessage.studentScore!.totalMarks
+              : 0;
+            
+            const estimatedAwardedMarks = Math.round((q.marks || 0) * overallPercentage);
+            
+            questionResults.push({
+              questionNumber: q.questionNumber || '',
+              questionText: q.questionText || '',
+              markingScheme: q.markingScheme || '',
+              score: {
+                awardedMarks: estimatedAwardedMarks,
+                totalMarks: q.marks || 0,
+                scoreText: `${estimatedAwardedMarks}/${q.marks || 0}`
+              },
+              annotations: [] // Annotations not stored in message, simplified approach
+            });
+          });
+        }
+      });
+    }
+
+    // Build marking result object
+    const markingResult = {
+      sessionId: session.id,
+      sessionTitle: session.title,
+      timestamp: markingMessage.timestamp || session.updatedAt || session.createdAt,
+      examMetadata: {
+        examBoard: firstExamPaper.examBoard || '',
+        examCode: firstExamPaper.examCode || '',
+        examSeries: firstExamPaper.examSeries || '',
+        qualification: firstExamPaper.qualification || 'GCSE', // Default to GCSE if not specified
+        tier: firstExamPaper.tier || '',
+        paperTitle: firstExamPaper.paperTitle || '',
+        subject: subject
+      },
+      questionResults,
+      overallScore: {
+        awardedMarks: markingMessage.studentScore.awardedMarks,
+        totalMarks: markingMessage.studentScore.totalMarks,
+        scoreText: markingMessage.studentScore.scoreText,
+        percentage: markingMessage.studentScore.totalMarks > 0
+          ? Math.round((markingMessage.studentScore.awardedMarks / markingMessage.studentScore.totalMarks) * 100)
+          : 0
+      },
+      grade: (markingMessage as any).grade || undefined,
+      modelUsed: markingMessage.processingStats?.modelUsed || session.sessionStats?.lastModelUsed || 'auto'
+    };
+
+    return {
+      subject,
+      markingResult
+    };
+  } catch (error) {
+    console.error('❌ [SUBJECT MARKING RESULT] Error converting marking result:', error);
+    return null;
+  }
+}
+
+/**
+ * Persist marking result to subjectMarkingResults (called in background)
+ */
+export async function persistMarkingResultToSubject(
+  session: UnifiedSession,
+  markingMessage: UnifiedMessage
+): Promise<void> {
+  try {
+    const converted = convertMarkingResultToSubjectFormat(session, markingMessage);
+    
+    if (!converted || !converted.subject || !converted.markingResult) {
+      return; // Skip if conversion failed or no subject
+    }
+
+    // Get userId from session
+    const userId = session.userId;
+    if (!userId) {
+      console.warn('❌ [SUBJECT MARKING RESULT] No userId in session, skipping persistence');
+      return;
+    }
+
+    // Persist to Firestore (in background, don't wait)
+    await FirestoreService.addMarkingResultToSubject(
+      userId,
+      converted.subject,
+      converted.markingResult
+    );
+
+    console.log(`✅ [SUBJECT MARKING RESULT] Persisted marking result for subject: ${converted.subject}, session: ${session.id}`);
+  } catch (error) {
+    console.error('❌ [SUBJECT MARKING RESULT] Error persisting marking result:', error);
+    // Don't throw - this is background operation, shouldn't affect marking pipeline
+  }
+}
+

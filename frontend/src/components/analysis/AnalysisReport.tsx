@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import PerformanceOverview from './PerformanceOverview';
 import StrengthsWeaknesses from './StrengthsWeaknesses';
 import TopicAnalysis from './TopicAnalysis';
-import Recommendations from './Recommendations';
+import NextSteps from './NextSteps';
 import './AnalysisReport.css';
 
 interface AnalysisResult {
@@ -26,58 +26,116 @@ interface AnalysisResult {
     score: string;
     recommendation: string;
   }>;
-  recommendations: {
-    immediate: string[];
-    studyFocus: string[];
-    practiceAreas: string[];
-  };
   nextSteps: string[];
 }
 
 interface AnalysisReportProps {
-  sessionId: string;
-  detectedQuestion?: any;
-  studentScore?: any;
-  grade?: string | null;
+  subject: string; // Required: subject name
+  reAnalysisNeeded?: boolean; // Flag passed from parent
 }
 
 const AnalysisReport: React.FC<AnalysisReportProps> = ({
-  sessionId,
-  detectedQuestion,
-  studentScore,
-  grade
+  subject,
+  reAnalysisNeeded: reAnalysisNeededProp = false
 }) => {
   const { user, getAuthToken } = useAuth();
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reAnalysisNeeded, setReAnalysisNeeded] = useState(reAnalysisNeededProp);
   
   useEffect(() => {
-    loadOrGenerateAnalysis();
-  }, [sessionId]);
+    if (subject) {
+      // Reset state when subject changes
+      setAnalysis(null);
+      setError(null);
+      setIsGenerating(false);
+      setReAnalysisNeeded(reAnalysisNeededProp);
+      loadAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject]);
   
-  const loadOrGenerateAnalysis = async () => {
+  useEffect(() => {
+    setReAnalysisNeeded(reAnalysisNeededProp);
+    
+    // If re-analysis flag is true and we have cached analysis, trigger regeneration
+    if (reAnalysisNeededProp && analysis && subject && !isGenerating) {
+      triggerBackgroundAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reAnalysisNeededProp]);
+  
+  const loadAnalysis = async () => {
+    if (!subject) return;
+    
+    try {
+      const authToken = user ? await getAuthToken() : null;
+      
+      if (!authToken) {
+        setError('Authentication required');
+        return;
+      }
+      
+      // Get existing analysis
+      const getResponse = await fetch(`/api/analysis/${encodeURIComponent(subject)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      
+      if (getResponse.ok) {
+        const getData = await getResponse.json();
+        if (getData.success && getData.subjectMarkingResult) {
+          const analysisData = getData.subjectMarkingResult.analysis;
+          const needsReAnalysis = getData.subjectMarkingResult.reAnalysisNeeded || false;
+          
+          if (analysisData) {
+            setAnalysis(analysisData);
+          }
+          setReAnalysisNeeded(needsReAnalysis);
+          
+          // If re-analysis is needed, trigger it in background
+          if (needsReAnalysis && !isGenerating) {
+            triggerBackgroundAnalysis();
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load analysis:', err);
+    }
+  };
+  
+  const triggerBackgroundAnalysis = async () => {
+    if (!subject || isGenerating) return;
+    
     try {
       setIsGenerating(true);
       setError(null);
       
       const authToken = user ? await getAuthToken() : null;
+      
+      if (!authToken) {
+        return;
+      }
+      
+      // Generate analysis in background
       const response = await fetch(`/api/analysis/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+          'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({
-          sessionId,
-          model: 'auto' // Or get from user selection
-        })
+        body: JSON.stringify({ subject, model: 'auto' })
       });
       
       const data = await response.json();
       
       if (data.success) {
         setAnalysis(data.analysis);
+        setReAnalysisNeeded(false);
       } else {
         setError(data.error || 'Failed to generate analysis');
       }
@@ -88,9 +146,11 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     }
   };
   
+  // Show loading spinner if generating in background
   if (isGenerating) {
     return (
       <div className="analysis-loading">
+        <div className="loading-spinner"></div>
         <p>Generating analysis...</p>
       </div>
     );
@@ -100,7 +160,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     return (
       <div className="analysis-error">
         <p>Error: {error}</p>
-        <button onClick={loadOrGenerateAnalysis} className="retry-button">Retry</button>
+        <button onClick={triggerBackgroundAnalysis} className="retry-button">Retry</button>
       </div>
     );
   }
@@ -109,7 +169,9 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     return (
       <div className="analysis-empty-state">
         <p>No analysis available.</p>
-        <button onClick={loadOrGenerateAnalysis} className="generate-button">Generate Analysis</button>
+        {!reAnalysisNeeded && (
+          <button onClick={triggerBackgroundAnalysis} className="generate-button">Generate Analysis</button>
+        )}
       </div>
     );
   }
@@ -118,7 +180,6 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     <div className="analysis-report">
       <PerformanceOverview 
         performance={analysis.performance}
-        grade={grade}
       />
       
       <StrengthsWeaknesses 
@@ -130,8 +191,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         topics={analysis.topicAnalysis}
       />
       
-      <Recommendations 
-        recommendations={analysis.recommendations}
+      <NextSteps 
         nextSteps={analysis.nextSteps}
       />
     </div>
@@ -139,4 +199,3 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
 };
 
 export default AnalysisReport;
-

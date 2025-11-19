@@ -1,0 +1,175 @@
+/* Marking Results Table Styles */
+
+.marking-results-container {
+  margin-bottom: 32px;
+}
+
+.exam-board-group {
+  margin-bottom: 32px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-main);
+  overflow: hidden;
+}
+
+.exam-board-header {
+  padding: 20px;
+  background: var(--background-gray-main);
+  border-bottom: 1px solid var(--border-main);
+}
+
+.exam-board-name {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.exam-board-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.exam-board-stats .stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exam-board-stats .stat-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.exam-board-stats .stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.exam-board-stats .stat-value.grade {
+  color: var(--text-brand);
+}
+
+.exam-board-stats .stat-value.grade.highest {
+  color: #22c55e; /* Green for highest grade */
+}
+
+.marking-results-table-wrapper {
+  overflow-x: auto;
+}
+
+.marking-results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.marking-results-table thead {
+  background: var(--background-gray-main);
+}
+
+.marking-results-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-main);
+}
+
+.marking-results-table tbody tr {
+  border-bottom: 1px solid var(--border-main);
+  transition: background 0.2s ease;
+}
+
+.marking-results-table tbody tr:hover {
+  background: var(--background-gray-main);
+}
+
+.marking-results-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.marking-results-table td {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.marking-results-table .session-title {
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marking-results-table .score-cell {
+  font-weight: 600;
+}
+
+.marking-results-table .score-text {
+  color: var(--text-primary);
+  margin-right: 4px;
+}
+
+.marking-results-table .score-percentage {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.marking-results-table .grade-cell {
+  text-align: center;
+}
+
+.grade-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--text-brand);
+  color: white;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 32px;
+  text-align: center;
+}
+
+.no-grade {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.date-cell {
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.marking-results-empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .exam-board-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .marking-results-table {
+    font-size: 12px;
+  }
+  
+  .marking-results-table th,
+  .marking-results-table td {
+    padding: 8px 12px;
+  }
+}
+

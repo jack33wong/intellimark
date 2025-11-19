@@ -3,7 +3,9 @@
  */
 
 export interface AnalysisRequest {
-  sessionId: string;
+  sessionId?: string; // Single session (legacy support)
+  sessionIds?: string[]; // Multiple sessions for subject grouping
+  subject?: string; // Subject name (e.g., "Mathematics", "Physics")
   model: string;
   detectedQuestion?: any; // For unauthenticated users
 }
@@ -56,8 +58,15 @@ export interface MarkingDataForAnalysis {
     examSeries?: string;
     subject?: string;
     paperTitle?: string;
+    tier?: string;
   };
-  grade?: string;
+  grade?: string; // Highest grade
+  averageGrade?: string; // Average grade (most common)
+  sessionCount?: number; // Number of sessions analyzed
   pageScores?: { [pageIndex: number]: { awarded: number; total: number } };
+  gradeBoundaries?: {
+    boundaries: { [grade: string]: number };
+    boundaryType: 'Paper-Specific' | 'Overall-Total';
+  };
 }
 

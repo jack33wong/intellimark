@@ -45,6 +45,7 @@ export interface ExamPaperMatch {
   paperCode: string;
   examSeries: string;
   tier?: string;  // Add tier field
+  subject?: string;  // Subject from fullExamPapers.metadata.subject (source of truth)
   questionNumber?: string;
   subQuestionNumber?: string;  // Optional sub-question number if matched
   marks?: number;  // Total marks for this question (sub-question marks if matched, parent question marks if main question)
@@ -63,6 +64,8 @@ export interface MarkingSchemeMatch {
     tier: string;
     paper: string;
     date: string;
+    exam_series?: string; // Exam series (standardized field name)
+    subject?: string; // Subject field (standardized)
   };
   questionMarks?: any;
   totalQuestions: number;
@@ -501,6 +504,8 @@ export class QuestionDetectionService {
         const qualification = metadata.qualification || metadata.subject;
         const examSeries = metadata.exam_series;
         const tier = metadata.tier;
+        // Get subject from fullExamPapers.metadata.subject (source of truth)
+        const subject = metadata.subject;
         
         // Validate required fields
         if (!board || !qualification || !paperCode || !examSeries) {
@@ -560,6 +565,7 @@ export class QuestionDetectionService {
           paperCode: paperCode,
           examSeries: examSeries,
           tier: tier,
+          subject: subject, // Subject from fullExamPapers.metadata.subject (source of truth)
           questionNumber: bestQuestionMatch,
           subQuestionNumber: bestSubQuestionNumber || undefined,
           marks: questionMarks, // Sub-question marks (if matched) or parent question marks (if main question)
@@ -733,7 +739,9 @@ export class QuestionDetectionService {
             paperCode: examDetails.paperCode,
             tier: examDetails.tier,
             paper: examDetails.paper,
-            exam_series: examDetails.exam_series
+            date: examDetails.exam_series || examDetails.date || '', // Use exam_series (standardized) or fallback to date
+            exam_series: examDetails.exam_series,
+            subject: examDetails.subject || '' // Include subject field (standardized)
           },
           questionMarks: questionMarks,
           totalQuestions: markingScheme.totalQuestions || 0,

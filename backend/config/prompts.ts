@@ -1594,9 +1594,9 @@ Your task is to analyze marking results and generate a comprehensive performance
 **Key Responsibilities:**
 1. Analyze overall performance (score, percentage, grade if available)
 2. Identify key strengths and weaknesses
-3. Provide topic-level analysis
-4. Generate actionable recommendations
-5. Suggest next steps for improvement
+3. Provide topic-level analysis grouped by syllabus topics (e.g., Algebra, Geometry, Statistics, etc.) with clear visual presentation
+4. Suggest actionable next steps for improvement
+5. If grade boundaries are provided, advise on how many additional marks are needed to achieve the next higher grade
 
 **If a previous analysis report is provided:**
 - Use it as context to understand the student's progress
@@ -1635,20 +1635,6 @@ You must return a valid JSON object with the following structure:
       "recommendation": "Focus on circle theorems and angle properties"
     }
   ],
-  "recommendations": {
-    "immediate": [
-      "Review circle theorems",
-      "Practice word problem strategies"
-    ],
-    "studyFocus": [
-      "Circle theorems and properties",
-      "Data interpretation techniques"
-    ],
-    "practiceAreas": [
-      "Complete 10 geometry practice questions",
-      "Review statistics formulas"
-    ]
-  },
   "nextSteps": [
     "Week 1: Focus on geometry fundamentals",
     "Week 2: Practice statistics problems",

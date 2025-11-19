@@ -1256,10 +1256,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // overallScoreText is already calculated as `${overallScore}/${totalPossibleScore}`
       
       // Calculate grade based on grade boundaries (if exam data is available)
+      // Get detectedQuestion from markingSchemesMap (it contains detection results)
+      let detectedQuestionForGrade: any = undefined;
+      if (markingSchemesMap && markingSchemesMap.size > 0) {
+        const firstSchemeEntry = Array.from(markingSchemesMap.values())[0];
+        detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
+      }
+      
       const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
         overallScore,
         totalPossibleScore,
-        typeof questionDetection !== 'undefined' ? questionDetection : undefined,
+        detectedQuestionForGrade,
         markingSchemesMap
       );
       const calculatedGrade = gradeResult.grade;
@@ -1324,6 +1331,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // For authenticated users, use the unifiedSession from persistence
       if (isAuthenticated) {
         unifiedSession = persistenceResult.unifiedSession;
+        
+        // Persist marking result to subjectMarkingResults in background (don't wait)
+        if (unifiedSession && dbAiMessage) {
+          // Find the marking message with studentScore
+          const markingMessage = unifiedSession.messages?.find(
+            (msg: any) => msg.role === 'assistant' && msg.studentScore
+          );
+          
+          if (markingMessage) {
+            // Persist in background (don't await - user doesn't need to wait)
+            import('../services/subjectMarkingResultService.js').then(({ persistMarkingResultToSubject }) => {
+              persistMarkingResultToSubject(unifiedSession, markingMessage).catch(err => {
+                console.error('❌ [SUBJECT MARKING RESULT] Background persistence failed:', err);
+              });
+            }).catch(err => {
+              console.error('❌ [SUBJECT MARKING RESULT] Failed to import service:', err);
+            });
+          }
+        }
       }
       
     } catch (error) {

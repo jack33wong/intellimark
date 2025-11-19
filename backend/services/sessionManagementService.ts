@@ -198,14 +198,22 @@ export class SessionManagementService {
           plainTextMarkingScheme = context.questionDetection.markingScheme;
         }
         
+        // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
+        // Fallback to markingScheme.examDetails.subject, then qualification
+        const markingSchemeMatch = match.markingScheme;
+        const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
+                             markingSchemeMatch?.examDetails?.subject || 
+                             match.qualification || 
+                             '';
+        
         // Create single exam paper structure
         const examPapers = [{
           examBoard: match.board || '',
           examCode: match.paperCode || '',
           examSeries: match.examSeries || '',
           tier: match.tier || '',
-          subject: match.qualification || '',
-          paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
+          subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
+          paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
           questions: [{
             questionNumber: match.questionNumber || '',
             questionText: questionText,
@@ -880,13 +888,21 @@ export class SessionManagementService {
         const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
         
         if (!examPaperGroups.has(examPaperKey)) {
+          // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
+          // Fallback to markingScheme.examDetails.subject, then qualification
+          const markingScheme = data.questionDetection?.markingScheme;
+          const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
+                               markingScheme?.examDetails?.subject || 
+                               match.qualification || 
+                               '';
+          
           examPaperGroups.set(examPaperKey, {
             examBoard,
             examCode,
             examSeries,
             tier,
-            subject: match.qualification || '',
-            paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
+            subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
+            paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
             questions: [],
             totalMarks: 0
           });
@@ -1068,14 +1084,22 @@ export class SessionManagementService {
       markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
     }];
     
+    // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
+    // Fallback to markingScheme.examDetails.subject, then qualification
+    const markingScheme = schemeData.questionDetection?.markingScheme;
+    const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
+                         markingScheme?.examDetails?.subject || 
+                         match.qualification || 
+                         '';
+    
     // Create single exam paper structure
     const examPapers = [{
       examBoard: match.board || '',
       examCode: match.paperCode || '',
       examSeries: match.examSeries || '',
       tier: match.tier || '',
-      subject: match.qualification || '',
-      paperTitle: match ? `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})` : '',
+      subject: actualSubject, // Use subject from fullExamPapers.metadata.subject (via match.subject)
+      paperTitle: match ? `${match.board} ${actualSubject || match.qualification} ${match.paperCode} (${match.examSeries})` : '',
       questions: questionsArray,
       totalMarks: schemeData.totalMarks || match.marks || 0
     }];

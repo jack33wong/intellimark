@@ -202,8 +202,9 @@ export class GradeBoundaryService {
 
   /**
    * Find matching grade boundary entry from Firestore
+   * Public method for use by AnalysisService
    */
-  private static async findMatchingGradeBoundary(
+  static async findMatchingGradeBoundary(
     examBoard: string,
     examSeries: string,
     subject: string,

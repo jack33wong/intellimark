@@ -8,6 +8,46 @@
   margin: 16px 0;
 }
 
+.re-analysis-banner {
+  padding: 12px 16px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  color: #fbbf24;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.re-analysis-banner p {
+  margin: 0;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--background-gray-main);
+  border-top: 4px solid var(--text-brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
 .analysis-loading,
 .analysis-error,
 .analysis-empty-state {
@@ -134,121 +174,208 @@
   color: var(--text-secondary);
 }
 
-/* Topic Analysis */
+/* Topic Analysis - Enhanced */
 .topic-analysis {
   margin-bottom: 24px;
 }
 
 .topic-analysis h2 {
-  margin: 0 0 16px 0;
+  margin: 0 0 20px 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.topic-group {
+  margin-bottom: 24px;
+}
+
+.topic-group:last-child {
+  margin-bottom: 0;
+}
+
+.topic-group-title {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.topic-group-title.strong {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.topic-group-title.average {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.topic-group-title.weak {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .topics-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.topic-item {
-  padding: 16px;
+.topic-card {
+  padding: 20px;
   background: var(--background-tertiary);
   border-radius: 8px;
   border: 1px solid var(--border-main);
+  transition: all 0.2s ease;
 }
 
-.topic-header {
+.topic-card:hover {
+  border-color: var(--text-brand);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.topic-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 16px;
 }
 
-.topic-name {
-  font-size: 16px;
+.topic-name-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.topic-name-section h4 {
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.topic-score {
-  font-size: 14px;
-  color: var(--text-secondary);
+.topic-score-section {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.topic-performance {
-  margin-bottom: 8px;
+.topic-score {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  background: var(--background-gray-main);
+  border-radius: 6px;
 }
 
 .performance-badge {
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .performance-badge.strong {
   background: rgba(34, 197, 94, 0.2);
   color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
 .performance-badge.average {
   background: rgba(251, 191, 36, 0.2);
   color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
 .performance-badge.weak {
   background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.topic-card-body {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-main);
 }
 
 .topic-recommendation {
   margin: 0;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
-/* Recommendations */
-.recommendations {
+/* Next Steps */
+.next-steps {
   margin-bottom: 24px;
 }
 
-.recommendations h2 {
+.next-steps h2 {
   margin: 0 0 16px 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.recommendation-section {
-  margin-bottom: 20px;
+.next-steps-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.next-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
   padding: 16px;
   background: var(--background-tertiary);
   border-radius: 8px;
   border: 1px solid var(--border-main);
+  transition: all 0.2s ease;
 }
 
-.recommendation-section h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
+.next-step-item:hover {
+  border-color: var(--text-brand);
+  background: var(--background-gray-main);
+}
+
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  background: var(--text-brand);
+  color: white;
+  border-radius: 50%;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  flex-shrink: 0;
 }
 
-.recommendation-section ul {
-  margin: 0;
-  padding-left: 20px;
-  list-style-type: disc;
-}
-
-.recommendation-section li {
-  margin-bottom: 8px;
-  line-height: 1.5;
+.step-text {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--text-secondary);
+  padding-top: 4px;
 }
 
 /* Responsive */

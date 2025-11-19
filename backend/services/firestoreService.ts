@@ -66,7 +66,8 @@ const COLLECTIONS = {
   MARKING_RESULTS: 'markingResults',
   USERS: 'users',
   SESSIONS: 'sessions',
-  UNIFIED_SESSIONS: 'unifiedSessions'  // NEW: Single collection with nested messages
+  UNIFIED_SESSIONS: 'unifiedSessions',  // NEW: Single collection with nested messages
+  SUBJECT_MARKING_RESULTS: 'subjectMarkingResults'  // NEW: Subject-based marking results
 } as const;
 
 // Types for Firestore documents
@@ -1021,8 +1022,29 @@ export class FirestoreService {
    */
   static async deleteUnifiedSession(sessionId: string, userId: string): Promise<void> {
     try {
+      // Get session before deleting to extract subject
+      const session = await this.getUnifiedSession(sessionId);
+      
       // Delete the session document (which contains nested messages)
       await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).delete();
+      
+      // Remove marking result from subjectMarkingResults if session had marking results
+      if (session) {
+        // Find marking message with detectedQuestion
+        const markingMessage = session.messages?.find(
+          (msg: any) => msg.role === 'assistant' && msg.studentScore && msg.detectedQuestion?.found
+        );
+        
+        if (markingMessage?.detectedQuestion) {
+          const subject = markingMessage.detectedQuestion.examPapers?.[0]?.subject;
+          if (subject) {
+            // Remove in background (don't wait)
+            this.removeMarkingResultFromSubject(userId, subject, sessionId).catch(err => {
+              console.error('❌ [SUBJECT MARKING RESULT] Failed to remove marking result on session delete:', err);
+            });
+          }
+        }
+      }
       
     } catch (error) {
       console.error('❌ Failed to delete UnifiedSession:', error);
@@ -1146,6 +1168,270 @@ export class FirestoreService {
       
     } catch (error) {
       console.error('❌ Failed to update UnifiedSession:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get subject marking result document from subjectMarkingResults collection
+   */
+  static async getSubjectMarkingResult(userId: string, subject: string): Promise<any | null> {
+    try {
+      ensureDbAvailable();
+      const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
+      const docId = `${userId}_${normalizedSubject}`;
+      const doc = await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).get();
+      
+      if (doc.exists) {
+        return { id: doc.id, ...doc.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get subject marking result:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add or update marking result in subjectMarkingResults
+   * This is called in background after marking completes
+   */
+  static async addMarkingResultToSubject(
+    userId: string,
+    subject: string,
+    markingResult: any
+  ): Promise<void> {
+    try {
+      ensureDbAvailable();
+      const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
+      const docId = `${userId}_${normalizedSubject}`;
+      const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
+      const doc = await docRef.get();
+      
+      const now = new Date().toISOString();
+      
+      if (doc.exists) {
+        // Update existing document
+        const existing = doc.data()!;
+        const markingResults = existing.markingResults || [];
+        
+        // Remove existing result for this sessionId (if re-marking)
+        const filteredResults = markingResults.filter((r: any) => r.sessionId !== markingResult.sessionId);
+        
+        // Add new marking result
+        filteredResults.push(markingResult);
+        
+        // Update statistics in background (don't wait)
+        this.updateSubjectStatistics(docId, filteredResults).catch(err => {
+          console.error('❌ Failed to update statistics in background:', err);
+        });
+        
+        // Update document
+        await docRef.update({
+          markingResults: filteredResults,
+          reAnalysisNeeded: true, // Flag for re-analysis
+          updatedAt: now
+        });
+      } else {
+        // Create new document
+        const newDoc: any = {
+          userId,
+          subject,
+          markingResults: [markingResult],
+          statistics: {
+            totalSessions: 1,
+            totalQuestions: markingResult.questionResults?.length || 0,
+            averageScore: {
+              awardedMarks: markingResult.overallScore.awardedMarks,
+              totalMarks: markingResult.overallScore.totalMarks,
+              percentage: markingResult.overallScore.percentage
+            },
+            highestGrade: markingResult.grade,
+            averageGrade: markingResult.grade,
+            examSeries: [markingResult.examMetadata.examSeries],
+            qualifications: [markingResult.examMetadata.qualification],
+            examBoards: [markingResult.examMetadata.examBoard]
+          },
+          reAnalysisNeeded: true,
+          createdAt: now,
+          updatedAt: now
+        };
+        
+        await docRef.set(sanitizeForFirestore(newDoc));
+      }
+    } catch (error) {
+      console.error('❌ Failed to add marking result to subject:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update aggregated statistics for a subject
+   * Called in background after adding marking results
+   */
+  private static async updateSubjectStatistics(docId: string, markingResults: any[]): Promise<void> {
+    try {
+      ensureDbAvailable();
+      
+      if (markingResults.length === 0) {
+        return;
+      }
+      
+      // Calculate aggregated statistics
+      const totalSessions = markingResults.length;
+      const totalQuestions = markingResults.reduce((sum, r) => sum + (r.questionResults?.length || 0), 0);
+      
+      // Calculate average score
+      const totalAwarded = markingResults.reduce((sum, r) => sum + (r.overallScore?.awardedMarks || 0), 0);
+      const totalPossible = markingResults.reduce((sum, r) => sum + (r.overallScore?.totalMarks || 0), 0);
+      const avgAwarded = totalSessions > 0 ? Math.round(totalAwarded / totalSessions) : 0;
+      const avgTotal = totalSessions > 0 ? Math.round(totalPossible / totalSessions) : 0;
+      const avgPercentage = avgTotal > 0 ? Math.round((avgAwarded / avgTotal) * 100) : 0;
+      
+      // Collect unique values
+      const examSeriesSet = new Set<string>();
+      const qualificationsSet = new Set<string>();
+      const examBoardsSet = new Set<string>();
+      const grades: string[] = [];
+      
+      markingResults.forEach(r => {
+        if (r.examMetadata?.examSeries) examSeriesSet.add(r.examMetadata.examSeries);
+        if (r.examMetadata?.qualification) qualificationsSet.add(r.examMetadata.qualification);
+        if (r.examMetadata?.examBoard) examBoardsSet.add(r.examMetadata.examBoard);
+        if (r.grade) grades.push(r.grade);
+      });
+      
+      // Find highest grade (convert to number for comparison)
+      const highestGrade = grades.length > 0 
+        ? grades.reduce((highest, grade) => {
+            const numHighest = parseInt(highest, 10) || 0;
+            const numGrade = parseInt(grade, 10) || 0;
+            return numGrade > numHighest ? grade : highest;
+          })
+        : undefined;
+      
+      // Find most common grade
+      const gradeCounts = new Map<string, number>();
+      grades.forEach(g => gradeCounts.set(g, (gradeCounts.get(g) || 0) + 1));
+      let maxCount = 0;
+      let averageGrade: string | undefined = undefined;
+      gradeCounts.forEach((count, grade) => {
+        if (count > maxCount) {
+          maxCount = count;
+          averageGrade = grade;
+        }
+      });
+      
+      // Update statistics
+      await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).update({
+        statistics: {
+          totalSessions,
+          totalQuestions,
+          averageScore: {
+            awardedMarks: avgAwarded,
+            totalMarks: avgTotal,
+            percentage: avgPercentage
+          },
+          highestGrade,
+          averageGrade,
+          examSeries: Array.from(examSeriesSet),
+          qualifications: Array.from(qualificationsSet),
+          examBoards: Array.from(examBoardsSet)
+        }
+      });
+    } catch (error) {
+      console.error('❌ Failed to update subject statistics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove marking result from subject (when session is deleted/re-marked)
+   */
+  static async removeMarkingResultFromSubject(
+    userId: string,
+    subject: string,
+    sessionId: string
+  ): Promise<void> {
+    try {
+      ensureDbAvailable();
+      const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
+      const docId = `${userId}_${normalizedSubject}`;
+      const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
+      const doc = await docRef.get();
+      
+      if (!doc.exists) {
+        return; // Document doesn't exist, nothing to remove
+      }
+      
+      const existing = doc.data()!;
+      const markingResults = (existing.markingResults || []).filter(
+        (r: any) => r.sessionId !== sessionId
+      );
+      
+      if (markingResults.length === 0) {
+        // No more marking results, delete the document
+        await docRef.delete();
+      } else {
+        // Update document with filtered results and recalculate statistics
+        await docRef.update({
+          markingResults,
+          reAnalysisNeeded: true,
+          updatedAt: new Date().toISOString()
+        });
+        
+        // Update statistics in background
+        this.updateSubjectStatistics(docId, markingResults).catch(err => {
+          console.error('❌ Failed to update statistics in background:', err);
+        });
+      }
+    } catch (error) {
+      console.error('❌ Failed to remove marking result from subject:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update analysis in subjectMarkingResults and reset reAnalysisNeeded flag
+   */
+  static async updateSubjectAnalysis(
+    userId: string,
+    subject: string,
+    analysis: any,
+    modelUsed: string
+  ): Promise<void> {
+    try {
+      ensureDbAvailable();
+      const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
+      const docId = `${userId}_${normalizedSubject}`;
+      
+      await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).update({
+        analysis: {
+          ...analysis,
+          generatedAt: new Date().toISOString(),
+          modelUsed
+        },
+        reAnalysisNeeded: false // Reset flag after analysis is generated
+      });
+    } catch (error) {
+      console.error('❌ Failed to update subject analysis:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all subject marking results for a user
+   */
+  static async getUserSubjectMarkingResults(userId: string): Promise<any[]> {
+    try {
+      ensureDbAvailable();
+      const snapshot = await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS)
+        .where('userId', '==', userId)
+        .get();
+      
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('❌ Failed to get user subject marking results:', error);
       throw error;
     }
   }
