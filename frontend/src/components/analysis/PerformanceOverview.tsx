@@ -11,6 +11,7 @@ interface PerformanceOverviewProps {
     grade?: string; // Highest grade
     averageGrade?: string; // Average grade
     summary: string;
+    gradeAnalysis?: string; // Strategic grade improvement analysis
   };
   grade?: string | null; // Legacy support
 }
@@ -44,6 +45,16 @@ const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({ performance, 
       <div className="performance-summary">
         <p>{performance.summary}</p>
       </div>
+      {performance.gradeAnalysis && (
+        <div className="grade-analysis">
+          <h3>Grade Strategy</h3>
+          <div className="grade-analysis-text">
+            {performance.gradeAnalysis.split('\n').map((line, index) => (
+              <p key={index}>{line || '\u00A0'}</p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

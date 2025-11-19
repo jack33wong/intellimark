@@ -176,7 +176,12 @@ const AnalysisPage: React.FC = () => {
                 {markingResults.length > 0 && (
                   <div className="marking-results-section">
                     <h2>Marking Results</h2>
-                    <MarkingResultsTable markingResults={markingResults} />
+                    <MarkingResultsTable 
+                      markingResults={markingResults}
+                      subject={activeSubject}
+                      onDelete={() => fetchMarkingResults(activeSubject)}
+                      getAuthToken={getAuthToken}
+                    />
                   </div>
                 )}
                 

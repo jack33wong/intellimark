@@ -182,6 +182,41 @@ router.get('/:subject', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/analysis/:subject/:sessionId
+ * Delete a marking result from subjectMarkingResults and set reAnalysisNeeded flag
+ */
+router.delete('/:subject/:sessionId', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { subject, sessionId } = req.params;
+    const userId = (req as any)?.user?.uid;
+    const isAuthenticated = !!userId;
+    
+    // No delete for unauthenticated users
+    if (!isAuthenticated || !userId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authentication required' 
+      });
+    }
+    
+    // Remove marking result from subjectMarkingResults (this already sets reAnalysisNeeded flag)
+    await FirestoreService.removeMarkingResultFromSubject(userId, subject, sessionId);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Marking result deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ [ANALYSIS ROUTER] Error deleting marking result:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to delete marking result' 
+    });
+  }
+});
+
 
 export default router;
 

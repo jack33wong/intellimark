@@ -16,7 +16,9 @@ interface AnalysisResult {
     overallScore: string;
     percentage: number;
     grade?: string;
+    averageGrade?: string;
     summary: string;
+    gradeAnalysis?: string; // Strategic grade improvement analysis
   };
   strengths: string[];
   weaknesses: string[];

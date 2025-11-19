@@ -532,7 +532,7 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
 
 /**
  * GET /api/admin/usage
- * Get usage statistics for all sessions based on unifiedSessions.sessionStats.costBreakdown
+ * Get usage statistics from usageRecords collection (optimized for analytics)
  * Query params: ?filter=all|year|month|week|day
  */
 router.get('/usage', async (req: Request, res: Response) => {
@@ -576,14 +576,21 @@ router.get('/usage', async (req: Request, res: Response) => {
         startDate = new Date(0); // Beginning of time
     }
     
-    // Query unifiedSessions collection - get all sessions
-    const snapshot = await db.collection('unifiedSessions').get();
+    // Query usageRecords collection with date filter at database level
+    let query = db.collection('usageRecords');
     
-    // Process sessions and filter by date
+    // Apply date filter if not 'all' - use Firestore query for efficiency
+    if (filter !== 'all') {
+      const startTimestamp = admin.firestore.Timestamp.fromDate(startDate);
+      query = query.where('createdAt', '>=', startTimestamp);
+    }
+    
+    const snapshot = await query.get();
+    
+    // Process usage records
     const usageData: Array<{
       sessionId: string;
       userId: string;
-      title: string;
       createdAt: string;
       totalCost: number;
       llmCost: number;
@@ -596,72 +603,24 @@ router.get('/usage', async (req: Request, res: Response) => {
     let totalMathpixCost = 0;
     
     snapshot.forEach(doc => {
-      const session = doc.data();
-      const sessionStats = session.sessionStats;
+      const record = doc.data();
       
-      if (!sessionStats) return; // Skip sessions without stats
-      
-      const costBreakdown = sessionStats.costBreakdown;
-      if (!costBreakdown) return; // Skip sessions without cost breakdown
-      
-      // Get createdAt date - handle both string and Timestamp formats
-      let sessionDate: Date;
-      if (session.createdAt) {
-        try {
-          if (typeof session.createdAt === 'string') {
-            sessionDate = new Date(session.createdAt);
-          } else if (session.createdAt.toDate && typeof session.createdAt.toDate === 'function') {
-            // Firestore Timestamp
-            sessionDate = session.createdAt.toDate();
-          } else if (session.createdAt.seconds) {
-            // Firestore Timestamp with seconds property
-            sessionDate = new Date(session.createdAt.seconds * 1000);
-          } else {
-            sessionDate = new Date(session.createdAt);
-          }
-          
-          // Validate date
-          if (isNaN(sessionDate.getTime())) {
-            return; // Skip invalid dates
-          }
-        } catch (error) {
-          return; // Skip if date parsing fails
-        }
-      } else {
-        return; // Skip if no createdAt
-      }
-      
-      // Apply date filter if not 'all'
-      // We want sessions where sessionDate >= startDate (i.e., skip if sessionDate < startDate)
-      if (filter !== 'all' && sessionDate < startDate) {
-        return; // Skip sessions older than start date
-      }
-      
-      // Calculate costs - use totalCost if available, otherwise sum breakdown
-      const llmCost = costBreakdown.llmCost || 0;
-      const mathpixCost = costBreakdown.mathpixCost || 0;
-      const sessionTotalCost = sessionStats.totalCost || (llmCost + mathpixCost);
-      
-      // Get model used
-      const modelUsed = sessionStats.lastModelUsed || 'N/A';
+      const createdAt = record.createdAt.toDate().toISOString();
       
       usageData.push({
         sessionId: doc.id,
-        userId: session.userId || 'Unknown',
-        title: session.title || 'Untitled Session',
-        createdAt: typeof session.createdAt === 'string' 
-          ? session.createdAt 
-          : (session.createdAt.toDate ? session.createdAt.toDate().toISOString() : new Date().toISOString()),
-        totalCost: Math.round(sessionTotalCost * 100) / 100,
-        llmCost: Math.round(llmCost * 100) / 100,
-        mathpixCost: Math.round(mathpixCost * 100) / 100,
-        modelUsed: modelUsed
+        userId: record.userId,
+        createdAt,
+        totalCost: record.totalCost,
+        llmCost: record.llmCost,
+        mathpixCost: record.mathpixCost,
+        modelUsed: record.modelUsed
       });
       
       // Update totals
-      totalCost += sessionTotalCost;
-      totalLLMCost += llmCost;
-      totalMathpixCost += mathpixCost;
+      totalCost += record.totalCost;
+      totalLLMCost += record.llmCost;
+      totalMathpixCost += record.mathpixCost;
     });
     
     // Sort by totalCost descending

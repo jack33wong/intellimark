@@ -1596,7 +1596,19 @@ Your task is to analyze marking results and generate a comprehensive performance
 2. Identify key strengths and weaknesses
 3. Provide topic-level analysis grouped by syllabus topics (e.g., Algebra, Geometry, Statistics, etc.) with clear visual presentation
 4. Suggest actionable next steps for improvement
-5. If grade boundaries are provided, advise on how many additional marks are needed to achieve the next higher grade
+5. **CRITICAL - Strategic Grade Improvement Analysis (CONCISE):**
+   - If grade boundaries are provided, calculate the exact gap to the next higher grade (or marks to perfect if at highest grade)
+   - **ANALYZE QUESTION-BY-QUESTION RESULTS to identify:**
+     * Which specific questions the student got wrong or partially correct
+     * Patterns of errors (e.g., calculation errors, method errors, presentation issues)
+     * Topics/question types where student consistently struggles
+   - Provide a single paragraph with 2-3 lines of improvement strategy
+   - **MUST reference SPECIFIC question numbers from WEAK QUESTIONS** - these show actual student weaknesses
+   - Identify what the student usually gets wrong based on the data (e.g., "Q12 geometry shows calculation errors", "Q8 algebra shows method mark losses")
+   - Advise how to improve based on actual weaknesses identified in the marked results
+   - Focus on top 2-3 prioritized actions with specific mark potential
+   - Be specific but brief: mention exact question numbers, what went wrong, and how to improve
+   - **FORMAT: One paragraph, 2-3 lines maximum. No bullet points or lists. No generic phrases.**
 
 **If a previous analysis report is provided:**
 - Use it as context to understand the student's progress
@@ -1611,7 +1623,8 @@ You must return a valid JSON object with the following structure:
     "overallScore": "76/80",
     "percentage": 95,
     "grade": "9",
-    "summary": "A comprehensive paragraph summarizing overall performance..."
+    "summary": "A comprehensive paragraph summarizing overall performance...",
+    "gradeAnalysis": "One paragraph (2-3 lines): State gap to next grade, then list 2-3 prioritized improvement actions with mark potential. Format as continuous text, not bullet points."
   },
   "strengths": [
     "Strong understanding of algebra",
@@ -1646,6 +1659,19 @@ Keep the analysis concise, educational, and actionable. Focus on helping the stu
 
     user: (markingData: string, lastAnalysis?: any) => {
       let prompt = `Analyze the following marking results and generate a comprehensive performance report:\n\n${markingData}`;
+      
+      // Add strategic grade improvement instruction
+      if (markingData.includes('GRADE BOUNDARIES:') || markingData.includes('GRADE IMPROVEMENT ANALYSIS:')) {
+        prompt += `\n\nCRITICAL: For the gradeAnalysis field, provide ONE PARAGRAPH (2-3 lines maximum) with improvement strategy:\n`;
+        prompt += `- Format as continuous text (no bullet points, no lists)\n`;
+        prompt += `- First line: State gap to next grade OR if at highest grade, state marks to perfect score (e.g., "Need 5 marks for Grade 8" OR "Need 7 marks for perfect 80/80")\n`;
+        prompt += `- Next 1-2 lines: MUST analyze WEAK QUESTIONS to identify what student usually gets wrong\n`;
+        prompt += `- Be SPECIFIC: Reference actual question numbers from WEAK QUESTIONS section and explain the weakness (e.g., "Q12 geometry shows calculation errors (3/5, +2 marks available) - focus on double-checking arithmetic. Q8 algebra shows method mark losses (4/5, +1 mark) - show all working steps clearly.")\n`;
+        prompt += `- Identify patterns: What type of errors does the student make? (calculation, method, presentation, understanding)\n`;
+        prompt += `- Provide targeted advice: How to fix the specific weaknesses identified in the marked results\n`;
+        prompt += `- Avoid generic phrases like "various problem-solving questions" or "check for errors" - reference specific Q numbers and actual weaknesses\n`;
+        prompt += `- Keep it brief, specific, and actionable - one flowing paragraph only\n`;
+      }
       
       if (lastAnalysis) {
         prompt += `\n\n--- PREVIOUS ANALYSIS REPORT ---\n`;

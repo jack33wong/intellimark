@@ -47,6 +47,7 @@ export class AnalysisService {
       }
       
       // 2. Fetch grade boundaries for the subject
+      // Try to fetch grade boundaries - attempt with available metadata
       if (markingData.examMetadata.examBoard && 
           markingData.examMetadata.examSeries && 
           markingData.examMetadata.subject &&
@@ -61,7 +62,17 @@ export class AnalysisService {
         
         if (gradeBoundaries) {
           markingData.gradeBoundaries = gradeBoundaries;
+          console.log(`✅ [ANALYSIS] Grade boundaries found for ${markingData.examMetadata.examBoard} ${markingData.examMetadata.examCode}`);
+        } else {
+          console.warn(`⚠️ [ANALYSIS] Grade boundaries not found for ${markingData.examMetadata.examBoard} ${markingData.examMetadata.examCode} ${markingData.examMetadata.examSeries}`);
         }
+      } else {
+        console.warn(`⚠️ [ANALYSIS] Missing exam metadata for grade boundaries:`, {
+          examBoard: markingData.examMetadata.examBoard,
+          examCode: markingData.examMetadata.examCode,
+          examSeries: markingData.examMetadata.examSeries,
+          subject: markingData.examMetadata.subject
+        });
       }
       
       // 3. Format data for AI (include last report if available for context)
@@ -456,26 +467,119 @@ export class AnalysisService {
       formatted += `GRADE BOUNDARIES:\n`;
       formatted += `- Boundary Type: ${markingData.gradeBoundaries.boundaryType}\n`;
       formatted += `- Boundaries:\n`;
-      Object.entries(markingData.gradeBoundaries.boundaries)
+      const sortedBoundaries = Object.entries(markingData.gradeBoundaries.boundaries)
         .sort(([a], [b]) => {
           const numA = parseInt(a, 10) || 0;
           const numB = parseInt(b, 10) || 0;
           return numB - numA; // Descending: 9, 8, 7, ...
-        })
-        .forEach(([grade, boundary]) => {
-          formatted += `  Grade ${grade}: ${boundary} marks\n`;
         });
+      
+      sortedBoundaries.forEach(([grade, boundary]) => {
+        formatted += `  Grade ${grade}: ${boundary} marks\n`;
+      });
       formatted += `\n`;
       formatted += `Current Performance: ${markingData.overallScore.awarded} marks\n`;
-      formatted += `\nPlease advise the student on how many additional marks they need to achieve the next higher grade.\n`;
       formatted += `\n`;
+      
+      // Calculate grade gap and provide strategic context
+      const currentMarks = markingData.overallScore.awarded;
+      let currentGrade: string | null = null;
+      let nextGrade: string | null = null;
+      let marksToNextGrade: number | null = null;
+      let nextGradeBoundary: number | null = null;
+      
+      // Find current grade and next grade
+      for (let i = 0; i < sortedBoundaries.length; i++) {
+        const [grade, boundary] = sortedBoundaries[i];
+        const boundaryMarks = boundary as number;
+        if (currentMarks >= boundaryMarks) {
+          currentGrade = grade;
+          if (i > 0) {
+            nextGrade = sortedBoundaries[i - 1][0];
+            nextGradeBoundary = sortedBoundaries[i - 1][1] as number;
+            marksToNextGrade = nextGradeBoundary - currentMarks;
+          }
+          break;
+        }
+      }
+      
+      // If below lowest grade, set next grade as lowest
+      if (!currentGrade && sortedBoundaries.length > 0) {
+        nextGrade = sortedBoundaries[sortedBoundaries.length - 1][0];
+        nextGradeBoundary = sortedBoundaries[sortedBoundaries.length - 1][1] as number;
+        marksToNextGrade = nextGradeBoundary - currentMarks;
+      }
+      
+      // Handle case where student is at highest grade (no next grade available)
+      if (currentGrade && !nextGrade && sortedBoundaries.length > 0) {
+        // Student is at highest grade - focus on maintaining or perfect score
+        const highestGradeBoundary = sortedBoundaries[0][1] as number;
+        const marksToPerfect = markingData.overallScore.total - currentMarks;
+        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
+        formatted += `- Current Grade: ${currentGrade} (Highest Grade)\n`;
+        formatted += `- Current Marks: ${currentMarks} marks\n`;
+        formatted += `- Perfect Score: ${markingData.overallScore.total} marks\n`;
+        formatted += `- Marks to Perfect: ${marksToPerfect} marks\n`;
+        formatted += `\nSTRATEGIC FOCUS:\n`;
+        formatted += `- Focus on maintaining Grade ${currentGrade} and reducing errors\n`;
+        formatted += `- Analyze question-by-question results to identify where ${marksToPerfect} marks were lost\n`;
+        formatted += `- Target areas for perfection: reduce calculation errors, improve presentation, ensure all method marks are earned\n`;
+        formatted += `\n`;
+      } else if (currentGrade && nextGrade && marksToNextGrade !== null && marksToNextGrade > 0) {
+        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
+        formatted += `- Current Grade: ${currentGrade}\n`;
+        formatted += `- Next Grade Target: ${nextGrade}\n`;
+        formatted += `- Marks Needed: ${marksToNextGrade} marks\n`;
+        formatted += `- Current Marks: ${currentMarks} marks\n`;
+        formatted += `- Next Grade Boundary: ${nextGradeBoundary} marks\n`;
+        formatted += `\nSTRATEGIC FOCUS:\n`;
+        formatted += `- Analyze question-by-question results to identify:\n`;
+        formatted += `  * Which weak areas, if improved, could gain the ${marksToNextGrade} marks needed\n`;
+        formatted += `  * Which strong areas can be leveraged for additional marks (1-2 marks through perfection)\n`;
+        formatted += `  * Prioritize improvements with highest mark potential and "marks per effort" ratio\n`;
+        formatted += `- Consider: If close to boundary (≤5 marks), focus on reducing errors and partial credit. If far (6+ marks), focus on foundational understanding.\n`;
+        formatted += `\n`;
+      } else if (nextGrade && marksToNextGrade !== null && marksToNextGrade > 0) {
+        formatted += `GRADE IMPROVEMENT ANALYSIS:\n`;
+        formatted += `- Current Performance: Below Grade ${nextGrade}\n`;
+        formatted += `- Target Grade: ${nextGrade}\n`;
+        formatted += `- Marks Needed: ${marksToNextGrade} marks\n`;
+        formatted += `- Current Marks: ${currentMarks} marks\n`;
+        formatted += `- Grade Boundary: ${nextGradeBoundary} marks\n`;
+        formatted += `\nSTRATEGIC FOCUS:\n`;
+        formatted += `- Focus on foundational understanding and systematic practice\n`;
+        formatted += `- Target areas with highest mark potential\n`;
+        formatted += `\n`;
+      }
     }
     
     formatted += `QUESTION-BY-QUESTION RESULTS:\n`;
+    formatted += `(Analyze these to identify student weaknesses, patterns of errors, and specific improvement targets)\n`;
     markingData.questionResults.forEach((qr) => {
+      const marksLost = qr.score.totalMarks - qr.score.awardedMarks;
+      const percentage = qr.score.totalMarks > 0 ? Math.round((qr.score.awardedMarks / qr.score.totalMarks) * 100) : 0;
       formatted += `\nQuestion ${qr.questionNumber}:\n`;
-      formatted += `  Average Score: ${qr.score.scoreText}\n`;
+      formatted += `  Score: ${qr.score.scoreText} (${qr.score.awardedMarks}/${qr.score.totalMarks}, ${percentage}%)\n`;
+      formatted += `  Marks Lost: ${marksLost} marks\n`;
+      if (qr.annotations && qr.annotations.length > 0) {
+        formatted += `  Error Types: ${qr.annotations.map((a: any) => a.action || a.markCode || 'error').join(', ')}\n`;
+      }
     });
+    
+    // Add summary of weak questions
+    const weakQuestions = markingData.questionResults.filter((qr) => {
+      const percentage = qr.score.totalMarks > 0 ? (qr.score.awardedMarks / qr.score.totalMarks) : 0;
+      return percentage < 0.7; // Less than 70%
+    });
+    
+    if (weakQuestions.length > 0) {
+      formatted += `\nWEAK QUESTIONS (scoring <70%):\n`;
+      weakQuestions.forEach((qr) => {
+        const percentage = qr.score.totalMarks > 0 ? Math.round((qr.score.awardedMarks / qr.score.totalMarks) * 100) : 0;
+        formatted += `- Q${qr.questionNumber}: ${qr.score.scoreText} (${percentage}%) - ${qr.score.totalMarks - qr.score.awardedMarks} marks lost\n`;
+      });
+      formatted += `\n`;
+    }
     
     if (lastAnalysisReport) {
       formatted += `\n\nPREVIOUS ANALYSIS REPORT:\n`;
@@ -519,7 +623,8 @@ export class AnalysisService {
           percentage: parsed.performance?.percentage || 0,
           grade: parsed.performance?.grade, // Highest grade
           averageGrade: parsed.performance?.averageGrade, // Average grade
-          summary: parsed.performance?.summary || 'No summary available.'
+          summary: parsed.performance?.summary || 'No summary available.',
+          gradeAnalysis: parsed.performance?.gradeAnalysis || undefined // Strategic grade improvement analysis
         },
         strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
         weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
@@ -543,7 +648,8 @@ export class AnalysisService {
           percentage: 0,
           grade: undefined,
           averageGrade: undefined,
-          summary: 'Failed to parse analysis. Please try again.'
+          summary: 'Failed to parse analysis. Please try again.',
+          gradeAnalysis: undefined
         },
         strengths: [],
         weaknesses: [],

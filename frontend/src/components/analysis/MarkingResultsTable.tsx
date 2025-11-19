@@ -3,7 +3,7 @@
  * Displays marking results grouped by exam board with statistics
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import './MarkingResultsTable.css';
 
 interface MarkingResult {
@@ -43,9 +43,18 @@ interface ExamBoardGroup {
 
 interface MarkingResultsTableProps {
   markingResults: MarkingResult[];
+  subject: string;
+  onDelete?: () => void; // Callback to refresh data after delete
+  getAuthToken?: () => Promise<string | null>; // Auth token getter
 }
 
-const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({ markingResults }) => {
+const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({ 
+  markingResults, 
+  subject, 
+  onDelete,
+  getAuthToken 
+}) => {
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   // Group marking results by exam board
   const groupByExamBoard = (results: MarkingResult[]): ExamBoardGroup[] => {
     const grouped = new Map<string, MarkingResult[]>();
@@ -134,6 +143,52 @@ const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({ markingResult
       return timestamp;
     }
   };
+
+  const handleDelete = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!window.confirm('Are you sure you want to delete this marking result? This will trigger re-analysis.')) {
+      return;
+    }
+
+    if (!getAuthToken) {
+      console.error('Auth token getter not provided');
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        alert('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`/api/analysis/${encodeURIComponent(subject)}/${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (response.ok) {
+        // Refresh the data
+        if (onDelete) {
+          onDelete();
+        }
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete marking result');
+      }
+    } catch (error) {
+      console.error('Failed to delete marking result:', error);
+      alert('Failed to delete marking result');
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
   
   return (
     <div className="marking-results-container">
@@ -163,21 +218,19 @@ const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({ markingResult
             <table className="marking-results-table">
               <thead>
                 <tr>
-                  <th>Session</th>
                   <th>Exam Code</th>
                   <th>Exam Series</th>
                   <th>Qualification</th>
                   <th>Score</th>
                   <th>Grade</th>
+                  <th>Model Used</th>
                   <th>Date</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {group.results.map((result, index) => (
                   <tr key={`${result.sessionId}-${index}`}>
-                    <td className="session-title">
-                      {result.sessionTitle || `Session ${result.sessionId.slice(0, 8)}`}
-                    </td>
                     <td>{result.examMetadata.examCode}</td>
                     <td>{result.examMetadata.examSeries}</td>
                     <td>{result.examMetadata.qualification}</td>
@@ -192,7 +245,18 @@ const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({ markingResult
                         <span className="no-grade">-</span>
                       )}
                     </td>
+                    <td className="model-cell">{result.modelUsed || 'N/A'}</td>
                     <td className="date-cell">{formatDate(result.timestamp)}</td>
+                    <td className="actions-cell">
+                      <button
+                        className="delete-button"
+                        onClick={(e) => handleDelete(result.sessionId, e)}
+                        disabled={deletingSessionId === result.sessionId}
+                        title="Delete marking result"
+                      >
+                        {deletingSessionId === result.sessionId ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

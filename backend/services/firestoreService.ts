@@ -67,7 +67,8 @@ const COLLECTIONS = {
   USERS: 'users',
   SESSIONS: 'sessions',
   UNIFIED_SESSIONS: 'unifiedSessions',  // NEW: Single collection with nested messages
-  SUBJECT_MARKING_RESULTS: 'subjectMarkingResults'  // NEW: Subject-based marking results
+  SUBJECT_MARKING_RESULTS: 'subjectMarkingResults',  // NEW: Subject-based marking results
+  USAGE_RECORDS: 'usageRecords'  // NEW: Usage statistics for analytics
 } as const;
 
 // Types for Firestore documents
@@ -588,6 +589,11 @@ export class FirestoreService {
         const verifyDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
         if (!verifyDoc.exists) {
           throw new Error(`Session verification failed - document not found after save`);
+        }
+        
+        // Write usage record if cost breakdown exists
+        if (finalSessionStats?.costBreakdown) {
+          await this.createUsageRecord(sessionId, userId, sessionDoc.createdAt, finalSessionStats);
         }
       } catch (firestoreError) {
         console.error(`❌ Firestore operation failed:`, firestoreError);
@@ -1129,6 +1135,16 @@ export class FirestoreService {
       
       await sessionRef.update(updateData);
       
+      // Update usage record since cost was recalculated
+      await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, {
+        ...updatedStats,
+        totalCost: cost.total,
+        costBreakdown: {
+          llmCost: cost.llmCost,
+          mathpixCost: cost.mathpixCost
+        }
+      });
+      
     } catch (error) {
       console.error('❌ Failed to add message to UnifiedSession:', error);
       throw error;
@@ -1166,10 +1182,57 @@ export class FirestoreService {
       
       await sessionRef.update(sanitizedUpdates);
       
+      // Update usage record if sessionStats (with cost) was updated
+      if (updates.sessionStats?.costBreakdown) {
+        const sessionData = sessionDoc.data();
+        await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, updates.sessionStats);
+      }
+      
     } catch (error) {
       console.error('❌ Failed to update UnifiedSession:', error);
       throw error;
     }
+  }
+
+  /**
+   * Create usage record for analytics
+   * This is a denormalized view optimized for querying usage statistics
+   */
+  static async createUsageRecord(
+    sessionId: string,
+    userId: string,
+    createdAt: string,
+    sessionStats: any
+  ): Promise<void> {
+    if (!db) {
+      throw new Error('Firestore not available');
+    }
+
+    const costBreakdown = sessionStats.costBreakdown;
+    if (!costBreakdown) {
+      throw new Error('Cost breakdown is required');
+    }
+
+    const createdAtDate = new Date(createdAt);
+    const llmCost = costBreakdown.llmCost;
+    const mathpixCost = costBreakdown.mathpixCost;
+    const totalCost = sessionStats.totalCost;
+    const modelUsed = sessionStats.lastModelUsed;
+
+    // Create usage record document
+    const usageRecord = {
+      sessionId,
+      userId,
+      createdAt: admin.firestore.Timestamp.fromDate(createdAtDate),
+      totalCost: Math.round(totalCost * 100) / 100,
+      llmCost: Math.round(llmCost * 100) / 100,
+      mathpixCost: Math.round(mathpixCost * 100) / 100,
+      modelUsed,
+      date: createdAtDate.toISOString().split('T')[0] // YYYY-MM-DD format
+    };
+
+    // Use sessionId as document ID
+    await db.collection(COLLECTIONS.USAGE_RECORDS).doc(sessionId).set(usageRecord);
   }
 
   /**

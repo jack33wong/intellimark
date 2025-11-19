@@ -15,7 +15,9 @@ export interface AnalysisResult {
     overallScore: string;      // "76/80"
     percentage: number;         // 95
     grade?: string;             // "9" or "A*"
+    averageGrade?: string;      // Average grade (most common)
     summary: string;            // AI-generated paragraph
+    gradeAnalysis?: string;     // Strategic grade improvement analysis
   };
   strengths: string[];          // AI-identified strengths
   weaknesses: string[];         // AI-identified weaknesses
