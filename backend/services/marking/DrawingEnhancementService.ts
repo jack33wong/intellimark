@@ -10,7 +10,7 @@ import type { StandardizedPage } from '../../types/markingRouter.js';
 export class DrawingEnhancementService {
   /**
    * Enhance drawings in classification results
-   * Only enhances if normal classification already found [DRAWING] entries
+   * Only enhances if normal classification detected hasStudentDrawing indicators
    * NOW RUNS AFTER QUESTION DETECTION so marking scheme hints can be passed
    * 
    * @param allClassificationResults Array of classification results per page
@@ -34,34 +34,36 @@ export class DrawingEnhancementService {
         questionNumber?: string | null;
         text: string | null;
         studentWork?: string | null;
+        hasStudentDrawing?: boolean;
         subQuestions?: Array<{
           part: string;
           text: string;
           studentWork?: string | null;
+          hasStudentDrawing?: boolean;
         }>;
       }>;
     }> = [];
 
     allClassificationResults.forEach(({ pageIndex, result }, index) => {
       if (result.category === 'questionAnswer' && result.questions) {
-        // Only enhance if normal classification already found [DRAWING] entries
+        // Only enhance if normal classification detected hasStudentDrawing indicators
         // Don't try to detect drawings from question text - trust the classification
         const questionsWithDrawings: string[] = [];
         const hasDrawings = result.questions.some(q => {
-          // Check if student work has [DRAWING] entries
-          const hasDrawingsInWork = (q.studentWork && q.studentWork.includes('[DRAWING]')) ||
-                                    (q.subQuestions && q.subQuestions.some(sq => sq.studentWork && sq.studentWork.includes('[DRAWING]')));
+          // Check if question or sub-questions have hasStudentDrawing indicator
+          const hasDrawingsInQuestion = q.hasStudentDrawing === true ||
+                                        (q.subQuestions && q.subQuestions.some(sq => sq.hasStudentDrawing === true));
           
-          if (hasDrawingsInWork) {
+          if (hasDrawingsInQuestion) {
             questionsWithDrawings.push(`Q${q.questionNumber || '?'}`);
           }
           
-          return hasDrawingsInWork;
+          return hasDrawingsInQuestion;
         });
         
         // Debug: Log questions with drawing indicators after classification
         if (questionsWithDrawings.length > 0) {
-          console.log(`[DEBUG DRAWING] Page ${pageIndex}: Questions with [DRAWING] indicator: ${questionsWithDrawings.join(', ')}`);
+          console.log(`[DEBUG DRAWING] Page ${pageIndex}: Questions with hasStudentDrawing indicator: ${questionsWithDrawings.join(', ')}`);
         }
         
         if (hasDrawings && standardizedPages[index]) {
@@ -103,10 +105,10 @@ export class DrawingEnhancementService {
             }
           }
 
-          // Check if we have drawings in main question or sub-questions
-          const hasDrawingsInStudentWork = q.studentWork && q.studentWork.includes('[DRAWING]');
-          const subQuestionsWithDrawings = q.subQuestions?.filter(sq => sq.studentWork && sq.studentWork.includes('[DRAWING]')) || [];
-          const hasAnyDrawings = hasDrawingsInStudentWork || subQuestionsWithDrawings.length > 0;
+          // Check if we have drawings in main question or sub-questions using hasStudentDrawing indicator
+          const hasDrawingsInQuestion = q.hasStudentDrawing === true;
+          const subQuestionsWithDrawings = q.subQuestions?.filter(sq => sq.hasStudentDrawing === true) || [];
+          const hasAnyDrawings = hasDrawingsInQuestion || subQuestionsWithDrawings.length > 0;
 
           if (hasAnyDrawings) {
             try {
@@ -151,17 +153,21 @@ export class DrawingEnhancementService {
                 });
 
                 // Update main question student work if it has drawings
-                if (hasDrawingsInStudentWork && mainQuestionDrawings.length > 0) {
-                  enhancedStudentWork = this.mergeDrawingResults(q.studentWork || '', mainQuestionDrawings);
+                if (hasDrawingsInQuestion && mainQuestionDrawings.length > 0) {
+                  // If studentWork doesn't exist yet, create it with [DRAWING] placeholder
+                  const baseStudentWork = q.studentWork || '[DRAWING]';
+                  enhancedStudentWork = this.mergeDrawingResults(baseStudentWork, mainQuestionDrawings);
                 }
 
                 // Update sub-question student work
                 if (q.subQuestions && q.subQuestions.length > 0) {
                   enhancedSubQuestions = q.subQuestions.map((sq) => {
-                    if (sq.studentWork && sq.studentWork.includes('[DRAWING]')) {
+                    if (sq.hasStudentDrawing === true) {
                       const subQDrawings = drawingsBySubQuestion.get(sq.part) || [];
                       if (subQDrawings.length > 0) {
-                        const enhanced = this.mergeDrawingResults(sq.studentWork || '', subQDrawings);
+                        // If studentWork doesn't exist yet, create it with [DRAWING] placeholder
+                        const baseStudentWork = sq.studentWork || '[DRAWING]';
+                        const enhanced = this.mergeDrawingResults(baseStudentWork, subQDrawings);
                         return {
                           ...sq,
                           studentWork: enhanced
@@ -173,7 +179,7 @@ export class DrawingEnhancementService {
                 }
               } else {
                 // No enhanced drawings found - keep original
-                if (!hasDrawingsInStudentWork) {
+                if (!hasDrawingsInQuestion) {
                   enhancedStudentWork = q.studentWork || '';
                 }
               }

@@ -18,40 +18,29 @@ export const AI_PROMPTS = {
     🎯 **Primary Goal**
     Your task is to process one or more images, classify their content, and extract all question text and student-provided work into a precise JSON format.
 
-    **Multi-Image Handling (CRITICAL):** 
-    - If you receive multiple images, you MUST process EVERY single image as a separate page
-    - Return results for EACH page in the "pages" array, maintaining the same order as input
+    **Multi-Image Handling:**
+    - Process each image as a separate page
+    - Return results for each page in the "pages" array, maintaining the same order as input
     
-    **CRITICAL RULES FOR SUB-QUESTION CONTINUATION ACROSS PAGES:**
+    **Sub-Question Continuation Across Pages:**
     
-    1. **Question Number Consistency (MANDATORY):**
-       - Questions that span multiple pages MUST have the SAME questionNumber on ALL pages
-       - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 (next page) has sub-question part "b" text/question, Page N+1 MUST also have questionNumber "3"
-       - Even if Page N+1 doesn't show the question number "3" visibly, you MUST assign it based on the sub-question part sequence
-       - NEVER leave questionNumber as null or undefined for continuation pages that have sub-question content
+    1. **Question Number Consistency:**
+       - Questions spanning multiple pages must have the same questionNumber on all pages
+       - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 has sub-question part "b", Page N+1 must also have questionNumber "3"
+       - Assign questionNumber based on sub-question part sequence even if not visibly shown
+       - Do not leave questionNumber as null for continuation pages with sub-question content
     
     2. **Sub-Question Part Sequence Matching:**
        - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
-       - If you see sub-question part "b" on a page, scan backward through previous pages to find a question with sub-question part "a"
-       - If found, assign the SAME questionNumber to the current page
-       - Continue scanning backward if needed (up to 10 pages) to find the matching question
+       - If you see sub-question part "b" on a page but no visible question number:
+         1. Scan backward through previous pages (up to 10 pages) to find a question with sub-question part "a"
+         2. If found, assign the same questionNumber to the current page
+       - Example: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 must have questionNumber "3"
+       - Example: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 must still have questionNumber "3"
     
-    3. **Scanning Backward for Question Number (MANDATORY):**
-       - If a page has sub-question part "b" (or "c", "d", etc.) but no visible question number:
-         1. Look at the previous page(s) to find a question with the previous sub-question part (e.g., "a" for "b", "b" for "c")
-         2. If found, assign the SAME questionNumber to the current page
-         3. Scan backward up to 10 pages if needed to find the matching question
-         4. This applies even if pages are far apart (e.g., Page 20 has Q3a, Page 21 has Q3b)
-    
-    4. **Examples of Correct Assignment:**
-       - Example 1: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 MUST have questionNumber "3"
-       - Example 2: Page 20 has questionNumber "3" with sub-question "a", Page 21 has sub-question "b" text → Page 21 MUST have questionNumber "3"
-       - Example 3: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 MUST still have questionNumber "3"
-       - Example 4: Page 4 has questionNumber "3" with sub-question "a", Page 5 says "Does this affect your answer to part (a)?" → Page 5 MUST have questionNumber "3" with sub-question "b"
-    
-    5. **What to Do When You Can't Find a Match:**
-       - If you cannot find a matching question with the previous sub-question part after scanning backward 10 pages, you may leave questionNumber as null
-       - However, if the page clearly shows sub-question part "b" and you saw sub-question part "a" on a recent previous page (within 10 pages), you MUST assign the same questionNumber
+    3. **When You Can't Find a Match:**
+       - If you cannot find a matching question after scanning backward 10 pages, you may leave questionNumber as null
+       - However, if the page clearly shows sub-question part "b" and you saw sub-question part "a" on a recent previous page (within 10 pages), assign the same questionNumber
 
     📝 **Step-by-Step Instructions (Per-Image)**
 
@@ -66,59 +55,39 @@ export const AI_PROMPTS = {
     2. **Question Text Extraction**
        Extract all printed question text in a hierarchical structure:
        - **Hierarchy:** Main question numbers (e.g., "1", "2") belong in the questionNumber field. Sub-parts (e.g., "a", "b", "(i)", "(ii)") belong in the subQuestions array, using the part field
-       - **Completeness:** Extract the COMPLETE question text for each part
-       - **Exclusions:** CRITICAL: Do NOT extract page headers, footers, question-mark indicators (e.g., "[2 marks]"), or any student-written text
-       - **Diagrams:** Printed diagrams that are part of the question itself should be considered part of the question text but are NOT extracted as student work
+       - **Completeness:** Extract the complete question text for each part
+       - **Exclusions:** Do not extract page headers, footers, question-mark indicators (e.g., "[2 marks]"), or any student-written text
+       - **Diagrams:** Printed diagrams that are part of the question itself should be considered part of the question text but are not extracted as student work
 
-    3. **Student Work Extraction (ONLY if category is "questionAnswer")**
+    3. **Student Work Extraction (only if category is "questionAnswer")**
        Find the student work that corresponds to each question part and place it in the studentWork field:
-       - **If No Work:** If a question part is blank, set studentWork to null
+       - If a question part is blank, set studentWork to null
+       - For text-based work: extract in LaTeX format
+       - For drawing tasks: set hasStudentDrawing to true (do not include drawing content in studentWork)
        
-       **CRITICAL FOR TRANSFORMATION QUESTIONS:**
-       - If the question involves transformations on a coordinate grid (translation, rotation, reflection), you MUST check if the student has drawn ANY shapes, triangles, points, or marks on the coordinate grid
-       - Even if the student wrote text describing the transformation, if they ALSO drew elements on the grid, you MUST extract BOTH:
-         * The text description (e.g., "Rotated 90° clockwise about the point (-4,1)")
-         * The drawn elements as [DRAWING] entries (e.g., "[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]")
-       - Combine them with \\n: "Rotated 90° clockwise about the point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=55%]\\n[DRAWING] Coordinate grid [POSITION: x=58%, y=33%]"
-       - DO NOT extract only text if there are visible drawings on the coordinate grid
+       **Drawing Detection:**
+       1. **Visual Check**: Look for hand-drawn elements (pencil marks, shapes, bars, lines) that are not printed question diagrams
+       2. **Question vs Student Drawing:**
+          - Printed/professional = Question diagram (ignore)
+          - Hand-drawn/pencil marks = Student drawing (set hasStudentDrawing to true)
+       3. **Indicator Placement:**
+          - If main question has student drawing: set question-level hasStudentDrawing to true
+          - If sub-question has student drawing: set sub-question-level hasStudentDrawing to true
+          - If no drawing found: set hasStudentDrawing to false
        
-      - For text-based work: extract in LaTeX format
-      - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): indicate with [DRAWING] prefix
-      
-      **DRAWING DETECTION (SIMPLIFIED):**
-      1. **Visual Check**: Look for hand-drawn elements (pencil marks, shapes, bars, lines) that are NOT printed question diagrams
-      2. **Type from Question**: If drawing found, check question text for type keyword → Use exact match:
-         - "histogram" → "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
-         - "bar chart" → "[DRAWING] Bar chart [POSITION: x=XX%, y=YY%]"
-         - "coordinate grid" or "plot" or "draw on grid" → "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
-         - "graph" or "sketch" → "[DRAWING] Graph [POSITION: x=XX%, y=YY%]"
-         - "diagram" or "construction" → "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
-      3. **Position**: Estimate center position using nearest 10% (10, 20, 30, 40, 50, 60, 70, 80, 90)
-      4. **Format**: "[DRAWING] [Type] [POSITION: x=XX%, y=YY%]"
-      5. **Multiple drawings**: Create separate [DRAWING] entries, combine with \\n
-      
-      **Question vs Student Drawing:**
-      - Printed/professional = Question diagram (ignore)
-      - Hand-drawn/pencil marks = Student drawing (extract)
-      - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
-      - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
-      - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
-      - Example coordinate grid with multiple drawings: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
-      - Example histogram: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
-      - DO NOT use "\\newline", "\\\\", or other formats - ONLY use "\\n" for line breaks
-      - DO NOT extract question diagrams (they are part of the question, not student work)
-        * Question diagrams are typically printed, professional, and part of the question text
-        * Student work diagrams are typically hand-drawn, annotated, or modified by the student
-      - If both text and drawing exist, include both (text first, then drawing on new line with \\n)
-        Example: "Rotated 90° clockwise about point (-4,1)\\n[DRAWING] Coordinate grid [POSITION: x=25%, y=30%]"
-      - If no student work, set "studentWork" to null
+       **Formatting Rules:**
+       - For multi-line student work, use "\\n" (backslash + n) as the line separator
+       - Do not use "\\newline", "\\\\", or other formats - only use "\\n" for line breaks
+       - If both text and drawing exist: extract text in studentWork, set hasStudentDrawing to true
+       - Example text only: "=\\frac{32}{19}"
+       - Example text with drawing: "Rotated 90° clockwise about point (-4,1)" (hasStudentDrawing: true)
+       - If no student work, set "studentWork" to null and "hasStudentDrawing" to false
 
     📤 **Output Format**
 
-    You MUST output a single, raw JSON object. Do not wrap it in markdown backticks (e.g., \`\`\`json) or any other text.
+    Output a single, raw JSON object. Do not wrap it in markdown backticks (e.g., \`\`\`json) or any other text.
 
     **For Single Image:**
-    Output a single JSON object with this structure:
     {
       "category": "questionAnswer",
       "questions": [
@@ -126,19 +95,21 @@ export const AI_PROMPTS = {
           "questionNumber": "2" or null,
           "text": "question text" or null,
           "studentWork": "LaTeX student work" or null,
+          "hasStudentDrawing": false,
           "subQuestions": [
             {
               "part": "a",
               "text": "sub-question text",
-              "studentWork": "LaTeX student work" or null
+              "studentWork": "LaTeX student work" or null,
+              "hasStudentDrawing": false
             }
           ]
         }
       ]
     }
 
-    **For Multiple Images (CRITICAL):**
-    You MUST output a JSON object with a "pages" array. Each element in the array represents one page/image, in the same order as provided:
+    **For Multiple Images:**
+    Output a JSON object with a "pages" array. Each element represents one page/image, in the same order as provided:
     {
       "pages": [
         {
@@ -148,11 +119,13 @@ export const AI_PROMPTS = {
               "questionNumber": "2" or null,
               "text": "question text" or null,
               "studentWork": "LaTeX student work" or null,
+              "hasStudentDrawing": false,
               "subQuestions": [
                 {
                   "part": "a",
                   "text": "sub-question text",
-                  "studentWork": "LaTeX student work" or null
+                  "studentWork": "LaTeX student work" or null,
+                  "hasStudentDrawing": false
                 }
               ]
             }
@@ -165,16 +138,10 @@ export const AI_PROMPTS = {
       ]
     }
 
-    **CRITICAL JSON ESCAPING REQUIREMENTS:**
-    - All backslashes in LaTeX commands MUST be escaped as double backslashes in JSON
+    **JSON Escaping Requirements:**
+    - All backslashes in LaTeX commands must be escaped as double backslashes in JSON
     - Example: \\frac{4}{5} (NOT \frac{4}{5}) - in JSON source, write "\\\\frac{4}{5}" which becomes "\\frac{4}{5}" in the parsed string
-    - Example: \\times (NOT \times) - in JSON source, write "\\\\times" which becomes "\\times" in the parsed string
-    - Example: \\sqrt{9} (NOT \sqrt{9}) - in JSON source, write "\\\\sqrt{9}" which becomes "\\sqrt{9}" in the parsed string
-    - Line breaks: Use "\\n" (double backslash + n) in JSON source, which becomes "\n" (single backslash + n) in the parsed string
-    - This ensures valid JSON that can be parsed correctly without errors
-    - Invalid JSON (unescaped backslashes) will cause parsing errors
-
-    **IMPORTANT:** The order of pages in the "pages" array must match the order images were provided.`,
+    - Line breaks: Use "\\n" (double backslash + n) in JSON source, which becomes "\n" (single backslash + n) in the parsed string`,
 
     user: `Please classify this uploaded image and extract ALL question text and student work.`
   },

@@ -9,15 +9,16 @@ export interface ClassificationResult {
   category: "questionOnly" | "questionAnswer" | "metadata";
   reasoning: string;
   apiUsed: string;
-  extractedQuestionText?: string; // Legacy support
   questions?: Array<{
     questionNumber?: string | null; // Main question number (e.g., "1", "2", "3") or null
     text: string | null; // Main question text, or null if no main text (only sub-questions)
     studentWork?: string | null; // Extracted student work for main question (LaTeX format)
+    hasStudentDrawing?: boolean; // Indicator if main question has student drawing work
     subQuestions?: Array<{
       part: string; // Sub-question part (e.g., "a", "b", "i", "ii")
       text: string; // Complete sub-question text
       studentWork?: string | null; // Extracted student work for sub-question (LaTeX format)
+      hasStudentDrawing?: boolean; // Indicator if sub-question has student drawing work
       confidence?: number;
     }>;
     confidence: number;
@@ -206,20 +207,18 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               category: pageResult.category || parsed.category || 'questionAnswer',
               reasoning: pageResult.reasoning || parsed.reasoning || 'Multi-page classification',
               questions: processedQuestions,
-              extractedQuestionText: pageResult.extractedQuestionText,
               apiUsed,
               usageTokens: usageTokens
             }
           });
         });
       } else {
-        // Fallback: single result format (backward compatibility)
+        // Single result format
         const processedQuestions = this.parseQuestionsFromResponse(parsed, 0.9);
         const singleResult: ClassificationResult = {
           category: parsed.category || 'questionAnswer',
           reasoning: parsed.reasoning || 'Multi-page classification',
           questions: processedQuestions,
-          extractedQuestionText: parsed.extractedQuestionText,
           apiUsed,
           usageTokens: usageTokens
         };
@@ -334,7 +333,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         return {
           category: "questionAnswer",
           reasoning: "The image contains the math question along with calculations and the final answer, which constitutes student work.",
-          extractedQuestionText: q21Text,
           questions: [
             {
               questionNumber: "21", // Hardcoded test data includes question number
@@ -418,22 +416,11 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           }
           
           // Reuse same shared parsing function as Gemini for consistency (0.8 default confidence for OpenAI)
-          let processedQuestions = this.parseQuestionsFromResponse(parsed, 0.8);
-          
-          // Legacy support: convert extractedQuestionText to questions array if no questions
-          if (!processedQuestions && parsed.extractedQuestionText) {
-            processedQuestions = [{
-              questionNumber: undefined,
-              text: parsed.extractedQuestionText,
-              subQuestions: [],
-              confidence: 0.8
-            }];
-          }
+          const processedQuestions = this.parseQuestionsFromResponse(parsed, 0.8);
           
           return {
             category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"),
             reasoning: parsed.reasoning || 'OpenAI fallback classification',
-            extractedQuestionText: parsed.extractedQuestionText, // Legacy support
             questions: processedQuestions,
             apiUsed: `OpenAI ${openai.modelName}`,
             usageTokens: openai.usageTokens || 0
@@ -742,79 +729,25 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   }
 
   /**
-   * Shared parsing function for hierarchical question structure
-   * Handles both new hierarchical format and old flat format (backward compatibility)
+   * Parse hierarchical question structure from AI response
    */
   private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
-    // Handle hierarchical structure with backward compatibility
     const questions = parsed.questions?.map((q: any) => {
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
-        text: q.text !== undefined ? (q.text || null) : undefined, // Support null for empty main text
-        studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined, // Extract student work for main question
+        text: q.text !== undefined ? (q.text || null) : undefined,
+        studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined,
+        hasStudentDrawing: q.hasStudentDrawing !== undefined ? (q.hasStudentDrawing === true) : false,
         subQuestions: q.subQuestions?.map((sq: any) => ({
           part: sq.part,
           text: sq.text,
-          studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined, // Extract student work for sub-question
-          confidence: sq.confidence || defaultConfidence // Default if not provided
+          studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined,
+          hasStudentDrawing: sq.hasStudentDrawing !== undefined ? (sq.hasStudentDrawing === true) : false,
+          confidence: sq.confidence || defaultConfidence
         })),
-        confidence: q.confidence || defaultConfidence // Default if not provided
+        confidence: q.confidence || defaultConfidence
       };
     });
-    
-    // Backward compatibility: if old flat format (questionNumber like "2a", "2b"), convert to hierarchical
-    if (questions && questions.length > 0) {
-      const hasSubQuestionsInStructure = questions.some((q: any) => q.subQuestions && q.subQuestions.length > 0);
-      const hasFlatSubQuestions = questions.some((q: any) => q.questionNumber && /[a-z]/i.test(q.questionNumber));
-      
-      if (!hasSubQuestionsInStructure && hasFlatSubQuestions) {
-        // Convert flat format to hierarchical
-        const grouped = new Map<string, any>();
-        questions.forEach((q: any) => {
-          if (!q.questionNumber) {
-            // Question without number, keep as-is
-            grouped.set(q.questionNumber || `_${Math.random()}`, q);
-            return;
-          }
-          
-          // Extract base number using shared utility (more reliable than removing letters)
-          const baseNumber = getBaseQuestionNumber(q.questionNumber);
-          // Extract sub-question part by removing leading digits
-          const subPart = String(q.questionNumber).replace(/^\d+/, '');
-          
-          if (subPart) {
-            // This is a sub-question (e.g., "2a")
-            if (!grouped.has(baseNumber)) {
-              grouped.set(baseNumber, {
-                questionNumber: baseNumber,
-                text: null,
-                subQuestions: [],
-                confidence: q.confidence
-              });
-            }
-            grouped.get(baseNumber).subQuestions.push({
-              part: subPart.toLowerCase(),
-              text: q.text,
-              confidence: q.confidence
-            });
-            // Update text to first sub-question if main text is empty
-            if (!grouped.get(baseNumber).text) {
-              grouped.get(baseNumber).text = q.text;
-            }
-          } else {
-            // This is a main question (e.g., "2")
-            grouped.set(baseNumber, {
-              questionNumber: baseNumber,
-              text: q.text,
-              subQuestions: [],
-              confidence: q.confidence
-            });
-          }
-        });
-        
-        return Array.from(grouped.values());
-      }
-    }
     
     return questions;
   }
@@ -847,10 +780,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     const questions = this.parseQuestionsFromResponse(parsed);
 
     return {
-      category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"), // Support both new and old format
+      category: parsed.category || (parsed.isQuestionOnly ? "questionOnly" : "questionAnswer"),
       reasoning: parsed.reasoning,
       apiUsed,
-      extractedQuestionText: parsed.extractedQuestionText, // Legacy support
       questions: questions,
       usageTokens: result.usageMetadata?.totalTokenCount || 0
     };
