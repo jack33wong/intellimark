@@ -84,49 +84,22 @@ export const AI_PROMPTS = {
        
       - For text-based work: extract in LaTeX format
       - For drawing tasks (histograms, graphs, diagrams, sketches, coordinate grid transformations): indicate with [DRAWING] prefix
-      - **SIMPLIFIED DRAWING EXTRACTION (INDICATOR ONLY):**
-        * **PURPOSE**: You only need to INDICATE that a drawing exists. A specialized drawing classification service will extract detailed coordinates, frequencies, and positions later.
-        * **CRITICAL**: Before extracting any drawing, you MUST:
-          1. Read the question text to determine what type of drawing/chart/graph the question asks for
-          2. Use the EXACT terminology from the question text
-          3. Do NOT substitute terms - if question says "histogram", use "Histogram" (not "Bar chart")
-          
-          **DETERMINING DRAWING TYPE FROM QUESTION TEXT:**
-          - The question text will specify what type of drawing is expected
-          - Identify the drawing type from the question text and use that EXACT terminology
-          - Common drawing types:
-            * Histogram: Question says "histogram" → Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
-            * Bar chart: Question says "bar chart" → Extract as "[DRAWING] Bar chart [POSITION: x=XX%, y=YY%]"
-            * Coordinate grid: Question mentions "coordinate grid", "plot", "draw on grid" → Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
-            * Graph: Question says "graph", "sketch", "plot" → Extract as "[DRAWING] Graph [POSITION: x=XX%, y=YY%]"
-            * Diagram: Question says "diagram", "construction", "draw" → Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
-          
-          **CRITICAL RULE:**
-          - ALWAYS match the terminology used in the question text EXACTLY
-          - If question says "histogram" → use "Histogram" (never "Bar chart")
-          - If question says "bar chart" → use "Bar chart" (never "Histogram")
-          - If question says "graph" → use "Graph"
-        * **EXTRACTION FORMAT** (detailed extraction done by specialized service):
-          - Format: "[DRAWING] [DrawingType] [POSITION: x=XX%, y=YY%]"
-          - You do NOT need to extract exact coordinates, frequencies, or detailed descriptions - the specialized service will do this
-          - **Position estimation**: Estimate the center position of the drawing:
-            * Mentally divide the page into a 10x10 grid (each cell = 10% of page width/height)
-            * Identify which grid cell contains the CENTER of the drawing
-            * Use 5% or 10% increments (e.g., 25%, 30%, 35%, 40%, 45%, 50%)
-            * Format: [POSITION: x=XX%, y=YY%]
-          - **Multiple drawings**: If there are multiple separate drawings, create separate [DRAWING] entries:
-            * Example: "[DRAWING] Coordinate grid [POSITION: x=70%, y=40%]\\n[DRAWING] Coordinate grid [POSITION: x=30%, y=40%]"
-          - **For coordinate grid drawings**: If student drew ANY elements on a coordinate grid:
-            * Extract as "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
-            * You do NOT need to extract exact coordinates or descriptions - the specialized service will do this
-            * Example: "[DRAWING] Coordinate grid [POSITION: x=50%, y=30%]"
-          - **For histograms/charts**: If student drew bars, lines, or data points:
-            * Extract as "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
-            * You do NOT need to extract exact frequencies or bar heights - the specialized service will do this
-            * Example: "[DRAWING] Histogram [POSITION: x=50%, y=30%]"
-          - **For geometric diagrams**: If student drew shapes, angles, or constructions:
-            * Extract as "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
-            * Example: "[DRAWING] Diagram [POSITION: x=50%, y=30%]"
+      
+      **DRAWING DETECTION (SIMPLIFIED):**
+      1. **Visual Check**: Look for hand-drawn elements (pencil marks, shapes, bars, lines) that are NOT printed question diagrams
+      2. **Type from Question**: If drawing found, check question text for type keyword → Use exact match:
+         - "histogram" → "[DRAWING] Histogram [POSITION: x=XX%, y=YY%]"
+         - "bar chart" → "[DRAWING] Bar chart [POSITION: x=XX%, y=YY%]"
+         - "coordinate grid" or "plot" or "draw on grid" → "[DRAWING] Coordinate grid [POSITION: x=XX%, y=YY%]"
+         - "graph" or "sketch" → "[DRAWING] Graph [POSITION: x=XX%, y=YY%]"
+         - "diagram" or "construction" → "[DRAWING] Diagram [POSITION: x=XX%, y=YY%]"
+      3. **Position**: Estimate center position using nearest 10% (10, 20, 30, 40, 50, 60, 70, 80, 90)
+      4. **Format**: "[DRAWING] [Type] [POSITION: x=XX%, y=YY%]"
+      5. **Multiple drawings**: Create separate [DRAWING] entries, combine with \\n
+      
+      **Question vs Student Drawing:**
+      - Printed/professional = Question diagram (ignore)
+      - Hand-drawn/pencil marks = Student drawing (extract)
       - CRITICAL: For multi-line student work, use "\\n" (backslash + n) as the line separator
       - Example single line: "=\\frac{32}{19}" or "35/24=1\\frac{11}{24}"
       - Example multi-line: "400 \\times \\frac{3}{8} = 150\\nS:M:L\\n3:4\\n1:2"
@@ -153,13 +126,11 @@ export const AI_PROMPTS = {
           "questionNumber": "2" or null,
           "text": "question text" or null,
           "studentWork": "LaTeX student work" or null,
-          "confidence": 0.9,
           "subQuestions": [
             {
               "part": "a",
               "text": "sub-question text",
-              "studentWork": "LaTeX student work" or null,
-              "confidence": 0.9
+              "studentWork": "LaTeX student work" or null
             }
           ]
         }
@@ -171,27 +142,23 @@ export const AI_PROMPTS = {
     {
       "pages": [
         {
-          "pageNumber": 1,  // Optional: 1-based index (array order is what matters)
           "category": "questionAnswer",
           "questions": [
             {
               "questionNumber": "2" or null,
               "text": "question text" or null,
               "studentWork": "LaTeX student work" or null,
-              "confidence": 0.9,
               "subQuestions": [
                 {
                   "part": "a",
                   "text": "sub-question text",
-                  "studentWork": "LaTeX student work" or null,
-                  "confidence": 0.9
+                  "studentWork": "LaTeX student work" or null
                 }
               ]
             }
           ]
         },
         {
-          "pageNumber": 2,  // Second page
           "category": "questionAnswer",
           "questions": [...]
         }
@@ -207,7 +174,7 @@ export const AI_PROMPTS = {
     - This ensures valid JSON that can be parsed correctly without errors
     - Invalid JSON (unescaped backslashes) will cause parsing errors
 
-    **IMPORTANT:** The order of pages in the "pages" array must match the order images were provided. The pageNumber field is optional but recommended for clarity.`,
+    **IMPORTANT:** The order of pages in the "pages" array must match the order images were provided.`,
 
     user: `Please classify this uploaded image and extract ALL question text and student work.`
   },

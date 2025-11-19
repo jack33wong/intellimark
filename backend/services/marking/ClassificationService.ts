@@ -500,7 +500,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         parts: parts
       }],
       generationConfig: { 
-        temperature: 0.1, 
+        temperature: 0, 
         maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
       },
       safetySettings: this.SAFETY_SETTINGS
@@ -554,7 +554,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         ]
       }],
       generationConfig: { 
-        temperature: 0.1, 
+        temperature: 0, 
         maxOutputTokens: (await import('../../config/aiModels.js')).getModelConfig('gemini-2.5-flash').maxTokens 
       }, // Use centralized config
       safetySettings: this.SAFETY_SETTINGS
@@ -756,9 +756,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           part: sq.part,
           text: sq.text,
           studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined, // Extract student work for sub-question
-          confidence: sq.confidence
+          confidence: sq.confidence || defaultConfidence // Default if not provided
         })),
-        confidence: q.confidence || defaultConfidence
+        confidence: q.confidence || defaultConfidence // Default if not provided
       };
     });
     
