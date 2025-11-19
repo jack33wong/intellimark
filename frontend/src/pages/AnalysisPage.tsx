@@ -11,7 +11,6 @@ import './AnalysisPage.css';
 
 interface MarkingResult {
   sessionId: string;
-  sessionTitle?: string;
   timestamp: string;
   examMetadata: {
     examBoard: string;
@@ -19,14 +18,10 @@ interface MarkingResult {
     examSeries: string;
     qualification: string;
     tier?: string;
-    paperTitle: string;
-    subject: string;
   };
   overallScore: {
     awardedMarks: number;
     totalMarks: number;
-    scoreText: string;
-    percentage: number;
   };
   grade?: string;
   modelUsed: string;

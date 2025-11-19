@@ -97,14 +97,10 @@ export function convertMarkingResultToSubjectFormat(
             
             questionResults.push({
               questionNumber: q.questionNumber || '',
-              questionText: q.questionText || '',
-              markingScheme: q.markingScheme || '',
               score: {
                 awardedMarks: estimatedAwardedMarks,
-                totalMarks: q.marks || 0,
-                scoreText: `${estimatedAwardedMarks}/${q.marks || 0}`
-              },
-              annotations: [] // Annotations not stored in message, simplified approach
+                totalMarks: q.marks || 0
+              }
             });
           });
         }
@@ -114,27 +110,24 @@ export function convertMarkingResultToSubjectFormat(
     // Build marking result object
     const markingResult = {
       sessionId: session.id,
-      sessionTitle: session.title,
       timestamp: markingMessage.timestamp || session.updatedAt || session.createdAt,
       examMetadata: {
         examBoard: firstExamPaper.examBoard || '',
         examCode: firstExamPaper.examCode || '',
         examSeries: firstExamPaper.examSeries || '',
         qualification: firstExamPaper.qualification || 'GCSE', // Default to GCSE if not specified
-        tier: firstExamPaper.tier || '',
-        paperTitle: firstExamPaper.paperTitle || '',
-        subject: subject
+        tier: firstExamPaper.tier || ''
       },
       questionResults,
       overallScore: {
         awardedMarks: markingMessage.studentScore.awardedMarks,
-        totalMarks: markingMessage.studentScore.totalMarks,
-        scoreText: markingMessage.studentScore.scoreText,
-        percentage: markingMessage.studentScore.totalMarks > 0
-          ? Math.round((markingMessage.studentScore.awardedMarks / markingMessage.studentScore.totalMarks) * 100)
-          : 0
+        totalMarks: markingMessage.studentScore.totalMarks
       },
       grade: (markingMessage as any).grade || undefined,
+      gradeBoundaries: (markingMessage as any).gradeBoundaries ? {
+        boundaries: (markingMessage as any).gradeBoundaries,
+        boundaryType: (markingMessage as any).gradeBoundaryType || undefined
+      } : undefined,
       modelUsed: markingMessage.processingStats?.modelUsed || session.sessionStats?.lastModelUsed || 'auto'
     };
 

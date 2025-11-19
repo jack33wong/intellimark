@@ -10,7 +10,6 @@ import './MarkingResultsTable.css';
 
 interface MarkingResult {
   sessionId: string;
-  sessionTitle?: string;
   timestamp: string;
   examMetadata: {
     examBoard: string;
@@ -18,14 +17,10 @@ interface MarkingResult {
     examSeries: string;
     qualification: string;
     tier?: string;
-    paperTitle: string;
-    subject: string;
   };
   overallScore: {
     awardedMarks: number;
     totalMarks: number;
-    scoreText: string;
-    percentage: number;
   };
   grade?: string;
   modelUsed: string;
@@ -319,8 +314,8 @@ const MarkingResultsTable: React.FC<MarkingResultsTableProps> = ({
                     <td>{result.examMetadata.examSeries}</td>
                     <td>{result.examMetadata.qualification}</td>
                     <td className="score-cell">
-                      <span className="score-text">{result.overallScore.scoreText}</span>
-                      <span className="score-percentage">({result.overallScore.percentage}%)</span>
+                      <span className="score-text">{result.overallScore.awardedMarks}/{result.overallScore.totalMarks}</span>
+                      <span className="score-percentage">({result.overallScore.totalMarks > 0 ? Math.round((result.overallScore.awardedMarks / result.overallScore.totalMarks) * 100) : 0}%)</span>
                     </td>
                     <td className="grade-cell">
                       {result.grade ? (

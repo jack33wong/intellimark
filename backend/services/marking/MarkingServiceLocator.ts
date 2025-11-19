@@ -310,14 +310,33 @@ export class MarkingServiceLocator {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      // Capture error response body for detailed diagnostics
+      let errorText = '';
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = 'Unable to read error response body';
+      }
       
       console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      console.error(`❌ [ERROR RESPONSE BODY] ${errorText}`);
       
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${modelInfo.modelName} (${modelInfo.apiVersion}) - ${errorText}`);
+      // Try to parse error body for structured error info
+      let parsedError = null;
+      try {
+        parsedError = JSON.parse(errorText);
+        if (parsedError.error) {
+          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
+        }
+      } catch (e) {
+        // Not JSON, that's okay
+      }
+      
+      // Include error details in thrown error
+      const errorMessage = parsedError?.error?.message || errorText || response.statusText;
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${modelInfo.modelName} (${modelInfo.apiVersion}) - ${errorMessage}`);
     }
 
     return response;

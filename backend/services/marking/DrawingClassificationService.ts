@@ -226,7 +226,14 @@ export class DrawingClassificationService {
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
+      // Capture error response body for detailed diagnostics
+      let errorText = '';
+      try {
+        errorText = await response.text();
+      } catch (e) {
+        errorText = 'Unable to read error response body';
+      }
+      
       const { getModelConfig } = await import('../../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
@@ -235,9 +242,22 @@ export class DrawingClassificationService {
       console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      console.error(`❌ [ERROR RESPONSE BODY] ${errorText}`);
       
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
+      // Try to parse error body for structured error info
+      let parsedError = null;
+      try {
+        parsedError = JSON.parse(errorText);
+        if (parsedError.error) {
+          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
+        }
+      } catch (e) {
+        // Not JSON, that's okay
+      }
+      
+      // Include error details in thrown error
+      const errorMessage = parsedError?.error?.message || errorText || response.statusText;
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorMessage}`);
     }
     
     return response;

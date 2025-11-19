@@ -594,12 +594,16 @@ router.get('/usage', async (req: Request, res: Response) => {
       createdAt: string;
       totalCost: number;
       llmCost: number;
+      geminiCost: number;
+      gptCost: number;
       mathpixCost: number;
       modelUsed: string;
     }> = [];
     
     let totalCost = 0;
     let totalLLMCost = 0;
+    let totalGeminiCost = 0;
+    let totalGptCost = 0;
     let totalMathpixCost = 0;
     
     snapshot.forEach(doc => {
@@ -607,19 +611,28 @@ router.get('/usage', async (req: Request, res: Response) => {
       
       const createdAt = record.createdAt.toDate().toISOString();
       
+      // Handle legacy records that might not have geminiCost/gptCost
+      const geminiCost = record.geminiCost ?? 0;
+      const gptCost = record.gptCost ?? 0;
+      const llmCost = record.llmCost ?? (geminiCost + gptCost);
+      
       usageData.push({
         sessionId: doc.id,
         userId: record.userId,
         createdAt,
         totalCost: record.totalCost,
-        llmCost: record.llmCost,
+        llmCost,
+        geminiCost,
+        gptCost,
         mathpixCost: record.mathpixCost,
         modelUsed: record.modelUsed
       });
       
       // Update totals
       totalCost += record.totalCost;
-      totalLLMCost += record.llmCost;
+      totalLLMCost += llmCost;
+      totalGeminiCost += geminiCost;
+      totalGptCost += gptCost;
       totalMathpixCost += record.mathpixCost;
     });
     
@@ -629,6 +642,8 @@ router.get('/usage', async (req: Request, res: Response) => {
     // Round totals to 2 decimal places
     totalCost = Math.round(totalCost * 100) / 100;
     totalLLMCost = Math.round(totalLLMCost * 100) / 100;
+    totalGeminiCost = Math.round(totalGeminiCost * 100) / 100;
+    totalGptCost = Math.round(totalGptCost * 100) / 100;
     totalMathpixCost = Math.round(totalMathpixCost * 100) / 100;
     
     // Get unique user count
@@ -640,6 +655,8 @@ router.get('/usage', async (req: Request, res: Response) => {
       summary: {
         totalCost,
         totalLLMCost,
+        totalGeminiCost,
+        totalGptCost,
         totalMathpixCost,
         totalUsers: uniqueUsers.size,
         totalSessions: usageData.length

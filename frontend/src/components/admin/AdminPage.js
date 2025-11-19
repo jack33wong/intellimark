@@ -108,6 +108,8 @@ function AdminPage() {
   const [usageSummary, setUsageSummary] = useState({
     totalCost: 0,
     totalLLMCost: 0,
+    totalGeminiCost: 0,
+    totalGptCost: 0,
     totalMathpixCost: 0,
     totalUsers: 0,
     totalSessions: 0
@@ -298,6 +300,8 @@ function AdminPage() {
         setUsageSummary(data.summary || {
           totalCost: 0,
           totalLLMCost: 0,
+          totalGeminiCost: 0,
+          totalGptCost: 0,
           totalMathpixCost: 0,
           totalUsers: 0,
           totalSessions: 0
@@ -670,8 +674,12 @@ function AdminPage() {
                 <div className="usage-summary-value">${usageSummary.totalCost.toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
-                <div className="usage-summary-label">LLM Cost</div>
-                <div className="usage-summary-value">${usageSummary.totalLLMCost.toFixed(2)}</div>
+                <div className="usage-summary-label">Gemini Cost</div>
+                <div className="usage-summary-value">${usageSummary.totalGeminiCost.toFixed(2)}</div>
+              </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">GPT Cost</div>
+                <div className="usage-summary-value">${usageSummary.totalGptCost.toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
                 <div className="usage-summary-label">Mathpix Cost</div>
@@ -740,7 +748,8 @@ function AdminPage() {
                         <th className="admin-table__header">Created At</th>
                         <th className="admin-table__header">Model Used</th>
                         <th className="admin-table__header">Total Cost</th>
-                        <th className="admin-table__header">LLM Cost</th>
+                        <th className="admin-table__header">Gemini Cost</th>
+                        <th className="admin-table__header">GPT Cost</th>
                         <th className="admin-table__header">Mathpix Cost</th>
                       </tr>
                     </thead>
@@ -751,7 +760,8 @@ function AdminPage() {
                           <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
                           <td className="admin-table__cell">{session.modelUsed}</td>
                           <td className="admin-table__cell">${session.totalCost.toFixed(2)}</td>
-                          <td className="admin-table__cell">${session.llmCost.toFixed(2)}</td>
+                          <td className="admin-table__cell">${(session.geminiCost || 0).toFixed(2)}</td>
+                          <td className="admin-table__cell">${(session.gptCost || 0).toFixed(2)}</td>
                           <td className="admin-table__cell">${session.mathpixCost.toFixed(2)}</td>
                         </tr>
                       ))}

@@ -100,11 +100,34 @@ export class ModelProvider {
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
       
+      // Capture error response body for detailed diagnostics
+      let errorBody = '';
+      try {
+        errorBody = await response.text();
+      } catch (e) {
+        errorBody = 'Unable to read error response body';
+      }
+      
+      // Log detailed error information
       console.error(`❌ [MODEL PROVIDER ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+      console.error(`❌ [ERROR RESPONSE BODY] ${errorBody}`);
       
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion})`);
+      // Try to parse error body for structured error info
+      let parsedError = null;
+      try {
+        parsedError = JSON.parse(errorBody);
+        if (parsedError.error) {
+          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
+        }
+      } catch (e) {
+        // Not JSON, that's okay
+      }
+      
+      // Include error details in thrown error
+      const errorMessage = parsedError?.error?.message || errorBody || response.statusText;
+      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorMessage}`);
     }
     
     return response;

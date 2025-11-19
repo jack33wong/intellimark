@@ -1219,6 +1219,11 @@ export class FirestoreService {
     const totalCost = sessionStats.totalCost;
     const modelUsed = sessionStats.lastModelUsed;
 
+    // Determine if model is Gemini or GPT and split costs accordingly
+    const isGemini = modelUsed && (modelUsed.startsWith('gemini-') || modelUsed === 'auto');
+    const geminiCost = isGemini ? llmCost : 0;
+    const gptCost = !isGemini ? llmCost : 0;
+
     // Create usage record document
     const usageRecord = {
       sessionId,
@@ -1226,6 +1231,8 @@ export class FirestoreService {
       createdAt: admin.firestore.Timestamp.fromDate(createdAtDate),
       totalCost: Math.round(totalCost * 100) / 100,
       llmCost: Math.round(llmCost * 100) / 100,
+      geminiCost: Math.round(geminiCost * 100) / 100,
+      gptCost: Math.round(gptCost * 100) / 100,
       mathpixCost: Math.round(mathpixCost * 100) / 100,
       modelUsed,
       date: createdAtDate.toISOString().split('T')[0] // YYYY-MM-DD format

@@ -1271,6 +1271,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       );
       const calculatedGrade = gradeResult.grade;
       const gradeBoundaryType = gradeResult.boundaryType;
+      const gradeBoundaries = gradeResult.boundaries;
       
       dbAiMessage = SessionManagementService.createAIMessageForDatabase({
         allQuestionResults,
@@ -1288,7 +1289,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           scoreText: overallScoreText
         },
         grade: calculatedGrade,
-        gradeBoundaryType: gradeBoundaryType
+        gradeBoundaryType: gradeBoundaryType,
+        gradeBoundaries: gradeBoundaries
       });
       
       // Log grade storage confirmation

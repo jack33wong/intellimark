@@ -339,7 +339,6 @@ export interface SubjectMarkingResult {
   markingResults: Array<{
     // Session reference
     sessionId: string;
-    sessionTitle?: string;
     timestamp: string; // ISO date
     
     // Exam metadata
@@ -349,39 +348,29 @@ export interface SubjectMarkingResult {
       examSeries: string;        // "June 2024", "November 2024"
       qualification: string;     // "GCSE", "A-Level"
       tier?: string;             // "Higher", "Foundation"
-      paperTitle: string;        // Full paper title
-      subject: string;           // "Mathematics"
     };
     
     // Marking results
     questionResults: Array<{
       questionNumber: string;    // "1", "2a", "3b", "12i"
-      questionText: string;       // Full question text (main + sub-questions)
-      markingScheme: string;      // Plain text marking scheme
       score: {
         awardedMarks: number;
         totalMarks: number;
-        scoreText: string;        // "8/10"
       };
-      annotations: Array<{
-        action: string;          // "tick", "cross", "mark"
-        markCode?: string;        // "A1", "C1", "M1"
-        text?: string;            // Annotation text
-        bbox?: { x: number; y: number; width: number; height: number };
-        pageIndex?: number;
-      }>;
     }>;
     
     // Overall score for this session
     overallScore: {
       awardedMarks: number;
       totalMarks: number;
-      scoreText: string;          // "76/80"
-      percentage: number;         // 95
     };
     
     // Grade information
     grade?: string;               // "9", "8", "A*"
+    gradeBoundaries?: {
+      boundaries: { [grade: string]: number };
+      boundaryType: 'Paper-Specific' | 'Overall-Total';
+    };
     
     // AI model used
     modelUsed: string;            // "gemini-2.5-flash", "gpt-5-mini"

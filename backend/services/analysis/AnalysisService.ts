@@ -48,10 +48,12 @@ export class AnalysisService {
       
       // 2. Fetch grade boundaries for the subject
       // Try to fetch grade boundaries - attempt with available metadata
-      if (markingData.examMetadata.examBoard && 
+      // First check if boundaries are already stored in markingData (from subjectMarkingResult)
+      if (!markingData.gradeBoundaries && markingData.examMetadata.examBoard && 
           markingData.examMetadata.examSeries && 
           markingData.examMetadata.subject &&
           markingData.examMetadata.examCode) {
+        // Fallback: look up from gradeBoundaries collection
         const gradeBoundaries = await this.fetchGradeBoundaries(
           markingData.examMetadata.examBoard,
           markingData.examMetadata.examSeries,
@@ -66,6 +68,8 @@ export class AnalysisService {
         } else {
           console.warn(`⚠️ [ANALYSIS] Grade boundaries not found for ${markingData.examMetadata.examBoard} ${markingData.examMetadata.examCode} ${markingData.examMetadata.examSeries}`);
         }
+      } else if (markingData.gradeBoundaries) {
+        console.log(`✅ [ANALYSIS] Grade boundaries found in stored data for ${markingData.examMetadata.examBoard} ${markingData.examMetadata.examCode}`);
       } else {
         console.warn(`⚠️ [ANALYSIS] Missing exam metadata for grade boundaries:`, {
           examBoard: markingData.examMetadata.examBoard,
@@ -191,10 +195,8 @@ export class AnalysisService {
                       questionNumber: questionNum,
                       score: {
                         awardedMarks: 0, // Will calculate average
-                        totalMarks: q.marks || 0,
-                        scoreText: '0/0' // Will update
-                      },
-                      annotations: []
+                        totalMarks: q.marks || 0
+                      }
                     });
                   }
                 });
@@ -220,7 +222,6 @@ export class AnalysisService {
       allQuestionResults.forEach((qr) => {
         const estimatedAwardedMarks = Math.round((qr.score.totalMarks || 0) * avgQuestionPercentage);
         qr.score.awardedMarks = estimatedAwardedMarks;
-        qr.score.scoreText = `${estimatedAwardedMarks}/${qr.score.totalMarks}`;
       });
       
       // Sort question results
@@ -385,10 +386,8 @@ export class AnalysisService {
                 questionNumber: questionNum,
                 score: {
                   awardedMarks: estimatedAwardedMarks,
-                  totalMarks: q.marks || 0,
-                  scoreText: `${estimatedAwardedMarks}/${q.marks || 0}`
-                },
-                annotations: [] // Annotations not available in stored message
+                  totalMarks: q.marks || 0
+                }
               });
             });
           }
@@ -445,7 +444,6 @@ export class AnalysisService {
     formatted += `- Exam Code: ${markingData.examMetadata.examCode || 'N/A'}\n`;
     formatted += `- Exam Series: ${markingData.examMetadata.examSeries || 'N/A'}\n`;
     formatted += `- Subject: ${markingData.examMetadata.subject || 'N/A'}\n`;
-    formatted += `- Paper Title: ${markingData.examMetadata.paperTitle || 'N/A'}\n`;
     if (markingData.sessionCount && markingData.sessionCount > 1) {
       formatted += `- Number of Sessions Analyzed: ${markingData.sessionCount}\n`;
     }
@@ -560,12 +558,10 @@ export class AnalysisService {
     markingData.questionResults.forEach((qr) => {
       const marksLost = qr.score.totalMarks - qr.score.awardedMarks;
       const percentage = qr.score.totalMarks > 0 ? Math.round((qr.score.awardedMarks / qr.score.totalMarks) * 100) : 0;
+      const scoreText = `${qr.score.awardedMarks}/${qr.score.totalMarks}`;
       formatted += `\nQuestion ${qr.questionNumber}:\n`;
-      formatted += `  Score: ${qr.score.scoreText} (${qr.score.awardedMarks}/${qr.score.totalMarks}, ${percentage}%)\n`;
+      formatted += `  Score: ${scoreText} (${qr.score.awardedMarks}/${qr.score.totalMarks}, ${percentage}%)\n`;
       formatted += `  Marks Lost: ${marksLost} marks\n`;
-      if (qr.annotations && qr.annotations.length > 0) {
-        formatted += `  Error Types: ${qr.annotations.map((a: any) => a.action || a.markCode || 'error').join(', ')}\n`;
-      }
     });
     
     // Add summary of weak questions
@@ -578,7 +574,8 @@ export class AnalysisService {
       formatted += `\nWEAK QUESTIONS (scoring <70%):\n`;
       weakQuestions.forEach((qr) => {
         const percentage = qr.score.totalMarks > 0 ? Math.round((qr.score.awardedMarks / qr.score.totalMarks) * 100) : 0;
-        formatted += `- Q${qr.questionNumber}: ${qr.score.scoreText} (${percentage}%) - ${qr.score.totalMarks - qr.score.awardedMarks} marks lost\n`;
+        const scoreText = `${qr.score.awardedMarks}/${qr.score.totalMarks}`;
+        formatted += `- Q${qr.questionNumber}: ${scoreText} (${percentage}%) - ${qr.score.totalMarks - qr.score.awardedMarks} marks lost\n`;
       });
       formatted += `\n`;
     }
@@ -840,11 +837,16 @@ export class AnalysisService {
       const grades: string[] = [];
       
       markingResults.forEach((mr: any) => {
+        // Compute percentage from awardedMarks/totalMarks
+        const percentage = mr.overallScore.totalMarks > 0
+          ? Math.round((mr.overallScore.awardedMarks / mr.overallScore.totalMarks) * 100)
+          : 0;
+        
         // Track session scores
         sessionScores.push({
           awarded: mr.overallScore.awardedMarks,
           total: mr.overallScore.totalMarks,
-          percentage: mr.overallScore.percentage,
+          percentage: percentage,
           grade: mr.grade
         });
         
@@ -862,8 +864,7 @@ export class AnalysisService {
               if (!existing || qr.score.totalMarks > existing.score.totalMarks) {
                 questionResultsMap.set(qNum, {
                   questionNumber: qNum,
-                  score: qr.score,
-                  annotations: qr.annotations || []
+                  score: qr.score
                 });
               }
             }
@@ -892,7 +893,6 @@ export class AnalysisService {
         examCode: firstResult.examMetadata.examCode || '',
         examSeries: firstResult.examMetadata.examSeries || '',
         subject: subject,
-        paperTitle: firstResult.examMetadata.paperTitle || '',
         tier: firstResult.examMetadata.tier || ''
       };
       
@@ -917,6 +917,18 @@ export class AnalysisService {
         }
       });
       
+      // Extract grade boundaries from first marking result that has them
+      let gradeBoundaries: { boundaries: { [grade: string]: number }; boundaryType: 'Paper-Specific' | 'Overall-Total' } | undefined = undefined;
+      for (const mr of markingResults) {
+        if (mr.gradeBoundaries && mr.gradeBoundaries.boundaries) {
+          gradeBoundaries = {
+            boundaries: mr.gradeBoundaries.boundaries,
+            boundaryType: mr.gradeBoundaries.boundaryType
+          };
+          break; // Use first available
+        }
+      }
+      
       return {
         questionResults: allQuestionResults,
         overallScore: {
@@ -927,7 +939,8 @@ export class AnalysisService {
         examMetadata,
         grade: highestGrade,
         averageGrade,
-        sessionCount: markingResults.length
+        sessionCount: markingResults.length,
+        gradeBoundaries
       };
       
     } catch (error) {

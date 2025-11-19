@@ -41,13 +41,7 @@ export interface MarkingDataForAnalysis {
     score: {
       awardedMarks: number;
       totalMarks: number;
-      scoreText: string;
     };
-    annotations: Array<{
-      action: string;
-      markCode?: string;
-      text?: string;
-    }>;
   }>;
   overallScore: {
     awarded: number;
@@ -59,7 +53,6 @@ export interface MarkingDataForAnalysis {
     examCode?: string;
     examSeries?: string;
     subject?: string;
-    paperTitle?: string;
     tier?: string;
   };
   grade?: string; // Highest grade

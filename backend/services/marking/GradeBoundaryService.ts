@@ -33,6 +33,7 @@ export interface GradeResult {
   grade: string | null;
   boundaryType: 'Paper-Specific' | 'Overall-Total' | null;
   matchedBoundary: GradeBoundaryEntry | null;
+  boundaries?: { [grade: string]: number }; // Store the actual boundaries used for calculation
   error?: string;
 }
 
@@ -307,7 +308,8 @@ export class GradeBoundaryService {
     return {
       grade,
       boundaryType: 'Paper-Specific',
-      matchedBoundary: boundaryEntry
+      matchedBoundary: boundaryEntry,
+      boundaries: matchingPaper.boundaries // Store boundaries for persistence
     };
   }
 
@@ -336,7 +338,8 @@ export class GradeBoundaryService {
     return {
       grade,
       boundaryType: 'Overall-Total',
-      matchedBoundary: boundaryEntry
+      matchedBoundary: boundaryEntry,
+      boundaries: tier.overall_total_boundaries // Store boundaries for persistence
     };
   }
 
@@ -497,9 +500,10 @@ export class GradeBoundaryService {
     totalPossibleScore: number,
     questionDetection?: any,
     markingSchemesMap?: Map<string, any>
-  ): Promise<{ grade: string | null; boundaryType: 'Paper-Specific' | 'Overall-Total' | null }> {
+  ): Promise<{ grade: string | null; boundaryType: 'Paper-Specific' | 'Overall-Total' | null; boundaries?: { [grade: string]: number } }> {
     let calculatedGrade: string | null = null;
     let gradeBoundaryType: 'Paper-Specific' | 'Overall-Total' | null = null;
+    let gradeBoundaries: { [grade: string]: number } | undefined = undefined;
 
     // Try to get exam data from questionDetection (question mode) or markingSchemesMap (marking mode)
     let examDataForGrade: any = null;
@@ -532,6 +536,7 @@ export class GradeBoundaryService {
         if (gradeResult.grade) {
           calculatedGrade = gradeResult.grade;
           gradeBoundaryType = gradeResult.boundaryType;
+          gradeBoundaries = gradeResult.boundaries; // Store boundaries for persistence
           console.log(`✅ [GRADE BOUNDARY] Calculated grade: ${calculatedGrade} (${gradeResult.boundaryType}) for ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year}`);
         } else if (gradeResult.error) {
           console.log(`ℹ️ [GRADE BOUNDARY] Grade not calculated: ${gradeResult.error}`);
@@ -553,7 +558,8 @@ export class GradeBoundaryService {
 
     return {
       grade: calculatedGrade,
-      boundaryType: gradeBoundaryType
+      boundaryType: gradeBoundaryType,
+      boundaries: gradeBoundaries
     };
   }
 }

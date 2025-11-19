@@ -56,6 +56,7 @@ export interface AIMessageData {
   };
   grade?: string | null;
   gradeBoundaryType?: 'Paper-Specific' | 'Overall-Total' | null;
+  gradeBoundaries?: { [grade: string]: number };
 }
 
 export class SessionManagementService {
@@ -695,7 +696,8 @@ export class SessionManagementService {
       questionOnlyResponses,
       studentScore,
       grade,
-      gradeBoundaryType
+      gradeBoundaryType,
+      gradeBoundaries
     } = aiData;
 
     // Calculate real processing stats for the AI message
@@ -765,6 +767,9 @@ export class SessionManagementService {
     if (grade) {
       (dbAiMessage as any).grade = grade;
       (dbAiMessage as any).gradeBoundaryType = gradeBoundaryType;
+      if (gradeBoundaries) {
+        (dbAiMessage as any).gradeBoundaries = gradeBoundaries;
+      }
     }
 
     return dbAiMessage;
