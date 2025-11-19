@@ -154,9 +154,37 @@ export class DrawingEnhancementService {
 
                 // Update main question student work if it has drawings
                 if (hasDrawingsInQuestion && mainQuestionDrawings.length > 0) {
-                  // If studentWork doesn't exist yet, create it with [DRAWING] placeholder
-                  const baseStudentWork = q.studentWork || '[DRAWING]';
-                  enhancedStudentWork = this.mergeDrawingResults(baseStudentWork, mainQuestionDrawings);
+                  // Create [DRAWING] entries from enhanced drawings
+                  const drawingEntries = mainQuestionDrawings.map((enhanced) => {
+                    let entry = `[DRAWING] ${enhanced.drawingType}: ${enhanced.description}`;
+                    if (enhanced.position) {
+                      entry += ` [POSITION: x=${enhanced.position.x.toFixed(1)}%, y=${enhanced.position.y.toFixed(1)}%]`;
+                    }
+                    if (enhanced.coordinates && enhanced.coordinates.length > 0) {
+                      const coordsStr = enhanced.coordinates.map(c => `(${c.x}, ${c.y})`).join(', ');
+                      entry += ` [COORDINATES: ${coordsStr}]`;
+                    }
+                    if (enhanced.frequencies && enhanced.frequencies.length > 0) {
+                      const freqStr = enhanced.frequencies.map(f => 
+                        `${f.range}: frequency=${f.frequency}${f.frequencyDensity ? `, frequencyDensity=${f.frequencyDensity}` : ''}`
+                      ).join('; ');
+                      entry += ` [FREQUENCIES: ${freqStr}]`;
+                    }
+                    return entry;
+                  }).join('\n');
+                  
+                  // If original studentWork contains [DRAWING], merge with enhanced versions
+                  // Otherwise, append drawing entries to existing text (or use drawings alone if no text)
+                  if (q.studentWork && q.studentWork.includes('[DRAWING]')) {
+                    enhancedStudentWork = this.mergeDrawingResults(q.studentWork, mainQuestionDrawings);
+                  } else {
+                    // No [DRAWING] in original - append drawings to existing text (if any)
+                    if (q.studentWork && q.studentWork.trim()) {
+                      enhancedStudentWork = q.studentWork + '\n' + drawingEntries;
+                    } else {
+                      enhancedStudentWork = drawingEntries;
+                    }
+                  }
                 }
 
                 // Update sub-question student work

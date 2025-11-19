@@ -106,7 +106,6 @@ export class DrawingClassificationService {
       const cleanContent = this.cleanGeminiResponse(content);
       const parsed = this.parseJsonWithSanitization(cleanContent);
 
-
       // Validate and normalize drawing data
       const validatedDrawings = (parsed.drawings || []).map((drawing: any) => {
         // Validate coordinates array

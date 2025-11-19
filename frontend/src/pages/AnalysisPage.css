@@ -3,6 +3,7 @@
 .analysis-page {
   padding: 24px;
   max-width: 1400px;
+  min-width: 90%;
   margin: 0 auto;
   min-height: calc(100vh - 100px);
 }
