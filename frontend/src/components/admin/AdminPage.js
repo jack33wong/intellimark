@@ -5,7 +5,8 @@ import {
   Database,
   ClipboardList,
   Search,
-  Award
+  Award,
+  BarChart
 } from 'lucide-react';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
@@ -71,7 +72,7 @@ function AdminPage() {
   const { getAuthToken } = useAuth();
   
   // State management
-  const [activeTab, setActiveTab] = useState('json'); // Default to JSON tab
+  const [activeTab, setActiveTab] = useState('usage'); // Default to Usage tab
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [jsonEntries, setJsonEntries] = useState([]);
@@ -101,6 +102,18 @@ function AdminPage() {
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
   const [isClearingMarkingResults, setIsClearingMarkingResults] = useState(false);
+  
+  // Usage tab state
+  const [usageData, setUsageData] = useState([]);
+  const [usageSummary, setUsageSummary] = useState({
+    totalCost: 0,
+    totalLLMCost: 0,
+    totalMathpixCost: 0,
+    totalUsers: 0,
+    totalSessions: 0
+  });
+  const [usageFilter, setUsageFilter] = useState('all');
+  const [loadingUsage, setLoadingUsage] = useState(false);
   
   // Constants removed - using ApiClient instead
   
@@ -267,6 +280,34 @@ function AdminPage() {
     } catch (error) {
       console.error('Error loading grade boundary entries:', error);
       setGradeBoundaryEntries([]);
+    }
+  }, [getAuthToken]);
+  
+  // Load usage data
+  const loadUsageData = useCallback(async (filter = 'all') => {
+    try {
+      setLoadingUsage(true);
+      const authToken = await getAuthToken();
+      const data = await ApiClient.get(
+        `/api/admin/usage?filter=${filter}`,
+        authToken
+      );
+      
+      if (data.success) {
+        setUsageData(data.usage || []);
+        setUsageSummary(data.summary || {
+          totalCost: 0,
+          totalLLMCost: 0,
+          totalMathpixCost: 0,
+          totalUsers: 0,
+          totalSessions: 0
+        });
+      }
+    } catch (e) {
+      setError(`Failed to load usage data: ${e.message}`);
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setLoadingUsage(false);
     }
   }, [getAuthToken]);
   
@@ -539,6 +580,13 @@ function AdminPage() {
     loadMarkingSchemeEntries();
     loadGradeBoundaryEntries();
   }, [loadJsonEntries, loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
+  
+  // Load usage data when tab is active or filter changes
+  useEffect(() => {
+    if (activeTab === 'usage') {
+      loadUsageData(usageFilter);
+    }
+  }, [activeTab, usageFilter, loadUsageData]);
 
   // Loading state is now managed in the individual load functions
 
@@ -571,6 +619,13 @@ function AdminPage() {
         {/* Tab Navigation */}
         <div className="admin-tabs">
           <button
+            className={`admin-tab ${activeTab === 'usage' ? 'admin-tab--active' : ''}`}
+            onClick={() => setActiveTab('usage')}
+          >
+            <BarChart size={16} />
+            Usage
+          </button>
+          <button
             className={`admin-tab ${activeTab === 'json' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('json')}
           >
@@ -599,6 +654,114 @@ function AdminPage() {
             Query
           </button>
               </div>
+
+        {/* Usage Tab */}
+        {activeTab === 'usage' && (
+          <div className="admin-tab-content">
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Usage Statistics</h2>
+              <p>View cost breakdown and usage statistics for all users</p>
+            </div>
+            
+            {/* Summary Header */}
+            <div className="usage-summary-header">
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">Total Cost</div>
+                <div className="usage-summary-value">${usageSummary.totalCost.toFixed(2)}</div>
+              </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">LLM Cost</div>
+                <div className="usage-summary-value">${usageSummary.totalLLMCost.toFixed(2)}</div>
+              </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">Mathpix Cost</div>
+                <div className="usage-summary-value">${usageSummary.totalMathpixCost.toFixed(2)}</div>
+              </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">Total Users</div>
+                <div className="usage-summary-value">{usageSummary.totalUsers}</div>
+              </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">Total Sessions</div>
+                <div className="usage-summary-value">{usageSummary.totalSessions}</div>
+              </div>
+            </div>
+            
+            {/* Filter Tabs */}
+            <div className="usage-filter-tabs">
+              <button
+                className={`usage-filter-tab ${usageFilter === 'all' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('all')}
+              >
+                All
+              </button>
+              <button
+                className={`usage-filter-tab ${usageFilter === 'year' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('year')}
+              >
+                Year
+              </button>
+              <button
+                className={`usage-filter-tab ${usageFilter === 'month' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('month')}
+              >
+                Month
+              </button>
+              <button
+                className={`usage-filter-tab ${usageFilter === 'week' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('week')}
+              >
+                Week
+              </button>
+              <button
+                className={`usage-filter-tab ${usageFilter === 'day' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('day')}
+              >
+                Day
+              </button>
+            </div>
+            
+            {/* Usage Table */}
+            <div className="admin-data-section">
+              {loadingUsage ? (
+                <div className="admin-empty-state">
+                  <p className="admin-empty-state__text">Loading usage data...</p>
+                </div>
+              ) : usageData.length === 0 ? (
+                <div className="admin-empty-state">
+                  <p className="admin-empty-state__text">No usage data found</p>
+                </div>
+              ) : (
+                <div className="admin-table-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th className="admin-table__header">User ID</th>
+                        <th className="admin-table__header">Created At</th>
+                        <th className="admin-table__header">Model Used</th>
+                        <th className="admin-table__header">Total Cost</th>
+                        <th className="admin-table__header">LLM Cost</th>
+                        <th className="admin-table__header">Mathpix Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usageData.map((session) => (
+                        <tr key={session.sessionId} className="admin-table__row">
+                          <td className="admin-table__cell">{session.userId}</td>
+                          <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
+                          <td className="admin-table__cell">{session.modelUsed}</td>
+                          <td className="admin-table__cell">${session.totalCost.toFixed(2)}</td>
+                          <td className="admin-table__cell">${session.llmCost.toFixed(2)}</td>
+                          <td className="admin-table__cell">${session.mathpixCost.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Exam JSON Tab */}
         {activeTab === 'json' && (

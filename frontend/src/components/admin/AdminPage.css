@@ -1366,3 +1366,94 @@
     font-size: 14px;
   }
 }
+
+/* ==========================================================================
+   USAGE STATISTICS STYLES
+   ========================================================================== */
+
+/* Usage Summary Header */
+.usage-summary-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.usage-summary-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: var(--shadow-S);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.usage-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-M);
+}
+
+.usage-summary-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.usage-summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Usage Filter Tabs */
+.usage-filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border-main);
+  padding-bottom: 0;
+}
+
+.usage-filter-tab {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  position: relative;
+  bottom: -2px;
+}
+
+.usage-filter-tab:hover {
+  color: var(--text-primary);
+  background: var(--background-card);
+}
+
+.usage-filter-tab--active {
+  color: var(--text-brand);
+  border-bottom-color: var(--text-brand);
+}
+
+/* Responsive adjustments for usage */
+@media (max-width: 768px) {
+  .usage-summary-header {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .usage-filter-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .usage-filter-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}

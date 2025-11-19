@@ -7,6 +7,7 @@ import * as express from 'express';
 import type { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticateUser, requireAdmin } from '../middleware/auth.js';
+import admin from 'firebase-admin';
 
 // Import Firebase instances from centralized config
 import { getFirestore, getFirebaseAdmin } from '../config/firebase.js';
@@ -525,6 +526,173 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
     res.status(500).json({ 
       success: false, 
       error: `Failed to clear marking results: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    });
+  }
+});
+
+/**
+ * GET /api/admin/usage
+ * Get usage statistics for all sessions based on unifiedSessions.sessionStats.costBreakdown
+ * Query params: ?filter=all|year|month|week|day
+ */
+router.get('/usage', async (req: Request, res: Response) => {
+  try {
+    const filter = (req.query.filter as string) || 'all';
+    
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Firestore not available' 
+      });
+    }
+
+    // Calculate date range based on filter
+    const now = new Date();
+    let startDate: Date;
+    
+    switch(filter) {
+      case 'day': {
+        startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      }
+      case 'week': {
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 7);
+        break;
+      }
+      case 'month': {
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      }
+      case 'year': {
+        startDate = new Date(now);
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      }
+      default: // 'all'
+        startDate = new Date(0); // Beginning of time
+    }
+    
+    // Query unifiedSessions collection - get all sessions
+    const snapshot = await db.collection('unifiedSessions').get();
+    
+    // Process sessions and filter by date
+    const usageData: Array<{
+      sessionId: string;
+      userId: string;
+      title: string;
+      createdAt: string;
+      totalCost: number;
+      llmCost: number;
+      mathpixCost: number;
+      modelUsed: string;
+    }> = [];
+    
+    let totalCost = 0;
+    let totalLLMCost = 0;
+    let totalMathpixCost = 0;
+    
+    snapshot.forEach(doc => {
+      const session = doc.data();
+      const sessionStats = session.sessionStats;
+      
+      if (!sessionStats) return; // Skip sessions without stats
+      
+      const costBreakdown = sessionStats.costBreakdown;
+      if (!costBreakdown) return; // Skip sessions without cost breakdown
+      
+      // Get createdAt date - handle both string and Timestamp formats
+      let sessionDate: Date;
+      if (session.createdAt) {
+        try {
+          if (typeof session.createdAt === 'string') {
+            sessionDate = new Date(session.createdAt);
+          } else if (session.createdAt.toDate && typeof session.createdAt.toDate === 'function') {
+            // Firestore Timestamp
+            sessionDate = session.createdAt.toDate();
+          } else if (session.createdAt.seconds) {
+            // Firestore Timestamp with seconds property
+            sessionDate = new Date(session.createdAt.seconds * 1000);
+          } else {
+            sessionDate = new Date(session.createdAt);
+          }
+          
+          // Validate date
+          if (isNaN(sessionDate.getTime())) {
+            return; // Skip invalid dates
+          }
+        } catch (error) {
+          return; // Skip if date parsing fails
+        }
+      } else {
+        return; // Skip if no createdAt
+      }
+      
+      // Apply date filter if not 'all'
+      // We want sessions where sessionDate >= startDate (i.e., skip if sessionDate < startDate)
+      if (filter !== 'all' && sessionDate < startDate) {
+        return; // Skip sessions older than start date
+      }
+      
+      // Calculate costs - use totalCost if available, otherwise sum breakdown
+      const llmCost = costBreakdown.llmCost || 0;
+      const mathpixCost = costBreakdown.mathpixCost || 0;
+      const sessionTotalCost = sessionStats.totalCost || (llmCost + mathpixCost);
+      
+      // Get model used
+      const modelUsed = sessionStats.lastModelUsed || 'N/A';
+      
+      usageData.push({
+        sessionId: doc.id,
+        userId: session.userId || 'Unknown',
+        title: session.title || 'Untitled Session',
+        createdAt: typeof session.createdAt === 'string' 
+          ? session.createdAt 
+          : (session.createdAt.toDate ? session.createdAt.toDate().toISOString() : new Date().toISOString()),
+        totalCost: Math.round(sessionTotalCost * 100) / 100,
+        llmCost: Math.round(llmCost * 100) / 100,
+        mathpixCost: Math.round(mathpixCost * 100) / 100,
+        modelUsed: modelUsed
+      });
+      
+      // Update totals
+      totalCost += sessionTotalCost;
+      totalLLMCost += llmCost;
+      totalMathpixCost += mathpixCost;
+    });
+    
+    // Sort by totalCost descending
+    usageData.sort((a, b) => b.totalCost - a.totalCost);
+    
+    // Round totals to 2 decimal places
+    totalCost = Math.round(totalCost * 100) / 100;
+    totalLLMCost = Math.round(totalLLMCost * 100) / 100;
+    totalMathpixCost = Math.round(totalMathpixCost * 100) / 100;
+    
+    // Get unique user count
+    const uniqueUsers = new Set(usageData.map(session => session.userId));
+    
+    res.json({
+      success: true,
+      filter,
+      summary: {
+        totalCost,
+        totalLLMCost,
+        totalMathpixCost,
+        totalUsers: uniqueUsers.size,
+        totalSessions: usageData.length
+      },
+      usage: usageData
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting usage statistics:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: `Failed to get usage statistics: ${error instanceof Error ? error.message : 'Unknown error'}` 
     });
   }
 });
