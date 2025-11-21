@@ -1297,9 +1297,9 @@ export class FirestoreService {
         });
         
         // Update document
+        // Note: reAnalysisNeeded is now handled per filter combination in analysis structure
         await docRef.update({
           markingResults: filteredResults,
-          reAnalysisNeeded: true, // Flag for re-analysis
           updatedAt: now
         });
       } else {
@@ -1322,7 +1322,6 @@ export class FirestoreService {
             qualifications: [markingResult.examMetadata.qualification],
             examBoards: [markingResult.examMetadata.examBoard]
           },
-          reAnalysisNeeded: true,
           createdAt: now,
           updatedAt: now
         };
@@ -1444,9 +1443,9 @@ export class FirestoreService {
         await docRef.delete();
       } else {
         // Update document with filtered results and recalculate statistics
+        // Note: Analysis cache is per filter combination, so no global reAnalysisNeeded flag needed
         await docRef.update({
           markingResults,
-          reAnalysisNeeded: true,
           updatedAt: new Date().toISOString()
         });
         
@@ -1462,30 +1461,104 @@ export class FirestoreService {
   }
 
   /**
-   * Update analysis in subjectMarkingResults and reset reAnalysisNeeded flag
+   * Update analysis in subjectMarkingResults with filter-based storage
+   * Stores analysis in nested structure: analysis[qualification][examBoard][paperCodeSetKey]
    */
   static async updateSubjectAnalysis(
     userId: string,
     subject: string,
     analysis: any,
-    modelUsed: string
+    modelUsed: string,
+    qualification?: string,
+    examBoard?: string,
+    paperCodeSet?: string[]
   ): Promise<void> {
     try {
       ensureDbAvailable();
       const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
       const docId = `${userId}_${normalizedSubject}`;
+      const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
+      const doc = await docRef.get();
       
-      await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).update({
-        analysis: {
-          ...analysis,
-          generatedAt: new Date().toISOString(),
-          modelUsed
-        },
-        reAnalysisNeeded: false // Reset flag after analysis is generated
+      const analysisData = {
+        ...analysis,
+        generatedAt: new Date().toISOString(),
+        modelUsed
+      };
+      
+      if (!qualification || !examBoard || !paperCodeSet || paperCodeSet.length === 0) {
+        // If no filters provided, store at root level (legacy support)
+        await docRef.update({
+          analysis: analysisData
+        });
+        return;
+      }
+      
+      // Generate paper code set key (e.g., "1H_2H_3H")
+      const paperCodeSetKey = paperCodeSet.sort().join('_');
+      
+      // Get existing analysis structure
+      const existing = doc.exists ? doc.data() : null;
+      const existingAnalysis = existing?.analysis || {};
+      
+      // Build nested structure
+      const updatedAnalysis = { ...existingAnalysis };
+      if (!updatedAnalysis[qualification]) {
+        updatedAnalysis[qualification] = {};
+      }
+      if (!updatedAnalysis[qualification][examBoard]) {
+        updatedAnalysis[qualification][examBoard] = {};
+      }
+      updatedAnalysis[qualification][examBoard][paperCodeSetKey] = analysisData;
+      
+      await docRef.update({
+        analysis: updatedAnalysis
       });
     } catch (error) {
       console.error('❌ Failed to update subject analysis:', error);
       throw error;
+    }
+  }
+  
+  /**
+   * Get analysis from subjectMarkingResults by filter combination
+   */
+  static async getSubjectAnalysisByFilters(
+    userId: string,
+    subject: string,
+    qualification?: string,
+    examBoard?: string,
+    paperCodeSet?: string[]
+  ): Promise<any | null> {
+    try {
+      const subjectResult = await this.getSubjectMarkingResult(userId, subject);
+      if (!subjectResult || !subjectResult.analysis) {
+        return null;
+      }
+      
+      const analysis = subjectResult.analysis;
+      
+      // If no filters provided, return root level analysis (legacy support)
+      if (!qualification || !examBoard || !paperCodeSet || paperCodeSet.length === 0) {
+        // Check if it's the old structure (direct analysis object) or new structure
+        if (analysis.performance || analysis.strengths) {
+          return analysis; // Old structure
+        }
+        return null;
+      }
+      
+      // Generate paper code set key
+      const paperCodeSetKey = paperCodeSet.sort().join('_');
+      
+      // Navigate nested structure
+      if (analysis[qualification]?.[examBoard]?.[paperCodeSetKey]) {
+        return analysis[qualification][examBoard][paperCodeSetKey];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get subject analysis by filters:', error);
+      return null;
     }
   }
 

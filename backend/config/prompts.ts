@@ -465,6 +465,7 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
              "step_id": "step_#",
              "action": "tick|cross",
              "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
+             "student_text": "The specific student text being marked (quoted from OCR)",
              "reasoning": "Brief explanation of why this annotation was chosen"
            }
          ],
@@ -575,7 +576,8 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
           - The step_id field is REQUIRED in your JSON response - do not omit it
        6.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
        7.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       8.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       8.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
+       9.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)

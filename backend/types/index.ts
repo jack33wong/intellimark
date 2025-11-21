@@ -392,30 +392,56 @@ export interface SubjectMarkingResult {
     examBoards: string[];         // All unique exam boards
   };
   
-  // AI-generated analysis report (generated from all markingResults)
+  // AI-generated analysis reports (stored per filter combination)
+  // Structure: analysis[qualification][examBoard][paperCodeSetKey] = { ...analysis }
+  // Example: analysis["GCSE"]["AQA"]["1H_2H_3H"] = { performance: {...}, strengths: [...], ... }
+  // Legacy: If analysis.performance exists, it's the old structure (one analysis per subject)
   analysis?: {
-    performance: {
+    // New nested structure (preferred)
+    [qualification: string]: {
+      [examBoard: string]: {
+        [paperCodeSetKey: string]: {
+          performance: {
+            overallScore: string;
+            percentage: number;
+            grade?: string;
+            averageGrade?: string;
+            summary: string;
+          };
+          strengths: string[];
+          weaknesses: string[];
+          topicAnalysis: Array<{
+            topic: string;
+            performance: 'strong' | 'weak' | 'average';
+            score: string;
+            recommendation: string;
+          }>;
+          nextSteps: string[];
+          generatedAt: string;          // ISO date
+          modelUsed: string;            // AI model used for analysis
+        };
+      };
+    };
+    // Legacy structure (for backward compatibility check)
+    performance?: {
       overallScore: string;
       percentage: number;
       grade?: string;
       averageGrade?: string;
       summary: string;
     };
-    strengths: string[];
-    weaknesses: string[];
-    topicAnalysis: Array<{
+    strengths?: string[];
+    weaknesses?: string[];
+    topicAnalysis?: Array<{
       topic: string;
       performance: 'strong' | 'weak' | 'average';
       score: string;
       recommendation: string;
     }>;
-    nextSteps: string[];
-    generatedAt: string;          // ISO date
-    modelUsed: string;            // AI model used for analysis
+    nextSteps?: string[];
+    generatedAt?: string;
+    modelUsed?: string;
   };
-  
-  // Flag to indicate if re-analysis is needed (new marking results added)
-  reAnalysisNeeded: boolean;
   
   // Metadata
   updatedAt: string;              // ISO date (updated when new marking result added)

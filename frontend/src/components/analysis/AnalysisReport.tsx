@@ -50,6 +50,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reAnalysisNeeded, setReAnalysisNeeded] = useState(reAnalysisNeededProp);
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
     if (subject) {
@@ -57,6 +58,7 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       setAnalysis(null);
       setError(null);
       setIsGenerating(false);
+      setIsLoading(true);
       setReAnalysisNeeded(reAnalysisNeededProp);
       // Load analysis when filters change
       loadAnalysis();
@@ -80,10 +82,18 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       
       if (!authToken) {
         setError('Authentication required');
+        setIsLoading(false);
         return;
       }
       
-      // Get existing analysis
+      // When filters are active, check for cached analysis or generate new one
+      if (examBoard && paperCodeSet && paperCodeSet.length > 0 && qualification) {
+        // Filters are active - check cache or generate with filters
+        triggerBackgroundAnalysis();
+        return;
+      }
+      
+      // No filters - get existing analysis (legacy support)
       const getResponse = await fetch(`/api/analysis/${encodeURIComponent(subject)}`, {
         method: 'GET',
         headers: {
@@ -98,24 +108,33 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
           const analysisData = getData.subjectMarkingResult.analysis;
           const needsReAnalysis = getData.subjectMarkingResult.reAnalysisNeeded || false;
           
+          // Handle both old structure (direct analysis) and new structure (nested)
+          let analysisToUse = null;
           if (analysisData) {
-            setAnalysis(analysisData);
+            if (analysisData.performance || analysisData.strengths) {
+              // Old structure - direct analysis object
+              analysisToUse = analysisData;
+            }
+          }
+          
+          if (analysisToUse) {
+            setAnalysis(analysisToUse);
           }
           setReAnalysisNeeded(needsReAnalysis);
+          setIsLoading(false);
           
-          // Only trigger re-analysis when user explicitly visits the analysis page
-          // This happens when:
-          // 1. Component first loads (subject changes) AND flag is true
-          // 2. User clicks "Generate Analysis" button
-          // NOT when flag changes due to deletion (that's handled by the useEffect watching reAnalysisNeededProp being removed)
           if (needsReAnalysis && !isGenerating) {
-            // Trigger analysis when user visits the page and flag is set
             triggerBackgroundAnalysis();
           }
+        } else {
+          setIsLoading(false);
         }
+      } else {
+        setIsLoading(false);
       }
     } catch (err) {
       console.error('Failed to load analysis:', err);
+      setIsLoading(false);
     }
   };
   
@@ -153,22 +172,25 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       if (data.success) {
         setAnalysis(data.analysis);
         setReAnalysisNeeded(false);
+        setIsLoading(false);
       } else {
         setError(data.error || 'Failed to generate analysis');
+        setIsLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
+      setIsLoading(false);
     } finally {
       setIsGenerating(false);
     }
   };
   
-  // Show loading spinner if generating in background
-  if (isGenerating) {
+  // Show loading spinner if loading or generating
+  if (isLoading || isGenerating) {
     return (
       <div className="analysis-loading">
         <div className="loading-spinner"></div>
-        <p>Generating analysis...</p>
+        <p>{isGenerating ? 'Generating analysis...' : 'Loading analysis...'}</p>
       </div>
     );
   }
@@ -195,6 +217,14 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   
   return (
     <div className="analysis-report">
+      {/* Performance Summary */}
+      {analysis.performance.summary && (
+        <div className="performance-summary-section">
+          <h3>Performance Summary</h3>
+          <p>{analysis.performance.summary}</p>
+        </div>
+      )}
+      
       <StrengthsWeaknesses 
         strengths={analysis.strengths}
         weaknesses={analysis.weaknesses}

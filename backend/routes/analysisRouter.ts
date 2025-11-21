@@ -76,15 +76,28 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // 2. Check if re-analysis is needed (for now, always regenerate when filters change)
-    // TODO: Could cache analysis per paper code set in the future
-    const reAnalysisNeeded = subjectResult.reAnalysisNeeded || false;
-    const existingAnalysis = subjectResult.analysis;
+    // 2. Check for cached analysis with current filters
+    const cachedAnalysis = await FirestoreService.getSubjectAnalysisByFilters(
+      userId,
+      subject,
+      qualification,
+      examBoard,
+      paperCodeSet
+    );
     
-    // 3. Get last analysis report (for cost-saving)
-    const lastAnalysisReport = existingAnalysis || null;
+    // 3. If cached analysis exists, return it (cache is per filter combination)
+    if (cachedAnalysis) {
+      return res.json({ 
+        success: true, 
+        analysis: cachedAnalysis,
+        cached: true
+      });
+    }
     
-    // 4. Generate new analysis (with last report context and filters)
+    // 4. Get last analysis report (for cost-saving context)
+    const lastAnalysisReport = cachedAnalysis || null;
+    
+    // 5. Generate new analysis (with last report context and filters)
     const analysis = await AnalysisService.generateAnalysis(
       {
         subject,
@@ -97,11 +110,18 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       userId  // Pass userId for subjectMarkingResults lookup
     );
     
-    // 5. Update analysis in subjectMarkingResults and reset reAnalysisNeeded flag
-    // Note: For now, we store one analysis per subject. In future, could store per paper code set.
-    await FirestoreService.updateSubjectAnalysis(userId, subject, analysis, model);
+    // 6. Update analysis in subjectMarkingResults with filter keys
+    await FirestoreService.updateSubjectAnalysis(
+      userId, 
+      subject, 
+      analysis, 
+      model,
+      qualification,
+      examBoard,
+      paperCodeSet
+    );
     
-    // 6. Return to frontend
+    // 7. Return to frontend
     return res.json({ 
       success: true, 
       analysis,

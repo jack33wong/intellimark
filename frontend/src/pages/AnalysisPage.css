@@ -103,9 +103,27 @@
 }
 
 .analysis-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding: 40px;
   text-align: center;
   color: var(--text-secondary);
+}
+
+.analysis-loading .loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-main);
+  border-top-color: var(--text-brand);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .aggregated-stats-section {

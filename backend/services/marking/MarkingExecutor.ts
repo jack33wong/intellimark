@@ -687,7 +687,8 @@ export async function executeMarkingForQuestion(
 
     // 5. Enrich Annotations
     let lastValidAnnotation: EnrichedAnnotation | null = null; // Track last valid annotation for fallback
-    const enrichedAnnotations = (markingResult.annotations || []).map((anno, annoIndex) => {
+
+    const enrichedAnnotations = (markingResult.annotations || []).map((anno, idx) => {
 
       // ================== START OF FIX ==================
       // Trim both IDs to protect against hidden whitespace
@@ -719,9 +720,6 @@ export async function executeMarkingForQuestion(
         originalStep = stepsDataForMapping.find(step =>
           step.globalBlockId?.trim() === aiStepId
         );
-        if (originalStep) {
-          console.log(`[MARKING EXECUTOR] Q${questionId}: ✅ Matched OCR block ID "${aiStepId}" to step "${originalStep.unified_step_id}"`);
-        }
       }
 
       // Special handling for [DRAWING] annotations
@@ -780,7 +778,6 @@ export async function executeMarkingForQuestion(
       if (!originalStep) {
         // Check if we have a previous valid annotation to inherit from
         if (lastValidAnnotation) {
-          console.log(`[MARKING EXECUTOR] Using fallback location for annotation without step_id: "${anno.text || anno.action}" -> inheriting from ${lastValidAnnotation.unified_step_id}`);
 
           const enriched = {
             ...anno,
@@ -825,7 +822,7 @@ export async function executeMarkingForQuestion(
         return false;
       }
       return true;
-    }); // Filter out nulls, invalid pageIndex, and invalid bbox
+    });
 
     console.log(`[MARKING EXECUTOR] Q${questionId}: Enriched ${enrichedAnnotations.length} annotations (from ${markingResult.annotations?.length || 0} original)`);
 

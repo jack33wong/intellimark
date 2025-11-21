@@ -734,22 +734,47 @@ export class MarkingInstructionService {
 
           // Look up student answer text from rawOcrBlocks based on step_id
           let studentAnswer = '';
-          if (rawOcrBlocks && stepId !== 'MISSING') {
+
+          // Priority 1: Use the explicit student_text from the AI response (new field)
+          if (ann.student_text) {
+            studentAnswer = ann.student_text;
+          }
+
+          // Priority 2: If not provided, look up in rawOcrBlocks
+          if (!studentAnswer && rawOcrBlocks && stepId !== 'MISSING') {
             const matchingBlock = rawOcrBlocks.find(block => block.id === stepId);
             if (matchingBlock && matchingBlock.text) {
-              // Truncate long text and clean up for display
-              const fullText = matchingBlock.text;
-              studentAnswer = fullText.length > 80 ? fullText.substring(0, 80) + '...' : fullText;
+              studentAnswer = matchingBlock.text;
             }
           }
 
-          // If not found in rawOcrBlocks, try textMatch as fallback
+          // Priority 3: If still not found, try textMatch as fallback
           if (!studentAnswer && ann.textMatch) {
-            studentAnswer = ann.textMatch.length > 80 ? ann.textMatch.substring(0, 80) + '...' : ann.textMatch;
+            studentAnswer = ann.textMatch;
+          }
+
+          // Truncate for display
+          if (studentAnswer.length > 80) {
+            studentAnswer = studentAnswer.substring(0, 80) + '...';
           }
 
           const studentAnswerDisplay = studentAnswer ? `${blueColor}"${studentAnswer}"${resetColor}` : '""';
-          console.log(`    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${studentAnswerDisplay}${reasoning ? ` - ${reasoning}` : ''}`);
+
+          // Enhanced logging for incorrect answers
+          let logMessage = `    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${studentAnswerDisplay}`;
+
+          // If incorrect (cross or 0 marks), explicitly show reasoning
+          if (action === 'cross' || text.includes('0')) {
+            logMessage += `\n      ${RED}↳ Reason: ${reasoning || 'No reasoning provided'}${RESET}`;
+            if (studentAnswer) {
+              logMessage += `\n      ${RED}↳ OCR Value: "${studentAnswer}"${RESET}`;
+            }
+          } else if (reasoning) {
+            // For correct answers, show reasoning on same line if brief
+            logMessage += ` - ${reasoning}`;
+          }
+
+          console.log(logMessage);
         });
         // Log step_id summary
         const stepIds = parsedResponse.annotations.map((a: any) => a.step_id || 'MISSING');

@@ -255,11 +255,11 @@ const AnalysisPage: React.FC = () => {
       });
     }
 
-    // Sort by exam code, then date (newest first)
+    // Sort by date (newest first), then by exam code
     filtered.sort((a, b) => {
-      const codeCompare = a.examMetadata.examCode.localeCompare(b.examMetadata.examCode);
-      if (codeCompare !== 0) return codeCompare;
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      const dateCompare = new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      return a.examMetadata.examCode.localeCompare(b.examMetadata.examCode);
     });
 
     setFilteredMarkingResults(filtered);
@@ -352,39 +352,55 @@ const AnalysisPage: React.FC = () => {
 
   // Set default exam board based on most recent marking result
   useEffect(() => {
-    if (availableExamBoards.length > 0 && !selectedExamBoard && allMarkingResults.length > 0 && selectedQualification) {
-      // Find most recent marking result for this qualification and subject
-      const filteredByQualification = allMarkingResults.filter(mr =>
-        mr.examMetadata.qualification === selectedQualification &&
-        mr.examMetadata.examBoard &&
-        availableExamBoards.includes(mr.examMetadata.examBoard)
-      );
-      
-      if (filteredByQualification.length > 0) {
-        // Sort by timestamp (newest first)
-        filteredByQualification.sort((a, b) => 
+    // Wait for both marking results and available exam boards to be ready
+    if (!selectedExamBoard && allMarkingResults.length > 0 && availableExamBoards.length > 0 && selectedQualification && selectedSubject) {
+      // Get all marking results for this qualification and subject, sorted by newest first
+      const relevantResults = allMarkingResults
+        .filter(mr =>
+          mr.examMetadata.qualification === selectedQualification &&
+          mr.examMetadata.examBoard
+        )
+        .sort((a, b) => 
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         );
-        // Use exam board from most recent result
-        const mostRecentExamBoard = filteredByQualification[0].examMetadata.examBoard;
-        if (availableExamBoards.includes(mostRecentExamBoard)) {
-          setSelectedExamBoard(mostRecentExamBoard);
+      
+      if (relevantResults.length > 0) {
+        // Get exam board from most recent marking result
+        const mostRecentBoard = relevantResults[0].examMetadata.examBoard;
+        
+        // Check if it exists in available exam boards (exact match)
+        if (availableExamBoards.includes(mostRecentBoard)) {
+          setSelectedExamBoard(mostRecentBoard);
+          return;
+        }
+        
+        // If no exact match, find which available exam board has the most results
+        const boardsWithResults = new Set(relevantResults.map(mr => mr.examMetadata.examBoard));
+        const matchingBoard = availableExamBoards.find(ab => boardsWithResults.has(ab));
+        
+        if (matchingBoard) {
+          setSelectedExamBoard(matchingBoard);
         } else {
+          // No matching board found, use first available
           setSelectedExamBoard(availableExamBoards[0]);
         }
       } else {
+        // No results for this qualification/subject, use first available
         setSelectedExamBoard(availableExamBoards[0]);
       }
     } else if (availableExamBoards.length > 0 && !selectedExamBoard) {
-      // Fallback to first available if no marking results yet
+      // Fallback: if no marking results yet, use first available
       setSelectedExamBoard(availableExamBoards[0]);
     }
-  }, [availableExamBoards, allMarkingResults, selectedQualification, selectedExamBoard]);
+  }, [availableExamBoards, allMarkingResults, selectedQualification, selectedSubject, selectedExamBoard]);
 
   if (loading) {
     return (
       <div className="analysis-page">
-        <div className="analysis-loading">Loading...</div>
+        <div className="analysis-loading">
+          <div className="loading-spinner" />
+          <span>Loading analysis...</span>
+        </div>
       </div>
     );
   }
