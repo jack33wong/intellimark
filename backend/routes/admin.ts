@@ -59,31 +59,31 @@ const mockData: { [key: string]: any[] } = {
 router.get('/json/collections/:collectionName', async (req: Request, res: Response) => {
   try {
     const { collectionName } = req.params;
-    
+
     if (!collectionName) {
       return res.status(400).json({ error: 'Collection name is required' });
     }
-    
+
     // Get data from Firestore if available, otherwise use mock data
     const db = getFirestore();
     if (db) {
       try {
         const snapshot = await db.collection(collectionName).get();
         const entries = [];
-        
+
         snapshot.forEach(doc => {
           const data = doc.data();
           const entry = {
             id: doc.id,
             ...data,
-            uploadedAt: data.uploadedAt ? 
-              (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) : 
+            uploadedAt: data.uploadedAt ?
+              (typeof data.uploadedAt === 'string' ? data.uploadedAt : data.uploadedAt.toDate().toISOString()) :
               new Date().toISOString()
           };
 
           entries.push(entry);
         });
-        
+
         res.json({
           collectionName,
           entries: entries
@@ -118,7 +118,7 @@ router.get('/json/collections/:collectionName', async (req: Request, res: Respon
 router.post('/json/collections/markingSchemes', async (req: Request, res: Response) => {
   try {
     const { markingSchemeData } = req.body;
-    
+
     if (!markingSchemeData) {
       return res.status(400).json({ error: 'Marking scheme data is required' });
     }
@@ -134,7 +134,7 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
     // Extract exam details for easier querying
     const examDetails = parsedData.examDetails || {};
     const questions = parsedData.questions || {};
-    
+
     // Calculate total questions and marks
     const questionNumbers = Object.keys(questions).sort((a, b) => {
       // Sort numerically if both are numbers, otherwise alphabetically
@@ -174,7 +174,7 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
       uploadedAt: new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
-    
+
     // Save to Firestore if available
     const db = getFirestore();
     if (db) {
@@ -185,13 +185,13 @@ router.post('/json/collections/markingSchemes', async (req: Request, res: Respon
         // Continue with mock data even if Firestore fails
       }
     }
-    
+
     // Always save to mock data for fallback
     if (!mockData['markingSchemes']) {
       mockData['markingSchemes'] = [];
     }
     mockData['markingSchemes'].push(newEntry);
-    
+
     res.status(201).json({
       message: 'Marking scheme uploaded successfully',
       collectionName: 'markingSchemes',
@@ -211,21 +211,21 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
   try {
     const { collectionName } = req.params;
     const entryData = req.body;
-    
+
     if (!collectionName) {
       return res.status(400).json({ error: 'Collection name is required' });
     }
-    
+
     if (!entryData) {
       return res.status(400).json({ error: 'Entry data is required' });
     }
-    
+
     const newEntry = {
       id: uuidv4(),
       ...entryData,
       uploadedAt: new Date().toISOString()
     };
-    
+
     // Save to Firestore if available
     const db = getFirestore();
     if (db) {
@@ -236,13 +236,13 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
         // Continue with mock data even if Firestore fails
       }
     }
-    
+
     // Always save to mock data for fallback
     if (!mockData[collectionName]) {
       mockData[collectionName] = [];
     }
     mockData[collectionName].push(newEntry);
-    
+
     res.status(201).json({
       message: 'Entry added successfully',
       collectionName,
@@ -261,7 +261,7 @@ router.post('/json/collections/:collectionName', async (req: Request, res: Respo
 router.delete('/json/collections/:collectionName/:entryId', async (req: Request, res: Response) => {
   try {
     const { collectionName, entryId } = req.params;
-    
+
     // Delete from Firestore if available
     const db = getFirestore();
     if (db) {
@@ -272,7 +272,7 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
         // Continue with mock data even if Firestore fails
       }
     }
-    
+
     // Delete from mock data
     if (mockData[collectionName]) {
       const index = mockData[collectionName].findIndex(entry => entry.id === entryId);
@@ -280,7 +280,7 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
         mockData[collectionName].splice(index, 1);
       }
     }
-    
+
     res.json({
       message: `Entry deleted successfully`,
       collectionName,
@@ -300,7 +300,7 @@ router.delete('/json/collections/:collectionName/:entryId', async (req: Request,
 router.delete('/json/collections/:collectionName/clear-all', async (req: Request, res: Response) => {
   try {
     const { collectionName } = req.params;
-    
+
     // Delete all documents from the specified collection in Firestore
     const db = getFirestore();
     if (db) {
@@ -310,20 +310,20 @@ router.delete('/json/collections/:collectionName/clear-all', async (req: Request
         snapshot.forEach((doc) => {
           deletePromises.push(doc.ref.delete());
         });
-        
+
         await Promise.all(deletePromises);
       } catch (firestoreError) {
         console.error('Firestore delete error:', firestoreError);
         // Continue with mock data even if Firestore fails
       }
     }
-    
+
     // Clear mock data
     const deletedCount = mockData[collectionName] ? mockData[collectionName].length : 0;
     if (mockData[collectionName]) {
       mockData[collectionName].length = 0;
     }
-    
+
     res.json({
       message: `All entries deleted from collection: ${collectionName}`,
       collectionName,
@@ -342,7 +342,7 @@ router.delete('/json/collections/:collectionName/clear-all', async (req: Request
 router.post('/json/upload', async (req: Request, res: Response) => {
   try {
     const { data } = req.body;
-    
+
     if (!data) {
       return res.status(400).json({ error: 'JSON data is required' });
     }
@@ -352,7 +352,7 @@ router.post('/json/upload', async (req: Request, res: Response) => {
       ...data,
       uploadedAt: new Date().toISOString()
     };
-    
+
     // Save to Firestore if available
     const db = getFirestore();
     if (db) {
@@ -363,13 +363,13 @@ router.post('/json/upload', async (req: Request, res: Response) => {
         // Continue with mock data even if Firestore fails
       }
     }
-    
+
     // Always save to mock data for fallback
     if (!mockData['fullExamPapers']) {
       mockData['fullExamPapers'] = [];
     }
     mockData['fullExamPapers'].push(newEntry);
-    
+
     res.status(201).json({
       message: 'JSON uploaded successfully to fullExamPapers collection',
       entry: newEntry
@@ -386,26 +386,26 @@ router.post('/json/upload', async (req: Request, res: Response) => {
  */
 router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
   try {
-    
+
     const db = getFirestore();
     if (!db) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Firestore not available' 
+      return res.status(500).json({
+        success: false,
+        error: 'Firestore not available'
       });
     }
 
     // Get all sessions from both collections
-    const [sessionsSnapshot, unifiedSessionsSnapshot] = await Promise.all([
-      db.collection('sessions').get(),
+    const [subjectMarkingResultsSnapshot, unifiedSessionsSnapshot] = await Promise.all([
+      db.collection('subjectMarkingResults').get(),
       db.collection('unifiedSessions').get()
     ]);
-    
-    const sessionIds = sessionsSnapshot.docs.map(doc => doc.id);
+
+    const subjectMarkingResultIds = subjectMarkingResultsSnapshot.docs.map(doc => doc.id);
     const unifiedSessionIds = unifiedSessionsSnapshot.docs.map(doc => doc.id);
-    
-    const totalSessions = sessionIds.length + unifiedSessionIds.length;
-    
+
+    const totalSessions = subjectMarkingResultIds.length + unifiedSessionIds.length;
+
     if (totalSessions === 0) {
       return res.json({
         success: true,
@@ -417,118 +417,54 @@ router.delete('/clear-all-sessions', async (req: Request, res: Response) => {
     // Delete all sessions in batches
     const batchSize = 500; // Firestore batch limit
     let deletedCount = 0;
-    
-    // Delete old sessions collection
-    for (let i = 0; i < sessionIds.length; i += batchSize) {
+
+    // Delete subjectMarkingResults collection
+    for (let i = 0; i < subjectMarkingResultIds.length; i += batchSize) {
       const batch = db.batch();
-      const batchIds = sessionIds.slice(i, i + batchSize);
-      
+      const batchIds = subjectMarkingResultIds.slice(i, i + batchSize);
+
       batchIds.forEach(sessionId => {
-        const sessionRef = db.collection('sessions').doc(sessionId);
+        const sessionRef = db.collection('subjectMarkingResults').doc(sessionId);
         batch.delete(sessionRef);
       });
-      
+
       await batch.commit();
       deletedCount += batchIds.length;
     }
-    
+
     // Delete unified sessions collection
     for (let i = 0; i < unifiedSessionIds.length; i += batchSize) {
       const batch = db.batch();
       const batchIds = unifiedSessionIds.slice(i, i + batchSize);
-      
+
       batchIds.forEach(sessionId => {
         const sessionRef = db.collection('unifiedSessions').doc(sessionId);
         batch.delete(sessionRef);
       });
-      
+
       await batch.commit();
       deletedCount += batchIds.length;
     }
 
-    
+
     res.json({
       success: true,
-      message: `Successfully cleared ${deletedCount} chat sessions (${sessionIds.length} old sessions + ${unifiedSessionIds.length} unified sessions)`,
+      message: `Successfully cleared ${deletedCount} items (${subjectMarkingResultIds.length} subject marking results + ${unifiedSessionIds.length} unified sessions)`,
       deletedCount: deletedCount,
-      oldSessionsDeleted: sessionIds.length,
+      subjectMarkingResultsDeleted: subjectMarkingResultIds.length,
       unifiedSessionsDeleted: unifiedSessionIds.length
     });
-    
+
   } catch (error) {
     console.error('❌ Error clearing sessions:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: `Failed to clear sessions: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    res.status(500).json({
+      success: false,
+      error: `Failed to clear sessions: ${error instanceof Error ? error.message : 'Unknown error'}`
     });
   }
 });
 
-/**
- * DELETE /api/admin/clear-all-marking-results
- * Clear all marking results from the database
- */
-router.delete('/clear-all-marking-results', async (req: Request, res: Response) => {
-  try {
-    
-    const db = getFirestore();
-    if (!db) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Firestore not available' 
-      });
-    }
 
-    // Get all marking results
-    const markingResultsSnapshot = await db.collection('markingResults').get();
-    const markingResultIds = markingResultsSnapshot.docs.map(doc => doc.id);
-    
-    
-    if (markingResultIds.length === 0) {
-      return res.json({
-        success: true,
-        message: 'No marking results found to delete',
-        deletedCount: 0
-      });
-    }
-
-    // Delete all marking results in batches
-    const batchSize = 100; // Reduced batch size to avoid transaction too big error
-    let deletedCount = 0;
-    
-    for (let i = 0; i < markingResultIds.length; i += batchSize) {
-      const batch = db.batch();
-      const batchIds = markingResultIds.slice(i, i + batchSize);
-      
-      batchIds.forEach(resultId => {
-        const resultRef = db.collection('markingResults').doc(resultId);
-        batch.delete(resultRef);
-      });
-      
-      await batch.commit();
-      deletedCount += batchIds.length;
-      
-      // Small delay between batches to prevent overwhelming the database
-      if (i + batchSize < markingResultIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
-    
-    res.json({
-      success: true,
-      message: `Successfully cleared ${deletedCount} marking results`,
-      deletedCount: deletedCount
-    });
-    
-  } catch (error) {
-    console.error('❌ Error clearing marking results:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: `Failed to clear marking results: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    });
-  }
-});
 
 /**
  * GET /api/admin/usage
@@ -538,20 +474,20 @@ router.delete('/clear-all-marking-results', async (req: Request, res: Response) 
 router.get('/usage', async (req: Request, res: Response) => {
   try {
     const filter = (req.query.filter as string) || 'all';
-    
+
     const db = getFirestore();
     if (!db) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Firestore not available' 
+      return res.status(500).json({
+        success: false,
+        error: 'Firestore not available'
       });
     }
 
     // Calculate date range based on filter
     const now = new Date();
     let startDate: Date;
-    
-    switch(filter) {
+
+    switch (filter) {
       case 'day': {
         startDate = new Date(now);
         startDate.setHours(0, 0, 0, 0);
@@ -575,18 +511,18 @@ router.get('/usage', async (req: Request, res: Response) => {
       default: // 'all'
         startDate = new Date(0); // Beginning of time
     }
-    
+
     // Query usageRecords collection with date filter at database level
     let query = db.collection('usageRecords');
-    
+
     // Apply date filter if not 'all' - use Firestore query for efficiency
     if (filter !== 'all') {
       const startTimestamp = admin.firestore.Timestamp.fromDate(startDate);
       query = query.where('createdAt', '>=', startTimestamp);
     }
-    
+
     const snapshot = await query.get();
-    
+
     // Process usage records
     const usageData: Array<{
       sessionId: string;
@@ -599,23 +535,23 @@ router.get('/usage', async (req: Request, res: Response) => {
       mathpixCost: number;
       modelUsed: string;
     }> = [];
-    
+
     let totalCost = 0;
     let totalLLMCost = 0;
     let totalGeminiCost = 0;
     let totalGptCost = 0;
     let totalMathpixCost = 0;
-    
+
     snapshot.forEach(doc => {
       const record = doc.data();
-      
+
       const createdAt = record.createdAt.toDate().toISOString();
-      
+
       // Handle legacy records that might not have geminiCost/gptCost
       const geminiCost = record.geminiCost ?? 0;
       const gptCost = record.gptCost ?? 0;
       const llmCost = record.llmCost ?? (geminiCost + gptCost);
-      
+
       usageData.push({
         sessionId: doc.id,
         userId: record.userId,
@@ -627,7 +563,7 @@ router.get('/usage', async (req: Request, res: Response) => {
         mathpixCost: record.mathpixCost,
         modelUsed: record.modelUsed
       });
-      
+
       // Update totals
       totalCost += record.totalCost;
       totalLLMCost += llmCost;
@@ -635,20 +571,20 @@ router.get('/usage', async (req: Request, res: Response) => {
       totalGptCost += gptCost;
       totalMathpixCost += record.mathpixCost;
     });
-    
+
     // Sort by totalCost descending
     usageData.sort((a, b) => b.totalCost - a.totalCost);
-    
+
     // Round totals to 2 decimal places
     totalCost = Math.round(totalCost * 100) / 100;
     totalLLMCost = Math.round(totalLLMCost * 100) / 100;
     totalGeminiCost = Math.round(totalGeminiCost * 100) / 100;
     totalGptCost = Math.round(totalGptCost * 100) / 100;
     totalMathpixCost = Math.round(totalMathpixCost * 100) / 100;
-    
+
     // Get unique user count
     const uniqueUsers = new Set(usageData.map(session => session.userId));
-    
+
     res.json({
       success: true,
       filter,
@@ -663,12 +599,12 @@ router.get('/usage', async (req: Request, res: Response) => {
       },
       usage: usageData
     });
-    
+
   } catch (error) {
     console.error('❌ Error getting usage statistics:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: `Failed to get usage statistics: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    res.status(500).json({
+      success: false,
+      error: `Failed to get usage statistics: ${error instanceof Error ? error.message : 'Unknown error'}`
     });
   }
 });

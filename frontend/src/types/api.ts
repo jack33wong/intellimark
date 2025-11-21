@@ -1462,37 +1462,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/clear-all-marking-results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Clear all marking results
-         * @description Clear all marking results
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["SuccessResponse"];
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1502,10 +1472,10 @@ export interface components {
             found: boolean;
             multipleExamPapers: boolean;
             multipleQuestions: boolean;
-            
+
             // Aggregated totals (convenience fields)
             totalMarks: number; // Sum of all examPapers[].totalMarks
-            
+
             // Main data structure - grouped by exam paper
             examPapers: Array<{
                 // Exam paper identification
@@ -1515,17 +1485,17 @@ export interface components {
                 tier: string;
                 subject: string;
                 paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (June 2022)"
-                
+
                 // Aggregated data for this exam paper
                 totalMarks: number; // Sum of all questions in this exam paper
-                
+
                 // Questions belonging to this specific exam paper
                 questions: Array<{
                     questionNumber: string; // e.g., "21" (just the number, not unique key)
                     questionText: string;
                     marks: number; // Marks for this individual question
                     sourceImageIndex?: number; // Which image this question came from
-                    
+
                     // Marking scheme for this specific question
                     markingScheme: Array<{
                         mark: string; // e.g., "M1", "A1", "P1"

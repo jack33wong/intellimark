@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  FileText, 
-  Trash2, 
+import {
+  FileText,
+  Trash2,
   Database,
   ClipboardList,
   Search,
@@ -37,11 +37,11 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
   if (!marks || !Array.isArray(marks)) {
     return 'No marks available';
   }
-  
+
   return marks.map((mark, index) => {
     const markCode = mark.mark || `M${index + 1}`;
     let answer = mark.answer || '';
-    
+
     // Convert LaTeX math expressions to Markdown format
     // Convert \frac{a}{b} to $\frac{a}{b}$
     answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$\\frac{$1}{$2}$');
@@ -57,7 +57,7 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
       const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
       return mathContext ? `$${number}$` : number;
     });
-    
+
     const comments = mark.comments ? ` (${mark.comments})` : '';
     return `• **${markCode}** ${answer}${comments}`;
   }).join('\n');
@@ -70,7 +70,7 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
 function AdminPage() {
   // Get auth context
   const { getAuthToken } = useAuth();
-  
+
   // State management
   const [activeTab, setActiveTab] = useState('usage'); // Default to Usage tab
   const [loading, setLoading] = useState(true);
@@ -78,19 +78,19 @@ function AdminPage() {
   const [jsonEntries, setJsonEntries] = useState([]);
   const [expandedJsonId, setExpandedJsonId] = useState(null);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-  
+
   // JSON upload state
   const [jsonForm, setJsonForm] = useState({
     jsonData: ''
   });
-  
+
   // Marking scheme state
   const [markingSchemeEntries, setMarkingSchemeEntries] = useState([]);
   const [expandedMarkingSchemeId, setExpandedMarkingSchemeId] = useState(null);
   const [markingSchemeForm, setMarkingSchemeForm] = useState({
     markingSchemeData: ''
   });
-  
+
   // Grade boundaries state
   const [gradeBoundaryEntries, setGradeBoundaryEntries] = useState([]);
   const [expandedGradeBoundaryId, setExpandedGradeBoundaryId] = useState(null);
@@ -98,11 +98,11 @@ function AdminPage() {
     gradeBoundaryData: ''
   });
   const [isDeletingAllGradeBoundaries, setIsDeletingAllGradeBoundaries] = useState(false);
-  
+
   // Query tab state
   const [isClearingSessions, setIsClearingSessions] = useState(false);
-  const [isClearingMarkingResults, setIsClearingMarkingResults] = useState(false);
-  
+
+
   // Usage tab state
   const [usageData, setUsageData] = useState([]);
   const [usageSummary, setUsageSummary] = useState({
@@ -116,14 +116,14 @@ function AdminPage() {
   });
   const [usageFilter, setUsageFilter] = useState('all');
   const [loadingUsage, setLoadingUsage] = useState(false);
-  
+
   // Constants removed - using ApiClient instead
-  
+
   // Form validation
   const isJsonFormValid = useCallback(() => {
     return jsonForm.jsonData;
   }, [jsonForm]);
-  
+
   const isMarkingSchemeFormValid = useCallback(() => {
     return markingSchemeForm.markingSchemeData.trim().length > 0;
   }, [markingSchemeForm.markingSchemeData]);
@@ -131,14 +131,14 @@ function AdminPage() {
   const isGradeBoundaryFormValid = useCallback(() => {
     return gradeBoundaryForm.gradeBoundaryData.trim().length > 0;
   }, [gradeBoundaryForm.gradeBoundaryData]);
-  
+
   // Reset forms to initial state
   const resetJsonForm = useCallback(() => {
     setJsonForm({
       jsonData: ''
     });
   }, []);
-  
+
   const resetMarkingSchemeForm = useCallback(() => {
     setMarkingSchemeForm({
       markingSchemeData: ''
@@ -157,27 +157,27 @@ function AdminPage() {
       const authToken = await getAuthToken();
       const data = await ApiClient.get('/api/admin/json/collections/fullExamPapers', authToken);
       const entries = Array.isArray(data.entries) ? data.entries : [];
-      
+
       // Sort entries by exam board, exam series, subject
       const sortedEntries = entries.sort((a, b) => {
         const examDataA = a.data || a;
         const examMetaA = examDataA.exam || examDataA.metadata || {};
         const examDataB = b.data || b;
         const examMetaB = examDataB.exam || examDataB.metadata || {};
-        
+
         const boardA = (examMetaA.board || examMetaA.exam_board || '').toLowerCase();
         const boardB = (examMetaB.board || examMetaB.exam_board || '').toLowerCase();
         if (boardA !== boardB) return boardA.localeCompare(boardB);
-        
+
         const seriesA = (examMetaA.exam_series || '').toLowerCase();
         const seriesB = (examMetaB.exam_series || '').toLowerCase();
         if (seriesA !== seriesB) return seriesA.localeCompare(seriesB);
-        
+
         const subjectA = (examMetaA.subject || examMetaA.qualification || '').toLowerCase();
         const subjectB = (examMetaB.subject || examMetaB.qualification || '').toLowerCase();
         return subjectA.localeCompare(subjectB);
       });
-      
+
       setJsonEntries(sortedEntries);
       setLoading(false); // Set loading to false when data is loaded (even if empty)
     } catch (e) {
@@ -186,7 +186,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 4000);
     }
   }, [getAuthToken]);
-  
+
   // Helper function to check if marking scheme exists for an exam paper
   const hasMarkingScheme = useCallback((examPaper) => {
     const examData = examPaper.data || examPaper;
@@ -194,22 +194,22 @@ function AdminPage() {
     const board = examMeta.board || examMeta.exam_board || '';
     const examSeries = examMeta.exam_series || '';
     const code = examMeta.code || examMeta.exam_code || '';
-    
+
     if (!board || !examSeries || !code) return false;
-    
+
     return markingSchemeEntries.some(entry => {
       const schemeData = entry.data || entry;
       const examDetails = schemeData.examDetails || schemeData.exam || {};
       const schemeBoard = examDetails.exam_board || examDetails.board || '';
       const schemeSeries = examDetails.exam_series || examDetails.date || '';
       const schemeCode = examDetails.exam_code || examDetails.code || examDetails.paperCode || '';
-      
-      return schemeBoard === board && 
-             (schemeSeries === examSeries || schemeSeries === examSeries.replace(/^June\s+/i, '')) &&
-             schemeCode === code;
+
+      return schemeBoard === board &&
+        (schemeSeries === examSeries || schemeSeries === examSeries.replace(/^June\s+/i, '')) &&
+        schemeCode === code;
     });
   }, [markingSchemeEntries]);
-  
+
   // Helper function to check if grade boundary exists for an exam paper
   const hasGradeBoundary = useCallback((examPaper) => {
     const examData = examPaper.data || examPaper;
@@ -218,29 +218,29 @@ function AdminPage() {
     const examSeries = examMeta.exam_series || '';
     const subject = examMeta.subject || examMeta.qualification || '';
     const code = examMeta.code || examMeta.exam_code || '';
-    
+
     if (!board || !examSeries || !subject || !code) return false;
-    
+
     return gradeBoundaryEntries.some(entry => {
       const boundaryData = entry.data || entry;
       const boundaryBoard = boundaryData.exam_board || '';
       const boundarySeries = boundaryData.exam_series || '';
-      
+
       if (boundaryBoard !== board || boundarySeries !== examSeries) return false;
-      
+
       // Check if subject matches
       const subjects = boundaryData.subjects || [];
       return subjects.some(subj => {
         const subjectName = (subj.name || '').toLowerCase();
         const subjectCode = subj.code || '';
         const normalizedSubject = (subject || '').toLowerCase();
-        
+
         // Extract subject code from exam code (e.g., "1MA1/1H" -> "1MA1")
         const examCodePrefix = code.split('/')[0];
-        
-        return subjectName.includes(normalizedSubject) || 
-               normalizedSubject.includes(subjectName) ||
-               subjectCode === examCodePrefix;
+
+        return subjectName.includes(normalizedSubject) ||
+          normalizedSubject.includes(subjectName) ||
+          subjectCode === examCodePrefix;
       });
     });
   }, [gradeBoundaryEntries]);
@@ -251,21 +251,21 @@ function AdminPage() {
       const authToken = await getAuthToken();
       const data = await ApiClient.get('/api/admin/json/collections/markingSchemes', authToken);
       const entries = data.entries || [];
-      
+
       // Sort entries by exam board, exam series
       const sortedEntries = entries.sort((a, b) => {
         const examDetailsA = a.examDetails || a.markingSchemeData?.examDetails || {};
         const examDetailsB = b.examDetails || b.markingSchemeData?.examDetails || {};
-        
+
         const boardA = (examDetailsA.board || examDetailsA.exam_board || '').toLowerCase();
         const boardB = (examDetailsB.board || examDetailsB.exam_board || '').toLowerCase();
         if (boardA !== boardB) return boardA.localeCompare(boardB);
-        
+
         const seriesA = (examDetailsA.exam_series || examDetailsA.date || '').toLowerCase();
         const seriesB = (examDetailsB.exam_series || examDetailsB.date || '').toLowerCase();
         return seriesA.localeCompare(seriesB);
       });
-      
+
       setMarkingSchemeEntries(sortedEntries);
     } catch (error) {
       console.error('Error loading marking scheme entries:', error);
@@ -284,7 +284,7 @@ function AdminPage() {
       setGradeBoundaryEntries([]);
     }
   }, [getAuthToken]);
-  
+
   // Load usage data
   const loadUsageData = useCallback(async (filter = 'all') => {
     try {
@@ -294,7 +294,7 @@ function AdminPage() {
         `/api/admin/usage?filter=${filter}`,
         authToken
       );
-      
+
       if (data.success) {
         setUsageData(data.usage || []);
         setUsageSummary(data.summary || {
@@ -314,13 +314,13 @@ function AdminPage() {
       setLoadingUsage(false);
     }
   }, [getAuthToken]);
-  
+
   // Delete all JSON entries
   const deleteAllJsonEntries = useCallback(async () => {
     if (!window.confirm('Are you sure you want to delete ALL exam paper data? This action cannot be undone.')) {
       return;
     }
-    
+
     setIsDeletingAll(true);
     try {
       const authToken = await getAuthToken();
@@ -363,7 +363,7 @@ function AdminPage() {
     if (!window.confirm('Are you sure you want to delete ALL marking scheme data? This action cannot be undone.')) {
       return;
     }
-    
+
     try {
       const authToken = await getAuthToken();
       const result = await ApiClient.delete('/api/admin/json/collections/markingSchemes/clear-all', authToken);
@@ -383,7 +383,7 @@ function AdminPage() {
     if (!window.confirm('Are you sure you want to delete this marking scheme? This action cannot be undone.')) {
       return;
     }
-    
+
     try {
       const authToken = await getAuthToken();
       const result = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`, authToken);
@@ -403,7 +403,7 @@ function AdminPage() {
     if (!window.confirm('Are you sure you want to delete ALL grade boundaries? This action cannot be undone.')) {
       return;
     }
-    
+
     setIsDeletingAllGradeBoundaries(true);
     try {
       const authToken = await getAuthToken();
@@ -426,7 +426,7 @@ function AdminPage() {
     if (!window.confirm('Are you sure you want to delete this grade boundary? This action cannot be undone.')) {
       return;
     }
-    
+
     try {
       const authToken = await getAuthToken();
       const result = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`, authToken);
@@ -440,7 +440,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
-  
+
   // Upload JSON data
   const uploadJsonData = useCallback(async () => {
     if (!isJsonFormValid()) {
@@ -518,7 +518,7 @@ function AdminPage() {
     if (!window.confirm('Are you sure you want to delete ALL chat sessions? This action cannot be undone and will remove all user conversation history.')) {
       return;
     }
-    
+
     setIsClearingSessions(true);
     try {
       const authToken = await getAuthToken();
@@ -526,10 +526,10 @@ function AdminPage() {
       console.log('All sessions cleared:', result.message);
       setError(`✅ All chat sessions have been cleared successfully.`);
       setTimeout(() => setError(null), 5000);
-      
+
       // Dispatch custom event to notify sidebar to refresh
       EventManager.dispatch(EVENT_TYPES.SESSIONS_CLEARED);
-      
+
       // Navigate to mark homework page after clearing all sessions
       window.location.href = '/mark-homework';
     } catch (error) {
@@ -541,33 +541,13 @@ function AdminPage() {
     }
   }, [getAuthToken]);
 
-  // Clear all marking results data
-  const clearAllMarkingResults = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete ALL marking results? This action cannot be undone and will remove all homework marking data.')) {
-      return;
-    }
-    
-    setIsClearingMarkingResults(true);
-    try {
-      const authToken = await getAuthToken();
-      const result = await ApiClient.delete('/api/admin/clear-all-marking-results', authToken);
-      console.log('All marking results cleared:', result.message);
-      setError(`✅ All marking results have been cleared successfully.`);
-      setTimeout(() => setError(null), 5000);
-    } catch (error) {
-      console.error('Error clearing marking results:', error);
-      setError(`Error clearing marking results: ${error.message}`);
-      setTimeout(() => setError(null), 5000);
-    } finally {
-      setIsClearingMarkingResults(false);
-    }
-  }, [getAuthToken]);
+
 
   // Handle JSON form input changes
   const handleJsonInputChange = useCallback((field, value) => {
     setJsonForm(prev => ({ ...prev, [field]: value }));
   }, []);
-  
+
   // Handle marking scheme form input changes
   const handleMarkingSchemeInputChange = useCallback((field, value) => {
     setMarkingSchemeForm(prev => ({ ...prev, [field]: value }));
@@ -577,14 +557,14 @@ function AdminPage() {
   const handleGradeBoundaryInputChange = useCallback((field, value) => {
     setGradeBoundaryForm(prev => ({ ...prev, [field]: value }));
   }, []);
-  
+
   // Load data on component mount
   useEffect(() => {
     loadJsonEntries();
     loadMarkingSchemeEntries();
     loadGradeBoundaryEntries();
   }, [loadJsonEntries, loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
-  
+
   // Load usage data when tab is active or filter changes
   useEffect(() => {
     if (activeTab === 'usage') {
@@ -604,7 +584,7 @@ function AdminPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="admin-page">
       <div className="admin-content">
@@ -657,7 +637,7 @@ function AdminPage() {
             <Search size={16} />
             Query
           </button>
-              </div>
+        </div>
 
         {/* Usage Tab */}
         {activeTab === 'usage' && (
@@ -666,7 +646,7 @@ function AdminPage() {
               <h2 className="admin-section-header__title">Usage Statistics</h2>
               <p>View cost breakdown and usage statistics for all users</p>
             </div>
-            
+
             {/* Summary Header */}
             <div className="usage-summary-header">
               <div className="usage-summary-card">
@@ -694,7 +674,7 @@ function AdminPage() {
                 <div className="usage-summary-value">{usageSummary.totalSessions}</div>
               </div>
             </div>
-            
+
             {/* Filter Tabs */}
             <div className="usage-filter-tabs">
               <button
@@ -728,7 +708,7 @@ function AdminPage() {
                 Day
               </button>
             </div>
-            
+
             {/* Usage Table */}
             <div className="admin-data-section">
               {loadingUsage ? (
@@ -780,11 +760,11 @@ function AdminPage() {
               <h2 className="admin-section-header__title">Full Exam Papers</h2>
               <p>Manage AI model training data for exam papers</p>
             </div>
-            
+
             {/* JSON Upload Form */}
             <div className="admin-upload-section">
-                <div className="upload-form">
-              <div className="admin-form-group">
+              <div className="upload-form">
+                <div className="admin-form-group">
                   <textarea
                     id="jsonData"
                     value={jsonForm.jsonData}
@@ -793,9 +773,9 @@ function AdminPage() {
                     rows={8}
                     className="admin-form-control"
                   />
-              </div>
+                </div>
                 <div className="admin-form-actions">
-                <button 
+                  <button
                     type="button"
                     className="admin-btn admin-btn--primary"
                     onClick={uploadJsonData}
@@ -810,53 +790,53 @@ function AdminPage() {
                     onClick={resetJsonForm}
                   >
                     Clear Form
-                </button>
+                  </button>
+                </div>
               </div>
             </div>
-        </div>
 
             {/* Exam JSON List */}
             <div className="admin-data-section">
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({jsonEntries.length})</h3>
                 {jsonEntries.length > 0 && (
-              <button
+                  <button
                     className="admin-btn admin-btn--danger"
                     onClick={deleteAllJsonEntries}
                     disabled={isDeletingAll}
                   >
                     {isDeletingAll ? 'Deleting...' : 'Delete All'}
-              </button>
-            )}
-          </div>
-          
+                  </button>
+                )}
+              </div>
+
               {jsonEntries.length === 0 ? (
                 <div className="empty-state">
                   <Database size={48} />
                   <p>No exam paper data found</p>
                   <p>Upload JSON data to get started</p>
-            </div>
-          ) : (
+                </div>
+              ) : (
                 <div className="admin-table-container">
                   <table className="admin-table">
-                <thead>
-                  <tr>
+                    <thead>
+                      <tr>
                         <th className="admin-table__header">Exam Paper</th>
-                    <th className="admin-table__header">Exam Series</th>
-                    <th className="admin-table__header">Qualification</th>
-                    <th className="admin-table__header">Subject</th>
-                    <th className="admin-table__header">Questions</th>
-                    <th className="admin-table__header">Has Marking Scheme</th>
-                    <th className="admin-table__header">Has Grade Boundary</th>
-                    <th className="admin-table__header">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                        <th className="admin-table__header">Exam Series</th>
+                        <th className="admin-table__header">Qualification</th>
+                        <th className="admin-table__header">Subject</th>
+                        <th className="admin-table__header">Questions</th>
+                        <th className="admin-table__header">Has Marking Scheme</th>
+                        <th className="admin-table__header">Has Grade Boundary</th>
+                        <th className="admin-table__header">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {jsonEntries.map(entry => {
                         // Handle multiple data structures: entry.exam, entry.data.exam, entry.metadata
                         const examData = entry.data || entry;
                         const examMeta = examData.exam || examData.metadata || {};
-                        
+
                         // Map new field names to old field names for compatibility
                         const board = examMeta.board || examMeta.exam_board || 'N/A';
                         const examSeries = examMeta.exam_series || 'N/A';
@@ -864,12 +844,12 @@ function AdminPage() {
                         const subject = examMeta.subject || 'N/A';
                         const session = examMeta.session || examMeta.time_allowed || 'N/A';
                         const code = examMeta.code || examMeta.exam_code || 'N/A';
-                        
+
                         // Use database fields for question counts
                         const questionCount = examMeta.totalQuestions || examMeta.total_questions || (examData.questions ? examData.questions.length : 0);
-                        const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions || (examData.questions ? 
+                        const subQuestionCount = examMeta.questionsWithSubQuestions || examMeta.questions_with_subquestions || (examData.questions ?
                           examData.questions.reduce((total, q) => total + ((q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).length : 0), 0) : 0);
-                        
+
                         // Check if marking scheme and grade boundary exist
                         const hasScheme = hasMarkingScheme(entry);
                         const hasBoundary = hasGradeBoundary(entry);
@@ -892,28 +872,28 @@ function AdminPage() {
                                   title="Click to view exam paper content"
                                 >
                                   <span className="exam-paper-name">
-                                    {board !== 'N/A' ? 
+                                    {board !== 'N/A' ?
                                       `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                       examData.originalName || examData.filename || entry.id
                                     }
                                   </span>
                                   <span className="expand-indicator">
                                     {expandedJsonId === entry.id ? '▼' : '▶'}
-                            </span>
-                          </div>
-                        </td>
+                                  </span>
+                                </div>
+                              </td>
                               <td className="admin-table__cell">{examSeries}</td>
                               <td className="admin-table__cell">{qualification}</td>
                               <td className="admin-table__cell">{subject}</td>
                               <td className="admin-table__cell">
                                 {questionCount ? (
-                            <span className="question-count">
+                                  <span className="question-count">
                                     {questionCount} Q{subQuestionCount ? ` (${subQuestionCount} sub)` : ''}
-                            </span>
-                          ) : (
-                            <span className="no-questions">No questions</span>
-                          )}
-                        </td>
+                                  </span>
+                                ) : (
+                                  <span className="no-questions">No questions</span>
+                                )}
+                              </td>
                               <td className="admin-table__cell">
                                 {hasScheme ? (
                                   <span className="status-badge status-badge--success">Yes</span>
@@ -928,53 +908,53 @@ function AdminPage() {
                                   <span className="status-badge status-badge--warning">No</span>
                                 )}
                               </td>
-                        <td className="admin-table__cell actions-cell">
-                          <button
-                            className="admin-btn admin-btn--icon"
+                              <td className="admin-table__cell actions-cell">
+                                <button
+                                  className="admin-btn admin-btn--icon"
                                   onClick={() => setExpandedJsonId(expandedJsonId === entry.id ? null : entry.id)}
                                   title="View"
-                            >
-                              <FileText size={16} />
-                            </button>
-                          <button
+                                >
+                                  <FileText size={16} />
+                                </button>
+                                <button
                                   className="admin-btn admin-btn--icon btn-danger"
                                   onClick={() => deleteJsonEntry(entry.id)}
-                            title="Delete"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                      
+                                  title="Delete"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+
                             {expandedJsonId === entry.id && (
-                        <tr className="admin-expanded-row">
+                              <tr className="admin-expanded-row">
                                 <td colSpan="8">
-                            <div className="admin-expanded-content">
-                                                          <div className="admin-content-header">
+                                  <div className="admin-expanded-content">
+                                    <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Exam Paper Content: {
-                                        board !== 'N/A' ? 
+                                        board !== 'N/A' ?
                                           `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                           examData.originalName || examData.filename || entry.id
                                       }</h4>
-                              <div className="admin-content-info">
-                                 <span className="admin-content-info__text">Questions are displayed in numerical order</span>
-                                <button 
-                                  className="admin-close-btn"
+                                      <div className="admin-content-info">
+                                        <span className="admin-content-info__text">Questions are displayed in numerical order</span>
+                                        <button
+                                          className="admin-close-btn"
                                           onClick={() => setExpandedJsonId(null)}
-                                  title="Close"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            </div>
-                              
+                                          title="Close"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </div>
+
                                     {examData.questions && examData.questions.length > 0 ? (
-                                <div className="admin-questions-content">
-                                  <div className="admin-questions-summary">
-                                    <span className="admin-summary-item">
+                                      <div className="admin-questions-content">
+                                        <div className="admin-questions-summary">
+                                          <span className="admin-summary-item">
                                             <strong>Exam Series:</strong> {examSeries}
-                                    </span>
-                                    <span className="admin-summary-item">
+                                          </span>
+                                          <span className="admin-summary-item">
                                             <strong>Total Questions:</strong> {questionCount}
                                           </span>
                                           <span className="admin-summary-item">
@@ -986,43 +966,43 @@ function AdminPage() {
                                               const subQuestionMarks = (q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).reduce((subTotal, subQ) => subTotal + (subQ.marks || 0), 0) : 0;
                                               return total + questionMarks + subQuestionMarks;
                                             }, 0)}
-                                    </span>
-                                  </div>
-                                  
-                                  <div className="admin-questions-list">
-                                          {examData.questions.map((question, qIndex) => (
-                                      <div key={qIndex} className="admin-question-item">
-                                        <div className="admin-question-header">
-                                          <div className="admin-question-main">
-                                                  <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
-                                                <span className="admin-question-text">{question.text || question.question_text}</span>
-                                          </div>
-                                            {question.marks && (
-                                              <span className="admin-question-marks">[{question.marks} marks]</span>
-                                            )}
+                                          </span>
                                         </div>
-                                        
-                                              {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
-                                          <div className="admin-sub-questions">
-                                                  {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
-                                              <div key={sIndex} className="admin-sub-question-item">
-                                                        <div className="admin-sub-question-content">
-                                                          <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
-                                                          <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
-                                                        </div>
-                                                  {subQ.marks && (
-                                                    <span className="admin-sub-question-marks">[{subQ.marks} marks]</span>
-                                                  )}
+
+                                        <div className="admin-questions-list">
+                                          {examData.questions.map((question, qIndex) => (
+                                            <div key={qIndex} className="admin-question-item">
+                                              <div className="admin-question-header">
+                                                <div className="admin-question-main">
+                                                  <span className="admin-question-number">{question.number || question.question_number || question.questionNumber || (qIndex + 1)}</span>
+                                                  <span className="admin-question-text">{question.text || question.question_text}</span>
+                                                </div>
+                                                {question.marks && (
+                                                  <span className="admin-question-marks">[{question.marks} marks]</span>
+                                                )}
                                               </div>
-                                            ))}
-                                          </div>
-                                        )}
+
+                                              {(question.subQuestions || question.sub_questions) && (question.subQuestions || question.sub_questions).length > 0 && (
+                                                <div className="admin-sub-questions">
+                                                  {(question.subQuestions || question.sub_questions).map((subQ, sIndex) => (
+                                                    <div key={sIndex} className="admin-sub-question-item">
+                                                      <div className="admin-sub-question-content">
+                                                        <span className="admin-sub-question-number">{subQ.part || subQ.question_part || subQ.subQuestionNumber || String.fromCharCode(97 + sIndex)}</span>
+                                                        <span className="admin-sub-question-text">{subQ.text || subQ.question_text}</span>
+                                                      </div>
+                                                      {subQ.marks && (
+                                                        <span className="admin-sub-question-marks">[{subQ.marks} marks]</span>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="no-questions">
+                                    ) : (
+                                      <div className="no-questions">
                                         <p>No questions found in this exam paper data.</p>
                                         <details style={{ marginTop: '16px' }}>
                                           <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Exam JSON</summary>
@@ -1030,17 +1010,17 @@ function AdminPage() {
                                             {JSON.stringify(examData, null, 2)}
                                           </pre>
                                         </details>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
-                </tbody>
-              </table>
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -1050,8 +1030,8 @@ function AdminPage() {
         {/* Marking Scheme Tab */}
         {activeTab === 'marking-scheme' && (
           <div className="admin-tab-content">
-             <div className="admin-section-header">
-                <h2 className="admin-section-header__title">Marking Schemes</h2>
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Marking Schemes</h2>
               <p>Manage marking scheme data for exam papers</p>
             </div>
 
@@ -1090,9 +1070,9 @@ function AdminPage() {
             </div>
 
             {/* Marking Scheme List */}
-             <div className="admin-data-section">
-               <div className="admin-data-section__header">
-                  <h3 className="admin-data-section__title">Marking Schemes ({markingSchemeEntries.length})</h3>
+            <div className="admin-data-section">
+              <div className="admin-data-section__header">
+                <h3 className="admin-data-section__title">Marking Schemes ({markingSchemeEntries.length})</h3>
                 {markingSchemeEntries.length > 0 && (
                   <button
                     onClick={deleteAllMarkingSchemeEntries}
@@ -1102,8 +1082,8 @@ function AdminPage() {
                     <Trash2 size={16} />
                     Delete All
                   </button>
-              )}
-            </div>
+                )}
+              </div>
 
               {markingSchemeEntries.length === 0 ? (
                 <div className="no-data">
@@ -1129,14 +1109,14 @@ function AdminPage() {
                         // Extract exam details from either structure
                         const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
                         const questions = entry.questions || entry.markingSchemeData?.questions || {};
-                        
+
                         // Get display values
                         const board = examDetails.board || 'N/A';
                         const qualification = examDetails.qualification || 'N/A';
                         const subject = examDetails.subject || 'N/A';
                         const paperCode = examDetails.paperCode || 'N/A';
                         const examSeries = examDetails.exam_series || 'N/A';
-                        
+
                         // Calculate counts
                         const sortedQuestionKeys = Object.keys(questions).sort((a, b) => {
                           const numA = parseInt(a);
@@ -1164,7 +1144,7 @@ function AdminPage() {
                                   title="Click to view marking scheme content"
                                 >
                                   <span className="exam-paper-name">
-                                    {board !== 'N/A' ? 
+                                    {board !== 'N/A' ?
                                       `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
                                       `Marking Scheme ${entry.id}`
                                     }
@@ -1213,7 +1193,7 @@ function AdminPage() {
                                 </button>
                               </td>
                             </tr>
-                            
+
                             {/* Expanded content row */}
                             {expandedMarkingSchemeId === entry.id && (
                               <tr className="admin-expanded-row">
@@ -1221,13 +1201,13 @@ function AdminPage() {
                                   <div className="admin-expanded-content">
                                     <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Marking Scheme Details: {
-                                        board !== 'N/A' ? 
+                                        board !== 'N/A' ?
                                           `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
                                           `Marking Scheme ${entry.id}`
                                       }</h4>
                                       <div className="admin-content-info">
                                         <span className="admin-content-info__text">Questions are displayed in numerical order</span>
-                                        <button 
+                                        <button
                                           className="admin-close-btn"
                                           onClick={() => setExpandedMarkingSchemeId(null)}
                                           title="Close"
@@ -1236,157 +1216,157 @@ function AdminPage() {
                                         </button>
                                       </div>
                                     </div>
-                            
-                            {/* Exam Details */}
-                            {(entry.examDetails || (entry.markingSchemeData && entry.markingSchemeData.examDetails)) && (
-                              <div className="admin-questions-content">
-                                <h6 className="admin-questions-summary__title">Exam Information</h6>
-                                <div className="admin-questions-summary">
-                                  <span className="admin-summary-item">
-                                    <strong>Board:</strong> {entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || 'Unknown'}
-                                  </span>
-                                  <span className="admin-summary-item">
-                                    <strong>Qualification:</strong> {entry.examDetails?.qualification || entry.markingSchemeData?.examDetails?.qualification || 'Unknown'}
-                                  </span>
-                                  <span className="admin-summary-item">
-                                    <strong>Paper Code:</strong> {entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}
-                                  </span>
-                                  <span className="admin-summary-item">
-                                    <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
-                                  </span>
-                                  <span className="admin-summary-item">
-                                    <strong>Exam Series:</strong> {entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || 'Unknown'}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
 
-                            {/* Summary Stats */}
-                            <div className="admin-questions-content">
-                              <h6 className="admin-questions-summary__title">Summary Statistics</h6>
-                              <div className="admin-questions-summary">
-                                <span className="admin-summary-item">
-                                  <strong>Total Questions:</strong> {entry.totalQuestions || 
-                                   ((entry.questions || entry.markingSchemeData?.questions) ? 
-                                     Object.keys(entry.questions || entry.markingSchemeData.questions).sort((a, b) => {
-                                       const numA = parseInt(a);
-                                       const numB = parseInt(b);
-                                       if (!isNaN(numA) && !isNaN(numB)) {
-                                         return numA - numB;
-                                       }
-                                       return a.localeCompare(b);
-                                     }).length : 'N/A')}
-                                </span>
-                                <span className="admin-summary-item">
-                                  <strong>Total Marks:</strong> {entry.totalMarks || 
-                                   ((entry.questions || entry.markingSchemeData?.questions) ? 
-                                     Object.values(entry.questions || entry.markingSchemeData.questions).reduce((total, question) => {
-                                       return total + (question.marks ? question.marks.length : 0);
-                                     }, 0) : 'N/A')}
-                                </span>
-                              </div>
-                            </div>
+                                    {/* Exam Details */}
+                                    {(entry.examDetails || (entry.markingSchemeData && entry.markingSchemeData.examDetails)) && (
+                                      <div className="admin-questions-content">
+                                        <h6 className="admin-questions-summary__title">Exam Information</h6>
+                                        <div className="admin-questions-summary">
+                                          <span className="admin-summary-item">
+                                            <strong>Board:</strong> {entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || 'Unknown'}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Qualification:</strong> {entry.examDetails?.qualification || entry.markingSchemeData?.examDetails?.qualification || 'Unknown'}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Paper Code:</strong> {entry.examDetails?.paperCode || entry.markingSchemeData?.examDetails?.paperCode || 'Unknown'}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Paper:</strong> {entry.examDetails?.paper || entry.markingSchemeData?.examDetails?.paper || 'Unknown'}
+                                          </span>
+                                          <span className="admin-summary-item">
+                                            <strong>Exam Series:</strong> {entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || 'Unknown'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
 
-                            {/* Questions List */}
-                            {(entry.questions || (entry.markingSchemeData && entry.markingSchemeData.questions)) && (
-                              <div className="admin-questions-content">
-                                <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.questions || entry.markingSchemeData.questions).length})</h6>
-                                <div className="admin-questions-list">
-                                  {Object.entries(entry.questions || entry.markingSchemeData.questions)
-                                    .sort(([a], [b]) => {
-                                      // Sort numerically if both are numbers, otherwise alphabetically
-                                      const numA = parseInt(a);
-                                      const numB = parseInt(b);
-                                      if (!isNaN(numA) && !isNaN(numB)) {
-                                        return numA - numB;
-                                      }
-                                      return a.localeCompare(b);
-                                    })
-                                    .map(([questionNum, question]) => (
-                                    <div key={questionNum} className="admin-question-item">
-                                      <div className="admin-question-main">
-                                        <span className="admin-question-number">{questionNum}</span>
-                                        <span className="admin-question-text">
-                                          {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
+                                    {/* Summary Stats */}
+                                    <div className="admin-questions-content">
+                                      <h6 className="admin-questions-summary__title">Summary Statistics</h6>
+                                      <div className="admin-questions-summary">
+                                        <span className="admin-summary-item">
+                                          <strong>Total Questions:</strong> {entry.totalQuestions ||
+                                            ((entry.questions || entry.markingSchemeData?.questions) ?
+                                              Object.keys(entry.questions || entry.markingSchemeData.questions).sort((a, b) => {
+                                                const numA = parseInt(a);
+                                                const numB = parseInt(b);
+                                                if (!isNaN(numA) && !isNaN(numB)) {
+                                                  return numA - numB;
+                                                }
+                                                return a.localeCompare(b);
+                                              }).length : 'N/A')}
+                                        </span>
+                                        <span className="admin-summary-item">
+                                          <strong>Total Marks:</strong> {entry.totalMarks ||
+                                            ((entry.questions || entry.markingSchemeData?.questions) ?
+                                              Object.values(entry.questions || entry.markingSchemeData.questions).reduce((total, question) => {
+                                                return total + (question.marks ? question.marks.length : 0);
+                                              }, 0) : 'N/A')}
                                         </span>
                                       </div>
-                                      
-                                      {/* Marks */}
-                                      {question.marks && question.marks.length > 0 && (
-                                        <div className="admin-sub-questions">
-                                          <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
-                                          <div className="markdown-marking-scheme">
-                                            {question.marks.map((mark, index) => {
-                                              const markCode = mark.mark || `M${index + 1}`;
-                                              let answer = mark.answer || '';
-                                              
-                                              // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
-                                              answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
-                                              answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-                                              answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
-                                              answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
-                                                const before = answer.substring(0, answer.indexOf(match));
-                                                const after = answer.substring(answer.indexOf(match) + match.length);
-                                                const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-                                                return mathContext ? `\\(${number}\\)` : number;
-                                              });
-                                              
-                                              const comments = mark.comments ? ` (${mark.comments})` : '';
-                                              
-                                              return (
-                                                <div key={index} className="marking-scheme-item">
-                                                  <MarkdownMathRenderer 
-                                                    content={`**${markCode}** ${answer}${comments}`}
-                                                    className="admin-markdown-content"
-                                                  />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      )}
-
-                                      {/* Guidance */}
-                                      {question.guidance && question.guidance.length > 0 && (
-                                        <div className="admin-sub-questions">
-                                          <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
-                                          {question.guidance.map((guidance, guidanceIndex) => (
-                                            <div key={guidanceIndex} className="admin-sub-question-item">
-                                              <div className="admin-sub-question-content">
-                                                <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
-                                                <span className="admin-sub-question-text">
-                                                  <strong>Scenario:</strong> {guidance.scenario}
-                                                  {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
 
-                            {/* Metadata */}
-                             <div className="admin-metadata-section">
-                              <h6>Metadata</h6>
-                              <div className="metadata-info">
-                                <p><strong>ID:</strong> {entry.id}</p>
-                                <p><strong>Uploaded:</strong> {formatDate(entry.createdAt || entry.uploadedAt)}</p>
-                                {entry.updatedAt && (
-                                  <p><strong>Last Updated:</strong> {formatDate(entry.updatedAt)}</p>
-                                )}
-                              </div>
-                            </div>
-                            
-                            <details style={{ marginTop: '16px' }}>
-                              <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Marking Scheme Data</summary>
-                              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
-                                {JSON.stringify(entry, null, 2)}
-                              </pre>
-                            </details>
+                                    {/* Questions List */}
+                                    {(entry.questions || (entry.markingSchemeData && entry.markingSchemeData.questions)) && (
+                                      <div className="admin-questions-content">
+                                        <h6 className="admin-questions-summary__title">Questions ({Object.keys(entry.questions || entry.markingSchemeData.questions).length})</h6>
+                                        <div className="admin-questions-list">
+                                          {Object.entries(entry.questions || entry.markingSchemeData.questions)
+                                            .sort(([a], [b]) => {
+                                              // Sort numerically if both are numbers, otherwise alphabetically
+                                              const numA = parseInt(a);
+                                              const numB = parseInt(b);
+                                              if (!isNaN(numA) && !isNaN(numB)) {
+                                                return numA - numB;
+                                              }
+                                              return a.localeCompare(b);
+                                            })
+                                            .map(([questionNum, question]) => (
+                                              <div key={questionNum} className="admin-question-item">
+                                                <div className="admin-question-main">
+                                                  <span className="admin-question-number">{questionNum}</span>
+                                                  <span className="admin-question-text">
+                                                    {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
+                                                  </span>
+                                                </div>
+
+                                                {/* Marks */}
+                                                {question.marks && question.marks.length > 0 && (
+                                                  <div className="admin-sub-questions">
+                                                    <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
+                                                    <div className="markdown-marking-scheme">
+                                                      {question.marks.map((mark, index) => {
+                                                        const markCode = mark.mark || `M${index + 1}`;
+                                                        let answer = mark.answer || '';
+
+                                                        // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
+                                                        answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
+                                                        answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
+                                                        answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
+                                                        answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
+                                                          const before = answer.substring(0, answer.indexOf(match));
+                                                          const after = answer.substring(answer.indexOf(match) + match.length);
+                                                          const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
+                                                          return mathContext ? `\\(${number}\\)` : number;
+                                                        });
+
+                                                        const comments = mark.comments ? ` (${mark.comments})` : '';
+
+                                                        return (
+                                                          <div key={index} className="marking-scheme-item">
+                                                            <MarkdownMathRenderer
+                                                              content={`**${markCode}** ${answer}${comments}`}
+                                                              className="admin-markdown-content"
+                                                            />
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {/* Guidance */}
+                                                {question.guidance && question.guidance.length > 0 && (
+                                                  <div className="admin-sub-questions">
+                                                    <h6 className="admin-questions-summary__title">Guidance ({question.guidance.length})</h6>
+                                                    {question.guidance.map((guidance, guidanceIndex) => (
+                                                      <div key={guidanceIndex} className="admin-sub-question-item">
+                                                        <div className="admin-sub-question-content">
+                                                          <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
+                                                          <span className="admin-sub-question-text">
+                                                            <strong>Scenario:</strong> {guidance.scenario}
+                                                            {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Metadata */}
+                                    <div className="admin-metadata-section">
+                                      <h6>Metadata</h6>
+                                      <div className="metadata-info">
+                                        <p><strong>ID:</strong> {entry.id}</p>
+                                        <p><strong>Uploaded:</strong> {formatDate(entry.createdAt || entry.uploadedAt)}</p>
+                                        {entry.updatedAt && (
+                                          <p><strong>Last Updated:</strong> {formatDate(entry.updatedAt)}</p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <details style={{ marginTop: '16px' }}>
+                                      <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Marking Scheme Data</summary>
+                                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
+                                        {JSON.stringify(entry, null, 2)}
+                                      </pre>
+                                    </details>
                                   </div>
                                 </td>
                               </tr>
@@ -1396,9 +1376,9 @@ function AdminPage() {
                       })}
                     </tbody>
                   </table>
-          </div>
+                </div>
               )}
-          </div>
+            </div>
           </div>
         )}
 
@@ -1501,7 +1481,7 @@ function AdminPage() {
                                   title="Click to view grade boundary details"
                                 >
                                   <span className="exam-paper-name">
-                                    {examBoard !== 'N/A' ? 
+                                    {examBoard !== 'N/A' ?
                                       `${examBoard} ${qualification} (${examSeries})` :
                                       `Grade Boundary ${entry.id}`
                                     }
@@ -1541,7 +1521,7 @@ function AdminPage() {
                                 </button>
                               </td>
                             </tr>
-                            
+
                             {/* Expanded content row */}
                             {expandedGradeBoundaryId === entry.id && (
                               <tr className="admin-expanded-row">
@@ -1549,12 +1529,12 @@ function AdminPage() {
                                   <div className="admin-expanded-content">
                                     <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Grade Boundary Details: {
-                                        examBoard !== 'N/A' ? 
+                                        examBoard !== 'N/A' ?
                                           `${examBoard} ${qualification} (${examSeries})` :
                                           `Grade Boundary ${entry.id}`
                                       }</h4>
                                       <div className="admin-content-info">
-                                        <button 
+                                        <button
                                           className="admin-close-btn"
                                           onClick={() => setExpandedGradeBoundaryId(null)}
                                           title="Close"
@@ -1660,7 +1640,7 @@ function AdminPage() {
                                         <p><strong>Uploaded:</strong> {formatDate(entry.uploadedAt)}</p>
                                       </div>
                                     </div>
-                                    
+
                                     <details style={{ marginTop: '16px' }}>
                                       <summary style={{ cursor: 'pointer', color: '#666' }}>View Raw Grade Boundary Data</summary>
                                       <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '12px', background: '#f5f5f5', padding: '16px', borderRadius: '4px', marginTop: '8px' }}>
@@ -1685,18 +1665,18 @@ function AdminPage() {
         {/* Query Tab */}
         {activeTab === 'query' && (
           <div className="admin-tab-content">
-             <div className="admin-section-header">
-                <h2 className="admin-section-header__title">Database Queries</h2>
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Database Queries</h2>
               <p>Execute database operations and manage system data</p>
             </div>
-            
+
             {/* Clear Sessions Panel */}
             <div className="admin-query-section">
               <div className="admin-query-header">
                 <h3 className="admin-query-title">Clear All Sessions</h3>
                 <p className="admin-query-description">Remove all chat session data from the database</p>
               </div>
-              
+
               <div className="admin-query-content">
                 <div className="admin-query-warning">
                   <div className="admin-query-warning-icon">⚠️</div>
@@ -1704,21 +1684,21 @@ function AdminPage() {
                     <strong>Warning:</strong> This action will permanently delete all chat sessions and conversation history from the database.
                   </div>
                 </div>
-                
+
                 <div className="admin-query-details">
                   <h4 className="admin-query-details-title">This includes:</h4>
                   <ul className="admin-query-list">
-                    <li>All user chat sessions</li>
+                    <li><strong>subjectMarkingResults</strong> collection (Marking results)</li>
+                    <li><strong>unifiedSessions</strong> collection (Chat sessions)</li>
                     <li>All conversation messages and AI responses</li>
                     <li>All uploaded images and annotations</li>
-                    <li>All session metadata and timestamps</li>
                   </ul>
                 </div>
-                
+
                 <div className="admin-query-danger">
                   <strong>This action cannot be undone.</strong>
                 </div>
-                
+
                 <div className="admin-query-actions">
                   <button
                     className="admin-btn admin-btn--danger"
@@ -1732,47 +1712,7 @@ function AdminPage() {
               </div>
             </div>
 
-            {/* Clear Marking Results Panel */}
-            <div className="admin-query-section">
-              <div className="admin-query-header">
-                <h3 className="admin-query-title">Clear All Marking Results</h3>
-                <p className="admin-query-description">Remove all homework marking results from the database</p>
-              </div>
-              
-              <div className="admin-query-content">
-                <div className="admin-query-warning">
-                  <div className="admin-query-warning-icon">⚠️</div>
-                  <div className="admin-query-warning-text">
-                    <strong>Warning:</strong> This action will permanently delete all marking results data from the database.
-                  </div>
-                </div>
-                
-                <div className="admin-query-details">
-                  <h4 className="admin-query-details-title">This includes:</h4>
-                  <ul className="admin-query-list">
-                    <li>All homework marking results and annotations</li>
-                    <li>All AI-generated feedback and corrections</li>
-                    <li>All uploaded homework images and processed data</li>
-                    <li>All marking metadata and timestamps</li>
-                  </ul>
-                </div>
-                
-                <div className="admin-query-danger">
-                  <strong>This action cannot be undone.</strong>
-                </div>
-                
-                <div className="admin-query-actions">
-                  <button
-                    className="admin-btn admin-btn--danger"
-                    onClick={clearAllMarkingResults}
-                    disabled={isClearingMarkingResults}
-                  >
-                    <Trash2 size={16} />
-                    {isClearingMarkingResults ? 'Clearing Marking Results...' : 'Clear All Marking Results'}
-                  </button>
-                </div>
-              </div>
-            </div>
+
           </div>
         )}
       </div>
