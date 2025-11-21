@@ -53,7 +53,7 @@ export class MarkingSchemeOrchestrationService {
     classificationResult: any
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
-    
+
     // Helper function to check if a question number is a sub-question
     const isSubQuestion = (questionNumber: string | null | undefined): boolean => {
       if (!questionNumber) return false;
@@ -65,13 +65,13 @@ export class MarkingSchemeOrchestrationService {
       }
       return false;
     };
-    
+
     // First pass: Collect all detection results
     const detectionResults: Array<{
       question: { text: string; questionNumber?: string | null };
       detectionResult: any;
     }> = [];
-    
+
     // Track detection statistics
     const detectionStats: DetectionStatistics = {
       totalQuestions: individualQuestions.length,
@@ -86,14 +86,14 @@ export class MarkingSchemeOrchestrationService {
       },
       questionDetails: []
     };
-    
+
     // Call question detection for each individual question
     for (const question of individualQuestions) {
       const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
-      
+
       const similarity = detectionResult.match?.confidence || 0;
       const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
-      
+
       // Track statistics
       if (detectionResult.found) {
         detectionStats.detected++;
@@ -102,7 +102,7 @@ export class MarkingSchemeOrchestrationService {
         } else {
           detectionStats.withoutMarkingScheme++;
         }
-        
+
         // Categorize by similarity
         if (similarity >= 0.90) {
           detectionStats.bySimilarityRange.high++;
@@ -111,14 +111,14 @@ export class MarkingSchemeOrchestrationService {
         } else if (similarity >= 0.40) {
           detectionStats.bySimilarityRange.low++;
         }
-        
+
         detectionStats.questionDetails.push({
           questionNumber: question.questionNumber,
           detected: true,
           similarity,
           hasMarkingScheme
         });
-        
+
         detectionResults.push({ question, detectionResult });
       } else {
         detectionStats.notDetected++;
@@ -129,7 +129,7 @@ export class MarkingSchemeOrchestrationService {
         });
       }
     }
-    
+
     // Second pass: Group sub-questions by base question number and merge
     const groupedResults = new Map<string, Array<{
       question: { text: string; questionNumber?: string | null };
@@ -139,26 +139,26 @@ export class MarkingSchemeOrchestrationService {
       examBoard: string;
       paperCode: string;
     }>>();
-    
+
     // Group detection results by base question number and exam paper
     for (const { question, detectionResult } of detectionResults) {
       if (!detectionResult.match) {
         continue;
       }
-      
+
       const actualQuestionNumber = detectionResult.match.questionNumber;
       const originalQuestionNumber = question.questionNumber;
       const examBoard = detectionResult.match.board || 'Unknown';
       const paperCode = detectionResult.match.paperCode || 'Unknown';
-      
+
       const questionNumberForGrouping = originalQuestionNumber || actualQuestionNumber;
       const baseQuestionNumber = getBaseQuestionNumber(questionNumberForGrouping);
       const groupKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
-      
+
       if (!groupedResults.has(groupKey)) {
         groupedResults.set(groupKey, []);
       }
-      
+
       groupedResults.get(groupKey)!.push({
         question,
         detectionResult,
@@ -168,24 +168,24 @@ export class MarkingSchemeOrchestrationService {
         paperCode
       });
     }
-    
+
     // Third pass: Merge grouped sub-questions or store single questions
     for (const [groupKey, group] of groupedResults.entries()) {
       const baseQuestionNumber = groupKey.split('_')[0];
       const examBoard = group[0].examBoard;
       const paperCode = group[0].paperCode;
-      
+
       const hasSubQuestions = group.some(item => isSubQuestion(item.originalQuestionNumber));
-      
+
       if (hasSubQuestions && group.length > 1) {
         // Group sub-questions: merge marking schemes
         const firstItem = group[0];
         const parentQuestionMarks = firstItem.detectionResult.match?.parentQuestionMarks;
-        
+
         if (!parentQuestionMarks) {
           throw new Error(`Parent question marks not found for grouped sub-questions Q${baseQuestionNumber}. Expected structure: match.parentQuestionMarks`);
         }
-        
+
         // Merge marking schemes
         const mergedMarks: any[] = [];
         const combinedQuestionTexts: string[] = [];
@@ -193,29 +193,29 @@ export class MarkingSchemeOrchestrationService {
         const questionNumbers: string[] = [];
         const subQuestionAnswers: string[] = [];
         const subQuestionMarksMap = new Map<string, any[]>();
-        
+
         for (const item of group) {
           const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
-          
+
           // Extract answer for this sub-question
-          const subQAnswer = item.detectionResult.match?.answer || 
-                            item.detectionResult.match?.markingScheme?.answer ||
-                            item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
-                            undefined;
+          const subQAnswer = item.detectionResult.match?.answer ||
+            item.detectionResult.match?.markingScheme?.answer ||
+            item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
+            undefined;
           if (subQAnswer && typeof subQAnswer === 'string' && subQAnswer.toLowerCase() !== 'cao') {
             subQuestionAnswers.push(subQAnswer);
           } else {
             subQuestionAnswers.push('');
           }
-          
+
           // Extract marks array
           let marksArray: any[] = [];
           const markingScheme = item.detectionResult.match?.markingScheme;
           let questionMarks: any = null;
-          
+
           if (markingScheme) {
             questionMarks = markingScheme.questionMarks;
-            
+
             if (questionMarks) {
               if (Array.isArray(questionMarks.marks)) {
                 marksArray = questionMarks.marks;
@@ -233,11 +233,11 @@ export class MarkingSchemeOrchestrationService {
               }
             }
           }
-          
+
           if (marksArray.length === 0) {
             console.warn(`[MERGE WARNING] No marks extracted for sub-question ${displayQNum} in group Q${baseQuestionNumber}`);
           }
-          
+
           subQuestionMarksMap.set(displayQNum, marksArray);
           mergedMarks.push(...marksArray);
           combinedQuestionTexts.push(item.question.text);
@@ -247,15 +247,15 @@ export class MarkingSchemeOrchestrationService {
           }
           questionNumbers.push(displayQNum);
         }
-        
+
         // Create merged marking scheme
         const mergedQuestionMarks = {
           marks: mergedMarks,
           subQuestionMarks: Object.fromEntries(subQuestionMarksMap)
         };
-        
+
         const questionDetection = firstItem.detectionResult;
-        
+
         // Get main question text from parent question in the exam paper
         let mainQuestionDatabaseText = '';
         const firstMatch = firstItem.detectionResult.match;
@@ -265,32 +265,32 @@ export class MarkingSchemeOrchestrationService {
             if (!db) {
               throw new Error('Firestore not available');
             }
-            
+
             const examPapersSnapshot = await db.collection('fullExamPapers')
               .where('metadata.exam_board', '==', firstMatch.board)
               .where('metadata.exam_code', '==', firstMatch.paperCode)
               .where('metadata.exam_series', '==', firstMatch.examSeries)
               .get();
-            
+
             const examPapers = examPapersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
+
             const matchedExamPaper = examPapers.find((ep: any) => {
               const metadata = ep.metadata || {};
               return metadata.exam_board === firstMatch.board &&
-                     metadata.exam_code === firstMatch.paperCode &&
-                     metadata.exam_series === firstMatch.examSeries &&
-                     metadata.tier === firstMatch.tier;
+                metadata.exam_code === firstMatch.paperCode &&
+                metadata.exam_series === firstMatch.examSeries &&
+                metadata.tier === firstMatch.tier;
             });
-            
+
             if (matchedExamPaper) {
               const questions = matchedExamPaper.questions || [];
-              const mainQuestion = Array.isArray(questions) 
+              const mainQuestion = Array.isArray(questions)
                 ? questions.find((q: any) => {
-                    const qNum = q.question_number || q.number;
-                    return String(qNum) === String(baseQuestionNumber);
-                  })
+                  const qNum = q.question_number || q.number;
+                  return String(qNum) === String(baseQuestionNumber);
+                })
                 : questions[baseQuestionNumber];
-              
+
               if (mainQuestion) {
                 mainQuestionDatabaseText = mainQuestion.question_text || mainQuestion.text || mainQuestion.question || '';
               }
@@ -299,7 +299,7 @@ export class MarkingSchemeOrchestrationService {
             console.warn(`[MARKING SCHEME ORCHESTRATION] Failed to get main question text for Q${baseQuestionNumber}:`, error);
           }
         }
-        
+
         // Build FULL question text using common formatting function
         const fullDatabaseQuestionText = formatFullQuestionText(
           baseQuestionNumber,
@@ -307,7 +307,7 @@ export class MarkingSchemeOrchestrationService {
           questionNumbers,
           combinedDatabaseQuestionTexts
         );
-        
+
         const schemeWithTotalMarks = {
           questionMarks: mergedQuestionMarks,
           totalMarks: parentQuestionMarks,
@@ -315,75 +315,77 @@ export class MarkingSchemeOrchestrationService {
           questionDetection: questionDetection,
           databaseQuestionText: fullDatabaseQuestionText,
           subQuestionNumbers: questionNumbers,
-          subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined
+          subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined,
+          generalMarkingGuidance: firstItem.detectionResult.match?.markingScheme?.generalMarkingGuidance // Preserve general guidance
         };
-        
+
         const uniqueKey = `${baseQuestionNumber}_${examBoard}_${paperCode}`;
         markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
-        
+
       } else {
         // Single question (not grouped): store as-is
         const item = group[0];
-        
+
         if (!item.detectionResult.match?.markingScheme) {
           continue;
         }
-        
+
         const actualQuestionNumber = item.actualQuestionNumber;
         const uniqueKey = `${actualQuestionNumber}_${examBoard}_${paperCode}`;
-        
+
         let questionSpecificMarks = null;
         if (item.detectionResult.match.markingScheme.questionMarks) {
           questionSpecificMarks = item.detectionResult.match.markingScheme.questionMarks;
         } else {
           questionSpecificMarks = item.detectionResult.match.markingScheme;
         }
-        
+
         const schemeWithTotalMarks = {
           questionMarks: questionSpecificMarks,
           totalMarks: item.detectionResult.match.marks,
           questionNumber: actualQuestionNumber,
           questionDetection: item.detectionResult,
           questionText: item.question.text,
-          databaseQuestionText: item.detectionResult.match?.databaseQuestionText || ''
+          databaseQuestionText: item.detectionResult.match?.databaseQuestionText || '',
+          generalMarkingGuidance: item.detectionResult.match?.markingScheme?.generalMarkingGuidance // Preserve general guidance
         };
-        
+
         markingSchemesMap.set(uniqueKey, schemeWithTotalMarks);
       }
     }
-    
+
     // Update classificationResult.questions with detected question numbers
     for (const { question, detectionResult } of detectionResults) {
       if (detectionResult.found && detectionResult.match?.questionNumber) {
         const detectedQuestionNumber = detectionResult.match.questionNumber;
         const matchingQuestion = classificationResult.questions.find((q: any) => {
-          const textSimilarity = question.text && q.text 
+          const textSimilarity = question.text && q.text
             ? stringSimilarity.compareTwoStrings(question.text.toLowerCase(), q.text.toLowerCase())
             : 0;
           return textSimilarity > 0.8;
         });
-        
+
         if (matchingQuestion && (!matchingQuestion.questionNumber || matchingQuestion.questionNumber === 'null' || matchingQuestion.questionNumber === null)) {
           matchingQuestion.questionNumber = detectedQuestionNumber;
         }
       }
     }
-    
+
     return {
       markingSchemesMap,
       detectionStats,
       updatedClassificationResult: classificationResult
     };
   }
-  
+
   /**
    * Log detection statistics
    */
   static logDetectionStatistics(detectionStats: DetectionStatistics): void {
-    const detectionRate = detectionStats.totalQuestions > 0 
+    const detectionRate = detectionStats.totalQuestions > 0
       ? ((detectionStats.detected / detectionStats.totalQuestions) * 100).toFixed(0)
       : '0';
-    
+
     console.log(`\n📊 [QUESTION DETECTION STATISTICS]`);
     console.log(`   Total questions: ${detectionStats.totalQuestions}`);
     console.log(`   Detected: ${detectionStats.detected}/${detectionStats.totalQuestions} (${detectionRate}%)`);
@@ -394,7 +396,7 @@ export class MarkingSchemeOrchestrationService {
     console.log(`     ≥ 0.90: ${detectionStats.bySimilarityRange.high}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.high / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
     console.log(`     0.70-0.89: ${detectionStats.bySimilarityRange.medium}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.medium / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
     console.log(`     0.40-0.69: ${detectionStats.bySimilarityRange.low}/${detectionStats.detected} (${detectionStats.detected > 0 ? ((detectionStats.bySimilarityRange.low / detectionStats.detected) * 100).toFixed(0) : '0'}%)`);
-    
+
     const questionsWithoutScheme = detectionStats.questionDetails
       .filter(q => q.detected && !q.hasMarkingScheme)
       .map(q => `Q${q.questionNumber || '?'}`)
@@ -402,7 +404,7 @@ export class MarkingSchemeOrchestrationService {
     if (questionsWithoutScheme) {
       console.log(`   Questions without marking scheme: ${questionsWithoutScheme}`);
     }
-    
+
     const lowSimilarityQuestions = detectionStats.questionDetails
       .filter(q => q.detected && q.similarity !== undefined && q.similarity < 0.70 && q.similarity >= 0.40)
       .map(q => `Q${q.questionNumber || '?'} (${q.similarity?.toFixed(3)})`)
@@ -412,7 +414,7 @@ export class MarkingSchemeOrchestrationService {
       const reset = '\x1b[0m';
       console.log(`   ${red}Low similarity questions (0.40-0.69): ${lowSimilarityQuestions}${reset}`);
     }
-    
+
     console.log(`\n`);
   }
 }
