@@ -25,6 +25,26 @@
   color: var(--text-secondary);
 }
 
+/* Selectors */
+.qualification-selector-container {
+  margin-bottom: 16px;
+}
+
+/* Exam Board and Paper Code Set Container (side by side) */
+.exam-board-paper-code-container {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.exam-board-paper-code-container .exam-board-selector-container,
+.exam-board-paper-code-container .paper-code-set-selector-container {
+  flex: 1;
+  margin-bottom: 0;
+  min-width: 0; /* Allows flex items to shrink below their content size */
+}
+
 /* Subject Tabs */
 .subject-tabs-container {
   display: flex;
@@ -88,15 +108,28 @@
   color: var(--text-secondary);
 }
 
+.aggregated-stats-section {
+  margin-bottom: 32px;
+}
+
 .marking-results-section {
   margin-bottom: 32px;
 }
 
 .marking-results-section h2 {
-  margin: 0 0 20px 0;
+  margin: 0 0 12px 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.filter-indicator {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: var(--background-gray-main);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 .analysis-section {
@@ -124,6 +157,11 @@
   .subject-tab {
     padding: 10px 16px;
     font-size: 14px;
+  }
+  
+  .exam-board-paper-code-container {
+    flex-direction: column;
+    gap: 8px;
   }
   
   .analysis-content {

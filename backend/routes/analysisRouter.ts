@@ -37,44 +37,68 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       });
     }
     
-      // 1. Get subject marking result
-      const subjectResult = await FirestoreService.getSubjectMarkingResult(userId, subject);
-      
-      if (!subjectResult || !subjectResult.markingResults || subjectResult.markingResults.length === 0) {
-        return res.status(404).json({ 
-          success: false, 
-          error: `No marking results found for subject: ${subject}` 
-        });
-      }
-      
-      // 2. Check if re-analysis is needed
-      const reAnalysisNeeded = subjectResult.reAnalysisNeeded || false;
-      const existingAnalysis = subjectResult.analysis;
-      
-      // If analysis exists and no re-analysis needed, return cached
-      if (existingAnalysis && !reAnalysisNeeded) {
-        return res.json({ 
-          success: true, 
-          analysis: existingAnalysis,
-          cached: true,
-          reAnalysisNeeded: false
-        });
-      }
-      
-      // 3. Get last analysis report (for cost-saving)
-      const lastAnalysisReport = existingAnalysis || null;
-      
-      // 4. Generate new analysis (with last report context)
-      const analysis = await AnalysisService.generateAnalysis(
-        {
-          subject,
-          model
-        },
-        lastAnalysisReport,  // Pass for AI context
-        userId  // Pass userId for subjectMarkingResults lookup
+    const { qualification, examBoard, paperCodeSet } = req.body;
+    
+    // 1. Get subject marking result
+    const subjectResult = await FirestoreService.getSubjectMarkingResult(userId, subject);
+    
+    if (!subjectResult || !subjectResult.markingResults || subjectResult.markingResults.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `No marking results found for subject: ${subject}` 
+      });
+    }
+    
+    // Filter marking results by qualification, exam board, and paper code set
+    let filteredResults = subjectResult.markingResults;
+    if (qualification) {
+      filteredResults = filteredResults.filter((mr: any) => 
+        mr.examMetadata?.qualification === qualification
       );
-      
-      // 5. Update analysis in subjectMarkingResults and reset reAnalysisNeeded flag
+    }
+    if (examBoard) {
+      filteredResults = filteredResults.filter((mr: any) => 
+        mr.examMetadata?.examBoard === examBoard
+      );
+    }
+    if (paperCodeSet && Array.isArray(paperCodeSet) && paperCodeSet.length > 0) {
+      filteredResults = filteredResults.filter((mr: any) => {
+        const examCode = mr.examMetadata?.examCode || '';
+        const paperCode = examCode.split('/').pop();
+        return paperCode && paperCodeSet.includes(paperCode);
+      });
+    }
+    
+    if (filteredResults.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `No marking results found for the selected filters` 
+      });
+    }
+    
+    // 2. Check if re-analysis is needed (for now, always regenerate when filters change)
+    // TODO: Could cache analysis per paper code set in the future
+    const reAnalysisNeeded = subjectResult.reAnalysisNeeded || false;
+    const existingAnalysis = subjectResult.analysis;
+    
+    // 3. Get last analysis report (for cost-saving)
+    const lastAnalysisReport = existingAnalysis || null;
+    
+    // 4. Generate new analysis (with last report context and filters)
+    const analysis = await AnalysisService.generateAnalysis(
+      {
+        subject,
+        qualification,
+        examBoard,
+        paperCodeSet,
+        model
+      },
+      lastAnalysisReport,  // Pass for AI context
+      userId  // Pass userId for subjectMarkingResults lookup
+    );
+    
+    // 5. Update analysis in subjectMarkingResults and reset reAnalysisNeeded flag
+    // Note: For now, we store one analysis per subject. In future, could store per paper code set.
     await FirestoreService.updateSubjectAnalysis(userId, subject, analysis, model);
     
     // 6. Return to frontend
@@ -90,6 +114,94 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to generate analysis' 
+    });
+  }
+});
+
+/**
+ * GET /api/analysis/grade-boundaries
+ * Get grade boundaries structure for qualification and subject
+ * MUST be before /:subject route to avoid route conflict
+ */
+router.get('/grade-boundaries', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const { qualification, subject } = req.query;
+    const userId = (req as any)?.user?.uid;
+    const isAuthenticated = !!userId;
+    
+    // No access for unauthenticated users
+    if (!isAuthenticated || !userId) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Authentication required' 
+      });
+    }
+    
+    if (!qualification || !subject) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Qualification and subject are required' 
+      });
+    }
+    
+    // Query grade boundaries collection
+    const { getFirestore } = await import('../config/firebase.js');
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
+    // Get all grade boundaries for the qualification
+    const snapshot = await db.collection('gradeBoundaries')
+      .where('qualification', '==', qualification)
+      .get();
+    
+    if (snapshot.empty) {
+      return res.json({ 
+        success: true, 
+        gradeBoundaries: [] 
+      });
+    }
+    
+    // Filter by subject and structure the response
+    const gradeBoundaries = [];
+    
+    for (const doc of snapshot.docs) {
+      const entry = { id: doc.id, ...doc.data() } as any;
+      const matchingSubject = entry.subjects?.find((s: any) => 
+        s.name?.toLowerCase() === (subject as string).toLowerCase()
+      );
+      
+      if (matchingSubject) {
+        gradeBoundaries.push({
+          exam_board: entry.exam_board,
+          qualification: entry.qualification,
+          exam_series: entry.exam_series,
+          subjects: [{
+            name: matchingSubject.name,
+            code: matchingSubject.code,
+            tiers: matchingSubject.tiers?.map((tier: any) => ({
+              tier_level: tier.tier_level,
+              paper_codes: tier.paper_codes || []
+            })) || []
+          }]
+        });
+      }
+    }
+    
+    return res.json({ 
+      success: true, 
+      gradeBoundaries 
+    });
+    
+  } catch (error) {
+    console.error('❌ [ANALYSIS ROUTER] Error fetching grade boundaries:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch grade boundaries' 
     });
   }
 });

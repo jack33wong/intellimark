@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import PerformanceOverview from './PerformanceOverview';
 import StrengthsWeaknesses from './StrengthsWeaknesses';
 import TopicAnalysis from './TopicAnalysis';
 import NextSteps from './NextSteps';
@@ -33,11 +32,17 @@ interface AnalysisResult {
 
 interface AnalysisReportProps {
   subject: string; // Required: subject name
+  qualification?: string; // Optional: qualification filter
+  examBoard?: string; // Optional: exam board filter
+  paperCodeSet?: string[] | null; // Optional: paper code set filter
   reAnalysisNeeded?: boolean; // Flag passed from parent
 }
 
 const AnalysisReport: React.FC<AnalysisReportProps> = ({
   subject,
+  qualification,
+  examBoard,
+  paperCodeSet,
   reAnalysisNeeded: reAnalysisNeededProp = false
 }) => {
   const { user, getAuthToken } = useAuth();
@@ -48,16 +53,16 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   
   useEffect(() => {
     if (subject) {
-      // Reset state when subject changes
+      // Reset state when filters change
       setAnalysis(null);
       setError(null);
       setIsGenerating(false);
       setReAnalysisNeeded(reAnalysisNeededProp);
-      // Load analysis when subject changes (user explicitly visits/navigates to this subject)
+      // Load analysis when filters change
       loadAnalysis();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subject]);
+  }, [subject, qualification, examBoard, paperCodeSet]);
   
   useEffect(() => {
     setReAnalysisNeeded(reAnalysisNeededProp);
@@ -127,14 +132,20 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         return;
       }
       
-      // Generate analysis in background
+      // Generate analysis in background with filters
       const response = await fetch(`/api/analysis/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`
         },
-        body: JSON.stringify({ subject, model: 'auto' })
+        body: JSON.stringify({ 
+          subject, 
+          qualification,
+          examBoard,
+          paperCodeSet,
+          model: 'auto' 
+        })
       });
       
       const data = await response.json();
@@ -184,10 +195,6 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   
   return (
     <div className="analysis-report">
-      <PerformanceOverview 
-        performance={analysis.performance}
-      />
-      
       <StrengthsWeaknesses 
         strengths={analysis.strengths}
         weaknesses={analysis.weaknesses}

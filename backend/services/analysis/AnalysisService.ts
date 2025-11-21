@@ -26,7 +26,13 @@ export class AnalysisService {
       
       // Try to get from subjectMarkingResults first (if subject and userId provided)
       if (request.subject && userId) {
-        markingData = await this.getMarkingDataFromSubjectMarkingResult(userId, request.subject);
+        markingData = await this.getMarkingDataFromSubjectMarkingResult(
+          userId, 
+          request.subject,
+          request.qualification,
+          request.examBoard,
+          request.paperCodeSet
+        );
       }
       
       // Fallback to session-based approach if subjectMarkingResults not available
@@ -816,11 +822,26 @@ export class AnalysisService {
   }
   
   /**
+   * Extract paper code from examCode (e.g., "1MA1/1H" -> "1H")
+   */
+  private static extractPaperCode(examCode: string): string | null {
+    if (!examCode || !examCode.includes('/')) {
+      return null;
+    }
+    const parts = examCode.split('/');
+    return parts.length > 1 ? parts[parts.length - 1].trim() : null;
+  }
+
+  /**
    * Get marking data from subjectMarkingResults collection
+   * Supports filtering by qualification, exam board, and paper code set
    */
   private static async getMarkingDataFromSubjectMarkingResult(
     userId: string,
-    subject: string
+    subject: string,
+    qualification?: string,
+    examBoard?: string,
+    paperCodeSet?: string[]
   ): Promise<MarkingDataForAnalysis | null> {
     try {
       const subjectResult = await FirestoreService.getSubjectMarkingResult(userId, subject);
@@ -829,9 +850,35 @@ export class AnalysisService {
         return null;
       }
 
-      const markingResults = subjectResult.markingResults;
+      let markingResults = subjectResult.markingResults;
       
-      // Aggregate question results from all marking results
+      // Filter by qualification if provided
+      if (qualification) {
+        markingResults = markingResults.filter((mr: any) => 
+          mr.examMetadata?.qualification === qualification
+        );
+      }
+      
+      // Filter by exam board if provided
+      if (examBoard) {
+        markingResults = markingResults.filter((mr: any) => 
+          mr.examMetadata?.examBoard === examBoard
+        );
+      }
+      
+      // Filter by paper code set if provided
+      if (paperCodeSet && paperCodeSet.length > 0) {
+        markingResults = markingResults.filter((mr: any) => {
+          const paperCode = this.extractPaperCode(mr.examMetadata?.examCode || '');
+          return paperCode && paperCodeSet.includes(paperCode);
+        });
+      }
+      
+      if (markingResults.length === 0) {
+        return null;
+      }
+      
+      // Aggregate question results from filtered marking results
       const questionResultsMap = new Map<string, MarkingDataForAnalysis['questionResults'][0]>();
       const sessionScores: Array<{ awarded: number; total: number; percentage: number; grade?: string }> = [];
       const grades: string[] = [];

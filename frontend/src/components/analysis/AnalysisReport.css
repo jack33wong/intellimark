@@ -95,22 +95,24 @@
 
 .performance-stats {
   display: flex;
-  gap: 24px;
+  gap: 32px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
 }
 
 .stat-item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .stat-label {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .stat-value {
@@ -411,8 +413,12 @@
   }
   
   .performance-stats {
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 16px;
+  }
+  
+  .stat-item {
+    flex-direction: row;
   }
 }
 

@@ -6,6 +6,9 @@ export interface AnalysisRequest {
   sessionId?: string; // Single session (legacy support)
   sessionIds?: string[]; // Multiple sessions for subject grouping
   subject?: string; // Subject name (e.g., "Mathematics", "Physics")
+  qualification?: string; // "GCSE", "A-Level"
+  examBoard?: string; // "Pearson Edexcel", "AQA"
+  paperCodeSet?: string[]; // ["1H", "2H", "3H"] - Filter by paper code set
   model: string;
   detectedQuestion?: any; // For unauthenticated users
 }

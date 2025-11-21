@@ -1,0 +1,33 @@
+.paper-code-set-selector-container {
+  margin-bottom: 16px;
+}
+
+.paper-code-set-selector {
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  color: var(--text-primary);
+  min-width: 250px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.paper-code-set-selector:hover {
+  border-color: var(--text-brand);
+}
+
+.paper-code-set-selector:focus {
+  outline: none;
+  border-color: var(--text-brand);
+  box-shadow: 0 0 0 3px rgba(var(--text-brand-rgb, 59, 130, 246), 0.1);
+}
+
+.paper-code-set-selector option {
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+

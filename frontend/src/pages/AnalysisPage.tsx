@@ -1,12 +1,18 @@
 /**
  * Analysis Page Component
- * Main page for viewing performance analysis reports grouped by subject
+ * Redesigned with hierarchical structure: Qualification → Subject → Exam Board → Paper Code Set
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { AnalysisReport } from '../components/analysis';
-import MarkingResultsTable from '../components/analysis/MarkingResultsTable';
+import { 
+  AnalysisReport,
+  QualificationSelector,
+  ExamBoardSelector,
+  PaperCodeSetSelector,
+  PaperCodeAggregatedStats,
+  MarkingResultsTable
+} from '../components/analysis';
 import './AnalysisPage.css';
 
 interface MarkingResult {
@@ -34,13 +40,108 @@ interface SubjectMarkingResult {
   reAnalysisNeeded: boolean;
 }
 
+interface PaperCodeSet {
+  tier: string;
+  paperCodes: string[];
+}
+
+interface PaperCodeStat {
+  paperCode: string;
+  totalAttempts: number;
+  averageScore: {
+    awarded: number;
+    total: number;
+    percentage: number;
+  };
+  highestGrade: string;
+  averageGrade: string;
+}
+
 const AnalysisPage: React.FC = () => {
   const { user, getAuthToken } = useAuth();
+  
+  // Level 1: Qualification
+  const [selectedQualification, setSelectedQualification] = useState<string>('GCSE');
+  const [availableQualifications, setAvailableQualifications] = useState<string[]>([]);
+  
+  // Level 2: Subject
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
-  const [activeSubject, setActiveSubject] = useState<string>('');
+  
+  // Level 3: Exam Board
+  const [selectedExamBoard, setSelectedExamBoard] = useState<string>('');
+  const [availableExamBoards, setAvailableExamBoards] = useState<string[]>([]);
+  
+  // Level 4: Paper Code Set
+  const [selectedPaperCodeSet, setSelectedPaperCodeSet] = useState<string[] | null>(null);
+  const [availablePaperCodeSets, setAvailablePaperCodeSets] = useState<PaperCodeSet[]>([]);
+  
+  // Data
+  const [allMarkingResults, setAllMarkingResults] = useState<MarkingResult[]>([]);
+  const [filteredMarkingResults, setFilteredMarkingResults] = useState<MarkingResult[]>([]);
+  const [paperCodeStats, setPaperCodeStats] = useState<PaperCodeStat[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [markingResults, setMarkingResults] = useState<MarkingResult[]>([]);
   const [reAnalysisNeeded, setReAnalysisNeeded] = useState(false);
+
+  // Extract paper code from examCode (e.g., "1MA1/1H" -> "1H")
+  const extractPaperCode = (examCode: string): string | null => {
+    if (!examCode || !examCode.includes('/')) return null;
+    const parts = examCode.split('/');
+    return parts.length > 1 ? parts[parts.length - 1].trim() : null;
+  };
+
+  // Fetch grade boundaries structure
+  const fetchGradeBoundaries = useCallback(async (qualification: string, subject: string) => {
+    if (!qualification || !subject) return;
+
+    try {
+      const authToken = await getAuthToken();
+      if (!authToken) return;
+
+      const response = await fetch(
+        `/api/analysis/grade-boundaries?qualification=${encodeURIComponent(qualification)}&subject=${encodeURIComponent(subject)}`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.gradeBoundaries) {
+          // Extract exam boards
+          const examBoards = Array.from(
+            new Set(data.gradeBoundaries.map((gb: any) => gb.exam_board))
+          ).sort() as string[];
+
+          // Extract paper code sets from first grade boundary entry
+          const firstGB = data.gradeBoundaries[0];
+          if (firstGB && firstGB.subjects && firstGB.subjects.length > 0) {
+            const subjectData = firstGB.subjects[0];
+            const paperCodeSets: PaperCodeSet[] = (subjectData.tiers || []).map((tier: any) => ({
+              tier: tier.tier_level,
+              paperCodes: tier.paper_codes || []
+            }));
+
+            setAvailableExamBoards(examBoards);
+            setAvailablePaperCodeSets(paperCodeSets);
+            if (paperCodeSets.length > 0 && !selectedPaperCodeSet) {
+              // Default to higher tier if available
+              const higherTier = paperCodeSets.find(s => 
+                s.tier.toLowerCase().includes('higher')
+              );
+              setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : paperCodeSets[0].paperCodes);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch grade boundaries:', error);
+    }
+  }, [getAuthToken, selectedExamBoard, selectedPaperCodeSet]);
 
   // Fetch subjects from subjectMarkingResults
   const fetchSubjects = useCallback(async () => {
@@ -53,36 +154,31 @@ const AnalysisPage: React.FC = () => {
     try {
       const authToken = await getAuthToken();
       if (!authToken) {
-        console.error('Authentication token not available.');
         setLoading(false);
         return;
       }
 
-      // Fetch all subject marking results for this user
       const response = await fetch(`/api/analysis/subjects`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+          'Authorization': `Bearer ${authToken}`
         }
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch subjects');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && data.subjects) {
-        const subjects = data.subjects.sort();
-        setAvailableSubjects(subjects);
-        
-        // Default to Mathematics if available, otherwise first subject
-        if (subjects.length > 0 && !activeSubject) {
-          const mathIndex = subjects.findIndex((s: string) => 
-            s.toLowerCase().includes('math') || s.toLowerCase() === 'mathematics'
-          );
-          setActiveSubject(mathIndex >= 0 ? subjects[mathIndex] : subjects[0]);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.subjects) {
+          const subjects = data.subjects.sort();
+          setAvailableSubjects(subjects);
+
+          // Default to Mathematics if available
+          if (subjects.length > 0 && !selectedSubject) {
+            const mathIndex = subjects.findIndex((s: string) =>
+              s.toLowerCase().includes('math') || s.toLowerCase() === 'mathematics'
+            );
+            setSelectedSubject(mathIndex >= 0 ? subjects[mathIndex] : subjects[0]);
+          }
         }
       }
     } catch (error) {
@@ -90,20 +186,18 @@ const AnalysisPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, getAuthToken, activeSubject]);
+  }, [user?.uid, getAuthToken, selectedSubject]);
 
-  // Fetch marking results for active subject
+  // Fetch marking results for subject
   const fetchMarkingResults = useCallback(async (subject: string) => {
     if (!user?.uid || !subject) {
-      setMarkingResults([]);
+      setAllMarkingResults([]);
       return;
     }
 
     try {
       const authToken = await getAuthToken();
-      if (!authToken) {
-        return;
-      }
+      if (!authToken) return;
 
       const response = await fetch(`/api/analysis/${encodeURIComponent(subject)}`, {
         method: 'GET',
@@ -117,29 +211,180 @@ const AnalysisPage: React.FC = () => {
         const data = await response.json();
         if (data.success && data.subjectMarkingResult) {
           const result: SubjectMarkingResult = data.subjectMarkingResult;
-          setMarkingResults(result.markingResults || []);
+          setAllMarkingResults(result.markingResults || []);
           setReAnalysisNeeded(result.reAnalysisNeeded || false);
+
+          // Extract unique qualifications
+          const qualifications = Array.from(
+            new Set(result.markingResults?.map((mr: MarkingResult) => mr.examMetadata.qualification) || [])
+          ).sort() as string[];
+          if (qualifications.length > 0 && availableQualifications.length === 0) {
+            setAvailableQualifications(qualifications);
+            setSelectedQualification(qualifications[0]);
+          }
         }
       }
     } catch (error) {
       console.error('Failed to load marking results:', error);
     }
-  }, [user?.uid, getAuthToken]);
+  }, [user?.uid, getAuthToken, availableQualifications.length]);
 
+  // Filter and aggregate marking results
+  useEffect(() => {
+    let filtered = allMarkingResults;
+
+    // Filter by qualification
+    if (selectedQualification) {
+      filtered = filtered.filter(mr =>
+        mr.examMetadata.qualification === selectedQualification
+      );
+    }
+
+    // Filter by exam board
+    if (selectedExamBoard) {
+      filtered = filtered.filter(mr =>
+        mr.examMetadata.examBoard === selectedExamBoard
+      );
+    }
+
+    // Filter by paper code set
+    if (selectedPaperCodeSet && selectedPaperCodeSet.length > 0) {
+      filtered = filtered.filter(mr => {
+        const paperCode = extractPaperCode(mr.examMetadata.examCode);
+        return paperCode && selectedPaperCodeSet.includes(paperCode);
+      });
+    }
+
+    // Sort by exam code, then date (newest first)
+    filtered.sort((a, b) => {
+      const codeCompare = a.examMetadata.examCode.localeCompare(b.examMetadata.examCode);
+      if (codeCompare !== 0) return codeCompare;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    setFilteredMarkingResults(filtered);
+
+    // Calculate paper code stats
+    if (selectedPaperCodeSet && selectedPaperCodeSet.length > 0) {
+      const stats: PaperCodeStat[] = selectedPaperCodeSet.map(paperCode => {
+        const results = filtered.filter(mr => {
+          const pc = extractPaperCode(mr.examMetadata.examCode);
+          return pc === paperCode;
+        });
+
+        if (results.length === 0) {
+          return {
+            paperCode,
+            totalAttempts: 0,
+            averageScore: { awarded: 0, total: 0, percentage: 0 },
+            highestGrade: '-',
+            averageGrade: '-'
+          };
+        }
+
+        const totalAwarded = results.reduce((sum, r) => sum + r.overallScore.awardedMarks, 0);
+        const totalPossible = results.reduce((sum, r) => sum + r.overallScore.totalMarks, 0);
+        const avgAwarded = Math.round(totalAwarded / results.length);
+        const avgTotal = Math.round(totalPossible / results.length);
+        const avgPercentage = avgTotal > 0 ? Math.round((avgAwarded / avgTotal) * 100) : 0;
+
+        const grades = results.filter(r => r.grade).map(r => r.grade!);
+        const highestGrade = grades.length > 0
+          ? grades.reduce((highest, grade) => {
+              const numHighest = parseInt(highest, 10) || 0;
+              const numGrade = parseInt(grade, 10) || 0;
+              return numGrade > numHighest ? grade : highest;
+            })
+          : '-';
+
+        const gradeCounts = new Map<string, number>();
+        grades.forEach(g => gradeCounts.set(g, (gradeCounts.get(g) || 0) + 1));
+        let maxCount = 0;
+        let averageGrade = '-';
+        gradeCounts.forEach((count, grade) => {
+          if (count > maxCount) {
+            maxCount = count;
+            averageGrade = grade;
+          }
+        });
+
+        return {
+          paperCode,
+          totalAttempts: results.length,
+          averageScore: { awarded: avgAwarded, total: avgTotal, percentage: avgPercentage },
+          highestGrade,
+          averageGrade
+        };
+      });
+
+      setPaperCodeStats(stats);
+    } else {
+      setPaperCodeStats([]);
+    }
+  }, [allMarkingResults, selectedQualification, selectedExamBoard, selectedPaperCodeSet]);
+
+  // Fetch subjects on mount
   useEffect(() => {
     fetchSubjects();
   }, [fetchSubjects]);
 
+  // Fetch marking results when subject changes
   useEffect(() => {
-    if (activeSubject) {
-      fetchMarkingResults(activeSubject);
+    if (selectedSubject) {
+      fetchMarkingResults(selectedSubject);
     }
-  }, [activeSubject, fetchMarkingResults]);
+  }, [selectedSubject, fetchMarkingResults]);
+
+  // Fetch grade boundaries when qualification or subject changes
+  useEffect(() => {
+    if (selectedQualification && selectedSubject) {
+      fetchGradeBoundaries(selectedQualification, selectedSubject);
+    }
+  }, [selectedQualification, selectedSubject, fetchGradeBoundaries]);
+
+  // Reset exam board and paper code set when qualification or subject changes
+  useEffect(() => {
+    setSelectedExamBoard('');
+    setSelectedPaperCodeSet(null);
+    setAvailableExamBoards([]);
+    setAvailablePaperCodeSets([]);
+  }, [selectedQualification, selectedSubject]);
+
+  // Set default exam board based on most recent marking result
+  useEffect(() => {
+    if (availableExamBoards.length > 0 && !selectedExamBoard && allMarkingResults.length > 0 && selectedQualification) {
+      // Find most recent marking result for this qualification and subject
+      const filteredByQualification = allMarkingResults.filter(mr =>
+        mr.examMetadata.qualification === selectedQualification &&
+        mr.examMetadata.examBoard &&
+        availableExamBoards.includes(mr.examMetadata.examBoard)
+      );
+      
+      if (filteredByQualification.length > 0) {
+        // Sort by timestamp (newest first)
+        filteredByQualification.sort((a, b) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        // Use exam board from most recent result
+        const mostRecentExamBoard = filteredByQualification[0].examMetadata.examBoard;
+        if (availableExamBoards.includes(mostRecentExamBoard)) {
+          setSelectedExamBoard(mostRecentExamBoard);
+        } else {
+          setSelectedExamBoard(availableExamBoards[0]);
+        }
+      } else {
+        setSelectedExamBoard(availableExamBoards[0]);
+      }
+    } else if (availableExamBoards.length > 0 && !selectedExamBoard) {
+      // Fallback to first available if no marking results yet
+      setSelectedExamBoard(availableExamBoards[0]);
+    }
+  }, [availableExamBoards, allMarkingResults, selectedQualification, selectedExamBoard]);
 
   if (loading) {
     return (
       <div className="analysis-page">
-        <div className="analysis-loading">Loading sessions...</div>
+        <div className="analysis-loading">Loading...</div>
       </div>
     );
   }
@@ -152,39 +397,87 @@ const AnalysisPage: React.FC = () => {
 
       {availableSubjects.length > 0 ? (
         <>
+          {/* Level 1: Qualification */}
+          {availableQualifications.length > 0 && (
+            <QualificationSelector
+              selectedQualification={selectedQualification}
+              availableQualifications={availableQualifications}
+              onChange={setSelectedQualification}
+            />
+          )}
+
+          {/* Level 2: Subject */}
           <div className="subject-tabs-container">
             {availableSubjects.map((subject) => (
               <button
                 key={subject}
-                className={`subject-tab ${activeSubject === subject ? 'active' : ''}`}
-                onClick={() => setActiveSubject(subject)}
+                className={`subject-tab ${selectedSubject === subject ? 'active' : ''}`}
+                onClick={() => setSelectedSubject(subject)}
               >
                 {subject}
               </button>
             ))}
           </div>
 
+          {/* Level 3 & 4: Exam Board and Paper Code Set (side by side in single container) */}
+          {selectedSubject && (availableExamBoards.length > 0 || availablePaperCodeSets.length > 0) && (
+            <div className="exam-board-paper-code-container">
+              {availableExamBoards.length > 0 && (
+                <ExamBoardSelector
+                  selectedExamBoard={selectedExamBoard}
+                  availableExamBoards={availableExamBoards}
+                  onChange={setSelectedExamBoard}
+                />
+              )}
+              {selectedExamBoard && availablePaperCodeSets.length > 0 && (
+                <PaperCodeSetSelector
+                  selectedPaperCodeSet={selectedPaperCodeSet}
+                  availablePaperCodeSets={availablePaperCodeSets}
+                  onChange={setSelectedPaperCodeSet}
+                />
+              )}
+            </div>
+          )}
+
           <div className="analysis-content">
-            {activeSubject && (
+            {selectedSubject && (
               <>
-                {/* Marking Results Table - Show immediately */}
-                {markingResults.length > 0 && (
+                {/* Paper Code Aggregated Stats */}
+                {selectedPaperCodeSet && paperCodeStats.length > 0 && (
+                  <div className="aggregated-stats-section">
+                    <PaperCodeAggregatedStats
+                      stats={paperCodeStats}
+                      paperCodeSet={selectedPaperCodeSet}
+                    />
+                  </div>
+                )}
+
+                {/* Marking Results Table */}
+                {filteredMarkingResults.length > 0 && (
                   <div className="marking-results-section">
                     <h2>Marking Results</h2>
-                    <MarkingResultsTable 
-                      markingResults={markingResults}
-                      subject={activeSubject}
-                      onDelete={() => fetchMarkingResults(activeSubject)}
+                    {selectedPaperCodeSet && (
+                      <p className="filter-indicator">
+                        Showing results for paper codes: {selectedPaperCodeSet.join(', ')}
+                      </p>
+                    )}
+                    <MarkingResultsTable
+                      markingResults={filteredMarkingResults}
+                      subject={selectedSubject}
+                      onDelete={() => fetchMarkingResults(selectedSubject)}
                       getAuthToken={getAuthToken}
                     />
                   </div>
                 )}
-                
-                {/* Analysis Report - May trigger in background */}
+
+                {/* Analysis Report */}
                 <div className="analysis-section">
                   <h2>Performance Analysis</h2>
                   <AnalysisReport
-                    subject={activeSubject}
+                    subject={selectedSubject}
+                    qualification={selectedQualification}
+                    examBoard={selectedExamBoard}
+                    paperCodeSet={selectedPaperCodeSet}
                     reAnalysisNeeded={reAnalysisNeeded}
                   />
                 </div>
