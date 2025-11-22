@@ -355,7 +355,9 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
                             <span className="exam-code-title">
                               Exam Code: {examCodeGroup.examCode || (paperCode ? `[${paperCode}]` : 'N/A')}
                               {examCodeGroup.records.length > 0 && (
-                                <span className="record-count"> ({examCodeGroup.records.length} record{examCodeGroup.records.length !== 1 ? 's' : ''})</span>
+                                <span className="record-count">
+                                  {' '}({examCodeGroup.records.length} total, showing latest {Math.min(10, examCodeGroup.records.length)})
+                                </span>
                               )}
                             </span>
                             {examCodeGroup.records.length > 0 && (
@@ -368,7 +370,14 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
                           </div>
 
                           {/* Individual Records Table */}
-                          {isExamCodeExpanded && examCodeGroup.records.length > 0 && (
+                          {isExamCodeExpanded && examCodeGroup.records.length > 0 && (() => {
+                            // Sort records by timestamp (newest first) and limit to last 10
+                            const sortedRecords = [...examCodeGroup.records].sort((a, b) => 
+                              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                            );
+                            const latest10Records = sortedRecords.slice(0, 10);
+                            
+                            return (
                             <div className="records-table-container">
                               <table className="records-table">
                                 <thead>
@@ -381,7 +390,7 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {examCodeGroup.records.map((result, index) => (
+                                  {latest10Records.map((result, index) => (
                                     <tr key={`${result.sessionId}-${index}`}>
                                       <td className="score-cell">
                                         <span className="score-text">
@@ -458,7 +467,8 @@ const MarkingResultsTableEnhanced: React.FC<MarkingResultsTableEnhancedProps> = 
                                 </tbody>
                               </table>
                             </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       );
                     })}

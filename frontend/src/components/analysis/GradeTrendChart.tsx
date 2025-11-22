@@ -54,6 +54,22 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'examSeries' | 'attempts'>('examSeries');
 
+  // Get unique exam series for x-axis (from all paper code sets)
+  // Limit to latest 10 exam series
+  const examSeriesList = useMemo(() => {
+    const series = new Set<string>();
+    allGroupedResults.forEach(({ grouped }) => {
+      grouped.forEach(group => series.add(group.examSeries));
+    });
+    const sorted = Array.from(series).sort((a, b) => {
+      const dateA = parseExamSeriesDate(a);
+      const dateB = parseExamSeriesDate(b);
+      return dateB.getTime() - dateA.getTime(); // Sort newest first
+    });
+    // Take latest 10, then sort oldest to newest for display
+    return sorted.slice(0, 10).reverse();
+  }, [allGroupedResults]);
+
   // Prepare chart data for Grade vs Exam Series view
   const chartDataExamSeries = useMemo(() => {
     if (!allGroupedResults || allGroupedResults.length === 0) return [];
@@ -117,8 +133,12 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
     // Sort by date
     const allPoints = dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    return allPoints;
-  }, [allGroupedResults]);
+    // Filter to only include latest 10 exam series
+    const latestSeries = new Set(examSeriesList);
+    return allPoints.filter(point => 
+      point.examSeries && latestSeries.has(point.examSeries)
+    );
+  }, [allGroupedResults, examSeriesList]);
 
   // Prepare chart data for Grade vs Marking Attempts view
   const chartDataAttempts = useMemo(() => {
@@ -196,9 +216,17 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
     });
 
     // Create data points with attempt numbers
+    // Limit to latest 10 attempts per paper code
     paperCodeGroups.forEach((records, paperCode) => {
-      records.forEach((record, index) => {
-        const attemptNumber = index + 1;
+      // Take latest 10 attempts (most recent)
+      const latestRecords = records.slice(-10);
+      latestRecords.forEach((record, index) => {
+        // Recalculate attempt number based on position in latest 10
+        // If we have 15 attempts total, and we're showing last 10, 
+        // the first of the last 10 should be attempt 6, not attempt 1
+        const totalAttempts = records.length;
+        const startAttemptNumber = Math.max(1, totalAttempts - 9);
+        const attemptNumber = startAttemptNumber + index;
         const avgGrade = record.grade;
 
         dataPoints.push({
@@ -215,26 +243,27 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       (a.attemptNumber || 0) - (b.attemptNumber || 0)
     );
 
-    return allPoints;
+    // Get unique attempt numbers to determine latest 10
+    const attemptNumbers = new Set<number>();
+    allPoints.forEach(point => {
+      if (point.attemptNumber !== undefined) {
+        attemptNumbers.add(point.attemptNumber);
+      }
+    });
+    const sortedAttempts = Array.from(attemptNumbers).sort((a, b) => a - b);
+    const latest10Attempts = new Set(sortedAttempts.slice(-10));
+
+    // Filter to only include latest 10 attempts
+    return allPoints.filter(point => 
+      point.attemptNumber !== undefined && latest10Attempts.has(point.attemptNumber)
+    );
   }, [allGroupedResults]);
 
   // Use appropriate chart data based on active tab
   const chartData = activeTab === 'examSeries' ? chartDataExamSeries : chartDataAttempts;
 
-  // Get unique exam series for x-axis (from all paper code sets)
-  const examSeriesList = useMemo(() => {
-    const series = new Set<string>();
-    allGroupedResults.forEach(({ grouped }) => {
-      grouped.forEach(group => series.add(group.examSeries));
-    });
-    return Array.from(series).sort((a, b) => {
-      const dateA = parseExamSeriesDate(a);
-      const dateB = parseExamSeriesDate(b);
-      return dateA.getTime() - dateB.getTime();
-    });
-  }, [allGroupedResults]);
-
   // Get unique attempt numbers for x-axis
+  // Limit to latest 10 attempts
   const attemptNumbersList = useMemo(() => {
     const attempts = new Set<number>();
     chartDataAttempts.forEach(point => {
@@ -242,7 +271,9 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
         attempts.add(point.attemptNumber);
       }
     });
-    return Array.from(attempts).sort((a, b) => a - b);
+    const sorted = Array.from(attempts).sort((a, b) => a - b);
+    // Take latest 10 attempts
+    return sorted.slice(-10);
   }, [chartDataAttempts]);
 
   // Calculate chart dimensions
