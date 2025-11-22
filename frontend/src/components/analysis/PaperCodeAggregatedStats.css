@@ -75,6 +75,28 @@
   color: var(--text-brand);
 }
 
+/* Dim styling for cards with no attempts */
+.paper-code-stat-card.no-attempts {
+  opacity: 0.5;
+  background: var(--background-gray-main);
+}
+
+.paper-code-stat-card.no-attempts h3 {
+  color: var(--text-tertiary);
+}
+
+.paper-code-stat-card.no-attempts .stat-label {
+  color: var(--text-tertiary);
+}
+
+.paper-code-stat-card.no-attempts .stat-value {
+  color: var(--text-tertiary);
+}
+
+.paper-code-stat-card.no-attempts .stat-value.grade {
+  color: var(--text-tertiary);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .paper-code-stats-grid {

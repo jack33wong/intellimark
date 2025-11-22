@@ -11,7 +11,8 @@ import {
   ExamBoardSelector,
   PaperCodeSetSelector,
   PaperCodeAggregatedStats,
-  MarkingResultsTableEnhanced
+  MarkingResultsTableEnhanced,
+  ExamSeriesTierReminder
 } from '../components/analysis';
 import './AnalysisPage.css';
 
@@ -80,6 +81,7 @@ const AnalysisPage: React.FC = () => {
   const [allMarkingResults, setAllMarkingResults] = useState<MarkingResult[]>([]);
   const [filteredMarkingResults, setFilteredMarkingResults] = useState<MarkingResult[]>([]);
   const [paperCodeStats, setPaperCodeStats] = useState<PaperCodeStat[]>([]);
+  const [gradeBoundaries, setGradeBoundaries] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [reAnalysisNeeded, setReAnalysisNeeded] = useState(false);
 
@@ -112,6 +114,9 @@ const AnalysisPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.gradeBoundaries) {
+          // Store full grade boundaries for reminder component
+          setGradeBoundaries(data.gradeBoundaries);
+
           // Extract exam boards
           const examBoards = Array.from(
             new Set(data.gradeBoundaries.map((gb: any) => gb.exam_board))
@@ -373,7 +378,8 @@ const AnalysisPage: React.FC = () => {
   // Set default exam board based on most recent marking result
   useEffect(() => {
     // Wait for both marking results and available exam boards to be ready
-    if (!selectedExamBoard && allMarkingResults.length > 0 && availableExamBoards.length > 0 && selectedQualification && selectedSubject) {
+    // Only set default if exam board is not already set (to avoid overriding user selection)
+    if (allMarkingResults.length > 0 && availableExamBoards.length > 0 && selectedQualification && selectedSubject) {
       // Get all marking results for this qualification and subject, sorted by newest first
       const relevantResults = allMarkingResults
         .filter(mr =>
@@ -385,63 +391,56 @@ const AnalysisPage: React.FC = () => {
         );
       
       if (relevantResults.length > 0) {
-        // Get unique exam boards from marking results (in order of most recent)
-        const boardsFromResults = Array.from(
-          new Set(relevantResults.map(mr => mr.examMetadata.examBoard))
-        );
+        // Get the exam board from the most recent marking result
+        const mostRecentResult = relevantResults[0];
+        const mostRecentBoard = mostRecentResult.examMetadata.examBoard;
         
-        // Try exact match first
-        const exactMatch = boardsFromResults.find(board => 
-          availableExamBoards.includes(board)
-        );
+        // Check if we need to set or update the exam board
+        const shouldUpdate = !selectedExamBoard || 
+          (selectedExamBoard !== mostRecentBoard && 
+           normalizeExamBoard(selectedExamBoard) !== normalizeExamBoard(mostRecentBoard));
         
-        if (exactMatch) {
-          setSelectedExamBoard(exactMatch);
-          return;
-        }
-        
-        // Try normalized match
-        const normalizedMatch = boardsFromResults.find(resultBoard => {
-          const normalizedResult = normalizeExamBoard(resultBoard);
-          return availableExamBoards.some(availableBoard => 
-            normalizeExamBoard(availableBoard) === normalizedResult
-          );
-        });
-        
-        if (normalizedMatch) {
-          // Find the corresponding available exam board
+        if (shouldUpdate) {
+          // Try exact match first
+          if (availableExamBoards.includes(mostRecentBoard)) {
+            setSelectedExamBoard(mostRecentBoard);
+            return;
+          }
+          
+          // Try normalized match
           const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
-            normalizeExamBoard(availableBoard) === normalizeExamBoard(normalizedMatch)
+            normalizeExamBoard(availableBoard) === normalizeExamBoard(mostRecentBoard)
           );
+          
           if (matchingAvailableBoard) {
             setSelectedExamBoard(matchingAvailableBoard);
             return;
           }
-        }
-        
-        // If no match, find which available exam board has the most results (with normalization)
-        const boardCounts = new Map<string, number>();
-        relevantResults.forEach(mr => {
-          const resultBoard = mr.examMetadata.examBoard;
-          const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
-            normalizeExamBoard(availableBoard) === normalizeExamBoard(resultBoard)
-          );
-          if (matchingAvailableBoard) {
-            boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
+          
+          // If no match, find which available exam board has the most results (with normalization)
+          const boardCounts = new Map<string, number>();
+          relevantResults.forEach(mr => {
+            const resultBoard = mr.examMetadata.examBoard;
+            const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
+              normalizeExamBoard(availableBoard) === normalizeExamBoard(resultBoard)
+            );
+            if (matchingAvailableBoard) {
+              boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
+            }
+          });
+          
+          if (boardCounts.size > 0) {
+            // Get the exam board with most results
+            const bestBoard = Array.from(boardCounts.entries())
+              .sort((a, b) => b[1] - a[1])[0][0];
+            setSelectedExamBoard(bestBoard);
+          } else if (!selectedExamBoard) {
+            // No matching board found, use first available only if not set
+            setSelectedExamBoard(availableExamBoards[0]);
           }
-        });
-        
-        if (boardCounts.size > 0) {
-          // Get the exam board with most results
-          const bestBoard = Array.from(boardCounts.entries())
-            .sort((a, b) => b[1] - a[1])[0][0];
-          setSelectedExamBoard(bestBoard);
-        } else {
-          // No matching board found, use first available
-          setSelectedExamBoard(availableExamBoards[0]);
         }
-      } else {
-        // No results for this qualification/subject, use first available
+      } else if (!selectedExamBoard) {
+        // No results for this qualification/subject, use first available only if not set
         setSelectedExamBoard(availableExamBoards[0]);
       }
     } else if (availableExamBoards.length > 0 && !selectedExamBoard) {
@@ -512,6 +511,18 @@ const AnalysisPage: React.FC = () => {
           <div className="analysis-content">
             {selectedSubject && (
               <>
+                {/* Exam Series and Tier Reminder */}
+                {selectedExamBoard && gradeBoundaries.length > 0 && availablePaperCodeSets.length > 0 && (
+                  <ExamSeriesTierReminder
+                    markingResults={allMarkingResults}
+                    gradeBoundaries={gradeBoundaries}
+                    availablePaperCodeSets={availablePaperCodeSets}
+                    selectedExamBoard={selectedExamBoard}
+                    selectedQualification={selectedQualification}
+                    selectedSubject={selectedSubject}
+                  />
+                )}
+
                 {/* Paper Code Aggregated Stats */}
                 {selectedPaperCodeSet && paperCodeStats.length > 0 && (
                   <div className="aggregated-stats-section">

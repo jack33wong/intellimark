@@ -13,4 +13,5 @@ export { default as QualificationSelector } from './QualificationSelector';
 export { default as ExamBoardSelector } from './ExamBoardSelector';
 export { default as PaperCodeSetSelector } from './PaperCodeSetSelector';
 export { default as PaperCodeAggregatedStats } from './PaperCodeAggregatedStats';
+export { default as ExamSeriesTierReminder } from './ExamSeriesTierReminder';
 

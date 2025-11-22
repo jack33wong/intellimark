@@ -1,0 +1,52 @@
+.exam-series-tier-reminder {
+  display: flex;
+  gap: 12px;
+  padding: 2px 6px;
+  background: #fff9e6;
+  border: 1px solid #ffd700;
+  border-radius: 6px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+.reminder-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.reminder-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  color: #856404;
+  line-height: 1.5;
+}
+
+.reminder-title {
+  font-weight: 600;
+  color: #856404;
+}
+
+.reminder-text {
+  color: #856404;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .exam-series-tier-reminder {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .reminder-title {
+    font-size: 13px;
+  }
+
+  .reminder-details {
+    font-size: 12px;
+  }
+}
+

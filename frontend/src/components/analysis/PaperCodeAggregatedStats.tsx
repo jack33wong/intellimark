@@ -35,7 +35,10 @@ const PaperCodeAggregatedStats: React.FC<PaperCodeAggregatedStatsProps> = ({
     <div className="paper-code-aggregated-stats">
       <div className="paper-code-stats-grid">
         {stats.map((stat) => (
-          <div key={stat.paperCode} className="paper-code-stat-card">
+          <div 
+            key={stat.paperCode} 
+            className={`paper-code-stat-card ${stat.totalAttempts === 0 ? 'no-attempts' : ''}`}
+          >
             <h3>Paper Code: {stat.paperCode}</h3>
             <div className="stat-list">
               <div className="stat-item">
