@@ -1,9 +1,10 @@
 /**
  * Paper Code Set Selector Component
- * Dropdown for selecting paper code set (e.g., [1H 2H 3H], [1F 2F 3F])
+ * Custom dropdown for selecting paper code set (e.g., [1H 2H 3H], [1F 2F 3F])
+ * Follows ModelSelector pattern for consistent design
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './PaperCodeSetSelector.css';
 
 interface PaperCodeSet {
@@ -22,35 +23,85 @@ const PaperCodeSetSelector: React.FC<PaperCodeSetSelectorProps> = ({
   availablePaperCodeSets,
   onChange
 }) => {
-  if (availablePaperCodeSets.length === 0) {
-    return null;
-  }
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const getDisplayName = (set: PaperCodeSet): string => {
     return `[${set.paperCodes.join(' ')}] (${set.tier})`;
   };
 
+  const getSelectedDisplayName = (): string => {
+    if (!selectedPaperCodeSet) {
+      return 'All Paper Codes';
+    }
+    const matchingSet = availablePaperCodeSets.find(
+      set => JSON.stringify(set.paperCodes) === JSON.stringify(selectedPaperCodeSet)
+    );
+    return matchingSet ? getDisplayName(matchingSet) : 'All Paper Codes';
+  };
+
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleSelect = (paperCodeSet: string[] | null) => {
+    onChange(paperCodeSet);
+    setIsOpen(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  if (availablePaperCodeSets.length === 0) {
+    return null;
+  }
+
+  const isSelected = (paperCodes: string[] | null): boolean => {
+    if (!selectedPaperCodeSet && !paperCodes) return true;
+    if (!selectedPaperCodeSet || !paperCodes) return false;
+    return JSON.stringify(selectedPaperCodeSet) === JSON.stringify(paperCodes);
+  };
+
   return (
-    <div className="paper-code-set-selector-container">
-      <label htmlFor="paper-code-set-selector" className="selector-label">
-        Paper Code Set:
-      </label>
-      <select
-        id="paper-code-set-selector"
-        className="paper-code-set-selector"
-        value={selectedPaperCodeSet ? JSON.stringify(selectedPaperCodeSet) : ''}
-        onChange={(e) => {
-          const value = e.target.value;
-          onChange(value ? JSON.parse(value) : null);
-        }}
+    <div className="paper-code-set-selector-container" ref={dropdownRef}>
+      <button
+        type="button"
+        className="paper-code-set-selector-button"
+        onClick={handleToggle}
       >
-        <option value="">All Paper Codes</option>
-        {availablePaperCodeSets.map((set, index) => (
-          <option key={index} value={JSON.stringify(set.paperCodes)}>
-            {getDisplayName(set)}
-          </option>
-        ))}
-      </select>
+        <div className="paper-code-set-selector-content">
+          <span className="paper-code-set-selector-label">{getSelectedDisplayName()}</span>
+          <span className="paper-code-set-selector-arrow">▼</span>
+        </div>
+      </button>
+      {isOpen && (
+        <div className="paper-code-set-selector-dropdown">
+          <div
+            className={`paper-code-set-selector-option ${isSelected(null) ? 'selected' : ''}`}
+            onClick={() => handleSelect(null)}
+          >
+            All Paper Codes
+          </div>
+          {availablePaperCodeSets.map((set, index) => (
+            <div
+              key={index}
+              className={`paper-code-set-selector-option ${isSelected(set.paperCodes) ? 'selected' : ''}`}
+              onClick={() => handleSelect(set.paperCodes)}
+            >
+              {getDisplayName(set)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

@@ -33,7 +33,6 @@ const PaperCodeAggregatedStats: React.FC<PaperCodeAggregatedStatsProps> = ({
 
   return (
     <div className="paper-code-aggregated-stats">
-      <h2>Aggregated Statistics (by Paper Code)</h2>
       <div className="paper-code-stats-grid">
         {stats.map((stat) => (
           <div key={stat.paperCode} className="paper-code-stat-card">

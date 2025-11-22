@@ -27,22 +27,44 @@
 
 /* Selectors */
 .qualification-selector-container {
-  margin-bottom: 16px;
-}
-
-/* Exam Board and Paper Code Set Container (side by side) */
-.exam-board-paper-code-container {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-  align-items: flex-start;
-}
-
-.exam-board-paper-code-container .exam-board-selector-container,
-.exam-board-paper-code-container .paper-code-set-selector-container {
-  flex: 1;
   margin-bottom: 0;
-  min-width: 0; /* Allows flex items to shrink below their content size */
+}
+
+/* Qualification, Exam Board and Paper Code Set Container (in one container) */
+.qualification-exam-board-paper-code-container {
+  display: grid;
+  grid-template-columns: minmax(100px, 120px) minmax(150px, 200px) 1fr;
+  gap: 4px;
+  margin-bottom: 12px;
+  max-width: 700px;
+  align-items: start;
+}
+
+.qualification-exam-board-paper-code-container .qualification-selector-container,
+.qualification-exam-board-paper-code-container .exam-board-selector-container,
+.qualification-exam-board-paper-code-container .paper-code-set-selector-container {
+  margin-bottom: 0;
+  position: relative;
+  min-width: 0; /* Allows grid items to shrink below their content size */
+  overflow: visible; /* Ensure dropdown is not clipped */
+}
+
+/* Ensure dropdown menus appear below and match select width */
+.qualification-exam-board-paper-code-container .qualification-selector-container select,
+.qualification-exam-board-paper-code-container .exam-board-selector-container select,
+.qualification-exam-board-paper-code-container .paper-code-set-selector-container select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+/* When select is focused/open, ensure dropdown appears correctly */
+.qualification-exam-board-paper-code-container .qualification-selector-container select:focus,
+.qualification-exam-board-paper-code-container .exam-board-selector-container select:focus,
+.qualification-exam-board-paper-code-container .paper-code-set-selector-container select:focus {
+  z-index: 10;
 }
 
 /* Subject Tabs */

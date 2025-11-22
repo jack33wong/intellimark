@@ -24,18 +24,6 @@ export interface AnalysisResult {
   };
   strengths: string[];          // AI-identified strengths
   weaknesses: string[];         // AI-identified weaknesses
-  topicAnalysis: Array<{
-    topic: string;
-    performance: 'strong' | 'weak' | 'average';
-    score: string;
-    recommendation: string;
-  }>;
-  recommendations: {
-    immediate: string[];        // Immediate action items
-    studyFocus: string[];       // Areas to focus on
-    practiceAreas: string[];    // Specific practice needed
-  };
-  nextSteps: string[];          // Actionable next steps
 }
 
 export interface MarkingDataForAnalysis {

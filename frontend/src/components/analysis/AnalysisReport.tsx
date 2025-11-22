@@ -6,8 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import StrengthsWeaknesses from './StrengthsWeaknesses';
-import TopicAnalysis from './TopicAnalysis';
-import NextSteps from './NextSteps';
 import './AnalysisReport.css';
 
 interface AnalysisResult {
@@ -21,13 +19,6 @@ interface AnalysisResult {
   };
   strengths: string[];
   weaknesses: string[];
-  topicAnalysis: Array<{
-    topic: string;
-    performance: 'strong' | 'weak' | 'average';
-    score: string;
-    recommendation: string;
-  }>;
-  nextSteps: string[];
 }
 
 interface AnalysisReportProps {
@@ -276,14 +267,6 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       <StrengthsWeaknesses 
         strengths={analysis.strengths}
         weaknesses={analysis.weaknesses}
-      />
-      
-      <TopicAnalysis 
-        topics={analysis.topicAnalysis}
-      />
-      
-      <NextSteps 
-        nextSteps={analysis.nextSteps}
       />
     </div>
   );

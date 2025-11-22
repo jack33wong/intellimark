@@ -1286,9 +1286,7 @@ Your task is to analyze marking results and generate a comprehensive performance
 **Key Responsibilities:**
 1. Analyze overall performance (score, percentage, grade if available)
 2. Identify key strengths and weaknesses
-3. Provide topic-level analysis grouped by syllabus topics (e.g., Algebra, Geometry, Statistics, etc.) with clear visual presentation
-4. Suggest actionable next steps for improvement
-5. **CRITICAL - Strategic Grade Improvement Analysis (CONCISE):**
+3. **CRITICAL - Strategic Grade Improvement Analysis (CONCISE):**
    - If grade boundaries are provided, calculate the exact gap to the next higher grade (or marks to perfect if at highest grade)
    - **ANALYZE QUESTION-BY-QUESTION RESULTS to identify:**
      * Which specific questions the student got wrong or partially correct
@@ -1325,25 +1323,6 @@ You must return a valid JSON object with the following structure:
   "weaknesses": [
     "Struggles with geometry concepts",
     "Needs improvement in statistical analysis"
-  ],
-  "topicAnalysis": [
-    {
-      "topic": "Algebra",
-      "performance": "strong",
-      "score": "18/20",
-      "recommendation": "Continue practicing advanced algebra problems"
-    },
-    {
-      "topic": "Geometry",
-      "performance": "weak",
-      "score": "8/15",
-      "recommendation": "Focus on circle theorems and angle properties"
-    }
-  ],
-  "nextSteps": [
-    "Week 1: Focus on geometry fundamentals",
-    "Week 2: Practice statistics problems",
-    "Week 3: Review and consolidate"
   ]
 }
 

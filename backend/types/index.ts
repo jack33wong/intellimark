@@ -407,16 +407,10 @@ export interface SubjectMarkingResult {
             grade?: string;
             averageGrade?: string;
             summary: string;
+            gradeAnalysis?: string;     // Strategic grade improvement analysis
           };
           strengths: string[];
           weaknesses: string[];
-          topicAnalysis: Array<{
-            topic: string;
-            performance: 'strong' | 'weak' | 'average';
-            score: string;
-            recommendation: string;
-          }>;
-          nextSteps: string[];
           generatedAt: string;          // ISO date
           modelUsed: string;            // AI model used for analysis
         };

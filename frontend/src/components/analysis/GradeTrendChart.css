@@ -1,0 +1,132 @@
+/* Grade Trend Chart Styles */
+
+.grade-trend-chart-container {
+  background: var(--background-tertiary);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 12px;
+  height: 100%; /* Match the height of the table column */
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden; /* Prevent chart from exceeding container */
+  max-height: 100%; /* Ensure it doesn't exceed parent */
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-main);
+  padding-bottom: 0;
+}
+
+.chart-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  bottom: -1px;
+}
+
+.chart-tab:hover {
+  color: var(--text-primary);
+  background: var(--background-gray-main);
+}
+
+.chart-tab.active {
+  color: var(--text-brand);
+  border-bottom-color: var(--text-brand);
+  font-weight: 600;
+}
+
+.chart-tab svg {
+  flex-shrink: 0;
+}
+
+.chart-wrapper {
+  width: 100%;
+  overflow: hidden; /* Remove scrollbar */
+  margin-bottom: 20px;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+}
+
+.chart-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Legend */
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-main);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-color {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .grade-trend-chart-container {
+    min-height: 350px;
+  }
+}
+
+@media (max-width: 768px) {
+  .grade-trend-chart-container {
+    padding: 16px;
+    min-height: 300px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .legend-item {
+    font-size: 11px;
+  }
+}
+

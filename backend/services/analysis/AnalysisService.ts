@@ -632,14 +632,7 @@ export class AnalysisService {
           gradeAnalysis: parsed.performance?.gradeAnalysis || undefined // Strategic grade improvement analysis
         },
         strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-        weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
-        topicAnalysis: Array.isArray(parsed.topicAnalysis) ? parsed.topicAnalysis : [],
-        recommendations: {
-          immediate: [], // Removed - no longer used
-          studyFocus: [], // Removed - no longer used
-          practiceAreas: [] // Removed - no longer used
-        },
-        nextSteps: Array.isArray(parsed.nextSteps) ? parsed.nextSteps : []
+        weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : []
       };
       
     } catch (error) {
@@ -657,14 +650,7 @@ export class AnalysisService {
           gradeAnalysis: undefined
         },
         strengths: [],
-        weaknesses: [],
-        topicAnalysis: [],
-        recommendations: {
-          immediate: [],
-          studyFocus: [],
-          practiceAreas: []
-        },
-        nextSteps: []
+        weaknesses: []
       };
     }
   }

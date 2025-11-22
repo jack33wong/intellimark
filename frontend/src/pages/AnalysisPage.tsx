@@ -11,7 +11,7 @@ import {
   ExamBoardSelector,
   PaperCodeSetSelector,
   PaperCodeAggregatedStats,
-  MarkingResultsTable
+  MarkingResultsTableEnhanced
 } from '../components/analysis';
 import './AnalysisPage.css';
 
@@ -117,24 +117,36 @@ const AnalysisPage: React.FC = () => {
             new Set(data.gradeBoundaries.map((gb: any) => gb.exam_board))
           ).sort() as string[];
 
-          // Extract paper code sets from first grade boundary entry
-          const firstGB = data.gradeBoundaries[0];
-          if (firstGB && firstGB.subjects && firstGB.subjects.length > 0) {
-            const subjectData = firstGB.subjects[0];
-            const paperCodeSets: PaperCodeSet[] = (subjectData.tiers || []).map((tier: any) => ({
-              tier: tier.tier_level,
-              paperCodes: tier.paper_codes || []
-            }));
-
-            setAvailableExamBoards(examBoards);
-            setAvailablePaperCodeSets(paperCodeSets);
-            if (paperCodeSets.length > 0 && !selectedPaperCodeSet) {
-              // Default to higher tier if available
-              const higherTier = paperCodeSets.find(s => 
-                s.tier.toLowerCase().includes('higher')
-              );
-              setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : paperCodeSets[0].paperCodes);
+          // Extract paper code sets from all grade boundary entries
+          // Collect all unique tier combinations across all grade boundaries
+          const tierMap = new Map<string, PaperCodeSet>();
+          
+          data.gradeBoundaries.forEach((gb: any) => {
+            if (gb.subjects && gb.subjects.length > 0) {
+              const subjectData = gb.subjects[0];
+              (subjectData.tiers || []).forEach((tier: any) => {
+                const tierKey = tier.tier_level.toLowerCase();
+                // Only add if we haven't seen this tier level before, or if it has more paper codes
+                if (!tierMap.has(tierKey) || (tier.paper_codes && tier.paper_codes.length > (tierMap.get(tierKey)?.paperCodes.length || 0))) {
+                  tierMap.set(tierKey, {
+                    tier: tier.tier_level,
+                    paperCodes: tier.paper_codes || []
+                  });
+                }
+              });
             }
+          });
+
+          const paperCodeSets: PaperCodeSet[] = Array.from(tierMap.values());
+
+          setAvailableExamBoards(examBoards);
+          setAvailablePaperCodeSets(paperCodeSets);
+          if (paperCodeSets.length > 0 && !selectedPaperCodeSet) {
+            // Default to higher tier if available
+            const higherTier = paperCodeSets.find(s => 
+              s.tier.toLowerCase().includes('higher')
+            );
+            setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : paperCodeSets[0].paperCodes);
           }
         }
       }
@@ -247,13 +259,8 @@ const AnalysisPage: React.FC = () => {
       );
     }
 
-    // Filter by paper code set
-    if (selectedPaperCodeSet && selectedPaperCodeSet.length > 0) {
-      filtered = filtered.filter(mr => {
-        const paperCode = extractPaperCode(mr.examMetadata.examCode);
-        return paperCode && selectedPaperCodeSet.includes(paperCode);
-      });
-    }
+    // Note: We don't filter by paper code set here anymore
+    // The table component will group by all available paper code sets from grade boundaries
 
     // Sort by date (newest first), then by exam code
     filtered.sort((a, b) => {
@@ -462,15 +469,6 @@ const AnalysisPage: React.FC = () => {
 
       {availableSubjects.length > 0 ? (
         <>
-          {/* Level 1: Qualification */}
-          {availableQualifications.length > 0 && (
-            <QualificationSelector
-              selectedQualification={selectedQualification}
-              availableQualifications={availableQualifications}
-              onChange={setSelectedQualification}
-            />
-          )}
-
           {/* Level 2: Subject */}
           <div className="subject-tabs-container">
             {availableSubjects.map((subject) => (
@@ -484,9 +482,16 @@ const AnalysisPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Level 3 & 4: Exam Board and Paper Code Set (side by side in single container) */}
-          {selectedSubject && (availableExamBoards.length > 0 || availablePaperCodeSets.length > 0) && (
-            <div className="exam-board-paper-code-container">
+          {/* Level 1, 3 & 4: Qualification, Exam Board and Paper Code Set (in one container) */}
+          {selectedSubject && (availableQualifications.length > 0 || availableExamBoards.length > 0 || availablePaperCodeSets.length > 0) && (
+            <div className="qualification-exam-board-paper-code-container">
+              {availableQualifications.length > 0 && (
+                <QualificationSelector
+                  selectedQualification={selectedQualification}
+                  availableQualifications={availableQualifications}
+                  onChange={setSelectedQualification}
+                />
+              )}
               {availableExamBoards.length > 0 && (
                 <ExamBoardSelector
                   selectedExamBoard={selectedExamBoard}
@@ -518,16 +523,11 @@ const AnalysisPage: React.FC = () => {
                 )}
 
                 {/* Marking Results Table */}
-                {filteredMarkingResults.length > 0 && (
+                {filteredMarkingResults.length > 0 && availablePaperCodeSets.length > 0 && (
                   <div className="marking-results-section">
-                    <h2>Marking Results</h2>
-                    {selectedPaperCodeSet && (
-                      <p className="filter-indicator">
-                        Showing results for paper codes: {selectedPaperCodeSet.join(', ')}
-                      </p>
-                    )}
-                    <MarkingResultsTable
+                    <MarkingResultsTableEnhanced
                       markingResults={filteredMarkingResults}
+                      paperCodeSets={availablePaperCodeSets}
                       subject={selectedSubject}
                       onDelete={() => fetchMarkingResults(selectedSubject)}
                       getAuthToken={getAuthToken}
@@ -537,7 +537,6 @@ const AnalysisPage: React.FC = () => {
 
                 {/* Analysis Report */}
                 <div className="analysis-section">
-                  <h2>Performance Analysis</h2>
                   <AnalysisReport
                     subject={selectedSubject}
                     qualification={selectedQualification}

@@ -88,8 +88,26 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       paperCodeSet
     );
     
-    // 3. If cached analysis exists, return it (cache is per filter combination)
-    if (cachedAnalysis) {
+    // 3. Check if there are newer marking results than the cached analysis
+    let needsRegeneration = false;
+    if (cachedAnalysis && cachedAnalysis.generatedAt) {
+      // Find the most recent marking result timestamp for these filters
+      const mostRecentMarkingResult = filteredResults
+        .map((mr: any) => new Date(mr.timestamp || 0).getTime())
+        .filter((ts: number) => ts > 0)
+        .sort((a: number, b: number) => b - a)[0];
+      
+      const analysisGeneratedAt = new Date(cachedAnalysis.generatedAt).getTime();
+      
+      // If any marking result is newer than the analysis, regenerate
+      if (mostRecentMarkingResult && mostRecentMarkingResult > analysisGeneratedAt) {
+        needsRegeneration = true;
+        console.log(`🔄 [ANALYSIS] New marking results detected - regenerating analysis for ${subject}`);
+      }
+    }
+    
+    // 4. If cached analysis exists and is up-to-date, return it
+    if (cachedAnalysis && !needsRegeneration) {
       return res.json({ 
         success: true, 
         analysis: cachedAnalysis,
@@ -97,10 +115,10 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       });
     }
     
-    // 4. Get last analysis report (for cost-saving context)
+    // 5. Get last analysis report (for cost-saving context) - use cached even if regenerating
     const lastAnalysisReport = cachedAnalysis || null;
     
-    // 5. Generate new analysis (with last report context and filters)
+    // 6. Generate new analysis (with last report context and filters)
     const analysis = await AnalysisService.generateAnalysis(
       {
         subject,
@@ -113,7 +131,7 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       userId  // Pass userId for subjectMarkingResults lookup
     );
     
-    // 6. Update analysis in subjectMarkingResults with filter keys
+    // 7. Update analysis in subjectMarkingResults with filter keys
     await FirestoreService.updateSubjectAnalysis(
       userId, 
       subject, 
@@ -124,7 +142,7 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       paperCodeSet
     );
     
-    // 7. Return to frontend
+    // 8. Return to frontend
     return res.json({ 
       success: true, 
       analysis,

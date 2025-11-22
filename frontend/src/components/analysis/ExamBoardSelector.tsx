@@ -1,9 +1,10 @@
 /**
  * Exam Board Selector Component
- * Dropdown for selecting exam board (Pearson Edexcel, AQA, etc.)
+ * Custom dropdown for selecting exam board (Pearson Edexcel, AQA, etc.)
+ * Follows ModelSelector pattern for consistent design
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './ExamBoardSelector.css';
 
 interface ExamBoardSelectorProps {
@@ -17,27 +18,59 @@ const ExamBoardSelector: React.FC<ExamBoardSelectorProps> = ({
   availableExamBoards,
   onChange
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleSelect = (examBoard: string) => {
+    onChange(examBoard);
+    setIsOpen(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
   if (availableExamBoards.length === 0) {
     return null;
   }
 
   return (
-    <div className="exam-board-selector-container">
-      <label htmlFor="exam-board-selector" className="selector-label">
-        Exam Board:
-      </label>
-      <select
-        id="exam-board-selector"
-        className="exam-board-selector"
-        value={selectedExamBoard}
-        onChange={(e) => onChange(e.target.value)}
+    <div className="exam-board-selector-container" ref={dropdownRef}>
+      <button
+        type="button"
+        className="exam-board-selector-button"
+        onClick={handleToggle}
       >
-        {availableExamBoards.map((board) => (
-          <option key={board} value={board}>
-            {board}
-          </option>
-        ))}
-      </select>
+        <div className="exam-board-selector-content">
+          <span className="exam-board-selector-label">{selectedExamBoard || 'Select Exam Board'}</span>
+          <span className="exam-board-selector-arrow">▼</span>
+        </div>
+      </button>
+      {isOpen && (
+        <div className="exam-board-selector-dropdown">
+          {availableExamBoards.map((board) => (
+            <div
+              key={board}
+              className={`exam-board-selector-option ${selectedExamBoard === board ? 'selected' : ''}`}
+              onClick={() => handleSelect(board)}
+            >
+              {board}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
