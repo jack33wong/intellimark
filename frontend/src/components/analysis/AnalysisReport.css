@@ -150,6 +150,11 @@
 /* Grade Analysis Section - Different Color */
 .grade-analysis {
   margin-top: 20px;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: var(--background-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-main);
 }
 
 .grade-analysis h3 {

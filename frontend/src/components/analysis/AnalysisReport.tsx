@@ -94,7 +94,11 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       }
       
       // No filters - get existing analysis (legacy support)
-      const getResponse = await fetch(`/api/analysis/${encodeURIComponent(subject)}`, {
+      const apiBaseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://api-f4ov4wv3qq-uc.a.run.app' 
+        : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001');
+      
+      const getResponse = await fetch(`${apiBaseUrl}/api/analysis/${encodeURIComponent(subject)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -152,7 +156,13 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       }
       
       // Generate analysis in background with filters
-      const response = await fetch(`/api/analysis/generate`, {
+      const apiBaseUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://api-f4ov4wv3qq-uc.a.run.app' 
+        : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001');
+      
+      const requestUrl = `${apiBaseUrl}/api/analysis/generate`;
+      
+      const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,12 +177,38 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         })
       });
       
+      if (!response.ok) {
+        // Try to parse error response
+        let errorData: any = null;
+        try {
+          const errorText = await response.text();
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          // If parsing fails, create a default error object
+          errorData = { error: `Failed to generate analysis: ${response.status} ${response.statusText}` };
+        }
+        
+        // For actual errors, log and set error state
+        const errorMessage = errorData?.error || `Failed to generate analysis: ${response.status} ${response.statusText}`;
+        console.error(`❌ Analysis generation failed: ${response.status} ${response.statusText}`, errorMessage);
+        setError(errorMessage);
+        setIsLoading(false);
+        return;
+      }
+      
       const data = await response.json();
       
       if (data.success) {
-        setAnalysis(data.analysis);
-        setReAnalysisNeeded(false);
-        setIsLoading(false);
+        // Handle empty result (no marking results found)
+        if (data.empty || !data.analysis) {
+          setError(null);
+          setAnalysis(null);
+          setIsLoading(false);
+        } else {
+          setAnalysis(data.analysis);
+          setReAnalysisNeeded(false);
+          setIsLoading(false);
+        }
       } else {
         setError(data.error || 'Failed to generate analysis');
         setIsLoading(false);
@@ -204,15 +240,17 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
     );
   }
   
-  if (!analysis) {
+  if (!analysis && !error) {
     return (
       <div className="analysis-empty-state">
-        <p>No analysis available.</p>
-        {!reAnalysisNeeded && (
-          <button onClick={triggerBackgroundAnalysis} className="generate-button">Generate Analysis</button>
-        )}
+        <p>No marking results found for the selected filters.</p>
+        <p className="hint">Try selecting a different exam board or paper code set.</p>
       </div>
     );
+  }
+  
+  if (!analysis) {
+    return null;
   }
   
   return (
@@ -222,6 +260,16 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
         <div className="performance-summary-section">
           <h3>Performance Summary</h3>
           <p>{analysis.performance.summary}</p>
+        </div>
+      )}
+      
+      {/* Grade Analysis - How to maintain or achieve higher grade */}
+      {analysis.performance.gradeAnalysis && (
+        <div className="grade-analysis">
+          <h3>Grade Improvement Strategy</h3>
+          <div className="grade-analysis-text">
+            <p>{analysis.performance.gradeAnalysis}</p>
+          </div>
         </div>
       )}
       

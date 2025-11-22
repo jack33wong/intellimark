@@ -70,9 +70,12 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
     }
     
     if (filteredResults.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: `No marking results found for the selected filters` 
+      // Return empty result with 200 status (not 404 - this is expected when no data matches filters)
+      return res.status(200).json({ 
+        success: true, 
+        analysis: null,
+        empty: true,
+        message: 'No marking results found for the selected filters'
       });
     }
     

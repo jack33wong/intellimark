@@ -350,6 +350,19 @@ const AnalysisPage: React.FC = () => {
     setAvailablePaperCodeSets([]);
   }, [selectedQualification, selectedSubject]);
 
+  // Normalize exam board name for comparison (handles variations like "Pearson Edexcel" vs "Edexcel")
+  const normalizeExamBoard = (board: string): string => {
+    if (!board) return '';
+    const normalized = board.toLowerCase().trim();
+    // Map common variations
+    if (normalized.includes('edexcel')) return 'Pearson Edexcel';
+    if (normalized.includes('aqa')) return 'AQA';
+    if (normalized.includes('ocr')) return 'OCR';
+    if (normalized.includes('wjec')) return 'WJEC';
+    if (normalized.includes('eduqas')) return 'Eduqas';
+    return board; // Return original if no match
+  };
+
   // Set default exam board based on most recent marking result
   useEffect(() => {
     // Wait for both marking results and available exam boards to be ready
@@ -365,21 +378,57 @@ const AnalysisPage: React.FC = () => {
         );
       
       if (relevantResults.length > 0) {
-        // Get exam board from most recent marking result
-        const mostRecentBoard = relevantResults[0].examMetadata.examBoard;
+        // Get unique exam boards from marking results (in order of most recent)
+        const boardsFromResults = Array.from(
+          new Set(relevantResults.map(mr => mr.examMetadata.examBoard))
+        );
         
-        // Check if it exists in available exam boards (exact match)
-        if (availableExamBoards.includes(mostRecentBoard)) {
-          setSelectedExamBoard(mostRecentBoard);
+        // Try exact match first
+        const exactMatch = boardsFromResults.find(board => 
+          availableExamBoards.includes(board)
+        );
+        
+        if (exactMatch) {
+          setSelectedExamBoard(exactMatch);
           return;
         }
         
-        // If no exact match, find which available exam board has the most results
-        const boardsWithResults = new Set(relevantResults.map(mr => mr.examMetadata.examBoard));
-        const matchingBoard = availableExamBoards.find(ab => boardsWithResults.has(ab));
+        // Try normalized match
+        const normalizedMatch = boardsFromResults.find(resultBoard => {
+          const normalizedResult = normalizeExamBoard(resultBoard);
+          return availableExamBoards.some(availableBoard => 
+            normalizeExamBoard(availableBoard) === normalizedResult
+          );
+        });
         
-        if (matchingBoard) {
-          setSelectedExamBoard(matchingBoard);
+        if (normalizedMatch) {
+          // Find the corresponding available exam board
+          const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
+            normalizeExamBoard(availableBoard) === normalizeExamBoard(normalizedMatch)
+          );
+          if (matchingAvailableBoard) {
+            setSelectedExamBoard(matchingAvailableBoard);
+            return;
+          }
+        }
+        
+        // If no match, find which available exam board has the most results (with normalization)
+        const boardCounts = new Map<string, number>();
+        relevantResults.forEach(mr => {
+          const resultBoard = mr.examMetadata.examBoard;
+          const matchingAvailableBoard = availableExamBoards.find(availableBoard =>
+            normalizeExamBoard(availableBoard) === normalizeExamBoard(resultBoard)
+          );
+          if (matchingAvailableBoard) {
+            boardCounts.set(matchingAvailableBoard, (boardCounts.get(matchingAvailableBoard) || 0) + 1);
+          }
+        });
+        
+        if (boardCounts.size > 0) {
+          // Get the exam board with most results
+          const bestBoard = Array.from(boardCounts.entries())
+            .sort((a, b) => b[1] - a[1])[0][0];
+          setSelectedExamBoard(bestBoard);
         } else {
           // No matching board found, use first available
           setSelectedExamBoard(availableExamBoards[0]);
