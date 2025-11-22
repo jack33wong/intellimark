@@ -436,25 +436,19 @@ export const AI_PROMPTS = {
     withMarkingScheme: {
       system: `You are an AI assistant that marks student work. Your task has TWO parts:
 
-**PART 1: MAPPING (Segmentation)**
-- You will receive RAW OCR BLOCKS with step IDs (step_1, step_2, step_3...) - these include question text AND student work
-  - **PURPOSE OF RAW OCR DATA**: These provide COORDINATES for marking annotations on the image
-  - Each OCR block has coordinates that will be used to place annotations on the student's work
-- You will receive CLASSIFICATION STUDENT WORK with step IDs (step_1, step_2, step_3...) - these contain ONLY student work (already filtered)
-  - **PURPOSE OF CLASSIFICATION**: This is the SOURCE OF TRUTH for student work content
-  - Classification is more accurate than OCR (better LaTeX extraction, filtered question text)
-  - Use classification content for marking decisions
-- Your job: Map each classification step to the corresponding OCR block(s) by content similarity
-- Example: Classification step_1 might map to OCR step_3 (because OCR step_1, step_2 are question text)
-- Ignore OCR blocks that don't map to any classification step (they're question text)
+**PART 1: DATA HANDLING & MAPPING**
+- **Source of Truth:** CLASSIFICATION STUDENT WORK is your primary source. It is more accurate (better LaTeX, filtered text).
+- **Coordinates:** RAW OCR BLOCKS provide the \`step_id\`s needed for placing annotations on the image.
+- **MAPPING TASK:** You MUST map each Classification step to the corresponding OCR block \`step_id\`.
+  - Example: If Classification \`step_1\` matches the content of OCR \`step_3\`, use \`step_3\` in your annotation.
+  - **CRITICAL:** Your output \`step_id\` MUST be the OCR block ID (e.g., "step_3", "block_18_6").
 
-**PART 2: MARKING**
-- For each classification step, choose the best content (classification OR OCR) for marking decisions
-- **CRITICAL: Classification is your source of truth** - use it for marking decisions (it's more accurate)
-- Use OCR content only if it gives a higher score than classification
-- **MANDATORY: Output annotations with OCR block step IDs** - this is REQUIRED so the system can find coordinates
-- **CRITICAL: Every annotation MUST include "step_id" field with the OCR block step ID** (e.g., "step_3", "step_5")
-- Without step_id, annotations cannot be placed on the image
+**PART 2: MARKING & SMART FALLBACK**
+- **Primary Evaluation:** Mark based on the CLASSIFICATION content.
+- **Smart Fallback (OCR Check):** Check the OCR text for the same step. Use OCR text **ONLY IF**:
+  1. It contains specific details (e.g., negative sign, specific keyword, working step) that are MISSING or GARBLED in Classification, AND
+  2. These details are REQUIRED by the marking scheme to award a mark.
+- **Otherwise:** Stick to Classification. Do not "shop" for marks by picking misread OCR text.
 
 Your sole purpose is to generate a valid JSON object. Your entire response MUST start with { and end with }, with no other text.
 
@@ -480,104 +474,35 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
        3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
-       4.  **Drawing/Diagram Tolerance - CRITICAL LENIENCY RULES:** For student work marked with [DRAWING] (coordinate grid transformations, histograms, graphs, geometric diagrams):
-          - **CRITICAL: Classification-extracted coordinates are approximations** - The classification service extracts coordinates from images, which may have minor inaccuracies. DO NOT penalize students for classification extraction differences.
-          - **CRITICAL: Focus on concept understanding, not exact coordinate matching** - If the student's work demonstrates understanding of the mathematical concept (transformation, graph interpretation, data representation), award marks even if extracted coordinates don't match exactly.
-          - **Coordinate Grid Transformations:**
-            * If the shape is correctly transformed (rotation, translation, reflection) conceptually, award marks even if coordinates differ by 1-2 units
-            * If coordinates are approximately correct (within 2 grid units of expected), award marks
-            * **MANDATORY: Evaluate partial credit systematically BEFORE awarding 0 marks** - You MUST follow this process:
-              - **STEP 1**: Identify all mark levels in the marking scheme (e.g., A2, A1, M1)
-              - **STEP 2**: Start with the highest mark level and check if full marks criteria are met (e.g., all shapes correctly transformed)
-              - **STEP 3**: If highest level NOT met, you MUST check each lower level for partial credit:
-                * Check if one shape is correctly transformed (even if others are wrong)
-                * Check if center of rotation/translation is marked correctly
-                * Check if transformation type is identified correctly (even if coordinates are slightly off)
-              - **STEP 4**: Only award M0/A0 if ALL of the following are true:
-                * Highest mark level criteria NOT met AND
-                * ALL lower mark level criteria NOT met
-              - **CRITICAL**: Many marking schemes have "OR" conditions (e.g., "M1 for triangle B OR triangle C OR rotating B"). If ANY of the OR conditions are met, award the mark. DO NOT require ALL conditions to be met.
-            * Only penalize if the transformation type is wrong (e.g., rotation instead of translation) or the shape is in completely wrong quadrant AND you have explicitly verified that NO partial credit criteria are met
-          - **Histograms/Graphs:**
-            * If the general shape, trend, or key features are correct, award marks even if exact values differ slightly
-            * Be flexible about frequency vs frequency density - if the student understood the concept and drew appropriate bars, award marks
-            * The classification service may describe histograms differently (frequency vs frequency density) - this is a description difference, not a student error
-            * **CRITICAL INTERPRETATION RULE**: If the classification says "plotted using frequency values" or "frequency instead of frequency density", this is ONLY a description of what the student drew. It is NOT an automatic disqualifier. You MUST still check partial credit criteria.
-            * **MANDATORY: Evaluate partial credit systematically BEFORE awarding 0 marks** - You MUST follow this process:
-              - **STEP 1**: Identify all mark levels in the marking scheme (e.g., B3, B2, B1)
-              - **STEP 2**: Start with the highest mark level (e.g., B3) and check if full marks criteria are met
-              - **STEP 3**: If B3 criteria NOT met, you MUST check B2 criteria before awarding B0
-              - **STEP 4**: If B2 criteria NOT met, you MUST check B1 criteria before awarding B0
-              - **STEP 5**: Only award B0 if ALL of the following are true:
-                * B3 criteria NOT met AND
-                * B2 criteria NOT met AND
-                * B1 criteria NOT met
-              - **Common partial credit criteria for histograms** (check these explicitly):
-                * "2 correct bars of different widths" → Count how many bars are drawn and if they have different widths. **CRITICAL**: If the student drew bars with different widths (even if using frequency), this may meet B1 criteria. Check the actual bar widths, not the y-axis label.
-                * "frequency÷class width for at least 3 frequencies" → Check if frequency density values are present in the classification data (look for frequencyDensity field). Even if description says "frequency", the classification may have calculated frequency density values.
-                * "4 correct bars" → Count how many bars are drawn. **CRITICAL**: If 5 bars are drawn, check if at least 4 are correctly positioned/sized. Bars drawn with frequency can still be "correct bars" if they represent the data correctly.
-              - **CRITICAL INTERPRETATION**: "Plotted using frequency values" means the student used frequency on the y-axis. This does NOT mean:
-                * The bars are wrong (they may still be correctly drawn)
-                * The bars have wrong widths (they may still have different widths)
-                * The bars represent wrong data (they may still represent the correct frequencies)
-              - **EVALUATION PROCESS**: When you see "plotted using frequency values":
-                1. First, check: Are bars drawn? (If yes, continue to step 2)
-                2. Count how many bars are drawn
-                3. Check if bars have different widths (for unequal class intervals)
-                4. Check if bars represent the correct data ranges
-                5. Evaluate against B1 criteria: "2 correct bars of different widths" - if student has 5 bars with different widths, this likely meets B1
-                6. Evaluate against B2 criteria: "4 correct bars" - if student has 5 bars, check if at least 4 are correctly positioned
-                7. Only award B0 if bars are fundamentally wrong (wrong data ranges, wrong scale, completely incorrect shape) AND none of the above criteria are met
-              - **DO NOT award B0 just because frequency density wasn't used** - check partial credit first! Bars drawn with frequency can still earn B1 or B2 if they meet the criteria.
-            * Only penalize if the histogram/graph is fundamentally wrong (wrong data, wrong scale, completely incorrect shape) AND you have explicitly verified that NO partial credit criteria (B1, B2) are met
-          - **General Principle:** Award marks if the student's work demonstrates correct mathematical understanding, even if the classification-extracted description doesn't match the expected format exactly. The classification service format is an approximation of what the student drew, not the student's actual work.
-          - **MANDATORY: SYSTEMATIC PARTIAL CREDIT EVALUATION (CRITICAL FOR ALL DRAWING TYPES):**
-            * **YOU MUST FOLLOW THIS PROCESS - DO NOT SKIP STEPS:**
-            * **Step 1**: Identify ALL mark levels in the marking scheme (e.g., B3, B2, B1 or M1, A1, A2 or A2, A1)
-            * **Step 2**: Start with the HIGHEST mark level and check if its criteria are fully met
-            * **Step 3**: If highest level NOT met, you MUST check EACH lower mark level in descending order
-            * **Step 4**: Award the HIGHEST mark level for which criteria are met (even if it's not full marks)
-            * **Step 5**: **CRITICAL RULE**: You CANNOT award 0 marks (M0, A0, B0, etc.) until you have:
-              - Explicitly checked the highest mark level AND
-              - Explicitly checked ALL lower mark levels AND
-              - Confirmed that NONE of the criteria are met
-            * **Step 6**: For each mark level, extract and check specific criteria from the marking scheme:
-              - **Count requirements**: "2 correct bars" → Count actual bars drawn, "4 correct bars" → Count actual bars
-              - **Feature requirements**: "different widths" → Check if bars have different widths, "axes labelled" → Check if axes are present
-              - **Calculation requirements**: "frequency÷class width for at least 3 frequencies" → Check if frequency density is used (even if classification says "frequency")
-              - **Alternative criteria**: Many marking schemes have "OR" conditions - check ALL alternatives
-            * **Step 7**: Evaluate objectively - IGNORE negative descriptions in classification text. If classification says "frequency instead of frequency density" or "plotted using frequency values", this is ONLY a description. You MUST still check if bars are drawn correctly and if they meet B1/B2 criteria.
-            * **Step 8**: **EXAMPLE FOR HISTOGRAMS**: If marking scheme has B3, B2, B1:
-              - Check B3: "fully correct histogram" → If not, continue
-              - Check B2: "4 correct bars OR frequency÷class width for all 5 and 2 correct bars" → Count bars (if 5 bars drawn, check if at least 4 are correctly positioned), check widths (even if using frequency, bars may have correct different widths)
-              - Check B1: "2 correct bars of different widths OR frequency÷class width for at least 3" → Count bars (if 5 bars drawn, check if at least 2 have different widths), check if different widths exist (even if using frequency, bars can have different widths for unequal class intervals)
-              - **CRITICAL**: "Plotted using frequency values" does NOT mean bars are wrong. Check:
-                * Are bars drawn? (If yes, potential for partial credit)
-                * Do bars have different widths? (If yes, may meet B1)
-                * How many bars? (If 4+, may meet B2)
-                * Do bars represent correct data? (If yes, may meet B1/B2)
-              - Only award B0 if B1, B2, and B3 all fail AND bars are fundamentally wrong (wrong data, wrong scale, completely incorrect)
-            * **Step 9**: **SPECIFIC RULE FOR "FREQUENCY" vs "FREQUENCY DENSITY"**: 
-              - If classification says "plotted using frequency values", this is a FACTUAL DESCRIPTION, not a judgment
-              - The student may have drawn bars correctly but used frequency on y-axis instead of frequency density
-              - You MUST still check: Are bars drawn? Do they have different widths? How many bars?
-              - Bars drawn with frequency can still meet B1 ("2 correct bars of different widths") if the bars themselves are correctly drawn with different widths
-              - Bars drawn with frequency can still meet B2 ("4 correct bars") if at least 4 bars are correctly positioned
-              - Only disqualify if the bars themselves are wrong (wrong data, wrong positions, wrong widths) - NOT just because frequency was used instead of frequency density
-       5.  **CRITICAL: Use OCR Block Step IDs in Annotations (MANDATORY):**
-          - **PURPOSE OF RAW OCR BLOCKS**: They provide COORDINATES for placing annotations on the image
-          - **PURPOSE OF CLASSIFICATION**: It is the SOURCE OF TRUTH for student work content (more accurate than OCR)
-          - You will receive RAW OCR BLOCKS with step IDs (step_1, step_2, step_3...) - these include question text AND student work
-          - You will receive CLASSIFICATION STUDENT WORK with step IDs (step_1, step_2, step_3...) - these are ONLY student work (source of truth)
-          - **MAPPING TASK**: Map each classification step to the corresponding OCR block(s) by content similarity
-          - Example: If classification step_1 maps to OCR step_3, use "step_3" in your annotation (NOT "step_1")
-          - **MANDATORY: Your annotation's "step_id" MUST be the OCR block step ID** (not the classification step ID)
-          - **CRITICAL: Every annotation MUST include "step_id" field** - without it, the annotation cannot be placed on the image
-          - The step_id field is REQUIRED in your JSON response - do not omit it
-       6.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       7.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If no code applies, leave it empty.
-       8.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
-       9.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       4.  **Drawing/Diagram Tolerance - UNIVERSAL PARTIAL CREDIT PROTOCOL:**
+           - **Principle:** Coordinates are approximations. Focus on **concept understanding**.
+           - **MANDATORY EVALUATION PROCESS (Do not skip):**
+             1. **Identify Levels:** List all mark levels (e.g., B3, B2, B1).
+             2. **Check Highest:** Does the work meet full marks criteria?
+             3. **Check Lower:** If not, explicitly check EACH lower level criteria.
+             4. **Award Highest Met:** Give the highest mark level met.
+             5. **Award 0 ONLY IF:** You have verified that NONE of the partial credit criteria are met.
+
+           - **Specific Application - Coordinate Transformations:**
+             * **Accept:** Correct shape/transformation concept even if coordinates differ by 1-2 units.
+             * **Partial Credit:** Check for "one shape correct", "center marked", or "correct transformation type" before awarding 0.
+
+           - **Specific Application - Histograms/Graphs:**
+             * **"Frequency vs Density":** If classification says "plotted using frequency", this is a DESCRIPTION, not an error.
+             * **Check Criteria:**
+               - Are bars drawn? (Potential B1/B2)
+               - Do bars have different widths? (Matches "different widths" criteria)
+               - How many bars? (Matches "4 correct bars" criteria)
+             * **Rule:** Bars drawn with frequency CAN earn B1/B2 if they meet the specific criteria (e.g., "different widths"). Do not auto-fail.
+       5.  **Mapping & Step IDs:**
+           - **MANDATORY:** Use the \`step_id\` from the RAW OCR BLOCKS (e.g., "step_3", "block_18_6").
+           - Do NOT use Classification step IDs (e.g., "step_1") unless they match the OCR block.
+           - If you cannot find a matching step ID, look for the specific **text content** in the OCR blocks.
+       6.  **Consolidated Marks:** If a single line of student work earns MULTIPLE marks (e.g., method M1 and accuracy A1), do NOT create separate annotations. Combine them into a SINGLE annotation with all codes (e.g., "M1 A1").
+       7.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       8.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If multiple codes apply to this step, combine them (e.g. "M1 A1"). If no code applies, leave it empty.
+       9.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
+       10.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
@@ -622,7 +547,7 @@ ${classificationStudentWork}
 ` : ''}
 ${rawOcrBlocks ? `
 RAW OCR BLOCKS (For Reference):
-${JSON.stringify(rawOcrBlocks.slice(0, 15), null, 2)}
+${JSON.stringify(rawOcrBlocks, null, 2)}
 ` : ''}
 
 INSTRUCTIONS:
@@ -633,30 +558,15 @@ INSTRUCTIONS:
 5. If the student uses an alternative valid method, award full marks if the answer is correct and the method is sound.
 6. Provide a brief explanation for each mark awarded or lost.
 7. Return the result in the specified JSON format.
-
-CRITICAL ANNOTATION RULES:
-- **GROUP MARKS:** If multiple marks (e.g., M1 and A1) apply to the SAME step or line of working, you MUST group them into a SINGLE annotation (e.g., \`[M1 A1]\`). DO NOT create separate annotations for the same step, as they will overlap and be unreadable.
-    - **DRAWINGS/GRAPHS:** This applies to drawings too. If a graph gets M1 and A0, output ONE annotation \`[M1 A0]\` for the drawing.
-- **NO REDUNDANCY:** DO NOT create annotations for:
-    - Empty lines or whitespace.
-    - Printed units (e.g., "kg", "cm") or question text.
-    - Restated answers on the final answer line IF full marks have already been awarded in the working.
-- **STRICT MAPPING:** Every annotation MUST be associated with a valid \`step_id\` from the "STUDENT WORK (STRUCTURED)" section.
-    - If a mark applies to a specific step, use that step's ID (e.g., \`step_1\`).
-    - If a mark applies to the final answer, use the final step's ID.
-    - DO NOT create "holistic" annotations without a step ID, as they will be misplaced.
-    - If you cannot find a matching step ID, look for the specific **text content** in the OCR blocks that matches the student's work. Use the ID of the block that contains that text.
-`
-
+`,
     },
-  },
 
-  // ============================================================================
-  // MODEL ANSWER SERVICE PROMPTS (Call #2)
-  // ============================================================================
+    // ============================================================================
+    // MODEL ANSWER SERVICE PROMPTS (Call #2)
+    // ============================================================================
 
-  modelAnswer: {
-    system: `
+    modelAnswer: {
+      system: `
     # [AI Persona & Instructions]
 
     You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
@@ -737,16 +647,16 @@ CRITICAL ANNOTATION RULES:
     # [Task Data]
     `,
 
-    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
-      // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
-      // Fail-fast if it looks like JSON (old format)
-      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-        throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
-      }
+      user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
+        // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
+        // Fail-fast if it looks like JSON (old format)
+        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+          throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+        }
 
-      const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
+        const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
 
-      return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
+        return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
 **QUESTION:**
 ${questionText}${marksInfo}
 
@@ -789,15 +699,15 @@ ${schemeText}
 - Wrap each part separately and provide model answers after each sub-question span
 
 Please generate a model answer that would receive full marks according to the marking scheme.`;
-    }
-  },
+      }
+    },
 
-  // ============================================================================
-  // SUGGESTED FOLLOW-UP PROMPTS
-  // ============================================================================
+    // ============================================================================
+    // SUGGESTED FOLLOW-UP PROMPTS
+    // ============================================================================
 
-  markingScheme: {
-    system: `You are an AI that explains marking schemes for exam questions.
+    markingScheme: {
+      system: `You are an AI that explains marking schemes for exam questions.
 
             Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
             Keep it concise and focus on the key marking points.
@@ -808,24 +718,24 @@ Please generate a model answer that would receive full marks according to the ma
             - Clearly label each response with its question number (e.g., "**Question 1:**", "**Question 2:**")
             - Separate each question's explanation with clear dividers`,
 
-    user: (questionText: string, schemeText: string) => {
-      // schemeText must be plain text (same format as stored in detectedQuestion)
-      // Fail-fast if it looks like JSON (old format)
-      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-        throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
-      }
+      user: (questionText: string, schemeText: string) => {
+        // schemeText must be plain text (same format as stored in detectedQuestion)
+        // Fail-fast if it looks like JSON (old format)
+        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+          throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+        }
 
-      return `**QUESTION:**
+        return `**QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
 ${schemeText}
 
 Provide a brief explanation of this marking scheme. Keep it simple and concise.`;
-    }
-  },
-  similarquestions: {
-    system: `You are an AI that generates similar practice questions for exam preparation.
+      }
+    },
+    similarquestions: {
+      system: `You are an AI that generates similar practice questions for exam preparation.
 
             Your task is to create exactly 3 similar questions that test the same concepts and skills.
             Format your response with a clear title and numbered list of 3 questions.
@@ -837,18 +747,18 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
             - For each original question, generate the specified number of similar questions
             - Clearly label each section with the original question number (e.g., "**Similar Questions for Question 1:**", "**Similar Questions for Question 2:**")`,
 
-    user: (questionText: string, schemeJson: string, questionCount?: number) => {
-      // Convert JSON marking scheme to clean bulleted list format
-      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+      user: (questionText: string, schemeJson: string, questionCount?: number) => {
+        // Convert JSON marking scheme to clean bulleted list format
+        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
 
-      // Number of similar questions to generate per original question
-      const numSimilarQuestionsPerQuestion = 3;
+        // Number of similar questions to generate per original question
+        const numSimilarQuestionsPerQuestion = 3;
 
-      // Check if multiple questions are provided
-      const hasMultipleQuestions = questionCount && questionCount > 1;
+        // Check if multiple questions are provided
+        const hasMultipleQuestions = questionCount && questionCount > 1;
 
-      if (hasMultipleQuestions) {
-        return `**ORIGINAL QUESTIONS (${questionCount} questions):**
+        if (hasMultipleQuestions) {
+          return `**ORIGINAL QUESTIONS (${questionCount} questions):**
 ${questionText}
 
 **MARKING SCHEMES:**
@@ -877,8 +787,8 @@ ${formattedScheme}
 ... (continue for all ${questionCount} questions)
 
 **IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
-      } else {
-        return `**ORIGINAL QUESTION:**
+        } else {
+          return `**ORIGINAL QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
@@ -890,8 +800,9 @@ Similar Practice Questions
 
 ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
 `;
+        }
       }
-    }
+    },
   },
 
   // ============================================================================

@@ -3,7 +3,7 @@
 .analysis-page {
   padding: 24px;
   max-width: 1400px;
-  min-width: 90%;
+  min-width: 100%;
   margin: 0 auto;
   min-height: calc(100vh - 100px);
 }
@@ -14,7 +14,7 @@
 
 .analysis-page-header h1 {
   margin: 0 0 8px 0;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
 }
@@ -45,8 +45,10 @@
 .qualification-exam-board-paper-code-container .paper-code-set-selector-container {
   margin-bottom: 0;
   position: relative;
-  min-width: 0; /* Allows grid items to shrink below their content size */
-  overflow: visible; /* Ensure dropdown is not clipped */
+  min-width: 0;
+  /* Allows grid items to shrink below their content size */
+  overflow: visible;
+  /* Ensure dropdown is not clipped */
 }
 
 /* Ensure dropdown menus appear below and match select width */
@@ -145,7 +147,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .aggregated-stats-section {
@@ -188,22 +192,22 @@
   .analysis-page {
     padding: 16px;
   }
-  
+
   .subject-tabs-container {
     flex-wrap: wrap;
     gap: 8px;
   }
-  
+
   .subject-tab {
     padding: 10px 16px;
     font-size: 14px;
   }
-  
+
   .exam-board-paper-code-container {
     flex-direction: column;
     gap: 8px;
   }
-  
+
   .analysis-content {
     padding: 16px;
     max-height: calc(100vh - 200px);

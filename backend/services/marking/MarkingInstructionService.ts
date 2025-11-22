@@ -767,7 +767,47 @@ export class MarkingInstructionService {
           if (action === 'cross' || text.includes('0')) {
             logMessage += `\n      ${RED}↳ Reason: ${reasoning || 'No reasoning provided'}${RESET}`;
             if (studentAnswer) {
-              logMessage += `\n      ${RED}↳ OCR Value: "${studentAnswer}"${RESET}`;
+              logMessage += `\n      ${RED}↳ OCR Value: ${RESET}${MAGENTA}"${studentAnswer}"${RESET}`;
+
+              // Find best matching classification text to show comparison
+              if (classificationStudentWork) {
+                try {
+                  // Simple Dice coefficient for similarity
+                  const getBigrams = (str: string) => {
+                    const bigrams = new Set();
+                    for (let i = 0; i < str.length - 1; i++) bigrams.add(str.substring(i, i + 2));
+                    return bigrams;
+                  };
+
+                  const calculateSimilarity = (str1: string, str2: string) => {
+                    const s1 = str1.toLowerCase().replace(/\s+/g, '');
+                    const s2 = str2.toLowerCase().replace(/\s+/g, '');
+                    if (!s1 || !s2) return 0;
+                    const bg1 = getBigrams(s1);
+                    const bg2 = getBigrams(s2);
+                    let intersection = 0;
+                    bg1.forEach(bg => { if (bg2.has(bg)) intersection++; });
+                    return (2 * intersection) / (bg1.size + bg2.size);
+                  };
+
+                  const classificationSteps = classificationStudentWork.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+                  let bestMatch = { text: '', score: 0 };
+
+                  classificationSteps.forEach((stepText: string) => {
+                    const score = calculateSimilarity(studentAnswer, stepText);
+                    if (score > bestMatch.score) {
+                      bestMatch = { text: stepText, score };
+                    }
+                  });
+
+                  // If we found a reasonable match (or even a weak one, it's useful context)
+                  if (bestMatch.score > 0.1) {
+                    logMessage += `\n      ${RED}↳ Classification Value: ${RESET}${MAGENTA}"${bestMatch.text}"${RESET}`;
+                  }
+                } catch (e) {
+                  // Ignore matching errors to prevent logging failure
+                }
+              }
             }
           } else if (reasoning) {
             // For correct answers, show reasoning on same line if brief
