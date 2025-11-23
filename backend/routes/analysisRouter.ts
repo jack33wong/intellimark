@@ -49,6 +49,18 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       });
     }
     
+    // Normalize exam board name for comparison
+    const normalizeExamBoard = (board: string): string => {
+      if (!board) return '';
+      const normalized = board.toLowerCase().trim();
+      if (normalized.includes('edexcel')) return 'Pearson Edexcel';
+      if (normalized.includes('aqa')) return 'AQA';
+      if (normalized.includes('ocr')) return 'OCR';
+      if (normalized.includes('wjec')) return 'WJEC';
+      if (normalized.includes('eduqas')) return 'Eduqas';
+      return board;
+    };
+
     // Filter marking results by qualification, exam board, and paper code set
     let filteredResults = subjectResult.markingResults;
     if (qualification) {
@@ -57,16 +69,25 @@ router.post('/generate', optionalAuth, async (req: Request, res: Response) => {
       );
     }
     if (examBoard) {
-      filteredResults = filteredResults.filter((mr: any) => 
-        mr.examMetadata?.examBoard === examBoard
-      );
+      const normalizedFilterBoard = normalizeExamBoard(examBoard);
+      filteredResults = filteredResults.filter((mr: any) => {
+        const resultBoard = mr.examMetadata?.examBoard || '';
+        const normalizedResultBoard = normalizeExamBoard(resultBoard);
+        return normalizedResultBoard === normalizedFilterBoard;
+      });
     }
     if (paperCodeSet && Array.isArray(paperCodeSet) && paperCodeSet.length > 0) {
       filteredResults = filteredResults.filter((mr: any) => {
         const examCode = mr.examMetadata?.examCode || '';
-        const paperCode = examCode.split('/').pop();
+        const paperCode = examCode.split('/').pop()?.trim();
         return paperCode && paperCodeSet.includes(paperCode);
       });
+    }
+    
+    console.log(`[ANALYSIS ROUTER] Filtered results: ${filteredResults.length} out of ${subjectResult.markingResults.length} total results`);
+    if (filteredResults.length === 0 && subjectResult.markingResults.length > 0) {
+      console.log(`[ANALYSIS ROUTER] No results matched filters. Filters: qualification=${qualification}, examBoard=${examBoard}, paperCodeSet=${JSON.stringify(paperCodeSet)}`);
+      console.log(`[ANALYSIS ROUTER] Sample marking result exam metadata:`, subjectResult.markingResults[0]?.examMetadata);
     }
     
     if (filteredResults.length === 0) {

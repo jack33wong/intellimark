@@ -200,48 +200,41 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       });
     });
 
-    // Sort all records by timestamp (oldest first) for global attempt numbering
+    // Sort all records by timestamp (oldest first)
     allRecords.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-    // Assign global attempt numbers (across all paper codes)
-    // Each record gets a sequential attempt number based on when it was attempted
-    let globalAttemptNumber = 1;
-    const recordsWithAttemptNumbers = allRecords.map(record => ({
-      ...record,
-      globalAttemptNumber: globalAttemptNumber++
-    }));
-
-    // Group by paper code for display
-    const paperCodeGroups = new Map<string, Array<{ grade: number; timestamp: string; globalAttemptNumber: number }>>();
-    recordsWithAttemptNumbers.forEach(record => {
+    // Group by paper code and assign attempt numbers per paper code
+    const paperCodeGroups = new Map<string, Array<{ grade: number; timestamp: string }>>();
+    allRecords.forEach(record => {
       if (!paperCodeGroups.has(record.paperCode)) {
         paperCodeGroups.set(record.paperCode, []);
       }
       paperCodeGroups.get(record.paperCode)!.push({
         grade: record.grade,
-        timestamp: record.timestamp,
-        globalAttemptNumber: record.globalAttemptNumber
+        timestamp: record.timestamp
       });
     });
 
-    // Find the latest 10 global attempt numbers
-    const allGlobalAttemptNumbers = recordsWithAttemptNumbers
-      .map(r => r.globalAttemptNumber)
-      .sort((a, b) => a - b);
-    const latest10GlobalAttempts = new Set(allGlobalAttemptNumbers.slice(-10));
-
-    // Create data points only for the latest 10 global attempts
+    // Create data points with attempt numbers
+    // Limit to latest 10 attempts per paper code
     paperCodeGroups.forEach((records, paperCode) => {
-      records.forEach(record => {
-        // Only include if this record is in the latest 10 global attempts
-        if (latest10GlobalAttempts.has(record.globalAttemptNumber)) {
-          dataPoints.push({
-            attemptNumber: record.globalAttemptNumber,
-            paperCode,
-            grade: Math.round(record.grade * 10) / 10,
-            date: new Date(record.timestamp)
-          });
-        }
+      // Take latest 10 attempts (most recent)
+      const latestRecords = records.slice(-10);
+      latestRecords.forEach((record, index) => {
+        // Recalculate attempt number based on position in latest 10
+        // If we have 15 attempts total, and we're showing last 10, 
+        // the first of the last 10 should be attempt 6, not attempt 1
+        const totalAttempts = records.length;
+        const startAttemptNumber = Math.max(1, totalAttempts - 9);
+        const attemptNumber = startAttemptNumber + index;
+        const avgGrade = record.grade;
+
+        dataPoints.push({
+          attemptNumber,
+          paperCode,
+          grade: Math.round(avgGrade * 10) / 10,
+          date: new Date(record.timestamp)
+        });
       });
     });
 
@@ -437,7 +430,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
   }
 
   // Get x-axis labels based on active tab
-  const xAxisLabels = activeTab === 'examSeries' ? examSeriesList : attemptNumbersList.map(n => `Attempt ${n}`);
+  const xAxisLabels = activeTab === 'examSeries' ? examSeriesList : attemptNumbersList.map(n => `${n}`);
 
   return (
     <div className="grade-trend-chart-container">
@@ -503,6 +496,19 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
               </text>
             );
           })}
+
+          {/* X-axis label */}
+          {activeTab === 'attempts' && (
+            <text
+              x={padding.left + plotWidth / 2}
+              y={chartHeight - padding.bottom + 35}
+              textAnchor="middle"
+              fontSize="12"
+              fill="var(--text-secondary)"
+            >
+              Attempts
+            </text>
+          )}
 
           {/* Y-axis label */}
           <text

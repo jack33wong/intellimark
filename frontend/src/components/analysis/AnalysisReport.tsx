@@ -79,8 +79,8 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
       
       // When filters are active, check for cached analysis or generate new one
       if (examBoard && paperCodeSet && paperCodeSet.length > 0 && qualification) {
-        // Filters are active - check cache or generate with filters
-        triggerBackgroundAnalysis();
+        // Trigger analysis generation (backend will check cache first)
+        await triggerBackgroundAnalysis();
         return;
       }
       
