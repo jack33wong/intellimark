@@ -790,7 +790,7 @@ export class MarkingInstructionService {
                     return (2 * intersection) / (bg1.size + bg2.size);
                   };
 
-                  const classificationSteps = classificationStudentWork.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+                  const classificationSteps = classificationStudentWork.replace(/\\n/g, '\n').split('\n').map(s => s.trim()).filter(s => s.length > 0);
                   let bestMatch = { text: '', score: 0 };
 
                   classificationSteps.forEach((stepText: string) => {

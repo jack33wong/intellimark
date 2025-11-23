@@ -200,41 +200,48 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       });
     });
 
-    // Sort all records by timestamp (oldest first)
+    // Sort all records by timestamp (oldest first) for global attempt numbering
     allRecords.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-    // Group by paper code and assign attempt numbers
-    const paperCodeGroups = new Map<string, Array<{ grade: number; timestamp: string }>>();
-    allRecords.forEach(record => {
+    // Assign global attempt numbers (across all paper codes)
+    // Each record gets a sequential attempt number based on when it was attempted
+    let globalAttemptNumber = 1;
+    const recordsWithAttemptNumbers = allRecords.map(record => ({
+      ...record,
+      globalAttemptNumber: globalAttemptNumber++
+    }));
+
+    // Group by paper code for display
+    const paperCodeGroups = new Map<string, Array<{ grade: number; timestamp: string; globalAttemptNumber: number }>>();
+    recordsWithAttemptNumbers.forEach(record => {
       if (!paperCodeGroups.has(record.paperCode)) {
         paperCodeGroups.set(record.paperCode, []);
       }
       paperCodeGroups.get(record.paperCode)!.push({
         grade: record.grade,
-        timestamp: record.timestamp
+        timestamp: record.timestamp,
+        globalAttemptNumber: record.globalAttemptNumber
       });
     });
 
-    // Create data points with attempt numbers
-    // Limit to latest 10 attempts per paper code
-    paperCodeGroups.forEach((records, paperCode) => {
-      // Take latest 10 attempts (most recent)
-      const latestRecords = records.slice(-10);
-      latestRecords.forEach((record, index) => {
-        // Recalculate attempt number based on position in latest 10
-        // If we have 15 attempts total, and we're showing last 10, 
-        // the first of the last 10 should be attempt 6, not attempt 1
-        const totalAttempts = records.length;
-        const startAttemptNumber = Math.max(1, totalAttempts - 9);
-        const attemptNumber = startAttemptNumber + index;
-        const avgGrade = record.grade;
+    // Find the latest 10 global attempt numbers
+    const allGlobalAttemptNumbers = recordsWithAttemptNumbers
+      .map(r => r.globalAttemptNumber)
+      .sort((a, b) => a - b);
+    const latest10GlobalAttempts = new Set(allGlobalAttemptNumbers.slice(-10));
 
-        dataPoints.push({
-          attemptNumber,
-          paperCode,
-          grade: Math.round(avgGrade * 10) / 10,
-          date: new Date(record.timestamp)
-        });
+    // Create data points only for the latest 10 global attempts
+    paperCodeGroups.forEach((records, paperCode) => {
+      records.forEach(record => {
+        // Only include if this record is in the latest 10 global attempts
+        if (latest10GlobalAttempts.has(record.globalAttemptNumber)) {
+          dataPoints.push({
+            attemptNumber: record.globalAttemptNumber,
+            paperCode,
+            grade: Math.round(record.grade * 10) / 10,
+            date: new Date(record.timestamp)
+          });
+        }
       });
     });
 
@@ -243,7 +250,7 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       (a.attemptNumber || 0) - (b.attemptNumber || 0)
     );
 
-    // Get unique attempt numbers to determine latest 10
+    // Get unique attempt numbers across all paper codes
     const attemptNumbers = new Set<number>();
     allPoints.forEach(point => {
       if (point.attemptNumber !== undefined) {
@@ -251,11 +258,14 @@ const GradeTrendChart: React.FC<GradeTrendChartProps> = ({
       }
     });
     const sortedAttempts = Array.from(attemptNumbers).sort((a, b) => a - b);
-    const latest10Attempts = new Set(sortedAttempts.slice(-10));
+    
+    // Limit to latest 10 attempt numbers overall
+    const latest10AttemptNumbers = sortedAttempts.slice(-10);
+    const latest10AttemptSet = new Set(latest10AttemptNumbers);
 
-    // Filter to only include latest 10 attempts
+    // Filter to only include data points with latest 10 attempt numbers
     return allPoints.filter(point => 
-      point.attemptNumber !== undefined && latest10Attempts.has(point.attemptNumber)
+      point.attemptNumber !== undefined && latest10AttemptSet.has(point.attemptNumber)
     );
   }, [allGroupedResults]);
 
