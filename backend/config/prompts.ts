@@ -13,135 +13,63 @@ export const AI_PROMPTS = {
   // ============================================================================
 
   classification: {
-    system: `You are an expert AI assistant specialized in analyzing images of GCSE and A-Level mathematics exam papers.
+    system: `You are an expert AI assistant specialized in analyzing mathematics exam papers.
 
-    🎯 **Primary Goal**
-    Your task is to process one or more images, classify their content, and extract all question text and student-provided work into a precise JSON format.
+    🎯 **GOAL**: Process images to extract Question Text and Student Work into a precise JSON format.
 
-    **Multi-Image Handling:**
-    - Process each image as a separate page
-    - Return results for each page in the "pages" array, maintaining the same order as input
-    
-    **Sub-Question Continuation Across Pages:**
-    
-    1. **Question Number Consistency:**
-       - Questions spanning multiple pages must have the same questionNumber on all pages
-       - If Page N has questionNumber "3" with sub-question part "a", and Page N+1 has sub-question part "b", Page N+1 must also have questionNumber "3"
-       - Assign questionNumber based on sub-question part sequence even if not visibly shown
-       - Do not leave questionNumber as null for continuation pages with sub-question content
-    
-    2. **Sub-Question Part Sequence Matching:**
-       - Sub-question parts follow alphabetical order: "a" comes before "b", "b" comes before "c", etc.
-       - If you see sub-question part "b" on a page but no visible question number:
-         1. Scan backward through previous pages (up to 10 pages) to find a question with sub-question part "a"
-         2. If found, assign the same questionNumber to the current page
-       - Example: Page 3 has questionNumber "3" with sub-question "a", Page 4 has sub-question "b" text → Page 4 must have questionNumber "3"
-       - Example: Page 5 has questionNumber "3" with sub-question "a", Page 6 has sub-question "b" text but no visible "3" → Page 6 must still have questionNumber "3"
-    
-    3. **When You Can't Find a Match:**
-       - If you cannot find a matching question after scanning backward 10 pages, you may leave questionNumber as null
-       - However, if the page clearly shows sub-question part "b" and you saw sub-question part "a" on a recent previous page (within 10 pages), assign the same questionNumber
+    **RULES: PAGE PROCESSING**
+    1. **Process Each Image**: Treat each image as a separate page in the "pages" array.
+    2. **Categorize**:
+       - "questionOnly": Only printed questions.
+       - "questionAnswer": Questions + Student Work (handwriting/drawings).
+       - "metadata": Cover sheets, instructions, formula sheets.
 
-    📝 **Step-by-Step Instructions (Per-Image)**
+    **RULES: MULTI-PAGE CONTINUITY**
+    1. **Consistency**: Questions spanning pages MUST share the same "questionNumber".
+    2. **Sequence**: Sub-questions follow alphabetical order (a -> b -> c).
+    3. **Back-Scan**: If a page starts with sub-question "b" but no main number, scan back 10 pages for "a" and inherit its "questionNumber".
 
-    For each image, you will perform the following steps:
+    **RULES: EXTRACTION**
+    1. **Question Text**: Extract hierarchy (Main Number -> Sub-parts). Ignore headers/footers/[marks].
+    2. **Student Work (CRITICAL)**:
+       - **VERBATIM & COMPLETE**: Extract ALL handwriting (main area, margins, answer lines).
+       - **COMBINE**: Join disjoint text (e.g., working + answer line) with "\\n".
+       - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
+       - **FORMAT**: Use LaTeX. Use "\\n" for new lines.
+    3. **Drawings**:
+       - **DETECT**: Set "hasStudentDrawing": true if hand-drawn graphs/shapes exist.
+       - **IGNORE**: Printed diagrams are NOT student drawings.
 
-    1. **Page Category Classification**
-       Determine the category for the image:
-       - "questionOnly": The page contains only the printed question(s) with no student work
-       - "questionAnswer": The page contains both the question(s) and visible student work (text, drawings, or annotations)
-       - "metadata": The page is a cover sheet, instructions page, or formula sheet with no questions or answers
+    **OUTPUT FORMAT**
+    Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
 
-    2. **Question Text Extraction**
-       Extract all printed question text in a hierarchical structure:
-       - **Hierarchy:** Main question numbers (e.g., "1", "2") belong in the questionNumber field. Sub-parts (e.g., "a", "b", "(i)", "(ii)") belong in the subQuestions array, using the part field
-       - **Completeness:** Extract the complete question text for each part
-       - **Exclusions:** Do not extract page headers, footers, question-mark indicators (e.g., "[2 marks]"), or any student-written text
-       - **Diagrams:** Printed diagrams that are part of the question itself should be considered part of the question text but are not extracted as student work
-
-    3. **Student Work Extraction (only if category is "questionAnswer")**
-       Find the student work that corresponds to each question part and place it in the studentWork field:
-       - If a question part is blank, set studentWork to null
-       - For text-based work: extract in LaTeX format
-       - For drawing tasks: set hasStudentDrawing to true (do not include drawing content in studentWork)
-       
-       **Drawing Detection:**
-       1. **Visual Check**: Look for hand-drawn elements (pencil marks, shapes, bars, lines) that are not printed question diagrams
-       2. **Question vs Student Drawing:**
-          - Printed/professional = Question diagram (ignore)
-          - Hand-drawn/pencil marks = Student drawing (set hasStudentDrawing to true)
-       3. **Indicator Placement:**
-          - If main question has student drawing: set question-level hasStudentDrawing to true
-          - If sub-question has student drawing: set sub-question-level hasStudentDrawing to true
-          - If no drawing found: set hasStudentDrawing to false
-       
-       **Formatting Rules:**
-       - For multi-line student work, use "\\n" (backslash + n) as the line separator
-       - Do not use "\\newline", "\\\\", or other formats - only use "\\n" for line breaks
-       - If both text and drawing exist: extract text in studentWork, set hasStudentDrawing to true
-       - Example text only: "=\\frac{32}{19}"
-       - Example text with drawing: "Rotated 90° clockwise about point (-4,1)" (hasStudentDrawing: true)
-       - If no student work, set "studentWork" to null and "hasStudentDrawing" to false
-
-    📤 **Output Format**
-
-    Output a single, raw JSON object. Do not wrap it in markdown backticks (e.g., \`\`\`json) or any other text.
-
-    **For Single Image:**
-    {
-      "category": "questionAnswer",
-      "questions": [
-        {
-          "questionNumber": "2" or null,
-          "text": "question text" or null,
-          "studentWork": "LaTeX student work" or null,
-          "hasStudentDrawing": false,
-          "subQuestions": [
-            {
-              "part": "a",
-              "text": "sub-question text",
-              "studentWork": "LaTeX student work" or null,
-              "hasStudentDrawing": false
-            }
-          ]
-        }
-      ]
-    }
-
-    **For Multiple Images:**
-    Output a JSON object with a "pages" array. Each element represents one page/image, in the same order as provided:
     {
       "pages": [
         {
           "category": "questionAnswer",
           "questions": [
             {
-              "questionNumber": "2" or null,
-              "text": "question text" or null,
-              "studentWork": "LaTeX student work" or null,
+              "questionNumber": "1",
+              "text": "Solve the equation...",
+              "studentWork": "3x = 12\\nx = 4",
               "hasStudentDrawing": false,
               "subQuestions": [
                 {
                   "part": "a",
-                  "text": "sub-question text",
-                  "studentWork": "LaTeX student work" or null,
+                  "text": "Find x",
+                  "studentWork": "x = 4",
                   "hasStudentDrawing": false
                 }
               ]
             }
           ]
-        },
-        {
-          "category": "questionAnswer",
-          "questions": [...]
         }
       ]
     }
 
-    **JSON Escaping Requirements:**
-    - All backslashes in LaTeX commands must be escaped as double backslashes in JSON
-    - Example: \\frac{4}{5} (NOT \frac{4}{5}) - in JSON source, write "\\\\frac{4}{5}" which becomes "\\frac{4}{5}" in the parsed string
-    - Line breaks: Use "\\n" (double backslash + n) in JSON source, which becomes "\n" (single backslash + n) in the parsed string`,
+    **JSON REQUIREMENTS**:
+    - Escape backslashes: "\\frac" -> "\\\\frac"
+    - Newlines: "\\n" -> "\\\\n"`,
 
     user: `Please classify this uploaded image and extract ALL question text and student work.`
   },
@@ -472,7 +400,10 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
 
        **Annotation Rules:**
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
-       2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper. DO NOT create annotations for question text, example working, or problem statements. ONLY mark actual student work (calculations, answers, solutions written by the student).
+       2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper.
+           - **CHECK:** Compare the OCR text with the provided "Reference Question Text".
+           - **RULE:** If the text is identical or highly similar to the printed question content, DO NOT create an annotation for it.
+           - **ONLY** mark actual student work (calculations, answers, solutions written by the student).
        3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
        4.  **Drawing/Diagram Tolerance - UNIVERSAL PARTIAL CREDIT PROTOCOL:**
            - **Principle:** Coordinates are approximations. Focus on **concept understanding**.
@@ -498,11 +429,15 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - **MANDATORY:** Use the \`step_id\` from the RAW OCR BLOCKS (e.g., "step_3", "block_18_6").
            - Do NOT use Classification step IDs (e.g., "step_1") unless they match the OCR block.
            - If you cannot find a matching step ID, look for the specific **text content** in the OCR blocks.
-       6.  **Consolidated Marks:** If a single line of student work earns MULTIPLE marks (e.g., method M1 and accuracy A1), do NOT create separate annotations. Combine them into a SINGLE annotation with all codes (e.g., "M1 A1").
-       7.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
-       8.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If multiple codes apply to this step, combine them (e.g. "M1 A1"). If no code applies, leave it empty.
-       9.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
-       10.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       6.  **Ignore Printed Units/Labels:** Do NOT create annotations for standard units (e.g., "kg", "m", "cm", "euros", "degrees") or text labels that appear to be printed on the answer line.
+           - ONLY annotate the student's handwritten value.
+           - If the student wrote the unit themselves, include it in the value annotation (e.g., "40 euros"), but do NOT create a separate annotation just for "euros".
+           - If the unit is printed, IGNORE it completely.
+       7.  **Consolidated Marks:** If a single line of student work earns MULTIPLE marks (e.g., method M1 and accuracy A1), do NOT create separate annotations. Combine them into a SINGLE annotation with all codes (e.g., "M1 A1").
+       8.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
+       9.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If multiple codes apply to this step, combine them (e.g. "M1 A1"). If no code applies, leave it empty.
+       10.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
+       11.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
@@ -997,37 +932,42 @@ ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Q
       }
 
     5. **For Histograms:**
-      - Return ONE entry for the histogram (histograms are typically single drawings)
+      - Return ONE entry for the histogram.
+      - **Marking Scheme Check:** Check the marking scheme hints. Does it mention "frequency density" or "area"?
+      - **Extraction Logic:**
+        * If the marking scheme or axis labels indicate **Frequency Density**, calculate Frequency = Width × Height.
+        * If they indicate **Frequency**, use the y-axis value directly.
+        * Explicitly state in the description which method you used based on the evidence.
       {
         "drawingType": "Histogram",
-        "description": "Histogram with 5 bars",
+        "description": "Histogram with 5 bars plotted using frequency density (as required by marking scheme)",
         "position": {"x": 50.0, "y": 55.0},
         "frequencies": [
-          {"range": "0-10", "frequency": 20, "frequencyDensity": 2.0},
-          {"range": "10-30", "frequency": 70, "frequencyDensity": 3.5},
-          {"range": "30-35", "frequency": 22, "frequencyDensity": 4.4},
-          {"range": "35-50", "frequency": 30, "frequencyDensity": 2.0},
-          {"range": "50-60", "frequency": 8, "frequencyDensity": 0.8}
+          {"range": "0-10", "frequency": 20, "frequencyDensity": 2.0, "barHeight": 2.0, "barWidth": 10},
+          {"range": "10-30", "frequency": 70, "frequencyDensity": 3.5, "barHeight": 3.5, "barWidth": 20}
         ],
+        "isFrequencyDensity": true,
         "confidence": 0.95
       }
 
     6. **For Coordinate Grids - CRITICAL: Separate Each Element:**
-      - Extract ALL drawn elements: shapes, points, lines, marks
-      - **EACH element must be a SEPARATE entry** in the drawings array
-      - For transformations: extract EACH transformed shape as a separate entry
-      - Each triangle, point, mark, or shape gets its own entry with its own position
-      - Position should be the center of THAT SPECIFIC drawing element (not the entire grid)
-      - Example: If student drew Triangle B, Triangle C, and marked point (1,2), return 3 separate entries:
-        * Entry 1: Triangle B with its own position
-        * Entry 2: Triangle C with its own position  
-        * Entry 3: Marked point with its own position
+      - Extract ALL drawn elements: shapes, points, lines, marks.
+      - **Marking Scheme Check:**
+        * If the marking scheme mentions **Rotation**, explicitly extract the center of rotation and angle.
+        * If the marking scheme mentions **Translation**, extract the vector.
+        * If the marking scheme mentions **Enlargement**, extract the center and scale factor.
+      - **Precision Checks:**
+        * Check axis scaling (e.g., 1 square = 2 units) if the values don't match the marking scheme.
+        * Verify negative coordinates carefully.
+      - **EACH element must be a SEPARATE entry** in the drawings array.
+      - Example: If student drew Triangle B, Triangle C, and marked point (1,2), return 3 separate entries.
 
     7. **Accuracy Standards:**
-       - Coordinates: Within 0.5 units of actual values
-       - Position: Within 2% of actual position
-       - Frequencies: Exact match to visible values
-       - Drawing type: Must match question terminology exactly
+      - **Driven by Marking Scheme:** Extract values with the precision required by the marking scheme.
+      - Coordinates: Within 0.5 units of actual values.
+      - Position: Within 2% of actual position.
+      - Frequencies: Exact match to visible values.
+      - Drawing type: Must match question terminology exactly.
 
     **CRITICAL:** If no student drawings are found, return {"drawings": []}. Do NOT extract question diagrams.`,
 

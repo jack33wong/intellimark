@@ -572,7 +572,7 @@ export class MarkingInstructionService {
         totalMarks,
         questionText,
         rawOcrBlocks,
-        classificationStudentWork,
+        classificationStudentWork ? classificationStudentWork.replace(/\\n/g, '\n') : null,
         subQuestionNumbers,
         subQuestionAnswers,
         formattedGeneralGuidance // Pass general guidance to prompt
