@@ -11,7 +11,7 @@ export class ModelProvider {
   private static supportsTemperatureZero(modelName: string): boolean {
     // Models that only support default temperature (1)
     const modelsRequiringDefault = ['gpt-5-mini', 'gpt-5'];
-    
+
     // Check if model name contains any of the restricted models
     return !modelsRequiringDefault.some(restricted => modelName.includes(restricted));
   }
@@ -25,11 +25,74 @@ export class ModelProvider {
     return { content, usageTokens };
   }
 
+  static async callGeminiChat(systemPrompt: string, userPrompt: string, imageData: string, model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
+    const accessToken = await this.getGeminiAccessToken();
+    const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
+    const result = await response.json() as any;
+    const content = this.extractGeminiTextContent(result);
+    const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+    return { content, usageTokens };
+  }
+
+  private static async makeGeminiChatRequest(
+    accessToken: string,
+    imageData: string,
+    systemPrompt: string,
+    userPrompt: string,
+    model: ModelType = 'auto'
+  ): Promise<Response> {
+    const { getModelConfig } = await import('../config/aiModels.js');
+    const config = getModelConfig(model);
+    const endpoint = config.apiEndpoint;
+
+    // Clean base64 data if needed
+    const cleanImageData = imageData.includes('base64,') ? imageData.split('base64,')[1] : imageData;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userPrompt },
+            {
+              inline_data: {
+                mime_type: 'image/jpeg',
+                data: cleanImageData
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: config.temperature,
+          maxOutputTokens: config.maxTokens
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response;
+  }
+
   static async getGeminiAccessToken(): Promise<string> {
     const { GoogleAuth } = await import('google-auth-library');
-    
+
     const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
-    
+
     const auth = new GoogleAuth({
       keyFile,
       scopes: [
@@ -37,14 +100,14 @@ export class ModelProvider {
         'https://www.googleapis.com/auth/generative-language.retriever'
       ]
     });
-    
+
     const client = await auth.getClient();
     const accessToken = await client.getAccessToken();
-    
+
     if (!accessToken.token) {
       throw new Error('Failed to get access token from service account');
     }
-    
+
     return accessToken.token;
   }
 
@@ -59,17 +122,17 @@ export class ModelProvider {
     const { getModelConfig } = await import('../config/aiModels.js');
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
-    
+
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
-        generationConfig: { 
-          temperature: 0, 
+        generationConfig: {
+          temperature: 0,
           maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,
           ...(forceJsonResponse && { responseMimeType: "application/json" })
         }, // Use centralized config
@@ -93,13 +156,13 @@ export class ModelProvider {
         ]
       })
     });
-    
+
     if (!response.ok) {
       const { getModelConfig } = await import('../config/aiModels.js');
       const modelConfig = getModelConfig(model);
       const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
       const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-      
+
       // Capture error response body for detailed diagnostics
       let errorBody = '';
       try {
@@ -107,13 +170,13 @@ export class ModelProvider {
       } catch (e) {
         errorBody = 'Unable to read error response body';
       }
-      
+
       // Log detailed error information
       console.error(`❌ [MODEL PROVIDER ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
       console.error(`❌ [ERROR RESPONSE BODY] ${errorBody}`);
-      
+
       // Try to parse error body for structured error info
       let parsedError = null;
       try {
@@ -124,12 +187,12 @@ export class ModelProvider {
       } catch (e) {
         // Not JSON, that's okay
       }
-      
+
       // Include error details in thrown error
       const errorMessage = parsedError?.error?.message || errorBody || response.statusText;
       throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorMessage}`);
     }
-    
+
     return response;
   }
 
@@ -140,12 +203,12 @@ export class ModelProvider {
       if (finishReason === 'MAX_TOKENS') {
         throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
       }
-      
+
       // Extract meaningful error from Gemini response
-      const errorMessage = result.error?.message || 
-                          finishReason || 
-                          result.promptFeedback?.blockReason ||
-                          'No content in Gemini response';
+      const errorMessage = result.error?.message ||
+        finishReason ||
+        result.promptFeedback?.blockReason ||
+        'No content in Gemini response';
       throw new Error(`Gemini API error: ${errorMessage}`);
     }
     return content;
@@ -155,17 +218,17 @@ export class ModelProvider {
   // Unified Text Call - Routes to Gemini or OpenAI based on model type
   // ----------------------------------------------------------------------------
   static async callText(
-    systemPrompt: string, 
-    userPrompt: string, 
-    model: ModelType = 'auto', 
+    systemPrompt: string,
+    userPrompt: string,
+    model: ModelType = 'auto',
     forceJsonResponse: boolean = false
   ): Promise<{ content: string; usageTokens: number }> {
     // Resolve 'auto' to default model
     const resolvedModel = model === 'auto' ? 'gemini-2.5-flash' : model;
-    
+
     // Detect provider from model name
     const isOpenAI = resolvedModel.startsWith('openai-');
-    
+
     if (isOpenAI) {
       // Use OpenAI - extract model name from full ID (e.g., 'openai-gpt-4o' -> 'gpt-4o')
       const openaiModelName = resolvedModel.replace('openai-', '');
@@ -180,7 +243,7 @@ export class ModelProvider {
   // ----------------------------------------------------------------------------
   // OpenAI Chat Completions (fallback and direct calls)
   // ----------------------------------------------------------------------------
-  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string, modelName?: string): Promise<{ content: string; usageTokens: number; modelName: string }> {
+  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string, modelName?: string, forceJsonResponse: boolean = true): Promise<{ content: string; usageTokens: number; modelName: string }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -192,9 +255,9 @@ export class ModelProvider {
     // Build messages. If imageData is provided, use array content with image_url per OpenAI vision design
     const userContent = imageData
       ? [
-          { type: 'text', text: userPrompt },
-          { type: 'image_url', image_url: { url: imageData } }
-        ]
+        { type: 'text', text: userPrompt },
+        { type: 'image_url', image_url: { url: imageData } }
+      ]
       : userPrompt;
 
     const messages: any[] = [
@@ -204,10 +267,14 @@ export class ModelProvider {
 
     const body: any = {
       model,
-      messages,
-      response_format: { type: 'json_object' }
+      messages
     };
-    
+
+    // Only add JSON format if requested (Question Mode doesn't need it)
+    if (forceJsonResponse) {
+      body.response_format = { type: 'json_object' };
+    }
+
     // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
     if (this.supportsTemperatureZero(model)) {
       body.temperature = 0;
@@ -234,7 +301,7 @@ export class ModelProvider {
   }
 
   static async callOpenAIChatWithMultipleImages(
-    systemPrompt: string, 
+    systemPrompt: string,
     userContent: Array<{ type: string; text?: string; image_url?: { url: string } }>,
     modelName?: string
   ): Promise<{ content: string; usageTokens: number; modelName: string }> {
@@ -256,7 +323,7 @@ export class ModelProvider {
       messages,
       response_format: { type: 'json_object' }
     };
-    
+
     // Only set temperature 0 if model supports it, otherwise use default (omit parameter)
     if (this.supportsTemperatureZero(model)) {
       body.temperature = 0;

@@ -367,6 +367,21 @@ export class SVGOverlayService {
 
     return [line1, line2];
   }
+  /**
+   * Escape XML special characters to prevent SVG parsing errors
+   */
+  private static escapeXml(unsafe: string): string {
+    return unsafe.replace(/[<>&'"]/g, (c) => {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+      }
+      return c;
+    });
+  }
 
   /**
    * Create symbol annotation with optional text (unified logic for tick/cross)
@@ -390,9 +405,10 @@ export class SVGOverlayService {
     // Add text after the symbol if provided
     if (text && text.trim()) {
       const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
+      const escapedText = this.escapeXml(text);
       svg += `
         <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
-              font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${text}</text>`;
+              font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${escapedText}</text>`;
 
       // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
       if (symbol === '✗' && reasoning && reasoning.trim()) {
@@ -430,9 +446,10 @@ export class SVGOverlayService {
         reasoningLines.forEach((line, index) => {
           // For multi-line reasoning, add line height offset for subsequent lines
           const lineY = reasoningY + (index * lineHeight);
+          const escapedLine = this.escapeXml(line);
           svg += `
-            <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000" 
-                  font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${line}</text>`;
+            <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000"
+                  font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${escapedLine}</text>`;
         });
       }
     }

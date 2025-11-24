@@ -65,7 +65,7 @@
     "node-fetch": "^3.3.2",
     "pdf-lib": "^1.17.1",
     "pdf2pic": "^3.2.0",
-    "sharp": "^0.34.4",
+    "sharp": "^0.34.5",
     "string-similarity": "^4.0.4",
     "stripe": "^18.5.0",
     "swagger-ui-express": "^5.0.1",

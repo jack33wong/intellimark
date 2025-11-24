@@ -33,12 +33,28 @@ export const AI_PROMPTS = {
     1. **Question Text**: Extract hierarchy (Main Number -> Sub-parts). Ignore headers/footers/[marks].
     2. **Student Work (CRITICAL)**:
        - **VERBATIM & COMPLETE**: Extract ALL handwriting (main area, margins, answer lines).
+       - **NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If student writes "4+3+1", write "4+3+1", NOT "8".
        - **COMBINE**: Join disjoint text (e.g., working + answer line) with "\\n".
        - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
        - **FORMAT**: Use LaTeX. Use "\\n" for new lines.
     3. **Drawings**:
-       - **DETECT**: Set "hasStudentDrawing": true if hand-drawn graphs/shapes exist.
-       - **IGNORE**: Printed diagrams are NOT student drawings.
+       - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set "hasStudentDrawing": true AND "hasStudentWork": true:
+         * "draw" + ("graph" OR "transformation" OR "curve" OR "line" OR "shape")
+         * "sketch" + ("graph" OR "diagram" OR "histogram")
+         * "plot" + ("graph" OR "points" OR "coordinates")
+         * "complete" + ("histogram" OR "table" OR "graph")
+         * "construct" + ("triangle" OR "diagram" OR "perpendicular")
+         * "on the grid" OR "on the same grid" OR "coordinate grid"
+         * Examples that MUST set hasStudentDrawing=true: "On the grid, draw the graph of y=...", "Draw the transformation", "Complete the histogram"
+       - **STEP 2 - VISUAL DETECTION**: Set "hasStudentDrawing": true if you can visually detect hand-drawn graphs/shapes.
+       - **IGNORE**: Printed diagrams alone are NOT student drawings.
+       - **MODIFICATIONS TO PRINTED DIAGRAMS**: If you see multiple curves/graphs on the same grid, shapes drawn ON a printed grid, new bars ON a histogram, or any handwritten additions to printed graphs, set "hasStudentDrawing": true.
+       - **RULE OF THUMB**: If unsure whether a diagram element is printed or student-drawn, assume it is STUDENT WORK and set "hasStudentDrawing": true. Better to mark for review than miss student work.
+
+    **RULES: ORIENTATION**
+    1. **Detect Rotation**: Check if the page is rotated (0, 90, 180, 270 degrees).
+    2. **Process Content**: If rotated, MENTALLY ROTATE it to read the text. Do NOT classify as "metadata" just because it is upside down.
+    3. **Output**: Return the "rotation" angle needed to make it upright (e.g., if upside down, rotation is 180).
 
     **OUTPUT FORMAT**
     Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
@@ -47,6 +63,7 @@ export const AI_PROMPTS = {
       "pages": [
         {
           "category": "questionAnswer",
+          "rotation": 0,
           "questions": [
             {
               "questionNumber": "1",
@@ -68,10 +85,19 @@ export const AI_PROMPTS = {
     }
 
     **JSON REQUIREMENTS**:
-    - Escape backslashes: "\\frac" -> "\\\\frac"
-    - Newlines: "\\n" -> "\\\\n"`,
+    - **ESCAPE BACKSLASHES**: You MUST write "\\" for every single backslash.
+    - LaTeX: For "\frac", write "\\frac". For "\sqrt", write "\\sqrt".
+    - Newlines: For "\n", write "\\n".
+    - **FORBIDDEN**: Do NOT use triple backslashes ("\\\"). Do NOT use single backslashes ("\") before characters like "f", "s", "d" (invalid JSON).`,
 
-    user: `Please classify this uploaded image and extract ALL question text and student work.`
+    user: `Please classify this uploaded image and extract ALL question text and student work.
+    
+    CRITICAL INSTRUCTION:
+    Transcribe student work EXACTLY as written.
+    - Do NOT simplify fractions (e.g., write "4+3+1" NOT "8").
+    - Do NOT perform arithmetic.
+    - Do NOT correct spelling or grammar.
+    - Capture every single character, number, and symbol verbatim.`
   },
 
 
@@ -353,11 +379,13 @@ export const AI_PROMPTS = {
       - Format the score as "awardedMarks/totalMarks" (e.g., "4/6")
       - If no marking scheme is available, estimate reasonable marks based on mathematical correctness`,
 
-      user: (ocrText: string) => `Here is the OCR TEXT:
+      user: (ocrText: string, classificationStudentWork?: string | null) => `Here is the OCR TEXT:
 
-      ${ocrText}
-      
-      Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy. Do not generate any feedback text.`
+       ${ocrText}
+       
+       ${classificationStudentWork ? `\nSTUDENT WORK (STRUCTURED):\n${classificationStudentWork}\n` : ''}
+       
+       Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy. Do not generate any feedback text.`
     },
 
     // With marking scheme (when exam paper is detected)
@@ -399,6 +427,12 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        }
 
        **Annotation Rules:**
+        0.  **CRITICAL - Graph Transformations (When Image Provided):** If an image is provided and the question asks to "draw a graph" or "draw a transformation":
+            - **EXAMINE THE GRID CAREFULLY:** Look for TWO curves on the same coordinate grid - one printed (usually labeled, e.g., "y = g(x)") and one hand-drawn by the student.
+            - **Student's curve may look similar to the printed one** - this is normal for transformations like reflections (y = g(-x)) or translations (y = g(x) + 2).
+            - **KEY INDICATORS of student work:** Slightly different line style, different position on grid, may be less smooth than the printed curve.
+            - **If you see TWO curves:** The student HAS completed the task. Evaluate the transformation for correctness against the marking scheme.
+            - **DO NOT conclude "no graph drawn" unless the grid is completely blank** (only one printed curve visible, no hand-drawn addition).
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper.
            - **CHECK:** Compare the OCR text with the provided "Reference Question Text".
@@ -433,7 +467,10 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - ONLY annotate the student's handwritten value.
            - If the student wrote the unit themselves, include it in the value annotation (e.g., "40 euros"), but do NOT create a separate annotation just for "euros".
            - If the unit is printed, IGNORE it completely.
-       7.  **Consolidated Marks:** If a single line of student work earns MULTIPLE marks (e.g., method M1 and accuracy A1), do NOT create separate annotations. Combine them into a SINGLE annotation with all codes (e.g., "M1 A1").
+        7.  **Consolidated Marks:** 
+            - If a single line of student work earns MULTIPLE marks OF THE SAME TYPE (e.g., method M1 AND accuracy A1, both correct), combine them into a SINGLE annotation with all codes (e.g., \"M1 A1\").
+            - **CRITICAL:** If marks are NOT all the same (e.g., P1 awarded but P0 P0 not awarded, meaning one tick and two crosses), create SEPARATE annotations for each part. Do NOT mix ticks and crosses in one annotation.
+            - Example: Calculation line with marks P1 P0 P0 should have SEPARATE annotations - one with action \"tick\" for P1, then annotations with action \"cross\" for each P0
        8.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
        9.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If multiple codes apply to this step, combine them (e.g. "M1 A1"). If no code applies, leave it empty.
        10.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
@@ -856,8 +893,17 @@ ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Q
     1. **ONLY Extract Student Work:**
        - Extract ONLY drawings that the student has drawn/written
        - IGNORE printed coordinate grids, axes, labels, or question diagrams
-       - IGNORE any printed elements that are part of the question
-       - If the student drew on a printed grid, extract ONLY what the student added
+       - **CRITICAL: If student draws NEW elements (curves, shapes, lines) ON or NEAR printed diagrams, EXTRACT them**
+       - Examples of student additions to extract:
+         * Graph transformation: If printed graph shows y=f(x) and student draws y=f(-x), extract the student's NEW curve
+         * Added shapes: If student draws triangles/shapes on a printed grid, extract them
+         * Modifications: If student adds lines/marks to a printed diagram, extract those additions
+       - **FALLBACK RULE - CRITICAL:** If you SEE a graph/diagram but CANNOT confidently distinguish between printed and student-drawn elements:
+         * Extract the ENTIRE graph/diagram as ONE drawing entry
+         * Mark it as type "Graph" or "Diagram" (match question terminology)
+         * Better to extract everything than miss student work
+       - Rule of thumb: If unsure whether element is printed or student-drawn, EXTRACT it (better to include than miss student work)
+       - If the student drew on a printed grid, extract ONLY what the student added (OR extract entire grid if unsure)
 
     2. **High Accuracy Requirements:**
        - **Position**: Extract position as percentage (x%, y%) with precision to 1 decimal place

@@ -52,20 +52,20 @@ export class DrawingEnhancementService {
         const hasDrawings = result.questions.some(q => {
           // Check if question or sub-questions have hasStudentDrawing indicator
           const hasDrawingsInQuestion = q.hasStudentDrawing === true ||
-                                        (q.subQuestions && q.subQuestions.some(sq => sq.hasStudentDrawing === true));
-          
+            (q.subQuestions && q.subQuestions.some(sq => sq.hasStudentDrawing === true));
+
           if (hasDrawingsInQuestion) {
             questionsWithDrawings.push(`Q${q.questionNumber || '?'}`);
           }
-          
+
           return hasDrawingsInQuestion;
         });
-        
+
         // Debug: Log questions with drawing indicators after classification
         if (questionsWithDrawings.length > 0) {
           console.log(`[DEBUG DRAWING] Page ${pageIndex}: Questions with hasStudentDrawing indicator: ${questionsWithDrawings.join(', ')}`);
         }
-        
+
         if (hasDrawings && standardizedPages[index]) {
           pagesWithDrawings.push({
             pageIndex,
@@ -96,9 +96,9 @@ export class DrawingEnhancementService {
               const keyParts = key.split('_');
               const schemeQuestionNumber = keyParts[0];
               // Match if question numbers match (handle sub-questions)
-              if (schemeQuestionNumber === q.questionNumber || 
-                  q.questionNumber?.startsWith(schemeQuestionNumber) ||
-                  schemeQuestionNumber.startsWith(q.questionNumber || '')) {
+              if (schemeQuestionNumber === q.questionNumber ||
+                q.questionNumber?.startsWith(schemeQuestionNumber) ||
+                schemeQuestionNumber.startsWith(q.questionNumber || '')) {
                 markingScheme = scheme;
                 break;
               }
@@ -152,6 +152,11 @@ export class DrawingEnhancementService {
                   }
                 });
 
+                // ⚠️ TEMPORARY TESTING FLAG ⚠️
+                // Set to true to use vision API for ALL drawing questions (ignores coordinate accuracy)
+                // Set to false to only use vision API when Drawing Classification returns 0
+                const FORCE_VISION_FOR_DRAWINGS = true;
+
                 // Update main question student work if it has drawings
                 if (hasDrawingsInQuestion && mainQuestionDrawings.length > 0) {
                   // Create [DRAWING] entries from enhanced drawings
@@ -165,14 +170,14 @@ export class DrawingEnhancementService {
                       entry += ` [COORDINATES: ${coordsStr}]`;
                     }
                     if (enhanced.frequencies && enhanced.frequencies.length > 0) {
-                      const freqStr = enhanced.frequencies.map(f => 
+                      const freqStr = enhanced.frequencies.map(f =>
                         `${f.range}: frequency=${f.frequency}${f.frequencyDensity ? `, frequencyDensity=${f.frequencyDensity}` : ''}`
                       ).join('; ');
                       entry += ` [FREQUENCIES: ${freqStr}]`;
                     }
                     return entry;
                   }).join('\n');
-                  
+
                   // If original studentWork contains [DRAWING], merge with enhanced versions
                   // Otherwise, append drawing entries to existing text (or use drawings alone if no text)
                   if (q.studentWork && q.studentWork.includes('[DRAWING]')) {
@@ -205,11 +210,26 @@ export class DrawingEnhancementService {
                     return sq;
                   });
                 }
-              } else {
-                // No enhanced drawings found - keep original
-                if (!hasDrawingsInQuestion) {
-                  enhancedStudentWork = q.studentWork || '';
+
+                // TESTING: Also pass image for visual verification (coordinates may be inaccurate)
+                if (FORCE_VISION_FOR_DRAWINGS) {
+                  console.log(`[DRAWING ENHANCEMENT] Q${q.questionNumber}: TESTING MODE - will also pass image to Marking AI for visual verification`);
+                  (q as any).requiresImageForMarking = true;
+                  (q as any).imageDataForMarking = imageData;
                 }
+              } else {
+                // EDGE CASE: Drawing Classification returned 0 drawings, but Classification detected hasStudentDrawing=true
+                // This happens when the AI can't distinguish student work from printed diagrams (e.g., Q21 graph transformations)
+                // Instead of creating a fallback message, we'll flag this question to receive the actual image for marking
+                console.log(`[DRAWING ENHANCEMENT] Q${q.questionNumber}: Drawing Classification returned 0 - will pass image to Marking AI for visual evaluation`);
+
+                // Set flag to indicate this question needs image-based marking
+                (q as any).requiresImageForMarking = true;
+                // Store the image data for later use
+                (q as any).imageDataForMarking = imageData;
+
+                // Keep original student work as-is (don't add fallback message)
+                enhancedStudentWork = q.studentWork || '';
               }
             } catch (error) {
               console.warn(`[DRAWING CLASSIFICATION] Failed to enhance drawings for Q${q.questionNumber} on page ${pageIndex}:`, error);
@@ -235,12 +255,12 @@ export class DrawingEnhancementService {
       });
 
       await Promise.all(drawingEnhancementPromises);
-      
+
       // Rebuild allQuestions array with enhanced drawings
       // Clear and rebuild to include enhanced drawing data
       const enhancedQuestionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
       const enhancedQuestionsWithoutNumber: Array<{ question: any; pageIndex: number }> = [];
-      
+
       allClassificationResults.forEach(({ pageIndex, result }) => {
         if (result.questions && Array.isArray(result.questions)) {
           result.questions.forEach((question: any) => {
@@ -257,7 +277,7 @@ export class DrawingEnhancementService {
           });
         }
       });
-      
+
       // Rebuild allQuestions with enhanced data
       const enhancedAllQuestions: any[] = [];
       enhancedQuestionsByNumber.forEach((questionInstances, questionNumber) => {
@@ -274,27 +294,27 @@ export class DrawingEnhancementService {
           });
         } else {
           // Merge logic (same as before)
-          const pageWithText = questionInstances.find(({ question }) => 
+          const pageWithText = questionInstances.find(({ question }) =>
             question.text && question.text !== 'null' && question.text.trim().length > 0
           ) || questionInstances[0];
-          
+
           const combinedStudentWork = questionInstances
             .map(({ question }) => question.studentWork)
             .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
             .join('\n');
-          
+
           // Merge sub-questions if present (group by part, combine student work)
           // Also track which pages each sub-question came from
           const mergedSubQuestions = new Map<string, any>();
           const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
-          
+
           questionInstances.forEach(({ question, pageIndex }) => {
             if (question.subQuestions && Array.isArray(question.subQuestions)) {
               question.subQuestions.forEach((subQ: any) => {
                 const part = subQ.part || '';
                 // Track that this page has sub-questions
                 subQuestionPageIndices.add(pageIndex);
-                
+
                 if (!mergedSubQuestions.has(part)) {
                   mergedSubQuestions.set(part, {
                     part: subQ.part,
@@ -317,12 +337,12 @@ export class DrawingEnhancementService {
               });
             }
           });
-          
+
           // Collect all page indices for this merged question
           // Include both question instance pages AND pages that have sub-questions
           const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
           const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
-          
+
           const merged = {
             ...pageWithText.question,
             studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
@@ -334,11 +354,11 @@ export class DrawingEnhancementService {
             sourceImageIndices: allPageIndices,
             confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
           };
-          
+
           enhancedAllQuestions.push(merged);
         }
       });
-      
+
       enhancedQuestionsWithoutNumber.forEach(({ question, pageIndex }) => {
         enhancedAllQuestions.push({
           ...question,
@@ -346,7 +366,7 @@ export class DrawingEnhancementService {
           sourceImageIndex: pageIndex
         });
       });
-      
+
       // Update classificationResult with enhanced questions
       classificationResult.questions = enhancedAllQuestions;
     }
@@ -388,19 +408,19 @@ export class DrawingEnhancementService {
             enhancedDrawings.forEach((enhanced) => {
               // Check if this enhanced drawing groups multiple elements (e.g., "triangle B, triangle C, and marked")
               // If so, split it into separate entries based on coordinates
-              const shouldSplit = enhanced.coordinates && enhanced.coordinates.length > 3 && 
-                                 (enhanced.description.toLowerCase().includes('triangle') && 
-                                  enhanced.description.toLowerCase().includes('marked') ||
-                                  enhanced.description.toLowerCase().includes('triangle b') && 
-                                  enhanced.description.toLowerCase().includes('triangle c'));
-              
+              const shouldSplit = enhanced.coordinates && enhanced.coordinates.length > 3 &&
+                (enhanced.description.toLowerCase().includes('triangle') &&
+                  enhanced.description.toLowerCase().includes('marked') ||
+                  enhanced.description.toLowerCase().includes('triangle b') &&
+                  enhanced.description.toLowerCase().includes('triangle c'));
+
               if (shouldSplit && enhanced.coordinates) {
                 // Split grouped drawing into separate entries
                 // Strategy: Triangles have 3 coordinates, single marks have 1 coordinate
                 const coords = enhanced.coordinates;
                 const triangles: Array<{ coords: Array<{ x: number; y: number }>; label: string }> = [];
                 const marks: Array<{ coord: { x: number; y: number }; label: string }> = [];
-                
+
                 // Try to identify triangles (3 coordinates) and marks (1 coordinate)
                 let i = 0;
                 while (i < coords.length) {
@@ -420,7 +440,7 @@ export class DrawingEnhancementService {
                     i += 1;
                   }
                 }
-                
+
                 // Create separate [DRAWING] entries for each triangle
                 triangles.forEach((triangle, idx) => {
                   let triangleEntry = `[DRAWING] ${enhanced.drawingType}: ${triangle.label} drawn at vertices ${triangle.coords.map(c => `(${c.x}, ${c.y})`).join(', ')}`;
@@ -431,7 +451,7 @@ export class DrawingEnhancementService {
                   triangleEntry += ` [COORDINATES: ${triangle.coords.map(c => `(${c.x}, ${c.y})`).join(', ')}]`;
                   mergedEntries.push(triangleEntry);
                 });
-                
+
                 // Create separate [DRAWING] entries for each mark
                 marks.forEach((mark) => {
                   let markEntry = `[DRAWING] ${enhanced.drawingType}: ${mark.label} marked at (${mark.coord.x}, ${mark.coord.y})`;
@@ -444,26 +464,26 @@ export class DrawingEnhancementService {
               } else {
                 // Single drawing - add as-is
                 let enhancedEntry = `[DRAWING] ${enhanced.drawingType}: ${enhanced.description}`;
-                
+
                 // Add position if available
                 if (enhanced.position) {
                   enhancedEntry += ` [POSITION: x=${enhanced.position.x.toFixed(1)}%, y=${enhanced.position.y.toFixed(1)}%]`;
                 }
-                
+
                 // Add coordinates for coordinate grids
                 if (enhanced.coordinates && enhanced.coordinates.length > 0) {
                   const coordsStr = enhanced.coordinates.map(c => `(${c.x}, ${c.y})`).join(', ');
                   enhancedEntry += ` [COORDINATES: ${coordsStr}]`;
                 }
-                
+
                 // Add frequencies for histograms
                 if (enhanced.frequencies && enhanced.frequencies.length > 0) {
-                  const freqStr = enhanced.frequencies.map(f => 
+                  const freqStr = enhanced.frequencies.map(f =>
                     `${f.range}: frequency=${f.frequency}${f.frequencyDensity ? `, frequencyDensity=${f.frequencyDensity}` : ''}`
                   ).join('; ');
                   enhancedEntry += ` [FREQUENCIES: ${freqStr}]`;
                 }
-                
+
                 mergedEntries.push(enhancedEntry);
               }
             });

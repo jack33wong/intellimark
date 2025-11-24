@@ -43,11 +43,23 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
   // ========================= UNIFIED PIPELINE FORMAT =========================
   if (input.questionMarks && input.totalMarks !== undefined) {
 
+    // Handle alternative methods structure (e.g., {main: {...}, alt: {...}, hasAlternatives: true})
+    let questionMarksData = input.questionMarks;
+    let hasAlternatives = false;
+    let alternativeMethod = null;
+
+    if (questionMarksData.hasAlternatives && questionMarksData.main && questionMarksData.alt) {
+      // Both main and alternative methods exist
+      hasAlternatives = true;
+      alternativeMethod = questionMarksData.alt; // Store alternative before overwriting
+      questionMarksData = questionMarksData.main; // Use main as primary
+    }
+
     // Extract marks array from questionMarks.marks
-    const marksArray = input.questionMarks.marks || [];
+    const marksArray = questionMarksData.marks || [];
 
     // Extract question-level answer if it exists (for letter-based answers like "H", "F", "J")
-    const questionLevelAnswer = input.answer || input.questionMarks.answer || undefined;
+    const questionLevelAnswer = input.answer || questionMarksData.answer || undefined;
 
     // Extract sub-question-specific answers for grouped sub-questions (e.g., Q12i="H", 12ii="F", 12iii="J")
     // Check multiple possible locations where sub-question answers might be stored
@@ -60,28 +72,28 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
       }
-    } else if (input.questionMarks?.subQuestionAnswers && Array.isArray(input.questionMarks.subQuestionAnswers) && input.questionMarks.subQuestionAnswers.length > 0) {
-      const validAnswers = input.questionMarks.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
+    } else if (questionMarksData?.subQuestionAnswers && Array.isArray(questionMarksData.subQuestionAnswers) && questionMarksData.subQuestionAnswers.length > 0) {
+      const validAnswers = questionMarksData.subQuestionAnswers.filter((a: any) => a && typeof a === 'string' && a.trim() !== '' && a.toLowerCase() !== 'cao');
       if (validAnswers.length > 0) {
         marksWithAnswers = validAnswers;
       }
     }
 
     // Only log if no answers found (to reduce noise)
-    if (!marksWithAnswers && (input.subQuestionAnswers || input.questionMarks?.subQuestionAnswers)) {
+    if (!marksWithAnswers && (input.subQuestionAnswers || questionMarksData?.subQuestionAnswers)) {
       console.log(`[MARKING INSTRUCTION] Q${questionNumber}: No valid sub-question answers found (filtered out empty/cao values)`);
     }
 
     // Extract sub-question numbers if available (for grouped sub-questions)
     // Check multiple possible locations where sub-question numbers might be stored
     const subQuestionNumbers = input.subQuestionNumbers ||
-      input.questionMarks?.subQuestionNumbers ||
+      questionMarksData?.subQuestionNumbers ||
       (input as any).subQuestionNumbers ||
       undefined;
 
     // CRITICAL: Extract sub-question marks mapping if available (prevents mix-up of marks between sub-questions)
     // This preserves which marks belong to which sub-question (e.g., Q3a marks vs Q3b marks)
-    const subQuestionMarks = input.questionMarks?.subQuestionMarks ||
+    const subQuestionMarks = questionMarksData?.subQuestionMarks ||
       (input as any).subQuestionMarks ||
       undefined;
 
@@ -92,7 +104,9 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       questionLevelAnswer: questionLevelAnswer,
       marksWithAnswers: marksWithAnswers,
       subQuestionNumbers: subQuestionNumbers,
-      subQuestionMarks: subQuestionMarks // Preserve sub-question-to-marks mapping
+      subQuestionMarks: subQuestionMarks, // Preserve sub-question-to-marks mapping
+      alternativeMethod: alternativeMethod, // Include alternative method if available
+      hasAlternatives: hasAlternatives // Flag indicating if alternative exists
     };
 
 
@@ -230,7 +244,7 @@ export class MarkingInstructionService {
 
     try {
       // Get cleaned OCR data from OCRPipeline (now includes all OCR cleanup)
-      const cleanDataForMarking = (processedImage as any).cleanDataForMarking;
+      let cleanDataForMarking = (processedImage as any).cleanDataForMarking;
       // ========================= START OF FIX =========================
       // Use the plain text OCR text that was passed in, not the JSON format from OCR service
       const cleanedOcrText = (processedImage as any).ocrText || (processedImage as any).cleanedOcrText;
@@ -238,7 +252,10 @@ export class MarkingInstructionService {
       const unifiedLookupTable = (processedImage as any).unifiedLookupTable;
 
       if (!cleanDataForMarking || !cleanDataForMarking.steps || cleanDataForMarking.steps.length === 0) {
-        throw new Error('Cannot generate annotations without steps - OCR cleanup failed in OCRPipeline');
+        // For pure drawing questions (like Q21 graph transformations), there may be no OCR text
+        // Allow marking to proceed with empty steps - the AI will evaluate based on image only
+        console.log('[MARKING INSTRUCTION] No OCR steps found - proceeding with image-only marking');
+        cleanDataForMarking = { steps: [], rawOcrText: '' };
       }
 
       // Step 1: Generate raw annotations from cleaned OCR text
@@ -329,7 +346,8 @@ export class MarkingInstructionService {
         classificationStudentWork, // Pass classification student work for enhanced marking
         inputQuestionNumber, // Pass question number (may include sub-question part)
         subQuestionMetadata, // Pass sub-question metadata for grouped sub-questions
-        inputs.generalMarkingGuidance // Pass general marking guidance
+        inputs.generalMarkingGuidance, // Pass general marking guidance
+        _imageData // Pass image data for edge cases where Drawing Classification failed
       );
 
       // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
@@ -447,7 +465,8 @@ export class MarkingInstructionService {
     classificationStudentWork?: string | null,
     inputQuestionNumber?: string,
     subQuestionMetadata?: { hasSubQuestions: boolean; subQuestions: Array<{ part: string; text?: string }>; subQuestionNumbers?: string[] },
-    generalMarkingGuidance?: any
+    generalMarkingGuidance?: any,
+    imageData?: string // Image data for edge cases where Drawing Classification failed
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -546,6 +565,13 @@ export class MarkingInstructionService {
           if (normalizedScheme.subQuestionMarks && typeof normalizedScheme.subQuestionMarks === 'object') {
             schemeData.subQuestionMarks = normalizedScheme.subQuestionMarks;
           }
+          // Include alternative method if available (e.g., Q7alt, Q22alt)
+          if (normalizedScheme.hasAlternatives && normalizedScheme.alternativeMethod) {
+            schemeData.alternativeMethod = {
+              marks: normalizedScheme.alternativeMethod.marks || [],
+              answer: normalizedScheme.alternativeMethod.answer
+            };
+          }
           schemeJson = JSON.stringify(schemeData, null, 2);
         } catch (error) {
           schemeJson = '{}';
@@ -581,7 +607,11 @@ export class MarkingInstructionService {
       // Use the basic prompt
       const prompt = AI_PROMPTS.markingInstructions.basic;
       systemPrompt = prompt.system;
-      userPrompt = prompt.user(formattedOcrText);
+      // Pass classification student work to basic prompt for better context
+      userPrompt = prompt.user(
+        formattedOcrText,
+        classificationStudentWork ? classificationStudentWork.replace(/\\n/g, '\n') : null
+      );
     }
 
     // ========================== END: USE SINGLE PROMPT ==========================
@@ -637,7 +667,35 @@ export class MarkingInstructionService {
     try {
       // Use the provided model parameter
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const res = await ModelProvider.callText(systemPrompt, userPrompt, model, true);
+
+      // Edge case: Use vision API when imageData is present (Drawing Classification returned 0)
+      let res;
+      if (imageData && imageData.trim() !== '') {
+        console.log(`[MARKING INSTRUCTION] Using vision API for Q${inputQuestionNumber} (Drawing Classification returned 0 for this drawing question)`);
+        console.log(`[MARKING INSTRUCTION DEBUG] Image data length: ${imageData.length} characters`);
+        console.log(`[MARKING INSTRUCTION DEBUG] Image format: ${imageData.substring(0, 50)}...`);
+        console.log(`[MARKING INSTRUCTION DEBUG] Has data URL prefix: ${imageData.startsWith('data:')}`);
+
+        console.log(`[MARKING INSTRUCTION DEBUG] Using raw image for marking. Length: ${imageData.length}`);
+
+        // Determine which model provider to use
+        const isOpenAI = model && model.toString().startsWith('openai-');
+
+        if (isOpenAI) {
+          let openaiModel = model.toString().replace('openai-', '');
+          console.log(`[MARKING INSTRUCTION DEBUG] Using OpenAI vision model: ${openaiModel}`);
+          const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel);
+          res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
+        } else {
+          // Use Gemini Vision
+          console.log(`[MARKING INSTRUCTION DEBUG] Using Gemini vision model: ${model || 'auto'}`);
+          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model);
+          res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
+        }
+      } else {
+        // Normal flow: text-only API
+        res = await ModelProvider.callText(systemPrompt, userPrompt, model, true);
+      }
 
       aiResponseString = res.content;
       const usageTokens = res.usageTokens;

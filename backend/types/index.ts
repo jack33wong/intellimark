@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'openai-gpt-5-mini';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'openai-gpt-4o' | 'openai-gpt-4o-mini';
 
 export interface AIModelConfig {
   name: string;
@@ -163,10 +163,10 @@ export interface DetectedQuestion {
   found: boolean;
   multipleExamPapers: boolean;
   multipleQuestions: boolean;
-  
+
   // Aggregated totals (convenience fields)
   totalMarks: number; // Sum of all examPapers[].totalMarks
-  
+
   // Main data structure - grouped by exam paper
   examPapers: Array<{
     // Exam paper identification
@@ -176,17 +176,17 @@ export interface DetectedQuestion {
     tier: string;
     subject: string;
     paperTitle: string; // e.g., "Pearson Edexcel Mathematics 1MA1/2F (June 2022)"
-    
+
     // Aggregated data for this exam paper
     totalMarks: number; // Sum of all questions in this exam paper
-    
+
     // Questions belonging to this specific exam paper
     questions: Array<{
       questionNumber: string; // e.g., "21" (just the number, not unique key)
       questionText: string;
       marks: number; // Marks for this individual question
       sourceImageIndex?: number; // Which image this question came from
-      
+
       // Marking scheme for this specific question
       markingScheme: Array<{
         mark: string; // e.g., "M1", "A1", "P1"
@@ -225,7 +225,7 @@ export interface UnifiedMessage {
   content: string;
   timestamp: string; // ISO string format
   type?: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
-  
+
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;
   imageData?: string; // For unauthenticated users
@@ -239,33 +239,33 @@ export interface UnifiedMessage {
     originalFileName: string;
     fileSize: number;
   }>; // For PDF uploads - simplified to match imageDataArray structure
-  
+
   // Display options
   isImageContext?: boolean;
   isProcessing?: boolean;
-  
-  
+
+
   // Student score for marking messages
   studentScore?: {
     totalMarks: number;
     awardedMarks: number;
     scoreText: string;
   };
-  
+
   // Message-specific processing stats
   processingStats?: {
-    processingTimeMs?: number;   
+    processingTimeMs?: number;
     confidence?: number;
-    annotations?: number;       		 
+    annotations?: number;
     imageSize?: number;
     ocrMethod?: string;
     classificationResult?: any;
     modelUsed?: string;				// Real model version (e.g., "gemini-2.5-pro")
     apiUsed?: string;              // API service used (e.g., "Google Gemini API")
-    llmTokens?: number;               
-    mathpixCalls?: number;  
+    llmTokens?: number;
+    mathpixCalls?: number;
   };
-  
+
   // Progress data for chat history (simplified)
   progressData?: {
     currentStepDescription: string;
@@ -273,13 +273,13 @@ export interface UnifiedMessage {
     currentStepIndex: number;
     isComplete: boolean;
   };
-  
+
   // Suggested follow-up questions
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
-  
+
   // Exam information for frontend display
   detectedQuestion?: DetectedQuestion;
-  
+
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;
@@ -292,24 +292,24 @@ export interface UnifiedSession {
   messages: UnifiedMessage[];
   userId: string;
   messageType: 'Marking' | 'Question' | 'Chat' | 'Mixed';
-  
+
   // Session timestamps
   createdAt: string;    // When session was created
   updatedAt: string;    // When session was last modified
-  
+
   // User preferences
   favorite?: boolean;
   rating?: number;
-  
+
   // Session-specific flags
   isPastPaper?: boolean;
-  
+
   // Aggregated stats across ALL messages
   sessionStats?: {
-    totalProcessingTimeMs?: number;   
-    totalLlmTokens?: number;               
-    totalMathpixCalls?: number;  
-    totalMessages: number;            
+    totalProcessingTimeMs?: number;
+    totalLlmTokens?: number;
+    totalMathpixCalls?: number;
+    totalMessages: number;
     totalTokens?: number;   // sum of totalLlmTokens + totalMathpixCalls
 
     // Additional fields for Task Details dropdown
@@ -318,7 +318,7 @@ export interface UnifiedSession {
     totalAnnotations?: number;    // For "Annotations" display
     lastApiUsed?: string;         // For consistency
     lastModelUsed?: string;       // For consistency
-    
+
     // Cost calculation (in USD)
     totalCost?: number;           // Total cost for the session
     costBreakdown?: {
@@ -334,13 +334,13 @@ export interface SubjectMarkingResult {
   // Identity
   userId: string;
   subject: string; // "Mathematics", "Physics"
-  
+
   // All marking results for this subject (across all sessions, exam series, qualifications)
   markingResults: Array<{
     // Session reference
     sessionId: string;
     timestamp: string; // ISO date
-    
+
     // Exam metadata
     examMetadata: {
       examBoard: string;        // "Pearson Edexcel"
@@ -349,7 +349,7 @@ export interface SubjectMarkingResult {
       qualification: string;     // "GCSE", "A-Level"
       tier?: string;             // "Higher", "Foundation"
     };
-    
+
     // Marking results
     questionResults: Array<{
       questionNumber: string;    // "1", "2a", "3b", "12i"
@@ -358,24 +358,24 @@ export interface SubjectMarkingResult {
         totalMarks: number;
       };
     }>;
-    
+
     // Overall score for this session
     overallScore: {
       awardedMarks: number;
       totalMarks: number;
     };
-    
+
     // Grade information
     grade?: string;               // "9", "8", "A*"
     gradeBoundaries?: {
       boundaries: { [grade: string]: number };
       boundaryType: 'Paper-Specific' | 'Overall-Total';
     };
-    
+
     // AI model used
     modelUsed: string;            // "gemini-2.5-flash", "gpt-5-mini"
   }>;
-  
+
   // Aggregated statistics (calculated from all markingResults)
   statistics: {
     totalSessions: number;
@@ -391,7 +391,7 @@ export interface SubjectMarkingResult {
     qualifications: string[];     // All unique qualifications
     examBoards: string[];         // All unique exam boards
   };
-  
+
   // AI-generated analysis reports (stored per filter combination)
   // Structure: analysis[qualification][examBoard][paperCodeSetKey] = { ...analysis }
   // Example: analysis["GCSE"]["AQA"]["1H_2H_3H"] = { performance: {...}, strengths: [...], ... }
@@ -436,7 +436,7 @@ export interface SubjectMarkingResult {
     generatedAt?: string;
     modelUsed?: string;
   };
-  
+
   // Metadata
   updatedAt: string;              // ISO date (updated when new marking result added)
   createdAt: string;              // ISO date (first marking result for this subject)
@@ -532,7 +532,7 @@ export interface ChatResponse {
 // Error types
 export class ImageProcessingError extends Error {
   public readonly code: string;
-  
+
   constructor(message: string, code: string) {
     super(message);
     this.name = 'ImageProcessingError';
@@ -542,7 +542,7 @@ export class ImageProcessingError extends Error {
 
 export class OCRServiceError extends Error {
   public readonly code: string;
-  
+
   constructor(message: string, code: string) {
     super(message);
     this.name = 'OCRServiceError';
@@ -552,7 +552,7 @@ export class OCRServiceError extends Error {
 
 export class AIServiceError extends Error {
   public readonly code: string;
-  
+
   constructor(message: string, code: string) {
     super(message);
     this.name = 'AIServiceError';
@@ -561,7 +561,7 @@ export class AIServiceError extends Error {
 }
 
 // Utility types
-export type Result<T, E = Error> = 
+export type Result<T, E = Error> =
   | { success: true; data: T }
   | { success: false; error: E };
 

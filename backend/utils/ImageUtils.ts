@@ -62,7 +62,7 @@ export class ImageUtils {
       // 1. Normalize: Stretches the histogram to use the full dynamic range.
       // 2. Gamma Correction: Adjust mid-tones (values > 1 lighten mid-tones), helpful for shadows.
       // 3. Modulate: Slightly increase brightness and saturation.
-      
+
       const processedBuffer = await sharp(imageBuffer)
         .normalize()
         .gamma(1.1) // Lighten mid-tones slightly (e.g., 1.1 to 1.2)
@@ -81,14 +81,39 @@ export class ImageUtils {
 
       const enhancedBase64 = finalBuffer.toString('base64');
       const enhancedDataUrl = `data:image/jpeg;base64,${enhancedBase64}`;
-      
+
       // Updated logging message to reflect the new strategy
       return enhancedDataUrl;
-      
+
     } catch (error) {
       console.error('❌ [IMAGE UTILS] Error enhancing image, returning original:', error);
       // Fallback to original image if processing fails
       return imageData;
+    }
+  }
+  /**
+   * Rotates an image by a specified angle.
+   * @param imageData Base64 image data (Data URL or raw base64)
+   * @param angle Angle in degrees (90, 180, 270)
+   * @returns Rotated image buffer
+   */
+  static async rotateImage(imageData: string, angle: number): Promise<Buffer> {
+    try {
+      let imageBuffer: Buffer;
+      if (imageData.startsWith('data:')) {
+        const base64Data = imageData.split(',')[1];
+        if (!base64Data) throw new Error('Invalid data URL format');
+        imageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        imageBuffer = Buffer.from(imageData, 'base64');
+      }
+
+      return await sharp(imageBuffer)
+        .rotate(angle)
+        .toBuffer();
+    } catch (error) {
+      console.error(`❌ [IMAGE UTILS] Error rotating image by ${angle} degrees:`, error);
+      throw error;
     }
   }
 }

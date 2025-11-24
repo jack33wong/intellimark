@@ -600,6 +600,12 @@ export class QuestionDetectionService {
         return null;
       }
 
+      // DEBUG LOGGING: Entry point
+      const qNum = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
+      if (qNum === "2" || qNum === "5" || qNum === "9") {
+        console.log(`[DEBUG FIND SCHEME] Searching for Q${qNum}. Raw: '${examPaperMatch.questionNumber}'. SubQ: '${examPaperMatch.subQuestionNumber}'`);
+      }
+
       const snapshot = await this.db.collection('markingSchemes').get();
       const markingSchemes: any[] = [];
 
@@ -610,6 +616,8 @@ export class QuestionDetectionService {
           ...data
         });
       });
+
+
 
       // Try to match marking scheme with exam paper
       // First, try to find exact matches (same paper code)
@@ -652,6 +660,9 @@ export class QuestionDetectionService {
         throw new Error('Marking scheme missing required examDetails structure');
       }
 
+      // DEBUG LOGGING: Check input values before any logic
+
+
       // Match by board, qualification, paper code, and year
       const boardMatch = this.calculateSimilarity(examPaperMatch.board, examDetails.board || '');
 
@@ -672,6 +683,7 @@ export class QuestionDetectionService {
       // Examples: 1MA1/1H != 1MA1/2H (different papers), 1MA1/1H != 1MA1/1F (different tiers)
       // This is a hard requirement - reject immediately if paper codes don't match
       if (examPaperMatch.paperCode !== examDetails.paperCode) {
+
         return null; // Reject - paper codes must match exactly
       }
 
@@ -695,19 +707,40 @@ export class QuestionDetectionService {
         }
 
         const questions = markingScheme.questions;
-        const questionNumber = examPaperMatch.questionNumber;
+        // Normalize question number: remove leading zeros, trim whitespace
+        const questionNumber = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
 
         // Build the flat key: "1" for main questions, "2a", "2b" for sub-questions
         let flatKey: string;
         if (examPaperMatch.subQuestionNumber) {
-          flatKey = `${questionNumber}${examPaperMatch.subQuestionNumber.toLowerCase()}`;
+          flatKey = `${questionNumber}${examPaperMatch.subQuestionNumber.toLowerCase().trim()}`;
         } else {
           flatKey = questionNumber;
         }
 
+        // DEBUG LOGGING for specific questions
+        if (questionNumber === "2" || questionNumber === "5" || questionNumber === "9") {
+          console.log(`[DEBUG DETECT] Q${questionNumber} (Raw: ${examPaperMatch.questionNumber}). SubQ: ${examPaperMatch.subQuestionNumber}. FlatKey: ${flatKey}`);
+
+        }
+
         // FLAT STRUCTURE ONLY - no fallbacks, no nested structures
-        if (questions[flatKey]) {
-          questionMarks = questions[flatKey];
+        // Check for main question and alternative method
+        const mainQuestion = questions[flatKey];
+        const altKey = `${flatKey}alt`;
+        const altQuestion = questions[altKey];
+
+        // If both main and alternative exist, combine them (AI will choose best match)
+        if (mainQuestion && altQuestion) {
+          questionMarks = {
+            main: mainQuestion,
+            alt: altQuestion,
+            hasAlternatives: true
+          };
+        } else if (mainQuestion) {
+          questionMarks = mainQuestion;
+        } else if (altQuestion) {
+          questionMarks = altQuestion;
         } else {
           // Fallback: If main question doesn't exist but sub-questions do (e.g., "3" doesn't exist but "3a", "3b" do)
           // This happens when classification extracts main question text but database only has sub-question schemes
@@ -719,11 +752,62 @@ export class QuestionDetectionService {
               return baseMatch && baseMatch[1] === questionNumber;
             });
 
+            // DEBUG LOGGING
+            if (questionNumber === "5" || questionNumber === "2" || questionNumber === "9") {
+              console.log(`[DEBUG DETECT] Checking Q${questionNumber}. FlatKey: ${flatKey}. SubKeys found: ${subQuestionKeys.join(', ')}`);
+            }
+
             if (subQuestionKeys.length > 0) {
-              // Main question doesn't have a marking scheme, but sub-questions do
-              // This is expected - main questions with sub-questions typically don't have their own scheme
-              // Return null to allow question to proceed without marking scheme (will use basic prompt)
-              return null;
+              // Main question doesn't have a marking scheme, but sub-questions do (e.g. Q5 detected, but DB has 5a, 5b)
+              // Synthesize a composite marking scheme by combining all sub-questions
+              // This allows the AI to mark the entire question block against all sub-parts
+
+              subQuestionKeys.sort(); // Ensure a, b, c order
+
+              const compositeMarks: any[] = [];
+              const compositeAnswers: string[] = [];
+              const compositeGuidance: any[] = [];
+
+              subQuestionKeys.forEach(key => {
+                const subScheme = questions[key];
+                const partLabel = key.replace(questionNumber, ''); // e.g. "a"
+
+                // Add part label to answer
+                compositeAnswers.push(`(${partLabel}) ${subScheme.answer}`);
+
+                // Add part label to marks and combine
+                if (subScheme.marks) {
+                  subScheme.marks.forEach((m: any) => {
+                    compositeMarks.push({
+                      ...m,
+                      // Prepend part label to mark definition if possible, or rely on AI context
+                      mark: `[${partLabel}] ${m.mark}`
+                    });
+                  });
+                }
+
+                if (subScheme.guidance) {
+                  compositeGuidance.push(...subScheme.guidance);
+                }
+              });
+
+              questionMarks = {
+                answer: compositeAnswers.join('\n'),
+                marks: compositeMarks,
+                guidance: compositeGuidance,
+                isComposite: true // Flag for debugging
+              };
+
+              // Return the synthesized scheme instead of null
+              return {
+                id: markingScheme.id,
+                examDetails: markingScheme.examDetails,
+                questionMarks: questionMarks,
+                totalQuestions: Object.keys(questions).length,
+                totalMarks: 0, // Not critical for this specific flow
+                confidence: 1.0, // Synthetic match
+                generalMarkingGuidance: markingScheme.generalMarkingGuidance
+              };
             }
           }
 

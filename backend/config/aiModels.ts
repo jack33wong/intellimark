@@ -77,12 +77,7 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     maxTokens: 16384,
     temperature: 0.1
   },
-  'openai-gpt-5-mini': {
-    name: 'OpenAI GPT-5 Mini',
-    apiEndpoint: 'openai', // Special marker for OpenAI provider
-    maxTokens: 16384,
-    temperature: 0.1
-  }
+
 };
 
 /**
@@ -202,7 +197,7 @@ export function getModelPromptTemplate(modelType: ModelType): string {
  */
 export function getModelParameters(modelType: ModelType): Record<string, any> {
   const config = getModelConfig(modelType);
-  
+
   switch (modelType) {
     case 'auto':
       return {
@@ -255,7 +250,7 @@ export function isOpenAIConfigured(): boolean {
 
 /** Get OpenAI model name (from env or default) */
 export function getOpenAIModelName(): string {
-  return process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  return process.env.OPENAI_MODEL || 'gpt-4o'; // Upgraded to gpt-4o for better vision capabilities
 }
 
 /** Get OpenAI API endpoint for chat completions */

@@ -1,0 +1,663 @@
+{
+    "examDetails": {
+      "board": "Pearson Edexcel",
+      "qualification": "GCSE",
+      "subject": "Mathematics (1MA1)",
+      "paperCode": "1MA1/2H",
+      "tier": "Higher (Calculator)",
+      "paper": "Paper 2H",
+      "exam_series": "Summer 2024"
+    },
+    "generalMarkingGuidance": {
+      "precedence": "Specific notes for examiners appertaining to individual questions take precedence over the general guidance.",
+      "generalPrinciples": [
+        "All candidates must receive the same treatment. Examiners must mark the last candidate in exactly the same way as they mark the first.",
+        "Where some judgement is required, mark schemes will provide the principles by which marks will be awarded.",
+        "All the marks on the mark scheme are designed to be awarded. Examiners should be prepared to award zero marks if the candidate's response is not worthy of credit according to the mark scheme."
+      ],
+      "markingProcedure": [
+        "If there is a wrong answer (or no answer) indicated on the answer line always check the working in the body of the script (and on any diagrams), and award any marks appropriate from the mark scheme.",
+        "Questions where working is not required: In general, the correct answer should be given full marks.",
+        "Questions that specifically require working: In general, candidates who do not show working on this type of question will get no marks - full details will be given in the mark scheme for each individual question.",
+        "If there is a choice of methods shown, mark the method that leads to the answer given on the answer line. If no answer appears on the answer line, mark both methods then award the lower number of marks.",
+        "If it is clear from the working that the 'correct' answer has been obtained from incorrect working, award 0 marks."
+      ],
+      "followThroughMarks": [
+        "Follow through marks which involve a single stage calculation can be awarded without working as you can check the answer, but if ambiguous do not award.",
+        "Follow through marks which involve more than one stage of calculation can only be awarded on sight of the relevant working."
+      ],
+      "treatmentOfAnswers": [
+        "It is appropriate to ignore subsequent work (isw) when the additional work does not change the answer in a way that is inappropriate for the question or its context (e.g., an incorrectly cancelled fraction).",
+        "It is not appropriate to ignore subsequent work when the additional work essentially makes the answer incorrect (e.g., incorrect algebraic simplification).",
+        "Probability answers must be given as a fraction, percentage or decimal. If a candidate gives a decimal equivalent, this should be written to at least 2 decimal places (unless tenths).",
+        "Unless otherwise stated, when an answer is given as a range (e.g., 3.5–4.2) then this is inclusive of the end points and all numbers within the range."
+      ],
+      "abbreviations": {
+        "M": "method mark awarded for a correct method or partial method",
+        "P": "process mark awarded for a correct process as part of a problem solving question",
+        "A": "accuracy mark (awarded after a correct method or process)",
+        "C": "communication mark awarded for a fully correct statement(s) with no contradiction or ambiguity",
+        "B": "unconditional accuracy mark (no method needed)",
+        "oe": "or equivalent",
+        "cao": "correct answer only",
+        "ft": "follow through (when appropriate as per mark scheme)",
+        "awrt": "answer which rounds to",
+        "isw": "ignore subsequent working"
+      }
+    },
+    "questions": {
+      "1": {
+        "answer": "16.2",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for a correct first step to find BC, eg $19^{2}=10^{2}+BC^{2}$ or $19^{2}-10^{2}$ or $\\sqrt{19^{2}-10^{2}}$ or $\\sqrt{261}$ or $3\\sqrt{29}$",
+            "comments": "Can use alternative letter for BC provided intention is clear. If using an alternative method using trigonometry must have BC as the only unknown"
+          },
+          {
+            "mark": "A1",
+            "answer": "for answer in the range 16.1 to 16.2",
+            "comments": "ISW incorrect rounding if answer given in range"
+          }
+        ],
+        "guidance": []
+      },
+      "2a": {
+        "answer": "$2\\times3\\times3\\times5$",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for a complete method to find prime factors; could be shown on a complete factor tree with no more than one error or by division by prime factors with no more than one error or for 2, 3, 3, 5",
+            "comments": "Condone the inclusion of 1 for this mark"
+          },
+          {
+            "mark": "A1",
+            "answer": "for $2\\times3\\times3\\times5$ oe",
+            "comments": "Accept $2\\times3^{2}\\times5$"
+          }
+        ],
+        "guidance": []
+      },
+      "3": {
+        "answer": "4",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for method to use formula, eg $72\\div6(=12)$ or $72\\div9(=8)$",
+            "comments": "Can be implied by $\\frac{72}{6}$ or $\\frac{72}{9}$"
+          },
+          {
+            "mark": "A1",
+            "answer": "cao",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "4": {
+        "answer": "70",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for process to find number of discs in the bag, eg $24\\div0.16(=150)$ or for process to find the total probability of red or blue, eg $1-0.16(=0.84~or\\frac{21}{25}oe)$",
+            "comments": "May be implied by 126"
+          },
+          {
+            "mark": "P1",
+            "answer": "for process to work with the ratio eg $([total]-24)\\div(5+4)(=14)$ or for a process to find the probability of red, eg $[probability]\\div(5+4)\\times5(=0.46...or\\frac{7}{15})$",
+            "comments": "$0.46$ or better or $0.47$ may imply P2. [total] can be any integer. [probability] can be any value less than 1"
+          },
+          {
+            "mark": "P1",
+            "answer": "for a complete correct process to find the number of red discs eg $”14”\\times5$ or $”0.46...”\\times24\\div0.16$ or an answer of $\\frac{70}{150}$",
+            "comments": "Must come from correct use of probability and ratio in either order. If correct processes seen to find the total for both red and blue or 70: 56 award P3."
+          },
+          {
+            "mark": "A1",
+            "answer": "for 70",
+            "comments": "If the values for red and blue are found, the value for red must be clearly identified as the answer to gain A1"
+          }
+        ],
+        "guidance": []
+      },
+      "5a": {
+        "answer": "2, 0, 0, 2, 6 (Table values)",
+        "marks": [
+          {
+            "mark": "B2",
+            "answer": "for all 3 values correct",
+            "comments": "(B1) for 1 or 2 correct values"
+          }
+        ],
+        "guidance": []
+      },
+      "5b": {
+        "answer": "Graph drawn",
+        "marks": [
+          {
+            "mark": "B2",
+            "answer": "for a fully correct graph",
+            "comments": "(B1) ft (dep on B1 in (a)) for plotting at least 5 of the points from their table correctly"
+          }
+        ],
+        "guidance": [
+          {
+            "scenario": "Graph shape",
+            "outcome": "Accept a freehand curve drawn that is not made of line segments. Ignore anything drawn outside the required range"
+          }
+        ]
+      },
+      "5c": {
+        "answer": "-1.7 to -1.5 and 2.5 to 2.7",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for drawing the line $y=4$ or reading off intersections where $y=4$ or one correct solution or both solutions given as coordinates, eg (-1.6, 2.6) or (-1.6, 4) and (2.6, 4)",
+            "comments": "ft their graph for this mark. Accept these coordinates reversed. Algebraic methods score 0 marks"
+          },
+          {
+            "mark": "A1",
+            "answer": "for answers in the range -1.7 to -1.5 and 2.5 to 2.7 or ft their graph with at least 2 solutions",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "6": {
+        "answer": "Yes, supported by correct figures",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for a process to find the number of sweets Tina gives to Andy, eg $14\\div7\\times3(=6)$ or for a process to work with fractions of the total to find fraction given to Andy, eg $\\frac{14}{21}\\times\\frac{3}{7}(=\\frac{2}{7})$ or for dividing a given number (eg 441) in the ratio $1:6:14(=21:126:294)$",
+            "comments": "May work with an equivalent ratio, eg 21: 126: 294 and do $294\\div7\\times3(=126)$ as a first step. May work in multiples of x for all marks"
+          },
+          {
+            "mark": "P1",
+            "answer": "for a process to find number for Andy and Tina after first exchange, eg $A=1+”6”(=7)$ and $T=14-”6”(=8)$ or for a process to find the number of sweets Tina gives to Luke $(14-”6”)\\times\\frac{12.5}{100}(=1)$",
+            "comments": "or for a process to work with fractions of the total to find fraction given to Luke, eg for $\\frac{(14-”6”)}{21}\\times\\frac{12.5}{100}$"
+          },
+          {
+            "mark": "P1",
+            "answer": "for a process to find the final amounts or final shares for at least two of Andy, Luke and Tina eg two of $1+”6”(=7), 6+”1”(=7), 14-”6”-”1”(=7)$ or $”21”+”126”(=147), ”126”+”21”(=147), ”294”-”126”-”21”(=147)$",
+            "comments": ""
+          },
+          {
+            "mark": "C1",
+            "answer": "Yes, supported by full working and accurate figures for Andy, Luke and Tina",
+            "comments": "Accurate figures with no supportive working scores 0"
+          }
+        ],
+        "guidance": []
+      },
+      "7": {
+        "answer": "Shown",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for deriving a suitable equation, eg $4x+15+2x+15+4x+8+3x-3=360(13x+35=360)$ or $4x+15+2x+15=180(6x+30=180)$ or $4x+8+3x-3=180(7x+5=180)$",
+            "comments": null
+          },
+          {
+            "mark": "M1",
+            "answer": "(dep) for a method to isolate terms in x, eg $4x+2x+4x+3x=360-15-15-8+3$ or $4x+2x=180-15-15$ or $4x+3x=180-8+3$",
+            "comments": null
+          },
+          {
+            "mark": "A1",
+            "answer": "for solving equation to $x=25$",
+            "comments": null
+          },
+          {
+            "mark": "C1",
+            "answer": "for substituting $x=25$ into $A+B$ or $C+D$ and showing = 180, and gives a suitable statement, eg co-interior/allied angles (sum to 180), or since $A+B=180$ the lines are parallel",
+            "comments": "If starting with an equation = 180 need to substitute into the opposite pair."
+          }
+        ],
+        "guidance": []
+      },
+      "7alt": {
+        "answer": "Shown",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for deriving a suitable equation, eg $4x+15+2x+15=4x+8+3x-3(6x+30=7x+5)$",
+            "comments": null
+          },
+          {
+            "mark": "M1",
+            "answer": "(dep) for a method to isolate terms in x, eg $15+15-8+3=4x+3x-4x-2x$",
+            "comments": null
+          },
+          {
+            "mark": "A1",
+            "answer": "for solving equation to $x=25$",
+            "comments": null
+          },
+          {
+            "mark": "C1",
+            "answer": "for a fully correct statement, eg since $A+B=180$ the lines are parallel",
+            "comments": null
+          }
+        ],
+        "guidance": []
+      },
+      "8": {
+        "answer": "35",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for one correct use of the given scale, eg $40\\div5(=8)$ or $28\\times5^{2}(=700)$",
+            "comments": "Can award these marks in either order"
+          },
+          {
+            "mark": "P1",
+            "answer": "for process to use area of triangle, eg $\\frac{1}{2}\\times[QR]\\times 40=700$ or $\\frac{1}{2}\\times\\frac{40}{5}\\times[RQ]=\\frac{28}{5^{2}}\\times 5^{2}$",
+            "comments": "[QR] must be clearly identified as the drawing length, and cannot be 40. [area] must be clearly identified as the real area, and cannot be 28"
+          },
+          {
+            "mark": "A1",
+            "answer": "cao",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "9a": {
+        "answer": "7.25",
+        "marks": [
+          {
+            "mark": "B1",
+            "answer": "oe",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "9b": {
+        "answer": "No with supporting reason",
+        "marks": [
+          {
+            "mark": "C1",
+            "answer": "No with supporting reason",
+            "comments": "Acceptable reasons: No, the 9 should be recurring. No, 7.3491 is greater. No, there are numbers between 7.349 and 7.350."
+          }
+        ],
+        "guidance": []
+      },
+      "10": {
+        "answer": "1.25",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for start of a process to solve $\\frac{4}{8}=\\frac{1+x}{7-2x}$, eg $4(7 – 2x) = 8(1 + x)$ or $28 - 8x = 8 + 8x$",
+            "comments": "Must come from a correct equation"
+          },
+          {
+            "mark": "A1",
+            "answer": "for 1.25 oe",
+            "comments": ""
+          }
+        ],
+        "guidance": [
+          {
+            "scenario": "Alternative initial setup",
+            "outcome": "B1 for $(\\sin a =)\\frac{10.4}{15}$ or $(\\tan b =)\\frac{8}{7-2y}$"
+          }
+        ]
+      },
+      "11a": {
+        "answer": "7, 28, 43, 54, 60 (Cumulative Frequencies)",
+        "marks": [
+          {
+            "mark": "B1",
+            "answer": "cao",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "11b": {
+        "answer": "cf graph",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for 4 or 5 of their points plotted correctly from a cf table",
+            "comments": "Ignore any histograms"
+          },
+          {
+            "mark": "A1",
+            "answer": "for a fully correct graph",
+            "comments": "Accept a smooth curve or line segments. Ignore anything drawn to the left of the first point."
+          }
+        ],
+        "guidance": [
+          {
+            "scenario": "Plotting points not at the end but consistent within each interval",
+            "outcome": "SCB1 if 4 or 5 of their points plotted not at the end but consistent within each interval and joined; providing no gradient is negative."
+          }
+        ]
+      },
+      "11c": {
+        "answer": "3.4 to 4",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for at least one correct quartile, eg (UQ =) value in the range 6.2 to 6.4 or (LQ =) value in the range 2.6 to 2.8 or ft their cf graph",
+            "comments": "CF graph must have no negative gradient to award ft"
+          },
+          {
+            "mark": "A1",
+            "answer": "for answer in the range 3.4 to 4 or ft their cf graph",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "11d": {
+        "answer": "7 to 10",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for cf reading at weight = 7.4 in the range 50 to 53 or ft their cf graph",
+            "comments": "CF graph must have no negative gradient to award ft"
+          },
+          {
+            "mark": "A1",
+            "answer": "for answer in the range 7 to 10 or ft their cf graph",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "12a": {
+        "answer": "$d = \\frac{224}{\\sqrt{x^3}}$",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for $d \\propto \\frac{1}{\\sqrt{x^3}}$ oe (k = 224)",
+            "comments": "Accept use of $d = \\frac{k}{\\sqrt{x^3}}$ for the M mark"
+          },
+          {
+            "mark": "A1",
+            "answer": "for $d = \\frac{224}{\\sqrt{x^3}}$ oe",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "12b": {
+        "answer": "4.73",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for $\\frac{224}{10}$ or $d^{2} = “224” \\div 10$ or ft their value for k provided $d = \\frac{k}{\\sqrt{x^3}}$ is used",
+            "comments": ""
+          },
+          {
+            "mark": "A1",
+            "answer": "for answer in range 4.73 to 4.733",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "13": {
+        "answer": "Correct region R",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for at least two correct boundaries, eg $y = – 3$ or $x = 2$ or $y = 2x + 1$ or $3x + 2y = 6$",
+            "comments": null
+          },
+          {
+            "mark": "M1",
+            "answer": "for the remaining two correct boundaries or a third correct boundary with shading correct with the inequalities for at least two correct boundaries",
+            "comments": null
+          },
+          {
+            "mark": "C1",
+            "answer": "for a correct region (R) clearly identified",
+            "comments": null
+          }
+        ],
+        "guidance": []
+      },
+      "14a": {
+        "answer": "–2.5",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for drawing a tangent at $t = 5$",
+            "comments": "No tangent drawn score 0 marks"
+          },
+          {
+            "mark": "M1",
+            "answer": "(dep on M1) for a complete method to find the gradient eg tangent at $t = 5$ and “10” $\\div$ “4” or an answer in the range 2.0 to 2.8",
+            "comments": "Working may be seen on the diagram"
+          },
+          {
+            "mark": "A1",
+            "answer": "for answer in the range –2.0 to –2.8 dependent on tangent drawn",
+            "comments": "Accept answers in the form $\\frac{a}{b}$ where a and b are integers"
+          }
+        ],
+        "guidance": []
+      },
+      "14b": {
+        "answer": "79",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for a method to find an estimate for the area of at least 1 trapezium under the curve, eg $\\frac{1}{2}\\times 2(0+5)$ oe or $\\frac{1}{2}\\times 2(5+9)$ oe or $\\frac{1}{2}\\times 2(9+11)$ oe",
+            "comments": "or for a method to find an estimate for the area of at least 1 rectangle with heights at intersection of midpoint and curve"
+          },
+          {
+            "mark": "M1",
+            "answer": "for a complete method, eg $\\frac{1}{2}\\times 2(0+2\\times 5+2\\times 9+2\\times 11+2\\times 11+8)$ oe or $2(3+7.5+10.5+10.5+8)$",
+            "comments": "Allow 1 error in y values used. Allow consistent use of incorrect width for both M marks"
+          },
+          {
+            "mark": "A1",
+            "answer": "For 79 or 78",
+            "comments": "Allow 78 only if it comes from rectangle/midpoint method"
+          }
+        ],
+        "guidance": []
+      },
+      "15": {
+        "answer": "$4\\sqrt{3}-6$",
+        "marks": [
+          {
+            "mark": "M1",
+            "answer": "for a correct method to rationalise the denominator, eg, $\\frac{12}{2\\sqrt{3}+3}\\times \\frac{2\\sqrt{3}-3}{2\\sqrt{3}-3}$",
+            "comments": "Condone use of a prime number in place of a for the M1"
+          },
+          {
+            "mark": "A1",
+            "answer": "for $4\\sqrt{3}-6$ or $-6+4\\sqrt{3}$ oe",
+            "comments": "Do not ISW"
+          }
+        ],
+        "guidance": []
+      },
+      "16": {
+        "answer": "Content Not Found",
+        "marks": [
+          {
+            "mark": "Info",
+            "answer": "Mark scheme details not found in the extracted content.",
+            "comments": null
+          }
+        ],
+        "guidance": []
+      },
+      "17": {
+        "answer": "12 : 15 : 5",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for process to find ratio of heights of L and M eg $\\sqrt[3]{64} : \\sqrt[3]{125} (= 4 : 5)$ oe or $4^3:5^3(=64:125)$ or $\\frac{\\sqrt[3]{64}}{\\sqrt[3]{125}}$ oe",
+            "comments": "Condone not written as a ratio as long as clear"
+          },
+          {
+            "mark": "P1",
+            "answer": "for process to find ratio of heights of M and P eg $\\sqrt{144} : \\sqrt{16} (= 12 : 4 = 3 : 1)$ oe or $3^2:1^2(=9:1)$ or $\\frac{\\sqrt{144}}{\\sqrt{16}}$ oe",
+            "comments": "Condone not written as a ratio as long as clear"
+          },
+          {
+            "mark": "P1",
+            "answer": "for process to find ratio of heights of all 3, eg $”(4 : 5)” \\times 3$ and $”(3 : 1)” \\times 5$ or $4\\times 3:5\\times 3:5\\times 1$ and $4\\times 3:5\\times 3:5\\times 1$",
+            "comments": "Dep on P2"
+          },
+          {
+            "mark": "A1",
+            "answer": "for $12 : 15 : 5$ oe",
+            "comments": "Can ISW incorrect simplification of a correct ratio"
+          }
+        ],
+        "guidance": []
+      },
+      "18": {
+        "answer": "Partial Content",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for a correct probability for 2nd or 3rd counter, eg $\\frac{3}{9}$ or $\\frac{2}{9}$ or $\\frac{4}{9}$ or $\\frac{3}{10}$ or $\\frac{2}{10}$ or $\\frac{4}{10}$ or $\\frac{3}{11}$ or $\\frac{2}{11}$ or $\\frac{4}{11}$",
+            "comments": "Only partial mark scheme found."
+          }
+        ],
+        "guidance": []
+      },
+      "19a": {
+        "answer": "$\\frac{1}{6}\\mathbf{a} - \\frac{1}{6}\\mathbf{b}$",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for a correct expression for $\\vec{AC}$ or $\\vec{AN}$, eg $\\vec{AC} = \\mathbf{b} - \\mathbf{a}$ or $\\vec{AN} = \\frac{1}{3} \\vec{AC} = \\frac{1}{3}(\\mathbf{b} - \\mathbf{a})$",
+            "comments": "All vectors must be clearly identified"
+          },
+          {
+            "mark": "P1",
+            "answer": "for a correct expression for $\\vec{ON}$ or $\\vec{MN}$ or $\\vec{BM}$ or $\\vec{OM}$, eg $\\vec{ON} = \\mathbf{a} + \\frac{1}{3}(\\mathbf{b} - \\mathbf{a})$ or $\\vec{ON} = \\frac{2}{3}\\mathbf{a} + \\frac{1}{3}\\mathbf{b}$ or $\\vec{OM} = \\frac{1}{2}\\mathbf{a} + \\frac{1}{2}\\mathbf{b}$",
+            "comments": "This mark implies the previous one"
+          },
+          {
+            "mark": "P1",
+            "answer": "for a correct unsimplified expression for $\\vec{MN}$ eg $\\frac{2}{3}\\mathbf{a} + \\frac{1}{3}\\mathbf{b} - (\\frac{1}{2}\\mathbf{a} + \\frac{1}{2}\\mathbf{b})$ oe",
+            "comments": "Must have a maximum of 3 vector terms, a, b, and kb"
+          },
+          {
+            "mark": "A1",
+            "answer": "for $\\frac{1}{6}\\mathbf{a} - \\frac{1}{6}\\mathbf{b}$ oe eg $\\frac{1}{6}(\\mathbf{a} - \\mathbf{b})$",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "19b": {
+        "answer": "No, with explanation",
+        "marks": [
+          {
+            "mark": "C1",
+            "answer": "No with supporting reason ft (a)",
+            "comments": "Acceptable reasons: No, since $\\vec{MN}$ is not a multiple of $\\vec{OB}$. No, as N is not the midpoint of BC. No, they are not multiples of each other. Not a multiple of $\\vec{OB}$."
+          }
+        ],
+        "guidance": []
+      },
+      "20": {
+        "answer": "3, – 11",
+        "marks": [
+          {
+            "mark": "P1",
+            "answer": "for start of a process to complete the square, eg $2(x^2 - 6x \\ldots)$ or $2(x \\pm 3)^2 \\ldots$ or $(x – 3)^2 \\ldots$ or an x coordinate of 3",
+            "comments": "... can be any constant term, but not a term in x"
+          },
+          {
+            "mark": "P1",
+            "answer": "for completing the square $(y = ) 2(x – 3)^2 – 11$ oe or finding the minimum point $(3, -11)$",
+            "comments": "If no working shown, award P2 for $(3, -11)$ or $2(x – 3)^2 – 11$ or $2(x – 3)^2 – 18 + 7$"
+          },
+          {
+            "mark": "A1",
+            "answer": "for 3, – 11",
+            "comments": ""
+          }
+        ],
+        "guidance": []
+      },
+      "21": {
+        "answer": "Content Not Found",
+        "marks": [
+          {
+            "mark": "Info",
+            "answer": "Mark scheme details not found in the extracted content.",
+            "comments": null
+          }
+        ],
+        "guidance": []
+      },
+      "22": {
+        "answer": "Proof",
+        "marks": [
+          {
+            "mark": "C1",
+            "answer": "for angle $\\text{OAP} = \\text{angle OBP} = 90^\\circ$ (angle between radius and tangent is $90^\\circ$)",
+            "comments": "May be seen as 2 separate diagrams"
+          },
+          {
+            "mark": "C1",
+            "answer": "for $\\text{OA} = \\text{OB}$ (both radii)",
+            "comments": "All reasons given must be clearly linked to the appropriate statement"
+          },
+          {
+            "mark": "C1",
+            "answer": "**OP** is **common**",
+            "comments": "Underlined words need to be shown"
+          },
+          {
+            "mark": "C1",
+            "answer": "(dep on C3) for a complete proof with all reasons given, eg triangles $\\text{OAP}$ and $\\text{OBP}$ are congruent $\\text{RHS}$ so $\\text{AP} = \\text{BP}$",
+            "comments": "or $\\text{AP} = \\sqrt{\\text{OP}^2 - \\text{OA}^2}$ and $\\text{BP} = \\sqrt{\\text{OP}^2 - \\text{OB}^2}$ and $\\text{OA} = \\text{OB}$ so $\\text{AP} = \\text{BP}$"
+          }
+        ],
+        "guidance": [
+          {
+            "scenario": "General guidance",
+            "outcome": "May be seen as 2 separate diagrams. All reasons given must be clearly linked to the appropriate statement. Underlined words need to be shown: radius, tangent, radii, OP, common, RHS, AP, BP, OA, OB"
+          }
+        ]
+      },
+      "22alt": {
+        "answer": "Proof",
+        "marks": [
+          {
+            "mark": "C1",
+            "answer": "for $\\cos \\text{AOP} = \\frac{\\text{AO}}{\\text{OP}} = \\frac{r}{\\text{OP}}$ or $\\cos \\text{BOP} = \\frac{\\text{BO}}{\\text{OP}} = \\frac{r}{\\text{OP}}$ (angle between radius and tangent is $90^\\circ$)",
+            "comments": "May be seen as 2 separate diagrams"
+          },
+          {
+            "mark": "C1",
+            "answer": "for $\\cos \\text{AOP} = \\frac{\\text{AO}}{\\text{OP}} = \\frac{r}{\\text{OP}}$ and $\\cos \\text{BOP} = \\frac{\\text{BO}}{\\text{OP}} = \\frac{r}{\\text{OP}}$ AND $\\text{AOP} = \\text{BOP}$ (both radii)",
+            "comments": "All reasons given must be clearly linked to the appropriate statement"
+          },
+          {
+            "mark": "C1",
+            "answer": "**OP** is **common**",
+            "comments": "Underlined words need to be shown"
+          },
+          {
+            "mark": "C1",
+            "answer": "(dep on C3) for a complete proof with all reasons given, eg triangles $\\text{OAP}$ and $\\text{OBP}$ are congruent **SAS** so **AP** = **BP**",
+            "comments": null
+          }
+        ],
+        "guidance": [
+          {
+            "scenario": "General guidance",
+            "outcome": "May be seen as 2 separate diagrams. All reasons given must be clearly linked to the appropriate statement. Underlined words need to be shown: radius, tangent, radii, OP, common, SAS, AP, BP"
+          }
+        ]
+      }
+    }
+  }

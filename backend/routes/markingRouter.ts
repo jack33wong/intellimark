@@ -14,11 +14,11 @@ import { ImageUtils } from '../utils/ImageUtils.js';
 import { sendSseUpdate, closeSseConnection, createProgressData } from '../utils/sseUtils.js';
 import { createAIMessage, createUserMessage, handleAIMessageIdForEndpoint, calculateMessageProcessingStats, calculateSessionStats } from '../utils/messageUtils.js';
 import { logPerformanceSummary, logCommonSteps, getSuggestedFollowUps, extractQuestionsFromClassification, convertMarkingSchemeToPlainText, formatGroupedStudentWork, getQuestionSortValue, buildClassificationPageToSubQuestionMap, buildPageToQuestionNumbersMap, calculateOverallScore, calculatePerPageScores } from '../services/marking/MarkingHelpers.js';
-import { 
-  generateSessionTitle, 
-  sendProgressUpdate, 
-  withPerformanceLogging, 
-  withErrorHandling 
+import {
+  generateSessionTitle,
+  sendProgressUpdate,
+  withPerformanceLogging,
+  withErrorHandling
 } from '../utils/markingRouterHelpers.js';
 import { SessionManagementService } from '../services/sessionManagementService.js';
 import type { MarkingSessionContext, QuestionSessionContext } from '../types/sessionManagement.js';
@@ -65,7 +65,7 @@ import { QuestionModeHandlerService } from '../services/marking/QuestionModeHand
 
 
 // --- Configure Multer ---
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit per file
@@ -81,7 +81,7 @@ const router = express.Router();
 // Define the steps for multi-image processing (matching original single image format)
 const MULTI_IMAGE_STEPS = [
   'Input Validation',
-  'Standardization', 
+  'Standardization',
   'Preprocessing',
   'OCR & Classification',
   'Question Detection',
@@ -106,18 +106,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
   // --- Basic Setup ---
   const submissionId = uuidv4(); // Generate a unique ID for this submission
   const startTime = Date.now();
-  
+
   // Performance tracking variables (reuse original design)
   const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
   let totalLLMTokens = 0;
   let totalMathpixCalls = 0;
   let actualModel = 'auto'; // Will be updated when model is determined
-  
+
   // Performance tracking function (reuse original design)
   const logStep = (stepName: string, modelInfo: string) => {
     const stepKey = stepName.toLowerCase().replace(/\s+/g, '_');
     stepTimings[stepKey] = { start: Date.now() };
-    
+
     return () => {
       if (stepTimings[stepKey]) {
         stepTimings[stepKey].duration = Date.now() - stepTimings[stepKey].start;
@@ -132,7 +132,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     };
   };
-  
+
   console.log(`\n🔄 ========== UNIFIED PIPELINE START ==========`);
   console.log(`🔄 ============================================\n`);
 
@@ -144,7 +144,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Cache-Control'
   });
-  
+
   // Send initial message in the same format as original single image pipeline
   sendSseUpdate(res, createProgressData(0, 'Processing started', MULTI_IMAGE_STEPS));
 
@@ -153,7 +153,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Determine authentication status early
     const userId = (req as any)?.user?.uid || null;
     const isAuthenticated = !!userId;
-    
+
     // Extract and resolve model from request
     const requestedModel = req.body.model || 'auto';
     if (requestedModel === 'auto') {
@@ -168,7 +168,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.error(`[SUBMISSION ${submissionId}] No files uploaded.`);
       throw new Error('No files were uploaded.');
     }
-    
+
     sendSseUpdate(res, createProgressData(0, `Received ${files.length} file(s). Validating...`, MULTI_IMAGE_STEPS));
     const logInputValidationComplete = logStep('Input Validation', 'validation');
 
@@ -188,7 +188,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.error(`[SUBMISSION ${submissionId}] Invalid file combination received.`);
       throw new Error('Invalid file submission: Please upload PDFs, images, or a combination of the same type.');
     }
-    
+
     const inputType = isPdf ? 'PDF' : isMultiplePdfs ? 'Multiple PDFs' : isMultipleImages ? 'Multiple Images' : 'Single Image';
     sendSseUpdate(res, createProgressData(0, `Input validated (${inputType}).`, MULTI_IMAGE_STEPS));
     logInputValidationComplete();
@@ -229,35 +229,35 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Multiple PDFs processing - PARALLEL CONVERSION
         sendSseUpdate(res, createProgressData(1, `Converting ${files.length} PDFs in parallel...`, MULTI_IMAGE_STEPS));
         stepTimings['pdf_conversion'] = { start: Date.now() };
-        
+
         // Convert all PDFs in parallel
         const pdfConversionPromises = files.map(async (file, index) => {
           try {
             const pdfPages = await PdfProcessingService.convertPdfToImages(file.buffer);
-          if (pdfPages.length === 0) {
-            console.warn(`PDF ${index + 1} (${file.originalname}) yielded no pages.`);
-            return { index, pdfPages: [] };
-          }
-            
+            if (pdfPages.length === 0) {
+              console.warn(`PDF ${index + 1} (${file.originalname}) yielded no pages.`);
+              return { index, pdfPages: [] };
+            }
+
             // TEMP: Limit to first 10 pages per PDF
             const MAX_PAGES_LIMIT = 10;
             const limitedPages = pdfPages.slice(0, MAX_PAGES_LIMIT);
-            
+
             // Store original index for sequential page numbering
             limitedPages.forEach((page, pageIndex) => {
               page.originalFileName = file.originalname || `pdf-${index + 1}.pdf`;
               (page as any)._sourceIndex = index; // Track source PDF for ordering
             });
-            
+
             return { index, pdfPages: limitedPages };
           } catch (error) {
             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
             return { index, pdfPages: [] };
           }
         });
-        
+
         const results = await Promise.all(pdfConversionPromises);
-        
+
         // Combine results and maintain sequential page indices
         const allPdfPages: StandardizedPage[] = [];
         results.forEach((result: any) => {
@@ -268,11 +268,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             });
           }
         });
-        
+
         if (stepTimings['pdf_conversion']) {
           stepTimings['pdf_conversion'].duration = Date.now() - stepTimings['pdf_conversion'].start;
         }
-        
+
         standardizedPages = allPdfPages;
         if (standardizedPages.length === 0) throw new Error('All PDF conversions yielded no pages.');
         sendSseUpdate(res, createProgressData(1, `Converted ${files.length} PDFs to ${standardizedPages.length} total pages.`, MULTI_IMAGE_STEPS));
@@ -306,11 +306,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Single PDF (single-page or multi-page) - set pdfContext
         const pageCount = standardizedPages.length;
         sendSseUpdate(res, createProgressData(2, pageCount === 1 ? 'Processing as single converted page...' : 'Processing multi-page PDF...', MULTI_IMAGE_STEPS));
-        
+
         // Upload original PDF to storage for authenticated users
         let originalPdfLink = null;
         let originalPdfDataUrl = null;
-        
+
         if (isAuthenticated) {
           const originalFileName = files[0].originalname || 'document.pdf';
           try {
@@ -334,11 +334,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             throw new Error(`Failed to upload original PDF (${originalFileName}): ${errorMessage}`);
           }
         }
-        
+
         // Calculate file size for single PDF
         const fileSizeBytes = files[0].buffer.length;
         const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
-        
+
         // Store PDF context for later use in the unified pipeline
         (req as any).pdfContext = {
           originalFileType: 'pdf' as const,
@@ -351,17 +351,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       } else if (isMultiplePdfs) {
         // Multiple PDFs - store all PDFs for later use
         sendSseUpdate(res, createProgressData(2, 'Processing multiple PDFs...', MULTI_IMAGE_STEPS));
-        
+
         const pdfContexts: any[] = [];
-        
+
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           let originalPdfLink = null;
           let originalPdfDataUrl = null;
-          
+
           // Always create base64 URL for immediate display
           originalPdfDataUrl = `data:application/pdf;base64,${file.buffer.toString('base64')}`;
-          
+
           if (isAuthenticated) {
             const originalFileName = file.originalname || `document-${i + 1}.pdf`;
             try {
@@ -385,11 +385,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               throw new Error(`Failed to upload PDF ${i + 1} (${originalFileName}): ${errorMessage}`);
             }
           }
-          
+
           // Calculate file size
           const fileSizeBytes = file.buffer.length;
           const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
-          
+
           const pdfContextItem = {
             originalFileType: 'pdf' as const,
             originalPdfLink,
@@ -399,12 +399,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             fileSizeMB: fileSizeMB + ' MB', // Keep for display if needed
             fileIndex: i
           };
-          
-          
-          
+
+
+
           pdfContexts.push(pdfContextItem);
         }
-        
+
         // Store multiple PDF contexts for later use in the unified pipeline
         (req as any).pdfContext = {
           isMultiplePdfs: true,
@@ -413,7 +413,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
 
       // Multi-page PDF or Multiple PDFs – Continue to common processing logic
-      
+
       // One-line dimension logs per page
       standardizedPages.forEach((p: any) => {
         const ratio = p.height ? (p.width / p.height).toFixed(3) : '0.000';
@@ -435,14 +435,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Convert single image to standardized format for unified pipeline
       const singleFileData = `data:${files[0].mimetype};base64,${files[0].buffer.toString('base64')}`;
-      
+
       // Standardize the single image as if it were a multi-image input
       standardizedPages = [{
         pageIndex: 0,
         imageData: singleFileData,
         originalFileName: files[0].originalname || 'single-image.png'
       }];
-      
+
       // Extract dimensions for the single image
       sendSseUpdate(res, createProgressData(2, 'Extracting image dimensions...', MULTI_IMAGE_STEPS));
       try {
@@ -458,7 +458,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       } catch (error) {
         console.warn(`[DIMENSIONS - Single Image] Failed to extract dimensions:`, error);
       }
-      
+
       // Continue to unified pipeline processing (don't return here)
       // ========================== END OF FIX ==========================
 
@@ -480,9 +480,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             width: metadata.width,
             height: metadata.height
           };
-        } catch (imgDimError) { 
+        } catch (imgDimError) {
           console.warn(`[DIMENSIONS - MultiImg Path] Failed to extract dimensions for image ${index}:`, imgDimError);
-          return null; 
+          return null;
         }
       }));
       standardizedPages = standardizedPages.filter((page): page is StandardizedPage => page !== null);
@@ -514,8 +514,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Perform Classification on ALL Images (Question & Student Work) ---
     const logClassificationComplete = logStep('Classification', actualModel);
-    
-    
+
+
     // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
     const allClassificationResults = await ClassificationService.classifyMultipleImages(
       standardizedPages.map((page, index) => ({
@@ -526,18 +526,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       actualModel as ModelType,
       false
     );
-    
+
     // Combine questions from all images
     // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
     const questionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
     const questionsWithoutNumber: Array<{ question: any; pageIndex: number }> = [];
-    
+
     allClassificationResults.forEach(({ pageIndex, result }) => {
       if (result.questions && Array.isArray(result.questions)) {
         result.questions.forEach((question: any) => {
           const qNum = question.questionNumber;
-          
-          
+
+
           // Only merge if questionNumber exists and is not null/undefined
           if (qNum && qNum !== 'null' && qNum !== 'undefined') {
             const qNumStr = String(qNum);
@@ -558,14 +558,14 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         });
       }
     });
-    
-    
+
+
     // Merge questions with same questionNumber
     const allQuestions: any[] = [];
-    
+
     // Process merged questions
     questionsByNumber.forEach((questionInstances, questionNumber) => {
-      
+
       if (questionInstances.length === 1) {
         // Single page - no merge needed
         const { question, pageIndex } = questionInstances[0];
@@ -577,28 +577,28 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       } else {
         // Multiple pages with same questionNumber - merge them
         // Find page with question text (not null/empty)
-        const pageWithText = questionInstances.find(({ question }) => 
+        const pageWithText = questionInstances.find(({ question }) =>
           question.text && question.text !== 'null' && question.text.trim().length > 0
         ) || questionInstances[0];
-        
+
         // Combine student work from all pages
         const combinedStudentWork = questionInstances
           .map(({ question }) => question.studentWork)
           .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
           .join('\n');
-        
+
         // Merge sub-questions if present (group by part, combine student work)
         // Also track which pages each sub-question came from
         const mergedSubQuestions = new Map<string, any>();
         const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
-        
+
         questionInstances.forEach(({ question, pageIndex }) => {
           if (question.subQuestions && Array.isArray(question.subQuestions)) {
             question.subQuestions.forEach((subQ: any) => {
               const part = subQ.part || '';
               // Track that this page has sub-questions
               subQuestionPageIndices.add(pageIndex);
-              
+
               if (!mergedSubQuestions.has(part)) {
                 mergedSubQuestions.set(part, {
                   part: subQ.part,
@@ -623,19 +623,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             });
           }
         });
-        
+
         // Collect all page indices for this merged question
         // Include both question instance pages AND pages that have sub-questions
         const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
         const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
-        
-        
+
+
         const merged = {
           ...pageWithText.question,
           questionNumber: questionNumber,
           // Use text from page that has it (not null/empty)
-          text: pageWithText.question.text && pageWithText.question.text !== 'null' 
-            ? pageWithText.question.text 
+          text: pageWithText.question.text && pageWithText.question.text !== 'null'
+            ? pageWithText.question.text
             : questionInstances[0].question.text,
           // Combine student work from all pages
           studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
@@ -645,18 +645,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           // Store all page indices this question spans (for multi-page questions)
           sourceImageIndices: allPageIndices,
           // Merge sub-questions if present
-          subQuestions: mergedSubQuestions.size > 0 
+          subQuestions: mergedSubQuestions.size > 0
             ? Array.from(mergedSubQuestions.values())
             : pageWithText.question.subQuestions || [],
           // Use highest confidence
           confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
         };
-        
-        
+
+
         allQuestions.push(merged);
+
+        // DEBUG LOGGING: Classification Result
+        const debugPageIndex = questionInstances[0]?.pageIndex;
+        console.log(`[DEBUG CLASSIFICATION] Page ${debugPageIndex !== undefined ? debugPageIndex + 1 : 'Unknown'}: Detected Q${merged.questionNumber} (Sub: ${merged.subQuestions.map(sq => sq.part).join(', ') || 'None'})`);
       }
     });
-    
+
     // Add questions without question number (can't be merged)
     questionsWithoutNumber.forEach(({ question, pageIndex }) => {
       allQuestions.push({
@@ -665,18 +669,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         sourceImageIndex: pageIndex
       });
     });
-    
+
     // Create combined classification result with enhanced mixed content detection
     const hasAnyStudentWork = allClassificationResults.some(result => result.result?.category === "questionAnswer");
     const hasMixedContent = allClassificationResults.some(result => result.result?.category !== allClassificationResults[0]?.result?.category);
-    
+
     // Determine combined category
     const allCategories = allClassificationResults.map(r => r.result?.category).filter(Boolean);
-    const combinedCategory: "questionOnly" | "questionAnswer" | "metadata" = 
+    const combinedCategory: "questionOnly" | "questionAnswer" | "metadata" =
       allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
-      allCategories.every(cat => cat === "metadata") ? "metadata" :
-      "questionAnswer";
-    
+        allCategories.every(cat => cat === "metadata") ? "metadata" :
+          "questionAnswer";
+
     let classificationResult = {
       category: combinedCategory,
       reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
@@ -687,14 +691,39 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       hasMixedContent: hasMixedContent,
       hasAnyStudentWork: hasAnyStudentWork
     };
-    
+
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
-    const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
-      ? classificationResult.questions[0].text 
+    const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0
+      ? classificationResult.questions[0].text
       : classificationResult?.extractedQuestionText;
-    
-    
+
+
     logClassificationComplete();
+
+    // ========================= AUTO-ROTATION =========================
+    // Check for rotation detected by AI and correct the image
+    // This ensures OCR and Annotation work on the upright image
+    const rotationPromises = allClassificationResults.map(async ({ pageIndex, result }, index) => {
+      const rotation = (result as any).rotation;
+      if (rotation && typeof rotation === 'number' && rotation !== 0) {
+        console.log(`🔄 [ROTATION] Page ${index + 1} (${standardizedPages[index].originalFileName}) detected rotation: ${rotation}°`);
+        try {
+          const rotatedBuffer = await ImageUtils.rotateImage(standardizedPages[index].imageData, rotation);
+          standardizedPages[index].imageData = `data:image/png;base64,${rotatedBuffer.toString('base64')}`;
+
+          // Swap dimensions if 90 or 270
+          if (rotation === 90 || rotation === 270) {
+            const temp = standardizedPages[index].width;
+            standardizedPages[index].width = standardizedPages[index].height;
+            standardizedPages[index].height = temp;
+          }
+          console.log(`✅ [ROTATION] Page ${index + 1} rotated successfully.`);
+        } catch (rotError) {
+          console.error(`❌ [ROTATION] Failed to rotate page ${index + 1}:`, rotError);
+        }
+      }
+    });
+    await Promise.all(rotationPromises);
 
     // ========================= MARK METADATA PAGES =========================
     // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
@@ -702,7 +731,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     allClassificationResults.forEach(({ pageIndex, result }, index) => {
       // Metadata page: explicitly marked as metadata by AI classification
       const isMetadataPage = result.category === "metadata";
-      
+
       if (isMetadataPage) {
         // Mark the page as metadata page
         (standardizedPages[index] as any).isMetadataPage = true;
@@ -714,13 +743,13 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Smart mode detection based on content analysis
     const isQuestionMode = classificationResult?.category === "questionOnly";
     const isMixedContent = classificationResult?.hasMixedContent === true;
-    
+
     console.log(`🔍 [MODE DETECTION] Analysis:`);
     console.log(`  - All question-only: ${isQuestionMode}`);
     console.log(`  - Has mixed content: ${isMixedContent}`);
     console.log(`  - Has any student work: ${classificationResult?.hasAnyStudentWork}`);
     console.log(`  - Selected mode: ${isQuestionMode ? 'Question Mode' : 'Marking Mode'}`);
-    
+
     if (isQuestionMode) {
       // ========================= ENHANCED QUESTION MODE =========================
       // Question mode: Handle multiple question-only images with detailed responses
@@ -741,7 +770,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // ========================= ENHANCED MARKING MODE =========================
     // Marking mode: Handle mixed content with both marking and question analysis
-    
+
     if (isMixedContent) {
       console.log(`🔄 [MIXED CONTENT] Processing ${standardizedPages.length} images with mixed content`);
       console.log(`  - Student work images: ${standardizedPages.filter((_, i) => allClassificationResults[i]?.result?.category === "questionAnswer").length}`);
@@ -750,8 +779,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // --- Run OCR on each page in parallel (Marking Mode) ---
     const logOcrComplete = logStep('OCR Processing', 'mathpix');
-    
-    
+
+
     const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
       // Skip OCR for metadata pages (front pages with no questions/answers)
       if ((page as any).isMetadataPage) {
@@ -766,12 +795,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           classificationText: globalQuestionText
         };
       }
-      
+
       // Skip OCR for question-only images in mixed content scenarios
       // Check if this specific page was classified as question-only
       const pageClassification = allClassificationResults[index]?.result;
       const isQuestionOnly = pageClassification?.category === "questionOnly";
-      
+
       if (isMixedContent && isQuestionOnly) {
         console.log(`⏭️ [MIXED CONTENT] Skipping OCR for question-only image: ${page.originalFileName}`);
         return {
@@ -784,7 +813,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           classificationText: globalQuestionText
         };
       }
-      
+
       const ocrResult = await OCRService.processImage(
         page.imageData, {}, false, 'auto',
         { extractedQuestionText: globalQuestionText }
@@ -806,25 +835,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // Extract questions from AI classification result
     const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
-    
+
     // Call question detection for each individual question
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
-    
+
     // Orchestrate marking scheme lookup (detection, grouping, merging)
     const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
       individualQuestions,
       classificationResult
     );
-    
+
     const markingSchemesMap = orchestrationResult.markingSchemesMap;
     const detectionStats = orchestrationResult.detectionStats;
     classificationResult = orchestrationResult.updatedClassificationResult;
-    
+
     logQuestionDetectionComplete();
-    
+
     // Log detection statistics
     MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
-    
+
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
 
@@ -833,7 +862,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // NOW RUNS AFTER QUESTION DETECTION so we can pass marking scheme hints to maximize marks
     const logDrawingClassificationComplete = logStep('Drawing Classification', actualModel);
     const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
-    
+
     await DrawingEnhancementService.enhanceDrawingsInClassification(
       allClassificationResults,
       standardizedPages,
@@ -876,10 +905,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     if (markingTasks.length === 0) {
       console.log('[PIPELINE DEBUG] No marking tasks created, exiting early');
       sendSseUpdate(res, createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
-      const finalOutput = { 
-        submissionId, 
+      const finalOutput = {
+        submissionId,
         annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
-        outputFormat: isPdf ? 'pdf' : 'images' 
+        outputFormat: isPdf ? 'pdf' : 'images'
       };
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
       res.end();
@@ -894,17 +923,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // Allow tasks without marking schemes - they'll use basic prompt (for non-past papers or failed detection)
     const tasksWithoutScheme: string[] = [];
     const tasksWithSchemes: MarkingTask[] = markingTasks.filter(task => {
-        if (!task.markingScheme) {
-            tasksWithoutScheme.push(String(task.questionNumber || '?'));
-            console.warn(`[SEGMENTATION] ⚠️ Task for Q${task.questionNumber} has no marking scheme, will use basic prompt`);
-            // Don't skip - allow task to proceed with null markingScheme (basic prompt will be used)
-            return true;
-        }
+      if (!task.markingScheme) {
+        tasksWithoutScheme.push(String(task.questionNumber || '?'));
+        console.warn(`[SEGMENTATION] ⚠️ Task for Q${task.questionNumber} has no marking scheme, will use basic prompt`);
+        // Don't skip - allow task to proceed with null markingScheme (basic prompt will be used)
         return true;
+      }
+      return true;
     });
 
     if (tasksWithSchemes.length === 0 && markingTasks.length > 0) {
-         throw new Error("Failed to assign marking schemes to any detected question work.");
+      throw new Error("Failed to assign marking schemes to any detected question work.");
     }
     // ========================== END: VALIDATE SCHEMES ==========================
 
@@ -932,7 +961,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Stage 5: Aggregation & Output ---
     sendSseUpdate(res, createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
     const logOutputGenerationComplete = logStep('Output Generation', 'output-generation');
-    
+
     const logAnnotationComplete = logStep('Image Annotation', 'svg-overlay');
 
     // --- Annotation Grouping ---
@@ -940,19 +969,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
 
     allQuestionResults.forEach((qr, questionIndex) => {
-        const currentAnnotations = qr.annotations || []; // Ensure array exists
+      const currentAnnotations = qr.annotations || []; // Ensure array exists
 
-        currentAnnotations.forEach((anno, annoIndex) => {
+      currentAnnotations.forEach((anno, annoIndex) => {
 
-            if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
-                if (!annotationsByPage[anno.pageIndex]) {
-                    annotationsByPage[anno.pageIndex] = [];
-                }
-                annotationsByPage[anno.pageIndex].push(anno);
-            } else {
-                console.warn(`[ANNOTATION] Skipping annotation missing valid pageIndex:`, anno);
-            }
-        });
+        if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+          if (!annotationsByPage[anno.pageIndex]) {
+            annotationsByPage[anno.pageIndex] = [];
+          }
+          annotationsByPage[anno.pageIndex].push(anno);
+        } else {
+          console.warn(`[ANNOTATION] Skipping annotation missing valid pageIndex:`, anno);
+        }
+      });
     });
 
 
@@ -1008,132 +1037,128 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Parallel Annotation Drawing using SVGOverlayService ---
     sendSseUpdate(res, createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
     const annotationPromises = standardizedPages.map(async (page) => {
-        const pageIndex = page.pageIndex;
-        const annotationsForThisPage = annotationsByPage[pageIndex] || [];
-        const imageDimensions = { width: page.width, height: page.height };
-        // Draw per-page score on each page
-        const pageScore = pageScores[pageIndex];
-        const scoreToDraw = pageScore ? { 
-          scoreText: pageScore.scoreText 
-        } : undefined;
+      const pageIndex = page.pageIndex;
+      const annotationsForThisPage = annotationsByPage[pageIndex] || [];
+      const imageDimensions = { width: page.width, height: page.height };
+      // Draw per-page score on each page
+      const pageScore = pageScores[pageIndex];
+      const scoreToDraw = pageScore ? {
+        scoreText: pageScore.scoreText
+      } : undefined;
 
-        // Add total score with double underline on first page AFTER reordering
-        const totalScoreToDraw = (pageIndex === firstPageIndexAfterSorting) ? overallScoreText : undefined;
+      // Add total score with double underline on first page AFTER reordering
+      const totalScoreToDraw = (pageIndex === firstPageIndexAfterSorting) ? overallScoreText : undefined;
 
-        // Only call service if there's something to draw
-        if (annotationsForThisPage.length > 0 || scoreToDraw || totalScoreToDraw) {
-            try {
-                return await SVGOverlayService.burnSVGOverlayServerSide(
-                    page.imageData,
-                    annotationsForThisPage,
-                    imageDimensions,
-                    scoreToDraw,
-                    totalScoreToDraw
-                );
-            } catch (drawError) {
-                console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);
-                return page.imageData; // Fallback
-            }
+      // Only call service if there's something to draw
+      if (annotationsForThisPage.length > 0 || scoreToDraw || totalScoreToDraw) {
+        try {
+          return await SVGOverlayService.burnSVGOverlayServerSide(
+            page.imageData,
+            annotationsForThisPage,
+            imageDimensions,
+            scoreToDraw,
+            totalScoreToDraw
+          );
+        } catch (drawError) {
+          console.error(`❌ [ANNOTATION] Failed to draw annotations on page ${pageIndex}:`, drawError);
+          return page.imageData; // Fallback
         }
-        return page.imageData; // Return original if nothing to draw
+      }
+      return page.imageData; // Return original if nothing to draw
     });
     const annotatedImagesBase64: string[] = await Promise.all(annotationPromises);
     sendSseUpdate(res, createProgressData(7, 'Annotation drawing complete.', MULTI_IMAGE_STEPS));
 
-        // --- Upload Annotated Images to Storage (for authenticated users) ---
-        let annotatedImageLinks: string[] = [];
-        
-        if (isAuthenticated) {
-            // Upload annotated images to storage for authenticated users
-            const uploadPromises = annotatedImagesBase64.map(async (imageData, index) => {
-                    // FIXED: Pass original filename for proper annotated filename generation
-                    const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
-                try {
-                    const imageLink = await ImageStorageService.uploadImage(
-                        imageData,
-                        userId,
-                        `multi-${submissionId}`,
-                        'annotated',
-                        originalFileName
-                    );
-                    return imageLink;
-                } catch (uploadError) {
-                    const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2);
-                    const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
-                    console.error(`❌ [ANNOTATION] Failed to upload annotated image ${index} (${originalFileName}):`);
-                    console.error(`  - Image size: ${imageSizeMB}MB`);
-                    console.error(`  - Error: ${errorMessage}`);
-                    if (uploadError instanceof Error && uploadError.stack) {
-                        console.error(`  - Stack: ${uploadError.stack}`);
-                    }
-                    throw new Error(`Failed to upload annotated image ${index} (${originalFileName}): ${errorMessage}`);
-                }
-            });
-            annotatedImageLinks = await Promise.all(uploadPromises);
-        }
+    // --- Upload Annotated Images to Storage (for authenticated users) ---
+    let annotatedImageLinks: string[] = [];
 
-        // --- Sort Final Annotated Output ---
-        // Reuse extractPageNumber function defined earlier (line 2159)
-        // Check if this is a past paper (has marking schemes)
-        const isPastPaper = markingSchemesMap && markingSchemesMap.size > 0;
-        
-        // Build mapping from classification result: page -> sub-question number
-        const classificationPageToSubQuestion = isPastPaper 
-          ? buildClassificationPageToSubQuestionMap(classificationResult)
-          : new Map<number, Map<string, string>>();
-        
-        // Create mapping from pageIndex to question numbers (for past paper sorting)
-        const pageToQuestionNumbers = isPastPaper
-          ? buildPageToQuestionNumbersMap(allQuestionResults, markingSchemesMap, classificationPageToSubQuestion)
-          : new Map<number, number[]>();
-        
-        // Create array with page info and annotated output for sorting
-        const pagesWithOutput = standardizedPages.map((page, index) => ({
-          page,
-          annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
-          pageNumber: extractPageNumber(page.originalFileName),
-          isMetadataPage: (page as any).isMetadataPage || false,
-          originalIndex: index,
-          pageIndex: page.pageIndex,
-          // For past paper: get lowest question number on this page
-          lowestQuestionNumber: isPastPaper 
-            ? (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity
-            : Infinity
-        }));
-
-        // Sort: metadata pages first, then by question number (past paper) or upload sequence (non-past paper)
-        pagesWithOutput.sort((a, b) => {
-          // 1. Metadata pages come first
-          if (a.isMetadataPage && !b.isMetadataPage) return -1;
-          if (!a.isMetadataPage && b.isMetadataPage) return 1;
-          
-          // 2. For past paper: sort by question number
-          if (isPastPaper) {
-            if (a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber !== Infinity) {
-              return a.lowestQuestionNumber - b.lowestQuestionNumber;
-            }
-            // If one page has questions and one doesn't, prioritize the one with questions
-            if (a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber === Infinity) return -1;
-            if (a.lowestQuestionNumber === Infinity && b.lowestQuestionNumber !== Infinity) return 1;
-            // Both have no questions, fall back to upload sequence
-            return a.originalIndex - b.originalIndex;
+    if (isAuthenticated) {
+      // Upload annotated images to storage for authenticated users
+      const uploadPromises = annotatedImagesBase64.map(async (imageData, index) => {
+        // FIXED: Pass original filename for proper annotated filename generation
+        const originalFileName = files[index]?.originalname || `image-${index + 1}.png`;
+        try {
+          const imageLink = await ImageStorageService.uploadImage(
+            imageData,
+            userId,
+            `multi-${submissionId}`,
+            'annotated',
+            originalFileName
+          );
+          return imageLink;
+        } catch (uploadError) {
+          const imageSizeMB = (imageData.length / (1024 * 1024)).toFixed(2);
+          const errorMessage = uploadError instanceof Error ? uploadError.message : String(uploadError);
+          console.error(`❌ [ANNOTATION] Failed to upload annotated image ${index} (${originalFileName}):`);
+          console.error(`  - Image size: ${imageSizeMB}MB`);
+          console.error(`  - Error: ${errorMessage}`);
+          if (uploadError instanceof Error && uploadError.stack) {
+            console.error(`  - Stack: ${uploadError.stack}`);
           }
-          
-          // 3. For non-past paper: sort by upload sequence (originalIndex)
-          return a.originalIndex - b.originalIndex;
-        });
+          throw new Error(`Failed to upload annotated image ${index} (${originalFileName}): ${errorMessage}`);
+        }
+      });
+      annotatedImageLinks = await Promise.all(uploadPromises);
+    }
 
-        // Extract sorted annotated output
-        const finalAnnotatedOutput: string[] = pagesWithOutput.map(item => item.annotatedOutput);
-        
-        // --- Construct Final Output (Always Images) ---
-        const outputFormat: 'images' = 'images'; // Explicitly set to images
-        logAnnotationComplete();
+    // --- Sort Final Annotated Output ---
+    // Reuse extractPageNumber function defined earlier (line 2159)
+    // Check if this is a past paper (has marking schemes)
+    const isPastPaper = markingSchemesMap && markingSchemesMap.size > 0;
 
-        // Add PDF context if available
-        const pdfContext = (req as any)?.pdfContext;
-        
-        // finalOutput will be constructed after database persistence
+    // Build mapping from classification result: page -> sub-question number
+    const classificationPageToSubQuestion = isPastPaper
+      ? buildClassificationPageToSubQuestionMap(classificationResult)
+      : new Map<number, Map<string, string>>();
+
+    // Create mapping from pageIndex to question numbers (for past paper sorting)
+    const pageToQuestionNumbers = isPastPaper
+      ? buildPageToQuestionNumbersMap(allQuestionResults, markingSchemesMap, classificationPageToSubQuestion)
+      : new Map<number, number[]>();
+
+    // Create array with page info and annotated output for sorting
+    const pagesWithOutput = standardizedPages.map((page, index) => ({
+      page,
+      annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
+      pageNumber: extractPageNumber(page.originalFileName),
+      isMetadataPage: (page as any).isMetadataPage || false,
+      originalIndex: index,
+      pageIndex: page.pageIndex,
+      // For past paper: get lowest question number on this page
+      lowestQuestionNumber: isPastPaper
+        ? (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity
+        : Infinity
+    }));
+
+    // Sort: metadata pages first, then by page number (if available), then by question number
+    pagesWithOutput.sort((a, b) => {
+      // 1. Metadata pages come first
+      if (a.isMetadataPage && !b.isMetadataPage) return -1;
+      if (!a.isMetadataPage && b.isMetadataPage) return 1;
+
+      // 2. If both pages have detected questions, sort by Question Number
+      // This handles jumbled scans where the user wants question order
+      if (isPastPaper && a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber !== Infinity) {
+        return a.lowestQuestionNumber - b.lowestQuestionNumber;
+      }
+
+      // 3. Fallback: If one or both pages have NO detected questions, use Upload Sequence
+      // This ensures that pages with missed detection (e.g. Page 13) stay in their physical position
+      // instead of being pushed to the end.
+      return a.originalIndex - b.originalIndex;
+    });
+
+    // Extract sorted annotated output
+    const finalAnnotatedOutput: string[] = pagesWithOutput.map(item => item.annotatedOutput);
+
+    // --- Construct Final Output (Always Images) ---
+    const outputFormat: 'images' = 'images'; // Explicitly set to images
+    logAnnotationComplete();
+
+    // Add PDF context if available
+    const pdfContext = (req as any)?.pdfContext;
+
+    // finalOutput will be constructed after database persistence
 
     // ========================= START: DATABASE PERSISTENCE =========================
     // --- Database Persistence (Using SessionManagementService) ---
@@ -1149,7 +1174,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const currentSessionId = sessionId.startsWith('temp-') ? `session-${Date.now()}` : sessionId;
       const customText = req.body.customText;
       const model = req.body.model || 'auto';
-      
+
       // Resolve actual model if 'auto' is specified
       if (model === 'auto') {
         const { getDefaultModel } = await import('../config/aiModels.js');
@@ -1157,11 +1182,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       } else {
         actualModel = model;
       }
-      
+
       // Generate timestamps for database consistency
       const userTimestamp = new Date(Date.now() - 1000).toISOString(); // User message 1 second earlier
       const aiTimestamp = new Date().toISOString(); // AI message current time
-      
+
       // Upload original files for authenticated users
       const uploadResult = await SessionManagementService.uploadOriginalFiles(
         files,
@@ -1169,11 +1194,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         submissionId,
         isAuthenticated
       );
-      
+
       // Create structured data (only for authenticated users - unauthenticated users don't need database persistence)
       let structuredImageDataArray: any[] | undefined = undefined;
       let structuredPdfContexts: any[] | undefined = undefined;
-      
+
       if (isAuthenticated) {
         const structuredData = SessionManagementService.createStructuredData(
           files,
@@ -1184,7 +1209,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         );
         structuredImageDataArray = structuredData.structuredImageDataArray;
         structuredPdfContexts = structuredData.structuredPdfContexts;
-        
+
         // Update pdfContext with structured data for frontend
         if (pdfContext && structuredPdfContexts) {
           pdfContext.pdfContexts = structuredPdfContexts;
@@ -1193,7 +1218,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Create user message for database
       const messageContent = customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`);
-      
+
       dbUserMessage = SessionManagementService.createUserMessageForDatabase(
         {
           content: messageContent,
@@ -1209,30 +1234,30 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         structuredPdfContexts,
         uploadResult.originalImageLinks
       );
-      
+
       // Override timestamp for database consistency
       (dbUserMessage as any).timestamp = userTimestamp;
-      
+
       // ========================= MIXED CONTENT: QUESTION ANALYSIS =========================
       let questionOnlyResponses: string[] = [];
-      
+
       if (isMixedContent) {
         console.log(`🔍 [MIXED CONTENT] Generating AI responses for question-only images...`);
-        
+
         // Find question-only images and generate AI responses for them
-        const questionOnlyImages = standardizedPages.filter((page, index) => 
+        const questionOnlyImages = standardizedPages.filter((page, index) =>
           allClassificationResults[index]?.result?.category === "questionOnly"
         );
-        
+
         if (questionOnlyImages.length > 0) {
           const { MarkingServiceLocator } = await import('../services/marking/MarkingServiceLocator.js');
-          
+
           questionOnlyResponses = await Promise.all(
             questionOnlyImages.map(async (page, index) => {
               const originalIndex = standardizedPages.indexOf(page);
-              const questionText = allClassificationResults[originalIndex]?.result?.extractedQuestionText || 
-                                 classificationResult.questions[originalIndex]?.text || '';
-              
+              const questionText = allClassificationResults[originalIndex]?.result?.extractedQuestionText ||
+                classificationResult.questions[originalIndex]?.text || '';
+
               const response = await MarkingServiceLocator.generateChatResponse(
                 page.imageData,
                 questionText,
@@ -1240,21 +1265,21 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 "questionOnly", // category
                 false // debug
               );
-              
+
               return `## Question Analysis (${page.originalFileName})\n\n${response.response}`;
             })
           );
-          
+
           console.log(`✅ [MIXED CONTENT] Generated ${questionOnlyResponses.length} question-only responses`);
         }
       }
 
       // Create AI message for database
       const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, null, 'marking');
-      
+
       // Reuse overallScore and totalPossibleScore calculated earlier (line 2042-2057)
       // overallScoreText is already calculated as `${overallScore}/${totalPossibleScore}`
-      
+
       // Calculate grade based on grade boundaries (if exam data is available)
       // Get detectedQuestion from markingSchemesMap (it contains detection results)
       let detectedQuestionForGrade: any = undefined;
@@ -1262,7 +1287,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const firstSchemeEntry = Array.from(markingSchemesMap.values())[0];
         detectedQuestionForGrade = firstSchemeEntry?.questionDetection || undefined;
       }
-      
+
       const gradeResult = await GradeBoundaryService.calculateGradeWithOrchestration(
         overallScore,
         totalPossibleScore,
@@ -1272,7 +1297,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const calculatedGrade = gradeResult.grade;
       const gradeBoundaryType = gradeResult.boundaryType;
       const gradeBoundaries = gradeResult.boundaries;
-      
+
       dbAiMessage = SessionManagementService.createAIMessageForDatabase({
         allQuestionResults,
         finalAnnotatedOutput,
@@ -1292,22 +1317,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         gradeBoundaryType: gradeBoundaryType,
         gradeBoundaries: gradeBoundaries
       });
-      
+
       // Log grade storage confirmation
       if (calculatedGrade) {
         console.log(`✅ [GRADE BOUNDARY] Grade stored in message: ${calculatedGrade} (${gradeBoundaryType})`);
       }
-      
+
       // Add suggested follow-ups
       (dbAiMessage as any).suggestedFollowUps = await getSuggestedFollowUps();
-      
+
       // Override timestamp for database consistency
       (dbAiMessage as any).timestamp = aiTimestamp;
-      
+
       // Debug logging for markingSchemesMap
       for (const [key, value] of markingSchemesMap.entries()) {
       }
-      
+
       // Persist marking session
       const markingContext: MarkingSessionContext = {
         req,
@@ -1329,18 +1354,18 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       if (stepTimings['database_persistence']) {
         stepTimings['database_persistence'].duration = Date.now() - stepTimings['database_persistence'].start;
       }
-      
+
       // For authenticated users, use the unifiedSession from persistence
       if (isAuthenticated) {
         unifiedSession = persistenceResult.unifiedSession;
-        
+
         // Persist marking result to subjectMarkingResults in background (don't wait)
         if (unifiedSession && dbAiMessage) {
           // Find the marking message with studentScore
           const markingMessage = unifiedSession.messages?.find(
             (msg: any) => msg.role === 'assistant' && msg.studentScore
           );
-          
+
           if (markingMessage) {
             // Persist in background (don't await - user doesn't need to wait)
             import('../services/subjectMarkingResultService.js').then(({ persistMarkingResultToSubject }) => {
@@ -1353,7 +1378,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           }
         }
       }
-      
+
     } catch (error) {
       console.error(`❌ [SUBMISSION ${submissionId}] Failed to persist to database:`, error);
       if (error instanceof Error) {
@@ -1364,7 +1389,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Re-throw the real error instead of hiding it
       throw error;
     }
-    
+
     // For unauthenticated users, create unifiedSession even if database persistence failed
     if (!isAuthenticated && !unifiedSession) {
       // Validate required data before creating session
@@ -1381,7 +1406,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         files,
         'Marking'
       );
-      
+
       // Debug logging for unauthenticated users
       console.log('  - id:', unifiedSession.id);
       console.log('  - title:', unifiedSession.title);
@@ -1389,68 +1414,68 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.log('  - userId:', unifiedSession.userId);
       console.log('  - markingSchemesMap sample:', Array.from(markingSchemesMap.entries())[0]);
     }
-    
+
     // ========================== END: DATABASE PERSISTENCE ==========================
 
 
-      // Construct unified finalOutput that works for both authenticated and unauthenticated users
-      const finalOutput = {
-        success: true, // Add success flag for frontend compatibility
-        submissionId: submissionId,
-        // Calculate message-specific processing stats (not session-level totals)
-        processingStats: {
-          apiUsed: getRealApiName(getRealModelName(actualModel)),
-          modelUsed: getRealModelName(actualModel),
-          totalMarks: totalPossibleScore, // Use the grouped total marks calculation
-          awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
-          questionCount: allQuestionResults.length
-        },
-        annotatedOutput: finalAnnotatedOutput,
-        outputFormat: outputFormat,
-        originalInputType: isPdf ? 'pdf' : 'images',
-        // Always include unifiedSession for consistent frontend handling
-        unifiedSession: unifiedSession,
-        // Add PDF context for frontend display
-        ...(pdfContext && {
-            originalFileType: pdfContext.originalFileType,
-            originalPdfLink: pdfContext.originalPdfLink,
-            originalPdfDataUrl: pdfContext.originalPdfDataUrl,
-            originalFileName: pdfContext.originalFileName,
-            // Include pdfContexts for multiple PDFs
-            ...(pdfContext.pdfContexts && {
-              pdfContexts: pdfContext.pdfContexts
-            })
+    // Construct unified finalOutput that works for both authenticated and unauthenticated users
+    const finalOutput = {
+      success: true, // Add success flag for frontend compatibility
+      submissionId: submissionId,
+      // Calculate message-specific processing stats (not session-level totals)
+      processingStats: {
+        apiUsed: getRealApiName(getRealModelName(actualModel)),
+        modelUsed: getRealModelName(actualModel),
+        totalMarks: totalPossibleScore, // Use the grouped total marks calculation
+        awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
+        questionCount: allQuestionResults.length
+      },
+      annotatedOutput: finalAnnotatedOutput,
+      outputFormat: outputFormat,
+      originalInputType: isPdf ? 'pdf' : 'images',
+      // Always include unifiedSession for consistent frontend handling
+      unifiedSession: unifiedSession,
+      // Add PDF context for frontend display
+      ...(pdfContext && {
+        originalFileType: pdfContext.originalFileType,
+        originalPdfLink: pdfContext.originalPdfLink,
+        originalPdfDataUrl: pdfContext.originalPdfDataUrl,
+        originalFileName: pdfContext.originalFileName,
+        // Include pdfContexts for multiple PDFs
+        ...(pdfContext.pdfContexts && {
+          pdfContexts: pdfContext.pdfContexts
         })
-      };
-      
-      
-      // --- Send FINAL Complete Event ---
-      sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
-      logOutputGenerationComplete();
-      
-      // --- Performance Summary (reuse original design) ---
-      const totalProcessingTime = Date.now() - startTime;
-      logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
-      
-      console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
-      console.log(`🏁 ==========================================\n`);
+      })
+    };
+
+
+    // --- Send FINAL Complete Event ---
+    sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
+    logOutputGenerationComplete();
+
+    // --- Performance Summary (reuse original design) ---
+    const totalProcessingTime = Date.now() - startTime;
+    logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
+
+    console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
+    console.log(`🏁 ==========================================\n`);
     // ========================== END: IMPLEMENT STAGE 5 ==========================
 
   } catch (error) {
     console.error(`❌ [SUBMISSION ${submissionId}] Processing failed:`, error);
     console.log(`\n💥 ========== UNIFIED PIPELINE FAILED ==========`);
     console.log(`💥 =============================================\n`);
-    
+
     // Provide user-friendly error messages based on error type
     let userFriendlyMessage = 'An unexpected error occurred. Please try again.';
-    
+
     if (error instanceof Error) {
       // Handle multer file size errors
       if (error.message.includes('File too large') || error.message.includes('LIMIT_FILE_SIZE')) {
         userFriendlyMessage = 'File too large. Maximum file size is 50MB per file. Please compress your images or use smaller files.';
       } else if (error.message.includes('too large') || error.message.includes('max:')) {
         // Handle ImageStorageService file size errors (includes file size in message)
-        userFriendlyMessage = error.message.includes('max:') 
+        userFriendlyMessage = error.message.includes('max:')
           ? error.message // Use the detailed message that includes size info
           : 'File too large. Maximum file size is 50MB per file. Please compress your images or use smaller files.';
       } else if (error.message.includes('quota exceeded') || error.message.includes('429')) {
@@ -1465,10 +1490,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         userFriendlyMessage = error.message; // Use the specific validation error message
       }
     }
-    
+
     // Ensure SSE message indicates error before closing
     sendSseUpdate(res, createProgressData(0, `Error: ${userFriendlyMessage}`, MULTI_IMAGE_STEPS, true));
-    
+
     // Ensure the connection is always closed on error
     if (!res.writableEnded) {
       res.end();
@@ -1490,64 +1515,64 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 router.get('/download-image', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { url, filename } = req.query;
-    
+
     if (!url || typeof url !== 'string') {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Image URL is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'Image URL is required'
       });
     }
 
     // Fetch the image from the external URL
     const response = await fetch(url);
-    
+
     if (!response.ok) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Image not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Image not found'
       });
     }
 
     // Get the image data
     const imageBuffer = await response.arrayBuffer();
-    
+
     // Determine content type from URL or response headers
     let contentType = response.headers.get('content-type');
     const filenameStr = Array.isArray(filename) ? filename[0] : filename;
-    
+
     if (!contentType) {
       // Fallback: determine content type from URL or filename
       const urlLower = typeof url === 'string' ? url.toLowerCase() : '';
       const filenameLower = (typeof filenameStr === 'string' ? filenameStr : '').toLowerCase();
-      
+
       if (urlLower.includes('.png') || filenameLower.includes('.png')) {
         contentType = 'image/png';
       } else if (urlLower.includes('.webp') || filenameLower.includes('.webp')) {
         contentType = 'image/webp';
       } else if (urlLower.includes('.gif') || filenameLower.includes('.gif')) {
         contentType = 'image/gif';
-      } else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg') || 
-                 filenameLower.includes('.jpg') || filenameLower.includes('.jpeg')) {
+      } else if (urlLower.includes('.jpg') || urlLower.includes('.jpeg') ||
+        filenameLower.includes('.jpg') || filenameLower.includes('.jpeg')) {
         contentType = 'image/jpeg';
       } else {
         contentType = 'image/jpeg'; // Default fallback
       }
     }
-    
+
     // Set headers for download
     const downloadFilename = filenameStr && typeof filenameStr === 'string' ? filenameStr : 'image';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename}"`);
     res.setHeader('Content-Length', imageBuffer.byteLength);
-    
+
     // Send the image data
     res.send(Buffer.from(imageBuffer));
-    
+
   } catch (error) {
     console.error('Error downloading image:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to download image' 
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to download image'
     });
   }
 });

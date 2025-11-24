@@ -1,0 +1,36 @@
+{
+    "metadata": {
+        "exam_board": "string",
+        "subject": "string",
+        "paper_title": "string",
+        "tier": "string",
+        "exam_code": "string",
+        "exam_series": "string",
+        "qualification": "string",
+        "time_allowed": "string",
+        "total_questions": "number",
+        "questions_with_subquestions": "number"
+    },
+    "questions": [
+        {
+            "question_number": "string",
+            "question_text": "string",
+            "marks": "number",
+            "math_expression": {
+                "latex": "string or array of strings",
+                "unicode": "string or array of strings"
+            },
+            "sub_questions": [
+                {
+                    "question_part": "string",
+                    "question_text": "string",
+                    "math_expression": {
+                        "latex": "string or array of strings",
+                        "unicode": "string or array of strings"
+                    },
+                    "marks": "number"
+                }
+            ]
+        }
+    ]
+}

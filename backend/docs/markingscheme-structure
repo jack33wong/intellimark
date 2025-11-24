@@ -1,0 +1,47 @@
+{
+    "examDetails": {
+        "board": "string",
+        "qualification": "string",
+        "subject": "string",
+        "paperCode": "string",
+        "tier": "string",
+        "paper": "string",
+        "exam_series": "string"
+    },
+    "generalMarkingGuidance": {
+        "precedence": "string",
+        "generalPrinciples": [
+            "string"
+        ],
+        "markingProcedure": [
+            "string"
+        ],
+        "followThroughMarks": [
+            "string"
+        ],
+        "treatmentOfAnswers": [
+            "string"
+        ],
+        "abbreviations": {
+            "<abbrev>": "string"
+        }
+    },
+    "questions": {
+        "<questionId>": {
+            "answer": "string",
+            "marks": [
+                {
+                    "mark": "string",
+                    "answer": "string",
+                    "comments": "string"
+                }
+            ],
+            "guidance": [
+                {
+                    "scenario": "string",
+                    "outcome": "string"
+                }
+            ]
+        }
+    }
+}

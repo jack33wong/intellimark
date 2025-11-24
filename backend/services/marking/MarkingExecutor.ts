@@ -19,7 +19,12 @@ export interface MarkingTask {
   markingScheme: any;
   sourcePages: number[];
   classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
+  classificationBlocks?: Array<{  // Original classification blocks with position data (for Q18-style accumulated questions)
+    text: string;
+    pageIndex: number;
+  }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
+  imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
   // Sub-question metadata for grouped sub-questions
   subQuestionMetadata?: {
     hasSubQuestions: boolean;
@@ -182,6 +187,42 @@ export async function executeMarkingForQuestion(
 
               bbox = [Math.max(0, x), Math.max(0, y), drawingWidth, drawingHeight];
             }
+          }
+        }
+
+        // NEW: Fallback for non-drawing text when OCR mapping failed
+        // Use classification block metadata to estimate position
+        if (bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 0 && bbox[3] === 0 && task.classificationBlocks && task.classificationBlocks.length > 0) {
+          // Try to find which classification block this annotation text came from
+          const annotationText = result.content.substring(0, 30).toLowerCase(); // First 30 chars for matching
+          let matchingBlockIndex = -1;
+
+          for (let i = 0; i < task.classificationBlocks.length; i++) {
+            const blockText = task.classificationBlocks[i].text.substring(0, 30).toLowerCase();
+            if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
+              matchingBlockIndex = i;
+              break;
+            }
+          }
+
+          if (matchingBlockIndex >= 0) {
+            const block = task.classificationBlocks[matchingBlockIndex];
+            const pageIndex = block.pageIndex;
+            const pageDims = task.pageDimensions?.get(pageIndex);
+            const pageWidth = pageDims?.width || 2000;
+            const pageHeight = pageDims?.height || 3000;
+
+            // Estimate Y position based on block index in sequence
+            // Spread blocks evenly across the page
+            const totalBlocks = task.classificationBlocks.length;
+            const blockFraction = (matchingBlockIndex + 0.5) / totalBlocks; // 0.5 to center within block's area
+            const estimatedY = pageHeight * 0.15 + (pageHeight * 0.7 * blockFraction); // Use middle 70% of page
+
+            // Place annotation on the right side
+            const estimatedX = pageWidth - 180;
+
+            bbox = [Math.max(0, estimatedX), Math.max(0, estimatedY), 150, 60];
+            console.log(`[MARKING EXECUTOR] Used classification block #${matchingBlockIndex} for annotation position: [${bbox[0].toFixed(0)}, ${bbox[1].toFixed(0)}]`);
           }
         }
 
@@ -648,7 +689,7 @@ export async function executeMarkingForQuestion(
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
     const markingResult = await MarkingInstructionService.executeMarking({
-      imageData: '', // Not needed for text-based marking
+      imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
       model: model, // Use the passed model instead of hardcoded 'auto'
       processedImage: {
         ocrText: ocrTextForPrompt,
@@ -875,6 +916,8 @@ export function createMarkingTasksFromClassification(
   // Group questions by base question number
   const questionGroups = new Map<string, {
     mainQuestion: any;
+    mainStudentWorkParts: string[]; // Accumulate student work from multiple entries
+    classificationBlocks: Array<{ text: string; pageIndex: number }>; // Store original blocks for position data
     subQuestions: Array<{ part: string; studentWork: string; text?: string }>;
     markingScheme: any;
     baseQNum: string;
@@ -926,6 +969,8 @@ export function createMarkingTasksFromClassification(
     if (!questionGroups.has(baseQNum)) {
       questionGroups.set(baseQNum, {
         mainQuestion: q,
+        mainStudentWorkParts: [], // Initialize array
+        classificationBlocks: [], // Initialize array to store original blocks
         subQuestions: [],
         markingScheme: markingScheme,
         baseQNum: baseQNum,
@@ -939,6 +984,16 @@ export function createMarkingTasksFromClassification(
     }
 
     const group = questionGroups.get(baseQNum)!;
+
+    // Add main student work if present
+    if (q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '') {
+      group.mainStudentWorkParts.push(q.studentWork.trim());
+      // Also store original block metadata for fallback annotation positioning
+      group.classificationBlocks.push({
+        text: q.studentWork.trim(),
+        pageIndex: sourceImageIndices[0] || 0
+      });
+    }
 
     // Collect sub-questions
     if (q.subQuestions && Array.isArray(q.subQuestions)) {
@@ -956,14 +1011,26 @@ export function createMarkingTasksFromClassification(
 
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
-    // Skip if no student work at all (neither main nor sub-questions)
-    const hasMainWork = group.mainQuestion.studentWork &&
-      group.mainQuestion.studentWork !== 'null' &&
-      group.mainQuestion.studentWork.trim() !== '';
-    const hasSubWork = group.subQuestions.length > 0;
+    // Combine all main student work parts
+    let combinedMainWork = group.mainStudentWorkParts.join('\n\n');
 
-    if (!hasMainWork && !hasSubWork) {
+    // Skip if no student work at all (neither main nor sub-questions)
+    // UNLESS we have a marking scheme - in that case, we should still create a task
+    // so the AI can mark it (e.g., as 0 if blank, or maybe classification missed the work but image has it)
+    const hasMainWork = combinedMainWork && combinedMainWork !== 'null' && combinedMainWork.trim() !== '';
+    const hasSubWork = group.subQuestions.length > 0;
+    const hasMarkingScheme = !!group.markingScheme;
+
+    if (!hasMainWork && !hasSubWork && !hasMarkingScheme) {
+      console.log(`[MARKING EXECUTOR] Skipping Q${baseQNum} - No student work detected AND no marking scheme (Main: ${!!hasMainWork}, Sub: ${hasSubWork})`);
       continue;
+    }
+
+    // If we have a scheme but no work, we proceed (AI will see the image)
+    if (!hasMainWork && !hasSubWork && hasMarkingScheme) {
+      console.log(`[MARKING EXECUTOR] Proceeding with Q${baseQNum} despite no student work text (Marking Scheme available). AI will rely on image.`);
+      // Add a placeholder so formatGroupedStudentWork doesn't return empty string
+      combinedMainWork = "[No student work text detected by classification - please check image]";
     }
 
     // Get all OCR blocks from ALL pages this question spans (for multi-page questions like Q3a/Q3b)
@@ -987,12 +1054,20 @@ export function createMarkingTasksFromClassification(
 
     // Format combined student work with sub-question labels
     const combinedStudentWork = formatGroupedStudentWork(
-      hasMainWork ? group.mainQuestion.studentWork : null,
+      combinedMainWork,
       group.subQuestions
     );
 
     // Extract sub-question numbers for metadata
     const subQuestionNumbers = group.subQuestions.map(sq => `${baseQNum}${sq.part}`);
+
+    // Check if this question requires image for marking (edge case: Drawing Classification returned 0)
+    const requiresImage = (group.mainQuestion as any)?.requiresImageForMarking === true;
+    const imageDataForMarking = requiresImage ? (group.mainQuestion as any)?.imageDataForMarking : undefined;
+
+    if (requiresImage && imageDataForMarking) {
+      console.log(`[MARKING EXECUTOR] Q${baseQNum}: Will pass image to Marking AI (Drawing Classification returned 0 for this drawing question)`);
+    }
 
     // Create task with grouped sub-questions
     tasks.push({
@@ -1001,7 +1076,9 @@ export function createMarkingTasksFromClassification(
       markingScheme: group.markingScheme,
       sourcePages: group.sourceImageIndices,
       classificationStudentWork: combinedStudentWork,
+      classificationBlocks: group.classificationBlocks, // Pass original blocks for fallback positioning
       pageDimensions: pageDimensionsMap,
+      imageData: imageDataForMarking, // Pass image data for edge cases where Drawing Classification failed
       subQuestionMetadata: {
         hasSubQuestions: group.subQuestions.length > 0,
         subQuestions: group.subQuestions.map(sq => ({

@@ -8,12 +8,12 @@ import { getModelConfig } from '../../config/aiModels.js';
 import { ErrorHandler } from '../../utils/errorHandler.js';
 
 
-import { 
-  ModelType, 
-  ImageClassification, 
-  ProcessedImageResult, 
-  Annotation, 
-  MarkingInstructions 
+import {
+  ModelType,
+  ImageClassification,
+  ProcessedImageResult,
+  Annotation,
+  MarkingInstructions
 } from '../../types/index.js';
 import { getPrompt } from '../../config/prompts.js';
 import { validateModel } from '../../config/aiModels.js';
@@ -24,7 +24,7 @@ export class MarkingServiceLocator {
    * Classify image as question-only or question+answer
    */
   static async classifyImage(
-    imageData: string, 
+    imageData: string,
     model: ModelType
   ): Promise<ImageClassification> {
     const { ClassificationService } = await import('./ClassificationService');
@@ -37,12 +37,12 @@ export class MarkingServiceLocator {
    * Generate marking instructions for homework images
    */
   static async generateMarkingInstructions(
-    imageData: string, 
-    model: ModelType, 
+    imageData: string,
+    model: ModelType,
     processedImage?: ProcessedImageResult,
     questionDetection?: any
   ): Promise<MarkingInstructions> {
-      const { MarkingInstructionService } = await import('./MarkingInstructionService');
+    const { MarkingInstructionService } = await import('./MarkingInstructionService');
     return MarkingInstructionService.executeMarking({
       imageData,
       model,
@@ -60,7 +60,7 @@ export class MarkingServiceLocator {
     model: ModelType,
     contextSummary?: string
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
-    
+
     const systemPrompt = getPrompt('marking.contextual.system');
 
     // Use context summary if available, otherwise fall back to recent messages
@@ -77,11 +77,11 @@ export class MarkingServiceLocator {
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
-      
+
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
-      
+
       return {
         response: response.content,
         apiUsed: apiUsed,
@@ -111,7 +111,7 @@ export class MarkingServiceLocator {
     onProgress?: (data: any) => void,
     useOcrText: boolean = false
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
-    
+
     // Debug mode: Return mock response
     if (debug) {
       return {
@@ -121,17 +121,17 @@ export class MarkingServiceLocator {
         usageTokens: 150
       };
     }
-    
+
     // Handle both image and OCR text inputs
     let compressedImage: string | null = null;
     let ocrText: string | null = null;
-    
+
     if (useOcrText) {
       ocrText = imageDataOrOcrText;
     } else {
       compressedImage = imageDataOrOcrText;
     }
-    
+
     const isQuestionOnly = category === "questionOnly";
     const systemPrompt = isQuestionOnly
       ? getPrompt('marking.questionOnly.system')
@@ -156,10 +156,10 @@ export class MarkingServiceLocator {
           isComplete: false
         });
       }
-      
+
       // Validate model using centralized validation
       const validatedModel = validateModel(model);
-      
+
       // For marking mode, always use text response (model answer)
       if (!isQuestionOnly) {
         return await this.callGeminiForTextResponse(ocrText, systemPrompt, userPrompt, validatedModel);
@@ -172,19 +172,19 @@ export class MarkingServiceLocator {
         // This is our validation error - re-throw it as-is
         throw error;
       }
-      
+
       // This is a Google API error - log with proper context
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
-      
+
       console.error(`❌ [GOOGLE API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
       console.error(`❌ [GOOGLE ERROR] ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
+
       // Use unified error handling
       const errorInfo = ErrorHandler.analyzeError(error);
       console.log(ErrorHandler.getLogMessage(error, `chat response model: ${modelInfo.modelName}`));
-      
+
       // Fail fast - no fallbacks
       throw error;
     }
@@ -201,16 +201,35 @@ export class MarkingServiceLocator {
     model: ModelType = 'auto'
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
+      // Check if model is OpenAI - route to OpenAI API instead
+      const isOpenAI = model.toString().startsWith('openai-');
+
+      if (isOpenAI) {
+        // Use OpenAI Chat API for OpenAI models
+        // Question Mode doesn't need JSON format (prompts don't mention "json")
+        const { ModelProvider } = await import('../../utils/ModelProvider.js');
+        const openaiModelName = model.toString().replace('openai-', '');
+        const result = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModelName, false); // false = no JSON format
+
+        return {
+          response: result.content,
+          apiUsed: `OpenAI ${result.modelName}`,
+          confidence: 0.85,
+          usageTokens: result.usageTokens || 0
+        };
+      }
+
+      // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const accessToken = await ModelProvider.getGeminiAccessToken();
       const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
-      
+
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
-      
+
       return {
         response: content,
         apiUsed: apiUsed,
@@ -219,17 +238,17 @@ export class MarkingServiceLocator {
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);
-      
+
       const errorInfo = ErrorHandler.analyzeError(error);
       if (errorInfo.isRateLimit) {
         const { getModelInfo } = await import('../../config/aiModels.js');
-      const modelInfo = getModelInfo(model);
+        const modelInfo = getModelInfo(model);
         console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for chat response`);
         console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
         throw new Error(`API quota exceeded for ${modelInfo.modelName} (${modelInfo.apiVersion}) chat response. Please check your Google Cloud Console for quota limits.`);
       }
-      
+
       throw error;
     }
   }
@@ -244,13 +263,31 @@ export class MarkingServiceLocator {
     model: ModelType = 'auto'
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
+      // Check if model is OpenAI - route to OpenAI API instead
+      const isOpenAI = model.toString().startsWith('openai-');
+
+      if (isOpenAI) {
+        // Use OpenAI Text API for OpenAI models
+        const { ModelProvider } = await import('../../utils/ModelProvider.js');
+        const openaiModelName = model.toString().replace('openai-', '');
+        const result = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, openaiModelName, false);
+
+        return {
+          response: result.content,
+          apiUsed: `OpenAI ${openaiModelName}`,
+          confidence: 0.85,
+          usageTokens: result.usageTokens || 0
+        };
+      }
+
+      // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
-      
+
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
-      
+
       return {
         response: result.content,
         apiUsed: apiUsed,
@@ -259,17 +296,17 @@ export class MarkingServiceLocator {
       };
     } catch (error) {
       console.error('❌ Gemini text response failed:', error);
-      
+
       const errorInfo = ErrorHandler.analyzeError(error);
       if (errorInfo.isRateLimit) {
         const { getModelInfo } = await import('../../config/aiModels.js');
-      const modelInfo = getModelInfo(model);
+        const modelInfo = getModelInfo(model);
         console.error(`❌ [QUOTA EXCEEDED] ${modelInfo.modelName} (${modelInfo.apiVersion}) quota exceeded for text response`);
         console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
         console.error(`❌ [ERROR DETAILS] ${error.message}`);
         throw new Error(`API quota exceeded for ${modelInfo.modelName} (${modelInfo.apiVersion}) text response. Please check your Google Cloud Console for quota limits.`);
       }
-      
+
       throw error;
     }
   }
@@ -282,7 +319,7 @@ export class MarkingServiceLocator {
   ): Promise<Response> {
     const { getModelInfo } = await import('../../config/aiModels.js');
     const modelInfo = getModelInfo(model);
-    
+
     const response = await fetch(modelInfo.config.apiEndpoint, {
       method: 'POST',
       headers: {
@@ -317,12 +354,12 @@ export class MarkingServiceLocator {
       } catch (e) {
         errorText = 'Unable to read error response body';
       }
-      
+
       console.error(`❌ [GEMINI CHAT API ERROR] Failed with model: ${modelInfo.modelName} (${modelInfo.apiVersion})`);
       console.error(`❌ [API ENDPOINT] ${modelInfo.config.apiEndpoint}`);
       console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
       console.error(`❌ [ERROR RESPONSE BODY] ${errorText}`);
-      
+
       // Try to parse error body for structured error info
       let parsedError = null;
       try {
@@ -333,7 +370,7 @@ export class MarkingServiceLocator {
       } catch (e) {
         // Not JSON, that's okay
       }
-      
+
       // Include error details in thrown error
       const errorMessage = parsedError?.error?.message || errorText || response.statusText;
       throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${modelInfo.modelName} (${modelInfo.apiVersion}) - ${errorMessage}`);
@@ -347,7 +384,7 @@ export class MarkingServiceLocator {
       console.error('❌ [DEBUG] Gemini API returned error response:', result.error);
       throw new Error(`Gemini API error: ${result.error.message || 'Unknown error'}`);
     }
-    
+
     const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!content) {
@@ -361,19 +398,19 @@ export class MarkingServiceLocator {
         partsLength: result.candidates?.[0]?.content?.parts?.length,
         firstPart: result.candidates?.[0]?.content?.parts?.[0]
       });
-      
+
       // Check for safety filters or other issues
       const finishReason = result.candidates?.[0]?.finishReason;
       if (finishReason) {
         console.error('❌ [DEBUG] Finish reason:', finishReason);
-        
+
         // Handle MAX_TOKENS specifically
         if (finishReason === 'MAX_TOKENS') {
           console.error('❌ [MAX_TOKENS] Response truncated due to token limit. Consider using a model with higher limits or reducing prompt length.');
           throw new Error(`Response truncated due to token limit. The model response was too long and got cut off. Consider using a model with higher token limits for longer responses.`);
         }
       }
-      
+
       throw new Error(`No content in Gemini response. Finish reason: ${finishReason || 'unknown'}`);
     }
 
