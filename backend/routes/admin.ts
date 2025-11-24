@@ -494,18 +494,27 @@ router.get('/usage', async (req: Request, res: Response) => {
         break;
       }
       case 'week': {
+        // This week: from start of current week (Monday) to now
         startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        const dayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert Sunday (0) to 6 days back
+        startDate.setDate(startDate.getDate() - daysToMonday);
         break;
       }
       case 'month': {
+        // This month: from 1st of current month to now
         startDate = new Date(now);
-        startDate.setMonth(now.getMonth() - 1);
+        startDate.setHours(0, 0, 0, 0);
+        startDate.setDate(1); // First day of current month
         break;
       }
       case 'year': {
+        // Year to date: from January 1st of current year to now
         startDate = new Date(now);
-        startDate.setFullYear(now.getFullYear() - 1);
+        startDate.setHours(0, 0, 0, 0);
+        startDate.setDate(1);
+        startDate.setMonth(0); // January (month 0)
         break;
       }
       default: // 'all'
