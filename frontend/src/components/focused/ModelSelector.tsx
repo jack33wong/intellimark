@@ -27,7 +27,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const models = [
     { id: 'auto', name: 'Auto' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'openai-gpt-5-mini', name: 'GPT 5.1 mini' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'openai-gpt-4o', name: 'GPT-4o' },
   ];
 
   const handleToggle = () => {

@@ -581,8 +581,12 @@ router.get('/usage', async (req: Request, res: Response) => {
       totalMathpixCost += record.mathpixCost;
     });
 
-    // Sort by totalCost descending
-    usageData.sort((a, b) => b.totalCost - a.totalCost);
+    // Sort by date descending (newest first)
+    usageData.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
 
     // Round totals to 2 decimal places
     totalCost = Math.round(totalCost * 100) / 100;

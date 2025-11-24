@@ -15,7 +15,12 @@ const getSavedModel = () => {
   try {
     const savedModel = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
     // Validate that saved model is one of the allowed models
-    const validModels = [AI_MODELS.AUTO, AI_MODELS.GEMINI_2_5_FLASH, AI_MODELS.OPENAI_GPT_5_MINI];
+    const validModels = [
+      AI_MODELS.AUTO,
+      AI_MODELS.GEMINI_2_5_FLASH,
+      AI_MODELS.GEMINI_2_5_PRO,
+      AI_MODELS.OPENAI_GPT_4O
+    ];
     if (savedModel && validModels.includes(savedModel)) {
       return savedModel;
     }
