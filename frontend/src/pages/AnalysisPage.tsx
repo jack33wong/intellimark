@@ -3,7 +3,7 @@
  * Redesigned with hierarchical structure: Qualification → Subject → Exam Board → Paper Code Set
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   AnalysisReport,
@@ -158,7 +158,7 @@ const AnalysisPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch grade boundaries:', error);
     }
-  }, [getAuthToken, selectedExamBoard, selectedPaperCodeSet]);
+  }, [getAuthToken]);
 
   // Fetch subjects from subjectMarkingResults
   const fetchSubjects = useCallback(async () => {
@@ -449,6 +449,32 @@ const AnalysisPage: React.FC = () => {
     }
   }, [availableExamBoards, allMarkingResults, selectedQualification, selectedSubject, selectedExamBoard]);
 
+  // Ensure paper code set is set when exam board is selected and paper code sets are available
+  useEffect(() => {
+    if (
+      selectedExamBoard &&
+      availablePaperCodeSets.length > 0 &&
+      !selectedPaperCodeSet
+    ) {
+      // Default to higher tier if available
+      const higherTier = availablePaperCodeSets.find(s => 
+        s.tier.toLowerCase().includes('higher')
+      );
+      setSelectedPaperCodeSet(higherTier ? higherTier.paperCodes : availablePaperCodeSets[0].paperCodes);
+    }
+  }, [selectedExamBoard, availablePaperCodeSets, selectedPaperCodeSet]);
+
+  // Compute if all filters are ready for analysis
+  const filtersReady = useMemo(() => {
+    return !!(
+      selectedSubject &&
+      selectedQualification &&
+      selectedExamBoard &&
+      selectedPaperCodeSet &&
+      selectedPaperCodeSet.length > 0
+    );
+  }, [selectedSubject, selectedQualification, selectedExamBoard, selectedPaperCodeSet]);
+
   if (loading) {
     return (
       <div className="analysis-page">
@@ -546,16 +572,26 @@ const AnalysisPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Analysis Report */}
-                <div className="analysis-section">
-                  <AnalysisReport
-                    subject={selectedSubject}
-                    qualification={selectedQualification}
-                    examBoard={selectedExamBoard}
-                    paperCodeSet={selectedPaperCodeSet}
-                    reAnalysisNeeded={reAnalysisNeeded}
-                  />
-                </div>
+                {/* Analysis Report - Only render when all filters are ready */}
+                {filtersReady ? (
+                  <div className="analysis-section">
+                    <AnalysisReport
+                      key={`${selectedSubject}-${selectedQualification}-${selectedExamBoard}-${selectedPaperCodeSet?.join(',')}`}
+                      subject={selectedSubject}
+                      qualification={selectedQualification}
+                      examBoard={selectedExamBoard}
+                      paperCodeSet={selectedPaperCodeSet}
+                      reAnalysisNeeded={reAnalysisNeeded}
+                    />
+                  </div>
+                ) : (
+                  <div className="analysis-section">
+                    <div className="analysis-loading">
+                      <div className="loading-spinner"></div>
+                      <p>Loading filters...</p>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

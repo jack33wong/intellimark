@@ -45,14 +45,26 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({
   
   useEffect(() => {
     if (subject) {
-      // Reset state when filters change
-      setAnalysis(null);
-      setError(null);
-      setIsGenerating(false);
-      setIsLoading(true);
-      setReAnalysisNeeded(reAnalysisNeededProp);
-      // Load analysis when filters change
-      loadAnalysis();
+      // Only load analysis if all required filters are set
+      // This prevents race conditions where filters are being set asynchronously
+      const allFiltersReady = qualification && examBoard && paperCodeSet && paperCodeSet.length > 0;
+      
+      if (allFiltersReady) {
+        // Reset state when filters change
+        setAnalysis(null);
+        setError(null);
+        setIsGenerating(false);
+        setIsLoading(true);
+        setReAnalysisNeeded(reAnalysisNeededProp);
+        // Load analysis when all filters are ready
+        loadAnalysis();
+      } else {
+        // Filters not ready yet - reset to loading state but don't try to load
+        setAnalysis(null);
+        setError(null);
+        setIsGenerating(false);
+        setIsLoading(true);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, qualification, examBoard, paperCodeSet]);
