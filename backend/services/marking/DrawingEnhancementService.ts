@@ -152,12 +152,12 @@ export class DrawingEnhancementService {
                   }
                 });
 
-                // ⚠️ TEMPORARY TESTING FLAG ⚠️
-                // Set to true to use vision API for ALL drawing questions (ignores coordinate accuracy)
-                // Set to false to only use vision API when Drawing Classification returns 0
-                const FORCE_VISION_FOR_DRAWINGS = true;
 
-                // Update main question student work if it has drawings
+                // Always pass image to Marking AI for visual verification
+                // (Drawing coordinates may be inaccurate, raw image provides best accuracy)
+                console.log(`[DRAWING ENHANCEMENT] Q${q.questionNumber}: Passing image to Marking AI for visual verification`);
+                (q as any).requiresImageForMarking = true;
+                (q as any).imageDataForMarking = imageData;
                 if (hasDrawingsInQuestion && mainQuestionDrawings.length > 0) {
                   // Create [DRAWING] entries from enhanced drawings
                   const drawingEntries = mainQuestionDrawings.map((enhanced) => {
@@ -209,13 +209,6 @@ export class DrawingEnhancementService {
                     }
                     return sq;
                   });
-                }
-
-                // TESTING: Also pass image for visual verification (coordinates may be inaccurate)
-                if (FORCE_VISION_FOR_DRAWINGS) {
-                  console.log(`[DRAWING ENHANCEMENT] Q${q.questionNumber}: TESTING MODE - will also pass image to Marking AI for visual verification`);
-                  (q as any).requiresImageForMarking = true;
-                  (q as any).imageDataForMarking = imageData;
                 }
               } else {
                 // EDGE CASE: Drawing Classification returned 0 drawings, but Classification detected hasStudentDrawing=true

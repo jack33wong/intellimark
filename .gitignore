@@ -123,3 +123,4 @@ test/e2e-regression/playwright-report/
 test/e2e-regression/test-results/
 test/e2e-regression/*.jpg
 test/e2e-regression/*.png
+backend/debug_images/

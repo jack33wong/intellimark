@@ -137,24 +137,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         });
 
         // DEBUG: Save the images being sent to AI
-        if (debug) {
-          const fs = await import('fs');
-          const path = await import('path');
-          const debugDir = path.join(process.cwd(), 'debug_images');
-          if (!fs.existsSync(debugDir)) {
-            fs.mkdirSync(debugDir, { recursive: true });
-          }
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-          images.forEach((img, index) => {
-            const imageData = img.imageData.includes(',') ? img.imageData : `data:image/jpeg;base64,${img.imageData}`;
-            const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-            const bufferToWrite = Buffer.from(base64Data, 'base64');
-            const debugPath = path.join(debugDir, `classification_input_openai_${timestamp}_page${index + 1}.jpg`);
-            fs.writeFileSync(debugPath, bufferToWrite);
-            console.log(`[DEBUG] Saved OpenAI classification input image to: ${debugPath}`);
-          });
-        }
 
         const result = await ModelProvider.callOpenAIChatWithMultipleImages(multiImageSystemPrompt, userContent, openaiModelName);
         content = result.content;
@@ -192,25 +174,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           });
         });
 
-        // DEBUG: Save the images being sent to Gemini
-        if (debug) {
-          const fs = await import('fs');
-          const path = await import('path');
-          const debugDir = path.join(process.cwd(), 'debug_images');
-          if (!fs.existsSync(debugDir)) {
-            fs.mkdirSync(debugDir, { recursive: true });
-          }
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-
-          imagesToUse.forEach((img, index) => {
-            const imageData = img.imageData.includes(',') ? img.imageData : `data:image/jpeg;base64,${img.imageData}`;
-            const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-            const bufferToWrite = Buffer.from(base64Data, 'base64');
-            const debugPath = path.join(debugDir, `classification_input_gemini_${timestamp}_page${index + 1}.jpg`);
-            fs.writeFileSync(debugPath, bufferToWrite);
-            console.log(`[DEBUG] Saved Gemini classification input image to: ${debugPath}`);
-          });
-        }
 
         // Make single API call with all images
         const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);

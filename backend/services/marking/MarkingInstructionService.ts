@@ -671,24 +671,17 @@ export class MarkingInstructionService {
       // Edge case: Use vision API when imageData is present (Drawing Classification returned 0)
       let res;
       if (imageData && imageData.trim() !== '') {
-        console.log(`[MARKING INSTRUCTION] Using vision API for Q${inputQuestionNumber} (Drawing Classification returned 0 for this drawing question)`);
-        console.log(`[MARKING INSTRUCTION DEBUG] Image data length: ${imageData.length} characters`);
-        console.log(`[MARKING INSTRUCTION DEBUG] Image format: ${imageData.substring(0, 50)}...`);
-        console.log(`[MARKING INSTRUCTION DEBUG] Has data URL prefix: ${imageData.startsWith('data:')}`);
-
-        console.log(`[MARKING INSTRUCTION DEBUG] Using raw image for marking. Length: ${imageData.length}`);
+        console.log(`[MARKING INSTRUCTION] Using vision API for Q${inputQuestionNumber} (imageData provided)`);
 
         // Determine which model provider to use
         const isOpenAI = model && model.toString().startsWith('openai-');
 
         if (isOpenAI) {
           let openaiModel = model.toString().replace('openai-', '');
-          console.log(`[MARKING INSTRUCTION DEBUG] Using OpenAI vision model: ${openaiModel}`);
           const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel);
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         } else {
           // Use Gemini Vision
-          console.log(`[MARKING INSTRUCTION DEBUG] Using Gemini vision model: ${model || 'auto'}`);
           const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model);
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         }
@@ -772,11 +765,18 @@ export class MarkingInstructionService {
       // Log clean AI response with better formatting
       const GREEN = '\x1b[32m';
       const RED = '\x1b[31m';
+      const CYAN = '\x1b[36m';
       const RESET = '\x1b[0m';
       console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
       console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
       console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
+
+      // Log visual observation if present (diagnostic for drawing questions)
+      if (parsedResponse.visualObservation && parsedResponse.visualObservation.trim()) {
+        console.log(`  ${CYAN}📋 [VISUAL OBSERVATION]${RESET}`);
+        console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
+      }
 
       // Log individual annotations for debugging (especially for answers like 18.6)
       if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
