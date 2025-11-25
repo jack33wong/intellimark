@@ -857,21 +857,26 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     sendSseUpdate(res, createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
     // ========================== END: ADD QUESTION DETECTION STAGE ==========================
 
-    // ========================= DRAWING CLASSIFICATION (POST-PROCESSING WITH MARKING SCHEME HINTS) =========================
-    // For pages with [DRAWING] entries, run specialized high-accuracy drawing classification
-    // NOW RUNS AFTER QUESTION DETECTION so we can pass marking scheme hints to maximize marks
-    const logDrawingClassificationComplete = logStep('Drawing Classification', actualModel);
-    const { DrawingEnhancementService } = await import('../services/marking/DrawingEnhancementService.js');
+    // =========================PASS IMAGES TO DRAWING QUESTIONS (SIMPLIFIED) =========================
+    // For questions with hasStudentDrawing=true, flag them to receive images for marking
+    // No need for Drawing Classification AI - just pass the image directly
+    allClassificationResults.forEach(({ pageIndex, result }) => {
+      if (result.category === 'questionAnswer' && result.questions) {
+        result.questions.forEach((q) => {
+          // If Classification detected a drawing question (via heuristic or visual)
+          const hasDrawingsInQuestion = q.hasStudentDrawing === true ||
+            (q.subQuestions && q.subQuestions.some(sq => sq.hasStudentDrawing === true));
 
-    await DrawingEnhancementService.enhanceDrawingsInClassification(
-      allClassificationResults,
-      standardizedPages,
-      actualModel as ModelType,
-      classificationResult,
-      markingSchemesMap // Pass marking schemes for hints
-    );
-    logDrawingClassificationComplete();
-    console.log('[PIPELINE DEBUG] ✅ Drawing Classification completed, proceeding to create marking tasks...');
+          if (hasDrawingsInQuestion && standardizedPages[pageIndex]) {
+            // Flag this question to receive the image for marking
+            (q as any).requiresImageForMarking = true;
+            (q as any).imageDataForMarking = standardizedPages[pageIndex].imageData;
+            console.log(`[DRAWING] Q${q.questionNumber || '?'}: Will pass image to Marking AI`);
+          }
+        });
+      }
+    });
+    console.log('[PIPELINE DEBUG] ✅ Drawing image passing configured, proceeding to create marking tasks...');
 
     // ========================= START: IMPLEMENT STAGE 3 =========================
     // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---

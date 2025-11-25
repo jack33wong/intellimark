@@ -38,14 +38,19 @@ export const AI_PROMPTS = {
        - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
        - **FORMAT**: Use LaTeX. Use "\\n" for new lines.
     3. **Drawings**:
-       - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set "hasStudentDrawing": true AND "hasStudentWork": true:
-         * "draw" + ("graph" OR "transformation" OR "curve" OR "line" OR "shape")
-         * "sketch" + ("graph" OR "diagram" OR "histogram")
-         * "plot" + ("graph" OR "points" OR "coordinates")
-         * "complete" + ("histogram" OR "table" OR "graph")
-         * "construct" + ("triangle" OR "diagram" OR "perpendicular")
-         * "on the grid" OR "on the same grid" OR "coordinate grid"
-         * Examples that MUST set hasStudentDrawing=true: "On the grid, draw the graph of y=...", "Draw the transformation", "Complete the histogram"
+       - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST - HIGHEST PRIORITY)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set THREE things:
+         * **"hasStudentDrawing": true**
+         * **"hasStudentWork": true** 
+         * **"category": "questionAnswer"** (NOT "questionOnly" - the student's drawing IS their work, even if you can't see it visually)
+         * Patterns to check:
+           - "draw" + ("graph" OR "transformation" OR "curve" OR "line" OR "shape")
+           - "sketch" + ("graph" OR "diagram" OR "histogram")
+           - "plot" + ("graph" OR "points" OR "coordinates")
+           - "complete" + ("histogram" OR "table" OR "graph")
+           - "construct" + ("triangle" OR "diagram" OR "perpendicular")
+           - "on the grid" OR "on the same grid" OR "coordinate grid"
+         * Examples that MUST trigger this: "On the grid, draw the graph of y=...", "Draw the transformation", "Complete the histogram"
+         * **CRITICAL**: Even if you cannot visually see a student's drawing, if the question text matches these patterns, assume the student HAS drawn something (it may be very faint) and set category to "questionAnswer"
        - **STEP 2 - VISUAL DETECTION**: Set "hasStudentDrawing": true if you can visually detect hand-drawn graphs/shapes.
        - **IGNORE**: Printed diagrams alone are NOT student drawings.
        - **MODIFICATIONS TO PRINTED DIAGRAMS**: If you see multiple curves/graphs on the same grid, shapes drawn ON a printed grid, new bars ON a histogram, or any handwritten additions to printed graphs, set "hasStudentDrawing": true.
@@ -410,6 +415,7 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
 
        **CRITICAL: Your response MUST follow this exact format:**
        {
+         "visualObservation": "REQUIRED for image-based questions: Describe what you see on the grid/diagram (number of curves, faint marks, etc.). Empty string if no image.",
          "annotations": [
            {
              "step_id": "step_#",
@@ -427,12 +433,53 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        }
 
        **Annotation Rules:**
-        0.  **CRITICAL - Graph Transformations (When Image Provided):** If an image is provided and the question asks to "draw a graph" or "draw a transformation":
-            - **EXAMINE THE GRID CAREFULLY:** Look for TWO curves on the same coordinate grid - one printed (usually labeled, e.g., "y = g(x)") and one hand-drawn by the student.
-            - **Student's curve may look similar to the printed one** - this is normal for transformations like reflections (y = g(-x)) or translations (y = g(x) + 2).
-            - **KEY INDICATORS of student work:** Slightly different line style, different position on grid, may be less smooth than the printed curve.
-            - **If you see TWO curves:** The student HAS completed the task. Evaluate the transformation for correctness against the marking scheme.
-            - **DO NOT conclude "no graph drawn" unless the grid is completely blank** (only one printed curve visible, no hand-drawn addition).
+        0a. **MANDATORY - Visual Observation (When Image Provided):**
+            - Before marking, you MUST populate the "visualObservation" field
+            - **SPATIAL EXAMINATION - REQUIRED FOR COORDINATE GRIDS:**
+              * **FIRST PRIORITY**: If the question involves a coordinate grid, you MUST perform this analysis BEFORE any other observations
+              * Examine the grid in TWO separate passes (this is NOT optional):
+                1. **LEFT REGION (x < 0)**: List EVERY curve, line, and point you see in the left half
+                2. **RIGHT REGION (x > 0)**: List EVERY curve, line, and point you see in the right half
+              * After BOTH passes, state: "TOTAL: [number] distinct curves/shapes detected"
+              * This spatial breakdown is MANDATORY and prevents missing curves that look similar
+            - **SYSTEMATIC EVALUATION AGAINST MARKING SCHEME:**
+              * For EACH criterion (C2, C1, C0 or B3, B2, B1), describe what you observe
+              * Check highest level first, then work down to find the best match
+              * This forces you to check EVERY criterion before concluding
+            - General visual observations:
+              * How many curves/lines/shapes are visible?
+              * Any faint pencil marks or very light drawings?
+              * Can you distinguish printed elements from hand-drawn elements?
+              * Describe characteristics (smooth vs rough, thick vs thin, color differences)
+              * Check for erased marks or very faint lines
+            - **CRITICAL**: Examine the ENTIRE grid/diagram area thoroughly
+        0b. **CRITICAL - Drawing/Graph Questions Systematic Evaluation:**
+            - When marking drawing/graph/transformation questions:
+            - **STEP 1 - VISUAL INSPECTION:** Examine ENTIRE grid/diagram for:
+              * Faint pencil marks (may be very light)
+              * Hand-drawn elements that look similar to printed ones
+              * Subtle differences in line thickness, smoothness, or color
+            - **STEP 2 - MARKING SCHEME CHECKLIST (MANDATORY):**
+              * Go through EACH criterion systematically (highest to lowest)
+              * Award the HIGHEST level achieved
+              * Check ALL partial credit options before awarding 0
+            - **STEP 3 - TRANSFORMATION VERIFICATION:**
+              * Look for multiple curves/shapes on the same grid
+              * Identify which is the original (often labeled) vs the transformed
+              * Verify transformation correctness against criteria
+            - **STEP 4 - FALLBACK EVALUATION (CRITICAL):**
+              * If you cannot distinguish which element is student-drawn vs printed:
+                - COUNT all curves/diagrams/shapes on the grid
+                - If there are MULTIPLE similar elements, evaluate EACH against the marking scheme
+                - At least ONE is likely the student's answer
+                - For transformations: compare the original labeled element vs unlabeled ones
+              * **DO NOT automatically award 0** just because elements "look printed"
+              * **ASSUMPTION**: If multiple similar elements exist, assume student HAS completed the task
+            - **DO NOT conclude "no work drawn" UNLESS:**
+              * You examined the full area carefully (reported in visualObservation)
+              * You checked for faint marks
+              * The grid contains ONLY the original printed elements with NO additions or modifications
+              * You verified no transformations/additions are visible
        1.  **Complete Coverage:** You MUST create an annotation for EVERY step in the student's work. Do not skip any steps.
        2.  **CRITICAL: DO NOT mark question text:** The OCR TEXT may contain question text from the exam paper.
            - **CHECK:** Compare the OCR text with the provided "Reference Question Text".
