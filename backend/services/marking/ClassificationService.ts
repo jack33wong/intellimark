@@ -744,7 +744,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     const questions = parsed.questions?.map((q: any) => {
       // DEBUG: Check if position data is present in raw response
       if (q.questionNumber === '10' || q.questionNumber === 10) {
+        console.log(`[CLASSIFICATION DEBUG] Q10 Raw AI Response - Full question object keys:`, Object.keys(q));
         console.log(`[CLASSIFICATION DEBUG] Q10 Raw AI Response Position:`, JSON.stringify(q.studentWorkPosition));
+        console.log(`[CLASSIFICATION DEBUG] Q10 studentWork content:`, q.studentWork?.substring(0, 100));
       }
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,

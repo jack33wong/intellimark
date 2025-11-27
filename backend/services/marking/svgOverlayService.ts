@@ -302,6 +302,56 @@ export class SVGOverlayService {
 
     let svg = '';
 
+    // Add color-coded border based on line data presence
+    // Orange = No line data (Block Data - estimated coords from split blocks)
+    // Black = Has line data (True Line Data - precise Mathpix coords)
+    const hasLineData = (annotation as any).hasLineData;
+    let borderColor = 'black';
+    let strokeDash = 'none';
+
+    if (hasLineData === false) {
+      // No line data - coordinates were estimated from split blocks
+      borderColor = 'orange';
+      strokeDash = '5,5';
+    }
+
+    const borderWidth = 2;
+
+    // Draw border around the annotation bounding box
+    svg += `<rect x="${scaledX}" y="${scaledY}" width="${scaledWidth}" height="${scaledHeight}" 
+            fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
+            stroke-dasharray="${strokeDash}"/>`;
+
+    // If this is a block without line data (orange border) AND we have AI position, 
+    // render a cyan circle to show the AI-estimated position for comparison
+    if (hasLineData === false && (annotation as any).aiPosition) {
+      const aiPos = (annotation as any).aiPosition;
+      console.log(`[SVG DEBUG] Rendering cyan circle. aiPos:`, aiPos, `actualDims: ${actualWidth}x${actualHeight}`);
+
+      // AI position is in PERCENTAGES (0-100), convert to pixels first
+      const aiPixelX = (aiPos.x / 100) * actualWidth;
+      const aiPixelY = (aiPos.y / 100) * actualHeight;
+      const aiPixelWidth = (aiPos.width / 100) * actualWidth;
+      const aiPixelHeight = (aiPos.height / 100) * actualHeight;
+
+      // Then scale to SVG coordinates
+      const aiX = aiPixelX * scaleX;
+      const aiY = aiPixelY * scaleY;
+      const aiW = aiPixelWidth * scaleX;
+      const aiH = aiPixelHeight * scaleY;
+
+      const centerX = aiX + aiW / 2;
+      const centerY = aiY + aiH / 2;
+      const radius = 25; // 5x bigger as requested
+
+      console.log(`[SVG DEBUG] Cyan circle center: (${centerX}, ${centerY}), radius: ${radius}`);
+      svg += `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="cyan" stroke="blue" stroke-width="2" opacity="0.6"/>`;
+      svg += `<text x="${centerX + 30}" y="${centerY + 8}" font-family="Arial" font-size="20" font-weight="bold" fill="blue">AI</text>`;
+    } else if (index === 0) {
+      // Log first annotation to diagnose
+      console.log(`[SVG DEBUG] First annotation: hasLineData=${hasLineData}, hasAiPos=${!!(annotation as any).aiPosition}`);
+    }
+
 
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;

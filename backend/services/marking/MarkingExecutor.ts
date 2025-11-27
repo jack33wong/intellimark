@@ -290,7 +290,20 @@ export async function executeMarkingForQuestion(
           hasLineData: block.hasLineData // Preserve line data flag (for border color)
         };
 
-
+        // If we have classification blocks with AI-estimated position, add it to stepData
+        // This allows visual comparison of OCR-derived coords vs AI-estimated coords
+        if (task.classificationBlocks && task.classificationBlocks.length > 0) {
+          const classBlock = task.classificationBlocks[0]; // For single-block questions like Q10
+          if ((classBlock as any).studentWorkPosition) {
+            const aiPos = (classBlock as any).studentWorkPosition;
+            stepData.aiPosition = {
+              x: aiPos.x,
+              y: aiPos.y,
+              width: aiPos.width,
+              height: aiPos.height
+            };
+          }
+        }
 
         return stepData;
       });

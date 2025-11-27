@@ -428,7 +428,8 @@ export class MarkingInstructionService {
             bbox: matchingStep.bbox as [number, number, number, number],
             pageIndex: pageIndex,
             ocrSource: (matchingStep as any).ocrSource, // Preserve OCR source
-            hasLineData: (matchingStep as any).hasLineData // Preserve line data flag
+            hasLineData: (matchingStep as any).hasLineData, // Preserve line data flag
+            aiPosition: (matchingStep as any).aiPosition // Preserve AI-estimated position
           };
         } else {
           return null;
