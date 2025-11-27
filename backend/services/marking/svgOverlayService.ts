@@ -27,14 +27,14 @@ export interface SVGOverlayConfig {
     reasoningYOffset: number; // % of block height offset from baseY
   };
   // Circle mark (student score) configuration
-  // Example: To move circle more to the left, increase marginRight (e.g., 60)
-  //          To move circle closer to bottom, decrease marginBottom (e.g., 20)
-  //          Position: Lower right corner of image
+  // Example: To move circle more to the left, increase marginRight (e.g., 100)
+  //          To move circle down from top, increase marginTop (e.g., 100)
+  //          Position: Top right corner of image
   circleMark: {
     baseRadius: number;        // Base radius for scaling (default: 80)
     baseFontSize: number;      // Font size for circle mark text (scales with image height)
     marginRight: number;       // Margin from right edge (multiplied by scaleFactor) - increase to move left
-    marginBottom: number;      // Margin from bottom edge (multiplied by scaleFactor) - decrease to move down
+    marginTop: number;         // Margin from top edge (multiplied by scaleFactor) - increase to move down
     baseStrokeWidth: number;   // Base stroke width for scaling (default: 8)
     minRadius: number;         // Minimum radius regardless of scale (default: 40)
     minStrokeWidth: number;    // Minimum stroke width regardless of scale (default: 4)
@@ -90,17 +90,17 @@ export class SVGOverlayService {
       reasoningYOffset: -11   // Vertical offset for reasoning text relative to baseY (% of block height)
     },
     // Circle mark (student score) configuration
-    // Position: Lower right corner
+    // Position: Top right corner
     // Example adjustments:
-    //   - Move left: increase marginRight (e.g., 60)
-    //   - Move right: decrease marginRight (e.g., 20)
-    //   - Move up: increase marginBottom (e.g., 60)
-    //   - Move down: decrease marginBottom (e.g., 20)
+    //   - Move left: increase marginRight (e.g., 120)
+    //   - Move right: decrease marginRight (e.g., 50)
+    //   - Move down: increase marginTop (e.g., 120)
+    //   - Move up: decrease marginTop (e.g., 50)
     circleMark: {
       baseRadius: 60,           // Base radius for scaling (decrease to make circle smaller)
       baseFontSize: 30,        // Font size for circle mark text (scales with image height) - single parameter to control text size
       marginRight: 90,          // Margin from right edge (increase = move left)
-      marginBottom: 90,         // Margin from bottom edge (decrease = move down)
+      marginTop: 90,            // Margin from top edge (increase = move down)
       baseStrokeWidth: 8,      // Base stroke width for scaling
       minRadius: 30,            // Minimum radius regardless of scale (decrease proportionally)
       minStrokeWidth: 4         // Minimum stroke width regardless of scale
@@ -248,6 +248,10 @@ export class SVGOverlayService {
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${actualWidth}" height="${actualHeight}" viewBox="0 0 ${actualWidth} ${actualHeight}">`;
 
+    // DEBUG: Add black border around entire image
+    svg += `<rect x="0" y="0" width="${actualWidth}" height="${actualHeight}" fill="none" stroke="black" stroke-width="5" opacity="1.0"/>`;
+
+
     // Process annotations if available
     if (annotations && annotations.length > 0) {
       annotations.forEach((annotation, index) => {
@@ -297,6 +301,7 @@ export class SVGOverlayService {
 
 
     let svg = '';
+
 
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
@@ -482,7 +487,7 @@ export class SVGOverlayService {
   }
 
   /**
-   * Create student score circle with hollow red border (positioned at lower right corner)
+   * Create student score circle with hollow red border (positioned at TOP right corner)
    */
   private static createStudentScoreCircle(studentScore: any, imageWidth: number, imageHeight: number): string {
     const scoreText = studentScore.scoreText || '0/0';
@@ -493,9 +498,9 @@ export class SVGOverlayService {
     const scoreFontSize = Math.round(config.baseFontSize * scaleFactor);
     const strokeWidth = Math.max(config.minStrokeWidth, Math.round(config.baseStrokeWidth * scaleFactor));
 
-    // Position at lower right corner
+    // Position at TOP right corner (changed from lower right)
     const circleX = imageWidth - (circleRadius + config.marginRight * scaleFactor);
-    const circleY = imageHeight - (circleRadius + config.marginBottom * scaleFactor);
+    const circleY = circleRadius + (config.marginTop * scaleFactor);
 
     const circle = `<circle cx="${circleX}" cy="${circleY}" r="${circleRadius}" 
                    fill="none" stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;

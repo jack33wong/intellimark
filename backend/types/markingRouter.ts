@@ -29,6 +29,8 @@ export interface MathBlock {
   suspicious?: boolean;
   pageIndex?: number;
   globalBlockId?: string;
+  ocrSource?: string; // 'primary' (Mathpix) or 'fallback' (Google Vision)
+  hasLineData?: boolean; // true if Mathpix provided line-level coords, false if estimated
 }
 
 export interface MarkingTask {

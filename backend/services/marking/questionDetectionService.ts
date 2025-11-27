@@ -600,11 +600,7 @@ export class QuestionDetectionService {
         return null;
       }
 
-      // DEBUG LOGGING: Entry point
-      const qNum = String(examPaperMatch.questionNumber).trim().replace(/^0+/, '');
-      if (qNum === "2" || qNum === "5" || qNum === "9") {
-        console.log(`[DEBUG FIND SCHEME] Searching for Q${qNum}. Raw: '${examPaperMatch.questionNumber}'. SubQ: '${examPaperMatch.subQuestionNumber}'`);
-      }
+
 
       const snapshot = await this.db.collection('markingSchemes').get();
       const markingSchemes: any[] = [];
@@ -718,11 +714,6 @@ export class QuestionDetectionService {
           flatKey = questionNumber;
         }
 
-        // DEBUG LOGGING for specific questions
-        if (questionNumber === "2" || questionNumber === "5" || questionNumber === "9") {
-          console.log(`[DEBUG DETECT] Q${questionNumber} (Raw: ${examPaperMatch.questionNumber}). SubQ: ${examPaperMatch.subQuestionNumber}. FlatKey: ${flatKey}`);
-
-        }
 
         // FLAT STRUCTURE ONLY - no fallbacks, no nested structures
         // Check for main question and alternative method
@@ -752,10 +743,7 @@ export class QuestionDetectionService {
               return baseMatch && baseMatch[1] === questionNumber;
             });
 
-            // DEBUG LOGGING
-            if (questionNumber === "5" || questionNumber === "2" || questionNumber === "9") {
-              console.log(`[DEBUG DETECT] Checking Q${questionNumber}. FlatKey: ${flatKey}. SubKeys found: ${subQuestionKeys.join(', ')}`);
-            }
+
 
             if (subQuestionKeys.length > 0) {
               // Main question doesn't have a marking scheme, but sub-questions do (e.g. Q5 detected, but DB has 5a, 5b)

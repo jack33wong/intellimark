@@ -22,12 +22,12 @@ export async function simulateApiDelay(operation: string, debug: boolean = false
 // Simple step logging helper
 export function createStepLogger(totalSteps: number, startStep: number = 0) {
   let currentStep = startStep;
-  
+
   return {
     logStep: (stepName: string, modelInfo: string) => {
       currentStep++;
       const startTime = Date.now();
-      
+
       return () => {
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
         const progress = `[${currentStep}/${totalSteps}]`;
@@ -69,7 +69,7 @@ export function getShortSubjectName(qualification: string): string {
     'CHEM': 'CHEMISTRY',
     'PHYS': 'PHYSICS'
   };
-  
+
   const upperQualification = qualification.toUpperCase();
   return subjectMap[upperQualification] || qualification;
 }
@@ -78,17 +78,17 @@ export function getShortSubjectName(qualification: string): string {
 export function generateNonPastPaperTitle(extractedQuestionText: string | undefined, mode: 'Question' | 'Marking'): string {
   if (extractedQuestionText && extractedQuestionText.trim()) {
     const questionText = extractedQuestionText.trim();
-    
+
     // Handle cases where extraction failed
-    if (questionText.toLowerCase().includes('unable to extract') || 
-        questionText.toLowerCase().includes('no text detected') ||
-        questionText.toLowerCase().includes('extraction failed')) {
+    if (questionText.toLowerCase().includes('unable to extract') ||
+      questionText.toLowerCase().includes('no text detected') ||
+      questionText.toLowerCase().includes('extraction failed')) {
       return `${mode} - ${new Date().toLocaleDateString()}`;
     }
-    
+
     // Use the truncated question text directly - much simpler and more reliable
-    const truncatedText = questionText.length > 30 
-      ? questionText.substring(0, 30) + '...' 
+    const truncatedText = questionText.length > 30
+      ? questionText.substring(0, 30) + '...'
       : questionText;
     const result = `${mode} - ${truncatedText}`;
     return result;
@@ -191,21 +191,21 @@ export async function performQuestionDetection(extractedQuestionText: string | u
     return questionDetectionService.detectQuestion(extractedQuestionText || '');
   };
   const questionDetection = await detectQuestion();
-  
+
   // Add marking scheme and question text to questionDetection
   if (questionDetection) {
     // Store only the questionMarks data in proper structure (matching test data)
     questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
     questionDetection.questionText = extractedQuestionText || '';
   }
-  
+
   return questionDetection;
 }
 
 // Helper function to log performance summary
 export function logPerformanceSummary(stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } }, totalProcessingTime: number, actualModel: string, mode: string) {
   const totalTime = totalProcessingTime / 1000;
-  
+
   // Display name mapping for cleaner output
   const displayNameMap: { [key: string]: string } = {
     'classification': 'classification',
@@ -223,13 +223,13 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
     'database_persistence': 'database_persistence',
     'pdf_conversion': 'pdf_conversion'
   };
-  
+
   console.log('\n=== PERFORMANCE SUMMARY ===');
   console.log(`Total Processing Time: ${totalTime.toFixed(1)}s`);
   console.log(`Model Used: ${actualModel}`);
   console.log(`Mode: ${mode}`);
   console.log('----------------------------');
-  
+
   // Calculate step percentages
   const stepEntries = Object.entries(stepTimings).filter(([_, timing]) => timing.duration);
   if (stepEntries.length > 0) {
@@ -244,13 +244,13 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
         console.log(`${paddedStepName} ${duration.toFixed(1)}s (${percentage}%)`);
       });
   }
-  
+
   console.log('============================\n');
 }
 
 // Helper function to generate session title
 export function generateSessionTitle(questionDetection: any, extractedQuestionText: string, mode: 'Question' | 'Marking'): string {
-  return questionDetection?.found && questionDetection.match 
+  return questionDetection?.found && questionDetection.match
     ? `${questionDetection.match.board} ${getShortSubjectName(questionDetection.match.qualification)} - ${questionDetection.match.paperCode} Q${questionDetection.match.questionNumber} (${questionDetection.match.examSeries})`
     : generateNonPastPaperTitle(extractedQuestionText, mode);
 }
@@ -316,7 +316,7 @@ export function buildMarkingResponse({
 }): any {
   const isPastPaper = questionDetection?.found || false;
   const isQuestionMode = mode === 'Question';
-  
+
   // Add marking scheme and question text to questionDetection
   if (questionDetection) {
     questionDetection.markingScheme = JSON.stringify(questionDetection.match?.markingScheme?.questionMarks || {});
@@ -332,8 +332,8 @@ export function buildMarkingResponse({
     processingTime: totalProcessingTime,
     progressData: finalProgressData,
     sessionTitle: generateSessionTitle(
-      questionDetection, 
-      isQuestionMode ? classification.extractedQuestionText || '' : processedImage?.ocrText || '', 
+      questionDetection,
+      isQuestionMode ? classification.extractedQuestionText || '' : processedImage?.ocrText || '',
       mode
     ),
     classification: classification,
@@ -396,21 +396,21 @@ export function buildMarkingResponse({
  * - Classification returns array of questions with text only, NO numbers
  */
 export function extractQuestionsFromClassification(
-  classification: any, 
+  classification: any,
   fileName?: string
-): Array<{text: string; questionNumber?: string | null}> {
+): Array<{ text: string; questionNumber?: string | null }> {
   // Handle hierarchical questions array structure
   if (classification?.questions && Array.isArray(classification.questions)) {
-    const extractedQuestions: Array<{text: string; questionNumber?: string | null}> = [];
-    
+    const extractedQuestions: Array<{ text: string; questionNumber?: string | null }> = [];
+
     for (const q of classification.questions) {
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
-      
+
       // If question has sub-questions, extract each sub-question separately
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
         for (const subQ of q.subQuestions) {
-          const combinedQuestionNumber = mainQuestionNumber 
-            ? `${mainQuestionNumber}${subQ.part || ''}` 
+          const combinedQuestionNumber = mainQuestionNumber
+            ? `${mainQuestionNumber}${subQ.part || ''}`
             : null;
           extractedQuestions.push({
             questionNumber: combinedQuestionNumber,
@@ -428,10 +428,10 @@ export function extractQuestionsFromClassification(
         // If main text is null but no sub-questions, skip (empty question)
       }
     }
-    
+
     return extractedQuestions;
   }
-  
+
   // Fallback: Handle old extractedQuestionText structure
   if (classification?.extractedQuestionText) {
     return [{
@@ -439,7 +439,7 @@ export function extractQuestionsFromClassification(
       // No questionNumber in legacy format
     }];
   }
-  
+
   return [];
 }
 
@@ -461,7 +461,7 @@ export function convertMarkingSchemeToPlainText(
     // Extract marks array from various possible structures
     let marksArray: any[] = [];
     let questionLevelAnswer: string | undefined = undefined;
-    
+
     // Handle different marking scheme structures
     if (markingScheme.questionMarks) {
       const questionMarks = markingScheme.questionMarks;
@@ -488,7 +488,7 @@ export function convertMarkingSchemeToPlainText(
     if (questionLevelAnswer) {
       schemeData.questionLevelAnswer = questionLevelAnswer;
     }
-    
+
     // Include sub-question marks mapping if available (for grouped sub-questions)
     if (markingScheme.questionMarks?.subQuestionMarks && typeof markingScheme.questionMarks.subQuestionMarks === 'object') {
       schemeData.subQuestionMarks = markingScheme.questionMarks.subQuestionMarks;
@@ -511,12 +511,12 @@ export function formatGroupedStudentWork(
   subQuestions: Array<{ part: string; studentWork: string; text?: string }>
 ): string {
   const parts: string[] = [];
-  
+
   // Add main question student work if exists
   if (mainStudentWork && mainStudentWork !== 'null' && mainStudentWork.trim() !== '') {
     parts.push(`[MAIN QUESTION STUDENT WORK]\n${mainStudentWork.trim()}`);
   }
-  
+
   // Add each sub-question with clear label
   subQuestions.forEach((subQ) => {
     if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
@@ -524,7 +524,7 @@ export function formatGroupedStudentWork(
       parts.push(`${subQLabel}\n${subQ.studentWork.trim()}`);
     }
   });
-  
+
   return parts.join('\n\n');
 }
 
@@ -534,21 +534,21 @@ export function formatGroupedStudentWork(
  */
 export function getQuestionSortValue(questionNumber: string | null | undefined): number {
   if (!questionNumber) return Infinity;
-  
+
   const baseNum = parseInt(String(questionNumber).replace(/\D/g, '')) || 0;
   if (baseNum === 0) return Infinity;
-  
+
   // Extract sub-question part (e.g., "a", "b", "i", "ii")
   const subPart = String(questionNumber).replace(/^\d+/, '').toLowerCase();
-  
+
   if (!subPart) {
     // Main question (e.g., "3") → 3.0
     return baseNum;
   }
-  
+
   // Convert sub-question part to numeric offset
   let subOffset = 0;
-  
+
   // Letter sub-questions: a=0.01, b=0.02, c=0.03, etc.
   if (subPart.match(/^[a-z]$/)) {
     subOffset = (subPart.charCodeAt(0) - 'a'.charCodeAt(0) + 1) * 0.01;
@@ -569,7 +569,7 @@ export function getQuestionSortValue(questionNumber: string | null | undefined):
       subOffset = parseInt(numMatch[0]) * 0.01;
     }
   }
-  
+
   // Return base number + sub-question offset
   return baseNum + subOffset;
 }
@@ -582,16 +582,16 @@ export function buildClassificationPageToSubQuestionMap(
   classificationResult: any
 ): Map<number, Map<string, string>> {
   const classificationPageToSubQuestion = new Map<number, Map<string, string>>(); // pageIndex -> baseQNum -> subQNum
-  
+
   if (classificationResult?.questions) {
     for (const q of classificationResult.questions) {
       const baseQNum = String(q.questionNumber || '');
       if (!baseQNum) continue;
-      
+
       const pageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
         ? q.sourceImageIndices
         : (q.sourceImageIndex !== undefined ? [q.sourceImageIndex] : []);
-      
+
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
         // If sub-questions are on the same page, they're in the same question entry
         // If they're on different pages, they might be in separate entries
@@ -599,8 +599,22 @@ export function buildClassificationPageToSubQuestionMap(
         q.subQuestions.forEach((subQ: any, subIndex: number) => {
           const part = subQ.part || '';
           if (!part) return;
-          
+
           const subQNum = `${baseQNum}${part}`;
+
+          // NEW LOGIC: Use explicit pageIndex if available (from markingRouter merging)
+          if (subQ.pageIndex !== undefined) {
+            const pageIndex = subQ.pageIndex;
+            if (!classificationPageToSubQuestion.has(pageIndex)) {
+              classificationPageToSubQuestion.set(pageIndex, new Map());
+            }
+            // Only set if not already set (first occurrence wins)
+            if (!classificationPageToSubQuestion.get(pageIndex)!.has(baseQNum)) {
+              classificationPageToSubQuestion.get(pageIndex)!.set(baseQNum, subQNum);
+            }
+            return; // Skip fallback loop
+          }
+
           // For each page this question spans, map the sub-question
           // If multiple pages, assign sub-questions in order (first sub-question to first page, etc.)
           pageIndices.forEach((pageIndex, pageIdx) => {
@@ -620,7 +634,7 @@ export function buildClassificationPageToSubQuestionMap(
       }
     }
   }
-  
+
   return classificationPageToSubQuestion;
 }
 
@@ -633,10 +647,10 @@ export function buildPageToQuestionNumbersMap(
   classificationPageToSubQuestion: Map<number, Map<string, string>>
 ): Map<number, number[]> {
   const pageToQuestionNumbers = new Map<number, number[]>();
-  
+
   allQuestionResults.forEach((qr) => {
     const baseQNum = String(qr.questionNumber || '');
-    
+
     // Check if this is a grouped sub-question (has sub-question numbers in markingSchemesMap)
     let subQuestionNumbers: string[] | undefined = undefined;
     for (const [key, scheme] of markingSchemesMap.entries()) {
@@ -646,7 +660,7 @@ export function buildPageToQuestionNumbersMap(
         break;
       }
     }
-    
+
     if (subQuestionNumbers && subQuestionNumbers.length > 0) {
       // This is a grouped sub-question - map each page to its corresponding sub-question number
       // Get all pages that have annotations for this question
@@ -658,13 +672,13 @@ export function buildPageToQuestionNumbersMap(
           }
         });
       }
-      
+
       // For each page with annotations, look up the actual sub-question number from classification
       pageIndexCounts.forEach((count, pageIndex) => {
         // Try to get the sub-question number from classification mapping
         const pageSubQuestionMap = classificationPageToSubQuestion.get(pageIndex);
         let subQNum: string | undefined = undefined;
-        
+
         if (pageSubQuestionMap && pageSubQuestionMap.has(baseQNum)) {
           // Found exact mapping from classification
           subQNum = pageSubQuestionMap.get(baseQNum);
@@ -676,7 +690,7 @@ export function buildPageToQuestionNumbersMap(
             subQNum = subQuestionNumbers[pageIndexInOrder];
           }
         }
-        
+
         if (subQNum) {
           const sortValue = getQuestionSortValue(subQNum);
           if (sortValue !== Infinity && sortValue > 0) {
@@ -702,7 +716,7 @@ export function buildPageToQuestionNumbersMap(
           pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
         }
       }
-      
+
       if (pageIndex !== undefined) {
         // Convert question number to sortable value (preserves sub-question order)
         const sortValue = getQuestionSortValue(baseQNum);
@@ -715,7 +729,7 @@ export function buildPageToQuestionNumbersMap(
       }
     }
   });
-  
+
   return pageToQuestionNumbers;
 }
 
@@ -729,7 +743,7 @@ function getPageIndexFromQuestionResult(
   // Get pageIndex from annotations (they have pageIndex) or from the first annotation's pageIndex
   // If no annotations, use the first page that has blocks for this question
   let pageIndex: number | undefined;
-  
+
   if (qr.annotations && qr.annotations.length > 0) {
     // Get the most common pageIndex from annotations (in case question spans multiple pages)
     const pageIndexCounts = new Map<number, number>();
@@ -743,7 +757,7 @@ function getPageIndexFromQuestionResult(
       pageIndex = Array.from(pageIndexCounts.entries()).sort((a, b) => b[1] - a[1])[0][0];
     }
   }
-  
+
   // Fallback: try to match by question number from classificationResult
   if (pageIndex === undefined) {
     const matchingQuestion = classificationResult.questions?.find((q: any) => {
@@ -753,11 +767,11 @@ function getPageIndexFromQuestionResult(
     });
     pageIndex = matchingQuestion?.sourceImageIndex ?? 0;
   }
-  
+
   if (pageIndex === undefined) {
     pageIndex = 0; // Final fallback
   }
-  
+
   return pageIndex;
 }
 
@@ -773,7 +787,7 @@ export function calculateOverallScore(
   overallScoreText: string;
 } {
   const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
-  
+
   // For total marks: avoid double-counting sub-questions that share the same parent question
   // Group by base question number and only count total marks once per base question
   const baseQuestionToTotalMarks = new Map<string, number>();
@@ -788,7 +802,7 @@ export function calculateOverallScore(
   });
   const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
-  
+
   return {
     overallScore,
     totalPossibleScore,
@@ -805,35 +819,35 @@ export function calculatePerPageScores(
   classificationResult: any
 ): { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } {
   const pageScores: { [pageIndex: number]: { awarded: number; total: number; scoreText: string } } = {};
-  
+
   // First pass: Calculate awarded marks per page
   allQuestionResults.forEach((qr) => {
     const pageIndex = getPageIndexFromQuestionResult(qr, classificationResult);
-    
+
     if (!pageScores[pageIndex]) {
       pageScores[pageIndex] = { awarded: 0, total: 0, scoreText: '' };
     }
-    
+
     pageScores[pageIndex].awarded += qr.score?.awardedMarks || 0;
     // Don't add totalMarks here - we'll calculate it after grouping by base question number
   });
-  
+
   // Second pass: Calculate total marks per page by grouping by base question number (avoid double-counting sub-questions)
   const pageBaseQuestionToTotalMarks = new Map<number, Map<string, number>>(); // pageIndex -> baseQNum -> totalMarks
   allQuestionResults.forEach((qr) => {
     const pageIndex = getPageIndexFromQuestionResult(qr, classificationResult);
-    
+
     if (!pageBaseQuestionToTotalMarks.has(pageIndex)) {
       pageBaseQuestionToTotalMarks.set(pageIndex, new Map<string, number>());
     }
-    
+
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
     const pageBaseQMap = pageBaseQuestionToTotalMarks.get(pageIndex)!;
     if (!pageBaseQMap.has(baseQNum)) {
       pageBaseQMap.set(baseQNum, qr.score?.totalMarks || 0);
     }
   });
-  
+
   // Set total marks per page from grouped data
   pageBaseQuestionToTotalMarks.forEach((baseQMap, pageIndex) => {
     const pageTotal = Array.from(baseQMap.values()).reduce((sum, marks) => sum + marks, 0);
@@ -841,12 +855,12 @@ export function calculatePerPageScores(
       pageScores[pageIndex].total = pageTotal;
     }
   });
-  
+
   // Generate score text for each page
   Object.keys(pageScores).forEach(pageIndex => {
     const pageScore = pageScores[parseInt(pageIndex)];
     pageScore.scoreText = `${pageScore.awarded}/${pageScore.total}`;
   });
-  
+
   return pageScores;
 }

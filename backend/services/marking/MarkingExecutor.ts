@@ -22,6 +22,7 @@ export interface MarkingTask {
   classificationBlocks?: Array<{  // Original classification blocks with position data (for Q18-style accumulated questions)
     text: string;
     pageIndex: number;
+    studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
   }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
   imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
@@ -53,6 +54,7 @@ export interface EnrichedAnnotation extends Annotation {
   bbox: [number, number, number, number];
   pageIndex: number;
   unified_step_id?: string; // Optional, for tracking which step this annotation maps to
+  aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
 }
 
 /**
@@ -67,6 +69,15 @@ export async function executeMarkingForQuestion(
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;
+
+  // DEBUG: Inspect task object for Q10
+  if (String(questionId) === '10') {
+    console.log(`[MARKING DEBUG] executeMarkingForQuestion Q10. Task Keys: ${Object.keys(task).join(', ')}`);
+    console.log(`[MARKING DEBUG] Q10 task.classificationBlocks type: ${typeof task.classificationBlocks}`);
+    if (task.classificationBlocks) {
+      console.log(`[MARKING DEBUG] Q10 task.classificationBlocks length: ${task.classificationBlocks.length}`);
+    }
+  }
 
   // Import createProgressData function
   const { createProgressData } = await import('../../utils/sseUtils.js');
@@ -87,6 +98,8 @@ export async function executeMarkingForQuestion(
       return trimmed; // Return as-is if not a LaTeX-wrapped single letter
     };
 
+
+
     // 1. Prepare STEP DATA (still need this array for enriching annotations later)
     // Use AI segmentation results if available, otherwise fall back to OCR blocks
     let stepsDataForMapping: Array<{
@@ -96,7 +109,13 @@ export async function executeMarkingForQuestion(
       text: string;
       cleanedText: string;
       bbox: [number, number, number, number];
+      ocrSource?: string; // Add ocrSource to type definition
     }>;
+
+    // DEBUG: Check which path is taken
+    if (String(questionId) === '10' || String(questionId) === '15') {
+      console.log(`[MARKING DEBUG] Q${questionId} Path: ${task.aiSegmentationResults && task.aiSegmentationResults.length > 0 ? 'Legacy (Segmentation)' : 'Enhanced (OCR Blocks)'}`);
+    }
 
     if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
       // Use AI segmentation results - map back to original blocks for coordinates
@@ -192,10 +211,11 @@ export async function executeMarkingForQuestion(
 
         // NEW: Fallback for non-drawing text when OCR mapping failed
         // Use classification block metadata to estimate position
+        // Use classification block metadata to estimate position
+        let matchingBlockIndex = -1;
         if (bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 0 && bbox[3] === 0 && task.classificationBlocks && task.classificationBlocks.length > 0) {
           // Try to find which classification block this annotation text came from
           const annotationText = result.content.substring(0, 30).toLowerCase(); // First 30 chars for matching
-          let matchingBlockIndex = -1;
 
           for (let i = 0; i < task.classificationBlocks.length; i++) {
             const blockText = task.classificationBlocks[i].text.substring(0, 30).toLowerCase();
@@ -232,7 +252,8 @@ export async function executeMarkingForQuestion(
           globalBlockId: result.blockId,
           text: result.content, // Use AI segmentation merged content
           cleanedText: result.content, // Use AI segmentation merged content
-          bbox
+          bbox,
+          ocrSource: matchingBlockIndex >= 0 ? 'estimated' : undefined // Flag as estimated if using classification block fallback
         };
       });
     } else {
@@ -245,7 +266,7 @@ export async function executeMarkingForQuestion(
         const rawText = block.mathpixLatex || block.googleVisionText || '';
         const normalizedText = normalizeLaTeXSingleLetter(rawText);
 
-        const bbox: [number, number, number, number] = block.coordinates &&
+        let bbox: [number, number, number, number] = block.coordinates &&
           block.coordinates.x != null && block.coordinates.y != null &&
           block.coordinates.width != null && block.coordinates.height != null
           ? [block.coordinates.x, block.coordinates.y, block.coordinates.width, block.coordinates.height]
@@ -257,20 +278,31 @@ export async function executeMarkingForQuestion(
           ? blockPageIndex
           : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
 
-        return {
-          unified_step_id: `step_${stepIndex + 1}`, // Step ID based on OCR block order
+        // Build step data - preserve all original coordinates and OCR source
+        const stepData: any = {
+          unified_step_id: `step_${stepIndex + 1}`,
           pageIndex: validPageIndex,
           globalBlockId: (block as any).globalBlockId || blockId,
-          text: normalizedText, // OCR block text
-          cleanedText: normalizedText, // OCR block text
-          bbox // OCR block coordinates
+          text: normalizedText,
+          cleanedText: normalizedText,
+          bbox, // Keep original OCR coordinates
+          ocrSource: block.ocrSource, // Preserve OCR source (Mathpix vs Google Vision)
+          hasLineData: block.hasLineData // Preserve line data flag (for border color)
         };
+
+
+
+        return stepData;
       });
     }
 
     // Log summary of blocks with/without coordinates
     const blocksWithCoords = stepsDataForMapping.filter(s => s.bbox[0] > 0 || s.bbox[1] > 0).length;
     const blocksWithoutCoords = stepsDataForMapping.length - blocksWithCoords;
+    const blocksWithAiPos = stepsDataForMapping.filter(s => (s as any).aiPosition).length;
+
+    console.log(`[MARKING EXECUTOR] Q${questionId} Position Stats: Total=${stepsDataForMapping.length}, WithCoords=${blocksWithCoords}, MissingCoords=${blocksWithoutCoords}, WithAIPos=${blocksWithAiPos}`);
+
     if (blocksWithoutCoords > 0) {
       console.warn(`[MARKING EXECUTOR] Q${questionId}: ${blocksWithoutCoords}/${stepsDataForMapping.length} blocks missing coordinates`);
     }
@@ -686,6 +718,7 @@ export async function executeMarkingForQuestion(
     }
 
     // Call Marking Instruction Service (Pass Raw OCR Blocks + Classification for Enhanced Marking)
+
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
     const markingResult = await MarkingInstructionService.executeMarking({
@@ -839,7 +872,8 @@ export async function executeMarkingForQuestion(
         ...anno,
         bbox: (originalStep.bbox || [0, 0, 0, 0]) as [number, number, number, number],
         pageIndex: originalStep.pageIndex ?? -1,
-        unified_step_id: originalStep.unified_step_id // Store unified_step_id for tracking
+        unified_step_id: originalStep.unified_step_id, // Store unified_step_id for tracking
+        ocrSource: (originalStep as any).ocrSource // Propagate OCR source (primary/fallback)
       };
 
       // Update last valid annotation for future fallbacks
@@ -922,6 +956,7 @@ export function createMarkingTasksFromClassification(
     markingScheme: any;
     baseQNum: string;
     sourceImageIndices: number[]; // Array of page indices (for multi-page questions)
+    aiSegmentationResults: Array<{ content: string; studentWorkPosition?: any }>; // Store accumulated results
   }>();
 
   // First pass: Collect all questions and sub-questions, group by base question number
@@ -974,7 +1009,8 @@ export function createMarkingTasksFromClassification(
         subQuestions: [],
         markingScheme: markingScheme,
         baseQNum: baseQNum,
-        sourceImageIndices: sourceImageIndices
+        sourceImageIndices: sourceImageIndices,
+        aiSegmentationResults: [] // Initialize array
       });
     } else {
       // If group exists, merge page indices (in case sub-questions are on different pages)
@@ -989,9 +1025,21 @@ export function createMarkingTasksFromClassification(
     if (q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '') {
       group.mainStudentWorkParts.push(q.studentWork.trim());
       // Also store original block metadata for fallback annotation positioning
-      group.classificationBlocks.push({
+      const block = {
         text: q.studentWork.trim(),
-        pageIndex: sourceImageIndices[0] || 0
+        pageIndex: sourceImageIndices[0] || 0,
+        studentWorkPosition: q.studentWorkPosition // Store position data
+      };
+      group.classificationBlocks.push(block as any);
+
+      // DEBUG: Trace Q10 data
+      if (baseQNum === '10' || baseQNum === 10) {
+        console.log(`[MARKING DEBUG] Adding Q10 block to group. Has Position: ${!!block.studentWorkPosition}`, JSON.stringify(block.studentWorkPosition));
+      }
+
+      group.aiSegmentationResults.push({
+        content: block.text,
+        studentWorkPosition: block.studentWorkPosition
       });
     }
 
@@ -1002,7 +1050,13 @@ export function createMarkingTasksFromClassification(
           group.subQuestions.push({
             part: subQ.part || '',
             studentWork: subQ.studentWork,
-            text: subQ.text
+            text: subQ.text,
+            studentWorkPosition: subQ.studentWorkPosition // Store position data
+          } as any);
+
+          group.aiSegmentationResults.push({
+            content: subQ.studentWork,
+            studentWorkPosition: subQ.studentWorkPosition
           });
         }
       }
@@ -1088,6 +1142,14 @@ export function createMarkingTasksFromClassification(
         subQuestionNumbers: subQuestionNumbers.length > 0 ? subQuestionNumbers : undefined
       }
     });
+
+    // DEBUG: Verify task creation for Q10
+    if (baseQNum === '10' || baseQNum === 10) {
+      console.log(`[MARKING DEBUG] Created task for Q10. classificationBlocks length: ${group.classificationBlocks.length}`);
+      if (group.classificationBlocks.length > 0) {
+        console.log(`[MARKING DEBUG] Q10 Task Block 0 pos:`, JSON.stringify((group.classificationBlocks[0] as any).studentWorkPosition));
+      }
+    }
   }
 
   // Sort tasks by question number (ascending) to ensure consistent ordering

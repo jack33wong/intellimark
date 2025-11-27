@@ -426,12 +426,16 @@ export class MarkingInstructionService {
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
-            pageIndex: pageIndex
+            pageIndex: pageIndex,
+            ocrSource: (matchingStep as any).ocrSource, // Preserve OCR source
+            hasLineData: (matchingStep as any).hasLineData // Preserve line data flag
           };
         } else {
           return null;
         }
       }).filter(anno => anno !== null);
+
+
 
       // ========================== END: ANNOTATION ENRICHMENT ==========================
 

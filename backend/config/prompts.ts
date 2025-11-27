@@ -37,6 +37,7 @@ export const AI_PROMPTS = {
        - **COMBINE**: Join disjoint text (e.g., working + answer line) with "\\n".
        - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
        - **FORMAT**: Use LaTeX. Use "\\n" for new lines.
+       - **POSITION**: For each question or sub-question, estimate the bounding box that encompasses ALL student handwriting for that part. Return as "studentWorkPosition": { "x": number, "y": number, "width": number, "height": number } where values are percentages (0-100).
     3. **Drawings**:
        - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST - HIGHEST PRIORITY)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set THREE things:
          * **"hasStudentDrawing": true**
@@ -65,7 +66,6 @@ export const AI_PROMPTS = {
     Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
 
     {
-      "pages": [
         {
           "category": "questionAnswer",
           "rotation": 0,
@@ -74,12 +74,14 @@ export const AI_PROMPTS = {
               "questionNumber": "1",
               "text": "Solve the equation...",
               "studentWork": "3x = 12\\nx = 4",
+              "studentWorkPosition": { "x": 50, "y": 60, "width": 40, "height": 10 },
               "hasStudentDrawing": false,
               "subQuestions": [
                 {
                   "part": "a",
                   "text": "Find x",
                   "studentWork": "x = 4",
+                  "studentWorkPosition": { "x": 50, "y": 75, "width": 40, "height": 5 },
                   "hasStudentDrawing": false
                 }
               ]

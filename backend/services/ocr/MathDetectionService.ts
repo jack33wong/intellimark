@@ -14,6 +14,10 @@ export interface MathBlock {
   mathLikenessScore: number;
   coordinates: { x: number; y: number; width: number; height: number };
   suspicious?: boolean;
+  lines?: any[];                   // NEW: Sub-line data from Mathpix
+  sourceType?: string;             // NEW: Source type (e.g., 'hybrid')
+  ocrSource?: string;              // NEW: OCR source (primary/fallback)
+  hasLineData?: boolean;           // NEW: Line-level data flag
 }
 
 // Inline MathDetectionService functionality
@@ -28,7 +32,7 @@ export function scoreMathLikeness(text: string): number {
       'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
       'question', 'answer', 'find', 'calculate', 'solve', 'show', 'prove', 'given'
     ];
-    
+
     const words = t.toLowerCase().split(/\s+/);
     const isCommonEnglish = words.every(word => commonEnglishWords.includes(word));
     if (isCommonEnglish) {
@@ -69,7 +73,7 @@ export function detectMathBlocks(vision: ProcessedVisionResult | null, threshold
 
   const candidateBoxes = vision.boundingBoxes || [];
   const blocks: MathBlock[] = [];
-  
+
   for (const b of candidateBoxes) {
     const score = scoreMathLikeness(b.text || "");
     if (score >= threshold) {

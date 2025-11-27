@@ -13,13 +13,16 @@ export interface ClassificationResult {
     questionNumber?: string | null; // Main question number (e.g., "1", "2", "3") or null
     text: string | null; // Main question text, or null if no main text (only sub-questions)
     studentWork?: string | null; // Extracted student work for main question (LaTeX format)
+    studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
     hasStudentDrawing?: boolean; // Indicator if main question has student drawing work
     subQuestions?: Array<{
       part: string; // Sub-question part (e.g., "a", "b", "i", "ii")
       text: string; // Complete sub-question text
       studentWork?: string | null; // Extracted student work for sub-question (LaTeX format)
+      studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
       hasStudentDrawing?: boolean; // Indicator if sub-question has student drawing work
       confidence?: number;
+      pageIndex?: number; // Page index where this sub-question was found
     }>;
     confidence: number;
   }>;
@@ -739,17 +742,24 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
    */
   private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
     const questions = parsed.questions?.map((q: any) => {
+      // DEBUG: Check if position data is present in raw response
+      if (q.questionNumber === '10' || q.questionNumber === 10) {
+        console.log(`[CLASSIFICATION DEBUG] Q10 Raw AI Response Position:`, JSON.stringify(q.studentWorkPosition));
+      }
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
         text: q.text !== undefined ? (q.text || null) : undefined,
         studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined,
+        studentWorkPosition: q.studentWorkPosition,
         hasStudentDrawing: q.hasStudentDrawing !== undefined ? (q.hasStudentDrawing === true) : false,
         subQuestions: q.subQuestions?.map((sq: any) => ({
           part: sq.part,
           text: sq.text,
           studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined,
+          studentWorkPosition: sq.studentWorkPosition,
           hasStudentDrawing: sq.hasStudentDrawing !== undefined ? (sq.hasStudentDrawing === true) : false,
-          confidence: sq.confidence || defaultConfidence
+          confidence: defaultConfidence,
+          pageIndex: sq.pageIndex
         })),
         confidence: q.confidence || defaultConfidence
       };

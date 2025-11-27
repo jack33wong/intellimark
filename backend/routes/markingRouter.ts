@@ -604,7 +604,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                   part: subQ.part,
                   text: subQ.text && subQ.text !== 'null' ? subQ.text : null,
                   studentWork: null,
-                  confidence: subQ.confidence || 0.9
+                  confidence: subQ.confidence || 0.9,
+                  pageIndex: pageIndex // Track which page this sub-question came from
                 });
               }
               // Combine student work for same sub-question part
@@ -654,10 +655,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
 
         allQuestions.push(merged);
-
-        // DEBUG LOGGING: Classification Result
-        const debugPageIndex = questionInstances[0]?.pageIndex;
-        console.log(`[DEBUG CLASSIFICATION] Page ${debugPageIndex !== undefined ? debugPageIndex + 1 : 'Unknown'}: Detected Q${merged.questionNumber} (Sub: ${merged.subQuestions.map(sq => sq.part).join(', ') || 'None'})`);
       }
     });
 
@@ -1136,6 +1133,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     }));
 
     // Sort: metadata pages first, then by page number (if available), then by question number
+    // Debug logging for sorting (Removed as requested)
+
+    // Sort: metadata pages first, then by question number, then by upload sequence
     pagesWithOutput.sort((a, b) => {
       // 1. Metadata pages come first
       if (a.isMetadataPage && !b.isMetadataPage) return -1;
