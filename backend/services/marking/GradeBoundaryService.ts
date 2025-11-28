@@ -70,13 +70,13 @@ export class GradeBoundaryService {
       }
 
       // Find matching subject
-      const matchingSubject = boundaryEntry.subjects.find(s => 
+      const matchingSubject = boundaryEntry.subjects.find(s =>
         this.normalizeSubjectName(s.name) === this.normalizeSubjectName(subject) ||
         this.extractSubjectCodeFromExamCode(examCode) === s.code
       );
 
       if (!matchingSubject) {
-        console.log(`[GRADE BOUNDARY] ❌ Subject mismatch: Looking for "${subject}", Available: ${boundaryEntry.subjects.map(s => s.name).join(', ')}`);
+
         return {
           grade: null,
           boundaryType: null,
@@ -84,23 +84,22 @@ export class GradeBoundaryService {
           error: 'Subject not found in grade boundary'
         };
       }
-      
-      console.log(`[GRADE BOUNDARY] ✅ Subject matched: "${subject}" -> "${matchingSubject.name}"`);
+
+
 
       // Find matching tier
       const normalizedTier = this.normalizeTier(tier);
       const availableTiers = matchingSubject.tiers.map(t => t.tier_level);
       const normalizedAvailableTiers = matchingSubject.tiers.map(t => this.normalizeTier(t.tier_level));
-      
-      console.log(`[GRADE BOUNDARY] Tier matching: looking for "${tier}" (normalized: "${normalizedTier}")`);
-      console.log(`[GRADE BOUNDARY] Available tiers in boundary: ${availableTiers.join(', ')} (normalized: ${normalizedAvailableTiers.join(', ')})`);
-      
-      const matchingTier = matchingSubject.tiers.find(t => 
+
+
+
+      const matchingTier = matchingSubject.tiers.find(t =>
         this.normalizeTier(t.tier_level) === normalizedTier
       );
 
       if (!matchingTier) {
-        console.log(`[GRADE BOUNDARY] ❌ Tier mismatch: "${tier}" not found in available tiers`);
+
         return {
           grade: null,
           boundaryType: null,
@@ -108,11 +107,8 @@ export class GradeBoundaryService {
           error: `Tier not found in grade boundary. Looking for: "${tier}", Available: ${availableTiers.join(', ')}`
         };
       }
-      
-      console.log(`[GRADE BOUNDARY] ✅ Tier matched: "${tier}" -> "${matchingTier.tier_level}"`);
-      console.log(`[GRADE BOUNDARY] Boundary type: ${matchingTier.boundaries_type}`);
-      console.log(`[GRADE BOUNDARY] Has Paper-Specific: ${!!(matchingTier.papers && matchingTier.papers.length > 0)}`);
-      console.log(`[GRADE BOUNDARY] Has Overall-Total: ${!!matchingTier.overall_total_boundaries}`);
+
+
 
       // Smart boundary type selection:
       // - Use Paper-Specific for single paper scores (< 100 total marks)
@@ -124,7 +120,7 @@ export class GradeBoundaryService {
 
       // Determine boundary type and calculate grade
       if (matchingTier.boundaries_type === 'Paper-Specific' || (hasPaperSpecific && isSinglePaper)) {
-        console.log(`[GRADE BOUNDARY] Using Paper-Specific boundaries for exam code: ${examCode}`);
+
         const result = this.calculatePaperSpecificGrade(
           matchingTier,
           examCode,
@@ -132,20 +128,15 @@ export class GradeBoundaryService {
           boundaryEntry
         );
         if (result.error) {
-          console.log(`[GRADE BOUNDARY] ❌ Paper-Specific calculation failed: ${result.error}`);
         } else if (result.grade) {
-          console.log(`[GRADE BOUNDARY] ✅ Paper-Specific grade calculated: ${result.grade}`);
         }
         return result;
       } else if (matchingTier.boundaries_type === 'Overall-Total' || (hasOverallTotal && !isSinglePaper)) {
-        console.log(`[GRADE BOUNDARY] Using Overall-Total boundaries`);
-        console.log(`[GRADE BOUNDARY] ⚠️ Note: Overall-Total boundaries are for combined scores across all papers. Current score: ${studentScore}/${totalMarks}`);
-        
+
         // Check if this looks like a single paper score (totalMarks < 100 suggests single paper)
         // Overall-total boundaries are typically for much higher totals (e.g., 240 marks for 3 papers)
         // But if we have Paper-Specific available, try that first for single papers
         if (totalMarks < 100 && hasPaperSpecific) {
-          console.log(`[GRADE BOUNDARY] ℹ️ Single paper score detected (${totalMarks} total marks). Trying Paper-Specific boundaries instead...`);
           // Fall back to Paper-Specific if available
           const result = this.calculatePaperSpecificGrade(
             matchingTier,
@@ -154,14 +145,10 @@ export class GradeBoundaryService {
             boundaryEntry
           );
           if (result.error) {
-            console.log(`[GRADE BOUNDARY] ❌ Paper-Specific calculation failed: ${result.error}`);
           } else if (result.grade) {
-            console.log(`[GRADE BOUNDARY] ✅ Paper-Specific grade calculated: ${result.grade}`);
           }
           return result;
         } else if (totalMarks < 100) {
-          console.log(`[GRADE BOUNDARY] ⚠️ Single paper score detected (${totalMarks} total marks). Overall-Total boundaries require combined scores from all papers.`);
-          console.log(`[GRADE BOUNDARY] ℹ️ Grade calculation skipped: Overall-Total boundaries are not applicable for single paper scores.`);
           return {
             grade: null,
             boundaryType: 'Overall-Total',
@@ -169,20 +156,17 @@ export class GradeBoundaryService {
             error: 'Overall-Total boundaries require combined scores from all papers. Single paper scores should use Paper-Specific boundaries.'
           };
         }
-        
+
         const result = this.calculateOverallTotalGrade(
           matchingTier,
           studentScore,
           boundaryEntry
         );
         if (result.error) {
-          console.log(`[GRADE BOUNDARY] ❌ Overall-Total calculation failed: ${result.error}`);
         } else if (result.grade) {
-          console.log(`[GRADE BOUNDARY] ✅ Overall-Total grade calculated: ${result.grade}`);
         }
         return result;
       } else {
-        console.log(`[GRADE BOUNDARY] ❌ Unknown boundary type: ${matchingTier.boundaries_type}`);
         return {
           grade: null,
           boundaryType: null,
@@ -191,7 +175,6 @@ export class GradeBoundaryService {
         };
       }
     } catch (error) {
-      console.error('❌ [GRADE BOUNDARY] Error calculating grade:', error);
       return {
         grade: null,
         boundaryType: null,
@@ -215,7 +198,6 @@ export class GradeBoundaryService {
     try {
       const db = getFirestore();
       if (!db) {
-        console.error('❌ [GRADE BOUNDARY] Firestore not available');
         return null;
       }
 
@@ -226,16 +208,15 @@ export class GradeBoundaryService {
         .get();
 
       if (snapshot.empty) {
-        console.log(`[GRADE BOUNDARY] No boundaries found for ${examBoard} ${examSeries}`);
         return null;
       }
 
       // Find the best matching entry (should be only one, but handle multiple)
       for (const doc of snapshot.docs) {
         const entry = { id: doc.id, ...doc.data() } as GradeBoundaryEntry;
-        
+
         // Check if subject matches
-        const hasMatchingSubject = entry.subjects.some(s => 
+        const hasMatchingSubject = entry.subjects.some(s =>
           this.normalizeSubjectName(s.name) === this.normalizeSubjectName(subject) ||
           this.extractSubjectCodeFromExamCode(examCode) === s.code
         );
@@ -247,7 +228,6 @@ export class GradeBoundaryService {
 
       return null;
     } catch (error) {
-      console.error('❌ [GRADE BOUNDARY] Error finding boundary:', error);
       return null;
     }
   }
@@ -262,7 +242,6 @@ export class GradeBoundaryService {
     boundaryEntry: GradeBoundaryEntry
   ): GradeResult {
     if (!tier.papers || tier.papers.length === 0) {
-      console.log(`[GRADE BOUNDARY] ❌ No paper-specific boundaries found in tier`);
       return {
         grade: null,
         boundaryType: 'Paper-Specific',
@@ -273,9 +252,7 @@ export class GradeBoundaryService {
 
     // Extract paper code from examCode (e.g., "1MA1/2H" -> "2H")
     const paperCode = this.extractPaperCodeFromExamCode(examCode);
-    console.log(`[GRADE BOUNDARY] Extracted paper code from "${examCode}": "${paperCode}"`);
     if (!paperCode) {
-      console.log(`[GRADE BOUNDARY] ❌ Could not extract paper code from examCode: ${examCode}`);
       return {
         grade: null,
         boundaryType: 'Paper-Specific',
@@ -286,10 +263,8 @@ export class GradeBoundaryService {
 
     // Find matching paper
     const availablePaperCodes = tier.papers?.map(p => p.code) || [];
-    console.log(`[GRADE BOUNDARY] Looking for paper code "${paperCode}", Available: ${availablePaperCodes.join(', ')}`);
     const matchingPaper = tier.papers?.find(p => p.code === paperCode);
     if (!matchingPaper) {
-      console.log(`[GRADE BOUNDARY] ❌ Paper code "${paperCode}" not found in boundaries`);
       return {
         grade: null,
         boundaryType: 'Paper-Specific',
@@ -297,14 +272,11 @@ export class GradeBoundaryService {
         error: `Paper code ${paperCode} not found in boundaries`
       };
     }
-    
-    console.log(`[GRADE BOUNDARY] ✅ Paper code matched: "${paperCode}"`);
+
 
     // Calculate grade from boundaries
-    console.log(`[GRADE BOUNDARY] Calculating grade for score ${studentScore}/${matchingPaper.max_mark} using boundaries:`, Object.keys(matchingPaper.boundaries));
     const grade = this.findGradeFromBoundaries(studentScore, matchingPaper.boundaries);
-    console.log(`[GRADE BOUNDARY] Calculated grade: ${grade || 'Below minimum'}`);
-    
+
     return {
       grade,
       boundaryType: 'Paper-Specific',
@@ -331,10 +303,8 @@ export class GradeBoundaryService {
     }
 
     // Calculate grade from boundaries
-    console.log(`[GRADE BOUNDARY] Calculating grade for score ${studentScore} using overall-total boundaries:`, Object.keys(tier.overall_total_boundaries));
     const grade = this.findGradeFromBoundaries(studentScore, tier.overall_total_boundaries);
-    console.log(`[GRADE BOUNDARY] Calculated grade: ${grade || 'Below minimum'}`);
-    
+
     return {
       grade,
       boundaryType: 'Overall-Total',
@@ -422,14 +392,14 @@ export class GradeBoundaryService {
    */
   private static normalizeTier(tier: string): string {
     if (!tier) return '';
-    
+
     const normalized = tier.toLowerCase().trim();
-    
+
     // Remove "tier" suffix if present (e.g., "higher tier" -> "higher")
     if (normalized.endsWith(' tier')) {
       return normalized.slice(0, -5).trim();
     }
-    
+
     return normalized;
   }
 
@@ -518,10 +488,8 @@ export class GradeBoundaryService {
 
     // Only attempt grade calculation if we have exam data and scores
     if (examDataForGrade && examDataForGrade.found && examDataForGrade.examPapers && examDataForGrade.examPapers.length > 0) {
-      console.log(`📊 [GRADE BOUNDARY] Attempting grade calculation for score: ${overallScore}/${totalPossibleScore}`);
       try {
         const firstExamPaper = examDataForGrade.examPapers[0];
-        console.log(`📊 [GRADE BOUNDARY] Exam details: ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year} ${firstExamPaper.examCode} ${firstExamPaper.tier}`);
 
         const gradeResult = await this.calculateGradeForExamPaper(
           firstExamPaper.examBoard,
@@ -537,22 +505,16 @@ export class GradeBoundaryService {
           calculatedGrade = gradeResult.grade;
           gradeBoundaryType = gradeResult.boundaryType;
           gradeBoundaries = gradeResult.boundaries; // Store boundaries for persistence
-          console.log(`✅ [GRADE BOUNDARY] Calculated grade: ${calculatedGrade} (${gradeResult.boundaryType}) for ${firstExamPaper.examBoard} ${firstExamPaper.subject} ${firstExamPaper.examSeries || (firstExamPaper as any).year}`);
         } else if (gradeResult.error) {
-          console.log(`ℹ️ [GRADE BOUNDARY] Grade not calculated: ${gradeResult.error}`);
         }
       } catch (gradeError) {
-        console.error('❌ [GRADE BOUNDARY] Error calculating grade in pipeline:', gradeError);
         // Don't fail the marking pipeline if grade calculation fails
       }
     } else {
       // Log why grade calculation is skipped
       if (!examDataForGrade) {
-        console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam data available (questionDetection not in scope for marking mode)`);
       } else if (!examDataForGrade.found) {
-        console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: exam data found but not valid`);
       } else if (!examDataForGrade.examPapers || examDataForGrade.examPapers.length === 0) {
-        console.log(`ℹ️ [GRADE BOUNDARY] Grade calculation skipped: no exam papers found`);
       }
     }
 

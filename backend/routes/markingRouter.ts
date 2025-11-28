@@ -1325,7 +1325,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
       // Log grade storage confirmation
       if (calculatedGrade) {
-        console.log(`✅ [GRADE BOUNDARY] Grade stored in message: ${calculatedGrade} (${gradeBoundaryType})`);
+
       }
 
       // Add suggested follow-ups

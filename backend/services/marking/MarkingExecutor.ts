@@ -1142,13 +1142,7 @@ export function createMarkingTasksFromClassification(
       }
     });
 
-    // DEBUG: Verify task creation for Q10
-    if (baseQNum === '10' || baseQNum === 10) {
-      console.log(`[MARKING DEBUG] Created task for Q10. classificationBlocks length: ${group.classificationBlocks.length}`);
-      if (group.classificationBlocks.length > 0) {
-        console.log(`[MARKING DEBUG] Q10 Task Block 0 pos:`, JSON.stringify((group.classificationBlocks[0] as any).studentWorkPosition));
-      }
-    }
+
   }
 
   // Sort tasks by question number (ascending) to ensure consistent ordering

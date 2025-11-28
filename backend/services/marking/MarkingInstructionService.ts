@@ -343,13 +343,7 @@ export class MarkingInstructionService {
 
       // Extract studentWorkLines from classificationBlocks (including sub-questions)
       let studentWorkLines: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> = [];
-      // DEBUG: Inspect classificationBlocks
-      console.log(`[ENRICHMENT DEBUG] classificationBlocks length: ${classificationBlocks?.length}`);
       if (classificationBlocks && classificationBlocks.length > 0) {
-        console.log(`[ENRICHMENT DEBUG] First block keys: ${Object.keys(classificationBlocks[0]).join(', ')}`);
-        if (classificationBlocks[0].subQuestions) {
-          console.log(`[ENRICHMENT DEBUG] First block has ${classificationBlocks[0].subQuestions.length} sub-questions`);
-        }
         classificationBlocks.forEach((block: any) => {
           // Add lines from main block
           if (block.studentWorkLines && Array.isArray(block.studentWorkLines)) {
@@ -372,9 +366,6 @@ export class MarkingInstructionService {
         studentWorkLines.forEach(line => {
           positionMap.set(line.text, line.position);
         });
-        // DEBUG: Log map keys
-        console.log(`[ENRICHMENT DEBUG] Position Map Keys (${positionMap.size}):`);
-        positionMap.forEach((_, key) => console.log(`  - "${key.substring(0, 50)}..."`));
       }
 
 
@@ -472,7 +463,6 @@ export class MarkingInstructionService {
           const lineIndex = (anno as any).line_index;
           if (typeof lineIndex === 'number' && lineIndex > 0 && lineIndex <= studentWorkLines.length) {
             aiPositionFromMap = studentWorkLines[lineIndex - 1].position;
-            console.log(`[ENRICHMENT DEBUG] Used line_index ${lineIndex} for lookup. Success.`);
           }
 
           // 2. Fallback to text matching
@@ -480,13 +470,6 @@ export class MarkingInstructionService {
 
           if (!aiPositionFromMap) {
             aiPositionFromMap = positionMap.get(lookupText);
-
-            // DEBUG: Log lookup attempt
-            if (!aiPositionFromMap) {
-              console.log(`[ENRICHMENT DEBUG] Lookup failed for "${lookupText?.substring(0, 20)}...". Map has ${positionMap.size} entries.`);
-            } else {
-              console.log(`[ENRICHMENT DEBUG] Lookup SUCCESS for "${lookupText?.substring(0, 20)}..."`);
-            }
           }
 
           // If not found and text has newlines, try looking up individual lines

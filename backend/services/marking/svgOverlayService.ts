@@ -345,8 +345,7 @@ export class SVGOverlayService {
       // No line data - coordinates were estimated from split blocks
       borderColor = 'orange';
       strokeDash = '5,5';
-      // DEBUG: Log width for orange border
-      console.log(`[SVG DEBUG] Orange Border for step ${annotation.step_id}: Width=${width} (Original Pixels), AI Width=${aiPos?.width}%`);
+
     }
 
     const borderWidth = 2;

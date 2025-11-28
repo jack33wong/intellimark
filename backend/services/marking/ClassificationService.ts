@@ -754,15 +754,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
     let rawQuestions: any[] = [];
 
-    // DEBUG: Diagnostic log
-    console.log(`[CLASSIFICATION DIAGNOSTIC] Parsed keys: ${Object.keys(parsed).join(', ')}`);
-    if (parsed.questions) {
-      console.log(`[CLASSIFICATION DIAGNOSTIC] parsed.questions is array: ${Array.isArray(parsed.questions)}, length: ${parsed.questions.length}`);
-    }
-
     // Handle 'pages' structure (from prompt)
     if (parsed.pages && Array.isArray(parsed.pages)) {
-      console.log(`[CLASSIFICATION DIAGNOSTIC] Found 'pages' array with length ${parsed.pages.length}`);
       parsed.pages.forEach((page: any) => {
         if (page.questions && Array.isArray(page.questions)) {
           rawQuestions = rawQuestions.concat(page.questions);
@@ -771,21 +764,15 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     }
     // Handle direct 'questions' structure (legacy/fallback)
     else if (parsed.questions && Array.isArray(parsed.questions)) {
-      console.log(`[CLASSIFICATION DIAGNOSTIC] Found 'questions' array with length ${parsed.questions.length}`);
       rawQuestions = parsed.questions;
     }
 
     if (rawQuestions.length === 0) {
-      console.log(`[CLASSIFICATION DIAGNOSTIC] No questions found in rawQuestions`);
       return undefined;
     }
 
     const questions = rawQuestions.map((q: any) => {
-      // DEBUG: Log student work lines with position data (Top Level)
-      console.log(`[CLASSIFICATION DIAGNOSTIC] Processing Q${q.questionNumber}: studentWorkLines type=${typeof q.studentWorkLines}, isArray=${Array.isArray(q.studentWorkLines)}, length=${q.studentWorkLines?.length}`);
-
       if (q.studentWorkLines && Array.isArray(q.studentWorkLines) && q.studentWorkLines.length > 0) {
-        console.log(`[CLASSIFICATION WORK] Q${q.questionNumber || '?'} (Main) has ${q.studentWorkLines.length} lines:`);
         q.studentWorkLines.forEach((line: any, i: number) => {
           let p = line.position;
           // Normalize 0-1000 scale to 0-100
@@ -808,7 +795,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       if (q.subQuestions && Array.isArray(q.subQuestions)) {
         q.subQuestions.forEach((sq: any) => {
           if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines) && sq.studentWorkLines.length > 0) {
-            console.log(`[CLASSIFICATION WORK] Q${q.questionNumber || '?'}${sq.part || ''} (Sub) has ${sq.studentWorkLines.length} lines:`);
             sq.studentWorkLines.forEach((line: any, i: number) => {
               let p = line.position;
               // Normalize 0-1000 scale to 0-100
@@ -821,8 +807,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
                 };
                 line.position = p; // Update the line object
               }
-              const text = line.text ? line.text.replace(/\n/g, ' ').substring(0, 30) : '';
-              console.log(`  ${i + 1}. [${text}...] Pos: x=${p?.x}, y=${p?.y}, w=${p?.width}, h=${p?.height}`);
             });
           }
         });
