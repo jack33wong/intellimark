@@ -12,14 +12,12 @@ export interface ClassificationResult {
   questions?: Array<{
     questionNumber?: string | null; // Main question number (e.g., "1", "2", "3") or null
     text: string | null; // Main question text, or null if no main text (only sub-questions)
-    studentWork?: string | null; // Extracted student work for main question (LaTeX format)
-    studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
+    studentWorkLines?: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }>; // Line-by-line student work with positions
     hasStudentDrawing?: boolean; // Indicator if main question has student drawing work
     subQuestions?: Array<{
       part: string; // Sub-question part (e.g., "a", "b", "i", "ii")
       text: string; // Complete sub-question text
-      studentWork?: string | null; // Extracted student work for sub-question (LaTeX format)
-      studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
+      studentWorkLines?: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }>; // Line-by-line student work with positions
       hasStudentDrawing?: boolean; // Indicator if sub-question has student drawing work
       confidence?: number;
       pageIndex?: number; // Page index where this sub-question was found
@@ -502,32 +500,45 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       safetySettings: this.SAFETY_SETTINGS
     };
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: JSON.stringify(requestBody)
-    });
+    // Gemini 2.5 Pro can be slow, so we increase the timeout to 10 minutes
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
 
-      console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR DETAILS] ${errorText}`);
+      clearTimeout(timeoutId);
 
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        const modelConfig = getModelConfig(model);
+        const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+
+        console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
+        console.error(`❌ [ERROR DETAILS] ${errorText}`);
+
+        throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
     }
-
-    return response;
   }
+
 
   private static async makeGeminiRequest(
     accessToken: string,
@@ -741,24 +752,90 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
    * Parse hierarchical question structure from AI response
    */
   private static parseQuestionsFromResponse(parsed: any, defaultConfidence: number = 0.9): any[] | undefined {
-    const questions = parsed.questions?.map((q: any) => {
-      // DEBUG: Check if position data is present in raw response
-      if (q.questionNumber === '10' || q.questionNumber === 10) {
-        console.log(`[CLASSIFICATION DEBUG] Q10 Raw AI Response - Full question object keys:`, Object.keys(q));
-        console.log(`[CLASSIFICATION DEBUG] Q10 Raw AI Response Position:`, JSON.stringify(q.studentWorkPosition));
-        console.log(`[CLASSIFICATION DEBUG] Q10 studentWork content:`, q.studentWork?.substring(0, 100));
+    let rawQuestions: any[] = [];
+
+    // DEBUG: Diagnostic log
+    console.log(`[CLASSIFICATION DIAGNOSTIC] Parsed keys: ${Object.keys(parsed).join(', ')}`);
+    if (parsed.questions) {
+      console.log(`[CLASSIFICATION DIAGNOSTIC] parsed.questions is array: ${Array.isArray(parsed.questions)}, length: ${parsed.questions.length}`);
+    }
+
+    // Handle 'pages' structure (from prompt)
+    if (parsed.pages && Array.isArray(parsed.pages)) {
+      console.log(`[CLASSIFICATION DIAGNOSTIC] Found 'pages' array with length ${parsed.pages.length}`);
+      parsed.pages.forEach((page: any) => {
+        if (page.questions && Array.isArray(page.questions)) {
+          rawQuestions = rawQuestions.concat(page.questions);
+        }
+      });
+    }
+    // Handle direct 'questions' structure (legacy/fallback)
+    else if (parsed.questions && Array.isArray(parsed.questions)) {
+      console.log(`[CLASSIFICATION DIAGNOSTIC] Found 'questions' array with length ${parsed.questions.length}`);
+      rawQuestions = parsed.questions;
+    }
+
+    if (rawQuestions.length === 0) {
+      console.log(`[CLASSIFICATION DIAGNOSTIC] No questions found in rawQuestions`);
+      return undefined;
+    }
+
+    const questions = rawQuestions.map((q: any) => {
+      // DEBUG: Log student work lines with position data (Top Level)
+      console.log(`[CLASSIFICATION DIAGNOSTIC] Processing Q${q.questionNumber}: studentWorkLines type=${typeof q.studentWorkLines}, isArray=${Array.isArray(q.studentWorkLines)}, length=${q.studentWorkLines?.length}`);
+
+      if (q.studentWorkLines && Array.isArray(q.studentWorkLines) && q.studentWorkLines.length > 0) {
+        console.log(`[CLASSIFICATION WORK] Q${q.questionNumber || '?'} (Main) has ${q.studentWorkLines.length} lines:`);
+        q.studentWorkLines.forEach((line: any, i: number) => {
+          let p = line.position;
+          // Normalize 0-1000 scale to 0-100
+          if (p && (p.x > 100 || p.y > 100 || p.width > 100 || p.height > 100)) {
+            p = {
+              x: p.x / 10,
+              y: p.y / 10,
+              width: p.width / 10,
+              height: p.height / 10
+            };
+            line.position = p; // Update the line object
+          }
+
+          const text = line.text ? line.text.replace(/\n/g, ' ').substring(0, 30) : '';
+          console.log(`  ${i + 1}. [${text}...] Pos: x=${p?.x}, y=${p?.y}, w=${p?.width}, h=${p?.height}`);
+        });
+      }
+
+      // DEBUG: Log student work lines from Sub-Questions
+      if (q.subQuestions && Array.isArray(q.subQuestions)) {
+        q.subQuestions.forEach((sq: any) => {
+          if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines) && sq.studentWorkLines.length > 0) {
+            console.log(`[CLASSIFICATION WORK] Q${q.questionNumber || '?'}${sq.part || ''} (Sub) has ${sq.studentWorkLines.length} lines:`);
+            sq.studentWorkLines.forEach((line: any, i: number) => {
+              let p = line.position;
+              // Normalize 0-1000 scale to 0-100
+              if (p && (p.x > 100 || p.y > 100 || p.width > 100 || p.height > 100)) {
+                p = {
+                  x: p.x / 10,
+                  y: p.y / 10,
+                  width: p.width / 10,
+                  height: p.height / 10
+                };
+                line.position = p; // Update the line object
+              }
+              const text = line.text ? line.text.replace(/\n/g, ' ').substring(0, 30) : '';
+              console.log(`  ${i + 1}. [${text}...] Pos: x=${p?.x}, y=${p?.y}, w=${p?.width}, h=${p?.height}`);
+            });
+          }
+        });
       }
       return {
         questionNumber: q.questionNumber !== undefined ? (q.questionNumber || null) : undefined,
         text: q.text !== undefined ? (q.text || null) : undefined,
-        studentWork: q.studentWork !== undefined ? (q.studentWork || null) : undefined,
-        studentWorkPosition: q.studentWorkPosition,
+        studentWorkLines: q.studentWorkLines,
         hasStudentDrawing: q.hasStudentDrawing !== undefined ? (q.hasStudentDrawing === true) : false,
         subQuestions: q.subQuestions?.map((sq: any) => ({
           part: sq.part,
           text: sq.text,
-          studentWork: sq.studentWork !== undefined ? (sq.studentWork || null) : undefined,
-          studentWorkPosition: sq.studentWorkPosition,
+          studentWorkLines: sq.studentWorkLines,
           hasStudentDrawing: sq.hasStudentDrawing !== undefined ? (sq.hasStudentDrawing === true) : false,
           confidence: defaultConfidence,
           pageIndex: sq.pageIndex

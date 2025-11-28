@@ -511,17 +511,22 @@ export function formatGroupedStudentWork(
   subQuestions: Array<{ part: string; studentWork: string; text?: string }>
 ): string {
   const parts: string[] = [];
+  let globalLineIndex = 1;
 
   // Add main question student work if exists
   if (mainStudentWork && mainStudentWork !== 'null' && mainStudentWork.trim() !== '') {
-    parts.push(`[MAIN QUESTION STUDENT WORK]\n${mainStudentWork.trim()}`);
+    const lines = mainStudentWork.trim().split('\n');
+    const numberedLines = lines.map((line) => `[${globalLineIndex++}] ${line}`).join('\n');
+    parts.push(`[MAIN QUESTION STUDENT WORK]\n${numberedLines}`);
   }
 
   // Add each sub-question with clear label
   subQuestions.forEach((subQ) => {
     if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
       const subQLabel = `[SUB-QUESTION ${subQ.part.toUpperCase()} STUDENT WORK]`;
-      parts.push(`${subQLabel}\n${subQ.studentWork.trim()}`);
+      const lines = subQ.studentWork.trim().split('\n');
+      const numberedLines = lines.map((line) => `[${globalLineIndex++}] ${line}`).join('\n');
+      parts.push(`${subQLabel}\n${numberedLines}`);
     }
   });
 

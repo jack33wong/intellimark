@@ -6,7 +6,7 @@
 .model-selector {
   position: relative;
   display: inline-block;
-  min-width: 150px;
+  min-width: 180px;
 }
 
 .model-selector.disabled {

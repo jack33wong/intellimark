@@ -65,6 +65,12 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     maxTokens: 64000,
     temperature: 0.1
   },
+  'gemini-3-pro-preview': {
+    name: 'Google Gemini 3 Pro Preview',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent',
+    maxTokens: 64000,
+    temperature: 0.1
+  },
   'openai-gpt-4o': {
     name: 'OpenAI GPT-4o',
     apiEndpoint: 'openai', // Special marker for OpenAI provider
@@ -185,6 +191,8 @@ export function getModelPromptTemplate(modelType: ModelType): string {
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
     case 'gemini-2.5-pro':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
+    case 'gemini-3-pro-preview':
+      return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with advanced reasoning capabilities.`;
     default:
       return basePrompt;
   }
@@ -214,6 +222,13 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
         topK: 40
       };
     case 'gemini-2.5-pro':
+      return {
+        maxOutputTokens: config.maxTokens,
+        temperature: config.temperature,
+        topP: 0.8,
+        topK: 40
+      };
+    case 'gemini-3-pro-preview':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

@@ -11,6 +11,8 @@ interface NormalizedMarkingScheme {
   marksWithAnswers?: string[]; // Array of answers for each mark (for grouped sub-questions like Q12i, 12ii, 12iii)
   subQuestionNumbers?: string[]; // Array of sub-question numbers (e.g., ["22a", "22b"]) for grouped sub-questions
   subQuestionMarks?: { [subQuestionNumber: string]: any[] }; // Map sub-question number to its marks array (prevents mix-up of marks between sub-questions)
+  hasAlternatives?: boolean; // Flag indicating if alternative method exists
+  alternativeMethod?: any; // Alternative method details
 }
 
 // ========================= START: NORMALIZATION FUNCTION =========================
@@ -334,7 +336,47 @@ export class MarkingInstructionService {
       // Extract raw OCR blocks and classification for enhanced marking
       const rawOcrBlocks = (processedImage as any).rawOcrBlocks;
       const classificationStudentWork = (processedImage as any).classificationStudentWork;
+      const classificationBlocks = (processedImage as any).classificationBlocks;
       const subQuestionMetadata = (processedImage as any).subQuestionMetadata;
+
+
+
+      // Extract studentWorkLines from classificationBlocks (including sub-questions)
+      let studentWorkLines: Array<{ text: string; position: { x: number; y: number; width: number; height: number } }> = [];
+      // DEBUG: Inspect classificationBlocks
+      console.log(`[ENRICHMENT DEBUG] classificationBlocks length: ${classificationBlocks?.length}`);
+      if (classificationBlocks && classificationBlocks.length > 0) {
+        console.log(`[ENRICHMENT DEBUG] First block keys: ${Object.keys(classificationBlocks[0]).join(', ')}`);
+        if (classificationBlocks[0].subQuestions) {
+          console.log(`[ENRICHMENT DEBUG] First block has ${classificationBlocks[0].subQuestions.length} sub-questions`);
+        }
+        classificationBlocks.forEach((block: any) => {
+          // Add lines from main block
+          if (block.studentWorkLines && Array.isArray(block.studentWorkLines)) {
+            studentWorkLines = studentWorkLines.concat(block.studentWorkLines);
+          }
+          // Add lines from sub-questions
+          if (block.subQuestions && Array.isArray(block.subQuestions)) {
+            block.subQuestions.forEach((sq: any) => {
+              if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines)) {
+                studentWorkLines = studentWorkLines.concat(sq.studentWorkLines);
+              }
+            });
+          }
+        });
+      }
+
+      // Build position map from studentWorkLines for fast lookup during enrichment
+      const positionMap = new Map<string, { x: number; y: number; width: number; height: number }>();
+      if (studentWorkLines.length > 0) {
+        studentWorkLines.forEach(line => {
+          positionMap.set(line.text, line.position);
+        });
+        // DEBUG: Log map keys
+        console.log(`[ENRICHMENT DEBUG] Position Map Keys (${positionMap.size}):`);
+        positionMap.forEach((_, key) => console.log(`  - "${key.substring(0, 50)}..."`));
+      }
+
 
       const annotationData = await this.generateFromOCR(
         model,
@@ -423,13 +465,53 @@ export class MarkingInstructionService {
             }
           }
 
+          // Try to get AI position
+          let aiPositionFromMap: { x: number; y: number; width: number; height: number } | undefined;
+
+          // 1. Try line_index (NEW ROBUST METHOD)
+          const lineIndex = (anno as any).line_index;
+          if (typeof lineIndex === 'number' && lineIndex > 0 && lineIndex <= studentWorkLines.length) {
+            aiPositionFromMap = studentWorkLines[lineIndex - 1].position;
+            console.log(`[ENRICHMENT DEBUG] Used line_index ${lineIndex} for lookup. Success.`);
+          }
+
+          // 2. Fallback to text matching
+          const lookupText = (anno as any).classification_text || anno.student_text;
+
+          if (!aiPositionFromMap) {
+            aiPositionFromMap = positionMap.get(lookupText);
+
+            // DEBUG: Log lookup attempt
+            if (!aiPositionFromMap) {
+              console.log(`[ENRICHMENT DEBUG] Lookup failed for "${lookupText?.substring(0, 20)}...". Map has ${positionMap.size} entries.`);
+            } else {
+              console.log(`[ENRICHMENT DEBUG] Lookup SUCCESS for "${lookupText?.substring(0, 20)}..."`);
+            }
+          }
+
+          // If not found and text has newlines, try looking up individual lines
+          if (!aiPositionFromMap && lookupText && lookupText.includes('\n')) {
+            const lines = lookupText.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+            for (const line of lines) {
+              const pos = positionMap.get(line);
+              if (pos) {
+                aiPositionFromMap = pos;
+                break; // Use the first matching line's position
+              }
+            }
+          }
+
+          const finalAiPosition = (matchingStep as any).aiPosition || aiPositionFromMap;
+
+
+
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
             pageIndex: pageIndex,
             ocrSource: (matchingStep as any).ocrSource, // Preserve OCR source
             hasLineData: (matchingStep as any).hasLineData, // Preserve line data flag
-            aiPosition: (matchingStep as any).aiPosition // Preserve AI-estimated position
+            aiPosition: finalAiPosition // Try OCR aiPosition first, then position map
           };
         } else {
           return null;
@@ -792,22 +874,22 @@ export class MarkingInstructionService {
           const stepId = ann.step_id || 'MISSING';
           const reasoning = ann.reasoning || '';
           const actionColor = action === 'tick' ? '\x1b[32m' : action === 'cross' ? '\x1b[31m' : '\x1b[0m';
+          const blueColor = '\x1b[34m';
           const resetColor = '\x1b[0m';
-          const blueColor = '\x1b[34m'; // Blue for student answer
+          const MAGENTA = '\x1b[35m';
 
-          // Look up student answer text from rawOcrBlocks based on step_id
-          let studentAnswer = '';
+          // Find student answer from step_id
+          let studentAnswer = ann.student_text || '';
 
-          // Priority 1: Use the explicit student_text from the AI response (new field)
-          if (ann.student_text) {
-            studentAnswer = ann.student_text;
+          // Priority 1: Use student_text from annotation if available
+          if (studentAnswer) {
+            // Already set
           }
-
-          // Priority 2: If not provided, look up in rawOcrBlocks
-          if (!studentAnswer && rawOcrBlocks && stepId !== 'MISSING') {
-            const matchingBlock = rawOcrBlocks.find(block => block.id === stepId);
-            if (matchingBlock && matchingBlock.text) {
-              studentAnswer = matchingBlock.text;
+          // Priority 2: Try to find by step_id in rawOcrBlocks
+          else if (rawOcrBlocks && rawOcrBlocks.length > 0) {
+            const block = rawOcrBlocks.find(b => b.id === stepId);
+            if (block) {
+              studentAnswer = block.text;
             }
           }
 
@@ -817,64 +899,30 @@ export class MarkingInstructionService {
           }
 
           // Truncate for display
-          if (studentAnswer.length > 80) {
-            studentAnswer = studentAnswer.substring(0, 80) + '...';
+          let displayAnswer = studentAnswer;
+          if (displayAnswer.length > 80) {
+            displayAnswer = displayAnswer.substring(0, 80) + '...';
           }
 
-          const studentAnswerDisplay = studentAnswer ? `${blueColor}"${studentAnswer}"${resetColor}` : '""';
+          const studentAnswerDisplay = displayAnswer ? `${blueColor}"${displayAnswer}"${resetColor}` : '""';
 
           // Enhanced logging for incorrect answers
           let logMessage = `    ${idx + 1}. ${actionColor}${action}${resetColor} ${text ? `[${text}]` : ''} ${studentAnswerDisplay}`;
 
-          // If incorrect (cross or 0 marks), explicitly show reasoning
-          if (action === 'cross' || text.includes('0')) {
-            logMessage += `\n      ${RED}↳ Reason: ${reasoning || 'No reasoning provided'}${RESET}`;
-            if (studentAnswer) {
-              logMessage += `\n      ${RED}↳ OCR Value: ${RESET}${MAGENTA}"${studentAnswer}"${RESET}`;
+          // Always show detailed debug info
+          logMessage += `\n      ↳ Reason: ${reasoning || 'No reasoning provided'}`;
 
-              // Find best matching classification text to show comparison
-              if (classificationStudentWork) {
-                try {
-                  // Simple Dice coefficient for similarity
-                  const getBigrams = (str: string) => {
-                    const bigrams = new Set();
-                    for (let i = 0; i < str.length - 1; i++) bigrams.add(str.substring(i, i + 2));
-                    return bigrams;
-                  };
+          if (studentAnswer) {
+            logMessage += `\n      ↳ OCR Value: ${MAGENTA}"${studentAnswer}"${RESET}`;
 
-                  const calculateSimilarity = (str1: string, str2: string) => {
-                    const s1 = str1.toLowerCase().replace(/\s+/g, '');
-                    const s2 = str2.toLowerCase().replace(/\s+/g, '');
-                    if (!s1 || !s2) return 0;
-                    const bg1 = getBigrams(s1);
-                    const bg2 = getBigrams(s2);
-                    let intersection = 0;
-                    bg1.forEach(bg => { if (bg2.has(bg)) intersection++; });
-                    return (2 * intersection) / (bg1.size + bg2.size);
-                  };
-
-                  const classificationSteps = classificationStudentWork.replace(/\\n/g, '\n').split('\n').map(s => s.trim()).filter(s => s.length > 0);
-                  let bestMatch = { text: '', score: 0 };
-
-                  classificationSteps.forEach((stepText: string) => {
-                    const score = calculateSimilarity(studentAnswer, stepText);
-                    if (score > bestMatch.score) {
-                      bestMatch = { text: stepText, score };
-                    }
-                  });
-
-                  // If we found a reasonable match (or even a weak one, it's useful context)
-                  if (bestMatch.score > 0.1) {
-                    logMessage += `\n      ${RED}↳ Classification Value: ${RESET}${MAGENTA}"${bestMatch.text}"${RESET}`;
-                  }
-                } catch (e) {
-                  // Ignore matching errors to prevent logging failure
-                }
-              }
+            if (ann.classification_text) {
+              logMessage += `\n      ↳ Classification Value: ${MAGENTA}"${ann.classification_text}"${RESET}`;
             }
-          } else if (reasoning) {
-            // For correct answers, show reasoning on same line if brief
-            logMessage += ` - ${reasoning}`;
+          }
+
+          if (ann.ocr_match_status) {
+            const statusColor = ann.ocr_match_status === 'FALLBACK' ? RED : GREEN;
+            logMessage += `\n      ↳ Match Status: ${statusColor}"${ann.ocr_match_status}"${RESET}`;
           }
 
           console.log(logMessage);

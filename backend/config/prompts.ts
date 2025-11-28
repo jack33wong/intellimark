@@ -34,10 +34,10 @@ export const AI_PROMPTS = {
     2. **Student Work (CRITICAL)**:
        - **VERBATIM & COMPLETE**: Extract ALL handwriting (main area, margins, answer lines).
        - **NO SIMPLIFICATION**: Do NOT calculate sums or simplify fractions. If student writes "4+3+1", write "4+3+1", NOT "8".
-       - **COMBINE**: Join disjoint text (e.g., working + answer line) with "\\n".
        - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
-       - **FORMAT**: Use LaTeX. Use "\\n" for new lines.
-       - **POSITION**: For each question or sub-question, estimate the bounding box that encompasses ALL student handwriting for that part. Return as "studentWorkPosition": { "x": number, "y": number, "width": number, "height": number } where values are percentages (0-100).
+       - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
+       - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "text": "...", "position": { "x": number, "y": number, "width": number, "height": number } }] where values are percentages (0-100).
+       - **IMPORTANT**: Each line gets its own position. Split on natural line breaks (new lines of handwriting).
     3. **Drawings**:
        - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST - HIGHEST PRIORITY)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set THREE things:
          * **"hasStudentDrawing": true**
@@ -66,6 +66,7 @@ export const AI_PROMPTS = {
     Return a SINGLE JSON object containing a "pages" array. Do not use markdown.
 
     {
+      "pages": [
         {
           "category": "questionAnswer",
           "rotation": 0,
@@ -73,15 +74,27 @@ export const AI_PROMPTS = {
             {
               "questionNumber": "1",
               "text": "Solve the equation...",
-              "studentWork": "3x = 12\\nx = 4",
-              "studentWorkPosition": { "x": 50, "y": 60, "width": 40, "height": 10 },
+              "studentWorkLines": [
+                {
+                  "text": "3x = 12",
+                  "position": { "x": 50, "y": 60, "width": 40, "height": 3 }
+                },
+                {
+                  "text": "x = 4",
+                  "position": { "x": 50, "y": 63, "width": 40, "height": 3 }
+                }
+              ],
               "hasStudentDrawing": false,
               "subQuestions": [
                 {
                   "part": "a",
                   "text": "Find x",
-                  "studentWork": "x = 4",
-                  "studentWorkPosition": { "x": 50, "y": 75, "width": 40, "height": 5 },
+                  "studentWorkLines": [
+                    {
+                      "text": "x = 4",
+                      "position": { "x": 50, "y": 75, "width": 40, "height": 3 }
+                    }
+                  ],
                   "hasStudentDrawing": false
                 }
               ]
@@ -357,6 +370,8 @@ export const AI_PROMPTS = {
             "step_id": "step_#", // REQUIRED: match to the provided steps by step_id
             "action": "tick|cross",
             "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
+            "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
+            "ocr_match_status": "MATCHED|FALLBACK",
             "reasoning": "Brief explanation of why this annotation was chosen"
           }
         ],
@@ -424,6 +439,8 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
              "action": "tick|cross",
              "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
              "student_text": "The specific student text being marked (quoted from OCR)",
+             "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
+             "ocr_match_status": "MATCHED|FALLBACK",
              "reasoning": "Brief explanation of why this annotation was chosen"
            }
          ],
@@ -435,6 +452,9 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        }
 
        **Annotation Rules:**
+        - **ocr_match_status**:
+          * Set to "MATCHED" if you found the Classification step text in the OCR blocks.
+          * Set to "FALLBACK" if the student work exists in Classification but is MISSING in OCR, and you mapped it to a nearby block (like question text) just to place the annotation.
         0a. **MANDATORY - Visual Observation (When Image Provided):**
             - Before marking, you MUST populate the "visualObservation" field
             - **SPATIAL EXAMINATION - REQUIRED FOR COORDINATE GRIDS:**
@@ -488,7 +508,15 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - **RULE:** If the text is identical or highly similar to the printed question content, DO NOT create an annotation for it.
            - **ONLY** mark actual student work (calculations, answers, solutions written by the student).
        3.  **OCR and Handwriting Error Tolerance:** The OCR text may contain spelling errors, typos, or misread characters due to handwriting or OCR limitations (e.g., "bot" instead of "not", "teh" instead of "the"). Be flexible when interpreting student work - consider context and common typos. If the intended meaning is clear despite OCR errors, award marks accordingly. Common OCR errors to recognize: "bot"→"not", "teh"→"the", "adn"→"and", number misreads (e.g., "5"→"S").
-       4.  **Drawing/Diagram Tolerance - UNIVERSAL PARTIAL CREDIT PROTOCOL:**
+        4.  **CONFLICT RESOLUTION - FAVOR THE STUDENT (CRITICAL):**
+            - **GOAL:** Award marks if *either* the Classification Text OR the OCR Text contains the correct answer.
+            - **STEP 1:** Check **Classification Text**. Does it match the Marking Scheme?
+              *   **YES:** Award the mark. Ignore any errors in the OCR text.
+              *   **NO:** Proceed to Step 2.
+            - **STEP 2:** Check **OCR Text**. Does it match the Marking Scheme?
+              *   **YES:** Award the mark. Assume the Classification model made an error.
+            - **CONCLUSION:** Only mark as incorrect if **BOTH** sources fail to match the Marking Scheme.
+       5.  **Drawing/Diagram Tolerance - UNIVERSAL PARTIAL CREDIT PROTOCOL:**
            - **Principle:** Coordinates are approximations. Focus on **concept understanding**.
            - **MANDATORY EVALUATION PROCESS (Do not skip):**
              1. **Identify Levels:** List all mark levels (e.g., B3, B2, B1).
@@ -523,7 +551,8 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        8.  **Action:** Set "action" to "tick" for correct steps or awarded marks. Set it to "cross" for incorrect steps or where a mark is not achieved.
        9.  **Mark Code:** Place the relevant mark code (e.g., "M1", "A0") from the marking scheme in the "text" field. If multiple codes apply to this step, combine them (e.g. "M1 A1"). If no code applies, leave it empty.
        10.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
-       11.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       11.  **Line Index:** Populate the "line_index" field with the index number (e.g., 1, 2, 3) from the "STUDENT WORK (STRUCTURED)" section. This is CRITICAL for placing the annotation correctly.
+       12.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)

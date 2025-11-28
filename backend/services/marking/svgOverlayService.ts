@@ -283,7 +283,7 @@ export class SVGOverlayService {
    * Create annotation SVG element based on type
    */
   private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number): string {
-    const [x, y, width, height] = annotation.bbox;
+    let [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
       console.error(`❌ [SVG ERROR] Annotation ${index} missing action field:`, annotation);
@@ -294,6 +294,35 @@ export class SVGOverlayService {
     // FAIL FAST: Log annotation data for debugging
 
     // Scale the bounding box coordinates
+    // MODIFIED: For split blocks (orange) or fallback (green), use AI position if available
+    // This replaces inaccurate/missing OCR coords with the AI-estimated position
+    const hasLineData = (annotation as any).hasLineData;
+    const ocrStatus = (annotation as any).ocr_match_status;
+    const aiPos = (annotation as any).aiPosition;
+
+    if ((hasLineData === false || ocrStatus === 'FALLBACK') && aiPos) {
+      // Calculate original dimensions from actual dimensions and scale
+      const originalWidth = actualWidth / scaleX;
+      const originalHeight = actualHeight / scaleY;
+
+      // Convert AI % to Original Pixels
+      const aiH_orig = (aiPos.height / 100) * originalHeight;
+      const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Baseline
+
+      // Target: Annotation Bottom (y + h) should match Cyan Circle Center (aiY + aiH/2)
+      // y + aiH = aiY + aiH/2
+      // y = aiY - aiH/2
+
+      x = (aiPos.x / 100) * originalWidth;
+      // Target: Raise one block higher than previous (which was aiY + aiH/2)
+      // New y = (aiY + aiH/2) - aiH = aiY - aiH/2
+      y = aiY_orig - (aiH_orig / 2);
+      width = (aiPos.width / 100) * originalWidth;
+      height = aiH_orig;
+
+
+    }
+
     const scaledX = x * scaleX;
     const scaledY = y * scaleY;
     const scaledWidth = width * scaleX;
@@ -305,14 +334,19 @@ export class SVGOverlayService {
     // Add color-coded border based on line data presence
     // Orange = No line data (Block Data - estimated coords from split blocks)
     // Black = Has line data (True Line Data - precise Mathpix coords)
-    const hasLineData = (annotation as any).hasLineData;
     let borderColor = 'black';
     let strokeDash = 'none';
 
-    if (hasLineData === false) {
+    if (ocrStatus === 'FALLBACK') {
+      // Fallback - student work found in Classification but missing in OCR
+      borderColor = 'green';
+      strokeDash = '5,5';
+    } else if (hasLineData === false) {
       // No line data - coordinates were estimated from split blocks
       borderColor = 'orange';
       strokeDash = '5,5';
+      // DEBUG: Log width for orange border
+      console.log(`[SVG DEBUG] Orange Border for step ${annotation.step_id}: Width=${width} (Original Pixels), AI Width=${aiPos?.width}%`);
     }
 
     const borderWidth = 2;
@@ -322,45 +356,24 @@ export class SVGOverlayService {
             fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
             stroke-dasharray="${strokeDash}"/>`;
 
-    // If this is a block without line data (orange border) AND we have AI position, 
-    // render a cyan circle to show the AI-estimated position for comparison
-    if (hasLineData === false && (annotation as any).aiPosition) {
-      const aiPos = (annotation as any).aiPosition;
-      console.log(`[SVG DEBUG] Rendering cyan circle. aiPos:`, aiPos, `actualDims: ${actualWidth}x${actualHeight}`);
+    // Cyan circle visualization removed as requested
 
-      // AI position is in PERCENTAGES (0-100), convert to pixels first
-      const aiPixelX = (aiPos.x / 100) * actualWidth;
-      const aiPixelY = (aiPos.y / 100) * actualHeight;
-      const aiPixelWidth = (aiPos.width / 100) * actualWidth;
-      const aiPixelHeight = (aiPos.height / 100) * actualHeight;
 
-      // Then scale to SVG coordinates
-      const aiX = aiPixelX * scaleX;
-      const aiY = aiPixelY * scaleY;
-      const aiW = aiPixelWidth * scaleX;
-      const aiH = aiPixelHeight * scaleY;
-
-      const centerX = aiX + aiW / 2;
-      const centerY = aiY + aiH / 2;
-      const radius = 25; // 5x bigger as requested
-
-      console.log(`[SVG DEBUG] Cyan circle center: (${centerX}, ${centerY}), radius: ${radius}`);
-      svg += `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="cyan" stroke="blue" stroke-width="2" opacity="0.6"/>`;
-      svg += `<text x="${centerX + 30}" y="${centerY + 8}" font-family="Arial" font-size="20" font-weight="bold" fill="blue">AI</text>`;
-    } else if (index === 0) {
-      // Log first annotation to diagnose
-      console.log(`[SVG DEBUG] First annotation: hasLineData=${hasLineData}, hasAiPos=${!!(annotation as any).aiPosition}`);
-    }
 
 
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
+
+    // Determine if we should show classification text (only for AI-positioned blocks)
+    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK') && aiPos;
+    const classificationText = useAiPos ? (annotation as any).classification_text : undefined;
+
     switch (action) {
       case 'tick':
-        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight);
+        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight, classificationText);
         break;
       case 'cross':
-        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight);
+        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight, classificationText);
         break;
       case 'circle':
         svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
@@ -379,8 +392,8 @@ export class SVGOverlayService {
   /**
    * Create tick annotation with symbol and text
    */
-  private static createTickAnnotation(x: number, y: number, width: number, height: number, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning, actualWidth, actualHeight);
+  private static createTickAnnotation(x: number, y: number, width: number, height: number, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number, classificationText?: string): string {
+    return this.createSymbolAnnotation(x, y, width, height, '✓', text, reasoning, actualWidth, actualHeight, classificationText);
   }
 
   /**
@@ -394,9 +407,10 @@ export class SVGOverlayService {
     text: string | undefined,
     reasoning: string | undefined,
     actualWidth: number,
-    actualHeight: number
+    actualHeight: number,
+    classificationText?: string
   ): string {
-    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning, actualWidth, actualHeight);
+    return this.createSymbolAnnotation(x, y, width, height, '✗', text, reasoning, actualWidth, actualHeight, classificationText);
   }
 
 
@@ -441,7 +455,7 @@ export class SVGOverlayService {
   /**
    * Create symbol annotation with optional text (unified logic for tick/cross)
    */
-  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number): string {
+  private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number, classificationText?: string): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
     // Calculate base Y position using configurable percentage offset
@@ -452,61 +466,81 @@ export class SVGOverlayService {
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
     const symbolSize = Math.max(20, Math.round((symbol === '✓' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
     const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
+    const classificationSize = Math.max(14, Math.round(textSize * 0.8)); // Slightly smaller than mark code
 
     let svg = `
       <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
             font-family="${this.CONFIG.fontFamily}" font-size="${symbolSize}" font-weight="bold">${symbol}</text>`;
 
-    // Add text after the symbol if provided
+    let currentX = symbolX + symbolSize + 5; // Track current X position for next element
+
+    // Add text (Mark Code) after the symbol if provided
     if (text && text.trim()) {
-      const textX = symbolX + symbolSize + 5; // 5px spacing after symbol
       const escapedText = this.escapeXml(text);
       svg += `
-        <text x="${textX}" y="${textY}" text-anchor="start" fill="#ff0000" 
+        <text x="${currentX}" y="${textY}" text-anchor="start" fill="#ff0000" 
               font-family="${this.CONFIG.fontFamily}" font-size="${textSize}" font-weight="bold">${escapedText}</text>`;
 
-      // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
-      if (symbol === '✗' && reasoning && reasoning.trim()) {
-        const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
-        const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
-        const lineHeight = reasoningSize + 2; // Small spacing between lines
+      // Update currentX for next element
+      const estimatedMarkingCodeWidth = text.length * (textSize * 0.6);
+      currentX += estimatedMarkingCodeWidth + 10; // Add spacing
+    }
 
-        // Estimate reasoning width (rough estimate: ~8px per character)
-        const estimatedReasoningWidth = reasoningLines.reduce((max, line) => Math.max(max, line.length * 8), 0);
-        // Estimate text width (approximate: 0.6 * fontSize per character for bold text)
-        const estimatedMarkingCodeWidth = text.length * (textSize * 0.6);
-        const reasoningXInline = textX + estimatedMarkingCodeWidth + 15; // Start right after marking code with spacing
-        const wouldOverflow = (reasoningXInline + estimatedReasoningWidth) > actualWidth;
+    // Add Classification Text (Blue) if provided
+    if (classificationText && classificationText.trim()) {
+      // Truncate if too long (e.g. > 20 chars)
+      const displayClassText = classificationText.length > 20 ? classificationText.substring(0, 20) + '...' : classificationText;
+      const escapedClassText = this.escapeXml(displayClassText);
 
-        // Determine if block is too wide (reasoning would overflow or block width exceeds threshold)
-        const blockTooWide = width > (actualWidth * 0.7) || wouldOverflow;
+      svg += `
+        <text x="${currentX}" y="${textY}" text-anchor="start" fill="#0000ff" 
+              font-family="${this.CONFIG.fontFamily}" font-size="${classificationSize}" font-weight="normal" opacity="0.8">(${escapedClassText})</text>`;
 
-        let reasoningX: number;
-        let reasoningY: number;
+      // Update currentX for next element (reasoning)
+      const estimatedClassTextWidth = displayClassText.length * (classificationSize * 0.6);
+      currentX += estimatedClassTextWidth + 15; // Add spacing
+    }
 
-        if (blockTooWide) {
-          // Position reasoning below the answer block, starting at block's left edge
-          reasoningX = x; // Start at block's left edge
-          // Position below the block: block bottom + spacing
-          const spacingBelowBlock = 10 * fontScaleFactor; // Small spacing below block
-          reasoningY = y + height + spacingBelowBlock;
-        } else {
-          // Position reasoning inline (to the right of marking code)
-          reasoningX = reasoningXInline;
-          // Calculate reasoning Y position using configurable percentage offset
-          const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
-          reasoningY = textY + reasoningYOffsetPixels;
-        }
+    // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
+    if (symbol === '✗' && reasoning && reasoning.trim()) {
+      const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
+      const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
+      const lineHeight = reasoningSize + 2; // Small spacing between lines
 
-        reasoningLines.forEach((line, index) => {
-          // For multi-line reasoning, add line height offset for subsequent lines
-          const lineY = reasoningY + (index * lineHeight);
-          const escapedLine = this.escapeXml(line);
-          svg += `
-            <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000"
-                  font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${escapedLine}</text>`;
-        });
+      // Estimate reasoning width (rough estimate: ~8px per character)
+      const estimatedReasoningWidth = reasoningLines.reduce((max, line) => Math.max(max, line.length * 8), 0);
+
+      const reasoningXInline = currentX; // Start right after previous element
+      const wouldOverflow = (reasoningXInline + estimatedReasoningWidth) > actualWidth;
+
+      // Determine if block is too wide (reasoning would overflow or block width exceeds threshold)
+      const blockTooWide = width > (actualWidth * 0.7) || wouldOverflow;
+
+      let reasoningX: number;
+      let reasoningY: number;
+
+      if (blockTooWide) {
+        // Position reasoning below the answer block, starting at block's left edge
+        reasoningX = x; // Start at block's left edge
+        // Position below the block: block bottom + spacing
+        const spacingBelowBlock = 10 * fontScaleFactor; // Small spacing below block
+        reasoningY = y + height + spacingBelowBlock;
+      } else {
+        // Position reasoning inline
+        reasoningX = reasoningXInline;
+        // Calculate reasoning Y position using configurable percentage offset
+        const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
+        reasoningY = textY + reasoningYOffsetPixels;
       }
+
+      reasoningLines.forEach((line, index) => {
+        // For multi-line reasoning, add line height offset for subsequent lines
+        const lineY = reasoningY + (index * lineHeight);
+        const escapedLine = this.escapeXml(line);
+        svg += `
+          <text x="${reasoningX}" y="${lineY}" text-anchor="start" fill="#ff0000"
+                font-family="${this.CONFIG.fontFamily}" font-size="${reasoningSize}" font-weight="normal">${escapedLine}</text>`;
+      });
     }
 
     return svg;

@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'openai-gpt-4o' | 'openai-gpt-4o-mini';
+export type ModelType = 'auto' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview' | 'openai-gpt-4o' | 'openai-gpt-4o-mini';
 
 export interface AIModelConfig {
   name: string;
@@ -134,6 +134,8 @@ export interface Annotation {
   bbox: [number, number, number, number]; // [x, y, width, height]
   text?: string; // Text content for all annotation types
   reasoning?: string; // Optional explanation/rationale
+  ocr_match_status?: 'MATCHED' | 'FALLBACK'; // Status of OCR matching
+  classification_text?: string; // Text from classification
 }
 
 export interface MarkingInstructions {

@@ -70,14 +70,9 @@ export async function executeMarkingForQuestion(
 
   const questionId = task.questionNumber;
 
-  // DEBUG: Inspect task object for Q10
-  if (String(questionId) === '10') {
-    console.log(`[MARKING DEBUG] executeMarkingForQuestion Q10. Task Keys: ${Object.keys(task).join(', ')}`);
-    console.log(`[MARKING DEBUG] Q10 task.classificationBlocks type: ${typeof task.classificationBlocks}`);
-    if (task.classificationBlocks) {
-      console.log(`[MARKING DEBUG] Q10 task.classificationBlocks length: ${task.classificationBlocks.length}`);
-    }
-  }
+
+
+
 
   // Import createProgressData function
   const { createProgressData } = await import('../../utils/sseUtils.js');
@@ -112,10 +107,7 @@ export async function executeMarkingForQuestion(
       ocrSource?: string; // Add ocrSource to type definition
     }>;
 
-    // DEBUG: Check which path is taken
-    if (String(questionId) === '10' || String(questionId) === '15') {
-      console.log(`[MARKING DEBUG] Q${questionId} Path: ${task.aiSegmentationResults && task.aiSegmentationResults.length > 0 ? 'Legacy (Segmentation)' : 'Enhanced (OCR Blocks)'}`);
-    }
+
 
     if (task.aiSegmentationResults && task.aiSegmentationResults.length > 0) {
       // Use AI segmentation results - map back to original blocks for coordinates
@@ -290,35 +282,15 @@ export async function executeMarkingForQuestion(
           hasLineData: block.hasLineData // Preserve line data flag (for border color)
         };
 
-        // If we have classification blocks with AI-estimated position, add it to stepData
-        // This allows visual comparison of OCR-derived coords vs AI-estimated coords
-        if (task.classificationBlocks && task.classificationBlocks.length > 0) {
-          const classBlock = task.classificationBlocks[0]; // For single-block questions like Q10
-          if ((classBlock as any).studentWorkPosition) {
-            const aiPos = (classBlock as any).studentWorkPosition;
-            stepData.aiPosition = {
-              x: aiPos.x,
-              y: aiPos.y,
-              width: aiPos.width,
-              height: aiPos.height
-            };
-          }
-        }
+
 
         return stepData;
       });
     }
 
-    // Log summary of blocks with/without coordinates
-    const blocksWithCoords = stepsDataForMapping.filter(s => s.bbox[0] > 0 || s.bbox[1] > 0).length;
-    const blocksWithoutCoords = stepsDataForMapping.length - blocksWithCoords;
-    const blocksWithAiPos = stepsDataForMapping.filter(s => (s as any).aiPosition).length;
 
-    console.log(`[MARKING EXECUTOR] Q${questionId} Position Stats: Total=${stepsDataForMapping.length}, WithCoords=${blocksWithCoords}, MissingCoords=${blocksWithoutCoords}, WithAIPos=${blocksWithAiPos}`);
 
-    if (blocksWithoutCoords > 0) {
-      console.warn(`[MARKING EXECUTOR] Q${questionId}: ${blocksWithoutCoords}/${stepsDataForMapping.length} blocks missing coordinates`);
-    }
+
 
     // Handle [DRAWING] student work from classification (e.g., Q13a histogram, Q22a sine graph, Q11 coordinate grid)
     // If classification has [DRAWING] student work, create separate synthetic blocks for each drawing entry
@@ -755,6 +727,7 @@ export async function executeMarkingForQuestion(
         // Enhanced marking: pass raw OCR blocks and classification
         rawOcrBlocks: rawOcrBlocks,
         classificationStudentWork: task.classificationStudentWork,
+        classificationBlocks: task.classificationBlocks, // For position lookup via studentWorkLines
         // Pass sub-question metadata for grouped sub-questions
         subQuestionMetadata: task.subQuestionMetadata
       } as any, // Type assertion for mock object
@@ -1035,41 +1008,54 @@ export function createMarkingTasksFromClassification(
     const group = questionGroups.get(baseQNum)!;
 
     // Add main student work if present
-    if (q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '') {
-      group.mainStudentWorkParts.push(q.studentWork.trim());
-      // Also store original block metadata for fallback annotation positioning
+    // Add main student work if present
+    // Handle main question student work
+    const hasMainLines = q.studentWorkLines && q.studentWorkLines.length > 0;
+    const hasSubQuestions = q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
+
+    if (hasMainLines || hasSubQuestions) {
+      // Build text from lines (if any)
+      const studentWorkText = hasMainLines ? q.studentWorkLines.map((line: any) => line.text).join('\n') : '';
+
+      if (hasMainLines) {
+        group.mainStudentWorkParts.push(studentWorkText.trim());
+      }
+
+      // Store studentWorkLines for position lookup
       const block = {
-        text: q.studentWork.trim(),
+        text: studentWorkText.trim(),
         pageIndex: sourceImageIndices[0] || 0,
-        studentWorkPosition: q.studentWorkPosition // Store position data
+        studentWorkLines: q.studentWorkLines || [], // Store lines with positions
+        subQuestions: q.subQuestions // Pass sub-questions to block for MarkingInstructionService
       };
       group.classificationBlocks.push(block as any);
 
       // DEBUG: Trace Q10 data
       if (baseQNum === '10' || baseQNum === 10) {
-        console.log(`[MARKING DEBUG] Adding Q10 block to group. Has Position: ${!!block.studentWorkPosition}`, JSON.stringify(block.studentWorkPosition));
+        console.log(`[MARKING DEBUG] Adding Q10 block to group. Has ${q.studentWorkLines?.length || 0} lines`);
       }
 
       group.aiSegmentationResults.push({
         content: block.text,
-        studentWorkPosition: block.studentWorkPosition
+        studentWorkLines: q.studentWorkLines || []
       });
     }
 
     // Collect sub-questions
     if (q.subQuestions && Array.isArray(q.subQuestions)) {
       for (const subQ of q.subQuestions) {
-        if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim() !== '') {
+        if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
+          const studentWorkText = subQ.studentWorkLines.map(line => line.text).join('\n');
           group.subQuestions.push({
             part: subQ.part || '',
-            studentWork: subQ.studentWork,
+            studentWork: studentWorkText,
             text: subQ.text,
-            studentWorkPosition: subQ.studentWorkPosition // Store position data
+            studentWorkLines: subQ.studentWorkLines // Store lines with positions
           } as any);
 
           group.aiSegmentationResults.push({
-            content: subQ.studentWork,
-            studentWorkPosition: subQ.studentWorkPosition
+            content: studentWorkText,
+            studentWorkLines: subQ.studentWorkLines
           });
         }
       }
