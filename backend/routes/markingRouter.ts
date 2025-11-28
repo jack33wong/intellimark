@@ -875,6 +875,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
     console.log('[PIPELINE DEBUG] ✅ Drawing image passing configured, proceeding to create marking tasks...');
 
+    // ========================= START: ENHANCE DRAWINGS =========================
+    // Drawing Enhancement Service removed as per new design (AI Marking provides coordinates)
+    // ========================== END: ENHANCE DRAWINGS ==========================
+
     // ========================= START: IMPLEMENT STAGE 3 =========================
     // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---
     sendSseUpdate(res, createProgressData(5, 'Preparing marking tasks...', MULTI_IMAGE_STEPS));

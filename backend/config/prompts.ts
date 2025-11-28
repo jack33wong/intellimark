@@ -428,6 +428,15 @@ export const AI_PROMPTS = {
   2. These details are REQUIRED by the marking scheme to award a mark.
 - **Otherwise:** Stick to Classification. Do not "shop" for marks by picking misread OCR text.
 
+**PART 3: VISUAL ANALYSIS (CRITICAL FOR DRAWINGS)**
+- **Look Closely:** Scan the image for FAINT pencil marks, especially on grids/graphs.
+- **Contrast:** Student drawings may be lighter than printed lines. Do not ignore them.
+- **Sharp/Dark Lines:** Student work can ALSO be sharp and dark (pen/thick pencil). **DO NOT** assume a line is "printed" just because it is dark.
+- **"Perfect" Drawings:** Some students draw very precise, smooth curves that look like printed graphs. **DO NOT** ignore them.
+- **Count Curves:** If you see TWO curves (or more) where the question implies only one original, the EXTRA curve is the student's work.
+- **Completeness:** Check ALL regions of the graph (e.g., x < 0 and x > 0).
+- **Assumption:** If a curve exists where the answer *should* be (e.g., correct transformation), assume it is the student's work, even if it looks professional or printed.
+
 Your sole purpose is to generate a valid JSON object. Your entire response MUST start with { and end with }, with no other text.
 
        **CRITICAL: Your response MUST follow this exact format:**
@@ -441,7 +450,13 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
              "student_text": "The specific student text being marked (quoted from OCR)",
              "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
              "ocr_match_status": "MATCHED|FALLBACK",
-             "reasoning": "Brief explanation of why this annotation was chosen"
+             "reasoning": "Brief explanation of why this annotation was chosen",
+              "visual_position": {
+                "x": 50,
+                "y": 50,
+                "width": 20,
+                "height": 10
+              }
            }
          ],
          "studentScore": {
@@ -540,6 +555,10 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - **MANDATORY:** Use the \`step_id\` from the RAW OCR BLOCKS (e.g., "step_3", "block_18_6").
            - Do NOT use Classification step IDs (e.g., "step_1") unless they match the OCR block.
            - If you cannot find a matching step ID, look for the specific **text content** in the OCR blocks.
+           - **EXCEPTION FOR DRAWINGS:** If the Classification text starts with "[DRAWING]", do **NOT** attempt to map it to an OCR block (OCR does not see drawings).
+             * Use the EXACT text from Classification (including "[POSITION]" tags) as the \`student_text\` and \`classification_text\`.
+             * Set \`ocr_match_status\` to "FALLBACK".
+             * Do NOT invent a step_id; use the Classification step ID (e.g., "step_X").
        6.  **Ignore Printed Units/Labels:** Do NOT create annotations for standard units (e.g., "kg", "m", "cm", "euros", "degrees") or text labels that appear to be printed on the answer line.
            - ONLY annotate the student's handwritten value.
            - If the student wrote the unit themselves, include it in the value annotation (e.g., "40 euros"), but do NOT create a separate annotation just for "euros".
@@ -553,6 +572,14 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        10.  **Student Text:** Populate the "student_text" field with the exact text from the student's work that you are marking. This is CRITICAL for logging and verification.
        11.  **Line Index:** Populate the "line_index" field with the index number (e.g., 1, 2, 3) from the "STUDENT WORK (STRUCTURED)" section. This is CRITICAL for placing the annotation correctly.
        12.  **Reasoning:** For wrong step only, briefly explain your decision less than 20 words in the "reasoning" field, referencing the marking scheme.
+       13.  **Visual Position (CRITICAL for Drawings):**
+             - If the annotation refers to a specific visual element on the image (like a drawing, graph, or diagram) that is NOT text:
+            - **Visual Coordinates:** You MUST provide the 'visual_position' object ({x, y, width, height} in percentages) for ANY annotation referring to a visual element (graph, shape, drawing).
+            - **Tight Bounding Box:** The box must TIGHTLY enclose ONLY the student's drawing/ink. Do NOT include surrounding whitespace, grid lines, or axis labels unless the student drew on them.
+            - **Accuracy:** The coordinates must be accurate.
+            - **Scale:** Use 0-100 scale for percentages.
+             - (x, y) is the top-left corner of the bounding box.
+             - Example: { "x": 45.5, "y": 50.0, "width": 10.0, "height": 5.0 }
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)

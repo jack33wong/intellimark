@@ -402,10 +402,19 @@ export class MarkingInstructionService {
       // ========================= START: ANNOTATION ENRICHMENT =========================
       // Enrich annotations with bbox coordinates for single image pipeline
 
-      const enrichedAnnotations = annotationData.annotations.map(anno => {
-        const aiStepId = (anno as any).step_id?.trim();
+      const enrichedAnnotations = annotationData.annotations.map((anno, idx) => {
+        let aiStepId = (anno as any).step_id?.trim();
+
+        // FIX: If step_id is missing but it's a drawing, generate a synthetic one
         if (!aiStepId) {
-          return null;
+          const text = ((anno as any).student_text || '').toLowerCase();
+          const classText = ((anno as any).classification_text || '').toLowerCase();
+          if (text.includes('[drawing]') || classText.includes('[drawing]')) {
+            aiStepId = `drawing_fallback_${idx}`;
+            (anno as any).step_id = aiStepId;
+          } else {
+            return null;
+          }
         }
 
         // Find matching step in cleanDataForMarking.steps
@@ -455,46 +464,194 @@ export class MarkingInstructionService {
               pageIndex = 0; // Default fallback
             }
           }
+          // Store pageIndex on the annotation object for later use if needed (though we return a new object)
+          (anno as any)._resolvedPageIndex = pageIndex;
+        }
 
-          // Try to get AI position
-          let aiPositionFromMap: { x: number; y: number; width: number; height: number } | undefined;
+        // Try to get AI position
+        let aiPositionFromMap: { x: number; y: number; width: number; height: number } | undefined;
 
-          // 1. Try line_index (NEW ROBUST METHOD)
-          const lineIndex = (anno as any).line_index;
-          if (typeof lineIndex === 'number' && lineIndex > 0 && lineIndex <= studentWorkLines.length) {
-            aiPositionFromMap = studentWorkLines[lineIndex - 1].position;
+        // 1. Try visual_position from AI (NEW DESIGN)
+        if ((anno as any).visual_position) {
+          const vp = (anno as any).visual_position;
+          if (typeof vp.x === 'number' && typeof vp.y === 'number') {
+            let x = vp.x;
+            let y = vp.y;
+            let w = vp.width || 10;
+            let h = vp.height || 5;
+
+            // Normalize if values are > 100 (AI likely used 0-1000 scale or pixels)
+            // Heuristic: If ANY value > 100, assume 0-1000 scale and divide by 10
+            if (x > 100 || y > 100 || w > 100 || h > 100) {
+              x = x / 10;
+              y = y / 10;
+              w = w / 10;
+              h = h / 10;
+            }
+
+            aiPositionFromMap = {
+              x: x,
+              y: y,
+              width: w,
+              height: h
+            };
           }
+        }
 
-          // 2. Fallback to text matching
-          const lookupText = (anno as any).classification_text || anno.student_text;
+        // 2. Try parsing [POSITION] JSON from text (Fallback for Flash model)
+        // Example: "[DRAWING] [POSITION] {x: 50.0, y: 50.0, width: 20.0, height: 10.0}"
+        if (!aiPositionFromMap && (anno as any).student_text) {
+          const text = (anno as any).student_text;
+          const jsonMatch = text.match(/\[POSITION\]\s*(\{.*?\})/);
+          if (jsonMatch) {
+            try {
+              const vp = JSON.parse(jsonMatch[1]);
+              if (typeof vp.x === 'number' && typeof vp.y === 'number') {
+                let x = vp.x;
+                let y = vp.y;
+                let w = vp.width || 10;
+                let h = vp.height || 5;
 
-          if (!aiPositionFromMap) {
-            aiPositionFromMap = positionMap.get(lookupText);
+                // Normalize
+                if (x > 100 || y > 100 || w > 100 || h > 100) {
+                  console.log(`[MARKING DEBUG] AI returned large coordinates in text (x=${x}, y=${y}, w=${w}, h=${h}), normalizing by /10`);
+                  x = x / 10;
+                  y = y / 10;
+                  w = w / 10;
+                  h = h / 10;
+                }
+
+                aiPositionFromMap = {
+                  x: x,
+                  y: y,
+                  width: w,
+                  height: h
+                };
+              }
+            } catch (e) {
+              console.warn(`[MARKING DEBUG] Failed to parse [POSITION] JSON from text:`, e);
+            }
           }
+        }
 
-          // If not found and text has newlines, try looking up individual lines
-          if (!aiPositionFromMap && lookupText && lookupText.includes('\n')) {
-            const lines = lookupText.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
-            for (const line of lines) {
-              const pos = positionMap.get(line);
-              if (pos) {
-                aiPositionFromMap = pos;
-                break; // Use the first matching line's position
+        // 3. Try line_index (Legacy/Text Robust Method)
+        const lineIndex = (anno as any).line_index;
+        if (!aiPositionFromMap && typeof lineIndex === 'number' && lineIndex > 0 && lineIndex <= studentWorkLines.length) {
+          aiPositionFromMap = studentWorkLines[lineIndex - 1].position;
+        }
+
+        // 2. Try [POSITION] tag parsing (for Drawing Classification)
+        const lookupText = (anno as any).classification_text || anno.student_text;
+
+        if (!aiPositionFromMap && lookupText) {
+          // Check for [POSITION: x=..., y=...] tag
+          const positionMatch = lookupText.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
+          if (positionMatch) {
+            const x = parseFloat(positionMatch[1]);
+            const y = parseFloat(positionMatch[2]);
+
+            if (!isNaN(x) && !isNaN(y)) {
+              // Create AI position from tag
+              // Use default dimensions for drawing markers (small box)
+              aiPositionFromMap = {
+                x: x,
+                y: y,
+                width: 10, // Default width for drawing marker
+                height: 5  // Default height for drawing marker
+              };
+              console.log(`[MARKING DEBUG] Parsed position from tag: x=${x}, y=${y}`);
+            }
+          }
+        }
+
+        // 3. Fallback to text matching
+        if (!aiPositionFromMap) {
+          aiPositionFromMap = positionMap.get(lookupText);
+        }
+
+        // If not found and text has newlines, try looking up individual lines
+        if (!aiPositionFromMap && lookupText && lookupText.includes('\n')) {
+          const lines = lookupText.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+          for (const line of lines) {
+            const pos = positionMap.get(line);
+            if (pos) {
+              aiPositionFromMap = pos;
+              break; // Use the first matching line's position
+            }
+          }
+        }
+
+        // 4. DRAWING FALLBACK (New Logic)
+        // If AI cites question text (or generic text) but we have [DRAWING] lines with positions, use the drawing position
+        // This handles cases where AI ignores the [DRAWING] text and cites the question instead
+        if (!aiPositionFromMap || ((anno as any).action === 'tick' || (anno as any).action === 'cross')) {
+          // Check if we have any drawing lines with positions
+          const drawingLines = studentWorkLines.filter(l => l.text.includes('[DRAWING]') && l.text.includes('[POSITION'));
+
+          if (drawingLines.length > 0) {
+            // If we didn't find a position, OR if the text lookup might have matched the question text (which usually doesn't have a position in the map anyway, but just in case)
+            // Actually, if aiPositionFromMap IS found, it might be the question text position if that was added to the map.
+            // But usually question text isn't in studentWorkLines unless it was mixed in.
+
+            // Stronger condition: If the annotation is about a graph/drawing (inferred from action or context)
+            // and we haven't found a specific position from the text, default to the drawing.
+
+            if (!aiPositionFromMap) {
+              // Parse position from the first drawing line
+              const firstDrawing = drawingLines[0];
+              const positionMatch = firstDrawing.text.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
+              if (positionMatch) {
+                const x = parseFloat(positionMatch[1]);
+                const y = parseFloat(positionMatch[2]);
+                if (!isNaN(x) && !isNaN(y)) {
+                  aiPositionFromMap = {
+                    x: x,
+                    y: y,
+                    width: 10,
+                    height: 5
+                  };
+                  console.log(`[MARKING DEBUG] Used DRAWING FALLBACK position: x=${x}, y=${y}`);
+                }
               }
             }
           }
+        }
 
-          const finalAiPosition = (matchingStep as any).aiPosition || aiPositionFromMap;
+        // 4. DRAWING FALLBACK (New Design - Default Position)
+        // If it's a drawing annotation but AI forgot visual_position, use a default so it's not dropped
+        if (!aiPositionFromMap) {
+          const text = ((anno as any).student_text || '').toLowerCase();
+          const classText = ((anno as any).classification_text || '').toLowerCase();
 
+          if (text.includes('[drawing]') || classText.includes('[drawing]')) {
+            aiPositionFromMap = {
+              x: 50,
+              y: 50,
+              width: 50,
+              height: 50
+            };
+          }
+        }
 
+        const finalAiPosition = (matchingStep as any)?.aiPosition || aiPositionFromMap;
 
+        if (matchingStep && matchingStep.bbox) {
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
-            pageIndex: pageIndex,
-            ocrSource: (matchingStep as any).ocrSource, // Preserve OCR source
-            hasLineData: (matchingStep as any).hasLineData, // Preserve line data flag
-            aiPosition: finalAiPosition // Try OCR aiPosition first, then position map
+            pageIndex: (anno as any)._resolvedPageIndex ?? 0,
+            ocrSource: (matchingStep as any).ocrSource,
+            hasLineData: (matchingStep as any).hasLineData,
+            aiPosition: finalAiPosition
+          };
+        } else if (finalAiPosition) {
+          // If no matching step but we have AI position (e.g. drawing), return with dummy bbox
+          // MarkingExecutor will handle the dummy bbox or use aiPosition
+          return {
+            ...anno,
+            bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox
+            pageIndex: 0, // Default page index
+            aiPosition: finalAiPosition
           };
         } else {
           return null;

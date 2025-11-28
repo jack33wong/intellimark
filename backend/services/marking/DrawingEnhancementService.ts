@@ -242,6 +242,18 @@ export class DrawingEnhancementService {
           };
         }));
 
+        // Debug: Log enhanced questions for this page
+        enhancedQuestions.forEach(q => {
+          if (q.questionNumber === '5' || q.questionNumber === '21') {
+            console.log(`[DEBUG ENHANCEMENT] Q${q.questionNumber} Enhanced Student Work:`, JSON.stringify(q.studentWork));
+            if (q.subQuestions) {
+              q.subQuestions.forEach(sq => {
+                console.log(`[DEBUG ENHANCEMENT] Q${q.questionNumber} SubQ ${sq.part} Enhanced Work:`, JSON.stringify(sq.studentWork));
+              });
+            }
+          }
+        });
+
         // Update the classification result with enhanced drawings
         pageResult.result.questions = enhancedQuestions;
         return pageIndex;

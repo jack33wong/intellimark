@@ -751,9 +751,17 @@ export async function executeMarkingForQuestion(
     const enrichedAnnotations = (markingResult.annotations || []).map((anno, idx) => {
 
       // ================== START OF FIX ==================
+      // Check if we have AI-provided position (New Design)
+      const aiPos = (anno as any).aiPosition;
+      if (aiPos) {
+        // If we have direct coordinates, we don't strictly need to match a step for position
+        // But we still try to match for metadata if possible
+        // If no step match, we will use aiPos to construct bbox
+      }
+
       // Trim both IDs to protect against hidden whitespace
       const aiStepId = (anno as any).step_id?.trim();
-      if (!aiStepId) {
+      if (!aiStepId && !aiPos) {
         return null;
       }
 
@@ -836,6 +844,65 @@ export async function executeMarkingForQuestion(
       // If we can't find the step, use the previous valid annotation's location
       // This keeps sub-questions together instead of dropping them or defaulting to Page 1
       if (!originalStep) {
+        // NEW: Check if we have AI position to construct a synthetic bbox
+        if (aiPos) {
+          // Construct bbox from aiPos (x, y, w, h are percentages)
+          // We need to convert to whatever unit bbox uses (likely pixels or normalized 0-1?)
+          // stepsDataForMapping.bbox seems to be [x, y, w, h] in pixels?
+          // Actually, aiPos is already normalized to 0-100 or 0-1000 by MarkingInstructionService
+          // But we don't know the image dimensions here easily unless we look at task.imageData
+          // However, svgOverlayService handles aiPosition separately!
+          // So we just need to pass a DUMMY valid bbox so it doesn't get filtered out.
+          // And ensure pageIndex is valid.
+
+          const pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : 0;
+
+          // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
+          // This helps frontend group annotations correctly by sub-question
+          let finalStepId = (anno as any).step_id || `synthetic_${idx}`;
+
+          if (finalStepId.includes('_drawing')) {
+            // Extract potential sub-question part (e.g. "5c" from "step_5c_drawing")
+            const subQMatch = finalStepId.match(/step_(\d+[a-z])/i);
+            if (subQMatch && subQMatch[1]) {
+              const subQ = subQMatch[1]; // e.g. "5c"
+              // Find a real step that matches this sub-question
+              const realStep = stepsDataForMapping.find(s =>
+                s.unified_step_id && s.unified_step_id.includes(subQ)
+              );
+              if (realStep) {
+                finalStepId = realStep.unified_step_id;
+
+                // FIX: If the real step is NOT a drawing question (e.g. "Use your graph to find..."),
+                // we should place the annotation near the text, NOT on the graph.
+                // This prevents Q5c marks from appearing on Q5b graph.
+                const stepText = (realStep.text || '').toLowerCase();
+                const isDrawingQuestion = stepText.includes('draw') || stepText.includes('sketch') || stepText.includes('plot') || stepText.includes('grid');
+
+                if (!isDrawingQuestion) {
+                  // Use the real step's bbox and REMOVE aiPosition so it renders as a text annotation
+                  return {
+                    ...anno,
+                    bbox: realStep.bbox as [number, number, number, number],
+                    pageIndex: realStep.pageIndex ?? pageIndex,
+                    unified_step_id: finalStepId,
+                    aiPosition: undefined // Clear aiPosition to force text-based rendering
+                  };
+                }
+              }
+            }
+          }
+
+          const enriched = {
+            ...anno,
+            bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox (non-zero to pass filter), svgOverlayService uses aiPosition
+            pageIndex: pageIndex,
+            unified_step_id: finalStepId,
+            aiPosition: aiPos // Ensure it's passed through
+          };
+          return enriched;
+        }
+
         // Check if we have a previous valid annotation to inherit from
         if (lastValidAnnotation) {
 
