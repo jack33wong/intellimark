@@ -994,20 +994,22 @@ export class MarkingInstructionService {
       const RED = '\x1b[31m';
       const CYAN = '\x1b[36m';
       const RESET = '\x1b[0m';
-      console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
-      console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
-      console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
-      console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
+      // console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
+      // console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
+      // console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color
+      // console.log('  - Usage tokens:', '\x1b[33m' + usageTokens + '\x1b[0m'); // Yellow color
 
       // Log visual observation if present (diagnostic for drawing questions)
+      // Log visual observation if present (diagnostic for drawing questions)
       if (parsedResponse.visualObservation && parsedResponse.visualObservation.trim()) {
-        console.log(`  ${CYAN}📋 [VISUAL OBSERVATION]${RESET}`);
-        console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
+        // console.log(`  ${CYAN}📋 [VISUAL OBSERVATION]${RESET}`);
+        // console.log(`     ${CYAN}${parsedResponse.visualObservation}${RESET}`);
       }
 
       // Log individual annotations for debugging (especially for answers like 18.6)
+      // Log individual annotations for debugging (especially for answers like 18.6)
       if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
-        console.log('  - Annotations:');
+        // console.log('  - Annotations:');
         parsedResponse.annotations.forEach((ann: any, idx: number) => {
           const action = ann.action || 'unknown';
           const text = ann.text || '';
@@ -1052,6 +1054,12 @@ export class MarkingInstructionService {
           // Always show detailed debug info
           logMessage += `\n      ↳ Reason: ${reasoning || 'No reasoning provided'}`;
 
+          // console.log(logMessage);
+          // console.log(`      ↳ Reason: ${reasoning}`);
+          // console.log(`      ↳ OCR Value: "${ann.student_text || ''}"`);
+          // if (ann.classification_text) console.log(`      ↳ Classification Value: "${ann.classification_text}"`);
+          // console.log(`      ↳ Match Status: "${ann.ocr_match_status || 'UNKNOWN'}"`);
+
           if (studentAnswer) {
             logMessage += `\n      ↳ OCR Value: ${MAGENTA}"${studentAnswer}"${RESET}`;
 
@@ -1065,7 +1073,7 @@ export class MarkingInstructionService {
             logMessage += `\n      ↳ Match Status: ${statusColor}"${ann.ocr_match_status}"${RESET}`;
           }
 
-          console.log(logMessage);
+          // console.log(logMessage);
         });
         // Log step_id summary
         const stepIds = parsedResponse.annotations.map((a: any) => a.step_id || 'MISSING');

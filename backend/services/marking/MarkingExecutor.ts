@@ -23,6 +23,9 @@ export interface MarkingTask {
     text: string;
     pageIndex: number;
     studentWorkPosition?: { x: number; y: number; width: number; height: number }; // Percentage position
+    subQuestions?: any[]; // Allow access to sub-questions for page lookup
+    hasStudentDrawing?: boolean; // Propagate drawing flag
+    studentWorkLines?: any[]; // Allow access to lines
   }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
   imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
@@ -164,7 +167,49 @@ export async function executeMarkingForQuestion(
           }
 
           if (position) {
-            const pageIndex = matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+            let pageIndex = matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : -1;
+
+            // NEW: If no OCR match, try to find page from classification blocks
+            if (pageIndex === -1 && task.classificationBlocks && task.classificationBlocks.length > 0) {
+              // 1. Try to find a block that matches the annotation text
+              const annotationText = result.content.toLowerCase();
+
+              // Prioritize blocks that look like drawings if the annotation is a drawing
+              const isDrawing = annotationText.includes('drawing') || annotationText.includes('graph');
+
+              let bestBlockIndex = -1;
+
+              for (let i = 0; i < task.classificationBlocks.length; i++) {
+                const block = task.classificationBlocks[i];
+                const blockText = block.text.toLowerCase();
+
+                // Exact(ish) match
+                if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
+                  bestBlockIndex = i;
+                  break;
+                }
+
+                // If it's a drawing annotation, look for drawing blocks
+                if (isDrawing && (blockText.includes('[drawing]') || blockText.includes('graph'))) {
+                  // Keep this as a candidate, but prefer text match
+                  if (bestBlockIndex === -1) bestBlockIndex = i;
+                }
+              }
+
+              if (bestBlockIndex !== -1) {
+                pageIndex = task.classificationBlocks[bestBlockIndex].pageIndex;
+                console.log(`[MARKING EXECUTOR] Found page ${pageIndex} for drawing annotation from classification block`);
+              } else {
+                console.log(`[MARKING EXECUTOR] ⚠️ Could not find matching classification block for drawing annotation: "${annotationText}"`);
+                console.log(`[MARKING EXECUTOR] Available classification blocks:`, task.classificationBlocks.map(b => b.text.substring(0, 20)));
+              }
+            }
+
+            // Fallback to first source page if still not found
+            if (pageIndex === -1) {
+              console.log(`[MARKING EXECUTOR] ⚠️ Fallback to first source page for drawing annotation`);
+              pageIndex = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+            }
             const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
             if (percentMatch) {
               const pageDims = task.pageDimensions?.get(pageIndex);
@@ -254,7 +299,7 @@ export async function executeMarkingForQuestion(
       // AI will handle mapping classification to OCR blocks
       // We just provide OCR block coordinates for annotation enrichment
       stepsDataForMapping = task.mathBlocks.map((block, stepIndex) => {
-        const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+        const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${stepIndex}`;
 
         const rawText = block.mathpixLatex || block.googleVisionText || '';
         const normalizedText = normalizeLaTeXSingleLetter(rawText);
@@ -291,330 +336,243 @@ export async function executeMarkingForQuestion(
 
 
 
-
-
     // Handle [DRAWING] student work from classification (e.g., Q13a histogram, Q22a sine graph, Q11 coordinate grid)
     // If classification has [DRAWING] student work, create separate synthetic blocks for each drawing entry
     // This allows AI to return separate annotations for each drawing, which can be matched to individual blocks
+    // If classification has [DRAWING] student work, create separate synthetic blocks for each drawing entry
+    // This allows AI to return separate annotations for each drawing, which can be matched to individual blocks
     if (task.classificationStudentWork && task.classificationStudentWork.includes('[DRAWING]')) {
-      // Check if drawing is already represented in existing blocks (unlikely but possible)
-      const drawingAlreadyInBlocks = stepsDataForMapping.some(step =>
-        step.text.includes('[DRAWING]') || step.cleanedText.includes('[DRAWING]')
-      );
+      // Split student work by \n to get individual entries (text + drawings)
+      // Classification uses \n as line separator per prompt specification
+      // Handle both actual newline (\n) and literal backslash+n (\\n) for backward compatibility
+      const entries = task.classificationStudentWork.split(/\n|\\n/).map(e => e.trim()).filter(e => e.length > 0);
 
-      if (!drawingAlreadyInBlocks) {
-        // Use first page from sourcePages, or default to 0
-        const pageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0;
+      // Helper function to estimate bbox for drawings (coordinate grids, histograms, geometric diagrams, etc.)
+      // Uses order-based interpolation from OCR blocks to improve accuracy
+      // AI classification returns percentage-based coordinates: [POSITION: x=XX%, y=YY%]
+      // Parse percentages and convert directly to pixel coordinates
+      // This is generic and works for all drawing types
+      const estimateBboxForDrawing = (position: string, blocksOnSamePage: any[], pageIndex: number, drawingText: string, drawingIndexInSequence: number = -1): [number, number, number, number] => {
+        // Get actual page dimensions if available
+        const pageDims = task.pageDimensions?.get(pageIndex);
+        const pageWidth = pageDims?.width || 2000; // Default fallback
+        const pageHeight = pageDims?.height || 3000; // Default fallback
 
-        // Split student work by \n to get individual entries (text + drawings)
-        // Classification uses \n as line separator per prompt specification
-        // Handle both actual newline (\n) and literal backslash+n (\\n) for backward compatibility
-        const entries = task.classificationStudentWork.split(/\n|\\n/).map(e => e.trim()).filter(e => e.length > 0);
+        // Debug: Log input parameters
 
-        // Helper function to estimate bbox for drawings (coordinate grids, histograms, geometric diagrams, etc.)
-        // Uses order-based interpolation from OCR blocks to improve accuracy
-        // AI classification returns percentage-based coordinates: [POSITION: x=XX%, y=YY%]
-        // Parse percentages and convert directly to pixel coordinates
-        // This is generic and works for all drawing types
-        const estimateBboxForDrawing = (position: string, blocksOnSamePage: any[], pageIndex: number, drawingText: string, drawingIndexInSequence: number = -1): [number, number, number, number] => {
-          // Get actual page dimensions if available
-          const pageDims = task.pageDimensions?.get(pageIndex);
-          const pageWidth = pageDims?.width || 2000; // Default fallback
-          const pageHeight = pageDims?.height || 3000; // Default fallback
+        // Determine drawing dimensions based on type
+        // ALL positions from enhanced classification represent CENTER (consistent with histograms)
+        let drawingWidth = 300;
+        let drawingHeight = 300;
 
-          // Debug: Log input parameters
+        // For single point marks (center of rotation, marked points): use small dimensions
+        // These are just marks on the grid, not full shapes
+        if (drawingText.includes('marked at') || drawingText.includes('Center of rotation') ||
+          drawingText.includes('Mark') || (drawingText.includes('at (') && !drawingText.includes('vertices'))) {
+          // Single point mark - use small bounding box (50x50 to 100x100)
+          // Position represents the center of the mark
+          drawingWidth = 80;
+          drawingHeight = 80;
+        } else if (drawingText.includes('Coordinate grid') || (drawingText.includes('triangle') && drawingText.includes('vertices'))) {
+          // For triangles on coordinate grids: use medium dimensions
+          // The position represents the center of the triangle, not the entire grid
+          // Triangles are typically 100-200px in size on the grid
+          const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
+          if (coordsMatch) {
+            // Coordinate grids with explicit coordinates - use medium size for triangle
+            // Position is center of triangle, so use triangle size (not full grid size)
+            drawingWidth = 200;
+            drawingHeight = 200;
+          } else {
+            // Default for coordinate grids without explicit coordinates
+            drawingWidth = 180;
+            drawingHeight = 180;
+          }
+        } else if (drawingText.includes('Histogram')) {
+          // Histograms: position represents center (current behavior works correctly)
+          drawingWidth = 400;
+          drawingHeight = 300;
+        }
 
-          // Determine drawing dimensions based on type
-          // ALL positions from enhanced classification represent CENTER (consistent with histograms)
-          let drawingWidth = 300;
-          let drawingHeight = 300;
+        // STEP 1: Try order-based interpolation using preserved MathPix reading order
+        // Match classification student work entries to OCR blocks by order
+        if (drawingIndexInSequence >= 0 && blocksOnSamePage.length > 0) {
+          // Find surrounding blocks in the sequence
+          // Blocks are already sorted by MathPix order (preserved for null Y coordinates)
+          // Find blocks with coordinates that appear before and after the drawing position
+          let beforeBlock: any = null;
+          let afterBlock: any = null;
 
-          // For single point marks (center of rotation, marked points): use small dimensions
-          // These are just marks on the grid, not full shapes
-          if (drawingText.includes('marked at') || drawingText.includes('Center of rotation') ||
-            drawingText.includes('Mark') || (drawingText.includes('at (') && !drawingText.includes('vertices'))) {
-            // Single point mark - use small bounding box (50x50 to 100x100)
-            // Position represents the center of the mark
-            drawingWidth = 80;
-            drawingHeight = 80;
-          } else if (drawingText.includes('Coordinate grid') || (drawingText.includes('triangle') && drawingText.includes('vertices'))) {
-            // For triangles on coordinate grids: use medium dimensions
-            // The position represents the center of the triangle, not the entire grid
-            // Triangles are typically 100-200px in size on the grid
-            const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
-            if (coordsMatch) {
-              // Coordinate grids with explicit coordinates - use medium size for triangle
-              // Position is center of triangle, so use triangle size (not full grid size)
-              drawingWidth = 200;
-              drawingHeight = 200;
-            } else {
-              // Default for coordinate grids without explicit coordinates
-              drawingWidth = 180;
-              drawingHeight = 180;
+          // Look for blocks that appear before the drawing in the sequence
+          for (let i = Math.min(drawingIndexInSequence, blocksOnSamePage.length - 1); i >= 0; i--) {
+            const block = blocksOnSamePage[i];
+            if (block && block.bbox && block.bbox[1] != null) {
+              beforeBlock = block;
+              break;
             }
-          } else if (drawingText.includes('Histogram')) {
-            // Histograms: position represents center (current behavior works correctly)
-            drawingWidth = 400;
-            drawingHeight = 300;
           }
 
-          // STEP 1: Try order-based interpolation using preserved MathPix reading order
-          // Match classification student work entries to OCR blocks by order
-          if (drawingIndexInSequence >= 0 && blocksOnSamePage.length > 0) {
-            // Find surrounding blocks in the sequence
-            // Blocks are already sorted by MathPix order (preserved for null Y coordinates)
-            // Find blocks with coordinates that appear before and after the drawing position
-            let beforeBlock: any = null;
-            let afterBlock: any = null;
-
-            // Look for blocks that appear before the drawing in the sequence
-            for (let i = Math.min(drawingIndexInSequence, blocksOnSamePage.length - 1); i >= 0; i--) {
-              const block = blocksOnSamePage[i];
-              if (block && block.bbox && block.bbox[1] != null) {
-                beforeBlock = block;
-                break;
-              }
+          // Look for blocks that appear after the drawing in the sequence
+          for (let i = Math.min(drawingIndexInSequence + 1, blocksOnSamePage.length - 1); i < blocksOnSamePage.length; i++) {
+            const block = blocksOnSamePage[i];
+            if (block && block.bbox && block.bbox[1] != null) {
+              afterBlock = block;
+              break;
             }
+          }
 
-            // Look for blocks that appear after the drawing in the sequence
-            for (let i = Math.min(drawingIndexInSequence + 1, blocksOnSamePage.length - 1); i < blocksOnSamePage.length; i++) {
-              const block = blocksOnSamePage[i];
-              if (block && block.bbox && block.bbox[1] != null) {
-                afterBlock = block;
-                break;
+          // Use interpolation if we have surrounding blocks
+          if (beforeBlock || afterBlock) {
+
+            // Interpolate position from surrounding blocks
+            if (beforeBlock && afterBlock) {
+              // Interpolate Y position between before and after blocks
+              const beforeY = beforeBlock.bbox[1] || 0;
+              const afterY = afterBlock.bbox[1] || 0;
+              const interpolatedY = beforeY + (afterY - beforeY) * 0.5; // Midpoint
+
+              // Use X from before block or average
+              const beforeX = beforeBlock.bbox[0] || 0;
+              const afterX = afterBlock.bbox[0] || 0;
+              const interpolatedX = (beforeX + afterX) / 2;
+
+              // If percentage coordinates are available, use them directly (skip interpolation blending)
+              // Percentage coordinates from AI are more accurate than interpolation
+              const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+              if (percentMatch) {
+                const xPercent = parseFloat(percentMatch[1]);
+                const yPercent = parseFloat(percentMatch[2]);
+                const x = (xPercent / 100) * pageWidth;
+                const y = (yPercent / 100) * pageHeight;
+                return [x - drawingWidth / 2, y - drawingHeight / 2, drawingWidth, drawingHeight];
               }
+
+              // Fallback to interpolation if no percentage coordinates
+              return [interpolatedX - drawingWidth / 2, interpolatedY - drawingHeight / 2, drawingWidth, drawingHeight];
+            } else if (beforeBlock) {
+              // Only before block - place after it
+              const beforeY = beforeBlock.bbox[1] || 0;
+              const beforeHeight = beforeBlock.bbox[3] || 50;
+              const beforeX = beforeBlock.bbox[0] || 0;
+              return [beforeX, beforeY + beforeHeight + 50, drawingWidth, drawingHeight];
+            } else if (afterBlock) {
+              // Only after block - place before it
+              const afterY = afterBlock.bbox[1] || 0;
+              const afterX = afterBlock.bbox[0] || 0;
+              return [afterX, Math.max(0, afterY - drawingHeight - 50), drawingWidth, drawingHeight];
             }
+          }
+        }
 
-            // Use interpolation if we have surrounding blocks
-            if (beforeBlock || afterBlock) {
+        // STEP 2: Fallback to percentage-based position from AI
+        const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+        if (percentMatch) {
+          const xPercent = parseFloat(percentMatch[1]);
+          const yPercent = parseFloat(percentMatch[2]);
+          const x = (xPercent / 100) * pageWidth;
+          const y = (yPercent / 100) * pageHeight;
+          return [x - drawingWidth / 2, y - drawingHeight / 2, drawingWidth, drawingHeight];
+        }
 
-              // Interpolate position from surrounding blocks
-              if (beforeBlock && afterBlock) {
-                // Interpolate Y position between before and after blocks
-                const beforeY = beforeBlock.bbox[1] || 0;
-                const afterY = afterBlock.bbox[1] || 0;
-                const interpolatedY = beforeY + (afterY - beforeY) * 0.5; // Midpoint
+        // STEP 3: Fallback to text-based position hints (center-left, etc.)
+        let x = pageWidth / 2 - drawingWidth / 2; // Default center
+        let y = pageHeight / 2 - drawingHeight / 2; // Default center
 
-                // Use X from before block or average
-                const beforeX = beforeBlock.bbox[0] || 0;
-                const afterX = afterBlock.bbox[0] || 0;
-                const interpolatedX = (beforeX + afterX) / 2;
+        if (position.includes('left')) x = pageWidth * 0.25 - drawingWidth / 2;
+        if (position.includes('right')) x = pageWidth * 0.75 - drawingWidth / 2;
+        if (position.includes('top')) y = pageHeight * 0.25 - drawingHeight / 2;
+        if (position.includes('bottom')) y = pageHeight * 0.75 - drawingHeight / 2;
 
-                // If percentage coordinates are available, use them directly (skip interpolation blending)
-                // Percentage coordinates from AI are more accurate than interpolation
-                const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
-                if (percentMatch) {
-                  const xPercent = parseFloat(percentMatch[1]);
-                  const yPercent = parseFloat(percentMatch[2]);
-                  if (!isNaN(xPercent) && !isNaN(yPercent) && xPercent >= 0 && xPercent <= 100 && yPercent >= 0 && yPercent <= 100) {
-                    // Use percentage directly (no blending with interpolation)
-                    // ALL positions from enhanced classification represent CENTER (consistent for all drawing types)
-                    // Subtract half width/height to get the left/top edge position for bbox
-                    const pixelXFromPercent = (pageWidth * xPercent / 100) - drawingWidth / 2;
-                    const pixelYFromPercent = (pageHeight * yPercent / 100) - drawingHeight / 2;
+        return [x, y, drawingWidth, drawingHeight];
+      };
 
-                    const finalX = Math.max(0, Math.min(pageWidth - drawingWidth, pixelXFromPercent));
-                    const finalY = Math.max(0, Math.min(pageHeight - drawingHeight, pixelYFromPercent));
+      // Create separate synthetic blocks for each [DRAWING] entry
+      let drawingIndex = 0;
+      for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+        const entry = entries[entryIndex];
+        if (entry.includes('[DRAWING]')) {
+          // Extract position hint from this specific drawing entry
+          const positionMatch = entry.match(/\[POSITION:\s*([^\]]+)\]/);
+          const position = positionMatch ? positionMatch[1] : 'center';
 
-                    return [finalX, finalY, drawingWidth, drawingHeight];
-                  }
+          // Find correct page index for this drawing
+          let drawingPageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0; // Default to first page
+
+          if (task.classificationBlocks && task.classificationBlocks.length > 0) {
+            // Find the block that contains this drawing entry
+            const matchingBlock = task.classificationBlocks.find(b => b.text && b.text.includes(entry));
+            if (matchingBlock) {
+              drawingPageIndex = matchingBlock.pageIndex;
+
+              // Refinement: Check if this entry belongs to a sub-question with a specific page index
+              if (matchingBlock.subQuestions && Array.isArray(matchingBlock.subQuestions)) {
+                const matchingSubQ = matchingBlock.subQuestions.find((sq: any) =>
+                  sq.studentWorkLines && sq.studentWorkLines.some((line: any) => (line.text || '').includes(entry))
+                );
+                if (matchingSubQ && matchingSubQ.pageIndex !== undefined) {
+                  drawingPageIndex = matchingSubQ.pageIndex;
                 }
-
-                // Use pure interpolation if no percentage coordinates
-                const finalX = Math.max(0, Math.min(pageWidth - drawingWidth, interpolatedX));
-                const finalY = Math.max(0, Math.min(pageHeight - drawingHeight, interpolatedY));
-
-                return [finalX, finalY, drawingWidth, drawingHeight];
-              } else if (beforeBlock) {
-                // Only before block available - place drawing slightly below it
-                const beforeY = beforeBlock.bbox[1] || 0;
-                const beforeX = beforeBlock.bbox[0] || 0;
-                const estimatedY = beforeY + 50; // 50px below
-                const estimatedX = beforeX;
-
-                console.log(`[MARKING EXECUTOR] Order-based (before only): beforeY=${beforeY}, estimatedY=${estimatedY}`);
-                return [Math.max(0, Math.min(pageWidth - drawingWidth, estimatedX)), Math.max(0, Math.min(pageHeight - drawingHeight, estimatedY)), drawingWidth, drawingHeight];
-              } else if (afterBlock) {
-                // Only after block available - place drawing slightly above it
-                const afterY = afterBlock.bbox[1] || 0;
-                const afterX = afterBlock.bbox[0] || 0;
-                const estimatedY = afterY - 50; // 50px above
-                const estimatedX = afterX;
-
-                console.log(`[MARKING EXECUTOR] Order-based (after only): afterY=${afterY}, estimatedY=${estimatedY}`);
-                return [Math.max(0, Math.min(pageWidth - drawingWidth, estimatedX)), Math.max(0, Math.min(pageHeight - drawingHeight, estimatedY)), drawingWidth, drawingHeight];
               }
             }
           }
 
-          // STEP 2: Try to parse percentage-based position: [POSITION: x=XX%, y=YY%]
-          // Support formats: "x=25%, y=30%" or "x=25%,y=30%" or "x = 25%, y = 30%"
-          const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+          // Get blocks on the target page for interpolation
+          const blocksOnTargetPage = stepsDataForMapping.filter(s => s.pageIndex === drawingPageIndex);
 
-          if (percentMatch) {
-            // Parse percentages
-            const xPercent = parseFloat(percentMatch[1]);
-            const yPercent = parseFloat(percentMatch[2]);
-
-            // Validate percentages (should be 0-100)
-            if (isNaN(xPercent) || isNaN(yPercent) || xPercent < 0 || xPercent > 100 || yPercent < 0 || yPercent > 100) {
-              console.warn(`[MARKING EXECUTOR] Invalid percentage values in position "${position}": x=${xPercent}%, y=${yPercent}%`);
-            } else {
-              // Convert percentages to pixel coordinates
-              // ALL positions from enhanced classification represent CENTER (consistent for all drawing types)
-              // Subtract half width/height to get the left/top edge position for bbox
-              const centerX = pageWidth * xPercent / 100;
-              const centerY = pageHeight * yPercent / 100;
-              const pixelX = centerX - drawingWidth / 2;
-              const pixelY = centerY - drawingHeight / 2;
-
-              const finalX = Math.max(0, Math.min(pageWidth - drawingWidth, pixelX));
-              const finalY = Math.max(0, Math.min(pageHeight - drawingHeight, pixelY));
-
-              // Extract coordinates if available for validation
-              const coordsMatch = drawingText.match(/\[COORDINATES:\s*([^\]]+)\]/);
-              const coordsInfo = coordsMatch ? coordsMatch[1] : 'none';
-
-              console.log(`[MARKING EXECUTOR] Drawing position calculation: "${drawingText.substring(0, 60)}..."`);
-              console.log(`[MARKING EXECUTOR]   Page dimensions: ${pageWidth}x${pageHeight}, Drawing size: ${drawingWidth}x${drawingHeight}`);
-              console.log(`[MARKING EXECUTOR]   AI Position: x=${xPercent}%, y=${yPercent}% → center: (${centerX.toFixed(1)}, ${centerY.toFixed(1)}) → bbox: [${finalX.toFixed(1)}, ${finalY.toFixed(1)}]`);
-              console.log(`[MARKING EXECUTOR]   Coordinates: ${coordsInfo}`);
-
-              return [finalX, finalY, drawingWidth, drawingHeight];
-            }
-          }
-
-          // STEP 3: Fallback: backward compatibility with old format (center-left, center-right, etc.)
-          // Generic fallback for any drawing type (coordinate grids, histograms, diagrams, etc.)
-          // Find student work blocks to estimate where the drawing area is (Y position)
-          const studentWorkBlocks = blocksOnSamePage.filter(block => {
-            const text = (block.text || '').toLowerCase();
-            // Exclude question text patterns (generic patterns that work for all question types)
-            if (text.includes('triangle a is') || text.includes('triangle b is') ||
-              text.includes('triangle c is') || text.includes('describe fully') ||
-              text.includes('translated by the vector') || (text.includes('rotated') && text.includes('about the point')) ||
-              text.includes('draw a') || text.includes('complete the') || text.includes('on the grid')) {
-              return false; // This is question text, not student work
-            }
-            // Include student work patterns (generic patterns)
-            return text.includes('rotated') || text.includes('clockwise') || text.includes('counterclockwise') ||
-              text.includes('translated') || text.includes('reflected') ||
-              text.length > 0;
-          });
-
-          // Calculate Y position: drawings are typically in the middle-upper portion of page
-          // This works for coordinate grids, histograms, geometric diagrams, etc.
-          let drawingAreaY: number;
-          if (studentWorkBlocks.length > 0) {
-            // Sort blocks by Y and pick one from upper-middle area
-            const sortedBlocks = [...studentWorkBlocks].sort((a, b) => (a.bbox[1] || 0) - (b.bbox[1] || 0));
-            const middleIndex = Math.floor(sortedBlocks.length * 0.3);
-            const refBlock = sortedBlocks[Math.max(0, Math.min(middleIndex, sortedBlocks.length - 1))];
-            const refY = refBlock.bbox[1] || 0;
-            // Drawings are typically slightly above student work text
-            drawingAreaY = Math.max(refY - 100, pageHeight * 0.20);
-          } else {
-            // Fallback: use page-based percentage (drawings are typically 25-35% from top)
-            drawingAreaY = pageHeight * 0.30;
-          }
-
-          // Fallback: use old position hint format (center-left, center-right, etc.)
-          // This works generically for all drawing types
-          const positionLower = position.toLowerCase();
-
-          let estimatedBbox: [number, number, number, number];
-
-          if (positionLower.includes('center-left') || positionLower.includes('left')) {
-            // Left side of page: use left portion (25-30% of page width)
-            const leftX = Math.max(50, pageWidth * 0.25 - drawingWidth / 2);
-            estimatedBbox = [leftX, drawingAreaY, drawingWidth, drawingHeight];
-          } else if (positionLower.includes('center-right') || positionLower.includes('right')) {
-            // Right side of page: use right portion (70-75% of page width)
-            const rightX = Math.min(pageWidth - drawingWidth - 50, pageWidth * 0.75 - drawingWidth / 2);
-            estimatedBbox = [rightX, drawingAreaY, drawingWidth, drawingHeight];
-          } else if (positionLower.includes('center')) {
-            // Center of page: use center (50% of page width)
-            const centerX = Math.max(50, Math.min(pageWidth - drawingWidth - 50, pageWidth / 2 - drawingWidth / 2));
-            estimatedBbox = [centerX, drawingAreaY, drawingWidth, drawingHeight];
-          } else {
-            // Default: center
-            const centerX = Math.max(50, Math.min(pageWidth - drawingWidth - 50, pageWidth / 2 - drawingWidth / 2));
-            estimatedBbox = [centerX, drawingAreaY, drawingWidth, drawingHeight];
-          }
-
-          return estimatedBbox;
-        };
-
-        const blocksOnSamePage = stepsDataForMapping.filter(s => s.pageIndex === pageIndex);
-        let drawingIndex = 0;
-
-        // Match classification entries to OCR blocks by order to find drawing position in sequence
-        // This allows order-based interpolation for more accurate drawing positions
-        // Classification entries: ["text1", "[DRAWING] ...", "text2"]
-        // OCR blocks: [block1, block2] (in MathPix reading order, preserved for null Y coordinates)
-        // Strategy: Count text entries before drawing to estimate position in OCR block sequence
-        const findDrawingIndexInSequence = (drawingEntryIndex: number): number => {
-          let textEntriesBefore = 0;
-          for (let j = 0; j < drawingEntryIndex; j++) {
-            if (!entries[j].includes('[DRAWING]')) {
-              textEntriesBefore++;
-            }
-          }
-          // Estimate: drawing appears after textEntriesBefore OCR blocks
-          // Clamp to valid range
-          return Math.min(textEntriesBefore, Math.max(0, blocksOnSamePage.length - 1));
-        };
-
-        // Create separate synthetic blocks for each [DRAWING] entry
-        for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
-          const entry = entries[entryIndex];
-          if (entry.includes('[DRAWING]')) {
-            // Extract position hint from this specific drawing entry
-            const positionMatch = entry.match(/\[POSITION:\s*([^\]]+)\]/);
-            const position = positionMatch ? positionMatch[1] : 'center';
-
-            // Find drawing position in sequence for order-based interpolation
-            const drawingIndexInSequence = findDrawingIndexInSequence(entryIndex);
-
-            // Estimate bbox for drawing using order-based interpolation
-            // Pass drawingIndexInSequence to enable order-based position estimation
-            const estimatedBbox = estimateBboxForDrawing(position, blocksOnSamePage, pageIndex, entry, drawingIndexInSequence);
-
-            // CRITICAL: Do NOT override percentage-based positions with stacking
-            // If we have percentage-based positions (x=XX%, y=YY%), use them exactly as provided by AI
-            // Only apply stacking for fallback positions (old format: center-left, center-right, etc.)
-            const hasPercentagePosition = /x\s*=\s*\d+(?:\.\d+)?%\s*,\s*y\s*=\s*\d+(?:\.\d+)?%/i.test(position);
-
-            if (!hasPercentagePosition && drawingIndex > 0) {
-              // Only stack if using fallback positions (old format)
-              // Stack subsequent drawings below previous ones
-              const previousDrawingBlock = stepsDataForMapping.find(s =>
-                s.text.includes('[DRAWING]') && s.pageIndex === pageIndex
-              );
-              if (previousDrawingBlock) {
-                const prevY = previousDrawingBlock.bbox[1] || 0;
-                const prevHeight = previousDrawingBlock.bbox[3] || 400;
-                estimatedBbox[1] = prevY + prevHeight + 50; // 50px spacing between drawings
+          // Helper to find drawing index in sequence (count text entries before it)
+          const findDrawingIndexInSequence = (drawingEntryIndex: number): number => {
+            let textEntriesBefore = 0;
+            for (let j = 0; j < drawingEntryIndex; j++) {
+              if (!entries[j].includes('[DRAWING]')) {
+                textEntriesBefore++;
               }
             }
+            // Estimate: drawing appears after textEntriesBefore OCR blocks
+            // Clamp to valid range
+            return Math.min(textEntriesBefore, Math.max(0, blocksOnTargetPage.length - 1));
+          };
 
-            // Create synthetic block for this individual drawing
-            // Use simplified step ID format to match AI prompt (step_1, step_2, etc.)
-            const drawingStepIndex = stepsDataForMapping.length + 1;
-            const drawingBlock = {
-              unified_step_id: `step_${drawingStepIndex}`, // Simplified format (matches AI prompt)
-              pageIndex: pageIndex,
-              globalBlockId: `drawing_${questionId}_${drawingStepIndex}`,
-              text: entry, // Only this drawing entry, not the full combined text
-              cleanedText: entry,
-              bbox: estimatedBbox as [number, number, number, number]
-            };
+          // Find drawing position in sequence for order-based interpolation
+          const drawingIndexInSequence = findDrawingIndexInSequence(entryIndex);
 
-            stepsDataForMapping.push(drawingBlock);
-            blocksOnSamePage.push(drawingBlock); // Update for next drawing's position calculation
+          // Estimate bbox for drawing using order-based interpolation
+          // Pass drawingIndexInSequence to enable order-based position estimation
+          const estimatedBbox = estimateBboxForDrawing(position, blocksOnTargetPage, drawingPageIndex, entry, drawingIndexInSequence);
 
-            drawingIndex++;
+          // CRITICAL: Do NOT override percentage-based positions with stacking
+          // If we have percentage-based positions (x=XX%, y=YY%), use them exactly as provided by AI
+          // Only apply stacking for fallback positions (old format: center-left, center-right, etc.)
+          const hasPercentagePosition = /x\s*=\s*\d+(?:\.\d+)?%\s*,\s*y\s*=\s*\d+(?:\.\d+)?%/i.test(position);
+
+          if (!hasPercentagePosition && drawingIndex > 0) {
+            // Only stack if using fallback positions (old format)
+            // Stack subsequent drawings below previous ones
+            const previousDrawingBlock = stepsDataForMapping.find(s =>
+              s.text.includes('[DRAWING]') && s.pageIndex === drawingPageIndex
+            );
+            if (previousDrawingBlock) {
+              const prevY = previousDrawingBlock.bbox[1] || 0;
+              const prevHeight = previousDrawingBlock.bbox[3] || 400;
+              estimatedBbox[1] = prevY + prevHeight + 50; // 50px spacing between drawings
+            }
           }
+
+          // Create synthetic block for this individual drawing
+          // Use simplified step ID format to match AI prompt (step_1, step_2, etc.)
+          const drawingStepIndex = stepsDataForMapping.length + 1;
+          const drawingBlock = {
+            unified_step_id: `step_${drawingStepIndex}`, // Simplified format (matches AI prompt)
+            pageIndex: drawingPageIndex,
+            globalBlockId: `drawing_${questionId}_${drawingStepIndex}`,
+            text: entry, // Only this drawing entry, not the full combined text
+            cleanedText: entry,
+            bbox: estimatedBbox as [number, number, number, number]
+          };
+
+          stepsDataForMapping.push(drawingBlock);
+          // blocksOnSamePage.push(drawingBlock); // No longer needed as we re-filter or don't use it for next iter in this simplified flow
+
+          drawingIndex++;
         }
       }
     }
@@ -645,6 +603,7 @@ export async function executeMarkingForQuestion(
         ocrTextForPrompt += `${index + 1}. [${simplifiedStepId}] ${step.cleanedText}\n`;
       });
     }
+
 
     // *** Log for Verification ***
 
@@ -1056,8 +1015,9 @@ export function createMarkingTasksFromClassification(
     // Handle main question student work
     const hasMainLines = q.studentWorkLines && q.studentWorkLines.length > 0;
     const hasSubQuestions = q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
+    const hasDrawing = q.hasStudentDrawing === true;
 
-    if (hasMainLines || hasSubQuestions) {
+    if (hasMainLines || hasSubQuestions || hasDrawing) {
       // Build text from lines (if any)
       const studentWorkText = hasMainLines ? q.studentWorkLines.map((line: any) => line.text).join('\n') : '';
 
@@ -1070,14 +1030,11 @@ export function createMarkingTasksFromClassification(
         text: studentWorkText.trim(),
         pageIndex: sourceImageIndices[0] || 0,
         studentWorkLines: q.studentWorkLines || [], // Store lines with positions
-        subQuestions: q.subQuestions // Pass sub-questions to block for MarkingInstructionService
+        subQuestions: q.subQuestions, // Pass sub-questions to block for MarkingInstructionService
+        hasStudentDrawing: q.hasStudentDrawing // Pass drawing flag
       };
       group.classificationBlocks.push(block as any);
 
-      // DEBUG: Trace Q10 data
-      if (baseQNum === '10' || baseQNum === 10) {
-        console.log(`[MARKING DEBUG] Adding Q10 block to group. Has ${q.studentWorkLines?.length || 0} lines`);
-      }
 
       group.aiSegmentationResults.push({
         content: block.text,
@@ -1119,13 +1076,11 @@ export function createMarkingTasksFromClassification(
     const hasMarkingScheme = !!group.markingScheme;
 
     if (!hasMainWork && !hasSubWork && !hasMarkingScheme) {
-      console.log(`[MARKING EXECUTOR] Skipping Q${baseQNum} - No student work detected AND no marking scheme (Main: ${!!hasMainWork}, Sub: ${hasSubWork})`);
       continue;
     }
 
     // If we have a scheme but no work, we proceed (AI will see the image)
     if (!hasMainWork && !hasSubWork && hasMarkingScheme) {
-      console.log(`[MARKING EXECUTOR] Proceeding with Q${baseQNum} despite no student work text (Marking Scheme available). AI will rely on image.`);
       // Add a placeholder so formatGroupedStudentWork doesn't return empty string
       combinedMainWork = "[No student work text detected by classification - please check image]";
     }

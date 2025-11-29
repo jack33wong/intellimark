@@ -605,9 +605,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                   text: subQ.text && subQ.text !== 'null' ? subQ.text : null,
                   studentWork: null,
                   confidence: subQ.confidence || 0.9,
-                  pageIndex: pageIndex // Track which page this sub-question came from
+                  pageIndex: pageIndex, // Track which page this sub-question came from
+                  studentWorkLines: subQ.studentWorkLines || [], // Preserve lines
+                  hasStudentDrawing: subQ.hasStudentDrawing // Preserve drawing flag
                 });
               }
+
               // Combine student work for same sub-question part
               if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
                 const existing = mergedSubQuestions.get(part)!;
@@ -616,7 +619,24 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 } else {
                   existing.studentWork = subQ.studentWork;
                 }
+                // Merge lines if present
+                if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
+                  existing.studentWorkLines = [...(existing.studentWorkLines || []), ...subQ.studentWorkLines];
+                }
+                // Merge drawing flag
+                if (subQ.hasStudentDrawing) {
+                  existing.hasStudentDrawing = true;
+                  // Ensure [DRAWING] token exists in text if flag is true
+                  if (existing.studentWork) {
+                    if (!existing.studentWork.includes('[DRAWING]')) {
+                      existing.studentWork += '\n[DRAWING]';
+                    }
+                  } else {
+                    existing.studentWork = '[DRAWING]';
+                  }
+                }
               }
+              // Use text from sub-question that has it
               // Use text from sub-question that has it
               if (subQ.text && subQ.text !== 'null' && !mergedSubQuestions.get(part)!.text) {
                 mergedSubQuestions.get(part)!.text = subQ.text;
@@ -895,6 +915,60 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // Create marking tasks directly from classification results (bypass segmentation)
     try {
+      // PATCH: Ensure [DRAWING] token exists in classificationResult if hasStudentDrawing is true
+      // This is critical for MarkingExecutor to create drawing blocks for questions with 0 lines of text
+      // classificationResult is an object with a 'questions' array
+      if (classificationResult && classificationResult.questions && Array.isArray(classificationResult.questions)) {
+        classificationResult.questions.forEach((q: any) => {
+          // Check main question
+          if (q.hasStudentDrawing) {
+            if (q.studentWork) {
+              if (!q.studentWork.includes('[DRAWING]')) {
+                q.studentWork += '\n[DRAWING]';
+              }
+            } else {
+              q.studentWork = '[DRAWING]';
+            }
+
+            // Ensure studentWorkLines has a line with [DRAWING]
+            if (!q.studentWorkLines || q.studentWorkLines.length === 0) {
+              q.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0 }];
+            } else {
+              // Check if any line has [DRAWING]
+              const hasDrawingLine = q.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
+              if (!hasDrawingLine) {
+                q.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0 });
+              }
+            }
+          }
+
+          // Check sub-questions
+          if (q.subQuestions && Array.isArray(q.subQuestions)) {
+            q.subQuestions.forEach((sq: any) => {
+              if (sq.hasStudentDrawing) {
+                if (sq.studentWork) {
+                  if (!sq.studentWork.includes('[DRAWING]')) {
+                    sq.studentWork += '\n[DRAWING]';
+                  }
+                } else {
+                  sq.studentWork = '[DRAWING]';
+                }
+
+                // Update lines for sub-question too
+                if (!sq.studentWorkLines || sq.studentWorkLines.length === 0) {
+                  sq.studentWorkLines = [{ text: '[DRAWING]', confidence: 1.0 }];
+                } else {
+                  const hasDrawingLine = sq.studentWorkLines.some((l: any) => l.text && l.text.includes('[DRAWING]'));
+                  if (!hasDrawingLine) {
+                    sq.studentWorkLines.push({ text: '[DRAWING]', confidence: 1.0 });
+                  }
+                }
+              }
+            });
+          }
+        });
+      }
+
       markingTasks = createMarkingTasksFromClassification(
         classificationResult,
         allPagesOcrData,
@@ -1461,6 +1535,185 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // --- Send FINAL Complete Event ---
     sendSseUpdate(res, { type: 'complete', result: finalOutput }, true); // 'true' marks as final
     logOutputGenerationComplete();
+
+    // ========================== ANNOTATION SUMMARY ==========================
+    console.log('\n📊 [ANNOTATION SUMMARY]');
+    console.log('-----------------------------------------------------------------------');
+    console.log('| Q#       | WB (Lines)| Drw | Ann | Status (Match/Fallback/Split)    |');
+    console.log('|----------|-----------|-----|-----|----------------------------------|');
+
+    // Sort results by question number
+    const sortedResults = [...allQuestionResults].sort((a, b) => {
+      const numA = parseInt(String(a.questionNumber).replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.questionNumber).replace(/\D/g, '')) || 0;
+      return numA - numB;
+    });
+
+    sortedResults.forEach(result => {
+      const qNum = String(result.questionNumber).padEnd(8);
+
+      // We need access to the original task to count blocks/drawings
+      const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
+
+      if (String(result.questionNumber) === '11') {
+        console.log(`[DEBUG Q11] Task found: ${!!task}`);
+        if (task) {
+          console.log(`[DEBUG Q11] Source Pages: ${JSON.stringify(task.sourcePages)}`);
+          console.log(`[DEBUG Q11] Classification Blocks: ${task.classificationBlocks?.length}`);
+          task.classificationBlocks?.forEach((b: any, i: number) => {
+            console.log(`[DEBUG Q11] Block ${i}: Page ${b.pageIndex}, Lines: ${b.studentWorkLines?.length}, Text: "${b.text?.substring(0, 50)}..."`);
+            if (b.subQuestions) {
+              console.log(`[DEBUG Q11]   SubQuestions: ${b.subQuestions.length}`);
+              b.subQuestions.forEach((sq: any) => {
+                console.log(`[DEBUG Q11]     SQ ${sq.part}: Lines: ${sq.studentWorkLines?.length}, HasDrawing: ${sq.hasStudentDrawing}`);
+              });
+            }
+          });
+        }
+      }
+
+      // Sub-questions collection
+      const subQuestionStats: Array<{ label: string, wb: number, drw: number }> = [];
+
+      // Work Blocks: Count Lines (Main + Sub-questions)
+      let lineCount = 0;
+      if (task && task.classificationBlocks) {
+        task.classificationBlocks.forEach((b: any) => {
+          // Main lines
+          if (b.studentWorkLines) {
+            lineCount += b.studentWorkLines.length;
+          }
+          // Sub-question lines
+          if (b.subQuestions && Array.isArray(b.subQuestions)) {
+            b.subQuestions.forEach((sq: any) => {
+              let sqWb = 0;
+              let sqDrw = 0;
+              if (sq.studentWorkLines) {
+                sqWb = sq.studentWorkLines.length;
+                lineCount += sqWb; // Add to total
+
+                // Count drawings for this sub-question
+                // Check hasStudentDrawing flag first (most reliable)
+                if (sq.hasStudentDrawing) {
+                  sqDrw = 1; // Assume at least one drawing if flag is true
+                  // If we have lines, check if we can find more specific drawing lines
+                  if (sq.studentWorkLines && sq.studentWorkLines.length > 0) {
+                    let textDrawings = 0;
+                    sq.studentWorkLines.forEach((line: any) => {
+                      const txt = (line.text || '').toLowerCase();
+                      if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                        textDrawings++;
+                      }
+                    });
+                    if (textDrawings > 1) sqDrw = textDrawings;
+                  }
+                } else {
+                  // Fallback to text check
+                  sq.studentWorkLines.forEach((line: any) => {
+                    const txt = (line.text || '').toLowerCase();
+                    if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                      sqDrw++;
+                    }
+                  });
+                }
+              }
+              // Add to stats if there is work
+              if (sqWb > 0) {
+                subQuestionStats.push({
+                  label: `${result.questionNumber}${sq.part}`,
+                  wb: sqWb,
+                  drw: sqDrw
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // Drawings: Check text content in studentWorkLines (Main + Sub-questions)
+      let drawingCount = 0;
+      if (task && task.classificationBlocks) {
+        task.classificationBlocks.forEach((b: any) => {
+          // Check main student work lines
+          if (b.studentWorkLines) {
+            // Check hasStudentDrawing flag on the block (now propagated from MarkingExecutor)
+            if (b.hasStudentDrawing) {
+              drawingCount++; // Add at least one
+              // Check if we can find more specific drawing lines to avoid undercounting if multiple
+              let textDrawings = 0;
+              b.studentWorkLines.forEach((line: any) => {
+                const txt = (line.text || '').toLowerCase();
+                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                  textDrawings++;
+                }
+              });
+              if (textDrawings > 1) drawingCount += (textDrawings - 1);
+            } else {
+              // Fallback to text check
+              b.studentWorkLines.forEach((line: any) => {
+                const txt = (line.text || '').toLowerCase();
+                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                  drawingCount++;
+                }
+              });
+            }
+          }
+          // Sub-question drawings are already counted in subQuestionStats, but we need total for main row
+          if (b.subQuestions && Array.isArray(b.subQuestions)) {
+            b.subQuestions.forEach((sq: any) => {
+              if (sq.hasStudentDrawing) {
+                drawingCount++; // Add at least one
+                // Adjust if multiple text matches found? simplified to just add 1 for now if flag is set
+                // Or better: use the same logic as above
+                let textDrawings = 0;
+                if (sq.studentWorkLines) {
+                  sq.studentWorkLines.forEach((line: any) => {
+                    const txt = (line.text || '').toLowerCase();
+                    if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                      textDrawings++;
+                    }
+                  });
+                }
+                if (textDrawings > 1) drawingCount += (textDrawings - 1);
+              } else if (sq.studentWorkLines) {
+                sq.studentWorkLines.forEach((line: any) => {
+                  const txt = (line.text || '').toLowerCase();
+                  if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                    drawingCount++;
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+
+      const annoCount = result.annotations ? result.annotations.length : 0;
+
+      let matched = 0;
+      let fallback = 0;
+      let split = 0; // hasLineData === false && ocrStatus !== 'FALLBACK'
+
+      if (result.annotations) {
+        result.annotations.forEach((a: any) => {
+          if (a.ocr_match_status === 'FALLBACK') fallback++;
+          else if (a.hasLineData === false) split++;
+          else matched++;
+        });
+      }
+
+      const statusStr = `M:${matched} F:${fallback} S:${split}`;
+
+      console.log(`| ${qNum} | ${String(lineCount).padEnd(9)} | ${String(drawingCount).padEnd(3)} | ${String(annoCount).padEnd(3)} | ${statusStr.padEnd(32)} |`);
+
+      // Print sub-question rows
+      subQuestionStats.forEach(sq => {
+        const sqLabel = `  ${sq.label}`.padEnd(8);
+        console.log(`| ${sqLabel} | ${String(sq.wb).padEnd(9)} | ${String(sq.drw).padEnd(3)} | -   | -                                |`);
+      });
+
+      console.log('|----------|-----------|-----|-----|----------------------------------|');
+    });
 
     // --- Performance Summary (reuse original design) ---
     const totalProcessingTime = Date.now() - startTime;

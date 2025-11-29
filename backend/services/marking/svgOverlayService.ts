@@ -72,7 +72,7 @@ export class SVGOverlayService {
     // Base font sizes for a reference image height (2400px); actual sizes scale proportionally
     // Example: For reasoning text, increase reasoning value (e.g., 28) to make it larger
     baseFontSizes: {
-      reasoning: 25,           // Font size for reasoning text in annotations
+      reasoning: 30,           // Font size for reasoning text in annotations
       tick: 50,                // Font size for tick (✓) symbols
       cross: 50,              // Font size for cross (✗) symbols
       markingSchemeCode: 50,  // Font size for marking scheme codes (e.g., "A1", "M1")
@@ -254,9 +254,99 @@ export class SVGOverlayService {
 
     // Process annotations if available
     if (annotations && annotations.length > 0) {
+      // Pre-calculate decisions for split block groups
+      const decisionMap = new Map<number, 'TRUST_AI' | 'TRUST_OCR'>();
+      let currentGroupStartIndex = -1;
+
+      annotations.forEach((anno, i) => {
+        const isSplitBlock = (anno as any).hasLineData === false;
+
+        if (isSplitBlock) {
+          if (currentGroupStartIndex === -1) {
+            // Start of a new group
+            currentGroupStartIndex = i;
+
+            // Perform Check on First Block
+            const aiPos = (anno as any).aiPosition;
+            const [x, y, w, h] = anno.bbox;
+
+            let decision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR'; // Default
+
+            if (aiPos) {
+              // Calculate original dimensions from actual dimensions and scale
+              const originalWidth = actualWidth / scaleX;
+              const originalHeight = actualHeight / scaleY;
+
+              // Convert AI % to Original Pixels
+              const aiH_orig = (aiPos.height / 100) * originalHeight;
+              const aiY_orig = (aiPos.y / 100) * originalHeight;
+
+              const aiX_px = (aiPos.x / 100) * originalWidth;
+              const aiW_px = (aiPos.width / 100) * originalWidth;
+              const aiH_px = aiH_orig;
+              const aiY_px = aiY_orig - (aiH_orig / 2);
+
+              // Calculate centers
+              const ocrCenterX = x + w / 2;
+              const ocrCenterY = y + h / 2;
+              const aiCenterX = aiX_px + aiW_px / 2;
+              const aiCenterY = aiY_px + aiH_px / 2;
+
+              // Calculate Euclidean distance
+              const distance = Math.sqrt(
+                Math.pow(ocrCenterX - aiCenterX, 2) +
+                Math.pow(ocrCenterY - aiCenterY, 2)
+              );
+
+              // Threshold: 100px
+              if (distance < 100) {
+                decision = 'TRUST_AI';
+              }
+            }
+
+            decisionMap.set(i, decision);
+          } else {
+            // Continue group - inherit decision from start
+            const startDecision = decisionMap.get(currentGroupStartIndex);
+            decisionMap.set(i, startDecision || 'TRUST_OCR');
+          }
+        } else {
+          // Not a split block - reset group
+          currentGroupStartIndex = -1;
+          decisionMap.set(i, 'TRUST_OCR');
+        }
+      });
+
+      // 1. Group by BBox (approximate) to detect overlaps
+      const positionGroups = new Map<string, number[]>(); // Key: "x,y,w,h", Value: [indices]
+
+      annotations.forEach((anno, i) => {
+        // Use fixed precision to group effectively
+        const key = `${anno.bbox[0].toFixed(1)},${anno.bbox[1].toFixed(1)},${anno.bbox[2].toFixed(1)},${anno.bbox[3].toFixed(1)}`;
+        if (!positionGroups.has(key)) {
+          positionGroups.set(key, []);
+        }
+        positionGroups.get(key)!.push(i);
+      });
+
+      // 2. Calculate Offsets
+      const offsets = new Map<number, number>(); // Index -> Y Offset
+      positionGroups.forEach((indices) => {
+        if (indices.length > 1) {
+          indices.forEach((annoIndex, groupIndex) => {
+            if (groupIndex > 0) {
+              // Offset subsequent annotations by 40px * groupIndex
+              offsets.set(annoIndex, 40 * groupIndex);
+            }
+          });
+        }
+      });
+
       annotations.forEach((annotation, index) => {
         try {
-          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight);
+          const decision = decisionMap.get(index) || 'TRUST_OCR';
+          const yOffset = offsets.get(index) || 0;
+          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset);
         } catch (error) {
           console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
           console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
@@ -282,7 +372,7 @@ export class SVGOverlayService {
   /**
    * Create annotation SVG element based on type
    */
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number): string {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR', yOffset: number = 0): string {
     let [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
@@ -300,7 +390,14 @@ export class SVGOverlayService {
     const ocrStatus = (annotation as any).ocr_match_status;
     const aiPos = (annotation as any).aiPosition;
 
-    if ((hasLineData === false || ocrStatus === 'FALLBACK') && aiPos) {
+    // 1. Calculate AI Width (if available)
+    let aiW_px = 0;
+    if (aiPos) {
+      const originalWidth = actualWidth / scaleX;
+      aiW_px = (aiPos.width / 100) * originalWidth;
+    }
+
+    if ((ocrStatus === 'FALLBACK' || positionDecision === 'TRUST_AI') && aiPos) {
       // Calculate original dimensions from actual dimensions and scale
       const originalWidth = actualWidth / scaleX;
       const originalHeight = actualHeight / scaleY;
@@ -317,14 +414,41 @@ export class SVGOverlayService {
       // Target: Raise one block higher than previous (which was aiY + aiH/2)
       // New y = (aiY + aiH/2) - aiH = aiY - aiH/2
       y = aiY_orig - (aiH_orig / 2);
-      width = (aiPos.width / 100) * originalWidth;
+      width = aiW_px;
       height = aiH_orig;
 
 
+    } else {
+      // TRUST_OCR case
+      // Use OCR x, y, height
+      // BUT use AI width if available (User Request) to provide cleaner look
+      if (aiW_px > 0) {
+        width = aiW_px;
+      }
+    }
+
+    // 2. Clamp Right Position to prevent overflow
+    // Estimate content width
+    const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
+    const symbolSize = Math.max(20, Math.round((action === 'tick' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
+    const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
+    const textContent = text || '';
+    const estimatedTextWidth = textContent.length * (textSize * 0.6); // Rough estimate
+    const padding = 20;
+
+    const contentWidth = symbolSize + estimatedTextWidth + padding;
+    // Check in original coordinates
+    const contentWidthOrig = contentWidth / scaleX;
+    const originalWidth = actualWidth / scaleX;
+
+    if (x + width + contentWidthOrig > originalWidth) {
+      // Shift X left to fit content
+      const newX = originalWidth - width - contentWidthOrig;
+      x = Math.max(0, newX);
     }
 
     const scaledX = x * scaleX;
-    const scaledY = y * scaleY;
+    const scaledY = (y * scaleY) + yOffset; // Apply vertical offset for overlapping annotations
     const scaledWidth = width * scaleX;
     const scaledHeight = height * scaleY;
 

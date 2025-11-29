@@ -10,13 +10,13 @@ import { createUserMessage, createAIMessage, calculateMessageProcessingStats, ca
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
-import type { 
-  SessionContext, 
-  MarkingSessionContext, 
-  QuestionSessionContext, 
-  SessionResult, 
-  SessionStats, 
-  CreateSessionData 
+import type {
+  SessionContext,
+  MarkingSessionContext,
+  QuestionSessionContext,
+  SessionResult,
+  SessionStats,
+  CreateSessionData
 } from '../types/sessionManagement.js';
 import type { QuestionResult } from './marking/MarkingExecutor.js';
 import type { Express } from 'express';
@@ -65,24 +65,24 @@ export class SessionManagementService {
    */
   static async persistMarkingSession(context: MarkingSessionContext): Promise<SessionResult> {
     const { FirestoreService } = await import('../services/firestoreService.js');
-    
+
     // Extract request data
     const userId = (context.req as any)?.user?.uid || 'anonymous';
     const userEmail = (context.req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(context.req as any)?.user?.uid;
     const sessionId = context.req.body.sessionId || context.submissionId;
     const currentSessionId = sessionId.startsWith('temp-') ? context.submissionId : sessionId;
-    
+
     // Create database AI message with detected question data
     const dbAiMessage = this.prepareMarkingAiMessage(context);
-    
+
     // Generate session title
     const sessionTitle = this.generateMarkingSessionTitle(context);
-    
+
     // FIXED: Create separate database and response objects
     const { MessageFactory } = await import('./messageFactory.js');
     const dbMessages = MessageFactory.createForDatabase(context.userMessage, dbAiMessage);
-    
+
     // Persist to database for authenticated users
     if (isAuthenticated) {
       await this.persistAuthenticatedSession(
@@ -94,7 +94,7 @@ export class SessionManagementService {
         dbMessages[1] // Use database AI message
       );
     }
-    
+
     // Create unified session data for frontend
     const unifiedSession = isAuthenticated ? await this.createUnifiedSessionData(
       currentSessionId,
@@ -103,7 +103,7 @@ export class SessionManagementService {
       context,
       dbMessages[1] // Use database AI message
     ) : undefined;
-    
+
     return {
       sessionId: currentSessionId,
       sessionTitle,
@@ -116,20 +116,20 @@ export class SessionManagementService {
    */
   static async persistQuestionSession(context: QuestionSessionContext): Promise<SessionResult> {
     const { FirestoreService } = await import('../services/firestoreService.js');
-    
+
     // Extract request data
     const userId = (context.req as any)?.user?.uid || 'anonymous';
     const userEmail = (context.req as any)?.user?.email || 'anonymous@example.com';
     const isAuthenticated = !!(context.req as any)?.user?.uid;
     const sessionId = context.req.body.sessionId || context.submissionId;
     const currentSessionId = sessionId.startsWith('temp-') ? context.submissionId : sessionId;
-    
+
     // Create database AI message with detected question data
     const dbAiMessage = this.prepareQuestionAiMessage(context);
-    
+
     // Generate session title
     const sessionTitle = generateSessionTitle(context.questionDetection, context.globalQuestionText || '', 'Question');
-    
+
     // Persist to database for authenticated users
     if (isAuthenticated) {
       await this.persistAuthenticatedSession(
@@ -141,7 +141,7 @@ export class SessionManagementService {
         dbAiMessage
       );
     }
-    
+
     // Create unified session data for frontend
     const unifiedSession = isAuthenticated ? await this.createUnifiedSessionData(
       currentSessionId,
@@ -150,7 +150,7 @@ export class SessionManagementService {
       context,
       dbAiMessage
     ) : undefined;
-    
+
     return {
       sessionId: currentSessionId,
       sessionTitle,
@@ -163,13 +163,13 @@ export class SessionManagementService {
    */
   private static prepareMarkingAiMessage(context: MarkingSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
-    
+
     // Create detectedQuestion data from markingSchemesMap for frontend display
     if (context.markingSchemesMap) {
       const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(context.markingSchemesMap, context.globalQuestionText);
       dbAiMessage.detectedQuestion = detectedQuestion;
     }
-    
+
     return dbAiMessage;
   }
 
@@ -178,14 +178,14 @@ export class SessionManagementService {
    */
   private static prepareQuestionAiMessage(context: QuestionSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
-    
+
     // Transform question detection result to match frontend DetectedQuestion structure
     if (context.questionDetection?.found) {
       const match = context.questionDetection.match;
       if (match) {
         // Extract question text - use database question text (not classification text)
         const questionText = match.databaseQuestionText || context.questionDetection.questionText || '';
-        
+
         // markingScheme must be plain text (fail-fast for old format)
         let plainTextMarkingScheme = '';
         if (context.questionDetection.markingScheme) {
@@ -198,15 +198,15 @@ export class SessionManagementService {
           }
           plainTextMarkingScheme = context.questionDetection.markingScheme;
         }
-        
+
         // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
         // Fallback to markingScheme.examDetails.subject, then qualification
         const markingSchemeMatch = match.markingScheme;
         const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
-                             markingSchemeMatch?.examDetails?.subject || 
-                             match.qualification || 
-                             '';
-        
+          markingSchemeMatch?.examDetails?.subject ||
+          match.qualification ||
+          '';
+
         // Create single exam paper structure
         const examPapers = [{
           examBoard: match.board || '',
@@ -223,7 +223,7 @@ export class SessionManagementService {
           }],
           totalMarks: match.marks || 0
         }];
-        
+
         const transformedDetectedQuestion = {
           found: context.questionDetection.found,
           multipleExamPapers: false,
@@ -231,11 +231,11 @@ export class SessionManagementService {
           totalMarks: match.marks || 0,
           examPapers
         };
-        
+
         dbAiMessage.detectedQuestion = transformedDetectedQuestion;
       }
     }
-    
+
     return dbAiMessage;
   }
 
@@ -247,7 +247,7 @@ export class SessionManagementService {
       const allQuestionNumbers = Array.from(context.markingSchemesMap.keys());
       const totalMarks = Array.from(context.markingSchemesMap.values()).reduce((sum, scheme) => sum + (scheme.totalMarks || 0), 0);
       const firstQuestionScheme = allQuestionNumbers.length > 0 ? context.markingSchemesMap.get(allQuestionNumbers[0]) : null;
-      
+
       if (allQuestionNumbers.length > 0 && firstQuestionScheme) {
         // Extract base question numbers, sort, and check for sequence
         const baseNumbers = allQuestionNumbers
@@ -260,9 +260,9 @@ export class SessionManagementService {
           })
           .filter(num => num > 0)
           .sort((a, b) => a - b);
-        
+
         const uniqueNumbers = Array.from(new Set(baseNumbers));
-        
+
         // Format question number display
         let questionNumberDisplay: string;
         if (uniqueNumbers.length === 0) {
@@ -272,22 +272,22 @@ export class SessionManagementService {
           questionNumberDisplay = `Q${uniqueNumbers[0]}`;
         } else {
           // Check if in sequence
-          const isSequence = uniqueNumbers.every((num, index) => 
+          const isSequence = uniqueNumbers.every((num, index) =>
             index === 0 || num === uniqueNumbers[index - 1] + 1
           );
-          
+
           if (isSequence) {
             questionNumberDisplay = `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
           } else {
             questionNumberDisplay = uniqueNumbers.map(num => `Q${num}`).join(', ');
           }
         }
-        
+
         // Check if we have multiple exam papers
         const examBoards = new Set();
         const examCodes = new Set();
         const examSeriesSet = new Set();
-        
+
         Array.from(context.markingSchemesMap.values()).forEach(scheme => {
           const questionDetection = scheme.questionDetection;
           if (questionDetection?.match) {
@@ -296,12 +296,12 @@ export class SessionManagementService {
             examSeriesSet.add(questionDetection.match.examSeries);
           }
         });
-        
+
         // If different exam boards, codes, or exam series, use simplified title
         if (examBoards.size > 1 || examCodes.size > 1 || examSeriesSet.size > 1) {
           return `Past paper - ${questionNumberDisplay}`;
         }
-        
+
         // Same exam paper - use detailed title
         const firstQuestionDetection = firstQuestionScheme.questionDetection;
         if (firstQuestionDetection?.match) {
@@ -310,7 +310,7 @@ export class SessionManagementService {
         }
       }
     }
-    
+
     return generateSessionTitle(null, '', 'Marking');
   }
 
@@ -361,7 +361,7 @@ export class SessionManagementService {
     dbAiMessage: any
   ): Promise<void> {
     const sessionStats = this.createSessionStats(context);
-    
+
     await FirestoreService.createUnifiedSessionWithMessages({
       sessionId: currentSessionId,
       title: sessionTitle,
@@ -378,7 +378,7 @@ export class SessionManagementService {
    */
   private static createSessionStats(context: SessionContext): SessionStats {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
-    
+
     if (additionalData) {
       // For marking mode, use calculateSessionStats with allQuestionResults
       return calculateSessionStats(
@@ -432,17 +432,17 @@ export class SessionManagementService {
     dbAiMessage: any
   ): Promise<any> {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
-    
+
     // FIXED: Create response objects from database objects
     const { MessageFactory } = await import('./messageFactory.js');
     const dbMessages = MessageFactory.createForDatabase(context.userMessage, dbAiMessage);
     const responseMessages = MessageFactory.createForResponse(dbMessages);
-    
+
     // FIXED: Fetch sessionStats from database to include cost (calculated in createUnifiedSessionWithMessages)
     const { FirestoreService } = await import('../services/firestoreService.js');
     const dbSession = await FirestoreService.getUnifiedSession(currentSessionId);
     const dbSessionStats = dbSession?.sessionStats || this.createSessionStats(context);
-    
+
     return {
       id: currentSessionId,
       title: sessionTitle,
@@ -482,7 +482,7 @@ export class SessionManagementService {
         try {
           // Check if file is a PDF
           const isPdf = file.mimetype === 'application/pdf';
-          
+
           if (isPdf) {
             // Upload as PDF
             const pdfLink = await ImageStorageService.uploadPdf(
@@ -515,7 +515,7 @@ export class SessionManagementService {
           throw new Error(`Failed to upload original file ${index} (${fileName}): ${errorMessage}`);
         }
       });
-      
+
       result.originalImageLinks = await Promise.all(uploadPromises);
     } catch (error) {
       console.error('❌ [UPLOAD] Failed to upload original files:', error);
@@ -558,7 +558,7 @@ export class SessionManagementService {
           }
           return {
             url: ctx.originalPdfLink, // Only Firebase URL, no base64 fallback
-          originalFileName: ctx.originalFileName,
+            originalFileName: ctx.originalFileName,
             fileSize: ctx.fileSize || 0
           };
         });
@@ -593,7 +593,7 @@ export class SessionManagementService {
         }
         throw new Error('PDF context missing: PDF upload may have failed');
       }
-      
+
     } else {
       // For images, use imageDataArray for all users
       if (files.length === 1) {
@@ -726,7 +726,7 @@ export class SessionManagementService {
     });
     const totalPayloadSizeMB = JSON.stringify(finalAnnotatedOutput).length / (1024 * 1024);
     console.log(`🔍 [DIAGNOSTIC] Total finalAnnotatedOutput payload: ${totalPayloadSizeMB.toFixed(2)}MB`);
-    
+
     const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => ({
       url: annotatedImage,
       originalFileName: files[index]?.originalname || `annotated-image-${index + 1}.png`,
@@ -801,7 +801,7 @@ export class SessionManagementService {
     if (aiMessage.timestamp === null || aiMessage.timestamp === undefined) {
       throw new Error(`createUnauthenticatedSession: aiMessage.timestamp is null or undefined. aiMessage: ${JSON.stringify(aiMessage)}`);
     }
-    
+
     return {
       id: submissionId,
       title: generateSessionTitle(null, '', 'Question'),
@@ -877,30 +877,30 @@ export class SessionManagementService {
     if (markingSchemesMap.size > 1) {
       // Group questions by exam paper (board + code + year + tier)
       const examPaperGroups = new Map<string, any>();
-      
+
       Array.from(markingSchemesMap.entries()).forEach(([qNum, data], index) => {
         const questionDetection = data.questionDetection;
         const match = questionDetection?.match;
-        
+
         if (!match) return; // Skip if no match data
-        
+
         const examBoard = match.board || '';
         const examCode = match.paperCode || '';
         const examSeries = match.examSeries || '';
         const tier = match.tier || '';
-        
+
         // Create unique key for exam paper grouping
         const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
-        
+
         if (!examPaperGroups.has(examPaperKey)) {
           // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
           // Fallback to markingScheme.examDetails.subject, then qualification
           const markingScheme = data.questionDetection?.markingScheme;
           const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
-                               markingScheme?.examDetails?.subject || 
-                               match.qualification || 
-                               '';
-          
+            markingScheme?.examDetails?.subject ||
+            match.qualification ||
+            '';
+
           examPaperGroups.set(examPaperKey, {
             examBoard,
             examCode,
@@ -912,24 +912,32 @@ export class SessionManagementService {
             totalMarks: 0
           });
         }
-        
+
         const examPaper = examPaperGroups.get(examPaperKey);
-        
+
         let marksArray = data.questionMarks || [];
-        
+
         // Handle case where questionMarks might not be an array
         if (!Array.isArray(marksArray)) {
-          if (marksArray && typeof marksArray === 'object' && marksArray.marks) {
-            marksArray = marksArray.marks;
+          if (marksArray && typeof marksArray === 'object') {
+            // Check for alternative methods structure
+            if (marksArray.hasAlternatives && marksArray.main && marksArray.main.marks) {
+              marksArray = marksArray.main.marks;
+            } else if (marksArray.marks) {
+              marksArray = marksArray.marks;
+            } else {
+              console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
+              marksArray = [];
+            }
           } else {
             console.warn(`[MARKING SCHEME] Invalid marks for question ${qNum}:`, marksArray);
             marksArray = [];
           }
         }
-        
+
         // Extract question text - use database question text (not classification text)
         let questionTextForThisQ = '';
-        
+
         // Prioritize databaseQuestionText (from database), fallback to classification text
         if (data.databaseQuestionText) {
           questionTextForThisQ = data.databaseQuestionText;
@@ -943,14 +951,14 @@ export class SessionManagementService {
           // Last fallback to global question text
           questionTextForThisQ = globalQuestionText || '';
         }
-        
+
         // Extract question number from key (e.g., "1_Pearson Edexcel_1MA1/1H" -> "1")
         const extractedQNum = qNum.split('_')[0];
-        
+
         // Check if this is a grouped sub-question (has subQuestionNumbers array)
         const hasSubQuestions = data.subQuestionNumbers && Array.isArray(data.subQuestionNumbers) && data.subQuestionNumbers.length > 0;
         const subQuestionMarksMap = data.questionMarks?.subQuestionMarks;
-        
+
         // Calculate total marks for all sub-questions (if grouped) or use totalMarks (if single)
         let totalMarksForQuestion = data.totalMarks || 0;
         if (hasSubQuestions && subQuestionMarksMap && typeof subQuestionMarksMap === 'object') {
@@ -960,23 +968,23 @@ export class SessionManagementService {
             return sum + subQMarks.length; // Each mark is worth 1 point
           }, 0);
         }
-        
+
         // Convert marking scheme to plain text (FULL marking scheme for all sub-questions)
         let plainTextMarkingScheme = '';
         try {
           // Create JSON structure that formatMarkingSchemeAsBullets expects
           const schemeData: any = { marks: marksArray };
-          
+
           // Include sub-question marks mapping if available (for grouped sub-questions)
           if (data.questionMarks?.subQuestionMarks && typeof data.questionMarks.subQuestionMarks === 'object') {
             schemeData.subQuestionMarks = data.questionMarks.subQuestionMarks;
           }
-          
+
           // Include question-level answer if available
           if (data.questionMarks?.answer) {
             schemeData.questionLevelAnswer = data.questionMarks.answer;
           }
-          
+
           const schemeJson = JSON.stringify(schemeData, null, 2);
           // Format with sub-question numbers and answers to get FULL marking scheme (all sub-questions combined)
           plainTextMarkingScheme = formatMarkingSchemeAsBullets(
@@ -988,7 +996,7 @@ export class SessionManagementService {
           console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for Q${extractedQNum}:`, error);
           plainTextMarkingScheme = '';
         }
-        
+
         // Store ONE entry per question (not per sub-question) with FULL question text + FULL marking scheme
         examPaper.questions.push({
           questionNumber: extractedQNum, // Use base question number (e.g., "12", not "12(i)")
@@ -998,11 +1006,11 @@ export class SessionManagementService {
         });
         examPaper.totalMarks += totalMarksForQuestion;
       });
-      
+
       // Convert to array and determine if multiple exam papers
       const examPapers = Array.from(examPaperGroups.values());
       const multipleExamPapers = examPapers.length > 1;
-      
+
       // Validate that we have at least one question in at least one exam paper
       const hasQuestions = examPapers.some(ep => ep.questions && ep.questions.length > 0);
       if (!hasQuestions) {
@@ -1015,7 +1023,7 @@ export class SessionManagementService {
           examPapers: []
         };
       }
-      
+
       // Calculate total marks across all questions
       const totalMarks = Array.from(markingSchemesMap.values()).reduce((sum, data) => sum + (data.totalMarks || 0), 0);
 
@@ -1030,7 +1038,7 @@ export class SessionManagementService {
 
     // Single question case - ENHANCED STRUCTURE
     let singleMarkingScheme = schemeData.questionMarks || [];
-    
+
     // Handle case where questionMarks might not be an array
     if (!Array.isArray(singleMarkingScheme)) {
       // If it's an object with marks property, extract it
@@ -1041,7 +1049,7 @@ export class SessionManagementService {
         singleMarkingScheme = [];
       }
     }
-    
+
     // Extract question text - use database question text (not classification text)
     let questionTextForSingleQ = '';
     if (schemeData.databaseQuestionText) {
@@ -1053,23 +1061,23 @@ export class SessionManagementService {
     } else {
       questionTextForSingleQ = globalQuestionText || '';
     }
-    
+
     // Convert marking scheme to plain text format (same as sent to AI)
     let plainTextMarkingScheme = '';
     try {
       // Create JSON structure that formatMarkingSchemeAsBullets expects
       const schemeDataForFormat: any = { marks: singleMarkingScheme };
-      
+
       // Include sub-question marks mapping if available
       if (schemeData.questionMarks?.subQuestionMarks && typeof schemeData.questionMarks.subQuestionMarks === 'object') {
         schemeDataForFormat.subQuestionMarks = schemeData.questionMarks.subQuestionMarks;
       }
-      
+
       // Include question-level answer if available
       if (schemeData.questionMarks?.answer) {
         schemeDataForFormat.questionLevelAnswer = schemeData.questionMarks.answer;
       }
-      
+
       const schemeJson = JSON.stringify(schemeDataForFormat, null, 2);
       plainTextMarkingScheme = formatMarkingSchemeAsBullets(
         schemeJson,
@@ -1080,7 +1088,7 @@ export class SessionManagementService {
       console.error(`[MARKING SCHEME] Failed to convert marking scheme to plain text for single question:`, error);
       plainTextMarkingScheme = '';
     }
-    
+
     // Create single question array for consistency
     const questionsArray = [{
       questionNumber: questionNumber.split('_')[0], // Extract just the question number
@@ -1088,15 +1096,15 @@ export class SessionManagementService {
       marks: schemeData.totalMarks || match.marks || 0,
       markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
     }];
-    
+
     // Get subject from fullExamPapers.metadata.subject (source of truth via match.subject)
     // Fallback to markingScheme.examDetails.subject, then qualification
     const markingScheme = schemeData.questionDetection?.markingScheme;
     const actualSubject = match.subject || // Primary: from fullExamPapers.metadata.subject
-                         markingScheme?.examDetails?.subject || 
-                         match.qualification || 
-                         '';
-    
+      markingScheme?.examDetails?.subject ||
+      match.qualification ||
+      '';
+
     // Create single exam paper structure
     const examPapers = [{
       examBoard: match.board || '',
@@ -1108,7 +1116,7 @@ export class SessionManagementService {
       questions: questionsArray,
       totalMarks: schemeData.totalMarks || match.marks || 0
     }];
-    
+
     return {
       found: true,
       multipleExamPapers: false,
