@@ -713,11 +713,12 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       sanitized = sanitized.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4}|\\[a-zA-Z{])/g, '\\\\');
 
       // Fix common LaTeX escaping issues - only fix unescaped LaTeX commands
-      // Pattern: Match single backslash followed by LaTeX command (not already \\command)
+      // Use explicit character class instead of lookbehind to be safer
       sanitized = sanitized
-        .replace(/(?<!\\\\)\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Fix \frac{}{} if not already escaped
-        .replace(/(?<!\\\\)\\(times|pi|theta|alpha|beta|gamma|delta|omega|sqrt|mathrm|text)(?![a-zA-Z{])/g, '\\\\$1') // Fix common LaTeX commands
-        .replace(/(?<!\\\\)\\([a-zA-Z]+)/g, '\\\\$1'); // Fix any remaining LaTeX commands
+        .replace(/([^\\])\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1\\\\frac{$2}{$3}') // Fix \frac{}{} if not already escaped
+        .replace(/^\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\\\frac{$1}{$2}') // Handle start of string
+        .replace(/([^\\])\\(times|pi|theta|alpha|beta|gamma|delta|omega|sqrt|mathrm|text)(?![a-zA-Z{])/g, '$1\\\\$2') // Fix common LaTeX commands
+        .replace(/^\\(times|pi|theta|alpha|beta|gamma|delta|omega|sqrt|mathrm|text)(?![a-zA-Z{])/g, '\\\\$1'); // Handle start of string
 
       // Try parsing again after sanitization
       try {
@@ -725,7 +726,21 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         console.log('✅ [CLASSIFICATION] JSON parsing succeeded after sanitization');
         return returnString ? sanitized : parsed;
       } catch (secondError) {
+        // Attempt to repair truncated JSON if it's an unterminated string
         const secondErrorMessage = secondError instanceof Error ? secondError.message : String(secondError);
+        if (secondErrorMessage.includes('Unterminated string') || secondErrorMessage.includes('End of data')) {
+          console.warn('⚠️ [CLASSIFICATION] JSON appears truncated, attempting basic repair...');
+          // Try closing the string and the structure (assuming typical structure)
+          try {
+            const repaired = sanitized + '"}]}]}';
+            const parsed = JSON.parse(repaired);
+            console.log('✅ [CLASSIFICATION] JSON parsing succeeded after truncation repair');
+            return returnString ? repaired : parsed;
+          } catch (repairError) {
+            // Ignore repair error and throw original
+          }
+        }
+
         console.error('❌ [CLASSIFICATION] JSON Parse Error (after sanitization):');
         console.error(`❌ [CLASSIFICATION] Error: ${secondErrorMessage}`);
         console.error(`❌ [CLASSIFICATION] Sanitized content length: ${sanitized.length} characters`);
@@ -785,9 +800,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             };
             line.position = p; // Update the line object
           }
-
-          const text = line.text ? line.text.replace(/\n/g, ' ').substring(0, 30) : '';
-          console.log(`  ${i + 1}. [${text}...] Pos: x=${p?.x}, y=${p?.y}, w=${p?.width}, h=${p?.height}`);
         });
       }
 

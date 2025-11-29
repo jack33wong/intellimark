@@ -48,6 +48,7 @@ export interface QuestionResult {
   usageTokens?: number; // Add usage tokens from AI responses
   confidence?: number; // Add confidence score
   mathpixCalls?: number; // Add mathpix calls count
+  markingScheme?: any; // Include marking scheme for reference
 }
 
 export interface EnrichedAnnotation extends Annotation {
@@ -745,249 +746,225 @@ export async function executeMarkingForQuestion(
 
     // 4. Skip feedback generation - removed as requested
 
-    // 5. Enrich Annotations
-    let lastValidAnnotation: EnrichedAnnotation | null = null; // Track last valid annotation for fallback
+    // 6. Enrich annotations with positions
+    const defaultPageIndex = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
+    const enrichedAnnotations = enrichAnnotationsWithPositions(
+      markingResult.annotations || [],
+      stepsDataForMapping,
+      String(questionId),
+      defaultPageIndex
+    );
 
-    const enrichedAnnotations = (markingResult.annotations || []).map((anno, idx) => {
-
-      // ================== START OF FIX ==================
-      // Check if we have AI-provided position (New Design)
-      const aiPos = (anno as any).aiPosition;
-      if (aiPos) {
-        // If we have direct coordinates, we don't strictly need to match a step for position
-        // But we still try to match for metadata if possible
-        // If no step match, we will use aiPos to construct bbox
-      }
-
-      // Trim both IDs to protect against hidden whitespace
-      const aiStepId = (anno as any).step_id?.trim();
-      if (!aiStepId && !aiPos) {
-        return null;
-      }
-
-      // Try exact match first (check both unified_step_id and globalBlockId)
-      let originalStep = stepsDataForMapping.find(step =>
-        step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
-      );
-
-      // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
-      if (!originalStep && aiStepId) {
-        // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
-        const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
-        if (stepNumMatch && stepNumMatch[1]) {
-          const stepNum = parseInt(stepNumMatch[1], 10);
-          // Match by step index (1-based)
-          if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
-            originalStep = stepsDataForMapping[stepNum - 1];
-          }
-        }
-      }
-
-      // If still not found, check if AI is using OCR block ID format (block_X_Y)
-      if (!originalStep && aiStepId && aiStepId.startsWith('block_')) {
-        originalStep = stepsDataForMapping.find(step =>
-          step.globalBlockId?.trim() === aiStepId
-        );
-      }
-
-      // Special handling for [DRAWING] annotations
-      // Since we now create separate synthetic blocks for each drawing, match by text content
-      // AI might return step_id like "DRAWING_Triangle B..." instead of unified_step_id
-      if (!originalStep) {
-        const annotationText = ((anno as any).textMatch || (anno as any).text || '').toLowerCase();
-        const isDrawingAnnotation = annotationText.includes('[drawing]') || aiStepId.toLowerCase().includes('drawing');
-
-        if (isDrawingAnnotation) {
-          // First, try to match by step_id if it contains a step number
-          const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
-          if (stepNumMatch && stepNumMatch[1]) {
-            const stepNum = parseInt(stepNumMatch[1], 10);
-            if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
-              const candidateStep = stepsDataForMapping[stepNum - 1];
-              if (candidateStep && (candidateStep.text || candidateStep.cleanedText || '').toLowerCase().includes('[drawing]')) {
-                originalStep = candidateStep;
-              }
-            }
-          }
-
-          // If step number matching failed, try text-based matching
-          if (!originalStep) {
-            // Find synthetic block that matches this specific drawing
-            // Each synthetic block now contains only one drawing entry, so matching is simpler
-            originalStep = stepsDataForMapping.find(step => {
-              const stepText = (step.text || step.cleanedText || '').toLowerCase();
-              if (!stepText.includes('[drawing]')) return false;
-
-              // Extract key identifiers from both texts for matching (reuse existing logic)
-              const extractKeyWords = (text: string): string[] => {
-                // Extract meaningful words (skip common words like "drawn", "at", "vertices", etc.)
-                return text
-                  .replace(/\[drawing\]/gi, '')
-                  .replace(/\[position:.*?\]/gi, '')
-                  .split(/[^a-z0-9]+/i)
-                  .filter(word => word.length > 2 && !['the', 'and', 'at', 'drawn', 'vertices', 'position', 'point'].includes(word.toLowerCase()))
-                  .map(word => word.toLowerCase());
-              };
-
-              const annotationWords = extractKeyWords(annotationText);
-              const stepWords = extractKeyWords(stepText);
-
-              // Check if annotation words appear in step text (at least 2 words match for confidence)
-              const matchingWords = annotationWords.filter(word => stepWords.includes(word));
-              return matchingWords.length >= 2 || (matchingWords.length > 0 && matchingWords.length === annotationWords.length);
-            });
-          }
-        }
-      }
-
-      // Fallback logic for missing step ID (e.g., Q3b "No effect")
-      // If we can't find the step, use the previous valid annotation's location
-      // This keeps sub-questions together instead of dropping them or defaulting to Page 1
-      if (!originalStep) {
-        // NEW: Check if we have AI position to construct a synthetic bbox
-        if (aiPos) {
-          // Construct bbox from aiPos (x, y, w, h are percentages)
-          // We need to convert to whatever unit bbox uses (likely pixels or normalized 0-1?)
-          // stepsDataForMapping.bbox seems to be [x, y, w, h] in pixels?
-          // Actually, aiPos is already normalized to 0-100 or 0-1000 by MarkingInstructionService
-          // But we don't know the image dimensions here easily unless we look at task.imageData
-          // However, svgOverlayService handles aiPosition separately!
-          // So we just need to pass a DUMMY valid bbox so it doesn't get filtered out.
-          // And ensure pageIndex is valid.
-
-          const pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : 0;
-
-          // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
-          // This helps frontend group annotations correctly by sub-question
-          let finalStepId = (anno as any).step_id || `synthetic_${idx}`;
-
-          if (finalStepId.includes('_drawing')) {
-            // Extract potential sub-question part (e.g. "5c" from "step_5c_drawing")
-            const subQMatch = finalStepId.match(/step_(\d+[a-z])/i);
-            if (subQMatch && subQMatch[1]) {
-              const subQ = subQMatch[1]; // e.g. "5c"
-              // Find a real step that matches this sub-question
-              const realStep = stepsDataForMapping.find(s =>
-                s.unified_step_id && s.unified_step_id.includes(subQ)
-              );
-              if (realStep) {
-                finalStepId = realStep.unified_step_id;
-
-                // FIX: If the real step is NOT a drawing question (e.g. "Use your graph to find..."),
-                // we should place the annotation near the text, NOT on the graph.
-                // This prevents Q5c marks from appearing on Q5b graph.
-                const stepText = (realStep.text || '').toLowerCase();
-                const isDrawingQuestion = stepText.includes('draw') || stepText.includes('sketch') || stepText.includes('plot') || stepText.includes('grid');
-
-                if (!isDrawingQuestion) {
-                  // Use the real step's bbox and REMOVE aiPosition so it renders as a text annotation
-                  return {
-                    ...anno,
-                    bbox: realStep.bbox as [number, number, number, number],
-                    pageIndex: realStep.pageIndex ?? pageIndex,
-                    unified_step_id: finalStepId,
-                    aiPosition: undefined // Clear aiPosition to force text-based rendering
-                  };
-                }
-              }
-            }
-          }
-
-          const enriched = {
-            ...anno,
-            bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox (non-zero to pass filter), svgOverlayService uses aiPosition
-            pageIndex: pageIndex,
-            unified_step_id: finalStepId,
-            aiPosition: aiPos // Ensure it's passed through
-          };
-          return enriched;
-        }
-
-        // Check if we have a previous valid annotation to inherit from
-        if (lastValidAnnotation) {
-
-          const enriched = {
-            ...anno,
-            bbox: lastValidAnnotation.bbox,
-            pageIndex: lastValidAnnotation.pageIndex,
-            unified_step_id: lastValidAnnotation.unified_step_id
-          };
-          return enriched;
-        }
-
-        return null; // Mark for filtering if no previous annotation to inherit from
-      }
-
-      // Check if bbox is valid (not all zeros)
-      const hasValidBbox = originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
-
-      const enriched = {
-        ...anno,
-        bbox: (originalStep.bbox || [0, 0, 0, 0]) as [number, number, number, number],
-        pageIndex: originalStep.pageIndex ?? -1,
-        unified_step_id: originalStep.unified_step_id, // Store unified_step_id for tracking
-        ocrSource: (originalStep as any).ocrSource // Propagate OCR source (primary/fallback)
-      };
-
-      // Update last valid annotation for future fallbacks
-      if (enriched.pageIndex !== -1 && hasValidBbox) {
-        lastValidAnnotation = enriched;
-      }
-
-      return enriched;
-    }).filter((anno) => {
-      if (anno === null) {
-        return false;
-      }
-      if (anno.pageIndex === -1) {
-        return false;
-      }
-      if (!anno.bbox || anno.bbox.length !== 4) {
-        return false;
-      }
-      // Also filter out bboxes that are all zeros (no coordinates)
-      if (anno.bbox[0] === 0 && anno.bbox[1] === 0 && anno.bbox[2] === 0 && anno.bbox[3] === 0) {
-        return false;
-      }
-      return true;
-    });
-
-    console.log(`[MARKING EXECUTOR] Q${questionId}: Enriched ${enrichedAnnotations.length} annotations (from ${markingResult.annotations?.length || 0} original)`);
-
-    // 6. Consolidate results for this question
-    const score = markingResult.studentScore;
-
-    sendSseUpdate(res, createProgressData(6, `Marking complete for Question ${questionId}.`, MULTI_IMAGE_STEPS));
-
-    // Count mathpix calls (1 call per image, not per math block)
-    // Mathpix processes the entire image once and returns multiple math blocks
-    const mathpixCalls = task.mathBlocks.length > 0 ? 1 : 0;
-
-    const result = {
+    // 7. Generate Final Output
+    const questionResult: QuestionResult = {
       questionNumber: questionId,
-      score,
+      score: parseScore(markingResult.studentScore),
       annotations: enrichedAnnotations,
-      usageTokens: markingResult.usage?.llmTokens || 0,
-      confidence: 0.9, // Use confidence from processedImage (0.9 as set in the mock object)
-      mathpixCalls
+      usageTokens: (markingResult as any).usageTokens, // Map usageTokens correctly
+      markingScheme: task.markingScheme // Include marking scheme for reference
     };
 
-    return result;
-
+    return questionResult;
 
   } catch (error) {
-    console.error(`❌ [MARKING EXECUTION] Error during marking for Question ${questionId}:`, error);
-    sendSseUpdate(res, createProgressData(6, `Error marking Question ${questionId}: ${error instanceof Error ? error.message : 'Unknown error'}`, MULTI_IMAGE_STEPS));
-    // Re-throw the error so Promise.all catches it
+    console.error(`Error executing marking for Q${questionId}:`, error);
     throw error;
   }
 }
 
-/**
- * Create marking tasks directly from classification results (bypasses segmentation)
- * This function creates tasks with raw OCR blocks and classification student work
- * for the enhanced marking instruction approach.
- */
+// Helper function to enrich annotations with positions
+const enrichAnnotationsWithPositions = (
+  annotations: Annotation[],
+  stepsDataForMapping: any[],
+  questionId: string,
+  defaultPageIndex: number = 0 // NEW: Accept default page index (from task.sourcePages)
+): EnrichedAnnotation[] => {
+  let lastValidAnnotation: EnrichedAnnotation | null = null;
+
+  return annotations.map((anno, idx) => {
+    // Check if we have AI-provided position (New Design)
+    const aiPos = (anno as any).aiPosition; // Original was aiPosition, user changed to visual_position in snippet
+
+    // Trim both IDs to protect against hidden whitespace
+    const aiStepId = (anno as any).step_id?.trim();
+    if (!aiStepId && !aiPos) {
+      return null;
+    }
+
+    // Try exact match first (check both unified_step_id and globalBlockId)
+    let originalStep = stepsDataForMapping.find(step =>
+      step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
+    );
+
+    // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
+    if (!originalStep && aiStepId) {
+      // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
+      const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
+      if (stepNumMatch && stepNumMatch[1]) {
+        const stepNum = parseInt(stepNumMatch[1], 10);
+        // Match by step index (1-based)
+        if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
+          originalStep = stepsDataForMapping[stepNum - 1];
+        }
+      }
+    }
+
+    // If still not found, check if AI is using OCR block ID format (block_X_Y)
+    if (!originalStep && aiStepId && aiStepId.startsWith('block_')) {
+      originalStep = stepsDataForMapping.find(step =>
+        step.globalBlockId?.trim() === aiStepId
+      );
+    }
+
+    // Special handling for [DRAWING] annotations
+    // Since we now create separate synthetic blocks for each drawing, match by text content
+    // AI might return step_id like "DRAWING_Triangle B..." instead of unified_step_id
+    if (!originalStep) {
+      const annotationText = ((anno as any).textMatch || (anno as any).text || '').toLowerCase();
+      const isDrawingAnnotation = annotationText.includes('[drawing]') || (aiStepId && aiStepId.toLowerCase().includes('drawing'));
+
+      if (isDrawingAnnotation) {
+        // First, try to match by step_id if it contains a step number
+        const stepNumMatch = aiStepId ? aiStepId.match(/step[_\s]*(\d+)/i) : null;
+        if (stepNumMatch && stepNumMatch[1]) {
+          const stepNum = parseInt(stepNumMatch[1], 10);
+          if (stepNum > 0 && stepNum <= stepsDataForMapping.length) {
+            const candidateStep = stepsDataForMapping[stepNum - 1];
+            if (candidateStep && (candidateStep.text || candidateStep.cleanedText || '').toLowerCase().includes('[drawing]')) {
+              originalStep = candidateStep;
+            }
+          }
+        }
+
+        // If step number matching failed, try text-based matching
+        if (!originalStep) {
+          // Find synthetic block that matches this specific drawing
+          // Each synthetic block now contains only one drawing entry, so matching is simpler
+          originalStep = stepsDataForMapping.find(step => {
+            const stepText = (step.text || step.cleanedText || '').toLowerCase();
+            if (!stepText.includes('[drawing]')) return false;
+
+            // Extract key identifiers from both texts for matching (reuse existing logic)
+            const extractKeyWords = (text: string): string[] => {
+              // Extract meaningful words (skip common words like "drawn", "at", "vertices", etc.)
+              return text
+                .replace(/\[drawing\]/gi, '')
+                .replace(/\[position:.*?\]/gi, '')
+                .split(/[^a-z0-9]+/i)
+                .filter(word => word.length > 2 && !['the', 'and', 'at', 'drawn', 'vertices', 'position', 'point'].includes(word.toLowerCase()))
+                .map(word => word.toLowerCase());
+            };
+
+            const annotationWords = extractKeyWords(annotationText);
+            const stepWords = extractKeyWords(stepText);
+
+            // Check if annotation words appear in step text (at least 2 words match for confidence)
+            const matchingWords = annotationWords.filter(word => stepWords.includes(word));
+            return matchingWords.length >= 2 || (matchingWords.length > 0 && matchingWords.length === annotationWords.length);
+          });
+        }
+      }
+    }
+
+    // Fallback logic for missing step ID (e.g., Q3b "No effect")
+    // If we can't find the step, use the previous valid annotation's location
+    // This keeps sub-questions together instead of dropping them or defaulting to Page 1
+    if (!originalStep) {
+      // NEW: Check if we have AI position to construct a synthetic bbox
+      if (aiPos) {
+        // Construct bbox from aiPos (x, y, w, h are percentages)
+        // We need to convert to whatever unit bbox uses (likely pixels or normalized 0-1?)
+        // stepsDataForMapping.bbox seems to be [x, y, w, h] in pixels?
+        // Actually, aiPos is already normalized to 0-100 or 0-1000 by MarkingInstructionService
+        // But we don't know the image dimensions here easily unless we look at task.imageData
+        // However, svgOverlayService handles aiPosition separately!
+        // So we just need to pass a DUMMY valid bbox so it doesn't get filtered out.
+        // And ensure pageIndex is valid.
+
+        // FIX: Use defaultPageIndex if lastValidAnnotation is not available
+        // This ensures we default to the question's known page (e.g. 13) instead of 0
+        const pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : defaultPageIndex;
+
+        // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
+        // This helps frontend group annotations correctly by sub-question
+        let finalStepId = (anno as any).step_id || `synthetic_${idx}`;
+
+        if (finalStepId.includes('_drawing')) {
+          // Extract potential sub-question part (e.g. "5c" from "step_5c_drawing")
+          const subQMatch = finalStepId.match(/step_(\d+[a-z])/i);
+          if (subQMatch && subQMatch[1]) {
+            const subQ = subQMatch[1]; // e.g. "5c"
+            // Find a real step that matches this sub-question
+            const realStep = stepsDataForMapping.find(s =>
+              s.unified_step_id && s.unified_step_id.includes(subQ)
+            );
+            if (realStep) {
+              finalStepId = realStep.unified_step_id;
+
+              // FIX: If the real step is NOT a drawing question (e.g. "Use your graph to find..."),
+              // we should place the annotation near the text, NOT on the graph.
+              // This prevents Q5c marks from appearing on Q5b graph.
+              const stepText = (realStep.text || '').toLowerCase();
+              const isDrawingQuestion = stepText.includes('draw') || stepText.includes('sketch') || stepText.includes('plot') || stepText.includes('grid');
+
+              if (!isDrawingQuestion) {
+                // Use the real step's bbox and REMOVE aiPosition so it renders as a text annotation
+                return {
+                  ...anno,
+                  bbox: realStep.bbox as [number, number, number, number],
+                  pageIndex: realStep.pageIndex ?? pageIndex,
+                  unified_step_id: finalStepId,
+                  aiPosition: undefined // Clear aiPosition to force text-based rendering
+                };
+              }
+            }
+          }
+        }
+
+        const enriched = {
+          ...anno,
+          bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox (non-zero to pass filter), svgOverlayService uses aiPosition
+          pageIndex: pageIndex,
+          unified_step_id: finalStepId,
+          aiPosition: aiPos // Ensure it's passed through
+        };
+        console.log(`[MARKING DEBUG] Enriched annotation (fallback): Q${questionId}, Step: ${finalStepId}, Page: ${pageIndex}`);
+        lastValidAnnotation = enriched; // Update last valid annotation
+        return enriched;
+      }
+
+      // Check if we have a previous valid annotation to inherit from
+      if (lastValidAnnotation) {
+        const enriched = {
+          ...anno,
+          bbox: lastValidAnnotation.bbox,
+          pageIndex: lastValidAnnotation.pageIndex,
+          unified_step_id: lastValidAnnotation.unified_step_id
+        };
+        return enriched;
+      }
+
+      return null; // Mark for filtering if no previous annotation to inherit from
+    }
+
+    // Check if bbox is valid (not all zeros)
+    const hasValidBbox = originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
+
+    const enriched = {
+      ...anno,
+      bbox: (originalStep.bbox || [0, 0, 0, 0]) as [number, number, number, number],
+      pageIndex: originalStep.pageIndex ?? defaultPageIndex, // Also use default here if step missing pageIndex
+      unified_step_id: originalStep.unified_step_id
+    };
+
+    if (hasValidBbox) {
+      lastValidAnnotation = enriched;
+    }
+
+    return enriched;
+  }).filter(Boolean) as EnrichedAnnotation[];
+};
+
 export function createMarkingTasksFromClassification(
   classificationResult: any,
   allPagesOcrData: PageOcrResult[],
@@ -1213,11 +1190,12 @@ export function createMarkingTasksFromClassification(
   }
 
   // Sort tasks by question number (ascending) to ensure consistent ordering
-  // This ensures Q1, Q2, ..., Q18, ... are processed in numerical order
+  // This ensures Q1, Q2, ..., Q18, ..., are processed in numerical order
   // regardless of the order they appear in classification results
   tasks.sort((a, b) => {
     const numA = parseInt(String(a.questionNumber).replace(/\D/g, '')) || 0;
     const numB = parseInt(String(b.questionNumber).replace(/\D/g, '')) || 0;
+
     if (numA !== numB) {
       return numA - numB;
     }
@@ -1227,3 +1205,45 @@ export function createMarkingTasksFromClassification(
 
   return tasks;
 }
+
+
+// Helper to parse score string "2/2" into object
+function parseScore(scoreInput: any): { awardedMarks: number; totalMarks: number } {
+  if (!scoreInput) {
+    return { awardedMarks: 0, totalMarks: 0 };
+  }
+
+  // Handle if it's already an object with awardedMarks/totalMarks
+  if (typeof scoreInput === 'object') {
+    if ('awardedMarks' in scoreInput) {
+      return {
+        awardedMarks: Number(scoreInput.awardedMarks) || 0,
+        totalMarks: Number(scoreInput.totalMarks) || 0
+      };
+    }
+    // Handle if it has scoreText
+    if (scoreInput.scoreText) {
+      return parseScore(scoreInput.scoreText);
+    }
+  }
+
+  const scoreStr = String(scoreInput);
+
+  // Handle number input
+  if (!isNaN(Number(scoreStr)) && !scoreStr.includes('/')) {
+    return { awardedMarks: Number(scoreStr), totalMarks: 0 };
+  }
+
+  const parts = scoreStr.split('/');
+  if (parts.length === 2) {
+    const awarded = parseFloat(parts[0]);
+    const total = parseFloat(parts[1]);
+    return {
+      awardedMarks: isNaN(awarded) ? 0 : awarded,
+      totalMarks: isNaN(total) ? 0 : total
+    };
+  }
+  const awarded = parseFloat(scoreStr);
+  return { awardedMarks: isNaN(awarded) ? 0 : awarded, totalMarks: 0 };
+}
+

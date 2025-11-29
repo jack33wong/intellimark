@@ -855,23 +855,23 @@ export class MarkingInstructionService {
     const RESET = '\x1b[0m';
 
     // TEMPORARILY DISABLED: Detailed prompt logging
-    console.log('');
-    console.log(`${RED}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
+    // console.log('');
+    // console.log(`${RED}📝 [AI PROMPT] Q${questionNumber}${RESET}`);
 
     // Extract content sections from the actual userPrompt (reuse the real prompt, just extract content)
     if (userPrompt) {
       // 1. Extract Question Text
       const questionTextMatch = userPrompt.match(/Question:\s*\n([\s\S]*?)(?=\n\n|Total Marks|$)/);
       if (questionTextMatch && questionTextMatch[1]) {
-        console.log(`${MAGENTA}Question Text:${RESET}`);
-        console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
+        // console.log(`${MAGENTA}Question Text:${RESET}`);
+        // console.log(MAGENTA + questionTextMatch[1].trim() + RESET);
       }
 
       // 2. Extract Classification Student Work
       const classificationMatch = userPrompt.match(/STUDENT WORK \(STRUCTURED\):\s*\n([\s\S]*?)(?=\n\n|RAW OCR BLOCKS|$)/);
       if (classificationMatch && classificationMatch[1]) {
-        console.log(`${YELLOW}Classification Student Work:${RESET}`);
-        console.log(YELLOW + classificationMatch[1].trim() + RESET);
+        // console.log(`${YELLOW}Classification Student Work:${RESET}`);
+        // console.log(YELLOW + classificationMatch[1].trim() + RESET);
       }
 
       // 3. Extract OCR Blocks

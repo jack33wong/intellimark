@@ -666,6 +666,9 @@ export function buildPageToQuestionNumbersMap(
       }
     }
 
+    // DEBUG: Log processing for each question
+    // console.log(`[SORT DEBUG] Processing Q${baseQNum}. Grouped: ${!!subQuestionNumbers}, Annotations: ${qr.annotations?.length || 0}`);
+
     if (subQuestionNumbers && subQuestionNumbers.length > 0) {
       // This is a grouped sub-question - map each page to its corresponding sub-question number
       // Get all pages that have annotations for this question
@@ -698,6 +701,7 @@ export function buildPageToQuestionNumbersMap(
 
         if (subQNum) {
           const sortValue = getQuestionSortValue(subQNum);
+          // console.log(`[SORT DEBUG]   -> Page ${pageIndex} mapped to ${subQNum} (Sort: ${sortValue})`);
           if (sortValue !== Infinity && sortValue > 0) {
             if (!pageToQuestionNumbers.has(pageIndex)) {
               pageToQuestionNumbers.set(pageIndex, []);
@@ -725,15 +729,20 @@ export function buildPageToQuestionNumbersMap(
       if (pageIndex !== undefined) {
         // Convert question number to sortable value (preserves sub-question order)
         const sortValue = getQuestionSortValue(baseQNum);
+        // console.log(`[SORT DEBUG]   -> Page ${pageIndex} mapped to Q${baseQNum} (Sort: ${sortValue})`);
         if (sortValue !== Infinity && sortValue > 0) {
           if (!pageToQuestionNumbers.has(pageIndex)) {
             pageToQuestionNumbers.set(pageIndex, []);
           }
           pageToQuestionNumbers.get(pageIndex)!.push(sortValue);
         }
+      } else {
+        // console.log(`[SORT DEBUG]   -> Q${baseQNum} has no valid pageIndex from annotations`);
       }
     }
   });
+
+  // console.log('[SORT DEBUG] Final Page Map:', Object.fromEntries(Array.from(pageToQuestionNumbers.entries()).map(([k, v]) => [k, v])));
 
   return pageToQuestionNumbers;
 }
