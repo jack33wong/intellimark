@@ -69,7 +69,8 @@ export async function executeMarkingForQuestion(
   task: MarkingTask,
   res: any, // Pass the Response object for SSE updates
   submissionId: string, // Pass submissionId for context in SSE
-  model: ModelType = 'auto' // Pass the AI model to use for marking
+  model: ModelType = 'auto', // Pass the AI model to use for marking
+  allPagesOcrData?: any[] // Pass all pages OCR data for multi-page context
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;
@@ -118,7 +119,7 @@ export async function executeMarkingForQuestion(
       stepsDataForMapping = task.aiSegmentationResults.map((result, stepIndex) => {
         // Find the corresponding block by blockId
         const matchingBlock = task.mathBlocks.find(block => {
-          const blockId = (block as any).globalBlockId || `${block.pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
+          const blockId = (block as any).globalBlockId || `${(block as any).pageIndex}_${block.coordinates?.x}_${block.coordinates?.y}`;
           return blockId === result.blockId;
         });
 
@@ -131,6 +132,8 @@ export async function executeMarkingForQuestion(
         } else if (result.content?.includes('[DRAWING]')) {
           // For drawings without OCR coordinates, estimate bbox from position information
           // First try to get position from result.content, then fall back to classificationStudentWork
+          let pageIndex = -1;
+          const annotationText = result.content.toLowerCase();
           let positionMatch = result.content.match(/\[POSITION:\s*([^\]]+)\]/i);
           let position: string | null = null;
 
@@ -166,92 +169,88 @@ export async function executeMarkingForQuestion(
             }
           }
 
-          if (position) {
-            let pageIndex = matchingBlock ? ((matchingBlock as any).pageIndex ?? -1) : -1;
 
-            // NEW: If no OCR match, try to find page from classification blocks
-            if (pageIndex === -1 && task.classificationBlocks && task.classificationBlocks.length > 0) {
-              // 1. Try to find a block that matches the annotation text
-              const annotationText = result.content.toLowerCase();
+          // Prioritize blocks that look like drawings if the annotation is a drawing
+          const isDrawing = annotationText.includes('drawing') || annotationText.includes('graph');
 
-              // Prioritize blocks that look like drawings if the annotation is a drawing
-              const isDrawing = annotationText.includes('drawing') || annotationText.includes('graph');
+          let bestBlockIndex = -1;
 
-              let bestBlockIndex = -1;
+          for (let i = 0; i < task.classificationBlocks.length; i++) {
+            const block = task.classificationBlocks[i];
+            const blockText = block.text.toLowerCase();
 
-              for (let i = 0; i < task.classificationBlocks.length; i++) {
-                const block = task.classificationBlocks[i];
-                const blockText = block.text.toLowerCase();
-
-                // Exact(ish) match
-                if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
-                  bestBlockIndex = i;
-                  break;
-                }
-
-                // If it's a drawing annotation, look for drawing blocks
-                if (isDrawing && (blockText.includes('[drawing]') || blockText.includes('graph'))) {
-                  // Keep this as a candidate, but prefer text match
-                  if (bestBlockIndex === -1) bestBlockIndex = i;
-                }
-              }
-
-              if (bestBlockIndex !== -1) {
-                pageIndex = task.classificationBlocks[bestBlockIndex].pageIndex;
-                console.log(`[MARKING EXECUTOR] Found page ${pageIndex} for drawing annotation from classification block`);
-              } else {
-                console.log(`[MARKING EXECUTOR] ⚠️ Could not find matching classification block for drawing annotation: "${annotationText}"`);
-                console.log(`[MARKING EXECUTOR] Available classification blocks:`, task.classificationBlocks.map(b => b.text.substring(0, 20)));
-              }
+            // Exact(ish) match
+            if (blockText.includes(annotationText) || annotationText.includes(blockText)) {
+              bestBlockIndex = i;
+              break;
             }
 
-            // Fallback to first source page if still not found
-            if (pageIndex === -1) {
-              console.log(`[MARKING EXECUTOR] ⚠️ Fallback to first source page for drawing annotation`);
-              pageIndex = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
-            }
-            const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
-            if (percentMatch) {
-              const pageDims = task.pageDimensions?.get(pageIndex);
-              const pageWidth = pageDims?.width || 2000;
-              const pageHeight = pageDims?.height || 3000;
-              const xPercent = parseFloat(percentMatch[1]);
-              const yPercent = parseFloat(percentMatch[2]);
-
-              // Determine drawing dimensions based on type
-              let drawingWidth = 300;
-              let drawingHeight = 300;
-              if (result.content.includes('marked at') || result.content.includes('Center of rotation') ||
-                result.content.includes('Mark') || (result.content.includes('at (') && !result.content.includes('vertices'))) {
-                drawingWidth = 80;
-                drawingHeight = 80;
-              } else if (result.content.includes('Coordinate grid') || (result.content.includes('triangle') && result.content.includes('vertices'))) {
-                drawingWidth = 200;
-                drawingHeight = 200;
-              } else if (result.content.includes('Histogram')) {
-                drawingWidth = 400;
-                drawingHeight = 300;
-              } else if (result.content.includes('Graph')) {
-                drawingWidth = 400;
-                drawingHeight = 300;
-              }
-
-              // Position represents center, so calculate top-left corner
-              const centerX = (xPercent / 100) * pageWidth;
-              const centerY = (yPercent / 100) * pageHeight;
-              const x = centerX - (drawingWidth / 2);
-              const y = centerY - (drawingHeight / 2);
-
-              bbox = [Math.max(0, x), Math.max(0, y), drawingWidth, drawingHeight];
+            // If it's a drawing annotation, look for drawing blocks
+            if (isDrawing && (blockText.includes('[drawing]') || blockText.includes('graph'))) {
+              // Keep this as a candidate, but prefer text match
+              if (bestBlockIndex === -1) bestBlockIndex = i;
             }
           }
+
+          if (bestBlockIndex !== -1) {
+            pageIndex = task.classificationBlocks[bestBlockIndex].pageIndex;
+            console.log(`[MARKING EXECUTOR] Found page ${pageIndex} for drawing annotation from classification block`);
+          } else {
+            console.log(`[MARKING EXECUTOR] ⚠️ Could not find matching classification block for drawing annotation: "${annotationText}"`);
+            console.log(`[MARKING EXECUTOR] Available classification blocks:`, task.classificationBlocks.map(b => b.text.substring(0, 20)));
+          }
+
+          // Fallback to first source page if still not found
+          if (pageIndex === -1) {
+            console.log(`[MARKING EXECUTOR] ⚠️ Fallback to first source page for drawing annotation`);
+            pageIndex = (task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0);
+          }
+          const percentMatch = position.match(/x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+          if (percentMatch) {
+            const pageDims = task.pageDimensions?.get(pageIndex);
+            const pageWidth = pageDims?.width || 2000;
+            const pageHeight = pageDims?.height || 3000;
+            const xPercent = parseFloat(percentMatch[1]);
+            const yPercent = parseFloat(percentMatch[2]);
+
+            // Determine drawing dimensions based on type
+            let drawingWidth = 300;
+            let drawingHeight = 300;
+            if (result.content.includes('marked at') || result.content.includes('Center of rotation') ||
+              result.content.includes('Mark') || (result.content.includes('at (') && !result.content.includes('vertices'))) {
+              drawingWidth = 80;
+              drawingHeight = 80;
+            } else if (result.content.includes('Coordinate grid') || (result.content.includes('triangle') && result.content.includes('vertices'))) {
+              drawingWidth = 200;
+              drawingHeight = 200;
+            } else if (result.content.includes('Histogram')) {
+              drawingWidth = 400;
+              drawingHeight = 300;
+            } else if (result.content.includes('Graph')) {
+              drawingWidth = 400;
+              drawingHeight = 300;
+            }
+
+            // Position represents center, so calculate top-left corner
+            const centerX = (xPercent / 100) * pageWidth;
+            const centerY = (yPercent / 100) * pageHeight;
+            const x = centerX - (drawingWidth / 2);
+            const y = centerY - (drawingHeight / 2);
+
+            bbox = [Math.max(0, x), Math.max(0, y), drawingWidth, drawingHeight];
+          }
         }
+
 
         // NEW: Fallback for non-drawing text when OCR mapping failed
         // Use classification block metadata to estimate position
         // Use classification block metadata to estimate position
         let matchingBlockIndex = -1;
-        if (bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 0 && bbox[3] === 0 && task.classificationBlocks && task.classificationBlocks.length > 0) {
+        // CRITICAL: Do NOT use this fallback for [DRAWING] entries. If a drawing has no position from the drawing logic above,
+        // it means it's likely a false positive (phantom drawing) and should be filtered out, not assigned a default position.
+        const isDrawingEntry = result.content.includes('[DRAWING]');
+
+        if (!isDrawingEntry && bbox[0] === 0 && bbox[1] === 0 && bbox[2] === 0 && bbox[3] === 0 && task.classificationBlocks && task.classificationBlocks.length > 0) {
           // Try to find which classification block this annotation text came from
           const annotationText = result.content.substring(0, 30).toLowerCase(); // First 30 chars for matching
 
@@ -293,6 +292,14 @@ export async function executeMarkingForQuestion(
           bbox,
           ocrSource: matchingBlockIndex >= 0 ? 'estimated' : undefined // Flag as estimated if using classification block fallback
         };
+      }).filter(step => {
+        // Filter out [DRAWING] entries that have no valid position (bbox is [0,0,0,0])
+        // This hides "phantom" drawings where the AI hallucinated a [DRAWING] tag but no position was found
+        if (step.text.includes('[DRAWING]') && step.bbox[0] === 0 && step.bbox[1] === 0 && step.bbox[2] === 0 && step.bbox[3] === 0) {
+          console.log(`[MARKING EXECUTOR] 👻 Filtering out phantom drawing (no position): "${step.text.substring(0, 50)}..."`);
+          return false;
+        }
+        return true;
       });
     } else {
       // Enhanced marking mode: Use OCR blocks directly (no matching logic)
@@ -617,7 +624,7 @@ export async function executeMarkingForQuestion(
       return {
         id: blockId,
         text: block.mathpixLatex || block.googleVisionText || '',
-        pageIndex: block.pageIndex ?? task.sourcePages[0] ?? 0,
+        pageIndex: (block as any).pageIndex ?? task.sourcePages[0] ?? 0,
         coordinates: block.coordinates ? {
           x: block.coordinates.x,
           y: block.coordinates.y
@@ -635,18 +642,10 @@ export async function executeMarkingForQuestion(
 
       // Add each drawing block to rawOcrBlocks
       drawingBlocks.forEach((drawingBlock) => {
-        // Extract position from drawing text for coordinates
-        const positionMatch = drawingBlock.text.match(/\[POSITION:\s*x\s*=\s*(\d+(?:\.\d+)?)%\s*,\s*y\s*=\s*(\d+(?:\.\d+)?)%/i);
+        // Use bbox center as coordinates if available (bbox is [x, y, width, height])
         let coordinates: { x: number; y: number } | undefined = undefined;
 
-        if (positionMatch && drawingBlock.bbox) {
-          // Use bbox center as coordinates (bbox is [x, y, width, height])
-          coordinates = {
-            x: drawingBlock.bbox[0] + drawingBlock.bbox[2] / 2,
-            y: drawingBlock.bbox[1] + drawingBlock.bbox[3] / 2
-          };
-        } else if (drawingBlock.bbox) {
-          // Fallback: use bbox center
+        if (drawingBlock.bbox && (drawingBlock.bbox[0] !== 0 || drawingBlock.bbox[1] !== 0)) {
           coordinates = {
             x: drawingBlock.bbox[0] + drawingBlock.bbox[2] / 2,
             y: drawingBlock.bbox[1] + drawingBlock.bbox[3] / 2
@@ -693,7 +692,8 @@ export async function executeMarkingForQuestion(
       } as any, // Type assertion for mock object
       questionDetection: task.markingScheme, // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
       questionText: questionText, // Pass question text from fullExamPapers to AI prompt
-      questionNumber: String(questionId) // Pass question number (may include sub-question part like "17a", "17b")
+      questionNumber: String(questionId), // Pass question number (may include sub-question part like "17a", "17b")
+      allPagesOcrData: allPagesOcrData // Pass all pages OCR data for multi-page context
     });
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
@@ -711,7 +711,8 @@ export async function executeMarkingForQuestion(
       markingResult.annotations || [],
       stepsDataForMapping,
       String(questionId),
-      defaultPageIndex
+      defaultPageIndex,
+      task.classificationBlocks // Pass classification blocks for sub-question page lookup
     );
 
     // 7. Generate Final Output
@@ -719,7 +720,22 @@ export async function executeMarkingForQuestion(
       questionNumber: questionId,
       score: parseScore(markingResult.studentScore),
       annotations: enrichedAnnotations,
-      usageTokens: (markingResult as any).usageTokens, // Map usageTokens correctly
+      usageTokens: (markingResult as any).usage?.llmTokens || (markingResult as any).usageTokens || 0, // Map usageTokens correctly from nested object
+      mathpixCalls: task.sourcePages ? task.sourcePages.reduce((acc, pageIndex) => {
+        // Aggregate mathpix calls from all source pages
+        // Find the page data by pageIndex (safer than array index)
+        const pageData = allPagesOcrData.find(p => p.pageIndex === pageIndex);
+        if (!pageData || !pageData.ocrData) return acc;
+
+        const calls = pageData.ocrData.usage?.mathpixCalls || (pageData.ocrData as any).mathpixCalls || 0;
+        return acc + calls;
+      }, 0) : 0,
+      confidence: task.sourcePages && task.sourcePages.length > 0 ? (
+        task.sourcePages.reduce((acc, pageIndex) => {
+          const pageData = allPagesOcrData[pageIndex];
+          return acc + ((pageData as any)?.confidence || 0.9); // Default to 0.9 if missing
+        }, 0) / task.sourcePages.length
+      ) : 0.9,
       markingScheme: task.markingScheme // Include marking scheme for reference
     };
 
@@ -736,7 +752,8 @@ const enrichAnnotationsWithPositions = (
   annotations: Annotation[],
   stepsDataForMapping: any[],
   questionId: string,
-  defaultPageIndex: number = 0 // NEW: Accept default page index (from task.sourcePages)
+  defaultPageIndex: number = 0, // NEW: Accept default page index (from task.sourcePages)
+  classificationBlocks?: any[] // NEW: Accept classification blocks for sub-question page lookup
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
@@ -842,7 +859,22 @@ const enrichAnnotationsWithPositions = (
 
         // FIX: Use defaultPageIndex if lastValidAnnotation is not available
         // This ensures we default to the question's known page (e.g. 13) instead of 0
-        const pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : defaultPageIndex;
+        let pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : defaultPageIndex;
+
+        // Try to find page index based on sub-question (e.g. "b" -> Page 14)
+        if ((anno as any).subQuestion && classificationBlocks) {
+          const subQ = (anno as any).subQuestion;
+          // Find block or sub-question in classificationBlocks that matches this subQ
+          for (const block of classificationBlocks) {
+            if (block.subQuestions) {
+              const matchingSq = block.subQuestions.find((sq: any) => sq.part === subQ);
+              if (matchingSq && matchingSq.pageIndex !== undefined) {
+                pageIndex = matchingSq.pageIndex;
+                break;
+              }
+            }
+          }
+        }
 
         // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
         // This helps frontend group annotations correctly by sub-question
@@ -1017,6 +1049,16 @@ export function createMarkingTasksFromClassification(
     const hasSubQuestions = q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
     const hasDrawing = q.hasStudentDrawing === true;
 
+    if (baseQNum === '16') {
+      console.log('[DEBUG Q16] Classification Data:', JSON.stringify({
+        hasMainLines,
+        hasSubQuestions,
+        hasDrawing,
+        studentWorkLines: q.studentWorkLines,
+        subQuestions: q.subQuestions
+      }, null, 2));
+    }
+
     if (hasMainLines || hasSubQuestions || hasDrawing) {
       // Build text from lines (if any)
       const studentWorkText = hasMainLines ? q.studentWorkLines.map((line: any) => line.text).join('\n') : '';
@@ -1036,7 +1078,7 @@ export function createMarkingTasksFromClassification(
       group.classificationBlocks.push(block as any);
 
 
-      group.aiSegmentationResults.push({
+      (group.aiSegmentationResults as any[]).push({
         content: block.text,
         studentWorkLines: q.studentWorkLines || []
       });
@@ -1054,7 +1096,7 @@ export function createMarkingTasksFromClassification(
             studentWorkLines: subQ.studentWorkLines // Store lines with positions
           } as any);
 
-          group.aiSegmentationResults.push({
+          (group.aiSegmentationResults as any[]).push({
             content: studentWorkText,
             studentWorkLines: subQ.studentWorkLines
           });
@@ -1065,6 +1107,18 @@ export function createMarkingTasksFromClassification(
 
   // Second pass: Create one task per main question (with all sub-questions grouped)
   for (const [baseQNum, group] of questionGroups.entries()) {
+    // Deduplicate aiSegmentationResults based on content to prevent repeated student work in prompt
+    // This fixes issues where the same text is attributed to multiple pages or question parts
+    const uniqueContent = new Set<string>();
+    group.aiSegmentationResults = group.aiSegmentationResults.filter(result => {
+      const normalizedContent = result.content.trim();
+      if (uniqueContent.has(normalizedContent)) {
+        return false;
+      }
+      uniqueContent.add(normalizedContent);
+      return true;
+    });
+
     // Combine all main student work parts
     let combinedMainWork = group.mainStudentWorkParts.join('\n\n');
 

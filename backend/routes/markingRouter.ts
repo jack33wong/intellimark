@@ -486,6 +486,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         }
       }));
       standardizedPages = standardizedPages.filter((page): page is StandardizedPage => page !== null);
+
+      // REVERT: User requested to rely on upload index, not filename sort.
+      // "you cannot count one filename, we count on upload index instead"
+      // standardizedPages.sort((a, b) => a.originalFileName.localeCompare(b.originalFileName, undefined, { numeric: true, sensitivity: 'base' }));
+
+      // Debug log to verify upload order
+      console.log('[DEBUG] Uploaded File Order:');
+      standardizedPages.forEach((p, i) => {
+        console.log(`[DEBUG] Index ${i}: ${p.originalFileName}`);
+      });
+
+      // Re-assign pageIndex based on upload order (User Design)
+      standardizedPages.forEach((page, index) => {
+        page.pageIndex = index;
+      });
+
       sendSseUpdate(res, createProgressData(1, `Collected ${standardizedPages.length} image(s).`, MULTI_IMAGE_STEPS));
 
     } else {
@@ -661,7 +677,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           // Combine student work from all pages
           studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
           // Use sourceImageIndex from page with text, or first page (for backward compatibility)
-          sourceImage: standardizedPages[pageWithText.pageIndex].originalFileName,
+          sourceImage: standardizedPages[pageWithText.pageIndex]?.originalFileName || 'unknown',
           sourceImageIndex: pageWithText.pageIndex,
           // Store all page indices this question spans (for multi-page questions)
           sourceImageIndices: allPageIndices,
@@ -702,7 +718,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       category: combinedCategory,
       reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
       questions: allQuestions,
-      extractedQuestionText: allQuestions.length > 0 ? allQuestions[0].text : allClassificationResults[0]?.result?.extractedQuestionText,
+      text: (allClassificationResults[0]?.result?.questions && allClassificationResults[0]?.result?.questions[0]) ? allClassificationResults[0]?.result?.questions[0].text : '',
       apiUsed: allClassificationResults[0]?.result?.apiUsed || 'Unknown',
       usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0),
       hasMixedContent: hasMixedContent,
@@ -712,7 +728,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0
       ? classificationResult.questions[0].text
-      : classificationResult?.extractedQuestionText;
+      : '';
 
 
     logClassificationComplete();
@@ -807,7 +823,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           ocrData: {
             text: '',
             mathBlocks: [],
-            rawResponse: { rawLineData: [] }
+            rawResponse: { rawLineData: [] },
+            boundingBoxes: [],
+            confidence: 1,
+            dimensions: { width: 0, height: 0 },
+            symbols: [],
+            processingTime: 0
           },
           classificationText: globalQuestionText
         };
@@ -825,7 +846,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           ocrData: {
             text: '',
             mathBlocks: [],
-            rawResponse: { rawLineData: [] }
+            rawResponse: { rawLineData: [] },
+            boundingBoxes: [],
+            confidence: 1,
+            dimensions: { width: 0, height: 0 },
+            symbols: [],
+            processingTime: 0
           },
           classificationText: globalQuestionText
         };
@@ -843,6 +869,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     });
 
     allPagesOcrData = await Promise.all(pageProcessingPromises);
+
+    // Aggregate Mathpix calls from OCR results
+    allPagesOcrData.forEach((pageData, idx) => {
+      if (pageData.ocrData?.usage?.mathpixCalls) {
+        totalMathpixCalls += pageData.ocrData.usage.mathpixCalls;
+      } else if ((pageData.ocrData as any)?.mathpixCalls) {
+        // Fallback for flat structure
+        totalMathpixCalls += (pageData.ocrData as any).mathpixCalls;
+      } else {
+        console.log(`[DEBUG OCR] Page ${idx} missing mathpixCalls. Usage:`, pageData.ocrData?.usage);
+      }
+    });
+
     logOcrComplete();
     sendSseUpdate(res, createProgressData(3, 'OCR & Classification complete.', MULTI_IMAGE_STEPS));
     // ========================== END: IMPLEMENT STAGE 2 ==========================
@@ -988,8 +1027,15 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       const finalOutput = {
         submissionId,
         annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
-        outputFormat: isPdf ? 'pdf' : 'images'
+        outputFormat: isPdf ? 'pdf' : 'images',
+        processingStats: {
+          totalLLMTokens,
+          totalMathpixCalls
+        }
       };
+      // Log the final stats to debug "Mathpix = 0" issue
+      console.log('[DEBUG FINAL] processingStats:', JSON.stringify(finalOutput.processingStats, null, 2));
+
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
       res.end();
       return; // Exit early
@@ -1027,12 +1073,58 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       'AI Marking',
       actualModel,
       async () => {
-        const markingPromises = tasksWithSchemes.map(task => // <-- Use tasksWithSchemes
-          executeMarkingForQuestion(task, res, submissionId, actualModel) // Pass res, submissionId, and actualModel
-        );
-        return Promise.all(markingPromises);
+        // Implement Worker Pool for Marking (Concurrency Limit: 10)
+        // This prevents "thundering herd" on the API and network saturation
+        const MARKING_CONCURRENCY = 10;
+        const results: QuestionResult[] = [];
+        const queue = [...tasksWithSchemes];
+        let activeWorkers = 0;
+
+        return new Promise<QuestionResult[]>((resolve, reject) => {
+          const processNext = () => {
+            // Check if we're done
+            if (queue.length === 0 && activeWorkers === 0) {
+              resolve(results);
+              return;
+            }
+
+            // Start new workers if we have capacity and tasks
+            while (activeWorkers < MARKING_CONCURRENCY && queue.length > 0) {
+              const task = queue.shift();
+              if (task) {
+                activeWorkers++;
+                executeMarkingForQuestion(task, res, submissionId, actualModel, allPagesOcrData)
+                  .then(result => {
+                    results.push(result);
+                  })
+                  .catch(error => {
+                    console.error(`❌ Worker failed for Q${task.questionNumber}:`, error);
+                    // Don't reject the whole batch, just log and continue (maybe push a failed result?)
+                    // For now, we'll just let it be missing from results, or we could push a dummy error result
+                  })
+                  .finally(() => {
+                    activeWorkers--;
+                    processNext();
+                  });
+              }
+            }
+          };
+
+          // Kick off the first batch
+          processNext();
+        });
       }
     );
+
+    // Aggregate usage stats from marking results
+    if (allQuestionResults) {
+      console.log('[DEBUG STATS] allQuestionResults sample:', JSON.stringify(allQuestionResults[0], null, 2));
+      allQuestionResults.forEach(qr => {
+        if (qr.usageTokens) totalLLMTokens += qr.usageTokens;
+        if (qr.mathpixCalls) totalMathpixCalls += qr.mathpixCalls;
+      });
+    }
+
     sendSseUpdate(res, createProgressData(6, 'All questions marked.', MULTI_IMAGE_STEPS));
     logMarkingComplete();
     // ========================== END: IMPLEMENT STAGE 4 ==========================
@@ -1191,45 +1283,114 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       ? buildClassificationPageToSubQuestionMap(classificationResult)
       : new Map<number, Map<string, string>>();
 
-    // Create mapping from pageIndex to question numbers (for past paper sorting)
-    const pageToQuestionNumbers = isPastPaper
-      ? buildPageToQuestionNumbersMap(allQuestionResults, markingSchemesMap, classificationPageToSubQuestion)
-      : new Map<number, number[]>();
+    // Create mapping from pageIndex to question numbers using MARKING RESULTS (Ground Truth)
+    // This ensures that if Q11b is marked on Page 13, Page 13 is associated with Q11b.
+    const pageToQuestionNumbers = new Map<number, number[]>();
+    allQuestionResults.forEach(qr => {
+      // Extract numeric part of question number and sub-question
+      // e.g. "11b" -> 11.2, "11" -> 11.0, "11a" -> 11.1
+      const qStr = String(qr.questionNumber || '');
+      const mainNum = parseFloat(qStr.replace(/[^\d.]/g, '') || 'Infinity');
+
+      let subVal = 0;
+      const subMatch = qStr.match(/[a-z]/i);
+      if (subMatch) {
+        // a=0.1, b=0.2, etc.
+        subVal = (subMatch[0].toLowerCase().charCodeAt(0) - 96) * 0.1;
+      }
+
+      const sortKey = mainNum + subVal;
+
+      if (isNaN(sortKey)) return;
+
+      qr.annotations?.forEach(anno => {
+        if (anno.pageIndex !== undefined && anno.pageIndex >= 0) {
+          if (!pageToQuestionNumbers.has(anno.pageIndex)) {
+            pageToQuestionNumbers.set(anno.pageIndex, []);
+          }
+          pageToQuestionNumbers.get(anno.pageIndex)?.push(sortKey);
+        }
+      });
+    });
 
     // Create array with page info and annotated output for sorting
-    const pagesWithOutput = standardizedPages.map((page, index) => ({
-      page,
-      annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
-      pageNumber: extractPageNumber(page.originalFileName),
-      isMetadataPage: (page as any).isMetadataPage || false,
-      originalIndex: index,
-      pageIndex: page.pageIndex,
-      // For past paper: get lowest question number on this page
-      lowestQuestionNumber: isPastPaper
-        ? (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity
-        : Infinity
-    }));
+    const pagesWithOutput = standardizedPages.map((page, index) => {
+      const pageNum = extractPageNumber(page.originalFileName);
+      // Fallback: If page is "Page 1" and has no questions, treat as Metadata (sort first)
+      const isLikelyMetadata = (page as any).isMetadataPage || (pageNum === 1 && (!pageToQuestionNumbers.has(page.pageIndex)));
 
-    // Sort: metadata pages first, then by page number (if available), then by question number
-    // Debug logging for sorting (Removed as requested)
+      let lowestQ = (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity;
 
-    // Sort: metadata pages first, then by question number, then by upload sequence
+      // HEURISTIC FALLBACK: If Marking AI missed this page (Infinity), try to find Q# in OCR data
+      if (lowestQ === Infinity) {
+        const ocrData = allPagesOcrData.find(d => d.pageIndex === page.pageIndex);
+        if (ocrData) {
+          // Try classification text first, then OCR text
+          const textToCheck = ocrData.classificationText || ocrData.ocrData?.text || '';
+          // Look for pattern like "11b" or "Q11" at start of text
+          const match = textToCheck.match(/(?:^|\s)(?:Q)?(\d+)([a-z])?(?:\s|$)/i);
+          if (match) {
+            const mainNum = parseFloat(match[1]);
+            let subVal = 0;
+            if (match[2]) {
+              subVal = (match[2].toLowerCase().charCodeAt(0) - 96) * 0.1;
+            }
+            if (!isNaN(mainNum)) {
+              lowestQ = mainNum + subVal;
+              // console.log(`[SORT FIX] Recovered Q${mainNum}${match[2]||''} for Page ${pageNum} from OCR text`);
+            }
+          }
+        }
+      }
+
+      return {
+        page,
+        annotatedOutput: isAuthenticated ? annotatedImageLinks[index] : annotatedImagesBase64[index],
+        pageNumber: pageNum,
+        isMetadataPage: isLikelyMetadata,
+        originalIndex: index,
+        pageIndex: page.pageIndex,
+        lowestQuestionNumber: lowestQ
+      };
+    });
+
+    // ========================== CRITICAL: FINAL SORTING LOGIC ==========================
+    // DO NOT MODIFY WITHOUT FULL UNDERSTANDING OF THE FOLLOWING EDGE CASES:
+    // 1. Sub-Question Precision: "11a" (11.1) must come before "11b" (11.2).
+    // 2. Orphan Pages: Pages missed by Marking AI (e.g. Page 13) must be recovered via Heuristic Fallback.
+    // 3. Physical Order: Fallback must use Page Number (filename), NOT Upload Index, to handle disordered uploads.
+    // ===================================================================================
+
+    // Sort: metadata pages first, then by question number, then by page number
     pagesWithOutput.sort((a, b) => {
       // 1. Metadata pages come first
       if (a.isMetadataPage && !b.isMetadataPage) return -1;
       if (!a.isMetadataPage && b.isMetadataPage) return 1;
 
-      // 2. If both pages have detected questions, sort by Question Number
-      // This handles jumbled scans where the user wants question order
-      if (isPastPaper && a.lowestQuestionNumber !== Infinity && b.lowestQuestionNumber !== Infinity) {
+      // 2. Determine if pages have detected questions (or recovered via heuristic)
+      const aHasQuestions = a.lowestQuestionNumber !== Infinity;
+      const bHasQuestions = b.lowestQuestionNumber !== Infinity;
+
+      // 3. Priority: Has Questions > No Questions
+      if (aHasQuestions && !bHasQuestions) return -1;
+      if (!aHasQuestions && bHasQuestions) return 1;
+
+      // 4. If both have questions, sort by Question Number (including sub-question precision)
+      if (aHasQuestions && bHasQuestions) {
         return a.lowestQuestionNumber - b.lowestQuestionNumber;
       }
 
-      // 3. Fallback: If one or both pages have NO detected questions, use Upload Sequence
-      // This ensures that pages with missed detection (e.g. Page 13) stay in their physical position
-      // instead of being pushed to the end.
-      return a.originalIndex - b.originalIndex;
+      // 5. Fallback: Use Page Number (Physical Document Order) instead of Upload Index
+      // This ensures Page 12 comes before Page 13 even if Page 13 was uploaded first.
+      return a.pageNumber - b.pageNumber;
     });
+
+    // Debug log for Mathpix calls
+    console.log(`[DEBUG OCR] Aggregating Mathpix Calls...`);
+    allPagesOcrData.forEach((p, i) => {
+      console.log(`[DEBUG OCR] Page ${i} Usage:`, JSON.stringify(p.ocrData?.usage));
+    });
+    console.log(`[DEBUG OCR] Total Mathpix Calls aggregated: ${totalMathpixCalls}`);
 
     // Extract sorted annotated output
     const finalAnnotatedOutput: string[] = pagesWithOutput.map(item => item.annotatedOutput);
@@ -1338,8 +1499,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           questionOnlyResponses = await Promise.all(
             questionOnlyImages.map(async (page, index) => {
               const originalIndex = standardizedPages.indexOf(page);
-              const questionText = allClassificationResults[originalIndex]?.result?.extractedQuestionText ||
-                classificationResult.questions[originalIndex]?.text || '';
+              const questionText = classificationResult.questions[originalIndex]?.text || '';
 
               const response = await MarkingServiceLocator.generateChatResponse(
                 page.imageData,
@@ -1430,7 +1590,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         markingSchemesMap,
         files,
         model: actualModel,
-        usageTokens: 0
+        usageTokens: totalLLMTokens
       };
       stepTimings['database_persistence'] = { start: Date.now() };
       persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
@@ -1501,6 +1661,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================== END: DATABASE PERSISTENCE ==========================
 
 
+    // ========================== CRITICAL: FINAL SORTING ==========================
+    // Sort results by Question Number (Metadata first, then Q1, Q2...)
+    // This matches the user's explicit requirement: "sort by question number , meta page at the begining"
+    allQuestionResults.sort((a, b) => {
+      // Handle metadata/no-question-number cases (show first)
+      const qA = a.questionNumber;
+      const qB = b.questionNumber;
+
+      const isInvalidA = !qA || qA === 'null' || qA === 'undefined';
+      const isInvalidB = !qB || qB === 'null' || qB === 'undefined';
+
+      if (isInvalidA && isInvalidB) return 0;
+      if (isInvalidA) return -1;
+      if (isInvalidB) return 1;
+
+      // Use alphanumeric sort to handle sub-questions correctly (e.g. 11a vs 11b)
+      return String(qA).localeCompare(String(qB), undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     // Construct unified finalOutput that works for both authenticated and unauthenticated users
     const finalOutput = {
       success: true, // Add success flag for frontend compatibility
@@ -1511,13 +1690,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         modelUsed: getRealModelName(actualModel),
         totalMarks: totalPossibleScore, // Use the grouped total marks calculation
         awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
-        questionCount: allQuestionResults.length
+        questionCount: allQuestionResults.length,
+        usageTokens: totalLLMTokens,
+        mathpixCalls: totalMathpixCalls
       },
       annotatedOutput: finalAnnotatedOutput,
       outputFormat: outputFormat,
       originalInputType: isPdf ? 'pdf' : 'images',
       // Always include unifiedSession for consistent frontend handling
       unifiedSession: unifiedSession,
+      results: allQuestionResults,
+      metadata: {
+        totalQuestions: allQuestionResults.length,
+        totalScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.awardedMarks || 0), 0),
+        maxScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.totalMarks || 0), 0),
+        processingTime: (Date.now() - startTime) / 1000
+      },
       // Add PDF context for frontend display
       ...(pdfContext && {
         originalFileType: pdfContext.originalFileType,
@@ -1538,51 +1726,94 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // ========================== ANNOTATION SUMMARY ==========================
     console.log('\n📊 [ANNOTATION SUMMARY]');
-    console.log('-----------------------------------------------------------------------');
-    console.log('| Q#       | WB (Lines)| Drw | Ann | Status (Match/Fallback/Split)    |');
-    console.log('|----------|-----------|-----|-----|----------------------------------|');
+    const ANN_COL_WIDTH = 30;
+    // Header line
+    console.log('------------------------------------------------------------------------------------------------------');
+    console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Fallback/Split             |`);
+    console.log(`|----------|-------|-----------|${'-'.repeat(45)}|----------------------------------|`);
 
-    // Sort results by question number
-    const sortedResults = [...allQuestionResults].sort((a, b) => {
-      const numA = parseInt(String(a.questionNumber).replace(/\D/g, '')) || 0;
-      const numB = parseInt(String(b.questionNumber).replace(/\D/g, '')) || 0;
-      return numA - numB;
-    });
+
+
+    const sortedResults = allQuestionResults; // Now sorted in place
 
     sortedResults.forEach(result => {
       const qNum = String(result.questionNumber).padEnd(8);
+
+      // Extract Score
+      let scoreStr = '-';
+      const r = result as any;
+      const scoreObj = r.studentScore || r.score;
+
+      if (scoreObj) {
+        if (scoreObj.scoreText) {
+          scoreStr = scoreObj.scoreText;
+        } else if (typeof scoreObj.awardedMarks === 'number') {
+          scoreStr = `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`;
+        }
+      }
+      const paddedScore = scoreStr.padEnd(5);
 
       // We need access to the original task to count blocks/drawings
       const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
 
       if (String(result.questionNumber) === '11') {
         console.log(`[DEBUG Q11] Task found: ${!!task}`);
-        if (task) {
-          console.log(`[DEBUG Q11] Source Pages: ${JSON.stringify(task.sourcePages)}`);
-          console.log(`[DEBUG Q11] Classification Blocks: ${task.classificationBlocks?.length}`);
-          task.classificationBlocks?.forEach((b: any, i: number) => {
-            console.log(`[DEBUG Q11] Block ${i}: Page ${b.pageIndex}, Lines: ${b.studentWorkLines?.length}, Text: "${b.text?.substring(0, 50)}..."`);
-            if (b.subQuestions) {
-              console.log(`[DEBUG Q11]   SubQuestions: ${b.subQuestions.length}`);
-              b.subQuestions.forEach((sq: any) => {
-                console.log(`[DEBUG Q11]     SQ ${sq.part}: Lines: ${sq.studentWorkLines?.length}, HasDrawing: ${sq.hasStudentDrawing}`);
-              });
+      }
+
+      // Group annotations by sub-question
+      const annotationsBySubQ = new Map<string, string[]>();
+      const mainAnnotations: string[] = [];
+
+      if (result.annotations) {
+        result.annotations.forEach((ann: any) => {
+          const text = ann.text || '';
+          if (text) {
+            const codes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+            if (ann.subQuestion && ann.subQuestion !== 'null') {
+              const key = ann.subQuestion;
+              if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
+              annotationsBySubQ.get(key)!.push(...codes);
+            } else {
+              mainAnnotations.push(...codes);
             }
-          });
-        }
+          }
+        });
       }
 
       // Sub-questions collection
-      const subQuestionStats: Array<{ label: string, wb: number, drw: number }> = [];
+      const subQuestionStats: Array<{ label: string, wb: number, drw: number, annotations: string }> = [];
 
-      // Work Blocks: Count Lines (Main + Sub-questions)
+      // Work Blocks & Drawings: Count Lines (Main + Sub-questions)
       let lineCount = 0;
+      let drawingCount = 0;
+
       if (task && task.classificationBlocks) {
         task.classificationBlocks.forEach((b: any) => {
           // Main lines
           if (b.studentWorkLines) {
             lineCount += b.studentWorkLines.length;
+
+            // Count main drawings
+            if (b.hasStudentDrawing) {
+              drawingCount++;
+              let textDrawings = 0;
+              b.studentWorkLines.forEach((line: any) => {
+                const txt = (line.text || '').toLowerCase();
+                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                  textDrawings++;
+                }
+              });
+              if (textDrawings > 1) drawingCount += (textDrawings - 1);
+            } else {
+              b.studentWorkLines.forEach((line: any) => {
+                const txt = (line.text || '').toLowerCase();
+                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                  drawingCount++;
+                }
+              });
+            }
           }
+
           // Sub-question lines
           if (b.subQuestions && Array.isArray(b.subQuestions)) {
             b.subQuestions.forEach((sq: any) => {
@@ -1593,10 +1824,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 lineCount += sqWb; // Add to total
 
                 // Count drawings for this sub-question
-                // Check hasStudentDrawing flag first (most reliable)
                 if (sq.hasStudentDrawing) {
-                  sqDrw = 1; // Assume at least one drawing if flag is true
-                  // If we have lines, check if we can find more specific drawing lines
+                  sqDrw = 1;
                   if (sq.studentWorkLines && sq.studentWorkLines.length > 0) {
                     let textDrawings = 0;
                     sq.studentWorkLines.forEach((line: any) => {
@@ -1608,7 +1837,6 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                     if (textDrawings > 1) sqDrw = textDrawings;
                   }
                 } else {
-                  // Fallback to text check
                   sq.studentWorkLines.forEach((line: any) => {
                     const txt = (line.text || '').toLowerCase();
                     if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
@@ -1617,82 +1845,25 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                   });
                 }
               }
-              // Add to stats if there is work
-              if (sqWb > 0) {
+
+              // Add to stats if there is work OR annotations
+              const subQAnns = annotationsBySubQ.get(sq.part) || [];
+              if (sqWb > 0 || subQAnns.length > 0) {
                 subQuestionStats.push({
                   label: `${result.questionNumber}${sq.part}`,
                   wb: sqWb,
-                  drw: sqDrw
+                  drw: sqDrw,
+                  annotations: subQAnns.length > 0 ? `(${subQAnns.join(',')})` : '-'
                 });
               }
             });
           }
         });
       }
-
-      // Drawings: Check text content in studentWorkLines (Main + Sub-questions)
-      let drawingCount = 0;
-      if (task && task.classificationBlocks) {
-        task.classificationBlocks.forEach((b: any) => {
-          // Check main student work lines
-          if (b.studentWorkLines) {
-            // Check hasStudentDrawing flag on the block (now propagated from MarkingExecutor)
-            if (b.hasStudentDrawing) {
-              drawingCount++; // Add at least one
-              // Check if we can find more specific drawing lines to avoid undercounting if multiple
-              let textDrawings = 0;
-              b.studentWorkLines.forEach((line: any) => {
-                const txt = (line.text || '').toLowerCase();
-                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                  textDrawings++;
-                }
-              });
-              if (textDrawings > 1) drawingCount += (textDrawings - 1);
-            } else {
-              // Fallback to text check
-              b.studentWorkLines.forEach((line: any) => {
-                const txt = (line.text || '').toLowerCase();
-                if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                  drawingCount++;
-                }
-              });
-            }
-          }
-          // Sub-question drawings are already counted in subQuestionStats, but we need total for main row
-          if (b.subQuestions && Array.isArray(b.subQuestions)) {
-            b.subQuestions.forEach((sq: any) => {
-              if (sq.hasStudentDrawing) {
-                drawingCount++; // Add at least one
-                // Adjust if multiple text matches found? simplified to just add 1 for now if flag is set
-                // Or better: use the same logic as above
-                let textDrawings = 0;
-                if (sq.studentWorkLines) {
-                  sq.studentWorkLines.forEach((line: any) => {
-                    const txt = (line.text || '').toLowerCase();
-                    if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                      textDrawings++;
-                    }
-                  });
-                }
-                if (textDrawings > 1) drawingCount += (textDrawings - 1);
-              } else if (sq.studentWorkLines) {
-                sq.studentWorkLines.forEach((line: any) => {
-                  const txt = (line.text || '').toLowerCase();
-                  if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
-                    drawingCount++;
-                  }
-                });
-              }
-            });
-          }
-        });
-      }
-
-      const annoCount = result.annotations ? result.annotations.length : 0;
 
       let matched = 0;
       let fallback = 0;
-      let split = 0; // hasLineData === false && ocrStatus !== 'FALLBACK'
+      let split = 0;
 
       if (result.annotations) {
         result.annotations.forEach((a: any) => {
@@ -1702,20 +1873,75 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         });
       }
 
-      const statusStr = `M:${matched} F:${fallback} S:${split}`;
+      // Color M value Orange (\x1b[33m)
+      const statusStr = `M:\x1b[33m${matched}\x1b[0m F:${fallback} S:${split}`;
 
-      console.log(`| ${qNum} | ${String(lineCount).padEnd(9)} | ${String(drawingCount).padEnd(3)} | ${String(annoCount).padEnd(3)} | ${statusStr.padEnd(32)} |`);
+      // Color coding
+      const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
+
+      // DEBUG: Log annotations for Q14 to investigate count discrepancy
+      if (qNum === '14') {
+        console.log('[DEBUG Q14] Annotations:', JSON.stringify(result.annotations, null, 2));
+      }
+
+      // Annotation Count (Main Question)
+      const annotationCodes = mainAnnotations; // Renamed for clarity
+      const annotationCount = (result.annotations || []).length; // Total count
+      const annotationStr = annotationCodes.length > 0 ? `(${annotationCodes.join(',')})` : '';
+      const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
+      const matchStats = `M:${matched} F:${fallback} S:${split}`;
+
+      // If we have sub-questions with annotations, the main row count might be misleading if it only shows main annotations.
+      // But typically "11" row shows TOTAL annotations.
+      // Let's keep "11" showing TOTAL count, but list codes only for main?
+      // Or list ALL codes?
+      // The user complained "so many b1 for q11a" when looking at "11".
+      // If we split them, "11" should probably show summary or just main.
+      // Let's show TOTAL count, but codesStr only for main (or all if no sub-questions).
+
+      const totalAnnCount = (result.annotations || []).length;
+      const countStr = String(totalAnnCount);
+      const coloredCount = totalAnnCount < lineCount ? `\x1b[31m${countStr}\x1b[0m` : countStr;
+
+      // If we have sub-questions, maybe we shouldn't list all codes in the main row to avoid clutter/confusion?
+      // Let's list main codes only if there are sub-questions.
+      const displayCodesStr = subQuestionStats.length > 0 ? (mainAnnotations.length > 0 ? ` (${mainAnnotations.join(',')})` : '') : annotationStr; // Use annotationStr here
+
+      const visibleLength = countStr.length + displayCodesStr.length;
+      const paddingNeeded = Math.max(0, 45 - visibleLength); // Use 45 for the new width
+      const padding = ' '.repeat(paddingNeeded);
+
+      const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
+
+      // Calculate padding for status string (visible length)
+      const rawStatusStr = `M:${matched} F:${fallback} S:${split}`;
+      const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
+      const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
+
+      console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
+
+      // Sort sub-question rows alphabetically by label (e.g., 11a, 11b, 11c)
+      subQuestionStats.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
 
       // Print sub-question rows
       subQuestionStats.forEach(sq => {
         const sqLabel = `  ${sq.label}`.padEnd(8);
-        console.log(`| ${sqLabel} | ${String(sq.wb).padEnd(9)} | ${String(sq.drw).padEnd(3)} | -   | -                                |`);
+        const coloredSqLabel = `\x1b[92m${sqLabel}\x1b[0m`;
+
+        // Format annotation column for sub-question
+        const subCodes = annotationsBySubQ.get(sq.label.replace(String(result.questionNumber), '')) || [];
+        const subCount = subCodes.length;
+        const subAnnotationStr = subCodes.length > 0 ? `(${subCodes.join(',')})` : '';
+        const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(45); // Increased from 30 to 45
+        const subWorkBlocks = sq.wb;
+        const subDrawings = sq.drw;
+        const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
+
+        console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subAnnotationCol} | ${'-'.padEnd(33)}|`);
       });
 
-      console.log('|----------|-----------|-----|-----|----------------------------------|');
-    });
-
-    // --- Performance Summary (reuse original design) ---
+      console.log(`|----------|-------|-----------|${'-'.repeat(45)}|----------------------------------|`);
+    });   // --- Performance Summary (reuse original design) ---
     const totalProcessingTime = Date.now() - startTime;
     logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
 

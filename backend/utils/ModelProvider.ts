@@ -88,7 +88,15 @@ export class ModelProvider {
     return response;
   }
 
+  private static cachedAccessToken: string | null = null;
+  private static tokenExpiry: number = 0;
+
   static async getGeminiAccessToken(): Promise<string> {
+    // Check if cached token is valid (with 5-minute buffer)
+    if (this.cachedAccessToken && Date.now() < this.tokenExpiry - 5 * 60 * 1000) {
+      return this.cachedAccessToken;
+    }
+
     const { GoogleAuth } = await import('google-auth-library');
 
     const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
@@ -107,6 +115,15 @@ export class ModelProvider {
     if (!accessToken.token) {
       throw new Error('Failed to get access token from service account');
     }
+
+    // Cache the token
+    this.cachedAccessToken = accessToken.token;
+    // Set expiry (default to 1 hour if not provided, minus buffer)
+    // accessToken.res.data.expires_in is in seconds
+    const expiresIn = (accessToken.res?.data as any)?.expires_in || 3600;
+    this.tokenExpiry = Date.now() + (expiresIn * 1000);
+
+    console.log(`[MODEL PROVIDER] 🔑 Refreshed Google Access Token (Expires in ${expiresIn}s)`);
 
     return accessToken.token;
   }
@@ -197,13 +214,18 @@ export class ModelProvider {
   }
 
   static extractGeminiTextContent(result: any): string {
-    const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) {
-      const finishReason = result.candidates?.[0]?.finishReason;
-      if (finishReason === 'MAX_TOKENS') {
-        throw new Error('Gemini response exceeded maximum token limit. Consider increasing maxOutputTokens or reducing prompt length.');
-      }
+    const candidate = result.candidates?.[0];
+    const content = candidate?.content?.parts?.[0]?.text;
+    const finishReason = candidate?.finishReason;
 
+    // Check for truncation even if content exists
+    if (finishReason === 'MAX_TOKENS') {
+      const tokenCount = result.usageMetadata?.totalTokenCount || 'unknown';
+      const modelVersion = result.modelVersion || 'unknown';
+      throw new Error(`Gemini response truncated (MAX_TOKENS). Generated ${tokenCount} tokens using model version ${modelVersion}. The model limit may be lower than configured.`);
+    }
+
+    if (!content) {
       // Extract meaningful error from Gemini response
       const errorMessage = result.error?.message ||
         finishReason ||

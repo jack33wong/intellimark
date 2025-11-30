@@ -376,8 +376,9 @@ export class SVGOverlayService {
     let [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
-      console.error(`❌ [SVG ERROR] Annotation ${index} missing action field:`, annotation);
-      throw new Error(`Annotation ${index} missing required action field`);
+      // Log warning but don't fail the whole page
+      console.warn(`⚠️ [SVG WARNING] Annotation ${index} missing action field, skipping.`);
+      return '';
     }
     const text = annotation.text || '';
 
@@ -479,11 +480,6 @@ export class SVGOverlayService {
             fill="none" stroke="${borderColor}" stroke-width="${borderWidth}" opacity="0.8" 
             stroke-dasharray="${strokeDash}"/>`;
 
-    // Cyan circle visualization removed as requested
-
-
-
-
     // Create annotation based on type
     const reasoning = (annotation as any).reasoning;
 
@@ -505,8 +501,9 @@ export class SVGOverlayService {
         svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
         break;
       default:
-        console.error(`❌ [SVG ERROR] Unknown action type: ${action}`);
-        throw new Error(`Unknown annotation action: ${action}`);
+        // Log warning and skip instead of throwing error
+        console.warn(`⚠️ [SVG WARNING] Unknown action type: "${action}" for annotation ${index}, skipping.`);
+        return '';
     }
 
     return svg;

@@ -385,6 +385,7 @@ export class OCRService {
         };
         const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, debug);
         mathpixCalls += 1;
+        console.log(`[DEBUG OCR] Incremented mathpixCalls to ${mathpixCalls} (Primary Strategy)`);
         if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
           rawLineData = mathpixResult.line_data;
         } else {

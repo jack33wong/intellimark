@@ -169,6 +169,7 @@ export interface MarkingInputs {
   questionNumber?: string; // Question number (may include sub-question part like "17a", "17b")
   questionText?: string | null; // Question text from fullExamPapers (source for question detection)
   generalMarkingGuidance?: any; // General marking guidance from the scheme
+  allPagesOcrData?: any[]; // Array of OCR results for all pages (for multi-page context)
 }
 
 export class MarkingInstructionService {
@@ -456,6 +457,29 @@ export class MarkingInstructionService {
               );
               if (matchingBlock && matchingBlock.pageIndex != null && matchingBlock.pageIndex >= 0) {
                 pageIndex = matchingBlock.pageIndex;
+              } else if (inputs.allPagesOcrData && inputs.allPagesOcrData.length > 0) {
+                // Fallback: Search in all pages OCR data
+                for (let i = 0; i < inputs.allPagesOcrData.length; i++) {
+                  const pageData = inputs.allPagesOcrData[i];
+                  const pageBlocks = pageData.ocrData?.rawResponse?.detectedBlocks || [];
+                  const foundBlock = pageBlocks.find((block: any) =>
+                    block.id === matchingStep.globalBlockId ||
+                    (matchingStep.globalBlockId && block.id?.trim() === matchingStep.globalBlockId.trim())
+                  );
+                  if (foundBlock) {
+                    pageIndex = i; // Use the index in the array as pageIndex (assuming it matches sourceImageIndices order)
+                    // Actually, we should probably use the pageIndex from the block if available, or the index of the page in the array
+                    // The block might not have pageIndex if it's raw from Mathpix
+                    // But markingRouter passes allPagesOcrData in order.
+                    // However, we need to map this index to the global page index?
+                    // Wait, markingRouter passes `allPagesOcrData` which corresponds to `sourceImageIndices`.
+                    // So `i` here is the index into `sourceImageIndices`.
+                    // `pageIndex` in annotation usually refers to the index in `sourceImageIndices` (0, 1, 2...).
+                    // So `i` is correct.
+                    break;
+                  }
+                }
+                if (pageIndex == null) pageIndex = 0;
               } else {
                 // Use first block's pageIndex as fallback
                 pageIndex = rawOcrBlocks[0]?.pageIndex ?? 0;
@@ -994,6 +1018,112 @@ export class MarkingInstructionService {
       const RED = '\x1b[31m';
       const CYAN = '\x1b[36m';
       const RESET = '\x1b[0m';
+
+      if (String(questionNumber).replace(/[a-z]/i, '') === '8') {
+        console.log(`[DEBUG Q8] Raw AI Response:`, JSON.stringify(parsedResponse, null, 2));
+      }
+      if (String(questionNumber).replace(/[a-z]/i, '') === '16') {
+        console.log(`[DEBUG Q16] Raw AI Response:`, JSON.stringify(parsedResponse, null, 2));
+      }
+
+      // Validate and clean response structure
+      if (parsedResponse && parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
+        // 1. Deduplicate mark codes within each annotation (Refined)
+        parsedResponse.annotations = parsedResponse.annotations.map((anno: any) => {
+          // Sanitize "null" strings from AI
+          if (anno.action === 'null') anno.action = '';
+          if (anno.text === 'null') anno.text = '';
+          if (anno.subQuestion === 'null') anno.subQuestion = null;
+
+          if (anno.text && typeof anno.text === 'string') {
+            const codes = anno.text.trim().split(/\s+/);
+            // Only deduplicate codes that end in '0' (e.g. "P0", "A0")
+            // Preserve additive marks like "P1 P1" or "M1 A1"
+            const processedCodes: string[] = [];
+            const seenZeroCodes = new Set<string>();
+
+            codes.forEach(code => {
+              if (code.endsWith('0')) {
+                if (!seenZeroCodes.has(code)) {
+                  seenZeroCodes.add(code);
+                  processedCodes.push(code);
+                }
+              } else {
+                processedCodes.push(code);
+              }
+            });
+
+            const newText = processedCodes.join(' ');
+            if (newText !== anno.text.trim()) {
+              console.log(`[MARKING FIX] Deduplicated '0' codes for Q${questionNumber}: "${anno.text}" -> "${newText}"`);
+              anno.text = newText;
+            }
+          }
+          return anno;
+        });
+
+        // 2. Merge redundant annotations for the same step (Q8 Stability)
+        const mergedAnnotations: any[] = [];
+        const seenSteps = new Map<string, any>();
+
+        parsedResponse.annotations.forEach((anno: any) => {
+          const key = `${anno.step_id}_${anno.action}`;
+          if (seenSteps.has(key)) {
+            const existing = seenSteps.get(key);
+            // Merge text (mark codes)
+            const existingCodes = existing.text ? existing.text.trim().split(/\s+/) : [];
+            const newCodes = anno.text ? anno.text.trim().split(/\s+/) : [];
+
+            // Combine codes, respecting the refined deduplication logic
+            const allCodes = [...existingCodes, ...newCodes];
+            const processedCodes: string[] = [];
+            const seenZeroCodes = new Set<string>();
+
+            allCodes.forEach(code => {
+              if (code.endsWith('0')) {
+                if (!seenZeroCodes.has(code)) {
+                  seenZeroCodes.add(code);
+                  processedCodes.push(code);
+                }
+              } else {
+                processedCodes.push(code);
+              }
+            });
+
+            const combinedCodes = processedCodes.join(' ');
+
+            if (existing.text !== combinedCodes) {
+              console.log(`[MARKING FIX] Merging annotation for Q${questionNumber} step ${anno.step_id}: "${existing.text}" + "${anno.text}" -> "${combinedCodes}"`);
+              existing.text = combinedCodes;
+            }
+            // Append reasoning if different
+            if (anno.reasoning && !existing.reasoning.includes(anno.reasoning)) {
+              existing.reasoning += ` | ${anno.reasoning}`;
+            }
+          } else {
+            seenSteps.set(key, anno);
+            mergedAnnotations.push(anno);
+          }
+        });
+        parsedResponse.annotations = mergedAnnotations;
+
+        // 3. Filter out phantom drawing annotations (Q16 Fix)
+        // If an annotation is for a drawing (step_id contains 'drawing') AND has no mark code (text is empty) AND is a 'tick', remove it.
+        // This assumes that valid drawing marks should have a code like "M1" or "A1".
+        // If the AI just ticks a drawing without a code, it's likely a "phantom" or "decorative" tick.
+        parsedResponse.annotations = parsedResponse.annotations.filter((anno: any) => {
+          const isDrawing = anno.step_id && anno.step_id.includes('drawing');
+          const hasNoCode = !anno.text || anno.text.trim() === '';
+          const isTick = anno.action === 'tick';
+
+          if (isDrawing && hasNoCode && isTick) {
+            console.log(`[MARKING FIX] Filtering out phantom drawing annotation for Q${questionNumber} (no mark code):`, JSON.stringify(anno));
+            return false;
+          }
+          return true;
+        });
+      }
+
       // console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);
       // console.log('  - Annotations count:', '\x1b[35m' + (parsedResponse.annotations?.length || 0) + '\x1b[0m'); // Magenta color
       // console.log('  - Student score:', '\x1b[32m' + (parsedResponse.studentScore?.scoreText || 'None') + '\x1b[0m'); // Green color

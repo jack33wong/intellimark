@@ -35,8 +35,8 @@ interface SidebarProps {
 
 // Define the type for the service response
 interface MarkingHistoryResponse {
-    success: boolean;
-    sessions?: UnifiedSession[];
+  success: boolean;
+  sessions?: UnifiedSession[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -102,7 +102,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       setChatSessions(prevSessions => {
         const sessionsWithoutTemp = prevSessions.filter(s => !s.id.startsWith('temp-'));
-        
+
         const existingIndex = sessionsWithoutTemp.findIndex(s => s.id === updatedSession.id);
         let newSessions;
 
@@ -131,7 +131,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       cleanup();
     };
   }, [user?.uid]);
-  
+
   useEffect(() => {
     if (editingSessionId && editInputRef.current) {
       const input = editInputRef.current;
@@ -169,7 +169,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       }
     }
   };
-  
+
   const handleDropdownToggle = (sessionId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     setDropdownSessionId(prev => prev === sessionId ? null : sessionId);
@@ -189,10 +189,10 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const handleSaveTitle = async (sessionId: string) => {
     if (editingTitle.trim() === '') return;
-    
+
     try {
       const authToken = await getAuthToken();
-      if(!authToken) return;
+      if (!authToken) return;
       await MarkingHistoryService.updateSession(sessionId, { title: editingTitle.trim() }, authToken);
       const updatedSession = { ...chatSessions.find(s => s.id === sessionId), title: editingTitle.trim(), updatedAt: new Date().toISOString() } as UnifiedSession;
       EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session: updatedSession });
@@ -202,7 +202,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       console.error('Error updating session title:', error);
     }
   };
-  
+
   const handleCancelEdit = () => {
     setEditingSessionId(null);
     setEditingTitle('');
@@ -213,7 +213,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     const newFavoriteStatus = !session.favorite;
     try {
       const authToken = await getAuthToken();
-      if(!authToken) return;
+      if (!authToken) return;
       await MarkingHistoryService.updateSession(session.id, { favorite: newFavoriteStatus }, authToken);
       const updatedSession = { ...session, favorite: newFavoriteStatus, updatedAt: new Date().toISOString() };
       EventManager.dispatch(EVENT_TYPES.SESSION_UPDATED, { session: updatedSession });
@@ -236,7 +236,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         return chatSessions;
     }
   };
-  
+
   const getSessionTitle = (session: UnifiedSession) => {
     const title = session.title || 'Chat Session';
     const maxLength = 50;
@@ -251,25 +251,25 @@ const Sidebar: React.FC<SidebarProps> = ({
       default: return <BookOpen size={16} />;
     }
   };
-  
+
   const getLastMessage = (session: any) => {
     if (session?.lastMessage?.content) {
-        const contentStr = ensureStringContent(session.lastMessage.content);
-        if (contentStr.trim().length > 0) {
-            return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
-        }
+      const contentStr = ensureStringContent(session.lastMessage.content);
+      if (contentStr.trim().length > 0) {
+        return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
+      }
     }
-    
+
     if (session?.messages && session.messages.length > 0) {
-        const lastMsgWithContent = [...session.messages].reverse().find(m => m.content && !m.isProcessing);
-        if (lastMsgWithContent) {
-            const contentStr = ensureStringContent(lastMsgWithContent.content);
-            if (contentStr.trim().length > 0) {
-                return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
-            }
+      const lastMsgWithContent = [...session.messages].reverse().find(m => m.content && !m.isProcessing);
+      if (lastMsgWithContent) {
+        const contentStr = ensureStringContent(lastMsgWithContent.content);
+        if (contentStr.trim().length > 0) {
+          return contentStr.length > 20 ? `${contentStr.substring(0, 20)}...` : contentStr;
         }
+      }
     }
-    
+
     return 'No messages yet';
   };
 
@@ -295,24 +295,27 @@ const Sidebar: React.FC<SidebarProps> = ({
             {isOpen ? <Menu size={24} /> : <X size={24} />}
           </button>
           <div className="sidebar-logo" onClick={handleGoToMarkHomework}>
-            <h1 className="sidebar-logo-text">Intellimark</h1>
-            <p className="sidebar-logo-subtitle">powered by AI</p>
+            <img src="/images/logo.png" alt="IntelliMark Logo" className="sidebar-logo-img" />
+            <div>
+              <h1 className="sidebar-logo-text">AI Marking</h1>
+              {/* <p className="sidebar-logo-subtitle">powered by AI</p> */}
+            </div>
           </div>
         </div>
         <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
           <BookOpen size={20} />
           Mark Homework
         </button>
-        <button 
-          className="mark-homework-main-btn" 
+        <button
+          className="mark-homework-main-btn"
           onClick={() => navigate('/library')}
           style={{ marginTop: '8px' }}
         >
           <Library size={20} />
           Library
         </button>
-        <button 
-          className="mark-homework-main-btn" 
+        <button
+          className="mark-homework-main-btn"
           onClick={() => navigate('/analysis')}
           style={{ marginTop: '8px' }}
         >
@@ -320,61 +323,61 @@ const Sidebar: React.FC<SidebarProps> = ({
           Analysis
         </button>
         <div className="sidebar-section">
-            <div className="mark-history-tabs">
-                <button className={`mark-history-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
-                <button className={`mark-history-tab ${activeTab === 'mark' ? 'active' : ''}`} onClick={() => setActiveTab('mark')}>Mark</button>
-                <button className={`mark-history-tab ${activeTab === 'question' ? 'active' : ''}`} onClick={() => setActiveTab('question')}>Question</button>
-                <button className={`mark-history-tab ${activeTab === 'favorite' ? 'active' : ''}`} onClick={() => setActiveTab('favorite')}>Favorite</button>
-            </div>
-            <div className="mark-history-scrollable">
-                {getFilteredSessions().map((session) => (
-                    <div key={session.id} className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`} onClick={() => handleSessionClick(session)}>
-                        <div className="mark-history-icon">{getMessageTypeIcon(session.messageType)}</div>
-                        <div className="mark-history-content">
-                            <div className="mark-history-item-title">
-                                {session.favorite && <Star size={14} className="favorite-star-inline" />}
-                                {editingSessionId === session.id ? (
-                                    <input
-                                        ref={editInputRef}
-                                        type="text"
-                                        className="title-edit-input"
-                                        value={editingTitle}
-                                        onChange={(e) => setEditingTitle(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                handleSaveTitle(session.id);
-                                            }
-                                            if (e.key === 'Escape') {
-                                                e.preventDefault();
-                                                handleCancelEdit();
-                                            }
-                                        }}
-                                        onBlur={() => handleSaveTitle(session.id)}
-                                        style={{ width: '100%' }}
-                                    />
-                                ) : getSessionTitle(session)}
-                            </div>
-                            <div className="mark-history-last-message">{getLastMessage(session)}</div>
-                        </div>
-                        <div className="mark-history-actions">
-                            <div className="mark-history-time">{formatSessionDate(session)}</div>
-                            <div className="mark-history-actions-container">
-                                <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
-                                    <MoreHorizontal size={16} />
-                                </button>
-                                {dropdownSessionId === session.id && (
-                                    <div className="mark-history-dropdown">
-                                        <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
-                                        <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
-                                        <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+          <div className="mark-history-tabs">
+            <button className={`mark-history-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>All</button>
+            <button className={`mark-history-tab ${activeTab === 'mark' ? 'active' : ''}`} onClick={() => setActiveTab('mark')}>Mark</button>
+            <button className={`mark-history-tab ${activeTab === 'question' ? 'active' : ''}`} onClick={() => setActiveTab('question')}>Question</button>
+            <button className={`mark-history-tab ${activeTab === 'favorite' ? 'active' : ''}`} onClick={() => setActiveTab('favorite')}>Favorite</button>
+          </div>
+          <div className="mark-history-scrollable">
+            {getFilteredSessions().map((session) => (
+              <div key={session.id} className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`} onClick={() => handleSessionClick(session)}>
+                <div className="mark-history-icon">{getMessageTypeIcon(session.messageType)}</div>
+                <div className="mark-history-content">
+                  <div className="mark-history-item-title">
+                    {session.favorite && <Star size={14} className="favorite-star-inline" />}
+                    {editingSessionId === session.id ? (
+                      <input
+                        ref={editInputRef}
+                        type="text"
+                        className="title-edit-input"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveTitle(session.id);
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            handleCancelEdit();
+                          }
+                        }}
+                        onBlur={() => handleSaveTitle(session.id)}
+                        style={{ width: '100%' }}
+                      />
+                    ) : getSessionTitle(session)}
+                  </div>
+                  <div className="mark-history-last-message">{getLastMessage(session)}</div>
+                </div>
+                <div className="mark-history-actions">
+                  <div className="mark-history-time">{formatSessionDate(session)}</div>
+                  <div className="mark-history-actions-container">
+                    <button className="mark-history-dropdown-btn" onClick={(e) => handleDropdownToggle(session.id, e)}>
+                      <MoreHorizontal size={16} />
+                    </button>
+                    {dropdownSessionId === session.id && (
+                      <div className="mark-history-dropdown">
+                        <div className="dropdown-item" onClick={(e) => handleEditTitle(session, e)}><Edit3 size={16} /><span>Edit</span></div>
+                        <div className="dropdown-item" onClick={(e) => handleToggleFavorite(session, e)}><Heart size={16} /><span>{session.favorite ? 'Unfavorite' : 'Favorite'}</span></div>
+                        <div className="dropdown-item danger" onClick={(e) => handleDeleteSession(session.id, e)}><Trash2 size={16} /><span>Delete</span></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       {isAdmin() && (

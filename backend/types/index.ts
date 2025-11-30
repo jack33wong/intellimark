@@ -136,6 +136,7 @@ export interface Annotation {
   reasoning?: string; // Optional explanation/rationale
   ocr_match_status?: 'MATCHED' | 'FALLBACK'; // Status of OCR matching
   classification_text?: string; // Text from classification
+  subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")
 }
 
 export interface MarkingInstructions {

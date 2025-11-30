@@ -37,6 +37,7 @@ export const AI_PROMPTS = {
        - **NO HALLUCINATIONS**: Do NOT solve, do NOT add steps, do NOT correct errors. Transcribe EXACTLY.
        - **FORMAT**: Use LaTeX. Split multi-line work into separate lines.
        - **LINE-BY-LINE POSITIONS**: For each LINE of student work, estimate the bounding box. Return as "studentWorkLines": [{ "text": "...", "position": { "x": number, "y": number, "width": number, "height": number } }] where values are percentages (0-100).
+       - **TIGHT BOUNDING BOXES (CRITICAL)**: The width must be the **MINIMUM** required to enclose the text. Do NOT use a fixed/uniform width (e.g. don't make everything 40%). If a line is short (e.g. "x=5"), width should be small (e.g. 10%). If long, width should be large.
        - **IMPORTANT**: Each line gets its own position. Split on natural line breaks (new lines of handwriting).
     3. **Drawings**:
        - **STEP 1 - QUESTION TEXT HEURISTIC (CHECK FIRST - HIGHEST PRIORITY)**: BEFORE attempting visual detection, check if the question text contains ANY of these patterns. If YES, you MUST set THREE things:
@@ -451,6 +452,7 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
              "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
              "ocr_match_status": "MATCHED|FALLBACK",
              "reasoning": "Brief explanation of why this annotation was chosen",
+              "subQuestion": "a|b|c|i|ii|null", // REQUIRED for grouped sub-questions
               "visual_position": {
                 "x": 50,
                 "y": 50,
@@ -579,7 +581,12 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
             - **Accuracy:** The coordinates must be accurate.
             - **Scale:** Use 0-100 scale for percentages.
              - (x, y) is the top-left corner of the bounding box.
-             - Example: { "x": 45.5, "y": 50.0, "width": 10.0, "height": 5.0 }
+              - Example: { "x": 45.5, "y": 50.0, "width": 10.0, "height": 5.0 }
+       14. **Sub-Question Attribution (CRITICAL):**
+           - If the question has sub-parts (e.g., a, b, c), you MUST specify which part this annotation belongs to in the "subQuestion" field.
+           - Use the sub-question identifier (e.g., "a", "b", "i").
+           - Use "null" if it applies to the main question or if there are no sub-parts.
+           - **CRITICAL:** Ensure marks are attributed to the CORRECT sub-question. Do not assign marks for part (a) to part (b).
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)

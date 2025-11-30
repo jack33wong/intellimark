@@ -240,7 +240,7 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
         const percentage = ((timing.duration || 0) / totalProcessingTime * 100).toFixed(0);
         // Use display name if available, otherwise use original step name
         const displayName = displayNameMap[stepName] || stepName;
-        const paddedStepName = displayName.padEnd(25); // Fixed 25-character width
+        const paddedStepName = displayName.padEnd(35); // Fixed 35-character width
         console.log(`${paddedStepName} ${duration.toFixed(1)}s (${percentage}%)`);
       });
   }

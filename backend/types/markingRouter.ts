@@ -12,9 +12,11 @@ export interface StandardizedPage {
   height?: number;
 }
 
+import type { OCRResult } from '../services/ocr/OCRService.js';
+
 export interface PageOcrResult {
   pageIndex: number;
-  ocrData: any;
+  ocrData: OCRResult;
   classificationText?: string;
 }
 
