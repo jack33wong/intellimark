@@ -29,6 +29,7 @@ export interface MarkingTask {
   }>;
   pageDimensions?: Map<number, { width: number; height: number }>; // Map of pageIndex -> dimensions for accurate bbox estimation
   imageData?: string; // Base64 image data for edge cases where Drawing Classification failed (will trigger vision API)
+  images?: string[]; // Array of base64 images for multi-page questions
   // Sub-question metadata for grouped sub-questions
   subQuestionMetadata?: {
     hasSubQuestions: boolean;
@@ -59,6 +60,7 @@ export interface EnrichedAnnotation extends Annotation {
   pageIndex: number;
   unified_step_id?: string; // Optional, for tracking which step this annotation maps to
   aiPosition?: { x: number; y: number; width: number; height: number }; // AI-estimated position for verification
+  hasLineData?: boolean; // Flag indicating if annotation uses actual line data (OCR) or fallback
 }
 
 /**
@@ -665,9 +667,46 @@ export async function executeMarkingForQuestion(
 
     sendSseUpdate(res, createProgressData(6, `Generating annotations for Question ${questionId}...`, MULTI_IMAGE_STEPS));
 
+    // Collect all images for this question (for multi-page support)
+    const questionImages: string[] = [];
+    if (task.sourcePages && task.sourcePages.length > 0) {
+      task.sourcePages.forEach(pageIndex => {
+        // Find the image for this page index from standardizedPages
+        // We need access to standardizedPages here. It's not directly in MarkingTask, 
+        // but we can pass it or find it. 
+        // Ideally, MarkingTask should have access to all images.
+        // For now, let's assume we can get it from the task if we added it, or we need to pass it.
+        // Wait, task.imageData is currently just one string.
+        // We need to modify MarkingTask to hold all images or access them.
+
+        // Actually, we are inside createMarkingTasksFromClassification which has access to standardizedPages!
+        // But wait, this code block is inside executeMarkingForQuestion (or similar)?
+        // No, this is inside executeMarkingForQuestion.
+
+        // Let's check where standardizedPages comes from.
+        // It is passed to createMarkingTasksFromClassification, but not to executeMarkingForQuestion.
+        // We need to pass standardizedPages to executeMarkingForQuestion.
+      });
+    }
+
+    // Since I cannot easily change the signature of executeMarkingForQuestion right now without breaking things,
+    // I will use a workaround: The MarkingTask object should carry the images.
+    // I will update createMarkingTasksFromClassification to populate a new 'images' field in MarkingTask.
+
+    // Log classification blocks for Q11b debugging
+    if (String(questionId).includes('11')) {
+      console.log(`[DEBUG Q11] Classification Blocks for Q${questionId}:`);
+      task.classificationBlocks?.forEach((block, idx) => {
+        if (block.hasStudentDrawing || block.text.includes('[DRAWING]')) {
+          console.log(`  - Block ${idx}: Page ${block.pageIndex}, Text: "${block.text.substring(0, 50)}...", Drawing: ${block.hasStudentDrawing}`);
+        }
+      });
+    }
+
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
-      model: model, // Use the passed model instead of hardcoded 'auto'
+      images: task.images, // Pass all page images for multi-page context
+      model: model,
       processedImage: {
         ocrText: ocrTextForPrompt,
         boundingBoxes: stepsDataForMapping.map(step => ({
@@ -698,6 +737,16 @@ export async function executeMarkingForQuestion(
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
+    // Log AI response page index for Q11b debugging
+    if (String(questionId).includes('11') && markingResult.annotations) {
+      console.log(`[DEBUG Q11] AI Marking Response for Q${questionId}:`);
+      markingResult.annotations.forEach((ann, idx) => {
+        if (ann.visual_position) {
+          console.log(`  - Annotation ${idx}: Action: ${ann.action}, PageIndex: ${ann.pageIndex}, Visual: ${JSON.stringify(ann.visual_position)}`);
+        }
+      });
+    }
+
     // Basic validation of marking result
     if (!markingResult || !markingResult.annotations || !markingResult.studentScore) {
       throw new Error(`MarkingInstructionService returned invalid data for Q${questionId}`);
@@ -709,10 +758,12 @@ export async function executeMarkingForQuestion(
     const defaultPageIndex = (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0;
     const enrichedAnnotations = enrichAnnotationsWithPositions(
       markingResult.annotations || [],
-      stepsDataForMapping,
+      stepsDataForMapping, // Keep stepsDataForMapping as it contains synthetic drawing blocks and unified_step_ids
       String(questionId),
       defaultPageIndex,
-      task.classificationBlocks // Pass classification blocks for sub-question page lookup
+      task.pageDimensions, // New argument
+      task.classificationBlocks, // Pass classification blocks for sub-question page lookup
+      task // New argument
     );
 
     // 7. Generate Final Output
@@ -753,11 +804,18 @@ const enrichAnnotationsWithPositions = (
   stepsDataForMapping: any[],
   questionId: string,
   defaultPageIndex: number = 0, // NEW: Accept default page index (from task.sourcePages)
-  classificationBlocks?: any[] // NEW: Accept classification blocks for sub-question page lookup
+  pageDimensions: Map<number, { width: number; height: number }> | undefined,
+  classificationBlocks: MarkingTask['classificationBlocks'],
+  task: MarkingTask // Add task parameter to access sourcePages
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
-  return annotations.map((anno, idx) => {
+  // DEBUG: Log raw annotations for Q16 to identify phantom drawing
+  if (questionId === '16') {
+    console.log(`[DEBUG Q16] Raw Annotations before enrichment:`, JSON.stringify(annotations, null, 2));
+  }
+
+  const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
     const aiPos = (anno as any).aiPosition; // Original was aiPosition, user changed to visual_position in snippet
 
@@ -941,26 +999,256 @@ const enrichAnnotationsWithPositions = (
     // Check if bbox is valid (not all zeros)
     const hasValidBbox = originalStep.bbox && (originalStep.bbox[0] > 0 || originalStep.bbox[1] > 0);
 
-    const enriched = {
-      ...anno,
-      bbox: (originalStep.bbox || [0, 0, 0, 0]) as [number, number, number, number],
-      pageIndex: originalStep.pageIndex ?? defaultPageIndex, // Also use default here if step missing pageIndex
-      unified_step_id: originalStep.unified_step_id
-    };
+    // Determine initial page index
+    // PRIORITY: 1. AI-provided pageIndex (from visual analysis), 2. Original Step's pageIndex, 3. Default
+    let pageIndex = originalStep.pageIndex ?? defaultPageIndex;
+    let pageSource = 'DEFAULT';
 
-    if (hasValidBbox) {
-      lastValidAnnotation = enriched;
+    if (originalStep.pageIndex !== undefined) pageSource = 'ORIGINAL_STEP';
+
+    // If AI provided a pageIndex (relative to the images array), map it to absolute page index
+    // BUT only use it if we don't have a trusted pageIndex from the original step (OCR).
+    // OCR/Classification is the ground truth for where the text physically is.
+    if ((anno as any).pageIndex !== undefined) {
+      const relativeIndex = (anno as any).pageIndex;
+      let mappedAiPage = -1;
+
+      if (task.sourcePages && task.sourcePages.length > relativeIndex) {
+        mappedAiPage = task.sourcePages[relativeIndex];
+      }
+
+      // Check for mismatch if we have an original page index
+      if (originalStep.pageIndex !== undefined && mappedAiPage !== -1 && mappedAiPage !== originalStep.pageIndex) {
+        const isDrawing = (anno.step_id || '').toLowerCase().includes('drawing') || (anno.text || '').toLowerCase().includes('[drawing]');
+
+        if (isDrawing) {
+          // For drawings, AI visual detection is often more accurate than initial classification
+          pageIndex = mappedAiPage;
+          pageSource = `AI_MAPPED_DRAWING (Rel: ${relativeIndex} -> Abs: ${pageIndex})`;
+        } else {
+          // Keep OCR
+        }
+      }
+
+      if (originalStep.pageIndex === undefined || (pageSource.includes('AI_MAPPED_DRAWING'))) {
+        // If we already set it for drawing, don't overwrite. 
+        // If original is undefined, use AI.
+        if (!pageSource.includes('AI_MAPPED_DRAWING')) {
+          if (mappedAiPage !== -1) {
+            pageIndex = mappedAiPage;
+            pageSource = `AI_MAPPED (Rel: ${relativeIndex} -> Abs: ${pageIndex})`;
+          } else {
+            pageIndex = (anno as any).pageIndex;
+            pageSource = `AI_RAW (Rel: ${relativeIndex})`;
+          }
+        }
+      }
     }
 
+    if (String(questionId) === '11') {
+
+    }
+
+    // FIX FOR Q11b: Target Drawing Page
+    // The annotation should be placed on the page that actually contains the drawing (Response/Diagram Page).
+    // This is usually the LAST page of the question (highest page index).
+
+    // STRATEGY:
+    // 1. Try to find the drawing block in classification data.
+    // 2. If the found block is on the FIRST page, but the question spans MULTIPLE pages,
+    //    it's highly likely the classification missed the drawing on the last page.
+    //    In this case, force it to the LAST page (which is typically the response page).
+
+    // Only apply fallback logic if we DON'T have a specific page index from AI
+    // If AI gave us a pageIndex (e.g. 1), we trust it.
+    const hasAiPageIndex = (anno as any).pageIndex !== undefined;
+
+    if (classificationBlocks && !hasAiPageIndex) {
+      let targetBlock = null;
+      const subQ = (anno as any).subQuestion;
+
+      // Debug logging for Q11
+      const isQ11 = String(questionId) === '11';
+      if (isQ11) {
+        console.log(`[DEBUG Q11] Source Pages: ${JSON.stringify(task?.sourcePages)}`);
+        console.log(`[DEBUG Q11] Classification Blocks:`, JSON.stringify(classificationBlocks.map(b => ({
+          text: b.text ? b.text.substring(0, 50) + '...' : 'N/A',
+          pageIndex: b.pageIndex,
+          hasStudentDrawing: b.hasStudentDrawing,
+          subQuestions: b.subQuestions ? b.subQuestions.map((s: any) => s.part) : []
+        })), null, 2));
+      }
+
+      // Collect ALL candidate blocks that might be the drawing page
+      const candidates = [];
+
+      // 1. Blocks explicitly linked to this sub-question that HAVE A DRAWING
+      if (subQ) {
+        const specific = classificationBlocks.filter(b =>
+          b.hasStudentDrawing &&
+          b.subQuestions &&
+          b.subQuestions.some((sq: any) => sq.part === subQ)
+        );
+        candidates.push(...specific);
+      }
+
+      // 2. ANY block for this question that HAS A DRAWING
+      const generic = classificationBlocks.filter(b => b.hasStudentDrawing);
+      candidates.push(...generic);
+
+      // 3. Blocks with [DRAWING] text
+      const textBased = classificationBlocks.filter(b =>
+        (b.text || '').includes('[DRAWING]') ||
+        (b.studentWorkLines && b.studentWorkLines.some((l: any) => l.text.includes('[DRAWING]')))
+      );
+      candidates.push(...textBased);
+
+      // Filter out duplicates and nulls
+      const uniqueCandidates = Array.from(new Set(candidates.filter(c => c)));
+
+      let targetPageIndex = -1;
+
+      if (uniqueCandidates.length > 0) {
+        // Pick the candidate with the HIGHEST page index.
+        uniqueCandidates.sort((a, b) => b.pageIndex - a.pageIndex);
+        targetBlock = uniqueCandidates[0];
+        targetPageIndex = targetBlock.pageIndex;
+
+        if (isQ11) console.log(`[DEBUG Q11] Selected Target Block on Page ${targetPageIndex} (Candidates: ${uniqueCandidates.map(c => c.pageIndex).join(', ')})`);
+      }
+
+      // ROBUST FALLBACK REMOVED:
+      // We now rely on the AI to return the correct pageIndex (via visual analysis).
+      // The previous fallback (forcing to last page) was a "dirty fix" that caused issues with text annotations.
+      // With multi-page image support and updated prompts, the AI should correctly identify the page.
+
+      if (targetPageIndex !== -1) {
+        if (pageIndex !== targetPageIndex) {
+          console.log(`[MARKING DEBUG] Overriding Page Index for Q${questionId}${subQ || ''} to Drawing Page: ${pageIndex} -> ${targetPageIndex}`);
+          pageIndex = targetPageIndex;
+        } else if (isQ11 && subQ) {
+          console.log(`[DEBUG Q11] Page Index already correct for Q${questionId}${subQ}: ${pageIndex}`);
+        }
+      } else if (isQ11 && subQ) {
+        console.log(`[DEBUG Q11] No target drawing block found for Q${questionId}${subQ}`);
+      }
+    }
+
+    const enriched = {
+      ...anno,
+      // If we have a valid bbox, use it. Otherwise, if we have aiPos, use dummy bbox.
+      bbox: hasValidBbox ? originalStep.bbox : (aiPos ? [1, 1, 1, 1] : originalStep.bbox),
+      pageIndex: pageIndex,
+      unified_step_id: originalStep.unified_step_id,
+      // Pass through aiPosition if available (crucial for Q10/Q16 drawings)
+      aiPosition: aiPos,
+      // Flag if we are using actual line data (OCR) or falling back to AI position
+      // If hasValidBbox is true, we have line data.
+      // If hasValidBbox is false but we have aiPos, we DON'T have line data (it's a split block or drawing).
+      hasLineData: hasValidBbox
+    };
+
+    lastValidAnnotation = enriched as any;
     return enriched;
-  }).filter(Boolean) as EnrichedAnnotation[];
+  }).filter(a => a !== null) as EnrichedAnnotation[];
+
+  // SORTING DESIGN:
+  // 1. Meta Info Page First (Page Index ASC)
+  // 2. Sort by Question Number (N/A here as we are in single question scope)
+  // 3. Sub-Question Number (ASC)
+  results.sort((a, b) => {
+    // Debug Log for Sorting (Sample first few comparisons)
+    // if (Math.random() < 0.01) console.log(`[SORT DEBUG] Comparing Q${questionId}: P${a.pageIndex} vs P${b.pageIndex}, SubQ ${a.subQuestion} vs ${b.subQuestion}`);
+
+    // 1. Meta Info Page First (Page Index)
+    if (a.pageIndex !== b.pageIndex) {
+      return a.pageIndex - b.pageIndex;
+    }
+
+    // 3. Sub-Question Number
+    const subQA = (a as any).subQuestion || '';
+    const subQB = (b as any).subQuestion || '';
+    if (subQA !== subQB) {
+      return subQA.localeCompare(subQB);
+    }
+
+    // Fallback: Y-Position (Top to Bottom)
+    const yA = a.bbox ? a.bbox[1] : (a.aiPosition?.y || 0);
+    const yB = b.bbox ? b.bbox[1] : (b.aiPosition?.y || 0);
+    return yA - yB;
+  });
+
+  // Debug Log: Final Sorted Order for this Question
+  if (String(questionId) === '11') {
+    console.log(`[DEBUG Q11 SORTED] Final Order: ${results.map(r => `[P${r.pageIndex} ${r.subQuestion || ''} ${r.text}]`).join(', ')}`);
+  }
+
+
+
+  // FIX FOR Q10: Unify "Split Block" status for grouped annotations
+  // If a group of annotations (likely same line) has mixed hasLineData status,
+  // force them all to hasLineData: false (TRUST_AI) to prevent visual jumping.
+
+  // 1. Group by page and proximity (simple y-distance clustering)
+  const UNIFY_THRESHOLD_Y = 50; // pixels (approx)
+
+  // We can't easily know exact Y without image height, but we can group by sub-question or just sequence
+  // For Q10, they are usually sequential.
+
+  for (let i = 0; i < results.length; i++) {
+    const current = results[i];
+    if (!current) continue;
+
+    // Look ahead for a "group" (sequential annotations for same sub-question or close proximity)
+    let group = [current];
+    let j = i + 1;
+
+    while (j < results.length) {
+      const next = results[j];
+      // Break if different page or different sub-question (if present)
+      if (next.pageIndex !== current.pageIndex) break;
+      if (current.subQuestion && next.subQuestion && current.subQuestion !== next.subQuestion) break;
+
+      // If no sub-question, check proximity (if we have bboxes)
+      // But for split blocks, bboxes might be dummy [1,1,1,1].
+      // Let's rely on the fact that Q10 split blocks are sequential.
+
+      group.push(next);
+      j++;
+    }
+
+    // Process the group
+    if (group.length > 1) {
+      // Check if ANY in group is "Split" (hasLineData === false)
+      const hasSplit = group.some(a => a.hasLineData === false);
+
+      if (hasSplit) {
+        // Force ALL to be split (TRUST_AI)
+        group.forEach(a => {
+          if (a.hasLineData !== false) {
+            // console.log(`[MARKING DEBUG] Unifying annotation to Split/AI-Position: ${a.text}`);
+            a.hasLineData = false;
+            // We keep the OCR bbox as fallback, but svgOverlayService will prefer aiPosition if available
+            // If aiPosition is missing on this specific part (unlikely for split), it might fallback to OCR bbox
+            // But setting hasLineData=false tells svgOverlay to TRY aiPosition or relative layout
+          }
+        });
+      }
+    }
+
+    // Advance i
+    i = j - 1;
+  }
+
+  return results;
 };
 
 export function createMarkingTasksFromClassification(
   classificationResult: any,
   allPagesOcrData: PageOcrResult[],
   markingSchemesMap: Map<string, any>,
-  pageDimensionsMap: Map<number, { width: number; height: number }>
+  pageDimensionsMap: Map<number, { width: number; height: number }>,
+  standardizedPages: any[] // Assuming standardizedPages is passed here
 ): MarkingTask[] {
   const tasks: MarkingTask[] = [];
 
@@ -1049,15 +1337,7 @@ export function createMarkingTasksFromClassification(
     const hasSubQuestions = q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0;
     const hasDrawing = q.hasStudentDrawing === true;
 
-    if (baseQNum === '16') {
-      console.log('[DEBUG Q16] Classification Data:', JSON.stringify({
-        hasMainLines,
-        hasSubQuestions,
-        hasDrawing,
-        studentWorkLines: q.studentWorkLines,
-        subQuestions: q.subQuestions
-      }, null, 2));
-    }
+
 
     if (hasMainLines || hasSubQuestions || hasDrawing) {
       // Build text from lines (if any)
@@ -1169,7 +1449,25 @@ export function createMarkingTasksFromClassification(
 
     // Check if this question requires image for marking (edge case: Drawing Classification returned 0)
     const requiresImage = (group.mainQuestion as any)?.requiresImageForMarking === true;
-    const imageDataForMarking = requiresImage ? (group.mainQuestion as any)?.imageDataForMarking : undefined;
+
+    // Attach image data for marking (CRITICAL for vision-based marking)
+    // For multi-page questions, we need to collect ALL images
+    const questionImages: string[] = [];
+    if (group.sourceImageIndices.length > 0) {
+      group.sourceImageIndices.forEach(pageIdx => {
+        if (standardizedPages[pageIdx] && standardizedPages[pageIdx].imageData) {
+          questionImages.push(standardizedPages[pageIdx].imageData);
+        }
+      });
+    }
+
+    // Fallback to single image if array is empty (shouldn't happen if logic is correct)
+    const primaryImageIndex = group.sourceImageIndices[0];
+    const imageDataForMarking = requiresImage ? (
+      (standardizedPages[primaryImageIndex] && standardizedPages[primaryImageIndex].imageData)
+        ? standardizedPages[primaryImageIndex].imageData
+        : undefined
+    ) : undefined;
 
     if (requiresImage && imageDataForMarking) {
       console.log(`[MARKING EXECUTOR] Q${baseQNum}: Will pass image to Marking AI (Drawing Classification returned 0 for this drawing question)`);
@@ -1185,6 +1483,7 @@ export function createMarkingTasksFromClassification(
       classificationBlocks: group.classificationBlocks, // Pass original blocks for fallback positioning
       pageDimensions: pageDimensionsMap,
       imageData: imageDataForMarking, // Pass image data for edge cases where Drawing Classification failed
+      images: questionImages, // Pass the array of images
       subQuestionMetadata: {
         hasSubQuestions: group.subQuestions.length > 0,
         subQuestions: group.subQuestions.map(sq => ({
@@ -1197,6 +1496,9 @@ export function createMarkingTasksFromClassification(
 
 
   }
+
+
+
 
   // Sort tasks by question number (ascending) to ensure consistent ordering
   // This ensures Q1, Q2, ..., Q18, ..., are processed in numerical order

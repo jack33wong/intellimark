@@ -137,6 +137,8 @@ export interface Annotation {
   ocr_match_status?: 'MATCHED' | 'FALLBACK'; // Status of OCR matching
   classification_text?: string; // Text from classification
   subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")
+  visual_position?: { x: number; y: number; width: number; height: number }; // AI-estimated position for visual elements
+  pageIndex?: number; // Page index for multi-page annotations
 }
 
 export interface MarkingInstructions {

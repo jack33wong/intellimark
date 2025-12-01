@@ -161,6 +161,7 @@ import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
 export interface MarkingInputs {
   imageData: string;
+  images?: string[]; // Optional array of images for multi-page questions
   model: ModelType;
   processedImage: ProcessedImageResult;
   questionDetection?: any;
@@ -240,7 +241,7 @@ export class MarkingInstructionService {
    * Execute complete marking flow - moved from LLMOrchestrator
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
-    const { imageData: _imageData, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber } = inputs;
+    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber } = inputs;
 
 
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
@@ -381,7 +382,8 @@ export class MarkingInstructionService {
         inputQuestionNumber, // Pass question number (may include sub-question part)
         subQuestionMetadata, // Pass sub-question metadata for grouped sub-questions
         inputs.generalMarkingGuidance, // Pass general marking guidance
-        _imageData // Pass image data for edge cases where Drawing Classification failed
+        _imageData, // Pass image data for edge cases where Drawing Classification failed
+        images // Pass array of images for multi-page questions
       );
 
       // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
@@ -648,6 +650,13 @@ export class MarkingInstructionService {
           const classText = ((anno as any).classification_text || '').toLowerCase();
 
           if (text.includes('[drawing]') || classText.includes('[drawing]')) {
+            // FIX: If it's a "cross" action (or reasoning implies not required), it might be a phantom drawing
+            // If we have no position and it's a cross, filter it out instead of creating a dummy box
+            if ((anno as any).action === 'cross' || ((anno as any).reasoning || '').toLowerCase().includes('not required')) {
+              console.log(`[MARKING DEBUG] Filtering out phantom drawing (cross/not required) with no position: ${text}`);
+              return null;
+            }
+
             aiPositionFromMap = {
               x: 50,
               y: 50,
@@ -717,7 +726,8 @@ export class MarkingInstructionService {
     inputQuestionNumber?: string,
     subQuestionMetadata?: { hasSubQuestions: boolean; subQuestions: Array<{ part: string; text?: string }>; subQuestionNumbers?: string[] },
     generalMarkingGuidance?: any,
-    imageData?: string // Image data for edge cases where Drawing Classification failed
+    imageData?: string, // Image data for edge cases where Drawing Classification failed
+    images?: string[] // Array of images for multi-page questions
   ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -933,7 +943,9 @@ export class MarkingInstructionService {
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         } else {
           // Use Gemini Vision
-          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageData, model);
+          // Use images array if available, otherwise fallback to single imageData
+          const imageInput = (images && images.length > 0) ? images : imageData;
+          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model);
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         }
       } else {
@@ -1019,12 +1031,7 @@ export class MarkingInstructionService {
       const CYAN = '\x1b[36m';
       const RESET = '\x1b[0m';
 
-      if (String(questionNumber).replace(/[a-z]/i, '') === '8') {
-        console.log(`[DEBUG Q8] Raw AI Response:`, JSON.stringify(parsedResponse, null, 2));
-      }
-      if (String(questionNumber).replace(/[a-z]/i, '') === '16') {
-        console.log(`[DEBUG Q16] Raw AI Response:`, JSON.stringify(parsedResponse, null, 2));
-      }
+
 
       // Validate and clean response structure
       if (parsedResponse && parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
@@ -1099,6 +1106,15 @@ export class MarkingInstructionService {
             // Append reasoning if different
             if (anno.reasoning && !existing.reasoning.includes(anno.reasoning)) {
               existing.reasoning += ` | ${anno.reasoning}`;
+            }
+
+            // FIX: Also update pageIndex and visual_position if the new annotation has them
+            // This is crucial for Q11b where the second annotation might have the correct pageIndex (drawing page)
+            if ((anno as any).pageIndex !== undefined) {
+              (existing as any).pageIndex = (anno as any).pageIndex;
+            }
+            if ((anno as any).visual_position) {
+              (existing as any).visual_position = (anno as any).visual_position;
             }
           } else {
             seenSteps.set(key, anno);

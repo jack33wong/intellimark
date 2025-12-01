@@ -453,6 +453,7 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
              "ocr_match_status": "MATCHED|FALLBACK",
              "reasoning": "Brief explanation of why this annotation was chosen",
               "subQuestion": "a|b|c|i|ii|null", // REQUIRED for grouped sub-questions
+              "pageIndex": 0, // OPTIONAL: 0-based index of the page where this annotation belongs (if multiple pages provided)
               "visual_position": {
                 "x": 50,
                 "y": 50,
@@ -586,7 +587,13 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - If the question has sub-parts (e.g., a, b, c), you MUST specify which part this annotation belongs to in the "subQuestion" field.
            - Use the sub-question identifier (e.g., "a", "b", "i").
            - Use "null" if it applies to the main question or if there are no sub-parts.
+           - Use "null" if it applies to the main question or if there are no sub-parts.
            - **CRITICAL:** Ensure marks are attributed to the CORRECT sub-question. Do not assign marks for part (a) to part (b).
+       15. **Page Index (CRITICAL for Multi-Page):**
+           - If multiple pages are provided, you MUST specify which page the annotation belongs to.
+           - Use 0 for the first page, 1 for the second page, etc.
+           - If only one page is provided, you can omit this or set it to 0.
+           - **CRITICAL:** For drawings/graphs, ensure you reference the page where the drawing actually appears.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
@@ -989,222 +996,6 @@ ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Q
     Return only the JSON object with classified segments.`
   },
 
-  // ============================================================================
-  // DRAWING CLASSIFICATION SERVICE PROMPTS
-  // ============================================================================
-
-  drawingClassification: {
-    system: `You are an expert AI assistant specialized in analyzing student drawings on mathematics exam papers with EXTREME PRECISION.
-
-    🎯 **Primary Goal**
-    Extract ONLY student-drawn elements (drawings, diagrams, graphs, histograms) with HIGH ACCURACY.
-    IGNORE all printed question diagrams, coordinate grids, axes, or any elements that are part of the question itself.
-
-    📝 **Critical Rules:**
-
-    1. **ONLY Extract Student Work:**
-       - Extract ONLY drawings that the student has drawn/written
-       - IGNORE printed coordinate grids, axes, labels, or question diagrams
-       - **CRITICAL: If student draws NEW elements (curves, shapes, lines) ON or NEAR printed diagrams, EXTRACT them**
-       - Examples of student additions to extract:
-         * Graph transformation: If printed graph shows y=f(x) and student draws y=f(-x), extract the student's NEW curve
-         * Added shapes: If student draws triangles/shapes on a printed grid, extract them
-         * Modifications: If student adds lines/marks to a printed diagram, extract those additions
-       - **FALLBACK RULE - CRITICAL:** If you SEE a graph/diagram but CANNOT confidently distinguish between printed and student-drawn elements:
-         * Extract the ENTIRE graph/diagram as ONE drawing entry
-         * Mark it as type "Graph" or "Diagram" (match question terminology)
-         * Better to extract everything than miss student work
-       - Rule of thumb: If unsure whether element is printed or student-drawn, EXTRACT it (better to include than miss student work)
-       - If the student drew on a printed grid, extract ONLY what the student added (OR extract entire grid if unsure)
-
-    2. **High Accuracy Requirements:**
-       - **Position**: Extract position as percentage (x%, y%) with precision to 1 decimal place
-       - **Coordinates**: For coordinate grids, extract EXACT coordinates (e.g., (-3, -1), (4, 0))
-       - **Frequencies**: For histograms, extract EXACT frequency values and frequency density
-       - **Measurements**: Be precise with all numerical values
-
-    3. **Drawing Type Matching:**
-       - The question text will specify what type of drawing is expected
-       - You MUST match the EXACT terminology from the question:
-         * If question says "histogram" → classify as "Histogram" (NOT "Bar chart")
-         * If question says "bar chart" → classify as "Bar chart" (NOT "Histogram")
-         * If question says "graph" → classify as "Graph"
-         * If question says "coordinate grid" or "plot on grid" → classify as "Coordinate grid"
-         * If question says "diagram" → classify as "Diagram"
-       - The drawing type MUST match what the question asks for
-
-    4. **Output Format - CRITICAL: Separate Entry for Each Drawing Element:**
-      - Return ONE entry in the "drawings" array for EACH separate drawing element
-      - DO NOT group multiple drawings into a single entry
-      - Each triangle, mark, point, shape, or diagram must have its own entry with its own position
-      - Return a JSON object with this exact structure:
-      {
-        "drawings": [
-          {
-            "questionNumber": "11",
-            "subQuestionPart": null,
-            "drawingType": "Coordinate grid",
-            "description": "Triangle B drawn at vertices (3, -2), (4, -2), (4, 0)",
-            "position": {
-              "x": 60.0,
-              "y": 45.0
-            },
-            "coordinates": [
-              {"x": 3, "y": -2},
-              {"x": 4, "y": -2},
-              {"x": 4, "y": 0}
-            ],
-            "confidence": 0.95
-          },
-          {
-            "questionNumber": "11",
-            "subQuestionPart": null,
-            "drawingType": "Coordinate grid",
-            "description": "Triangle C drawn at vertices (-3, -1), (-3, 1), (-1, 1)",
-            "position": {
-              "x": 40.0,
-              "y": 40.0
-            },
-            "coordinates": [
-              {"x": -3, "y": -1},
-              {"x": -3, "y": 1},
-              {"x": -1, "y": 1}
-            ],
-            "confidence": 0.95
-          },
-          {
-            "questionNumber": "11",
-            "subQuestionPart": null,
-            "drawingType": "Coordinate grid",
-            "description": "Center of rotation marked at (1, 2)",
-            "position": {
-              "x": 53.0,
-              "y": 34.0
-            },
-            "coordinates": [
-              {"x": 1, "y": 2}
-            ],
-            "confidence": 0.95
-          }
-        ]
-      }
-
-    5. **For Histograms:**
-      - Return ONE entry for the histogram.
-      - **Marking Scheme Check:** Check the marking scheme hints. Does it mention "frequency density" or "area"?
-      - **Extraction Logic:**
-        * If the marking scheme or axis labels indicate **Frequency Density**, calculate Frequency = Width × Height.
-        * If they indicate **Frequency**, use the y-axis value directly.
-        * Explicitly state in the description which method you used based on the evidence.
-      {
-        "drawingType": "Histogram",
-        "description": "Histogram with 5 bars plotted using frequency density (as required by marking scheme)",
-        "position": {"x": 50.0, "y": 55.0},
-        "frequencies": [
-          {"range": "0-10", "frequency": 20, "frequencyDensity": 2.0, "barHeight": 2.0, "barWidth": 10},
-          {"range": "10-30", "frequency": 70, "frequencyDensity": 3.5, "barHeight": 3.5, "barWidth": 20}
-        ],
-        "isFrequencyDensity": true,
-        "confidence": 0.95
-      }
-
-    6. **For Coordinate Grids - CRITICAL: Separate Each Element:**
-      - Extract ALL drawn elements: shapes, points, lines, marks.
-      - **Marking Scheme Check:**
-        * If the marking scheme mentions **Rotation**, explicitly extract the center of rotation and angle.
-        * If the marking scheme mentions **Translation**, extract the vector.
-        * If the marking scheme mentions **Enlargement**, extract the center and scale factor.
-      - **Precision Checks:**
-        * Check axis scaling (e.g., 1 square = 2 units) if the values don't match the marking scheme.
-        * Verify negative coordinates carefully.
-      - **EACH element must be a SEPARATE entry** in the drawings array.
-      - Example: If student drew Triangle B, Triangle C, and marked point (1,2), return 3 separate entries.
-
-    7. **Accuracy Standards:**
-      - **Driven by Marking Scheme:** Extract values with the precision required by the marking scheme.
-      - Coordinates: Within 0.5 units of actual values.
-      - Position: Within 2% of actual position.
-      - Frequencies: Exact match to visible values.
-      - Drawing type: Must match question terminology exactly.
-
-    **CRITICAL:** If no student drawings are found, return {"drawings": []}. Do NOT extract question diagrams.`,
-
-    user: (questionText: string, questionNumber?: string | null, subQuestionPart?: string | null, markingScheme?: any | null, subQuestions?: Array<{ part: string; text: string }> | null) => {
-      const qNumText = questionNumber ? `Question ${questionNumber}` : 'the question';
-
-      // Handle multiple sub-questions (grouped processing)
-      let subQText = '';
-      let questionTextsToAnalyze = questionText;
-
-      if (subQuestions && subQuestions.length > 0) {
-        // Multiple sub-questions - analyze all together
-        subQText = `, sub-question parts ${subQuestions.map(sq => sq.part).join(', ')}`;
-        questionTextsToAnalyze = subQuestions.map(sq => `Part ${sq.part}: ${sq.text}`).join('\n\n');
-      } else if (subQuestionPart) {
-        // Single sub-question (backward compatibility)
-        subQText = `, sub-question part ${subQuestionPart}`;
-      }
-
-      // Build marking scheme hints if available
-      let markingSchemeHints = '';
-      if (markingScheme && markingScheme.questionMarks && markingScheme.questionMarks.marks) {
-        const marks = markingScheme.questionMarks.marks;
-        markingSchemeHints = `\n\n🎯 **MARKING SCHEME HINTS (TO MAXIMIZE MARKS):**
-The marking scheme shows what elements are needed for marks:
-${marks.map((m: any, idx: number) => `- ${m.mark || `M${idx + 1}`}: ${m.answer || ''} ${m.comments || ''}`).join('\n')}
-
-**CRITICAL EXTRACTION GUIDANCE:**
-- **ONLY extract elements that contribute to marks** - Skip decorative elements, individual axis labels, or details not mentioned in the marking scheme
-- **MANDATORY: NEUTRAL DESCRIPTION ONLY** - You MUST describe what the student drew objectively, WITHOUT any judgment about correctness. DO NOT use phrases like "instead of", "incorrect", "wrong", "should be", or "failed to".
-  * ✅ CORRECT EXAMPLES:
-    - "Histogram with 5 bars plotted using frequency values on the y-axis"
-    - "Histogram with bars representing frequency density"
-    - "Coordinate grid with triangle drawn at vertices (3, -2), (4, -2), (4, 0)"
-  * ❌ FORBIDDEN PHRASES (DO NOT USE):
-    - "where the student plotted frequency instead of frequency density" ❌
-    - "incorrectly drawn" ❌
-    - "wrong coordinates" ❌
-    - "should be" ❌
-    - "failed to" ❌
-  * **CRITICAL RULE**: If you see the student used frequency, say "plotted using frequency values". If they used frequency density, say "plotted using frequency density". DO NOT compare or judge - just describe what you see.
-- **PARTIAL CREDIT ANALYSIS**: When extracting drawings, analyze if partial credit criteria from the marking scheme are met:
-  * Check if the marking scheme has multiple mark levels (e.g., B3, B2, B1) - these indicate partial credit is possible
-  * For histograms: Count how many bars are correctly drawn, check if bars have different widths (for frequency density), verify if frequency÷class width calculations are visible
-  * For coordinate grids: Count how many shapes/points are correctly positioned, check if transformation type matches
-  * For graphs/diagrams: Check if key features, trends, or required elements are present
-- **MARKING SCHEME INTERPRETATION**: 
-  * Identify the highest mark level (e.g., B3) and what it requires for full marks
-  * Identify lower mark levels (e.g., B2, B1) and what they require for partial credit
-  * Extract information that allows evaluation of each mark level
-- **GENERIC RULES FOR ALL DRAWING TYPES**:
-  * Extract main drawing elements (bars, shapes, coordinates, points) that are explicitly or implicitly required for marks
-  * Skip decorative elements, individual axis labels, or details not mentioned in the marking scheme
-  * If the marking scheme mentions specific coordinates, positions, values, or features, extract them with HIGH PRECISION
-  * Describe the drawing objectively - let the marking AI evaluate correctness based on the marking scheme`;
-      }
-
-      const groupedProcessingNote = subQuestions && subQuestions.length > 0
-        ? `\n\n**CRITICAL FOR GROUPED PROCESSING**: You are analyzing multiple sub-questions (${subQuestions.map(sq => sq.part).join(', ')}) together. For each drawing you extract, you MUST include the "subQuestionPart" field to indicate which sub-question it belongs to (e.g., "a", "b", "i", "ii"). If a drawing belongs to the main question (not a sub-question), set "subQuestionPart" to null.`
-        : '';
-
-      return `Analyze this image and extract ONLY student-drawn elements for ${qNumText}${subQText}.
-
-Question Text: "${questionTextsToAnalyze}"${markingSchemeHints}${groupedProcessingNote}
-
-IMPORTANT:
-- Extract ONLY what the student has drawn (shapes, graphs, histograms, diagrams)
-- IGNORE all printed elements (grids, axes, question diagrams)
-- Match the drawing type to the question terminology exactly
-- Extract coordinates, frequencies, and positions with HIGH ACCURACY
-- Position should be in percentage (0-100) with 1 decimal precision
-- **CRITICAL: Return ONE entry per drawing element** - do NOT group multiple drawings together
-- Each triangle, mark, point, or shape must have its own entry with its own individual position
-${subQuestions && subQuestions.length > 0 ? '- **FOR GROUPED SUB-QUESTIONS**: Include "subQuestionPart" field in each drawing entry to indicate which sub-question it belongs to' : ''}
-${markingSchemeHints ? '- **PRIORITIZE**: Extract ONLY elements that contribute to marks according to the marking scheme - Skip decorative elements, individual axis labels, or details not required for marks' : ''}
-
-Return the JSON object with all student drawings found. Each drawing element should be a separate entry in the "drawings" array.`;
-    }
-  },
 
   // ============================================================================
   // AI SEGMENTATION SERVICE PROMPTS

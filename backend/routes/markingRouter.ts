@@ -491,11 +491,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // "you cannot count one filename, we count on upload index instead"
       // standardizedPages.sort((a, b) => a.originalFileName.localeCompare(b.originalFileName, undefined, { numeric: true, sensitivity: 'base' }));
 
-      // Debug log to verify upload order
-      console.log('[DEBUG] Uploaded File Order:');
-      standardizedPages.forEach((p, i) => {
-        console.log(`[DEBUG] Index ${i}: ${p.originalFileName}`);
-      });
+
 
       // Re-assign pageIndex based on upload order (User Design)
       standardizedPages.forEach((page, index) => {
@@ -878,7 +874,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         // Fallback for flat structure
         totalMathpixCalls += (pageData.ocrData as any).mathpixCalls;
       } else {
-        console.log(`[DEBUG OCR] Page ${idx} missing mathpixCalls. Usage:`, pageData.ocrData?.usage);
+
       }
     });
 
@@ -1012,7 +1008,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         classificationResult,
         allPagesOcrData,
         markingSchemesMap,
-        pageDimensionsMap
+        pageDimensionsMap,
+        standardizedPages
       );
       console.log(`[PIPELINE DEBUG] ✅ createMarkingTasksFromClassification completed, created ${markingTasks.length} marking task(s)`);
     } catch (error) {
@@ -1033,8 +1030,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
           totalMathpixCalls
         }
       };
-      // Log the final stats to debug "Mathpix = 0" issue
-      console.log('[DEBUG FINAL] processingStats:', JSON.stringify(finalOutput.processingStats, null, 2));
+
 
       sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
       res.end();
@@ -1069,7 +1065,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     const logMarkingComplete = logStep('Marking', 'ai-marking');
 
     // Call the refactored function for each task (works for 1 or many)
-    const allQuestionResults: QuestionResult[] = await withPerformanceLogging(
+    let allQuestionResults: QuestionResult[] = await withPerformanceLogging(
       'AI Marking',
       actualModel,
       async () => {
@@ -1116,9 +1112,27 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       }
     );
 
+    // FIX: Sort results by question number to ensure consistent order (e.g., Q12 before Q13)
+    // The worker pool completes tasks in random order, so we must sort explicitly.
+    allQuestionResults.sort((a, b) => {
+      const qA = String(a.questionNumber);
+      const qB = String(b.questionNumber);
+
+      // Extract numeric parts for comparison
+      const numA = parseFloat(qA.replace(/[^\d.]/g, ''));
+      const numB = parseFloat(qB.replace(/[^\d.]/g, ''));
+
+      if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+        return numA - numB;
+      }
+
+      // Fallback to alphanumeric
+      return qA.localeCompare(qB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     // Aggregate usage stats from marking results
     if (allQuestionResults) {
-      console.log('[DEBUG STATS] allQuestionResults sample:', JSON.stringify(allQuestionResults[0], null, 2));
+
       allQuestionResults.forEach(qr => {
         if (qr.usageTokens) totalLLMTokens += qr.usageTokens;
         if (qr.mathpixCalls) totalMathpixCalls += qr.mathpixCalls;
@@ -1385,15 +1399,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       return a.pageNumber - b.pageNumber;
     });
 
-    // Debug log for Mathpix calls
-    console.log(`[DEBUG OCR] Aggregating Mathpix Calls...`);
-    allPagesOcrData.forEach((p, i) => {
-      console.log(`[DEBUG OCR] Page ${i} Usage:`, JSON.stringify(p.ocrData?.usage));
-    });
-    console.log(`[DEBUG OCR] Total Mathpix Calls aggregated: ${totalMathpixCalls}`);
+
 
     // Extract sorted annotated output
     const finalAnnotatedOutput: string[] = pagesWithOutput.map(item => item.annotatedOutput);
+
+    // DEBUG: Log the EXACT order of pages sent to frontend
+    const pageOrderLog = pagesWithOutput.map((p, i) => {
+      const qInfo = p.lowestQuestionNumber !== Infinity ? `Q${p.lowestQuestionNumber}` : 'NoQ';
+      return `[${i + 1}] Page ${p.pageNumber} (${qInfo})`;
+    }).join(' -> ');
+    console.log(`\x1b[32m✅ [FINAL PAGE ORDER] ${pageOrderLog}\x1b[0m`);
 
     // --- Construct Final Output (Always Images) ---
     const outputFormat: 'images' = 'images'; // Explicitly set to images
@@ -1728,9 +1744,9 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     console.log('\n📊 [ANNOTATION SUMMARY]');
     const ANN_COL_WIDTH = 30;
     // Header line
-    console.log('------------------------------------------------------------------------------------------------------');
+    console.log('-----------------------------------------------------------------------------------------------------------------');
     console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Fallback/Split             |`);
-    console.log(`|----------|-------|-----------|${'-'.repeat(45)}|----------------------------------|`);
+    console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
 
 
 
@@ -1743,15 +1759,31 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       let scoreStr = '-';
       const r = result as any;
       const scoreObj = r.studentScore || r.score;
+      let isFullMark = true;
 
       if (scoreObj) {
         if (scoreObj.scoreText) {
           scoreStr = scoreObj.scoreText;
+          // Try to parse "X/Y"
+          if (scoreStr.includes('/')) {
+            const parts = scoreStr.split('/');
+            const awarded = parseFloat(parts[0]);
+            const total = parseFloat(parts[1]);
+            if (!isNaN(awarded) && !isNaN(total) && awarded < total) {
+              isFullMark = false;
+            }
+          }
         } else if (typeof scoreObj.awardedMarks === 'number') {
           scoreStr = `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`;
+          if (scoreObj.awardedMarks < scoreObj.totalMarks) {
+            isFullMark = false;
+          }
         }
       }
-      const paddedScore = scoreStr.padEnd(5);
+      let paddedScore = scoreStr.padEnd(5);
+      if (!isFullMark) {
+        paddedScore = `\x1b[31m${paddedScore}\x1b[0m`;
+      }
 
       // We need access to the original task to count blocks/drawings
       const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
@@ -1767,8 +1799,17 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       if (result.annotations) {
         result.annotations.forEach((ann: any) => {
           const text = ann.text || '';
+          let codes: string[] = [];
+
           if (text) {
-            const codes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+            codes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+          } else {
+            // Handle textless annotations (tick/cross only)
+            if (ann.action === 'tick') codes.push('✓');
+            else if (ann.action === 'cross') codes.push('✗');
+          }
+
+          if (codes.length > 0) {
             if (ann.subQuestion && ann.subQuestion !== 'null') {
               const key = ann.subQuestion;
               if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
@@ -1812,7 +1853,24 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
                 }
               });
             }
+
+            // SYSTEMATIC FIX: Also check Marking AI results for drawings that Classification missed (e.g. Q11b)
+            // We look for annotations that are marked as 'drawing' or have drawing-related text
+            if (result.annotations) {
+              const aiFoundDrawing = result.annotations.some((ann: any) => {
+                const txt = (ann.text || '').toLowerCase();
+                const stepId = (ann.step_id || '').toLowerCase();
+                return stepId.includes('drawing') || txt.includes('[drawing]');
+              });
+              // If AI found a drawing but Classification didn't flag it (drawingCount is 0 for this block), increment it.
+              // Note: This is a rough heuristic. Ideally we'd map back to specific blocks.
+              // But for the summary table, we just want to show *some* drawing count if it exists.
+              if (aiFoundDrawing && !b.hasStudentDrawing && drawingCount === 0) {
+                drawingCount++;
+              }
+            }
           }
+
 
           // Sub-question lines
           if (b.subQuestions && Array.isArray(b.subQuestions)) {
@@ -1879,10 +1937,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // Color coding
       const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
 
-      // DEBUG: Log annotations for Q14 to investigate count discrepancy
-      if (qNum === '14') {
-        console.log('[DEBUG Q14] Annotations:', JSON.stringify(result.annotations, null, 2));
-      }
+
 
       // Annotation Count (Main Question)
       const annotationCodes = mainAnnotations; // Renamed for clarity
@@ -1932,7 +1987,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const subCodes = annotationsBySubQ.get(sq.label.replace(String(result.questionNumber), '')) || [];
         const subCount = subCodes.length;
         const subAnnotationStr = subCodes.length > 0 ? `(${subCodes.join(',')})` : '';
-        const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(45); // Increased from 30 to 45
+        const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(44); // Increased from 30 to 44
         const subWorkBlocks = sq.wb;
         const subDrawings = sq.drw;
         const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
@@ -1940,8 +1995,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subAnnotationCol} | ${'-'.padEnd(33)}|`);
       });
 
-      console.log(`|----------|-------|-----------|${'-'.repeat(45)}|----------------------------------|`);
-    });   // --- Performance Summary (reuse original design) ---
+      console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
+    });
+
+
+
+    // --- Performance Summary (reuse original design) ---
     const totalProcessingTime = Date.now() - startTime;
     logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
 

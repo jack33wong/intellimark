@@ -25,7 +25,7 @@ export class ModelProvider {
     return { content, usageTokens };
   }
 
-  static async callGeminiChat(systemPrompt: string, userPrompt: string, imageData: string, model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
+  static async callGeminiChat(systemPrompt: string, userPrompt: string, imageData: string | string[], model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
     const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
     const result = await response.json() as any;
@@ -36,7 +36,7 @@ export class ModelProvider {
 
   private static async makeGeminiChatRequest(
     accessToken: string,
-    imageData: string,
+    imageData: string | string[],
     systemPrompt: string,
     userPrompt: string,
     model: ModelType = 'auto'
@@ -45,8 +45,25 @@ export class ModelProvider {
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
 
-    // Clean base64 data if needed
-    const cleanImageData = imageData.includes('base64,') ? imageData.split('base64,')[1] : imageData;
+    const parts: any[] = [
+      { text: systemPrompt },
+      { text: userPrompt }
+    ];
+
+    // Handle single or multiple images
+    const images = Array.isArray(imageData) ? imageData : [imageData];
+
+    images.forEach(img => {
+      if (img && img.trim() !== '') {
+        const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
+        parts.push({
+          inline_data: {
+            mime_type: 'image/jpeg',
+            data: cleanImageData
+          }
+        });
+      }
+    });
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -56,16 +73,7 @@ export class ModelProvider {
       },
       body: JSON.stringify({
         contents: [{
-          parts: [
-            { text: systemPrompt },
-            { text: userPrompt },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: cleanImageData
-              }
-            }
-          ]
+          parts: parts
         }],
         generationConfig: {
           temperature: config.temperature,
@@ -79,6 +87,8 @@ export class ModelProvider {
         ]
       })
     });
+
+
 
     if (!response.ok) {
       const errorText = await response.text();

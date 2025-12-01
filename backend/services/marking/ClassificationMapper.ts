@@ -56,9 +56,19 @@ export class ClassificationMapper {
             ];
 
             images.forEach((img, index) => {
-                const imageData = img.imageData.includes(',') ? img.imageData.split(',')[1] : img.imageData;
+                let mimeType = 'image/jpeg';
+                let cleanData = img.imageData;
+
+                if (img.imageData.includes(';base64,')) {
+                    const parts = img.imageData.split(';base64,');
+                    mimeType = parts[0].replace('data:', '');
+                    cleanData = parts[1];
+                } else if (img.imageData.includes(',')) {
+                    cleanData = img.imageData.split(',')[1];
+                }
+
                 parts.push({ text: `\n--- Page Index ${index} ---` });
-                parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageData } });
+                parts.push({ inline_data: { mime_type: mimeType, data: cleanData } });
             });
 
             const { getModelConfig } = await import('../../config/aiModels.js');
@@ -83,7 +93,7 @@ export class ClassificationMapper {
             if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
 
             const result = await response.json() as any;
-            const content = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
             let parsed: any;
             try {
                 parsed = JSON.parse(content.replace(/```json\n|\n```/g, ''));
