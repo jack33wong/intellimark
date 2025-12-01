@@ -11,6 +11,7 @@ interface NormalizedMarkingScheme {
   marksWithAnswers?: string[]; // Array of answers for each mark (for grouped sub-questions like Q12i, 12ii, 12iii)
   subQuestionNumbers?: string[]; // Array of sub-question numbers (e.g., ["22a", "22b"]) for grouped sub-questions
   subQuestionMarks?: { [subQuestionNumber: string]: any[] }; // Map sub-question number to its marks array (prevents mix-up of marks between sub-questions)
+  subQuestionMaxScores?: { [subQuestion: string]: number }; // Max scores per sub-question from database (e.g., { "a": 1, "b": 2 })
   hasAlternatives?: boolean; // Flag indicating if alternative method exists
   alternativeMethod?: any; // Alternative method details
 }
@@ -99,6 +100,11 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       (input as any).subQuestionMarks ||
       undefined;
 
+    // Extract sub-question max scores from database (passed from orchestration)
+    const subQuestionMaxScores = input.subQuestionMaxScores ||
+      (input as any).subQuestionMaxScores ||
+      undefined;
+
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
@@ -107,6 +113,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       marksWithAnswers: marksWithAnswers,
       subQuestionNumbers: subQuestionNumbers,
       subQuestionMarks: subQuestionMarks, // Preserve sub-question-to-marks mapping
+      subQuestionMaxScores: subQuestionMaxScores, // Preserve max scores from database
       alternativeMethod: alternativeMethod, // Include alternative method if available
       hasAlternatives: hasAlternatives // Flag indicating if alternative exists
     };
@@ -851,9 +858,9 @@ export class MarkingInstructionService {
       const subQuestionNumbers = subQuestionMetadata?.subQuestionNumbers || normalizedScheme.subQuestionNumbers;
       const subQuestionAnswers = normalizedScheme.marksWithAnswers;
 
-      // Get max scores per sub-question from database (already extracted during question detection)
+      // Get max scores per sub-question from the normalized scheme (passed from orchestration)
       // This comes from fullExamPapers.questions[].sub_questions[].marks field
-      const subQuestionMaxScores = (questionDetection as any)?.subQuestionMaxScores || {};
+      const subQuestionMaxScores = (normalizedScheme as any)?.subQuestionMaxScores || {};
 
       // Call user prompt with enhanced parameters (raw OCR blocks and classification)
       userPrompt = prompt.user(
@@ -883,6 +890,24 @@ export class MarkingInstructionService {
 
     // Extract question number for logging (prefer input questionNumber which may include sub-question part)
     const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
+
+    // DEBUG LOG: Show full prompt for Q11
+    if (questionNumber === '11' || String(questionNumber).startsWith('11')) {
+      const BLUE = '\x1b[34m';
+      const BOLD = '\x1b[1m';
+      const RESET = '\x1b[0m';
+      console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
+      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT] Q${questionNumber}${RESET}`);
+      console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
+
+      console.log(`${BOLD}SYSTEM PROMPT:${RESET}`);
+      console.log(systemPrompt.substring(0, 500) + '...\n');
+
+      console.log(`${BOLD}USER PROMPT:${RESET}`);
+      console.log(userPrompt);
+
+      console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
+    }
 
     // Log only content sections by extracting them from the actual userPrompt (no duplicate logic)
     const GREEN = '\x1b[32m';
