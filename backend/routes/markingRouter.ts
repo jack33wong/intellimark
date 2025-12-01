@@ -1406,10 +1406,37 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // DEBUG: Log the EXACT order of pages sent to frontend
     const pageOrderLog = pagesWithOutput.map((p, i) => {
-      const qInfo = p.lowestQuestionNumber !== Infinity ? `Q${p.lowestQuestionNumber}` : 'NoQ';
-      return `[${i + 1}] Page ${p.pageNumber} (${qInfo})`;
+      let qInfo = 'NoQ';
+      if (p.lowestQuestionNumber !== Infinity) {
+        // Find sub-questions for this page
+        const subQs: string[] = [];
+        allQuestionResults.forEach(r => {
+          if (r.annotations) {
+            r.annotations.forEach((a: any) => {
+              if (a.pageIndex === p.pageIndex) {
+                const label = a.subQuestion || (a.text ? a.text.substring(0, 5) : '?');
+                // Avoid duplicates
+                const fullLabel = `Q${r.questionNumber}${a.subQuestion ? a.subQuestion : ''}`;
+                if (!subQs.includes(fullLabel)) subQs.push(fullLabel);
+              }
+            });
+          }
+        });
+        // If we found specific sub-questions, use them. Otherwise fallback to Q#
+        if (subQs.length > 0) {
+          // Sort naturally
+          subQs.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+          qInfo = subQs.join(',');
+        } else {
+          qInfo = `Q${p.lowestQuestionNumber}`;
+        }
+      }
+      // White text for Q info: \x1b[37m
+      return `[${i + 1}] Page ${p.pageNumber} (\x1b[37m${qInfo}\x1b[32m)`;
     }).join(' -> ');
-    console.log(`\x1b[32m✅ [FINAL PAGE ORDER] ${pageOrderLog}\x1b[0m`);
+
+    // Bold Label: \x1b[1m
+    console.log(`\x1b[32m✅ \x1b[1m[FINAL PAGE ORDER]\x1b[0m \x1b[32m${pageOrderLog}\x1b[0m`);
 
     // --- Construct Final Output (Always Images) ---
     const outputFormat: 'images' = 'images'; // Explicitly set to images
