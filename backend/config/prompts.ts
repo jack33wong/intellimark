@@ -621,7 +621,8 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
         classificationStudentWork?: string,
         subQuestionNumbers?: string[],
         subQuestionAnswers?: any[],
-        generalMarkingGuidance?: string
+        generalMarkingGuidance?: string,
+        subQuestionMaxScores?: { [subQuestion: string]: number }
       ) => `
 MARKING TASK:
 ${questionText ? `Question: ${questionText}` : ''}
@@ -639,6 +640,13 @@ Please mark each sub-question separately and provide a breakdown of marks.
 ${subQuestionAnswers && subQuestionAnswers.length > 0 ? `
 SUB-QUESTION ANSWERS:
 ${JSON.stringify(subQuestionAnswers, null, 2)}
+` : ''}
+${subQuestionMaxScores && Object.keys(subQuestionMaxScores).length > 0 ? `
+SUB-QUESTION MAX SCORES (CRITICAL):
+${Object.entries(subQuestionMaxScores).map(([subQ, maxScore]) => `  ${subQ}: ${maxScore} mark${maxScore !== 1 ? 's' : ''}`).join('\n')}
+
+⚠️ IMPORTANT: Do NOT award more than the max score for each sub-question.
+Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
 ` : ''}
 
 STUDENT WORK (OCR):

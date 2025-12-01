@@ -851,6 +851,35 @@ export class MarkingInstructionService {
       const subQuestionNumbers = subQuestionMetadata?.subQuestionNumbers || normalizedScheme.subQuestionNumbers;
       const subQuestionAnswers = normalizedScheme.marksWithAnswers;
 
+      // Calculate max scores per sub-question from subQuestionMarks
+      const subQuestionMaxScores: { [subQuestion: string]: number } = {};
+      if (normalizedScheme.subQuestionMarks && typeof normalizedScheme.subQuestionMarks === 'object') {
+        Object.keys(normalizedScheme.subQuestionMarks).forEach(subQNum => {
+          const marks = normalizedScheme.subQuestionMarks![subQNum];
+          if (!Array.isArray(marks)) {
+            return;
+          }
+
+          // Sum all mark values for this sub-question
+          let subTotal = 0;
+          marks.forEach((mark: any) => {
+            // Mark can be a number or an object with a "marks" field
+            if (typeof mark === 'number') {
+              subTotal += mark;
+            } else if (mark && typeof mark === 'object' && typeof mark.marks === 'number') {
+              subTotal += mark.marks;
+            } else if (mark && typeof mark === 'object' && typeof mark.mark === 'number') {
+              subTotal += mark.mark;
+            }
+          });
+
+          // Extract just the sub-question label (e.g., "22a" -> "a", "11b" -> "b")
+          const match = subQNum.match(/([a-z]+|[ivx]+)$/i);
+          const subLabel = match ? match[1] : subQNum;
+
+          subQuestionMaxScores[subLabel] = subTotal;
+        });
+      }
 
       // Call user prompt with enhanced parameters (raw OCR blocks and classification)
       userPrompt = prompt.user(
@@ -862,7 +891,8 @@ export class MarkingInstructionService {
         classificationStudentWork ? classificationStudentWork.replace(/\\n/g, '\n') : null,
         subQuestionNumbers,
         subQuestionAnswers,
-        formattedGeneralGuidance // Pass general guidance to prompt
+        formattedGeneralGuidance, // Pass general guidance to prompt
+        subQuestionMaxScores // NEW: Pass max scores per sub-question
       );
     } else {
       // Use the basic prompt
