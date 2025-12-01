@@ -193,6 +193,7 @@ export class MarkingSchemeOrchestrationService {
         const questionNumbers: string[] = [];
         const subQuestionAnswers: string[] = [];
         const subQuestionMarksMap = new Map<string, any[]>();
+        const subQuestionMaxScoresMap = new Map<string, number>(); // NEW: Store max scores from database
 
         for (const item of group) {
           const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
@@ -240,6 +241,16 @@ export class MarkingSchemeOrchestrationService {
 
           subQuestionMarksMap.set(displayQNum, marksArray);
           mergedMarks.push(...marksArray);
+
+          // NEW: Extract max score directly from database (simple number from sub_questions[].marks)
+          const maxScore = item.detectionResult.match?.marks; // This is the max score (e.g., 1, 2)
+          if (typeof maxScore === 'number') {
+            // Extract just the sub-question label (e.g., "11a" -> "a")
+            const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+            const subLabel = match ? match[1] : displayQNum;
+            subQuestionMaxScoresMap.set(subLabel, maxScore);
+          }
+
           combinedQuestionTexts.push(item.question.text);
           const dbQuestionText = item.detectionResult.match?.databaseQuestionText || '';
           if (dbQuestionText) {
@@ -316,6 +327,7 @@ export class MarkingSchemeOrchestrationService {
           databaseQuestionText: fullDatabaseQuestionText,
           subQuestionNumbers: questionNumbers,
           subQuestionAnswers: subQuestionAnswers.filter(a => a !== '').length > 0 ? subQuestionAnswers : undefined,
+          subQuestionMaxScores: Object.fromEntries(subQuestionMaxScoresMap), // NEW: Pass max scores from database
           generalMarkingGuidance: firstItem.detectionResult.match?.markingScheme?.generalMarkingGuidance // Preserve general guidance
         };
 
