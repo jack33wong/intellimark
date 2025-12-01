@@ -693,15 +693,6 @@ export async function executeMarkingForQuestion(
     // I will use a workaround: The MarkingTask object should carry the images.
     // I will update createMarkingTasksFromClassification to populate a new 'images' field in MarkingTask.
 
-    // Log classification blocks for Q11b debugging
-    if (String(questionId).includes('11')) {
-      console.log(`[DEBUG Q11] Classification Blocks for Q${questionId}:`);
-      task.classificationBlocks?.forEach((block, idx) => {
-        if (block.hasStudentDrawing || block.text.includes('[DRAWING]')) {
-          console.log(`  - Block ${idx}: Page ${block.pageIndex}, Text: "${block.text.substring(0, 50)}...", Drawing: ${block.hasStudentDrawing}`);
-        }
-      });
-    }
 
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
@@ -737,15 +728,6 @@ export async function executeMarkingForQuestion(
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
 
-    // Log AI response page index for Q11b debugging
-    if (String(questionId).includes('11') && markingResult.annotations) {
-      console.log(`[DEBUG Q11] AI Marking Response for Q${questionId}:`);
-      markingResult.annotations.forEach((ann, idx) => {
-        if (ann.visual_position) {
-          console.log(`  - Annotation ${idx}: Action: ${ann.action}, PageIndex: ${ann.pageIndex}, Visual: ${JSON.stringify(ann.visual_position)}`);
-        }
-      });
-    }
 
     // Basic validation of marking result
     if (!markingResult || !markingResult.annotations || !markingResult.studentScore) {
@@ -810,10 +792,6 @@ const enrichAnnotationsWithPositions = (
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
-  // DEBUG: Log raw annotations for Q16 to identify phantom drawing
-  if (questionId === '16') {
-    console.log(`[DEBUG Q16] Raw Annotations before enrichment:`, JSON.stringify(annotations, null, 2));
-  }
 
   const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
@@ -1179,9 +1157,7 @@ const enrichAnnotationsWithPositions = (
   });
 
   // Debug Log: Final Sorted Order for this Question
-  if (String(questionId) === '11') {
-    console.log(`[DEBUG Q11 SORTED] Final Order: ${results.map(r => `[P${r.pageIndex} ${r.subQuestion || ''} ${r.text}]`).join(', ')}`);
-  }
+
 
 
 

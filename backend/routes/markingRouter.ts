@@ -1788,9 +1788,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       // We need access to the original task to count blocks/drawings
       const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
 
-      if (String(result.questionNumber) === '11') {
-        console.log(`[DEBUG Q11] Task found: ${!!task}`);
-      }
+
 
       // Group annotations by sub-question
       const annotationsBySubQ = new Map<string, string[]>();
