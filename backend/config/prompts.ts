@@ -475,11 +475,11 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
           * Set to "FALLBACK" if the student work exists in Classification but is MISSING in OCR, and you mapped it to a nearby block (like question text) just to place the annotation.
         - **CRITICAL - Drawing/Graph Page Index Detection:**
           * When annotating DRAWINGS, GRAPHS, or DIAGRAMS (annotations with [DRAWING] or visual_position):
-          * **PRIMARY RULE:** The `pageIndex` MUST be set to where the ACTUAL GRID/DIAGRAM/DRAWING SPACE is located
+          * **PRIMARY RULE:** The pageIndex MUST be set to where the ACTUAL GRID/DIAGRAM/DRAWING SPACE is located
           * **DO NOT use the page where the question text appears** (e.g., "draw a graph")
           * **HOW TO IDENTIFY THE CORRECT PAGE:**
             1. Look through RAW OCR BLOCKS for pages containing:
-               - Coordinate grids (LaTeX with grid structures like `\begin{ tikzpicture }` or axis labels)
+               - Coordinate grids (LaTeX with grid structures like \\begin{tikzpicture} or axis labels)
                - Blank graph paper patterns
                - Empty diagram spaces
                - Minimal text content (mostly visual elements)
@@ -489,7 +489,6 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
                - Scale markers (0, 1, 2, etc. on axes)
                - Empty space for student work
             4. **Multi-page questions:** The drawing space is typically on the LAST page of that question
-            5. **"Opposite" or "overleaf" keywords:** If question says "on the grid opposite" or "overleaf", the grid is on the NEXT page
           * **EXAMPLE:**
             - Question text on page 1: "Draw a cumulative frequency graph"
             - Empty coordinate grid on page 2
@@ -631,18 +630,18 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        4.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
        5.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
-  user: (
-    ocrText: string,
-    markingScheme: string,
-    totalMarks: number,
-    questionText?: string | null,
-    rawOcrBlocks?: any[],
-    classificationStudentWork?: string,
-    subQuestionNumbers?: string[],
-    subQuestionAnswers?: any[],
-    generalMarkingGuidance?: string,
-    subQuestionMaxScores?: { [subQuestion: string]: number }
-  ) => `
+      user: (
+        ocrText: string,
+        markingScheme: string,
+        totalMarks: number,
+        questionText?: string | null,
+        rawOcrBlocks?: any[],
+        classificationStudentWork?: string,
+        subQuestionNumbers?: string[],
+        subQuestionAnswers?: any[],
+        generalMarkingGuidance?: string,
+        subQuestionMaxScores?: { [subQuestion: string]: number }
+      ) => `
 MARKING TASK:
 ${questionText ? `Question: ${questionText}` : ''}
 Total Marks: ${totalMarks}
@@ -687,12 +686,12 @@ INSTRUCTIONS:
 `,
     },
 
-// ============================================================================
-// MODEL ANSWER SERVICE PROMPTS (Call #2)
-// ============================================================================
+    // ============================================================================
+    // MODEL ANSWER SERVICE PROMPTS (Call #2)
+    // ============================================================================
 
-modelAnswer: {
-  system: `
+    modelAnswer: {
+      system: `
     # [AI Persona & Instructions]
 
     You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
@@ -773,16 +772,16 @@ modelAnswer: {
     # [Task Data]
     `,
 
-    user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
-      // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
-      // Fail-fast if it looks like JSON (old format)
-      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-        throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
-      }
+      user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
+        // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
+        // Fail-fast if it looks like JSON (old format)
+        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+          throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+        }
 
-      const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
+        const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
 
-      return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
+        return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
 **QUESTION:**
 ${questionText}${marksInfo}
 
@@ -825,15 +824,15 @@ ${schemeText}
 - Wrap each part separately and provide model answers after each sub-question span
 
 Please generate a model answer that would receive full marks according to the marking scheme.`;
-    }
-},
+      }
+    },
 
-// ============================================================================
-// SUGGESTED FOLLOW-UP PROMPTS
-// ============================================================================
+    // ============================================================================
+    // SUGGESTED FOLLOW-UP PROMPTS
+    // ============================================================================
 
-markingScheme: {
-  system: `You are an AI that explains marking schemes for exam questions.
+    markingScheme: {
+      system: `You are an AI that explains marking schemes for exam questions.
 
             Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
             Keep it concise and focus on the key marking points.
@@ -844,24 +843,24 @@ markingScheme: {
             - Clearly label each response with its question number (e.g., "**Question 1:**", "**Question 2:**")
             - Separate each question's explanation with clear dividers`,
 
-    user: (questionText: string, schemeText: string) => {
-      // schemeText must be plain text (same format as stored in detectedQuestion)
-      // Fail-fast if it looks like JSON (old format)
-      if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-        throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
-      }
+      user: (questionText: string, schemeText: string) => {
+        // schemeText must be plain text (same format as stored in detectedQuestion)
+        // Fail-fast if it looks like JSON (old format)
+        if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
+          throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+        }
 
-      return `**QUESTION:**
+        return `**QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
 ${schemeText}
 
 Provide a brief explanation of this marking scheme. Keep it simple and concise.`;
-    }
-},
-similarquestions: {
-  system: `You are an AI that generates similar practice questions for exam preparation.
+      }
+    },
+    similarquestions: {
+      system: `You are an AI that generates similar practice questions for exam preparation.
 
             Your task is to create exactly 3 similar questions that test the same concepts and skills.
             Format your response with a clear title and numbered list of 3 questions.
@@ -873,18 +872,18 @@ similarquestions: {
             - For each original question, generate the specified number of similar questions
             - Clearly label each section with the original question number (e.g., "**Similar Questions for Question 1:**", "**Similar Questions for Question 2:**")`,
 
-    user: (questionText: string, schemeJson: string, questionCount?: number) => {
-      // Convert JSON marking scheme to clean bulleted list format
-      const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
+      user: (questionText: string, schemeJson: string, questionCount?: number) => {
+        // Convert JSON marking scheme to clean bulleted list format
+        const formattedScheme = formatMarkingSchemeAsBullets(schemeJson);
 
-      // Number of similar questions to generate per original question
-      const numSimilarQuestionsPerQuestion = 3;
+        // Number of similar questions to generate per original question
+        const numSimilarQuestionsPerQuestion = 3;
 
-      // Check if multiple questions are provided
-      const hasMultipleQuestions = questionCount && questionCount > 1;
+        // Check if multiple questions are provided
+        const hasMultipleQuestions = questionCount && questionCount > 1;
 
-      if (hasMultipleQuestions) {
-        return `**ORIGINAL QUESTIONS (${questionCount} questions):**
+        if (hasMultipleQuestions) {
+          return `**ORIGINAL QUESTIONS (${questionCount} questions):**
 ${questionText}
 
 **MARKING SCHEMES:**
@@ -913,8 +912,8 @@ ${formattedScheme}
 ... (continue for all ${questionCount} questions)
 
 **IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
-      } else {
-        return `**ORIGINAL QUESTION:**
+        } else {
+          return `**ORIGINAL QUESTION:**
 ${questionText}
 
 **MARKING SCHEME:**
@@ -926,17 +925,17 @@ Similar Practice Questions
 
 ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Question ${i + 1}]`).join('\n')}
 `;
+        }
       }
-    }
-},
+    },
   },
 
-// ============================================================================
-// OCR SEGMENTATION PROMPTS
-// ============================================================================
+  // ============================================================================
+  // OCR SEGMENTATION PROMPTS
+  // ============================================================================
 
-ocrSegmentation: {
-  system: `You are an expert OCR segmentation AI. Your task is to classify sequential text blocks from a homework image.
+  ocrSegmentation: {
+    system: `You are an expert OCR segmentation AI. Your task is to classify sequential text blocks from a homework image.
 
     INPUT STRUCTURE:
     The input is a sequential list of OCR blocks. Each block has an 'id', 'text', and an 'isHandwritten' flag (true/false).
@@ -974,14 +973,14 @@ ocrSegmentation: {
     {inputBlocks}
 
     Return only the JSON object with classifications.`
-},
+  },
 
-// ============================================================================
-// MULTI-QUESTION DETECTION PROMPTS
-// ============================================================================
+  // ============================================================================
+  // MULTI-QUESTION DETECTION PROMPTS
+  // ============================================================================
 
-multiQuestionDetection: {
-  system: `You are an AI that analyzes OCR text blocks from a math homework image.
+  multiQuestionDetection: {
+    system: `You are an AI that analyzes OCR text blocks from a math homework image.
 
     YOUR GOAL: Analyze the provided OCR text blocks and classify each block as either question text or student work.
 
@@ -1029,15 +1028,15 @@ multiQuestionDetection: {
     IMPORTANT: Use the actual text content from the OCR blocks above. Do not generate examples.
 
     Return only the JSON object with classified segments.`
-},
+  },
 
 
-// ============================================================================
-// AI SEGMENTATION SERVICE PROMPTS
-// ============================================================================
+  // ============================================================================
+  // AI SEGMENTATION SERVICE PROMPTS
+  // ============================================================================
 
-aiSegmentation: {
-  system: `Map OCR blocks to classification and merge best results. **DEFAULT: Classification** (better LaTeX). **ONLY use OCR when it's mathematically correct and classification is wrong.**
+  aiSegmentation: {
+    system: `Map OCR blocks to classification and merge best results. **DEFAULT: Classification** (better LaTeX). **ONLY use OCR when it's mathematically correct and classification is wrong.**
 
 **RULES:**
 - OCR is line-by-line: multiple blocks → one classification line (normal)
@@ -1107,14 +1106,14 @@ ${classificationText}
 
 Rules: Map all lines, use question text to check correctness, default=classification, filter question text. JSON format.`;
     }
-},
+  },
 
-// ============================================================================
-// ANALYSIS SERVICE PROMPTS
-// ============================================================================
+  // ============================================================================
+  // ANALYSIS SERVICE PROMPTS
+  // ============================================================================
 
-analysis: {
-  system: `You are an expert mathematics tutor analyzing student exam performance.
+  analysis: {
+    system: `You are an expert mathematics tutor analyzing student exam performance.
 
 Your task is to analyze marking results and generate a comprehensive performance report.
 
@@ -1192,7 +1191,7 @@ Keep the analysis concise, educational, and actionable. Focus on helping the stu
 
       return prompt;
     }
-}
+  }
 };
 
 // ============================================================================
