@@ -722,6 +722,64 @@ export class MarkingInstructionService {
 
   // Use shared normalization helper from TextNormalizationUtils
 
+  /**
+   * Formats the marking scheme into a concise text-based format for the AI prompt.
+   * Handles both single questions and grouped sub-questions.
+   * Format:
+   * [Label] [MAX: X]
+   * - Mark: Criteria
+   */
+  private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
+    let output = '';
+
+    // Check if we have sub-questions
+    const hasSubQuestions = normalizedScheme.subQuestionMarks && Object.keys(normalizedScheme.subQuestionMarks).length > 0;
+
+    if (hasSubQuestions) {
+      // Grouped Sub-Questions
+      const subQuestions = Object.keys(normalizedScheme.subQuestionMarks!).sort();
+
+      for (const subQ of subQuestions) {
+        const marks = normalizedScheme.subQuestionMarks![subQ];
+        // Extract max score from subQuestionMaxScores map if available
+        // subQ is like "11a", we need "a"
+        const subLabel = subQ.replace(/^\d+/, '');
+        const maxScore = normalizedScheme.subQuestionMaxScores ? normalizedScheme.subQuestionMaxScores[subLabel] : undefined;
+
+        output += `[${subQ}]`;
+        if (maxScore !== undefined) {
+          output += ` [MAX SCORE: ${maxScore}]`;
+        }
+        output += '\n';
+
+        marks.forEach((m: any) => {
+          output += `- ${m.mark}: ${m.answer}`;
+          if (m.comments) output += ` (${m.comments})`;
+          output += '\n';
+        });
+        output += '\n';
+      }
+    } else {
+      // Single Question
+      if (normalizedScheme.totalMarks) {
+        output += `[MAX SCORE: ${normalizedScheme.totalMarks}]\n`;
+      }
+
+      normalizedScheme.marks.forEach((m: any) => {
+        output += `- ${m.mark}: ${m.answer}`;
+        if (m.comments) output += ` (${m.comments})`;
+        output += '\n';
+      });
+    }
+
+    // Append Question Level Answer if available
+    if (normalizedScheme.questionLevelAnswer) {
+      output += `\nFINAL ANSWER: ${normalizedScheme.questionLevelAnswer}\n`;
+    }
+
+    return output.trim();
+  }
+
   static async generateFromOCR(
     model: ModelType,
     ocrText: string,
@@ -735,16 +793,28 @@ export class MarkingInstructionService {
     generalMarkingGuidance?: any,
     imageData?: string, // Image data for edge cases where Drawing Classification failed
     images?: string[] // Array of images for multi-page questions
-  ): Promise<{ annotations: string; studentScore?: any; usageTokens: number }> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
     try {
-      const parsedOcr = JSON.parse(ocrText);
-      if (parsedOcr.question && parsedOcr.steps) {
-        // Format the OCR text nicely and normalize LaTeX delimiters
-        formattedOcrText = `Question: ${parsedOcr.question}\n\nStudent's Work:\n${parsedOcr.steps.map((step: any, index: number) => {
+      // Try to parse as JSON first (legacy format)
+      const parsed = JSON.parse(ocrText);
+      if (Array.isArray(parsed)) {
+        formattedOcrText = parsed.map((block: any) => {
+          const text = block.text || '';
+          const page = block.pageIndex !== undefined ? `[Page ${block.pageIndex}] ` : '';
+          return `${page}${text}`;
+        }).join('\n');
+      } else if (parsed.blocks) {
+        formattedOcrText = parsed.blocks.map((block: any) => {
+          const text = block.text || '';
+          const page = block.pageIndex !== undefined ? `[Page ${block.pageIndex}] ` : '';
+          return `${page}${text}`;
+        }).join('\n');
+      } else if (parsed.question && parsed.steps) {
+        // Legacy format support
+        formattedOcrText = `Question: ${parsed.question}\n\nStudent's Work:\n${parsed.steps.map((step: any, index: number) => {
           const normalizedText = normalizeLatexDelimiters(step.cleanedText || step.text || '');
-          // Use simplified step ID format (e.g., [step_1], [step_2])
           const simplifiedStepId = `step_${index + 1}`;
           return `${index + 1}. [${simplifiedStepId}] ${normalizedText}`;
         }).join('\n')}`;
@@ -772,7 +842,7 @@ export class MarkingInstructionService {
     let systemPrompt: string;
     let userPrompt: string;
 
-    if (hasMarkingScheme) {
+    if (hasMarkingScheme && normalizedScheme) {
       // Use the withMarkingScheme prompt
       const prompt = AI_PROMPTS.markingInstructions.withMarkingScheme;
       systemPrompt = prompt.system;
@@ -784,105 +854,51 @@ export class MarkingInstructionService {
       const baseSchemeQNum = String(schemeQuestionNumber || '').replace(/[a-z]/i, '');
       const baseCurrentQNum = String(currentQuestionNumber || '').replace(/[a-z]/i, '');
 
-      let schemeJson = '';
+      let schemeText = '';
       // Only use this scheme if it matches the current question
       if (baseSchemeQNum === baseCurrentQNum || schemeQuestionNumber === currentQuestionNumber) {
         try {
-          // Convert normalized scheme to JSON format for the prompt
-          // Include question-level answer if available
-          const schemeData: any = { marks: normalizedScheme.marks };
-          if (normalizedScheme.questionLevelAnswer) {
-            schemeData.questionLevelAnswer = normalizedScheme.questionLevelAnswer;
-          } else if (classificationStudentWork && !subQuestionMetadata?.hasSubQuestions) {
-            // For single questions (not grouped), extract final answer from classification if not available
-            // Look for the last step that contains an equals sign (likely the final answer)
-            const classificationLines = classificationStudentWork.split('\n').filter(line => line.trim());
-            for (let i = classificationLines.length - 1; i >= 0; i--) {
-              const line = classificationLines[i];
-              // Match lines like: "10. [main_step_10] $k = -5$" or "3. [main_step_3] $= 15\pi$"
-              const stepMatch = line.match(/\[main_step_\d+\]\s*\$(.+?)\$/);
-              if (stepMatch && stepMatch[1]) {
-                const content = stepMatch[1].trim();
-                // If it contains an equals sign, it's likely a final answer
-                if (content.includes('=')) {
-                  // For variable assignments like "k = -5", use the full equation
-                  // For expressions like "= 15\pi", use just the right side
-                  if (content.match(/^[a-zA-Z]\s*=/)) {
-                    // Variable assignment: use full equation (e.g., "k = -5")
-                    schemeData.questionLevelAnswer = content;
-                  } else {
-                    // Expression: use right side only (e.g., "15\pi")
-                    const equalsMatch = content.match(/=\s*(.+)$/);
-                    if (equalsMatch && equalsMatch[1]) {
-                      schemeData.questionLevelAnswer = equalsMatch[1].trim();
-                    } else {
-                      schemeData.questionLevelAnswer = content;
-                    }
-                  }
-                  console.log(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Extracted final answer from classification: ${schemeData.questionLevelAnswer}`);
-                  break;
-                }
-              }
-            }
-          }
-          // Include sub-question-specific answers if available (for grouped sub-questions)
-          if (normalizedScheme.marksWithAnswers && normalizedScheme.marksWithAnswers.length > 0) {
-            schemeData.marksWithAnswers = normalizedScheme.marksWithAnswers;
-          }
-          // CRITICAL: Include sub-question marks mapping to prevent mix-up (e.g., Q3a marks assigned to Q3b)
-          if (normalizedScheme.subQuestionMarks && typeof normalizedScheme.subQuestionMarks === 'object') {
-            schemeData.subQuestionMarks = normalizedScheme.subQuestionMarks;
-          }
-          // Include alternative method if available (e.g., Q7alt, Q22alt)
-          if (normalizedScheme.hasAlternatives && normalizedScheme.alternativeMethod) {
-            schemeData.alternativeMethod = {
-              marks: normalizedScheme.alternativeMethod.marks || [],
-              answer: normalizedScheme.alternativeMethod.answer
-            };
-          }
-          schemeJson = JSON.stringify(schemeData, null, 2);
+          // NEW: Use text-based formatter
+          schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
         } catch (error) {
-          schemeJson = '{}';
+          schemeText = 'Error formatting marking scheme';
+          console.error('[MARKING INSTRUCTION] Error formatting marking scheme:', error);
         }
       } else {
         // Scheme doesn't match current question - don't pass it to AI
         console.warn(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Marking scheme question number (${schemeQuestionNumber}) doesn't match current question. Skipping scheme.`);
         hasMarkingScheme = false;
-        schemeJson = '{}';
+        // Fallback to no marking scheme prompt
+        const fallbackPrompt = AI_PROMPTS.markingInstructions.noMarkingScheme;
+        systemPrompt = fallbackPrompt.system;
+        userPrompt = fallbackPrompt.user(
+          inputQuestionNumber || 'Unknown',
+          formattedOcrText,
+          classificationStudentWork || 'No student work provided',
+          formattedGeneralGuidance
+        );
       }
 
-      // Get total marks from normalized scheme
-      const totalMarks = normalizedScheme.totalMarks;
-
-      // Extract sub-question info for prompt (prefer from metadata, fallback to scheme)
-      const subQuestionNumbers = subQuestionMetadata?.subQuestionNumbers || normalizedScheme.subQuestionNumbers;
-      const subQuestionAnswers = normalizedScheme.marksWithAnswers;
-
-      // Get max scores per sub-question from the normalized scheme (passed from orchestration)
-      // This comes from fullExamPapers.questions[].sub_questions[].marks field
-      const subQuestionMaxScores = (normalizedScheme as any)?.subQuestionMaxScores || {};
-
-      // Call user prompt with enhanced parameters (raw OCR blocks and classification)
-      userPrompt = prompt.user(
-        formattedOcrText,
-        schemeJson,
-        totalMarks,
-        questionText,
-        rawOcrBlocks,
-        classificationStudentWork ? classificationStudentWork.replace(/\\n/g, '\n') : null,
-        subQuestionNumbers,
-        subQuestionAnswers,
-        formattedGeneralGuidance, // Pass general guidance to prompt
-        subQuestionMaxScores // NEW: Pass max scores from database (no calculation)
-      );
+      if (hasMarkingScheme) {
+        userPrompt = prompt.user(
+          inputQuestionNumber || 'Unknown',
+          schemeText, // Pass text instead of JSON
+          formattedOcrText,
+          classificationStudentWork || 'No student work provided',
+          formattedGeneralGuidance,
+          rawOcrBlocks, // Pass raw blocks for drawing page detection
+          questionText // Pass question text explicitly
+        );
+      }
     } else {
-      // Use the basic prompt
-      const prompt = AI_PROMPTS.markingInstructions.basic;
+      // Use the noMarkingScheme prompt
+      const prompt = AI_PROMPTS.markingInstructions.noMarkingScheme;
       systemPrompt = prompt.system;
-      // Pass classification student work to basic prompt for better context
       userPrompt = prompt.user(
+        inputQuestionNumber || 'Unknown',
         formattedOcrText,
-        classificationStudentWork ? classificationStudentWork.replace(/\\n/g, '\n') : null
+        classificationStudentWork || 'No student work provided',
+        formattedGeneralGuidance
       );
     }
 
@@ -983,6 +999,31 @@ export class MarkingInstructionService {
       }
 
       aiResponseString = res.content;
+
+      // DEBUG LOG: AI Response for Drawing Page Index
+      if (inputQuestionNumber === '11' || String(inputQuestionNumber).startsWith('11')) {
+        try {
+          const parsedResponse = JSON.parse(aiResponseString);
+          if (parsedResponse.annotations) {
+            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} - Drawing Page Analysis`);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            parsedResponse.annotations.forEach((anno: any, idx: number) => {
+              // Check if it's a drawing annotation or has visual position
+              if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
+                console.log(`Annotation ${idx + 1}:`);
+                console.log(`  - Text: ${anno.text}`);
+                console.log(`  - Page Index: ${anno.pageIndex}`);
+                console.log(`  - Reasoning: ${anno.reasoning}`);
+                console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
+              }
+            });
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+          }
+        } catch (e) {
+          // Ignore parsing errors here, main flow handles it
+        }
+      }
       const usageTokens = res.usageTokens;
 
 

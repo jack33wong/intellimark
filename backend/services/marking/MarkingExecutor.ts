@@ -623,15 +623,49 @@ export async function executeMarkingForQuestion(
     // Prepare raw OCR blocks for enhanced marking (bypass segmentation)
     const rawOcrBlocks = task.mathBlocks.map((block, idx) => {
       const blockId = (block as any).globalBlockId || `block_${task.sourcePages[0] || 0}_${idx}`;
+
+      // Normalize page index to be 0-based relative to the question's pages
+      // This ensures the AI prompt sees "Page 0", "Page 1" matching the image sequence
+      let normalizedPageIndex = 0;
+      const rawPageIndex = (block as any).pageIndex ?? task.sourcePages[0] ?? 0;
+
+      if (task.sourcePages && task.sourcePages.length > 0) {
+        const foundIndex = task.sourcePages.indexOf(rawPageIndex);
+        if (foundIndex !== -1) {
+          normalizedPageIndex = foundIndex;
+        }
+      }
+
       return {
         id: blockId,
         text: block.mathpixLatex || block.googleVisionText || '',
-        pageIndex: (block as any).pageIndex ?? task.sourcePages[0] ?? 0,
+        pageIndex: normalizedPageIndex,
         coordinates: block.coordinates ? {
           x: block.coordinates.x,
           y: block.coordinates.y
         } : undefined
       };
+    }).filter(block => {
+      // Filter out noise patterns and empty blocks
+      const text = block.text.trim();
+      if (!text) return false;
+
+      // Filter out LaTeX placeholders like \( ____ \)
+      if (text === '\\( \\_\\_\\_\\_ \\)') return false;
+
+      // Filter out "Turn over" noise (common in exam papers)
+      if (text.toLowerCase().includes('turn over')) return false;
+
+      // Filter out isolated table closing tags
+      if (text.includes('\\hline') && text.includes('\\end{tabular}')) return false;
+
+      // Filter out specific table start tags
+      if (text.includes('\\begin{tabular}{|l|l|}')) return false;
+
+      // Filter out header/footer noise if needed (e.g. page numbers, "Turn over")
+      // (User requested removing "this text pattern", assuming specific placeholder for now)
+
+      return true;
     });
 
     // Add synthetic drawing blocks to rawOcrBlocks if classification has [DRAWING] entries
@@ -896,6 +930,14 @@ const enrichAnnotationsWithPositions = (
         // FIX: Use defaultPageIndex if lastValidAnnotation is not available
         // This ensures we default to the question's known page (e.g. 13) instead of 0
         let pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : defaultPageIndex;
+
+        // FIX: If AI provided a pageIndex (relative), use it!
+        if ((anno as any).pageIndex !== undefined) {
+          const relativeIndex = (anno as any).pageIndex;
+          if (task.sourcePages && task.sourcePages.length > relativeIndex) {
+            pageIndex = task.sourcePages[relativeIndex];
+          }
+        }
 
         // Try to find page index based on sub-question (e.g. "b" -> Page 14)
         if ((anno as any).subQuestion && classificationBlocks) {

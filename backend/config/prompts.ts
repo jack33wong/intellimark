@@ -631,48 +631,32 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
        5.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
       user: (
-        ocrText: string,
+        questionNumber: string,
         markingScheme: string,
-        totalMarks: number,
-        questionText?: string | null,
+        ocrText: string,
+        classificationStudentWork: string,
+        generalMarkingGuidance: string,
         rawOcrBlocks?: any[],
-        classificationStudentWork?: string,
-        subQuestionNumbers?: string[],
-        subQuestionAnswers?: any[],
-        generalMarkingGuidance?: string,
-        subQuestionMaxScores?: { [subQuestion: string]: number }
+        questionText?: string | null
       ) => `
 MARKING TASK:
+Question Number: ${questionNumber}
 ${questionText ? `Question: ${questionText}` : ''}
-Total Marks: ${totalMarks}
 
 ${generalMarkingGuidance ? `${generalMarkingGuidance}` : ''}
 
 MARKING SCHEME:
 ${markingScheme}
-${subQuestionNumbers && subQuestionNumbers.length > 0 ? `
-SUB-QUESTION STRUCTURE:
-The student work contains the following sub-questions: ${subQuestionNumbers.join(', ')}.
-Please mark each sub-question separately and provide a breakdown of marks.
-` : ''}
-${subQuestionAnswers && subQuestionAnswers.length > 0 ? `
-SUB-QUESTION ANSWERS:
-${JSON.stringify(subQuestionAnswers, null, 2)}
-` : ''}
-${subQuestionMaxScores && Object.keys(subQuestionMaxScores).length > 0 ? `
-SUB-QUESTION MAX SCORES (CRITICAL):
-${Object.entries(subQuestionMaxScores).map(([subQ, maxScore]) => `  ${subQ}: ${maxScore} mark${maxScore !== 1 ? 's' : ''}`).join('\n')}
 
-⚠️ IMPORTANT: Do NOT award more than the max score for each sub-question.
+⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
 Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
-` : ''}
-${classificationStudentWork ? `
+
 STUDENT WORK (STRUCTURED):
 ${classificationStudentWork}
-` : ''}
+
 ${rawOcrBlocks ? `
 RAW OCR BLOCKS (For Reference):
-${JSON.stringify(rawOcrBlocks, null, 2)}
+${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
 ` : ''}
 
 INSTRUCTIONS:
