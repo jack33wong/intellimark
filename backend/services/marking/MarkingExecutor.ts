@@ -1125,7 +1125,6 @@ const enrichAnnotationsWithPositions = (
       // If hasValidBbox is false but we have aiPos, we DON'T have line data (it's a split block or drawing).
       hasLineData: hasValidBbox
     };
-
     lastValidAnnotation = enriched as any;
     return enriched;
   }).filter(a => a !== null) as EnrichedAnnotation[];
@@ -1133,8 +1132,7 @@ const enrichAnnotationsWithPositions = (
   // SORTING DESIGN:
   // 1. Meta Info Page First (Page Index ASC)
   // 2. Sort by Question Number (N/A here as we are in single question scope)
-  // 3. Sub-Question Number (ASC)
-  results.sort((a, b) => {
+  const sortedResults = results.sort((a, b) => {
     // Debug Log for Sorting (Sample first few comparisons)
     // if (Math.random() < 0.01) console.log(`[SORT DEBUG] Comparing Q${questionId}: P${a.pageIndex} vs P${b.pageIndex}, SubQ ${a.subQuestion} vs ${b.subQuestion}`);
 

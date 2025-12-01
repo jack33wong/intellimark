@@ -594,12 +594,23 @@ Your sole purpose is to generate a valid JSON object. Your entire response MUST 
            - Use 0 for the first page, 1 for the second page, etc.
            - If only one page is provided, you can omit this or set it to 0.
            - **CRITICAL:** For drawings/graphs, ensure you reference the page where the drawing actually appears.
+       16. **CRITICAL - Mark Code Limit (Prevent Over-Marking):**
+           - **RULE:** Do NOT award the same mark code (e.g., "B1") more than ONCE per sub-question.
+           - **Example:** If Q11a has max score 1 and requires "B1" for the correct answer:
+             * If the student writes "B1" in Block 1, award "B1" once.
+             * If the student ALSO writes "B1" in Block 2 (repeating work), do NOT award "B1" again.
+             * **Total:** 1 mark awarded (matching the max score of 1).
+           - **Multi-Mark Sub-Questions:** If a sub-question allows multiple marks (e.g., max 2 with "M1 A1"):
+             * You MAY award "M1" once and "A1" once (different codes).
+             * You may NOT award "M1" twice (same code repeated).
+           - **Verification:** Before finalizing annotations, count the total marks per sub-question and ensure it does NOT exceed the sub-question's max score.
 
        **Scoring Rules:**
        1.  **Total Marks:** Use the provided TOTAL MARKS value (do not calculate your own)
        2.  **Awarded Marks:** Calculate the marks the student actually achieved based on your annotations
-       3.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
-       4.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
+       3.  **Max Score Enforcement:** Ensure the awarded marks for each sub-question do NOT exceed its max score
+       4.  **Score Format:** Format as "awardedMarks/totalMarks" (e.g., "4/6")
+       5.  **Accuracy:** Ensure the score reflects the actual performance based on the marking scheme`,
 
       user: (
         ocrText: string,
