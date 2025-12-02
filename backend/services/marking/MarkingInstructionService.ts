@@ -185,6 +185,7 @@ export interface MarkingInputs {
   questionText?: string | null; // Question text from fullExamPapers (source for question detection)
   generalMarkingGuidance?: any; // General marking guidance from the scheme
   allPagesOcrData?: any[]; // Array of OCR results for all pages (for multi-page context)
+  sourceImageIndices?: number[]; // Array of global page indices for multi-page questions (e.g., [3, 4] for Pages 4-5)
 }
 
 export class MarkingInstructionService {
@@ -255,7 +256,9 @@ export class MarkingInstructionService {
    * Execute complete marking flow - moved from LLMOrchestrator
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
-    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber } = inputs;
+    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices } = inputs;
+
+    console.log('[DEBUG] executeMarking received sourceImageIndices:', sourceImageIndices);
 
 
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
@@ -421,6 +424,10 @@ export class MarkingInstructionService {
 
       const enrichedAnnotations = annotationData.annotations.map((anno, idx) => {
         let aiStepId = (anno as any).step_id?.trim();
+
+        // CRITICAL: Save AI's original pageIndex (relative to images array) BEFORE it gets overwritten
+        const aiOriginalPageIndex = (anno as any).pageIndex;
+        (anno as any)._aiRelativePageIndex = aiOriginalPageIndex; // Preserve for later mapping
 
         // FIX: If step_id is missing but it's a drawing, generate a synthetic one
         if (!aiStepId) {
@@ -683,21 +690,56 @@ export class MarkingInstructionService {
         const finalAiPosition = (matchingStep as any)?.aiPosition || aiPositionFromMap;
 
         if (matchingStep && matchingStep.bbox) {
+          // Map relative pageIndex to global pageIndex using sourceImageIndices
+          let globalPageIndex = 0;
+          // Use AI's ORIGINAL relative pageIndex (preserved earlier), not the resolved global one
+          const relativePageIndex = (anno as any)._aiRelativePageIndex ?? (anno as any)._resolvedPageIndex;
+
+          console.log(`[DEBUG SCOPE CHECK] sourceImageIndices in enrichment scope:`, sourceImageIndices, `relativePageIndex (_aiRelativePageIndex):`, relativePageIndex);
+
+          if (relativePageIndex !== undefined && relativePageIndex !== null &&
+            sourceImageIndices && sourceImageIndices.length > relativePageIndex) {
+            globalPageIndex = sourceImageIndices[relativePageIndex];
+            console.log(`[DEBUG MATCH]  Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} for step ${(anno as any).step_id}`);
+          } else if (relativePageIndex !== undefined && relativePageIndex !== null) {
+            // Fallback: use relative index directly if sourceImageIndices not available
+            globalPageIndex = relativePageIndex;
+            console.log(`[DEBUG MATCH FALLBACK] Using relative pageIndex ${relativePageIndex} directly (sourceImageIndices unavailable)`);
+          } else {
+            // Final fallback: use first page in sourceImageIndices or 0
+            globalPageIndex = sourceImageIndices?.[0] ?? 0;
+            console.log(`[DEBUG MATCH DEFAULT] Using default pageIndex ${globalPageIndex}`);
+          }
+
           return {
             ...anno,
             bbox: matchingStep.bbox as [number, number, number, number],
-            pageIndex: (anno as any)._resolvedPageIndex ?? 0,
+            // DO NOT set pageIndex here - it will be mapped later in MarkingExecutor
+            // pageIndex: globalPageIndex,  // REMOVED - causes double mapping!
             ocrSource: (matchingStep as any).ocrSource,
             hasLineData: (matchingStep as any).hasLineData,
             aiPosition: finalAiPosition
           };
         } else if (finalAiPosition) {
           // If no matching step but we have AI position (e.g. drawing), return with dummy bbox
-          // MarkingExecutor will handle the dummy bbox or use aiPosition
+          // Map relative pageIndex to global pageIndex for drawings
+          let globalPageIndex = 0;
+          // Use AI's ORIGINAL relative pageIndex, not the resolved global one
+          const relativePageIndex = (anno as any)._aiRelativePageIndex ?? (anno as any)._resolvedPageIndex;
+
+          if (relativePageIndex !== undefined && relativePageIndex !== null &&
+            sourceImageIndices && sourceImageIndices.length > relativePageIndex) {
+            globalPageIndex = sourceImageIndices[relativePageIndex];
+            console.log(`[DEBUG DRAWING] Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} using sourceImageIndices:`, sourceImageIndices);
+          } else {
+            globalPageIndex = sourceImageIndices?.[0] ?? 0;
+          }
+
           return {
             ...anno,
             bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox
-            pageIndex: 0, // Default page index
+            // DO NOT set pageIndex here - it will be mapped later in MarkingExecutor
+            // pageIndex: globalPageIndex,  // REMOVED - causes double mapping!
             aiPosition: finalAiPosition
           };
         } else {
@@ -1020,8 +1062,10 @@ export class MarkingInstructionService {
         const parsedResponse = JSON.parse(aiResponseString);
         if (parsedResponse.annotations) {
           // Check if this question has any drawing annotations
+          // We only consider it a drawing if it has [DRAWING] tag OR if it has visual_position AND no text content (pure visual)
           const hasDrawings = parsedResponse.annotations.some((anno: any) =>
-            anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))
+            (anno.student_text && anno.student_text.includes('[DRAWING]')) ||
+            (anno.visual_position && (!anno.student_text || anno.student_text.trim() === ''))
           );
 
           if (hasDrawings) {
@@ -1033,7 +1077,26 @@ export class MarkingInstructionService {
               if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
                 console.log(`Annotation ${idx + 1}:`);
                 console.log(`  - Text: ${anno.text}`);
-                console.log(`  - Relative Image Index (0-based): ${anno.imageIndex ?? anno.relativeImageIndex ?? 'undefined'}`);
+                // Validate pageIndex from AI (prevent out-of-bounds errors)
+                let validatedPageIndex = anno.pageIndex;
+                const maxPageIndex = (images && images.length > 0) ? images.length - 1 : 0;
+
+                if (validatedPageIndex !== undefined && (validatedPageIndex < 0 || validatedPageIndex > maxPageIndex)) {
+                  // Smart Correction: Check if AI used 1-based indexing (common hallucination)
+                  // If pageIndex is exactly 1 greater than max index (e.g. returns 2 for length 2), or if pageIndex-1 is valid
+                  if (validatedPageIndex > 0 && (validatedPageIndex - 1) <= maxPageIndex) {
+                    console.warn(`⚠️ [AI MARKING] Invalid pageIndex ${validatedPageIndex} returned by AI. Detected 1-based indexing. Auto-correcting to ${validatedPageIndex - 1}.`);
+                    validatedPageIndex = validatedPageIndex - 1;
+                    anno.pageIndex = validatedPageIndex;
+                  } else {
+                    console.warn(`⚠️ [AI MARKING] Invalid pageIndex ${validatedPageIndex} returned by AI (max: ${maxPageIndex}). Defaulting to 0.`);
+                    validatedPageIndex = 0;
+                    // Update the annotation object with the corrected value
+                    anno.pageIndex = 0;
+                  }
+                }
+
+                console.log(`  - Relative Image Index (0-based): ${validatedPageIndex} (Raw AI Value: ${anno.pageIndex})`);
                 console.log(`  - Reasoning: ${anno.reasoning}`);
                 console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
               }

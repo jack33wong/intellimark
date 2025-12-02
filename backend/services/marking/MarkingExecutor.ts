@@ -728,6 +728,9 @@ export async function executeMarkingForQuestion(
     // I will update createMarkingTasksFromClassification to populate a new 'images' field in MarkingTask.
 
 
+    // DEBUG: Log sourcePages for this task
+    console.log(`[DEBUG] Q${questionId}: task.sourcePages =`, task.sourcePages);
+
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
       images: task.images, // Pass all page images for multi-page context
@@ -757,7 +760,8 @@ export async function executeMarkingForQuestion(
       questionDetection: task.markingScheme, // Pass the marking scheme directly (don't use questionDetection if it exists, as it may be wrong for merged schemes)
       questionText: questionText, // Pass question text from fullExamPapers to AI prompt
       questionNumber: String(questionId), // Pass question number (may include sub-question part like "17a", "17b")
-      allPagesOcrData: allPagesOcrData // Pass all pages OCR data for multi-page context
+      allPagesOcrData: allPagesOcrData, // Pass all pages OCR data for multi-page context
+      sourceImageIndices: task.sourcePages // Pass page indices for relative-to-global pageIndex mapping
     });
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));
@@ -933,10 +937,15 @@ const enrichAnnotationsWithPositions = (
 
         // FIX: If AI provided a pageIndex (relative), use it!
         if ((anno as any).pageIndex !== undefined) {
-          const relativeIndex = (anno as any).pageIndex;
-          if (task.sourcePages && task.sourcePages.length > relativeIndex) {
-            pageIndex = task.sourcePages[relativeIndex];
+          const relativePageIndex = (anno as any).pageIndex;
+          let globalPageIndex = pageIndex; // Initialize globalPageIndex with current pageIndex
+
+          if (relativePageIndex !== undefined && relativePageIndex !== null &&
+            task.sourcePages && task.sourcePages.length > relativePageIndex) {
+            globalPageIndex = task.sourcePages[relativePageIndex];
+            console.log(`[DEBUG DRAWING] Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} using sourceImageIndices:`, task.sourcePages);
           }
+          pageIndex = globalPageIndex; // Update pageIndex with the potentially new globalPageIndex
         }
 
         // Try to find page index based on sub-question (e.g. "b" -> Page 14)
@@ -1031,10 +1040,12 @@ const enrichAnnotationsWithPositions = (
     // OCR/Classification is the ground truth for where the text physically is.
     if ((anno as any).pageIndex !== undefined) {
       const relativeIndex = (anno as any).pageIndex;
+      console.log(`[EXECUTOR DEBUG] Found anno.pageIndex=${relativeIndex}, task.sourcePages=`, task.sourcePages);
       let mappedAiPage = -1;
 
       if (task.sourcePages && task.sourcePages.length > relativeIndex) {
         mappedAiPage = task.sourcePages[relativeIndex];
+        console.log(`[EXECUTOR DEBUG] Mapped relativeIndex ${relativeIndex} -> global ${mappedAiPage}`);
       }
 
       // Check for mismatch if we have an original page index
@@ -1201,10 +1212,15 @@ export function createMarkingTasksFromClassification(
     aiSegmentationResults: Array<{ content: string; studentWorkPosition?: any }>; // Store accumulated results
   }>();
 
-  // First pass: Collect all questions and sub-questions, group by base question number
+  // First pass: Collect all questions, use FULL question number as grouping key (e.g., "3a", "3b" separately)
+  // This ensures Q3a and Q3b are separate tasks with their own page indices
   for (const q of classificationResult.questions) {
     const mainQuestionNumber = q.questionNumber || null;
     const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
+
+    // Use FULL question number as grouping key (e.g., "3a", "3b") instead of base number ("3")
+    // This prevents merging Q3a and Q3b into a single task
+    const groupingKey = mainQuestionNumber || baseQNum;
 
     // Use sourceImageIndices if available (from merged questions), otherwise use sourceImageIndex as array
     const sourceImageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
@@ -1212,8 +1228,8 @@ export function createMarkingTasksFromClassification(
       : [q.sourceImageIndex ?? 0];
 
     // For non-past papers, questionNumber might be null - use a placeholder or skip grouping
-    // If no baseQNum, we can't group, but we can still create a task if there's student work
-    if (!baseQNum) {
+    // If no groupingKey, we can't group, but we can still create a task if there's student work
+    if (!groupingKey) {
       // For non-past papers without question numbers, use a placeholder
       // Check if there's student work - if yes, create a task with null markingScheme
       const hasMainWork = q.studentWork && q.studentWork !== 'null' && q.studentWork.trim() !== '';
@@ -1223,10 +1239,10 @@ export function createMarkingTasksFromClassification(
         // Create a task directly without grouping (for non-past papers)
         // We'll handle this after the grouping loop
       }
-      continue; // Skip grouping for questions without baseQNum
+      continue; // Skip grouping for questions without groupingKey
     }
 
-    // Find marking scheme (same for all sub-questions in a group)
+    // Find marking scheme using base question number for lookup
     let markingScheme: any = null;
     for (const [key, scheme] of markingSchemesMap.entries()) {
       if (key.startsWith(`${baseQNum}_`)) {
@@ -1242,26 +1258,27 @@ export function createMarkingTasksFromClassification(
       // Continue to create task with null markingScheme (for non-past papers)
     }
 
-    // Initialize group if not exists
-    if (!questionGroups.has(baseQNum)) {
-      questionGroups.set(baseQNum, {
+    // Initialize group if not exists (using full question number as key)
+    if (!questionGroups.has(groupingKey)) {
+      questionGroups.set(groupingKey, {
         mainQuestion: q,
         mainStudentWorkParts: [], // Initialize array
         classificationBlocks: [], // Initialize array to store original blocks
         subQuestions: [],
         markingScheme: markingScheme,
-        baseQNum: baseQNum,
+        baseQNum: baseQNum,  // Keep baseQNum for scheme lookup
         sourceImageIndices: sourceImageIndices,
         aiSegmentationResults: [] // Initialize array
       });
     } else {
-      // If group exists, merge page indices (in case sub-questions are on different pages)
-      const existingGroup = questionGroups.get(baseQNum)!;
+      // Group already exists - this should rarely happen now since we use full question number
+      // But keep merge logic as safety fallback
+      const existingGroup = questionGroups.get(groupingKey)!;
       const mergedIndices = [...new Set([...existingGroup.sourceImageIndices, ...sourceImageIndices])].sort((a, b) => a - b);
       existingGroup.sourceImageIndices = mergedIndices;
     }
 
-    const group = questionGroups.get(baseQNum)!;
+    const group = questionGroups.get(groupingKey)!;
 
     // Add main student work if present
     // Add main student work if present

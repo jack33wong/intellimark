@@ -116,23 +116,30 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // Cast images to required type (pageIndex is effectively required here)
       const pageMaps = await ClassificationMapper.mapQuestionsToPages(images as Array<{ imageData: string; fileName?: string; pageIndex: number }>);
 
-      // Group pages by Question Number
+      // Group pages by Question Number (base number for efficiency)
       // Map<QuestionNumber, Set<PageIndex>>
       const questionToPages = new Map<string, Set<number>>();
+
+      // NEW: Track which sub-question is on which page for display purposes
+      const subQuestionPageMap = new Map<string, Map<string, number>>();
 
       pageMaps.forEach(map => {
         if (map.questions && Array.isArray(map.questions)) {
           map.questions.forEach(q => {
-            // Normalize question number (e.g., "1a" -> "1", "2" -> "2", "3(b)" -> "3")
-            // We want to group all parts of Q1 together. Extract leading digits.
+            // Extract base question number (e.g., "3a" → "3", "3b" → "3")
             const match = q.match(/^(\d+)/);
             const baseQ = match ? match[1] : q.replace(/[a-z]+$/i, '').trim();
             if (!baseQ) return;
 
+            // Group by base number (for task efficiency)
             if (!questionToPages.has(baseQ)) {
               questionToPages.set(baseQ, new Set());
+              subQuestionPageMap.set(baseQ, new Map());
             }
             questionToPages.get(baseQ)!.add(map.pageIndex);
+
+            // Track sub-question to page mapping (for display)
+            subQuestionPageMap.get(baseQ)!.set(q, map.pageIndex);
           });
         }
       });
