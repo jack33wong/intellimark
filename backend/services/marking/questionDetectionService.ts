@@ -4,7 +4,7 @@
  */
 
 import { getFirestore } from '../../config/firebase.js';
-import { normalizeTextForComparison } from '../../utils/TextNormalizationUtils.js';
+import { normalizeTextForComparison, normalizeSubQuestionPart } from '../../utils/TextNormalizationUtils.js';
 import * as stringSimilarity from 'string-similarity';
 
 // Common function to convert full subject names to short forms
@@ -258,6 +258,8 @@ export class QuestionDetectionService {
     questionNumberHint?: string | null
   ): Promise<ExamPaperMatch | null> {
     try {
+      // Debug entry point for Q2 - REMOVED
+
       const questions = examPaper.questions || {};
       let bestQuestionMatch: string | null = null;
       let bestScore = 0;
@@ -334,8 +336,13 @@ export class QuestionDetectionService {
                 const subQuestionPart = String(subQ.question_part).toLowerCase();
 
 
-                // Only match if sub-question parts match (e.g., "a" matches "a", "i" matches "i")
-                if (subQuestionPart !== hintSubPart) {
+                // Normalize both sides to handle format differences: "a(i)" vs "ai"
+                // Remove parentheses and spaces: "a(i)" -> "ai", "a (i)" -> "ai", "ai" -> "ai"
+                const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
+                const normalizedHint = normalizeSubQuestionPart(hintSubPart);
+
+                // Only match if sub-question parts match (after normalization)
+                if (normalizedSubPart !== normalizedHint) {
                   continue;
                 }
 
@@ -386,13 +393,25 @@ export class QuestionDetectionService {
         for (const [questionNumber, questionData] of Object.entries(questions)) {
           const questionContent = (questionData as any).text || (questionData as any).question || '';
 
-          if (questionContent) {
+          const subQuestions = (questionData as any).sub_questions || (questionData as any).subQuestions || [];
+
+          if (questionContent || subQuestions.length > 0) {
+            // FIX: Use actual question number from data if available, otherwise fallback to key
+            // This handles cases where questions is an array and key is just an index (0, 1, 2...)
+            const actualQuestionNumber = String((questionData as any).question_number || questionNumber);
+
             const isSubQuestionHint = questionNumberHint && /[a-z]/i.test(questionNumberHint);
             // Extract base question number by extracting leading digits (more reliable than removing letters)
             // Examples: "12ii" -> "12", "12iii" -> "12", "2a" -> "2", "21" -> "21"
-            const baseQuestionNumberMatch = String(questionNumber).match(/^\d+/);
+            const baseQuestionNumberMatch = String(actualQuestionNumber).match(/^\d+/);
             const baseQuestionNumber = baseQuestionNumberMatch ? baseQuestionNumberMatch[0] : '';
             const baseHintMatch = questionNumberHint ? String(questionNumberHint).match(/^\d+/) : null;
+
+            // Debug log for Q2 mismatch investigation
+            if (baseHintMatch && baseHintMatch[0] === '2' && baseQuestionNumber !== '2') {
+              // Only log if we are looking for Q2 but found something else
+              console.log(`[Q2 DEBUG] Mismatch: Looking for Q2, found Q${baseQuestionNumber} (Raw: ${actualQuestionNumber}, Key: ${questionNumber})`);
+            }
             const baseHint = baseHintMatch ? baseHintMatch[0] : '';
 
             // Validate base number extraction
@@ -431,13 +450,21 @@ export class QuestionDetectionService {
 
             // If hint is a sub-question, match against sub-questions only
             if (isSubQuestionHint) {
-              const subQuestions = (questionData as any).sub_questions || (questionData as any).subQuestions || [];
+              // subQuestions is already defined in outer scope
 
               // Extract sub-question part from hint (e.g., "a" from "2a", "i" from "12i")
               const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
 
+              // Debug logging for Q2 entry point
+              if (baseQuestionNumber === '2') {
+                console.log(`[Q2 DEBUG] Processing hint "${questionNumberHint}" (base: ${baseQuestionNumber}, subPart: "${hintSubPart}")`);
+                console.log(`[Q2 DEBUG] Found ${subQuestions.length} sub-questions in database for Q${baseQuestionNumber}`);
+              }
 
               if (subQuestions.length === 0) {
+                if (baseQuestionNumber === '2') {
+                  console.log(`[Q2 DEBUG] ❌ No sub-questions found in database, skipping`);
+                }
                 continue; // No sub-questions, skip
               }
 
@@ -451,10 +478,26 @@ export class QuestionDetectionService {
                 }
                 const subQuestionPart = String(subQ.question_part).toLowerCase();
 
+                // Normalize both sides to handle format differences: "a(i)" vs "ai"
+                // Remove parentheses and spaces: "a(i)" -> "ai", "a (i)" -> "ai", "ai" -> "ai"
+                const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
+                const normalizedHint = normalizeSubQuestionPart(hintSubPart);
 
-                // Only match if sub-question parts match (e.g., "a" matches "a", "i" matches "i")
-                if (subQuestionPart !== hintSubPart || !subQuestionText) {
+                // Debug logging for Q2 only
+                if (baseQuestionNumber === '2') {
+                  console.log(`[Q2 DEBUG] Checking sub-question: DB part="${subQuestionPart}" (normalized: "${normalizedSubPart}") vs Hint="${hintSubPart}" (normalized: "${normalizedHint}")`);
+                }
+
+                // Only match if sub-question parts match (after normalization)
+                if (normalizedSubPart !== normalizedHint || !subQuestionText) {
+                  if (baseQuestionNumber === '2') {
+                    console.log(`[Q2 DEBUG] ❌ No match: normalized parts don't match or missing text`);
+                  }
                   continue;
+                }
+
+                if (baseQuestionNumber === '2') {
+                  console.log(`[Q2 DEBUG] ✅ Match found! Calculating similarity...`);
                 }
 
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
@@ -463,6 +506,10 @@ export class QuestionDetectionService {
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = questionData;
                   bestSubQuestionNumber = subQuestionPart;
+
+                  if (baseQuestionNumber === '2') {
+                    console.log(`[Q2 DEBUG] ✅ Best match updated: Q${bestQuestionMatch}${bestSubQuestionNumber}, similarity=${subSimilarity.toFixed(2)}`);
+                  }
                 }
               }
             } else {
@@ -709,7 +756,10 @@ export class QuestionDetectionService {
         // Build the flat key: "1" for main questions, "2a", "2b" for sub-questions
         let flatKey: string;
         if (examPaperMatch.subQuestionNumber) {
-          flatKey = `${questionNumber}${examPaperMatch.subQuestionNumber.toLowerCase().trim()}`;
+          // Normalize sub-question number: remove parentheses and spaces (e.g. "a(i)" -> "ai")
+          // This matches the format used in the marking scheme database keys
+          const normalizedSubQ = normalizeSubQuestionPart(examPaperMatch.subQuestionNumber);
+          flatKey = `${questionNumber}${normalizedSubQ}`;
         } else {
           flatKey = questionNumber;
         }

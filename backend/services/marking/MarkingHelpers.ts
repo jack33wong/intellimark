@@ -408,14 +408,25 @@ export function extractQuestionsFromClassification(
 
       // If question has sub-questions, extract each sub-question separately
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+        // Debug logging for Q2
+        // Debug logging for Q2 - REMOVED
+
         for (const subQ of q.subQuestions) {
           const combinedQuestionNumber = mainQuestionNumber
             ? `${mainQuestionNumber}${subQ.part || ''}`
             : null;
-          extractedQuestions.push({
-            questionNumber: combinedQuestionNumber,
-            text: subQ.text || ''
-          });
+
+          // CRITICAL FIX: Extract sub-question even if text is missing, as long as it has student work
+          // This handles cases where classification detected student work but no question text
+          // (common for sub-questions like 2ai, 2aii where the question is in the parent)
+          const hasStudentWork = subQ.studentWork || (subQ.studentWorkLines && subQ.studentWorkLines.length > 0);
+
+          if (subQ.text || hasStudentWork) {
+            extractedQuestions.push({
+              questionNumber: combinedQuestionNumber,
+              text: subQ.text || '' // Use empty string if no text (detection will use question number only)
+            });
+          }
         }
       } else {
         // Main question without sub-questions (or main text exists)

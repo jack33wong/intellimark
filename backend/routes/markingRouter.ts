@@ -549,6 +549,8 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         result.questions.forEach((question: any) => {
           const qNum = question.questionNumber;
 
+          // Debug logging for Q2 classification result
+          // Debug logging for Q2 classification result - REMOVED
 
           // Only merge if questionNumber exists and is not null/undefined
           if (qNum && qNum !== 'null' && qNum !== 'undefined') {

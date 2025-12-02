@@ -34,17 +34,27 @@ export class ClassificationMapper {
             
             RULES:
             1. Look for question numbers (e.g., "1", "2", "3a", "4(b)").
-            2. **FRONT PAGE DETECTION**: 
+            2. **NESTED SUB-QUESTIONS (CRITICAL):**
+               - Detect nested structures like "2(a)(i)", "2(a)(ii)", "3(b)(i)"
+               - FLATTEN these to simple format: "2(a)(i)" → "2ai", "2(a)(ii)" → "2aii", "3(b)(i)" → "3bi"
+               - Pattern: {number}({letter})({roman/number}) → {number}{letter}{roman/number}
+               - Examples:
+                 * "2(a)(i)" → "2ai"
+                 * "2(a)(ii)" → "2aii"
+                 * "2(b)" → "2b"
+                 * "3(a)(i)" → "3ai"
+                 * "12(b)(ii)" → "12bii"
+            3. **FRONT PAGE DETECTION**: 
                - A page is a "frontPage" if it has NO question numbers AND contains exam metadata like:
                  * Exam board (e.g., "Pearson Edexcel", "AQA", "OCR")
                  * Paper code (e.g., "1MA1/3H", "8300/2F")
                  * Exam series/date (e.g., "June 2024", "Summer 2023")
                  * Subject name (e.g., "Mathematics", "Biology")
                - If a page has question numbers, it is NOT a front page.
-            3. Return a JSON object with a "pages" array.
-            4. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
-            5. For each page, return: { "questions": ["1", "2a"], "category": "frontPage" | "questionPage" | "questionOnly" }
-            6. **CONTEXT AWARENESS:** If a page has a sub-question (e.g. "b") but no main number, look at other pages to infer the main number.
+            4. Return a JSON object with a "pages" array.
+            5. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
+            6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionPage" | "questionOnly" }
+            7. **CONTEXT AWARENESS:** If a page has a sub-question (e.g. "b") but no main number, look at other pages to infer the main number.
             
             OUTPUT FORMAT:
             {
@@ -112,11 +122,14 @@ export class ClassificationMapper {
             // Fill exactly images.length results
             for (let i = 0; i < images.length; i++) {
                 const p = pages[i] || { questions: [], category: undefined };
-                results.push({
+                const result: PageMap = {
                     pageIndex: i,
                     questions: p.questions || [],
                     category: p.category
-                });
+                };
+                results.push(result);
+
+                // Debug logging for pages with Q2 - REMOVED
             }
             return results;
         };

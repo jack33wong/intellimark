@@ -193,6 +193,7 @@ export class MarkingSchemeOrchestrationService {
         const questionNumbers: string[] = [];
         const subQuestionAnswers: string[] = [];
         const subQuestionMarksMap = new Map<string, any[]>();
+        const subQuestionAnswersMap = new Map<string, string>(); // NEW: Store answers for sub-questions (e.g., "a" -> "53000")
         const subQuestionMaxScoresMap = new Map<string, number>(); // NEW: Store max scores from database
 
         for (const item of group) {
@@ -203,8 +204,15 @@ export class MarkingSchemeOrchestrationService {
             item.detectionResult.match?.markingScheme?.answer ||
             item.detectionResult.match?.markingScheme?.questionMarks?.answer ||
             undefined;
-          if (subQAnswer && typeof subQAnswer === 'string' && subQAnswer.toLowerCase() !== 'cao') {
+
+          if (subQAnswer && typeof subQAnswer === 'string') {
+            // Always capture answer, even if 'cao' (we'll handle 'cao' replacement in MarkingInstructionService)
             subQuestionAnswers.push(subQAnswer);
+
+            // Extract just the sub-question label (e.g., "11a" -> "a")
+            const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+            const subLabel = match ? match[1] : displayQNum;
+            subQuestionAnswersMap.set(subLabel, subQAnswer);
           } else {
             subQuestionAnswers.push('');
           }
@@ -262,7 +270,8 @@ export class MarkingSchemeOrchestrationService {
         // Create merged marking scheme
         const mergedQuestionMarks = {
           marks: mergedMarks,
-          subQuestionMarks: Object.fromEntries(subQuestionMarksMap)
+          subQuestionMarks: Object.fromEntries(subQuestionMarksMap),
+          subQuestionAnswersMap: Object.fromEntries(subQuestionAnswersMap)
         };
 
         const questionDetection = firstItem.detectionResult;

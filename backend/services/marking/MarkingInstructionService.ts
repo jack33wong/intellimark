@@ -12,6 +12,7 @@ interface NormalizedMarkingScheme {
   subQuestionNumbers?: string[]; // Array of sub-question numbers (e.g., ["22a", "22b"]) for grouped sub-questions
   subQuestionMarks?: { [subQuestionNumber: string]: any[] }; // Map sub-question number to its marks array (prevents mix-up of marks between sub-questions)
   subQuestionMaxScores?: { [subQuestion: string]: number }; // Max scores per sub-question from database (e.g., { "a": 1, "b": 2 })
+  subQuestionAnswersMap?: { [subLabel: string]: string }; // Map sub-question label to its answer (e.g., "a" -> "53000")
   hasAlternatives?: boolean; // Flag indicating if alternative method exists
   alternativeMethod?: any; // Alternative method details
 }
@@ -105,6 +106,11 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       (input as any).subQuestionMaxScores ||
       undefined;
 
+    // Extract sub-question answers map if available
+    const subQuestionAnswersMap = questionMarksData?.subQuestionAnswersMap ||
+      (input as any).subQuestionAnswersMap ||
+      undefined;
+
     const normalized = {
       marks: Array.isArray(marksArray) ? marksArray : [],
       totalMarks: input.totalMarks,
@@ -114,6 +120,7 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
       subQuestionNumbers: subQuestionNumbers,
       subQuestionMarks: subQuestionMarks, // Preserve sub-question-to-marks mapping
       subQuestionMaxScores: subQuestionMaxScores, // Preserve max scores from database
+      subQuestionAnswersMap: subQuestionAnswersMap, // Map sub-question label to its answer
       alternativeMethod: alternativeMethod, // Include alternative method if available
       hasAlternatives: hasAlternatives // Flag indicating if alternative exists
     };
@@ -753,7 +760,15 @@ export class MarkingInstructionService {
         output += '\n';
 
         marks.forEach((m: any) => {
-          output += `- ${m.mark}: ${m.answer}`;
+          let answer = m.answer;
+          // Replace 'cao' with actual answer if available
+          if (answer && answer.toLowerCase() === 'cao' && normalizedScheme.subQuestionAnswersMap) {
+            const actualAnswer = normalizedScheme.subQuestionAnswersMap[subLabel];
+            if (actualAnswer) {
+              answer = actualAnswer;
+            }
+          }
+          output += `- ${m.mark}: ${answer}`;
           if (m.comments) output += ` (${m.comments})`;
           output += '\n';
         });
@@ -907,8 +922,8 @@ export class MarkingInstructionService {
     // Extract question number for logging (prefer input questionNumber which may include sub-question part)
     const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
-    // DEBUG LOG: Show full prompt for Q11
-    if (questionNumber === '11' || String(questionNumber).startsWith('11')) {
+    // DEBUG LOG: Show full prompt for Q2 and Q11
+    if (questionNumber === '2' || questionNumber === '11' || String(questionNumber).startsWith('2') || String(questionNumber).startsWith('11')) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
       const RESET = '\x1b[0m';
