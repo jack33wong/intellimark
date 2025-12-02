@@ -260,9 +260,32 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
       await Promise.all(workers);
 
-      // Handle pages that were NOT mapped to any question (e.g., metadata pages, or missed by mapper)
-      // We should do a quick check for any missing pages and maybe run a fallback or just mark them as metadata.
-      // For now, let's assume the Mapper is good enough. If a page is missed, it won't have results, which is fine (treated as empty).
+      // Handle pages that were NOT mapped to any question (e.g., front pages, metadata pages)
+      // Check Map Pass results for pages that are marked as "frontPage"
+      for (let i = 0; i < images.length; i++) {
+        // If this page was not in results, it was not mapped to any question
+        const hasResult = results.some(r => r.pageIndex === i);
+        if (!hasResult) {
+          const mapResult = pageMaps.find(m => m.pageIndex === i);
+          const category = mapResult?.category || "metadata";
+
+          // Mark as front page or metadata based on Map Pass category
+          results.push({
+            pageIndex: i,
+            result: {
+              category: category === "frontPage" ? "metadata" : category,
+              reasoning: category === "frontPage"
+                ? "Front page detected by Map Pass - contains exam metadata but no questions"
+                : "Page not mapped to any question",
+              questions: [],
+              apiUsed: "Map Pass Detection",
+              usageTokens: 0
+            }
+          });
+
+          console.log(`📄 [FRONT PAGE] Page ${i + 1} detected as frontPage by Map Pass - will skip processing`);
+        }
+      }
 
       // Sort by page index
       results.sort((a, b) => a.pageIndex - b.pageIndex);

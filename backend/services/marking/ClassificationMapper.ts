@@ -4,6 +4,7 @@ import { getPrompt } from '../../config/prompts.js';
 export interface PageMap {
     pageIndex: number;
     questions: string[]; // List of question numbers (e.g., "1", "2a", "3")
+    category?: "frontPage" | "questionPage" | "questionOnly"; // Front page/cover sheet, question with student work, or question only
 }
 
 export class ClassificationMapper {
@@ -29,21 +30,27 @@ export class ClassificationMapper {
         // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
         const processAllPages = async () => {
             const systemPrompt = `You are a fast document scanner.
-            GOAL: List ONLY the question numbers visible on each page.
+            GOAL: List ONLY the question numbers visible on each page AND identify front pages.
             
             RULES:
             1. Look for question numbers (e.g., "1", "2", "3a", "4(b)").
-            2. Ignore all other text.
+            2. **FRONT PAGE DETECTION**: 
+               - A page is a "frontPage" if it has NO question numbers AND contains exam metadata like:
+                 * Exam board (e.g., "Pearson Edexcel", "AQA", "OCR")
+                 * Paper code (e.g., "1MA1/3H", "8300/2F")
+                 * Exam series/date (e.g., "June 2024", "Summer 2023")
+                 * Subject name (e.g., "Mathematics", "Biology")
+               - If a page has question numbers, it is NOT a front page.
             3. Return a JSON object with a "pages" array.
             4. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
-            5. For each page, return: { "questions": ["1", "2a"] } (or empty array).
+            5. For each page, return: { "questions": ["1", "2a"], "category": "frontPage" | "questionPage" | "questionOnly" }
             6. **CONTEXT AWARENESS:** If a page has a sub-question (e.g. "b") but no main number, look at other pages to infer the main number.
             
             OUTPUT FORMAT:
             {
               "pages": [
-                { "questions": ["1"] },
-                { "questions": [] }
+                { "questions": [], "category": "frontPage" },
+                { "questions": ["1"], "category": "questionPage" }
               ]
             }`;
 
@@ -104,10 +111,11 @@ export class ClassificationMapper {
 
             // Fill exactly images.length results
             for (let i = 0; i < images.length; i++) {
-                const p = pages[i] || { questions: [] };
+                const p = pages[i] || { questions: [], category: undefined };
                 results.push({
                     pageIndex: i,
-                    questions: p.questions || []
+                    questions: p.questions || [],
+                    category: p.category
                 });
             }
             return results;

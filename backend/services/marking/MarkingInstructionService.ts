@@ -1000,11 +1000,16 @@ export class MarkingInstructionService {
 
       aiResponseString = res.content;
 
-      // DEBUG LOG: AI Response for Drawing Page Index
-      if (inputQuestionNumber === '11' || String(inputQuestionNumber).startsWith('11')) {
-        try {
-          const parsedResponse = JSON.parse(aiResponseString);
-          if (parsedResponse.annotations) {
+      // DEBUG LOG: AI Response for Drawing Page Index (for any question with drawings)
+      try {
+        const parsedResponse = JSON.parse(aiResponseString);
+        if (parsedResponse.annotations) {
+          // Check if this question has any drawing annotations
+          const hasDrawings = parsedResponse.annotations.some((anno: any) =>
+            anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))
+          );
+
+          if (hasDrawings) {
             console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} - Drawing Page Analysis`);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -1013,16 +1018,16 @@ export class MarkingInstructionService {
               if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
                 console.log(`Annotation ${idx + 1}:`);
                 console.log(`  - Text: ${anno.text}`);
-                console.log(`  - Page Index: ${anno.pageIndex}`);
+                console.log(`  - Relative Image Index (0-based): ${anno.imageIndex ?? anno.relativeImageIndex ?? 'undefined'}`);
                 console.log(`  - Reasoning: ${anno.reasoning}`);
                 console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
               }
             });
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
           }
-        } catch (e) {
-          // Ignore parsing errors here, main flow handles it
         }
+      } catch (e) {
+        // Ignore parsing errors here, main flow handles it
       }
       const usageTokens = res.usageTokens;
 
