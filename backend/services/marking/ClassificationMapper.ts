@@ -30,27 +30,44 @@ export class ClassificationMapper {
         // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
         const processAllPages = async () => {
             const systemPrompt = `You are a fast document scanner.
-            GOAL: List ONLY the question numbers visible on each page AND identify front pages.
+            GOAL: List ONLY the question numbers visible on each page AND categorize each page.
             
             RULES:
-            1. Look for question numbers (e.g., "1", "2", "3a", "4(b)").
-            2. **NESTED SUB-QUESTIONS (CRITICAL):**
-               - Detect nested structures like "2(a)(i)", "2(a)(ii)", "3(b)(i)"
-               - FLATTEN these to simple format: "2(a)(i)" → "2ai", "2(a)(ii)" → "2aii", "3(b)(i)" → "3bi"
-               - Pattern: {number}({letter})({roman/number}) → {number}{letter}{roman/number}
-               - Examples:
-                 * "2(a)(i)" → "2ai"
-                 * "2(a)(ii)" → "2aii"
-                 * "2(b)" → "2b"
-                 * "3(a)(i)" → "3ai"
-                 * "12(b)(ii)" → "12bii"
-            3. **FRONT PAGE DETECTION**: 
-               - A page is a "frontPage" if it has NO question numbers AND contains exam metadata like:
-                 * Exam board (e.g., "Pearson Edexcel", "AQA", "OCR")
-                 * Paper code (e.g., "1MA1/3H", "8300/2F")
-                 * Exam series/date (e.g., "June 2024", "Summer 2023")
-                 * Subject name (e.g., "Mathematics", "Biology")
-               - If a page has question numbers, it is NOT a front page.
+            1. **QUESTION NUMBER DETECTION (DO THIS FIRST):**
+               - Look for question numbers (e.g., "1", "2", "3a", "4(b)")
+               - **NESTED SUB-QUESTIONS (CRITICAL):**
+                 * Detect nested structures like "2(a)(i)", "2(a)(ii)", "3(b)(i)"
+                 * FLATTEN these to simple format: "2(a)(i)" → "2ai", "2(a)(ii)" → "2aii", "3(b)(i)" → "3bi"
+                 * Pattern: {number}({letter})({roman/number}) → {number}{letter}{roman/number}
+                 * Examples:
+                   - "2(a)(i)" → "2ai"
+                   - "2(a)(ii)" → "2aii"
+                   - "2(b)" → "2b"
+                   - "3(a)(i)" → "3ai"
+                   - "12(b)(ii)" → "12bii"
+            
+            2. **PAGE CATEGORIZATION (DECISION TREE):**
+               - **STEP 1:** Did you find ANY question numbers (even just "1")?
+                 * YES → Go to STEP 2
+                 * NO → Is this a pure metadata page (exam board, code, date, subject, NO questions)?
+                   - YES → category: "frontPage"
+                   - NO → category: "questionPage" (default if unsure)
+               
+               - **STEP 2:** You found question numbers. Are there student answers/work?
+                 * YES (handwritten numbers, calculations, drawings) → category: "questionPage"
+                 * NO (only printed questions, no answers) → category: "questionOnly"
+            
+            3. **CRITICAL CLARIFICATIONS:**
+               - **"frontPage"** = Exam cover sheet with NO questions, just metadata (board, exam code, date)
+                 * Example: "Pearson Edexcel GCSE Mathematics 1MA1/3H June 2024" ONLY, no question 1, 2, 3...
+               - **"questionPage"** = Has questions AND student work
+                 * Example: Question "1 Find the HCF..." with student's handwritten work
+               - **"questionOnly"** = Has questions but NO student work (blank answer spaces)
+               - **NOT METADATA:** "Answer ALL questions", "Write your answers in the spaces provided" are INSTRUCTIONS, not metadata
+                 * If you see "Answer ALL questions" + Question numbers → category: "questionPage" or "questionOnly"
+               - **HEADERS/FOOTERS:** Ignore "Pearson Edexcel" headers or "DO NOT WRITE IN THIS AREA" watermarks - NOT frontPage
+               - **MATH CONTENT:** If you see equations, grids, or diagrams → NOT frontPage
+            
             4. Return a JSON object with a "pages" array.
             5. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
             6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionPage" | "questionOnly" }

@@ -729,7 +729,7 @@ export async function executeMarkingForQuestion(
 
 
     // DEBUG: Log sourcePages for this task
-    console.log(`[DEBUG] Q${questionId}: task.sourcePages =`, task.sourcePages);
+
 
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
@@ -936,31 +936,9 @@ const enrichAnnotationsWithPositions = (
         let pageIndex = lastValidAnnotation ? lastValidAnnotation.pageIndex : defaultPageIndex;
 
         // FIX: If AI provided a pageIndex (relative), use it!
-        if ((anno as any).pageIndex !== undefined) {
-          const relativePageIndex = (anno as any).pageIndex;
-          let globalPageIndex = pageIndex; // Initialize globalPageIndex with current pageIndex
-
-          if (relativePageIndex !== undefined && relativePageIndex !== null &&
-            task.sourcePages && task.sourcePages.length > relativePageIndex) {
-            globalPageIndex = task.sourcePages[relativePageIndex];
-            console.log(`[DEBUG DRAWING] Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} using sourceImageIndices:`, task.sourcePages);
-          }
-          pageIndex = globalPageIndex; // Update pageIndex with the potentially new globalPageIndex
-        }
-
-        // Try to find page index based on sub-question (e.g. "b" -> Page 14)
-        if ((anno as any).subQuestion && classificationBlocks) {
-          const subQ = (anno as any).subQuestion;
-          // Find block or sub-question in classificationBlocks that matches this subQ
-          for (const block of classificationBlocks) {
-            if (block.subQuestions) {
-              const matchingSq = block.subQuestions.find((sq: any) => sq.part === subQ);
-              if (matchingSq && matchingSq.pageIndex !== undefined) {
-                pageIndex = matchingSq.pageIndex;
-                break;
-              }
-            }
-          }
+        // CHECK: If annotation comes from immutable pipeline, pageIndex is ALREADY global
+        if ((anno as any)._immutable) {
+          pageIndex = (anno as any).pageIndex;
         }
 
         // Try to map synthetic ID (e.g. step_5c_drawing) to a real step ID (e.g. step_5c)
@@ -990,7 +968,7 @@ const enrichAnnotationsWithPositions = (
                 return {
                   ...anno,
                   bbox: realStep.bbox as [number, number, number, number],
-                  pageIndex: realStep.pageIndex ?? pageIndex,
+                  pageIndex: (anno as any)._immutable ? pageIndex : (realStep.pageIndex ?? pageIndex),
                   unified_step_id: finalStepId,
                   aiPosition: undefined // Clear aiPosition to force text-based rendering
                 };
@@ -1038,42 +1016,10 @@ const enrichAnnotationsWithPositions = (
     // If AI provided a pageIndex (relative to the images array), map it to absolute page index
     // BUT only use it if we don't have a trusted pageIndex from the original step (OCR).
     // OCR/Classification is the ground truth for where the text physically is.
-    if ((anno as any).pageIndex !== undefined) {
-      const relativeIndex = (anno as any).pageIndex;
-      console.log(`[EXECUTOR DEBUG] Found anno.pageIndex=${relativeIndex}, task.sourcePages=`, task.sourcePages);
-      let mappedAiPage = -1;
-
-      if (task.sourcePages && task.sourcePages.length > relativeIndex) {
-        mappedAiPage = task.sourcePages[relativeIndex];
-        console.log(`[EXECUTOR DEBUG] Mapped relativeIndex ${relativeIndex} -> global ${mappedAiPage}`);
-      }
-
-      // Check for mismatch if we have an original page index
-      if (originalStep.pageIndex !== undefined && mappedAiPage !== -1 && mappedAiPage !== originalStep.pageIndex) {
-        const isDrawing = (anno.step_id || '').toLowerCase().includes('drawing') || (anno.text || '').toLowerCase().includes('[drawing]');
-
-        if (isDrawing) {
-          // For drawings, AI visual detection is often more accurate than initial classification
-          pageIndex = mappedAiPage;
-          pageSource = `AI_MAPPED_DRAWING (Rel: ${relativeIndex} -> Abs: ${pageIndex})`;
-        } else {
-          // Keep OCR
-        }
-      }
-
-      if (originalStep.pageIndex === undefined || (pageSource.includes('AI_MAPPED_DRAWING'))) {
-        // If we already set it for drawing, don't overwrite. 
-        // If original is undefined, use AI.
-        if (!pageSource.includes('AI_MAPPED_DRAWING')) {
-          if (mappedAiPage !== -1) {
-            pageIndex = mappedAiPage;
-            pageSource = `AI_MAPPED (Rel: ${relativeIndex} -> Abs: ${pageIndex})`;
-          } else {
-            pageIndex = (anno as any).pageIndex;
-            pageSource = `AI_RAW (Rel: ${relativeIndex})`;
-          }
-        }
-      }
+    // FIX: If annotation comes from immutable pipeline, use its global pageIndex
+    // This overrides any OCR-based page index because the pipeline handles multi-page logic
+    if ((anno as any)._immutable) {
+      pageIndex = (anno as any).pageIndex;
     }
 
     if (String(questionId) === '11') {

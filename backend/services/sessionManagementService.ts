@@ -716,16 +716,7 @@ export class SessionManagementService {
     );
 
     // Create structured imageDataArray for AI message
-    // DIAGNOSTIC: Check for base64 in finalAnnotatedOutput (causes Firestore payload size error)
-    finalAnnotatedOutput.forEach((item, idx) => {
-      const isBase64 = typeof item === 'string' && item.startsWith('data:image');
-      const sizeMB = typeof item === 'string' ? item.length / (1024 * 1024) : 0;
-      if (isBase64) {
-        console.log(`🔍 [DIAGNOSTIC] Item ${idx} (${files[idx]?.originalname || 'unknown'}): BASE64 detected, size: ${sizeMB.toFixed(2)}MB`);
-      }
-    });
-    const totalPayloadSizeMB = JSON.stringify(finalAnnotatedOutput).length / (1024 * 1024);
-    console.log(`🔍 [DIAGNOSTIC] Total finalAnnotatedOutput payload: ${totalPayloadSizeMB.toFixed(2)}MB`);
+    // DIAGNOSTIC: Check for base64 in finalAnnotatedOutput (causes Firestore payload size error) - REMOVED to reduce log noise
 
     const structuredAiImageDataArray = finalAnnotatedOutput.map((annotatedImage, index) => ({
       url: annotatedImage,

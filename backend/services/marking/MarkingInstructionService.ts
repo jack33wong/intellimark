@@ -2,6 +2,22 @@ import type { ModelType, ProcessedImageResult, MarkingInstructions } from '../..
 import { getPrompt } from '../../config/prompts.js';
 import { normalizeLatexDelimiters } from '../../utils/TextNormalizationUtils.js';
 
+// ========================= NEW: IMMUTABLE PAGE INDEX ARCHITECTURE =========================
+import {
+  ImmutableAnnotation,
+  GlobalPageIndex,
+  RelativePageIndex,
+  PageCoordinates
+} from './PageIndexTypes.js';
+import {
+  RawAIAnnotation,
+  OCRBlock,
+  processAnnotations,
+  toLegacyFormat,
+  fromLegacyFormat
+} from './AnnotationTransformers.js';
+// ========================================================================================
+
 // ========================= START: NORMALIZED DATA STRUCTURE =========================
 interface NormalizedMarkingScheme {
   marks: any[];           // The marking scheme array
@@ -419,337 +435,32 @@ export class MarkingInstructionService {
         };
       }
 
-      // ========================= START: ANNOTATION ENRICHMENT =========================
-      // Enrich annotations with bbox coordinates for single image pipeline
+      // ========================= NEW: IMMUTABLE ANNOTATION PIPELINE =========================
+      // Replace legacy mutable enrichment with type-safe immutable pipeline
 
-      const enrichedAnnotations = annotationData.annotations.map((anno, idx) => {
-        let aiStepId = (anno as any).step_id?.trim();
+      const rawAiAnnotations: RawAIAnnotation[] = annotationData.annotations.map((anno: any) => ({
+        text: anno.text,
+        pageIndex: anno.pageIndex,
+        subQuestion: anno.subQuestion,
+        visual_position: anno.visual_position,
+        step_id: anno.step_id,
+        student_text: anno.student_text,
+        classification_text: anno.classification_text,
+        action: anno.action,
+        reasoning: anno.reasoning,
+        line_index: anno.line_index
+      }));
 
-        // CRITICAL: Save AI's original pageIndex (relative to images array) BEFORE it gets overwritten
-        const aiOriginalPageIndex = (anno as any).pageIndex;
-        (anno as any)._aiRelativePageIndex = aiOriginalPageIndex; // Preserve for later mapping
+      const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
+        rawAiAnnotations,
+        sourceImageIndices || [],
+        rawOcrBlocks,
+        studentWorkLines
+      );
 
-        // FIX: If step_id is missing but it's a drawing, generate a synthetic one
-        if (!aiStepId) {
-          const text = ((anno as any).student_text || '').toLowerCase();
-          const classText = ((anno as any).classification_text || '').toLowerCase();
-          if (text.includes('[drawing]') || classText.includes('[drawing]')) {
-            aiStepId = `drawing_fallback_${idx}`;
-            (anno as any).step_id = aiStepId;
-          } else {
-            return null;
-          }
-        }
+      const enrichedAnnotations = MarkingInstructionService.convertToLegacyFormat(immutableAnnotations);
 
-        // Find matching step in cleanDataForMarking.steps
-        // Try exact match first (check both unified_step_id and globalBlockId)
-        let matchingStep = cleanDataForMarking.steps.find((step: any) =>
-          step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
-        );
-
-        // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
-        if (!matchingStep && aiStepId) {
-          // Extract step number from AI step_id (e.g., "step_2" -> "2", "q8_step_2" -> "2")
-          const stepNumMatch = aiStepId.match(/step[_\s]*(\d+)/i);
-          if (stepNumMatch && stepNumMatch[1]) {
-            const stepNum = parseInt(stepNumMatch[1], 10);
-            // Match by step index (1-based)
-            if (stepNum > 0 && stepNum <= cleanDataForMarking.steps.length) {
-              matchingStep = cleanDataForMarking.steps[stepNum - 1];
-            }
-          }
-        }
-
-        // If still not found, check if AI is using OCR block ID format (block_X_Y)
-        if (!matchingStep && aiStepId && aiStepId.startsWith('block_')) {
-          matchingStep = cleanDataForMarking.steps.find((step: any) =>
-            step.globalBlockId?.trim() === aiStepId
-          );
-        }
-
-        if (matchingStep && matchingStep.bbox) {
-          // Get pageIndex from matchingStep, but treat -1 as invalid and use fallback
-          let pageIndex = matchingStep.pageIndex;
-          if (pageIndex == null || pageIndex < 0) {
-            // Try to get pageIndex from rawOcrBlocks if available
-            if (rawOcrBlocks && rawOcrBlocks.length > 0) {
-              // Find the OCR block that matches this step
-              const matchingBlock = rawOcrBlocks.find((block: any) =>
-                block.id === matchingStep.globalBlockId ||
-                (matchingStep.globalBlockId && block.id?.trim() === matchingStep.globalBlockId.trim())
-              );
-              if (matchingBlock && matchingBlock.pageIndex != null && matchingBlock.pageIndex >= 0) {
-                pageIndex = matchingBlock.pageIndex;
-              } else if (inputs.allPagesOcrData && inputs.allPagesOcrData.length > 0) {
-                // Fallback: Search in all pages OCR data
-                for (let i = 0; i < inputs.allPagesOcrData.length; i++) {
-                  const pageData = inputs.allPagesOcrData[i];
-                  const pageBlocks = pageData.ocrData?.rawResponse?.detectedBlocks || [];
-                  const foundBlock = pageBlocks.find((block: any) =>
-                    block.id === matchingStep.globalBlockId ||
-                    (matchingStep.globalBlockId && block.id?.trim() === matchingStep.globalBlockId.trim())
-                  );
-                  if (foundBlock) {
-                    pageIndex = i; // Use the index in the array as pageIndex (assuming it matches sourceImageIndices order)
-                    // Actually, we should probably use the pageIndex from the block if available, or the index of the page in the array
-                    // The block might not have pageIndex if it's raw from Mathpix
-                    // But markingRouter passes allPagesOcrData in order.
-                    // However, we need to map this index to the global page index?
-                    // Wait, markingRouter passes `allPagesOcrData` which corresponds to `sourceImageIndices`.
-                    // So `i` here is the index into `sourceImageIndices`.
-                    // `pageIndex` in annotation usually refers to the index in `sourceImageIndices` (0, 1, 2...).
-                    // So `i` is correct.
-                    break;
-                  }
-                }
-                if (pageIndex == null) pageIndex = 0;
-              } else {
-                // Use first block's pageIndex as fallback
-                pageIndex = rawOcrBlocks[0]?.pageIndex ?? 0;
-              }
-            } else {
-              pageIndex = 0; // Default fallback
-            }
-          }
-          // Store pageIndex on the annotation object for later use if needed (though we return a new object)
-          (anno as any)._resolvedPageIndex = pageIndex;
-        }
-
-        // Try to get AI position
-        let aiPositionFromMap: { x: number; y: number; width: number; height: number } | undefined;
-
-        // 1. Try visual_position from AI (NEW DESIGN)
-        if ((anno as any).visual_position) {
-          const vp = (anno as any).visual_position;
-          if (typeof vp.x === 'number' && typeof vp.y === 'number') {
-            let x = vp.x;
-            let y = vp.y;
-            let w = vp.width || 10;
-            let h = vp.height || 5;
-
-            // Normalize if values are > 100 (AI likely used 0-1000 scale or pixels)
-            // Heuristic: If ANY value > 100, assume 0-1000 scale and divide by 10
-            if (x > 100 || y > 100 || w > 100 || h > 100) {
-              x = x / 10;
-              y = y / 10;
-              w = w / 10;
-              h = h / 10;
-            }
-
-            aiPositionFromMap = {
-              x: x,
-              y: y,
-              width: w,
-              height: h
-            };
-          }
-        }
-
-        // 2. Try parsing [POSITION] JSON from text (Fallback for Flash model)
-        // Example: "[DRAWING] [POSITION] {x: 50.0, y: 50.0, width: 20.0, height: 10.0}"
-        if (!aiPositionFromMap && (anno as any).student_text) {
-          const text = (anno as any).student_text;
-          const jsonMatch = text.match(/\[POSITION\]\s*(\{.*?\})/);
-          if (jsonMatch) {
-            try {
-              const vp = JSON.parse(jsonMatch[1]);
-              if (typeof vp.x === 'number' && typeof vp.y === 'number') {
-                let x = vp.x;
-                let y = vp.y;
-                let w = vp.width || 10;
-                let h = vp.height || 5;
-
-                // Normalize
-                if (x > 100 || y > 100 || w > 100 || h > 100) {
-                  console.log(`[MARKING DEBUG] AI returned large coordinates in text (x=${x}, y=${y}, w=${w}, h=${h}), normalizing by /10`);
-                  x = x / 10;
-                  y = y / 10;
-                  w = w / 10;
-                  h = h / 10;
-                }
-
-                aiPositionFromMap = {
-                  x: x,
-                  y: y,
-                  width: w,
-                  height: h
-                };
-              }
-            } catch (e) {
-              console.warn(`[MARKING DEBUG] Failed to parse [POSITION] JSON from text:`, e);
-            }
-          }
-        }
-
-        // 3. Try line_index (Legacy/Text Robust Method)
-        const lineIndex = (anno as any).line_index;
-        if (!aiPositionFromMap && typeof lineIndex === 'number' && lineIndex > 0 && lineIndex <= studentWorkLines.length) {
-          aiPositionFromMap = studentWorkLines[lineIndex - 1].position;
-        }
-
-        // 2. Try [POSITION] tag parsing (for Drawing Classification)
-        const lookupText = (anno as any).classification_text || anno.student_text;
-
-        if (!aiPositionFromMap && lookupText) {
-          // Check for [POSITION: x=..., y=...] tag
-          const positionMatch = lookupText.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
-          if (positionMatch) {
-            const x = parseFloat(positionMatch[1]);
-            const y = parseFloat(positionMatch[2]);
-
-            if (!isNaN(x) && !isNaN(y)) {
-              // Create AI position from tag
-              // Use default dimensions for drawing markers (small box)
-              aiPositionFromMap = {
-                x: x,
-                y: y,
-                width: 10, // Default width for drawing marker
-                height: 5  // Default height for drawing marker
-              };
-              console.log(`[MARKING DEBUG] Parsed position from tag: x=${x}, y=${y}`);
-            }
-          }
-        }
-
-        // 3. Fallback to text matching
-        if (!aiPositionFromMap) {
-          aiPositionFromMap = positionMap.get(lookupText);
-        }
-
-        // If not found and text has newlines, try looking up individual lines
-        if (!aiPositionFromMap && lookupText && lookupText.includes('\n')) {
-          const lines = lookupText.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
-          for (const line of lines) {
-            const pos = positionMap.get(line);
-            if (pos) {
-              aiPositionFromMap = pos;
-              break; // Use the first matching line's position
-            }
-          }
-        }
-
-        // 4. DRAWING FALLBACK (New Logic)
-        // If AI cites question text (or generic text) but we have [DRAWING] lines with positions, use the drawing position
-        // This handles cases where AI ignores the [DRAWING] text and cites the question instead
-        if (!aiPositionFromMap || ((anno as any).action === 'tick' || (anno as any).action === 'cross')) {
-          // Check if we have any drawing lines with positions
-          const drawingLines = studentWorkLines.filter(l => l.text.includes('[DRAWING]') && l.text.includes('[POSITION'));
-
-          if (drawingLines.length > 0) {
-            // If we didn't find a position, OR if the text lookup might have matched the question text (which usually doesn't have a position in the map anyway, but just in case)
-            // Actually, if aiPositionFromMap IS found, it might be the question text position if that was added to the map.
-            // But usually question text isn't in studentWorkLines unless it was mixed in.
-
-            // Stronger condition: If the annotation is about a graph/drawing (inferred from action or context)
-            // and we haven't found a specific position from the text, default to the drawing.
-
-            if (!aiPositionFromMap) {
-              // Parse position from the first drawing line
-              const firstDrawing = drawingLines[0];
-              const positionMatch = firstDrawing.text.match(/\[POSITION:\s*x=([\d.]+)%?,\s*y=([\d.]+)%?\]/i);
-              if (positionMatch) {
-                const x = parseFloat(positionMatch[1]);
-                const y = parseFloat(positionMatch[2]);
-                if (!isNaN(x) && !isNaN(y)) {
-                  aiPositionFromMap = {
-                    x: x,
-                    y: y,
-                    width: 10,
-                    height: 5
-                  };
-                  console.log(`[MARKING DEBUG] Used DRAWING FALLBACK position: x=${x}, y=${y}`);
-                }
-              }
-            }
-          }
-        }
-
-        // 4. DRAWING FALLBACK (New Design - Default Position)
-        // If it's a drawing annotation but AI forgot visual_position, use a default so it's not dropped
-        if (!aiPositionFromMap) {
-          const text = ((anno as any).student_text || '').toLowerCase();
-          const classText = ((anno as any).classification_text || '').toLowerCase();
-
-          if (text.includes('[drawing]') || classText.includes('[drawing]')) {
-            // FIX: If it's a "cross" action (or reasoning implies not required), it might be a phantom drawing
-            // If we have no position and it's a cross, filter it out instead of creating a dummy box
-            if ((anno as any).action === 'cross' || ((anno as any).reasoning || '').toLowerCase().includes('not required')) {
-              console.log(`[MARKING DEBUG] Filtering out phantom drawing (cross/not required) with no position: ${text}`);
-              return null;
-            }
-
-            aiPositionFromMap = {
-              x: 50,
-              y: 50,
-              width: 50,
-              height: 50
-            };
-          }
-        }
-
-        const finalAiPosition = (matchingStep as any)?.aiPosition || aiPositionFromMap;
-
-        if (matchingStep && matchingStep.bbox) {
-          // Map relative pageIndex to global pageIndex using sourceImageIndices
-          let globalPageIndex = 0;
-          // Use AI's ORIGINAL relative pageIndex (preserved earlier), not the resolved global one
-          const relativePageIndex = (anno as any)._aiRelativePageIndex ?? (anno as any)._resolvedPageIndex;
-
-          console.log(`[DEBUG SCOPE CHECK] sourceImageIndices in enrichment scope:`, sourceImageIndices, `relativePageIndex (_aiRelativePageIndex):`, relativePageIndex);
-
-          if (relativePageIndex !== undefined && relativePageIndex !== null &&
-            sourceImageIndices && sourceImageIndices.length > relativePageIndex) {
-            globalPageIndex = sourceImageIndices[relativePageIndex];
-            console.log(`[DEBUG MATCH]  Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} for step ${(anno as any).step_id}`);
-          } else if (relativePageIndex !== undefined && relativePageIndex !== null) {
-            // Fallback: use relative index directly if sourceImageIndices not available
-            globalPageIndex = relativePageIndex;
-            console.log(`[DEBUG MATCH FALLBACK] Using relative pageIndex ${relativePageIndex} directly (sourceImageIndices unavailable)`);
-          } else {
-            // Final fallback: use first page in sourceImageIndices or 0
-            globalPageIndex = sourceImageIndices?.[0] ?? 0;
-            console.log(`[DEBUG MATCH DEFAULT] Using default pageIndex ${globalPageIndex}`);
-          }
-
-          return {
-            ...anno,
-            bbox: matchingStep.bbox as [number, number, number, number],
-            // DO NOT set pageIndex here - it will be mapped later in MarkingExecutor
-            // pageIndex: globalPageIndex,  // REMOVED - causes double mapping!
-            ocrSource: (matchingStep as any).ocrSource,
-            hasLineData: (matchingStep as any).hasLineData,
-            aiPosition: finalAiPosition
-          };
-        } else if (finalAiPosition) {
-          // If no matching step but we have AI position (e.g. drawing), return with dummy bbox
-          // Map relative pageIndex to global pageIndex for drawings
-          let globalPageIndex = 0;
-          // Use AI's ORIGINAL relative pageIndex, not the resolved global one
-          const relativePageIndex = (anno as any)._aiRelativePageIndex ?? (anno as any)._resolvedPageIndex;
-
-          if (relativePageIndex !== undefined && relativePageIndex !== null &&
-            sourceImageIndices && sourceImageIndices.length > relativePageIndex) {
-            globalPageIndex = sourceImageIndices[relativePageIndex];
-            console.log(`[DEBUG DRAWING] Mapped relative pageIndex ${relativePageIndex} -> global ${globalPageIndex} using sourceImageIndices:`, sourceImageIndices);
-          } else {
-            globalPageIndex = sourceImageIndices?.[0] ?? 0;
-          }
-
-          return {
-            ...anno,
-            bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox
-            // DO NOT set pageIndex here - it will be mapped later in MarkingExecutor
-            // pageIndex: globalPageIndex,  // REMOVED - causes double mapping!
-            aiPosition: finalAiPosition
-          };
-        } else {
-          return null;
-        }
-      }).filter(anno => anno !== null);
-
-
-
-      // ========================== END: ANNOTATION ENRICHMENT ==========================
+      // ======================================================================================
 
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
         annotations: enrichedAnnotations, // ✅ Return enriched annotations with bbox coordinates
@@ -767,6 +478,50 @@ export class MarkingInstructionService {
       // Throw the real error instead of failing silently
       throw new Error(`Marking flow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * NEW: Process annotations using immutable page index architecture
+   * 
+   * This is the new type-safe approach that prevents coordinate system confusion.
+   * Returns ImmutableAnnotation[] which can be converted to legacy format if needed.
+   *
+   * @param aiAnnotations - Raw annotations from AI response
+   * @param sourcePages - Global page indices for mapping
+   * @param ocrBlocks - OCR blocks for bbox enrichment (optional)
+   * @param studentWorkLines - Student work lines for drawing fallback (optional)
+   * @returns Fully processed immutable annotations
+   */
+  static processAnnotationsImmutable(
+    aiAnnotations: RawAIAnnotation[],
+    sourcePages: readonly number[],
+    ocrBlocks?: readonly OCRBlock[],
+    studentWorkLines?: Array<{ text: string, position?: any }>
+  ): readonly ImmutableAnnotation[] {
+    // Convert numbers to branded GlobalPageIndex types
+    const typedSourcePages = sourcePages.map(p => GlobalPageIndex.from(p));
+
+    // Run immutable transformation pipeline
+    const immutableAnnotations = processAnnotations(
+      aiAnnotations,
+      {
+        sourcePages: typedSourcePages,
+        ocrBlocks,
+        studentWorkLines
+      }
+    );
+
+    return immutableAnnotations;
+  }
+
+  /**
+   * NEW: Helper to convert immutable annotations back to legacy format
+   * Used for backward compatibility during migration
+   */
+  static convertToLegacyFormat(
+    immutableAnnotations: readonly ImmutableAnnotation[]
+  ): any[] {
+    return immutableAnnotations.map(toLegacyFormat);
   }
 
   // Use shared normalization helper from TextNormalizationUtils
@@ -1276,10 +1031,10 @@ export class MarkingInstructionService {
         });
         parsedResponse.annotations = mergedAnnotations;
 
-        // 3. Filter out phantom drawing annotations (Q16 Fix)
-        // If an annotation is for a drawing (step_id contains 'drawing') AND has no mark code (text is empty) AND is a 'tick', remove it.
-        // This assumes that valid drawing marks should have a code like "M1" or "A1".
-        // If the AI just ticks a drawing without a code, it's likely a "phantom" or "decorative" tick.
+        // 3. Filter out phantom drawing annotations (Q16 Fix) - REMOVED
+        // This filter was too aggressive and removed valid drawing annotations that didn't have explicit mark codes.
+        // We now trust the AI's output for drawings.
+        /*
         parsedResponse.annotations = parsedResponse.annotations.filter((anno: any) => {
           const isDrawing = anno.step_id && anno.step_id.includes('drawing');
           const hasNoCode = !anno.text || anno.text.trim() === '';
@@ -1291,6 +1046,7 @@ export class MarkingInstructionService {
           }
           return true;
         });
+        */
       }
 
       // console.log(`🤖 [AI RESPONSE] ${RED}Q${questionNumber}${RESET} - Clean response received:`);

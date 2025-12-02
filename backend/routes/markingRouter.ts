@@ -1190,7 +1190,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         const match = filename.match(pattern);
         if (match && match[1]) {
           const pageNum = parseInt(match[1], 10);
-          if (!isNaN(pageNum) && pageNum > 0) {
+          if (!isNaN(pageNum) && pageNum >= 0) {
             return pageNum;
           }
         }
@@ -1700,7 +1700,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       console.log('  - title:', unifiedSession.title);
       console.log('  - messages count:', unifiedSession.messages?.length);
       console.log('  - userId:', unifiedSession.userId);
-      console.log('  - markingSchemesMap sample:', Array.from(markingSchemesMap.entries())[0]);
+      // console.log('  - markingSchemesMap sample:', Array.from(markingSchemesMap.entries())[0]);
     }
 
     // ========================== END: DATABASE PERSISTENCE ==========================
