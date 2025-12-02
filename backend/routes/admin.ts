@@ -486,11 +486,22 @@ router.get('/usage', async (req: Request, res: Response) => {
     // Calculate date range based on filter
     const now = new Date();
     let startDate: Date;
+    let endDate: Date | undefined;
 
     switch (filter) {
       case 'day': {
         startDate = new Date(now);
         startDate.setHours(0, 0, 0, 0);
+        break;
+      }
+      case 'yesterday': {
+        // Yesterday: from start of yesterday to start of today
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - 1);
+        startDate.setHours(0, 0, 0, 0);
+
+        endDate = new Date(now);
+        endDate.setHours(0, 0, 0, 0);
         break;
       }
       case 'week': {
@@ -528,6 +539,11 @@ router.get('/usage', async (req: Request, res: Response) => {
     if (filter !== 'all') {
       const startTimestamp = admin.firestore.Timestamp.fromDate(startDate);
       query = query.where('createdAt', '>=', startTimestamp);
+
+      if (endDate) {
+        const endTimestamp = admin.firestore.Timestamp.fromDate(endDate);
+        query = query.where('createdAt', '<', endTimestamp);
+      }
     }
 
     const snapshot = await query.get();

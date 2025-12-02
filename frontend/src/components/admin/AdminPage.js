@@ -114,7 +114,7 @@ function AdminPage() {
     totalUsers: 0,
     totalSessions: 0
   });
-  const [usageFilter, setUsageFilter] = useState('all');
+  const [usageFilter, setUsageFilter] = useState('day');
   const [loadingUsage, setLoadingUsage] = useState(false);
 
   // Constants removed - using ApiClient instead
@@ -700,6 +700,12 @@ function AdminPage() {
                 onClick={() => setUsageFilter('week')}
               >
                 Week
+              </button>
+              <button
+                className={`usage-filter-tab ${usageFilter === 'yesterday' ? 'usage-filter-tab--active' : ''}`}
+                onClick={() => setUsageFilter('yesterday')}
+              >
+                Yesterday
               </button>
               <button
                 className={`usage-filter-tab ${usageFilter === 'day' ? 'usage-filter-tab--active' : ''}`}
