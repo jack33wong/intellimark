@@ -34,9 +34,9 @@ function createDefaultDetectedQuestion(): any {
  */
 function isEmptyDetectedQuestion(detectedQuestion: any): boolean {
   if (!detectedQuestion) return true;
-  return !detectedQuestion.found && 
-         !detectedQuestion.questionText && 
-         !detectedQuestion.questionNumber;
+  return !detectedQuestion.found &&
+    !detectedQuestion.questionText &&
+    !detectedQuestion.questionNumber;
 }
 
 /**
@@ -71,7 +71,7 @@ export function generateContentHash(content: string, length: number = 8): string
   if (!content || typeof content !== 'string') {
     return 'empty';
   }
-  
+
   return crypto.createHash('md5').update(content).digest('hex').substring(0, length);
 }
 
@@ -399,12 +399,12 @@ export function calculateMessageProcessingStats(
   const realApi = getRealApiName(realModel);
 
   // Calculate total LLM tokens from question results if available
-  const totalLlmTokens = questionResults.length > 0 
+  const totalLlmTokens = questionResults.length > 0
     ? questionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0)
     : (aiResponse?.usageTokens || 0);
 
   // Calculate total mathpix calls from question results if available
-  const totalMathpixCalls = questionResults.length > 0 
+  const totalMathpixCalls = questionResults.length > 0
     ? questionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0)
     : 0;
 
@@ -428,7 +428,8 @@ export function calculateSessionStats(
   allQuestionResults: any[],
   totalProcessingTimeMs: number,
   actualModel: string,
-  files: any[] = []
+  files: any[] = [],
+  providedTotalLlmTokens?: number // CRITICAL FIX: Accept pre-calculated tokens
 ): any {
   // Get real API name (reusing logic from sessionManagementService.ts)
   const getRealApiName = (modelName: string): string => {
@@ -454,7 +455,13 @@ export function calculateSessionStats(
 
   // Calculate totals (reusing logic from originalPipeline.ts)
   const totalAnnotations = allQuestionResults.reduce((sum, q) => sum + (q.annotations?.length || 0), 0);
-  const totalLlmTokens = allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
+
+  // CRITICAL FIX: Use provided tokens if available, otherwise recalculate
+  // This fixes the bug where classification tokens were lost
+  const totalLlmTokens = providedTotalLlmTokens !== undefined
+    ? providedTotalLlmTokens
+    : allQuestionResults.reduce((sum, q) => sum + (q.usageTokens || 0), 0);
+
   const totalMathpixCalls = allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
   const totalTokens = totalLlmTokens + totalMathpixCalls;
 
@@ -462,8 +469,8 @@ export function calculateSessionStats(
   const confidences = allQuestionResults
     .map(q => q.confidence || 0)
     .filter(c => c > 0);
-  const averageConfidence = confidences.length > 0 
-    ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length 
+  const averageConfidence = confidences.length > 0
+    ? confidences.reduce((sum, c) => sum + c, 0) / confidences.length
     : 0;
 
   return {
@@ -497,17 +504,17 @@ export interface AIMessageIdOptions {
  */
 export function resolveAIMessageId(options: AIMessageIdOptions): string {
   const { providedId, content, fallbackPrefix = 'ai', timestamp } = options;
-  
+
   // Use provided ID if valid
   if (providedId && typeof providedId === 'string' && providedId.trim() !== '') {
     return providedId;
   }
-  
+
   // Generate fallback ID based on content
   if (fallbackPrefix === 'ai') {
     return generateAIMessageId(content, timestamp);
   }
-  
+
   // Generate fallback ID with custom prefix
   const time = timestamp || Date.now();
   const random = Math.random().toString(36).substr(2, 9);
@@ -527,7 +534,7 @@ export function handleAIMessageIdForEndpoint(
   endpointType: 'chat' | 'marking' | 'question' = 'chat'
 ): string {
   const providedId = requestBody.aiMessageId;
-  
+
   return resolveAIMessageId({
     providedId,
     content,

@@ -381,11 +381,13 @@ export class SessionManagementService {
 
     if (additionalData) {
       // For marking mode, use calculateSessionStats with allQuestionResults
+      // CRITICAL FIX: Pass usageTokens from context to preserve classification tokens
       return calculateSessionStats(
         additionalData.allQuestionResults,
         Date.now() - context.startTime,
         additionalData.model || 'auto',
-        additionalData.files || []
+        additionalData.files || [],
+        additionalData.usageTokens // Pass the pre-calculated total (includes classification)
       );
     } else {
       // For question mode, use calculateSessionStats with empty results

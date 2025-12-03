@@ -56,7 +56,8 @@ export class ClassificationService {
   static async classifyMultipleImages(
     images: Array<{ imageData: string; fileName?: string; pageIndex?: number }>,
     model: ModelType = 'auto',
-    debug: boolean = false
+    debug: boolean = false,
+    tracker?: any  // UsageTracker (optional)
   ): Promise<Array<{ pageIndex: number; result: ClassificationResult }>> {
     if (images.length === 0) return [];
 
@@ -114,7 +115,10 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // --- PASS 1: MAP PASS (Always Flash) ---
       // Get a map of which questions are on which pages
       // Cast images to required type (pageIndex is effectively required here)
-      const pageMaps = await ClassificationMapper.mapQuestionsToPages(images as Array<{ imageData: string; fileName?: string; pageIndex: number }>);
+      const pageMaps = await ClassificationMapper.mapQuestionsToPages(
+        images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
+        tracker  // Pass tracker for auto-recording
+      );
 
       // Group pages by Question Number (base number for efficiency)
       // Map<QuestionNumber, Set<PageIndex>>

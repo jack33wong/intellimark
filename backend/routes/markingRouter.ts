@@ -148,6 +148,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
   // Send initial message in the same format as original single image pipeline
   sendSseUpdate(res, createProgressData(0, 'Processing started', MULTI_IMAGE_STEPS));
 
+  // ========================= USAGE TRACKER (Phase 2) =========================
+  // Create centralized tracker for ALL API usage (declare outside try for access in finally)
+  const { UsageTracker } = await import('../utils/UsageTracker.js');
+  const usageTracker = new UsageTracker();
+  // ============================================================================
+
   try {
     const files = req.files as Express.Multer.File[];
     // Determine authentication status early
@@ -530,13 +536,10 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
 
     // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
     const allClassificationResults = await ClassificationService.classifyMultipleImages(
-      standardizedPages.map((page, index) => ({
-        imageData: page.imageData,
-        fileName: page.originalFileName,
-        pageIndex: index
-      })),
-      actualModel as ModelType,
-      false
+      standardizedPages,
+      actualModel as ModelType,  // Cast to ModelType
+      false,  // debug
+      usageTracker  // Pass tracker for auto-recording
     );
 
     // Combine questions from all images
@@ -722,6 +725,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       hasMixedContent: hasMixedContent,
       hasAnyStudentWork: hasAnyStudentWork
     };
+
+    // Add classification tokens to total usage
+    if (classificationResult.usageTokens) {
+      totalLLMTokens += classificationResult.usageTokens;
+      // Note: Tokens already recorded by ClassificationMapper.mapQuestionsToPages()
+    }
 
     // For question mode, use the questions array; for marking mode, use extractedQuestionText
     const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0
@@ -1136,7 +1145,11 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     if (allQuestionResults) {
 
       allQuestionResults.forEach(qr => {
-        if (qr.usageTokens) totalLLMTokens += qr.usageTokens;
+        if (qr.usageTokens) {
+          totalLLMTokens += qr.usageTokens;
+          // Note: Tokens will be auto-recorded when services accept tracker
+          // For now, tracking via legacy usageTokens field
+        }
         if (qr.mathpixCalls) totalMathpixCalls += qr.mathpixCalls;
       });
     }
@@ -2073,6 +2086,22 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       res.end();
     }
   } finally {
+    // ========================= USAGE TRACKER SUMMARY =========================
+    // Log detailed breakdown and cost analysis
+    try {
+      console.log(usageTracker.getSummary(actualModel));
+
+      // Validate usage for anomalies
+      const validation = usageTracker.validate();
+      if (!validation.valid) {
+        console.warn('⚠️  [USAGE TRACKER] Validation failed:');
+        validation.errors.forEach(err => console.warn(`   - ${err}`));
+      }
+    } catch (err) {
+      console.error('❌ [USAGE TRACKER] Failed to log summary:', err);
+    }
+    // ========================================================================
+
     // --- Ensure Connection Closure (Only if not already closed) ---
     if (!res.writableEnded) {
       closeSseConnection(res);

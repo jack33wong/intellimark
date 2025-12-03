@@ -11,20 +11,20 @@ export class ClassificationMapper {
     /**
      * Map Pass: Identify which questions are on which pages using a cheap model (Flash).
      * @param images Array of images to map
+     * @param tracker Optional UsageTracker for recording API usage
      * @returns Array of page maps
      */
     static async mapQuestionsToPages(
-        images: Array<{ imageData: string; fileName?: string; pageIndex: number }>
+        images: Array<{ imageData: string; fileName?: string; pageIndex: number }>,
+        tracker?: any  // UsageTracker (optional)
     ): Promise<PageMap[]> {
-        console.log(`[MAPPER] Starting Map Pass for ${images.length} pages using gemini-2.5-flash...`);
-        const startTime = Date.now();
+        // HARDCODED MODEL: Always use Flash for mapping (cost optimization)
+        // Mapping doesn't need high accuracy - Flash is 16x cheaper than Pro
+        const MAPPING_MODEL = 'gemini-2.5-flash';
 
-        // Dynamic Model Selection: Choose the cheapest Gemini model
-        const { LLM_PRICING } = await import('../../config/pricing.js');
-        const geminiModels = Object.keys(LLM_PRICING).filter(m => m.startsWith('gemini'));
-        const cheapestModel = geminiModels.sort((a, b) => LLM_PRICING[a].input - LLM_PRICING[b].input)[0];
-        const MAPPING_MODEL = cheapestModel || 'gemini-2.5-flash';
-        console.log(`[MAPPER] Selected cheapest model for Map Pass: ${MAPPING_MODEL} ($${LLM_PRICING[MAPPING_MODEL]?.input}/1M input)`);
+        console.log(`[MAPPER] Using HARDCODED model: ${MAPPING_MODEL} (cost optimization)`);
+        console.log(`[MAPPER] Starting Map Pass for ${images.length} pages...`);
+        const startTime = Date.now(); // Track performance
 
         // SINGLE BATCH: Process all pages at once to maintain full context (e.g. Q11 on Page 13 -> Q11 on Page 12)
         // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
@@ -128,6 +128,14 @@ export class ClassificationMapper {
 
             const result = await response.json() as any;
             const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            // Extract token usage and record via tracker
+            if (tracker) {
+                const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+                const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+                tracker.recordClassification(inputTokens, outputTokens);
+            }
+
             let parsed: any;
             try {
                 parsed = JSON.parse(content.replace(/```json\n|\n```/g, ''));

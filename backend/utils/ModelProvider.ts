@@ -16,22 +16,80 @@ export class ModelProvider {
     return !modelsRequiringDefault.some(restricted => modelName.includes(restricted));
   }
 
-  static async callGeminiText(systemPrompt: string, userPrompt: string, model: ModelType = 'auto', forceJsonResponse: boolean = false): Promise<{ content: string; usageTokens: number }> {
+  static async callGeminiText(
+    systemPrompt: string,
+    userPrompt: string,
+    model: ModelType = 'auto',
+    forceJsonResponse: boolean = false,
+    tracker?: any, // UsageTracker (optional for backward compatibility during migration)
+    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+  ): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
     const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
-    const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
-    return { content, usageTokens };
+
+    // Extract REAL input/output split from API response
+    const inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
+    const outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
+    const totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+
+    // Auto-record via tracker if provided
+    if (tracker) {
+      switch (phase) {
+        case 'classification':
+          tracker.recordClassification(inputTokens, outputTokens);
+          break;
+        case 'marking':
+          tracker.recordMarking(inputTokens, outputTokens);
+          break;
+        case 'questionMode':
+          tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        default:
+          tracker.recordOther(inputTokens, outputTokens);
+      }
+    }
+
+    return { content, usageTokens: totalTokens };
   }
 
-  static async callGeminiChat(systemPrompt: string, userPrompt: string, imageData: string | string[], model: ModelType = 'auto'): Promise<{ content: string; usageTokens: number }> {
+  static async callGeminiChat(
+    systemPrompt: string,
+    userPrompt: string,
+    imageData: string | string[],
+    model: ModelType = 'auto',
+    tracker?: any,
+    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+  ): Promise<{ content: string; usageTokens: number }> {
     const accessToken = await this.getGeminiAccessToken();
     const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
-    const usageTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
-    return { content, usageTokens };
+
+    // Extract REAL input/output split
+    const inputTokens = (result.usageMetadata?.promptTokenCount as number) || 0;
+    const outputTokens = (result.usageMetadata?.candidatesTokenCount as number) || 0;
+    const totalTokens = (result.usageMetadata?.totalTokenCount as number) || 0;
+
+    // Auto-record via tracker
+    if (tracker) {
+      switch (phase) {
+        case 'classification':
+          tracker.recordClassification(inputTokens, outputTokens);
+          break;
+        case 'marking':
+          tracker.recordMarking(inputTokens, outputTokens);
+          break;
+        case 'questionMode':
+          tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        default:
+          tracker.recordOther(inputTokens, outputTokens);
+      }
+    }
+
+    return { content, usageTokens: totalTokens };
   }
 
   private static async makeGeminiChatRequest(
@@ -389,7 +447,9 @@ export class ModelProvider {
     systemPrompt: string,
     userPrompt: string,
     modelName: string = 'gpt-4o-mini',
-    forceJsonResponse: boolean = false
+    forceJsonResponse: boolean = false,
+    tracker?: any,
+    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -434,10 +494,30 @@ export class ModelProvider {
 
     const json = await response.json() as any;
     const content = json.choices?.[0]?.message?.content || '';
-    const usageTokens = json.usage?.total_tokens || 0;
-    return { content, usageTokens };
+
+    // Extract REAL input/output split from OpenAI response
+    const inputTokens = json.usage?.prompt_tokens || 0;
+    const outputTokens = json.usage?.completion_tokens || 0;
+    const totalTokens = json.usage?.total_tokens || 0;
+
+    // Auto-record via tracker
+    if (tracker) {
+      switch (phase) {
+        case 'classification':
+          tracker.recordClassification(inputTokens, outputTokens);
+          break;
+        case 'marking':
+          tracker.recordMarking(inputTokens, outputTokens);
+          break;
+        case 'questionMode':
+          tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        default:
+          tracker.recordOther(inputTokens, outputTokens);
+      }
+    }
+
+    return { content, usageTokens: totalTokens };
   }
 
 }
-
-

@@ -19,7 +19,7 @@ export interface CostBreakdown {
  */
 export function calculateLLMCost(model: string, totalTokens: number): number {
   if (totalTokens <= 0) return 0;
-  
+
   const pricing = getLLMPricing(model);
   if (!pricing) {
     console.warn(`[COST CALCULATOR] Unknown model: ${model}, using default pricing`);
@@ -31,15 +31,15 @@ export function calculateLLMCost(model: string, totalTokens: number): number {
     const outputTokens = totalTokens * 0.2;
     return (inputTokens / 1_000_000) * defaultPricing.input + (outputTokens / 1_000_000) * defaultPricing.output;
   }
-  
+
   // Estimate 80% input, 20% output if split unavailable
   // This is a reasonable estimate for most use cases
   const inputTokens = totalTokens * 0.8;
   const outputTokens = totalTokens * 0.2;
-  
+
   const inputCost = (inputTokens / 1_000_000) * pricing.input;
   const outputCost = (outputTokens / 1_000_000) * pricing.output;
-  
+
   return inputCost + outputCost;
 }
 
@@ -50,7 +50,7 @@ export function calculateLLMCost(model: string, totalTokens: number): number {
  */
 export function calculateMathpixCost(callCount: number): number {
   if (callCount <= 0) return 0;
-  
+
   const pricePerCall = getMathpixPricing();
   return callCount * pricePerCall;
 }
@@ -64,15 +64,15 @@ export function calculateTotalCost(sessionStats: any): CostBreakdown {
   const totalLlmTokens = sessionStats?.totalLlmTokens || 0;
   const totalMathpixCalls = sessionStats?.totalMathpixCalls || 0;
   const modelUsed = sessionStats?.lastModelUsed || 'auto';
-  
+
   const llmCost = calculateLLMCost(modelUsed, totalLlmTokens);
   const mathpixCost = calculateMathpixCost(totalMathpixCalls);
   const total = llmCost + mathpixCost;
-  
+
   return {
-    llmCost: Math.round(llmCost * 100) / 100, // Round to 2 decimal places
-    mathpixCost: Math.round(mathpixCost * 100) / 100,
-    total: Math.round(total * 100) / 100
+    llmCost: Math.round(llmCost * 1000000) / 1000000, // Round to 6 decimal places
+    mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
+    total: Math.round(total * 1000000) / 1000000
   };
 }
 

@@ -139,11 +139,11 @@ export interface UserDocument {
 function sanitizeFirestoreData(obj: any): any {
   return JSON.parse(JSON.stringify(obj, (key, value) => {
     // Remove functions, undefined, symbols, and other unsupported types
-    if (typeof value === 'function' || 
-        typeof value === 'undefined' || 
-        typeof value === 'symbol' ||
-        value instanceof Buffer ||
-        typeof value === 'bigint') {
+    if (typeof value === 'function' ||
+      typeof value === 'undefined' ||
+      typeof value === 'symbol' ||
+      value instanceof Buffer ||
+      typeof value === 'bigint') {
       return null;
     }
     return value;
@@ -160,10 +160,10 @@ export class FirestoreService {
     if (existingMessageType === 'Mixed') {
       return 'Mixed';
     }
-    
+
     // Determine what type the new message represents
     let newMessageCategory: 'Marking' | 'Question' | 'Chat';
-    
+
     if (newMessage.type === 'marking_original' || newMessage.type === 'marking_annotated') {
       newMessageCategory = 'Marking';
     } else if (newMessage.type === 'question_original' || newMessage.type === 'question_response') {
@@ -174,12 +174,12 @@ export class FirestoreService {
       // Unknown message type, keep existing type
       return existingMessageType as 'Marking' | 'Question' | 'Chat';
     }
-    
+
     // If the new message category is different from the existing session type, make it Mixed
     if (newMessageCategory !== existingMessageType) {
       return 'Mixed';
     }
-    
+
     // Otherwise, keep the existing message type
     return existingMessageType as 'Marking' | 'Question' | 'Chat';
   }
@@ -190,13 +190,13 @@ export class FirestoreService {
   static async getMarkingResults(resultId: string): Promise<MarkingResultDocument | null> {
     try {
       const docRef = await db.collection(COLLECTIONS.MARKING_RESULTS).doc(resultId).get();
-      
+
       if (!docRef.exists) {
         return null;
       }
 
       const data = docRef.data() as MarkingResultDocument;
-      
+
       return {
         ...data,
         id: docRef.id
@@ -290,13 +290,13 @@ export class FirestoreService {
   static async getUser(uid: string): Promise<UserDocument | null> {
     try {
       const docRef = await db.collection(COLLECTIONS.USERS).doc(uid).get();
-      
+
       if (!docRef.exists) {
         return null;
       }
 
       const data = docRef.data() as UserDocument;
-      
+
       return {
         ...data,
         uid: docRef.id
@@ -326,7 +326,7 @@ export class FirestoreService {
       const oneDayAgo = admin.firestore.Timestamp.fromDate(
         new Date(Date.now() - 24 * 60 * 60 * 1000)
       );
-      
+
       const recentSnapshot = await db.collection(COLLECTIONS.MARKING_RESULTS)
         .where('createdAt', '>=', oneDayAgo)
         .count()
@@ -433,92 +433,92 @@ export class FirestoreService {
     try {
       ensureDbAvailable();
       const { sessionId, title, userId, messageType, messages, sessionStats, detectedQuestion } = sessionData;
-      
+
       // Import ImageStorageService
       const { ImageStorageService } = await import('./imageStorageService.js');
-      
+
       // Prepare messages array with proper formatting  
-      
+
       let unifiedMessages = [];
       try {
         unifiedMessages = await Promise.all(messages.map(async (message, index) => {
-        let processedImageLink = message.imageLink;
+          let processedImageLink = message.imageLink;
 
-        // All images should already be uploaded to Firebase Storage and have imageLink
-        if (!message.imageLink && message.imageData) {
-          // Legacy fallback - upload to Firebase Storage if imageData exists
-          try {
-            const imageUrl = await ImageStorageService.uploadImage(
-              message.imageData,
-              userId,
-              sessionId,
-              message.type === 'marking_original' ? 'original' : 'annotated'
-            );
-            processedImageLink = imageUrl;
-          } catch (error) {
-            console.error(`❌ Legacy image upload failed:`, error);
-            processedImageLink = null;
+          // All images should already be uploaded to Firebase Storage and have imageLink
+          if (!message.imageLink && message.imageData) {
+            // Legacy fallback - upload to Firebase Storage if imageData exists
+            try {
+              const imageUrl = await ImageStorageService.uploadImage(
+                message.imageData,
+                userId,
+                sessionId,
+                message.type === 'marking_original' ? 'original' : 'annotated'
+              );
+              processedImageLink = imageUrl;
+            } catch (error) {
+              console.error(`❌ Legacy image upload failed:`, error);
+              processedImageLink = null;
+            }
           }
-        }
 
-        // Preserve ALL fields from the input message, with specific overrides for storage
-        const messageDoc = {
-          ...message, // Preserve all original fields
-          imageLink: processedImageLink, // Override with processed image link
-          // Only add updatedAt if it doesn't already exist (preserve existing timestamps)
-          ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
-        };
+          // Preserve ALL fields from the input message, with specific overrides for storage
+          const messageDoc = {
+            ...message, // Preserve all original fields
+            imageLink: processedImageLink, // Override with processed image link
+            // Only add updatedAt if it doesn't already exist (preserve existing timestamps)
+            ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
+          };
 
-        // Remove null values, imageData, and base64 pdfContexts (base64 should not be in Firestore)
-        const finalMessage = Object.fromEntries(
-          Object.entries(messageDoc).filter(([key, value]) => {
-            if (value === null || value === undefined) return false;
-            if (key === 'imageData' && typeof value === 'string' && value.startsWith('data:image')) {
-              // DIAGNOSTIC: Log if imageData (base64) is being filtered out
-              const sizeMB = value.length / (1024 * 1024);
-              console.log(`🔍 [DIAGNOSTIC] Filtering out imageData (base64) from message ${index}, size: ${sizeMB.toFixed(2)}MB`);
-              return false; // Don't include base64 imageData in Firestore
-            }
-            if (key === 'pdfContexts' && Array.isArray(value)) {
-              // Filter out base64 URLs from pdfContexts - only keep Firebase Storage URLs
-              const filteredPdfContexts = value.map((pdf: any) => {
-                if (pdf.url && typeof pdf.url === 'string' && pdf.url.startsWith('data:')) {
-                  // This is base64, filter it out
-                  const sizeMB = pdf.url.length / (1024 * 1024);
-                  console.log(`🔍 [DIAGNOSTIC] Filtering out pdfContext base64 from message ${index} (${pdf.originalFileName || 'unknown'}), size: ${sizeMB.toFixed(2)}MB`);
-                  return null;
-                }
-                return pdf; // Keep Firebase URLs
-              }).filter((pdf: any) => pdf !== null);
-              
-              // Only include pdfContexts if there are valid URLs (not all base64)
-              if (filteredPdfContexts.length === 0) {
-                return false; // Remove pdfContexts if all items were base64
+          // Remove null values, imageData, and base64 pdfContexts (base64 should not be in Firestore)
+          const finalMessage = Object.fromEntries(
+            Object.entries(messageDoc).filter(([key, value]) => {
+              if (value === null || value === undefined) return false;
+              if (key === 'imageData' && typeof value === 'string' && value.startsWith('data:image')) {
+                // DIAGNOSTIC: Log if imageData (base64) is being filtered out
+                const sizeMB = value.length / (1024 * 1024);
+                console.log(`🔍 [DIAGNOSTIC] Filtering out imageData (base64) from message ${index}, size: ${sizeMB.toFixed(2)}MB`);
+                return false; // Don't include base64 imageData in Firestore
               }
-              // Replace with filtered array
-              messageDoc[key] = filteredPdfContexts;
+              if (key === 'pdfContexts' && Array.isArray(value)) {
+                // Filter out base64 URLs from pdfContexts - only keep Firebase Storage URLs
+                const filteredPdfContexts = value.map((pdf: any) => {
+                  if (pdf.url && typeof pdf.url === 'string' && pdf.url.startsWith('data:')) {
+                    // This is base64, filter it out
+                    const sizeMB = pdf.url.length / (1024 * 1024);
+                    console.log(`🔍 [DIAGNOSTIC] Filtering out pdfContext base64 from message ${index} (${pdf.originalFileName || 'unknown'}), size: ${sizeMB.toFixed(2)}MB`);
+                    return null;
+                  }
+                  return pdf; // Keep Firebase URLs
+                }).filter((pdf: any) => pdf !== null);
+
+                // Only include pdfContexts if there are valid URLs (not all base64)
+                if (filteredPdfContexts.length === 0) {
+                  return false; // Remove pdfContexts if all items were base64
+                }
+                // Replace with filtered array
+                messageDoc[key] = filteredPdfContexts;
+                return true;
+              }
               return true;
-            }
-            return true;
-          })
-        );
-        
-        // DIAGNOSTIC: Log message payload size before saving
-        const messageSize = JSON.stringify(finalMessage).length;
-        const messageSizeMB = messageSize / (1024 * 1024);
-        if (messageSizeMB > 1) {
-          console.log(`🔍 [DIAGNOSTIC] Message ${index} payload size: ${messageSize.toLocaleString()} bytes (${messageSizeMB.toFixed(2)}MB)`);
-          // Log which fields are largest
-          Object.entries(finalMessage).forEach(([key, value]) => {
-            const fieldSize = JSON.stringify(value).length;
-            const fieldSizeMB = fieldSize / (1024 * 1024);
-            if (fieldSizeMB > 0.5) {
-              console.log(`  - Field "${key}": ${fieldSize.toLocaleString()} bytes (${fieldSizeMB.toFixed(2)}MB)`);
-            }
-          });
-        }
-        
-        return finalMessage;
+            })
+          );
+
+          // DIAGNOSTIC: Log message payload size before saving
+          const messageSize = JSON.stringify(finalMessage).length;
+          const messageSizeMB = messageSize / (1024 * 1024);
+          if (messageSizeMB > 1) {
+            console.log(`🔍 [DIAGNOSTIC] Message ${index} payload size: ${messageSize.toLocaleString()} bytes (${messageSizeMB.toFixed(2)}MB)`);
+            // Log which fields are largest
+            Object.entries(finalMessage).forEach(([key, value]) => {
+              const fieldSize = JSON.stringify(value).length;
+              const fieldSizeMB = fieldSize / (1024 * 1024);
+              if (fieldSizeMB > 0.5) {
+                console.log(`  - Field "${key}": ${fieldSize.toLocaleString()} bytes (${fieldSizeMB.toFixed(2)}MB)`);
+              }
+            });
+          }
+
+          return finalMessage;
         }));
 
       } catch (messageProcessingError) {
@@ -529,12 +529,12 @@ export class FirestoreService {
       }
 
       // Create single session document with nested messages
-      
+
       // DIAGNOSTIC: Calculate total payload size before saving
       const totalPayloadSize = JSON.stringify(unifiedMessages).length;
       const totalPayloadSizeMB = totalPayloadSize / (1024 * 1024);
       console.log(`🔍 [DIAGNOSTIC] Total unifiedMessages payload: ${totalPayloadSize.toLocaleString()} bytes (${totalPayloadSizeMB.toFixed(2)}MB)`);
-      
+
       // Calculate cost for the session if sessionStats exists
       let finalSessionStats = sessionStats || null;
       if (sessionStats) {
@@ -549,7 +549,7 @@ export class FirestoreService {
           }
         };
       }
-      
+
       const sessionDoc: any = {
         id: sessionId,
         title,
@@ -563,7 +563,7 @@ export class FirestoreService {
         sessionStats: finalSessionStats,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
-      
+
       // DIAGNOSTIC: Calculate final document size
       const finalDocSize = JSON.stringify(sessionDoc).length;
       const finalDocSizeMB = finalDocSize / (1024 * 1024);
@@ -571,7 +571,7 @@ export class FirestoreService {
       if (finalDocSizeMB > 10) {
         console.log(`  - ❌ EXCEEDS FIRESTORE 10MB LIMIT!`);
       }
-      
+
       // Only include detectedQuestion if it exists and is not null
       if (detectedQuestion) {
         sessionDoc.detectedQuestion = detectedQuestion;
@@ -582,7 +582,7 @@ export class FirestoreService {
       if (!db) {
         throw new Error('Database instance is null - Firestore not properly initialized');
       }
-      
+
       try {
         await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).set(sessionDoc);
         // Verify the session was saved
@@ -590,7 +590,7 @@ export class FirestoreService {
         if (!verifyDoc.exists) {
           throw new Error(`Session verification failed - document not found after save`);
         }
-        
+
         // Write usage record if cost breakdown exists
         if (finalSessionStats?.costBreakdown) {
           await this.createUsageRecord(sessionId, userId, sessionDoc.createdAt, finalSessionStats);
@@ -619,16 +619,16 @@ export class FirestoreService {
     try {
       // Get session document with nested messages
       const sessionDoc = await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).get();
-      
+
       if (!sessionDoc.exists) {
         return null;
       }
 
       const sessionData = sessionDoc.data();
-      
+
       // Extract nested messages
       const unifiedMessages = sessionData?.unifiedMessages || [];
-      
+
       // Sort messages by timestamp in JavaScript
       unifiedMessages.sort((a: any, b: any) => {
         const timeA = new Date(a.timestamp || 0).getTime();
@@ -638,7 +638,7 @@ export class FirestoreService {
 
       // Map messages to ensure frontend compatibility while preserving object references
       const mappedMessages = unifiedMessages.map((msg: any) => {
-        
+
         // Only modify if absolutely necessary to preserve React component state
         if (!msg.id && msg.messageId) {
           // Add id field if missing - but only if it's actually missing
@@ -678,7 +678,7 @@ export class FirestoreService {
         sessionStats: sessionData.sessionStats,
         messages: mappedMessages  // Use mapped messages with id field
       };
-      
+
       return result;
     } catch (error) {
       console.error('❌ Failed to get UnifiedSession:', error);
@@ -694,21 +694,21 @@ export class FirestoreService {
       const sessionsRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS)
         .where('userId', '==', userId)
         .limit(limit);
-      
+
       const snapshot = await sessionsRef.get();
-      
+
       if (snapshot.empty) {
         return [];
       }
 
       const sessions = [];
-      
+
       for (const doc of snapshot.docs) {
         const sessionData = doc.data();
-        
+
         // Get nested messages directly from the session document
         const unifiedMessages = sessionData.unifiedMessages || [];
-        
+
         // Find the last message by sorting in JavaScript
         let lastMessage = null;
         if (unifiedMessages.length > 0) {
@@ -721,7 +721,7 @@ export class FirestoreService {
         }
 
         // Check if session has images in nested messages
-        const hasImage = unifiedMessages.some((msg: any) => 
+        const hasImage = unifiedMessages.some((msg: any) =>
           msg.imageLink
         );
 
@@ -745,14 +745,14 @@ export class FirestoreService {
           lastApiUsed: lastMessage?.apiUsed
         });
       }
-      
+
       // Sort sessions by updatedAt in JavaScript
       sessions.sort((a: any, b: any) => {
         const timeA = new Date(a.updatedAt || 0).getTime();
         const timeB = new Date(b.updatedAt || 0).getTime();
         return timeB - timeA; // Descending order
       });
-      
+
       return sessions;
     } catch (error) {
       console.error('❌ Failed to get user UnifiedSessions:', error);
@@ -780,7 +780,7 @@ export class FirestoreService {
     try {
       // Upload images to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService.js');
-      
+
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
       const annotatedImageUrl = await ImageStorageService.uploadImage(annotatedImage, userId, sessionId, 'annotated');
 
@@ -823,11 +823,11 @@ export class FirestoreService {
       };
 
       // Create detected question info
-      
+
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: classification?.questions && Array.isArray(classification.questions) 
-          ? classification.questions.map((q: any) => q.text).join(' ') 
+        questionText: classification?.questions && Array.isArray(classification.questions)
+          ? classification.questions.map((q: any) => q.text).join(' ')
           : classification?.extractedQuestionText || '',
         questionNumber: questionDetection.match?.questionNumber || '',
         subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
@@ -905,7 +905,7 @@ export class FirestoreService {
     try {
       // Upload image to Firebase Storage
       const { ImageStorageService } = await import('./imageStorageService.js');
-      
+
       const originalImageUrl = await ImageStorageService.uploadImage(imageData, userId, sessionId, 'original');
 
       // Helper function to remove undefined values recursively
@@ -929,11 +929,11 @@ export class FirestoreService {
       };
 
       // Create detected question info
-      
+
       const detectedQuestion = questionDetection?.found ? {
         found: true,
-        questionText: classification?.questions && Array.isArray(classification.questions) 
-          ? classification.questions.map((q: any) => q.text).join(' ') 
+        questionText: classification?.questions && Array.isArray(classification.questions)
+          ? classification.questions.map((q: any) => q.text).join(' ')
           : classification?.extractedQuestionText || '',
         questionNumber: questionDetection.match?.questionNumber || '',
         subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
@@ -983,7 +983,7 @@ export class FirestoreService {
   private static generateMarkingContextSummary(instructions: any, result: any): string {
     const annotationCount = instructions.annotations?.length || 0;
     const confidence = result.confidence || 0;
-    
+
     return `I've marked your homework! Found ${annotationCount} areas to review with ${Math.round(confidence * 100)}% confidence. The annotated image shows my feedback and suggestions.`;
   }
 
@@ -1010,13 +1010,13 @@ export class FirestoreService {
     try {
       // Import ImageStorageService dynamically to avoid circular dependencies
       const { ImageStorageService } = await import('./imageStorageService.js');
-      
+
       // Delete all user images
       await ImageStorageService.deleteUserImages(userId);
-      
+
       // Delete user from Firestore
       await db.collection(COLLECTIONS.USERS).doc(userId).delete();
-      
+
     } catch (error) {
       console.error('❌ Failed to delete user:', error);
       throw error;
@@ -1030,17 +1030,17 @@ export class FirestoreService {
     try {
       // Get session before deleting to extract subject
       const session = await this.getUnifiedSession(sessionId);
-      
+
       // Delete the session document (which contains nested messages)
       await db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId).delete();
-      
+
       // Remove marking result from subjectMarkingResults if session had marking results
       if (session) {
         // Find marking message with detectedQuestion
         const markingMessage = session.messages?.find(
           (msg: any) => msg.role === 'assistant' && msg.studentScore && msg.detectedQuestion?.found
         );
-        
+
         if (markingMessage?.detectedQuestion) {
           const subject = markingMessage.detectedQuestion.examPapers?.[0]?.subject;
           if (subject) {
@@ -1051,7 +1051,7 @@ export class FirestoreService {
           }
         }
       }
-      
+
     } catch (error) {
       console.error('❌ Failed to delete UnifiedSession:', error);
       throw error;
@@ -1067,38 +1067,38 @@ export class FirestoreService {
       // Get the existing session
       const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
       const sessionDoc = await sessionRef.get();
-      
+
       if (!sessionDoc.exists) {
         throw new Error(`Session ${sessionId} not found`);
       }
-      
+
       const sessionData = sessionDoc.data();
       const existingMessages = sessionData?.unifiedMessages || [];
       const existingMessageType = sessionData?.messageType || 'Chat';
-      
+
       // Sanitize the new message
       const sanitizedMessage = sanitizeForFirestore(message);
-      
+
       // Determine if the session should become "Mixed" based on message types
       const newMessageType = this.determineSessionMessageType(existingMessages, sanitizedMessage, existingMessageType);
-      
+
       // Log when a session becomes "Mixed"
       if (newMessageType === 'Mixed' && existingMessageType !== 'Mixed') {
         // Session type changed to Mixed
       }
-      
+
       // Add the new message to the array
       const updatedMessages = [...existingMessages, sanitizedMessage];
-      
+
       // Get existing sessionStats and accumulate token counts
       const existingStats = sessionData?.sessionStats || {};
       const newMessageTokens = sanitizedMessage?.processingStats?.llmTokens || 0;
       const newMessageMathpix = sanitizedMessage?.processingStats?.mathpixCalls || 0;
-      
+
       // Accumulate token counts (fix bug where they were being reset)
       const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + newMessageTokens;
       const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + newMessageMathpix;
-      
+
       // Calculate cost based on accumulated stats
       const { calculateTotalCost } = await import('../utils/CostCalculator.js');
       const updatedStats = {
@@ -1111,9 +1111,9 @@ export class FirestoreService {
         totalMessages: updatedMessages.length,
         hasImage: updatedMessages.some((msg: any) => msg.imageLink)
       };
-      
+
       const cost = calculateTotalCost(updatedStats);
-      
+
       // Update the session with new message and metadata
       const updateData = {
         unifiedMessages: updatedMessages,
@@ -1132,9 +1132,9 @@ export class FirestoreService {
           mathpixCost: cost.mathpixCost
         }
       };
-      
+
       await sessionRef.update(updateData);
-      
+
       // Update usage record since cost was recalculated
       await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, {
         ...updatedStats,
@@ -1144,7 +1144,7 @@ export class FirestoreService {
           mathpixCost: cost.mathpixCost
         }
       });
-      
+
     } catch (error) {
       console.error('❌ Failed to add message to UnifiedSession:', error);
       throw error;
@@ -1158,11 +1158,11 @@ export class FirestoreService {
     try {
       const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
       const sessionDoc = await sessionRef.get();
-      
+
       if (!sessionDoc.exists) {
         throw new Error(`Session ${sessionId} not found`);
       }
-      
+
       // If sessionStats is being updated, calculate cost
       if (updates.sessionStats) {
         const { calculateTotalCost } = await import('../utils/CostCalculator.js');
@@ -1173,21 +1173,21 @@ export class FirestoreService {
           mathpixCost: cost.mathpixCost
         };
       }
-      
+
       // Sanitize updates and add timestamp
       const sanitizedUpdates = sanitizeForFirestore({
         ...updates,
         updatedAt: new Date().toISOString()
       });
-      
+
       await sessionRef.update(sanitizedUpdates);
-      
+
       // Update usage record if sessionStats (with cost) was updated
       if (updates.sessionStats?.costBreakdown) {
         const sessionData = sessionDoc.data();
         await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, updates.sessionStats);
       }
-      
+
     } catch (error) {
       console.error('❌ Failed to update UnifiedSession:', error);
       throw error;
@@ -1229,11 +1229,11 @@ export class FirestoreService {
       sessionId,
       userId,
       createdAt: admin.firestore.Timestamp.fromDate(createdAtDate),
-      totalCost: Math.round(totalCost * 100) / 100,
-      llmCost: Math.round(llmCost * 100) / 100,
-      geminiCost: Math.round(geminiCost * 100) / 100,
-      gptCost: Math.round(gptCost * 100) / 100,
-      mathpixCost: Math.round(mathpixCost * 100) / 100,
+      totalCost: Math.round(totalCost * 1000000) / 1000000,
+      llmCost: Math.round(llmCost * 1000000) / 1000000,
+      geminiCost: Math.round(geminiCost * 1000000) / 1000000,
+      gptCost: Math.round(gptCost * 1000000) / 1000000,
+      mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
       modelUsed,
       date: createdAtDate.toISOString().split('T')[0] // YYYY-MM-DD format
     };
@@ -1251,7 +1251,7 @@ export class FirestoreService {
       const normalizedSubject = subject.toLowerCase().replace(/\s+/g, '_');
       const docId = `${userId}_${normalizedSubject}`;
       const doc = await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).get();
-      
+
       if (doc.exists) {
         return { id: doc.id, ...doc.data() };
       }
@@ -1277,25 +1277,25 @@ export class FirestoreService {
       const docId = `${userId}_${normalizedSubject}`;
       const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
       const doc = await docRef.get();
-      
+
       const now = new Date().toISOString();
-      
+
       if (doc.exists) {
         // Update existing document
         const existing = doc.data()!;
         const markingResults = existing.markingResults || [];
-        
+
         // Remove existing result for this sessionId (if re-marking)
         const filteredResults = markingResults.filter((r: any) => r.sessionId !== markingResult.sessionId);
-        
+
         // Add new marking result
         filteredResults.push(markingResult);
-        
+
         // Update statistics in background (don't wait)
         this.updateSubjectStatistics(docId, filteredResults).catch(err => {
           console.error('❌ Failed to update statistics in background:', err);
         });
-        
+
         // Update document
         // Note: reAnalysisNeeded is now handled per filter combination in analysis structure
         await docRef.update({
@@ -1325,7 +1325,7 @@ export class FirestoreService {
           createdAt: now,
           updatedAt: now
         };
-        
+
         await docRef.set(sanitizeForFirestore(newDoc));
       }
     } catch (error) {
@@ -1341,44 +1341,44 @@ export class FirestoreService {
   private static async updateSubjectStatistics(docId: string, markingResults: any[]): Promise<void> {
     try {
       ensureDbAvailable();
-      
+
       if (markingResults.length === 0) {
         return;
       }
-      
+
       // Calculate aggregated statistics
       const totalSessions = markingResults.length;
       const totalQuestions = markingResults.reduce((sum, r) => sum + (r.questionResults?.length || 0), 0);
-      
+
       // Calculate average score
       const totalAwarded = markingResults.reduce((sum, r) => sum + (r.overallScore?.awardedMarks || 0), 0);
       const totalPossible = markingResults.reduce((sum, r) => sum + (r.overallScore?.totalMarks || 0), 0);
       const avgAwarded = totalSessions > 0 ? Math.round(totalAwarded / totalSessions) : 0;
       const avgTotal = totalSessions > 0 ? Math.round(totalPossible / totalSessions) : 0;
       const avgPercentage = avgTotal > 0 ? Math.round((avgAwarded / avgTotal) * 100) : 0;
-      
+
       // Collect unique values
       const examSeriesSet = new Set<string>();
       const qualificationsSet = new Set<string>();
       const examBoardsSet = new Set<string>();
       const grades: string[] = [];
-      
+
       markingResults.forEach(r => {
         if (r.examMetadata?.examSeries) examSeriesSet.add(r.examMetadata.examSeries);
         if (r.examMetadata?.qualification) qualificationsSet.add(r.examMetadata.qualification);
         if (r.examMetadata?.examBoard) examBoardsSet.add(r.examMetadata.examBoard);
         if (r.grade) grades.push(r.grade);
       });
-      
+
       // Find highest grade (convert to number for comparison)
-      const highestGrade = grades.length > 0 
+      const highestGrade = grades.length > 0
         ? grades.reduce((highest, grade) => {
-            const numHighest = parseInt(highest, 10) || 0;
-            const numGrade = parseInt(grade, 10) || 0;
-            return numGrade > numHighest ? grade : highest;
-          })
+          const numHighest = parseInt(highest, 10) || 0;
+          const numGrade = parseInt(grade, 10) || 0;
+          return numGrade > numHighest ? grade : highest;
+        })
         : undefined;
-      
+
       // Find most common grade
       const gradeCounts = new Map<string, number>();
       grades.forEach(g => gradeCounts.set(g, (gradeCounts.get(g) || 0) + 1));
@@ -1390,7 +1390,7 @@ export class FirestoreService {
           averageGrade = grade;
         }
       });
-      
+
       // Update statistics
       await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId).update({
         statistics: {
@@ -1428,16 +1428,16 @@ export class FirestoreService {
       const docId = `${userId}_${normalizedSubject}`;
       const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
       const doc = await docRef.get();
-      
+
       if (!doc.exists) {
         return; // Document doesn't exist, nothing to remove
       }
-      
+
       const existing = doc.data()!;
       const markingResults = (existing.markingResults || []).filter(
         (r: any) => r.sessionId !== sessionId
       );
-      
+
       if (markingResults.length === 0) {
         // No more marking results, delete the document
         await docRef.delete();
@@ -1448,7 +1448,7 @@ export class FirestoreService {
           markingResults,
           updatedAt: new Date().toISOString()
         });
-        
+
         // Update statistics in background
         this.updateSubjectStatistics(docId, markingResults).catch(err => {
           console.error('❌ Failed to update statistics in background:', err);
@@ -1479,13 +1479,13 @@ export class FirestoreService {
       const docId = `${userId}_${normalizedSubject}`;
       const docRef = db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS).doc(docId);
       const doc = await docRef.get();
-      
+
       const analysisData = {
         ...analysis,
         generatedAt: new Date().toISOString(),
         modelUsed
       };
-      
+
       if (!qualification || !examBoard || !paperCodeSet || paperCodeSet.length === 0) {
         // If no filters provided, store at root level (legacy support)
         await docRef.update({
@@ -1493,14 +1493,14 @@ export class FirestoreService {
         });
         return;
       }
-      
+
       // Generate paper code set key (e.g., "1H_2H_3H")
       const paperCodeSetKey = paperCodeSet.sort().join('_');
-      
+
       // Get existing analysis structure
       const existing = doc.exists ? doc.data() : null;
       const existingAnalysis = existing?.analysis || {};
-      
+
       // Build nested structure
       const updatedAnalysis = { ...existingAnalysis };
       if (!updatedAnalysis[qualification]) {
@@ -1510,7 +1510,7 @@ export class FirestoreService {
         updatedAnalysis[qualification][examBoard] = {};
       }
       updatedAnalysis[qualification][examBoard][paperCodeSetKey] = analysisData;
-      
+
       await docRef.update({
         analysis: updatedAnalysis
       });
@@ -1519,7 +1519,7 @@ export class FirestoreService {
       throw error;
     }
   }
-  
+
   /**
    * Get analysis from subjectMarkingResults by filter combination
    */
@@ -1535,9 +1535,9 @@ export class FirestoreService {
       if (!subjectResult || !subjectResult.analysis) {
         return null;
       }
-      
+
       const analysis = subjectResult.analysis;
-      
+
       // If no filters provided, return root level analysis (legacy support)
       if (!qualification || !examBoard || !paperCodeSet || paperCodeSet.length === 0) {
         // Check if it's the old structure (direct analysis object) or new structure
@@ -1546,15 +1546,15 @@ export class FirestoreService {
         }
         return null;
       }
-      
+
       // Generate paper code set key
       const paperCodeSetKey = paperCodeSet.sort().join('_');
-      
+
       // Navigate nested structure
       if (analysis[qualification]?.[examBoard]?.[paperCodeSetKey]) {
         return analysis[qualification][examBoard][paperCodeSetKey];
       }
-      
+
       return null;
     } catch (error) {
       console.error('❌ Failed to get subject analysis by filters:', error);
@@ -1571,7 +1571,7 @@ export class FirestoreService {
       const snapshot = await db.collection(COLLECTIONS.SUBJECT_MARKING_RESULTS)
         .where('userId', '==', userId)
         .get();
-      
+
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
       console.error('❌ Failed to get user subject marking results:', error);

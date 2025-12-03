@@ -18,7 +18,7 @@ import type { Express } from 'express-serve-static-core';
 
 const MULTI_IMAGE_STEPS = [
   'Input Validation',
-  'Standardization', 
+  'Standardization',
   'Preprocessing',
   'OCR & Classification',
   'Question Detection',
@@ -200,14 +200,14 @@ export class QuestionModeHandlerService {
     });
 
     // Combine all responses into a single comprehensive response with clear separation
-    const combinedResponse = aiResponses.map(ar => 
+    const combinedResponse = aiResponses.map(ar =>
       `## ${ar.questionNumber}\n\n${ar.response}`
     ).join('\n\n' + '='.repeat(50) + '\n\n');
 
     const aiResponse = {
       response: combinedResponse,
       apiUsed: aiResponses[0]?.apiUsed || 'Unknown',
-      usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0)
+      usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0) + (classificationResult.usageTokens || 0)
     };
 
     logAiResponseComplete();
@@ -219,8 +219,8 @@ export class QuestionModeHandlerService {
     sendSseUpdate(res, createProgressData(7, 'Question analysis complete!', MULTI_IMAGE_STEPS));
 
     // Create AI message for question mode with real processing stats
-    const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0 
-      ? classificationResult.questions[0].text 
+    const globalQuestionText = classificationResult?.questions && classificationResult.questions.length > 0
+      ? classificationResult.questions[0].text
       : classificationResult?.extractedQuestionText;
 
     const realProcessingStats = calculateMessageProcessingStats(
