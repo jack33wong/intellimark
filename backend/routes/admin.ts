@@ -644,4 +644,66 @@ router.get('/usage', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * DELETE /api/admin/usage/clear-all
+ * Clear all usage records
+ */
+router.delete('/usage/clear-all', async (req: Request, res: Response) => {
+  try {
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({
+        success: false,
+        error: 'Firestore not available'
+      });
+    }
+
+    const snapshot = await db.collection('usageRecords').get();
+
+    if (snapshot.empty) {
+      return res.json({
+        success: true,
+        message: 'No usage records to delete',
+        deletedCount: 0
+      });
+    }
+
+    const batchSize = 500;
+    let deletedCount = 0;
+    const batches = [];
+    let batch = db.batch();
+    let count = 0;
+
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+      if (count === batchSize) {
+        batches.push(batch.commit());
+        batch = db.batch();
+        count = 0;
+      }
+    });
+
+    if (count > 0) {
+      batches.push(batch.commit());
+    }
+
+    await Promise.all(batches);
+    deletedCount = snapshot.size;
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} usage records`,
+      deletedCount
+    });
+
+  } catch (error) {
+    console.error('❌ Error clearing usage records:', error);
+    res.status(500).json({
+      success: false,
+      error: `Failed to clear usage records: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+  }
+});
+
 export default router;

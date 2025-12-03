@@ -46,6 +46,8 @@ export interface SessionStats {
   averageConfidence: number;
   imageSize: number;
   totalAnnotations: number;
+  apiRequests?: number;
+  apiRequestBreakdown?: { [key: string]: number };
 }
 
 export interface CreateSessionData {

@@ -379,10 +379,11 @@ export class SessionManagementService {
   private static createSessionStats(context: SessionContext): SessionStats {
     const additionalData = (context as any).allQuestionResults ? context as MarkingSessionContext : null;
 
+    let stats: SessionStats;
     if (additionalData) {
       // For marking mode, use calculateSessionStats with allQuestionResults
       // CRITICAL FIX: Pass usageTokens from context to preserve classification tokens
-      return calculateSessionStats(
+      stats = calculateSessionStats(
         additionalData.allQuestionResults,
         Date.now() - context.startTime,
         additionalData.model || 'auto',
@@ -391,13 +392,21 @@ export class SessionManagementService {
       );
     } else {
       // For question mode, use calculateSessionStats with empty results
-      return calculateSessionStats(
+      stats = calculateSessionStats(
         [], // No question results in question mode
         Date.now() - context.startTime,
         'auto',
         []
       );
     }
+
+    // Add API request counts if available in context
+    if ((context as MarkingSessionContext).apiRequests !== undefined) {
+      stats.apiRequests = (context as MarkingSessionContext).apiRequests;
+      stats.apiRequestBreakdown = (context as MarkingSessionContext).apiRequestBreakdown;
+    }
+
+    return stats;
   }
 
   /**

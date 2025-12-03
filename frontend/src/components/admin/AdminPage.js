@@ -117,6 +117,7 @@ function AdminPage() {
   });
   const [usageFilter, setUsageFilter] = useState('day');
   const [loadingUsage, setLoadingUsage] = useState(false);
+  const [isClearingUsage, setIsClearingUsage] = useState(false);
 
   // Constants removed - using ApiClient instead
 
@@ -542,6 +543,31 @@ function AdminPage() {
     }
   }, [getAuthToken]);
 
+  // Clear all usage data
+  const clearAllUsageData = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete ALL usage records? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsClearingUsage(true);
+    try {
+      const authToken = await getAuthToken();
+      const result = await ApiClient.delete('/api/admin/usage/clear-all', authToken);
+      console.log('All usage records cleared:', result.message);
+      setError(`✅ All usage records have been cleared successfully.`);
+      setTimeout(() => setError(null), 5000);
+
+      // Reload usage data
+      loadUsageData(usageFilter);
+    } catch (error) {
+      console.error('Error clearing usage records:', error);
+      setError(`Error clearing usage records: ${error.message}`);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setIsClearingUsage(false);
+    }
+  }, [getAuthToken, usageFilter, loadUsageData]);
+
 
 
   // Handle JSON form input changes
@@ -644,8 +670,17 @@ function AdminPage() {
         {activeTab === 'usage' && (
           <div className="admin-tab-content">
             <div className="admin-section-header">
-              <h2 className="admin-section-header__title">Usage Statistics</h2>
-              <p>View cost breakdown and usage statistics for all users</p>
+              <div>
+                <h2 className="admin-section-header__title">Usage Statistics</h2>
+                <p>View cost breakdown and usage statistics for all users</p>
+              </div>
+              <button
+                className="admin-btn admin-btn--danger"
+                onClick={clearAllUsageData}
+                disabled={isClearingUsage || usageData.length === 0}
+              >
+                {isClearingUsage ? 'Clearing...' : 'Clear All Usage Data'}
+              </button>
             </div>
 
             {/* Summary Header */}
