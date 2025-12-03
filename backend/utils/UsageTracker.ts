@@ -11,16 +11,20 @@
 
 import { getLLMPricing } from '../config/pricing.js';
 
-export interface UsagePhase {
+/**
+ * Track token usage across different phases with input/output split
+ */
+interface TokenUsage {
     inputTokens: number;
     outputTokens: number;
 }
 
 export interface UsageBreakdown {
-    classification: UsagePhase;
-    marking: UsagePhase;
-    questionMode: UsagePhase;
-    other: UsagePhase;
+    mapper: TokenUsage;           // NEW: Separate mapper phase
+    classification: TokenUsage;    // Classification marking pass
+    marking: TokenUsage;
+    questionMode: TokenUsage;
+    other: TokenUsage;
 }
 
 export interface CostBreakdown {
@@ -33,11 +37,20 @@ export interface CostBreakdown {
 
 export class UsageTracker {
     private usage: UsageBreakdown = {
+        mapper: { inputTokens: 0, outputTokens: 0 },
         classification: { inputTokens: 0, outputTokens: 0 },
         marking: { inputTokens: 0, outputTokens: 0 },
         questionMode: { inputTokens: 0, outputTokens: 0 },
         other: { inputTokens: 0, outputTokens: 0 }
     };
+
+    /**
+     * Record mapper API usage (Map Pass)
+     */
+    recordMapper(inputTokens: number, outputTokens: number): void {
+        this.usage.mapper.inputTokens += inputTokens;
+        this.usage.mapper.outputTokens += outputTokens;
+    }
 
     /**
      * Record classification phase tokens
@@ -72,8 +85,8 @@ export class UsageTracker {
     }
 
     /**
-     * Get total tokens across all phases
-     */
+    * Get total tokens across all phases
+    */
     getTotalTokens(): number {
         return Object.values(this.usage).reduce(
             (sum, phase) => sum + phase.inputTokens + phase.outputTokens,
@@ -82,23 +95,31 @@ export class UsageTracker {
     }
 
     /**
-     * Get total input tokens
+     * Get total input and output tokens
      */
-    getTotalInputTokens(): number {
-        return Object.values(this.usage).reduce(
-            (sum, phase) => sum + phase.inputTokens,
-            0
-        );
+    getTotalInputOutput(): { inputTokens: number; outputTokens: number } {
+        const inputTokens = Object.values(this.usage).reduce((sum, phase) => sum + phase.inputTokens, 0);
+        const outputTokens = Object.values(this.usage).reduce((sum, phase) => sum + phase.outputTokens, 0);
+        return { inputTokens, outputTokens };
     }
 
     /**
-     * Get total output tokens
+     * Get total cost for a model
      */
-    getTotalOutputTokens(): number {
-        return Object.values(this.usage).reduce(
-            (sum, phase) => sum + phase.outputTokens,
-            0
-        );
+    getTotalCost(model?: string): number {
+        const costs = this.calculateCost(model || 'gemini-2.5-flash');
+        return costs.total;
+    }
+
+    /**
+     * Calculate cost for a specific phase
+     */
+    private calculatePhaseCost(inputTokens: number, outputTokens: number, model?: string): number {
+        const pricing = getLLMPricing(model || 'gemini-2.5-flash');
+        if (!pricing) {
+            return 0;
+        }
+        return (inputTokens / 1_000_000 * pricing.input) + (outputTokens / 1_000_000 * pricing.output);
     }
 
     /**
@@ -209,38 +230,50 @@ export class UsageTracker {
     /**
      * Get summary for logging
      */
-    getSummary(model: string): string {
-        const breakdown = this.getBreakdown();
-        const costs = this.calculateCost(model);
+    getSummary(model?: string, mathpixCalls?: number): string {
+        const totalTokens = this.getTotalTokens();
+        const totalCost = this.getTotalCost(model);
+        const { inputTokens: totalInput, outputTokens: totalOutput } = this.getTotalInputOutput();
 
-        const lines = [
-            `\n📊 [UsageTracker] Summary:`,
-            `   Model: ${model}`,
-            `   Total Tokens: ${this.getTotalTokens()} (${this.getTotalInputTokens()} in + ${this.getTotalOutputTokens()} out)`,
-            `   Total Cost: $${costs.total.toFixed(6)}`,
-            `\n   Breakdown by Phase:`
+        let summary = `\n📊 [UsageTracker] Summary:\n`;
+        summary += `   Model: ${model || 'unknown'}\n`;
+        summary += `   Total Tokens: ${totalTokens.toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;
+        summary += `   Total Cost: $${totalCost.toFixed(6)}\n`;
+
+        // Add Mathpix info if provided
+        if (mathpixCalls && mathpixCalls > 0) {
+            const mathpixCost = mathpixCalls * 0.004; // $0.004 per page
+            summary += `   Mathpix OCR: ${mathpixCalls} pages → $${mathpixCost.toFixed(6)}\n`;
+            summary += `   Combined Total: $${(totalCost + mathpixCost).toFixed(6)}\n`;
+        }
+
+        summary += `\n   Breakdown by Phase:\n`;
+
+        // Show each phase with tokens
+        const phases: Array<{ name: string; key: keyof UsageBreakdown }> = [
+            { name: 'Mapper (Map Pass)', key: 'mapper' },
+            { name: 'Classification (Marking Pass)', key: 'classification' },
+            { name: 'Marking', key: 'marking' },
+            { name: 'Question Mode', key: 'questionMode' },
+            { name: 'Other', key: 'other' }
         ];
 
-        if (breakdown.classification.inputTokens + breakdown.classification.outputTokens > 0) {
-            lines.push(`   • Classification: ${breakdown.classification.inputTokens + breakdown.classification.outputTokens} tokens → $${costs.classification.toFixed(6)}`);
-        }
-        if (breakdown.marking.inputTokens + breakdown.marking.outputTokens > 0) {
-            lines.push(`   • Marking: ${breakdown.marking.inputTokens + breakdown.marking.outputTokens} tokens → $${costs.marking.toFixed(6)}`);
-        }
-        if (breakdown.questionMode.inputTokens + breakdown.questionMode.outputTokens > 0) {
-            lines.push(`   • Question Mode: ${breakdown.questionMode.inputTokens + breakdown.questionMode.outputTokens} tokens → $${costs.questionMode.toFixed(6)}`);
-        }
-        if (breakdown.other.inputTokens + breakdown.other.outputTokens > 0) {
-            lines.push(`   • Other: ${breakdown.other.inputTokens + breakdown.other.outputTokens} tokens → $${costs.other.toFixed(6)}`);
-        }
+        phases.forEach(({ name, key }) => {
+            const tokens = this.usage[key];
+            const total = tokens.inputTokens + tokens.outputTokens;
+            if (total > 0) {
+                const cost = this.calculatePhaseCost(tokens.inputTokens, tokens.outputTokens, model);
+                summary += `   • ${name}: ${total.toLocaleString()} tokens → $${cost.toFixed(6)}\n`;
+            }
+        });
 
         const validation = this.validate();
         if (!validation.valid) {
-            lines.push(`\n   ⚠️  Validation Errors:`);
-            validation.errors.forEach(error => lines.push(`      - ${error}`));
+            summary += `\n   ⚠️  Validation Errors:\n`;
+            validation.errors.forEach(error => summary += `      - ${error}\n`);
         }
 
-        return lines.join('\n');
+        return summary;
     }
 
     /**
@@ -248,6 +281,7 @@ export class UsageTracker {
      */
     reset(): void {
         this.usage = {
+            mapper: { inputTokens: 0, outputTokens: 0 },
             classification: { inputTokens: 0, outputTokens: 0 },
             marking: { inputTokens: 0, outputTokens: 0 },
             questionMode: { inputTokens: 0, outputTokens: 0 },

@@ -311,7 +311,9 @@ export class ModelProvider {
     systemPrompt: string,
     userPrompt: string,
     model: ModelType = 'auto',
-    forceJsonResponse: boolean = false
+    forceJsonResponse: boolean = false,
+    tracker?: any,
+    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     // Resolve 'auto' to default model
     const resolvedModel = model === 'auto' ? 'gemini-2.5-flash' : model;
@@ -322,18 +324,26 @@ export class ModelProvider {
     if (isOpenAI) {
       // Use OpenAI - extract model name from full ID (e.g., 'openai-gpt-4o' -> 'gpt-4o')
       const openaiModelName = resolvedModel.replace('openai-', '');
-      const result = await this.callOpenAIText(systemPrompt, userPrompt, openaiModelName, forceJsonResponse);
+      const result = await this.callOpenAIText(systemPrompt, userPrompt, openaiModelName, forceJsonResponse, tracker, phase);
       return { content: result.content, usageTokens: result.usageTokens };
     } else {
       // Use existing Gemini method
-      return await this.callGeminiText(systemPrompt, userPrompt, resolvedModel as ModelType, forceJsonResponse);
+      return await this.callGeminiText(systemPrompt, userPrompt, resolvedModel as ModelType, forceJsonResponse, tracker, phase);
     }
   }
 
   // ----------------------------------------------------------------------------
   // OpenAI Chat Completions (fallback and direct calls)
   // ----------------------------------------------------------------------------
-  static async callOpenAIChat(systemPrompt: string, userPrompt: string, imageData?: string, modelName?: string, forceJsonResponse: boolean = true): Promise<{ content: string; usageTokens: number; modelName: string }> {
+  static async callOpenAIChat(
+    systemPrompt: string,
+    userPrompt: string,
+    imageData?: string,
+    modelName?: string,
+    forceJsonResponse: boolean = true,
+    tracker?: any,
+    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+  ): Promise<{ content: string; usageTokens: number; modelName: string }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OpenAI API key not configured');
@@ -386,8 +396,30 @@ export class ModelProvider {
 
     const json = await response.json() as any;
     const content = json.choices?.[0]?.message?.content || '';
-    const usageTokens = json.usage?.total_tokens || 0;
-    return { content, usageTokens, modelName: model };
+
+    // Extract REAL input/output split
+    const inputTokens = json.usage?.prompt_tokens || 0;
+    const outputTokens = json.usage?.completion_tokens || 0;
+    const totalTokens = json.usage?.total_tokens || 0;
+
+    // Auto-record via tracker
+    if (tracker) {
+      switch (phase) {
+        case 'classification':
+          tracker.recordClassification(inputTokens, outputTokens);
+          break;
+        case 'marking':
+          tracker.recordMarking(inputTokens, outputTokens);
+          break;
+        case 'questionMode':
+          tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        default:
+          tracker.recordOther(inputTokens, outputTokens);
+      }
+    }
+
+    return { content, usageTokens: totalTokens, modelName: model };
   }
 
   static async callOpenAIChatWithMultipleImages(

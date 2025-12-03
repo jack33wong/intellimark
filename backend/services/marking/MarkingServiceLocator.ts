@@ -109,7 +109,8 @@ export class MarkingServiceLocator {
     category: "questionOnly" | "questionAnswer" | "metadata" = "questionOnly",
     debug: boolean = false,
     onProgress?: (data: any) => void,
-    useOcrText: boolean = false
+    useOcrText: boolean = false,
+    tracker?: any  // UsageTracker (optional)
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
 
     // Debug mode: Return mock response
@@ -162,9 +163,9 @@ export class MarkingServiceLocator {
 
       // For marking mode, always use text response (model answer)
       if (!isQuestionOnly) {
-        return await this.callGeminiForTextResponse(ocrText, systemPrompt, userPrompt, validatedModel);
+        return await this.callGeminiForTextResponse(ocrText, systemPrompt, userPrompt, validatedModel, tracker);
       } else {
-        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, validatedModel);
+        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, validatedModel, tracker);
       }
     } catch (error) {
       // Check if this is our validation error (fail fast)
@@ -198,7 +199,8 @@ export class MarkingServiceLocator {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto'
+    model: ModelType = 'auto',
+    tracker?: any
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
       // Check if model is OpenAI - route to OpenAI API instead
@@ -209,7 +211,7 @@ export class MarkingServiceLocator {
         // Question Mode doesn't need JSON format (prompts don't mention "json")
         const { ModelProvider } = await import('../../utils/ModelProvider.js');
         const openaiModelName = model.toString().replace('openai-', '');
-        const result = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModelName, false); // false = no JSON format
+        const result = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModelName, false, tracker, 'marking'); // false = no JSON format
 
         return {
           response: result.content,
@@ -260,7 +262,8 @@ export class MarkingServiceLocator {
     ocrText: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto'
+    model: ModelType = 'auto',
+    tracker?: any
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
       // Check if model is OpenAI - route to OpenAI API instead
@@ -270,7 +273,7 @@ export class MarkingServiceLocator {
         // Use OpenAI Text API for OpenAI models
         const { ModelProvider } = await import('../../utils/ModelProvider.js');
         const openaiModelName = model.toString().replace('openai-', '');
-        const result = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, openaiModelName, false);
+        const result = await ModelProvider.callOpenAIText(systemPrompt, userPrompt, openaiModelName, false, tracker, 'marking');
 
         return {
           response: result.content,
@@ -282,7 +285,7 @@ export class MarkingServiceLocator {
 
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false);
+      const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, 'marking');
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);

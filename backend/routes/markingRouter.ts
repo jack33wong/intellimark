@@ -1100,7 +1100,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
               const task = queue.shift();
               if (task) {
                 activeWorkers++;
-                executeMarkingForQuestion(task, res, submissionId, actualModel, allPagesOcrData)
+                executeMarkingForQuestion(task, res, submissionId, actualModel, allPagesOcrData, usageTracker)
                   .then(result => {
                     results.push(result);
                   })
@@ -2089,7 +2089,7 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
     // ========================= USAGE TRACKER SUMMARY =========================
     // Log detailed breakdown and cost analysis
     try {
-      console.log(usageTracker.getSummary(actualModel));
+      console.log(usageTracker.getSummary(actualModel, totalMathpixCalls));
 
       // Validate usage for anomalies
       const validation = usageTracker.validate();

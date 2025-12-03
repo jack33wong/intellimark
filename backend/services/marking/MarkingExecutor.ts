@@ -72,7 +72,8 @@ export async function executeMarkingForQuestion(
   res: any, // Pass the Response object for SSE updates
   submissionId: string, // Pass submissionId for context in SSE
   model: ModelType = 'auto', // Pass the AI model to use for marking
-  allPagesOcrData?: any[] // Pass all pages OCR data for multi-page context
+  allPagesOcrData?: any[], // Pass all pages OCR data for multi-page context
+  tracker?: any // UsageTracker (optional)
 ): Promise<QuestionResult> {
 
   const questionId = task.questionNumber;
@@ -761,7 +762,8 @@ export async function executeMarkingForQuestion(
       questionText: questionText, // Pass question text from fullExamPapers to AI prompt
       questionNumber: String(questionId), // Pass question number (may include sub-question part like "17a", "17b")
       allPagesOcrData: allPagesOcrData, // Pass all pages OCR data for multi-page context
-      sourceImageIndices: task.sourcePages // Pass page indices for relative-to-global pageIndex mapping
+      sourceImageIndices: task.sourcePages, // Pass page indices for relative-to-global pageIndex mapping
+      tracker: tracker // Pass tracker for auto-recording
     });
 
     sendSseUpdate(res, createProgressData(6, `Annotations generated for Question ${questionId}.`, MULTI_IMAGE_STEPS));

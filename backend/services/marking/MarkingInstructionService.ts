@@ -190,18 +190,21 @@ function normalizeMarkingScheme(input: any): NormalizedMarkingScheme | null {
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 
 export interface MarkingInputs {
-  imageData: string;
-  images?: string[]; // Optional array of images for multi-page questions
+  imageData?: string; // Primary image (for single-image questions)
+  images?: string[]; // All page images (for multi-page context)
   model: ModelType;
   processedImage: ProcessedImageResult;
   questionDetection?: any;
   questionMarks?: any;
   totalMarks?: number;
-  questionNumber?: string; // Question number (may include sub-question part like "17a", "17b")
+  questionNumber?: string;
   questionText?: string | null; // Question text from fullExamPapers (source for question detection)
   generalMarkingGuidance?: any; // General marking guidance from the scheme
   allPagesOcrData?: any[]; // Array of OCR results for all pages (for multi-page context)
   sourceImageIndices?: number[]; // Array of global page indices for multi-page questions (e.g., [3, 4] for Pages 4-5)
+  markingScheme?: any;  // NEW: Pass marking scheme (assuming MarkingSchemeContent is 'any' for now)
+  extractedOcrText?: string; // NEW: Pass extracted OCR text for mapping
+  tracker?: any; // UsageTracker (optional)
 }
 
 export class MarkingInstructionService {
@@ -272,7 +275,7 @@ export class MarkingInstructionService {
    * Execute complete marking flow - moved from LLMOrchestrator
    */
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
-    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices } = inputs;
+    const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker } = inputs;
 
     console.log('[DEBUG] executeMarking received sourceImageIndices:', sourceImageIndices);
 
@@ -416,7 +419,10 @@ export class MarkingInstructionService {
         subQuestionMetadata, // Pass sub-question metadata for grouped sub-questions
         inputs.generalMarkingGuidance, // Pass general marking guidance
         _imageData, // Pass image data for edge cases where Drawing Classification failed
-        images // Pass array of images for multi-page questions
+        images, // Pass array of images for multi-page questions
+        positionMap, // Pass position map for line-to-position lookup
+        sourceImageIndices, // Pass source image indices for multi-page context
+        tracker  // Pass tracker for auto-recording
       );
 
       // Handle case where AI returns 0 annotations (e.g., no valid student work, wrong blocks assigned)
@@ -604,7 +610,10 @@ export class MarkingInstructionService {
     subQuestionMetadata?: { hasSubQuestions: boolean; subQuestions: Array<{ part: string; text?: string }>; subQuestionNumbers?: string[] },
     generalMarkingGuidance?: any,
     imageData?: string, // Image data for edge cases where Drawing Classification failed
-    images?: string[] // Array of images for multi-page questions
+    images?: string[], // Array of images for multi-page questions
+    positionMap?: Map<string, { x: number; y: number; width: number; height: number }>, // NEW: Position map for drawing fallback
+    sourceImageIndices?: number[], // NEW: Source image indices for drawing fallback
+    tracker?: any // NEW: UsageTracker for tracking LLM tokens
   ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
@@ -796,18 +805,18 @@ export class MarkingInstructionService {
 
         if (isOpenAI) {
           let openaiModel = model.toString().replace('openai-', '');
-          const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel);
+          const visionResult = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData, openaiModel, true, tracker, 'marking');
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         } else {
           // Use Gemini Vision
           // Use images array if available, otherwise fallback to single imageData
           const imageInput = (images && images.length > 0) ? images : imageData;
-          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model);
+          const visionResult = await ModelProvider.callGeminiChat(systemPrompt, userPrompt, imageInput, model, tracker, 'marking');
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         }
       } else {
         // Normal flow: text-only API
-        res = await ModelProvider.callText(systemPrompt, userPrompt, model, true);
+        res = await ModelProvider.callText(systemPrompt, userPrompt, model, true, tracker, 'marking');
       }
 
       aiResponseString = res.content;

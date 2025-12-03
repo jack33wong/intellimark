@@ -209,10 +209,18 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
         const response = await this.makeGeminiMultiImageRequest(accessToken, parts, validatedModel);
         const result = await response.json() as any;
-        content = await this.extractGeminiContent(result);
+        content = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        usageTokens = result.usageMetadata?.totalTokenCount || 0;
+        apiUsed = `Google Gemini ${model}`;
+
+        // Extract real input/output split and record via tracker
+        if (tracker) {
+          const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+          const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+          tracker.recordClassification(inputTokens, outputTokens);  // Classification Marking Pass
+        }
         const cleanContent = this.cleanGeminiResponse(content);
         parsed = this.parseJsonWithSanitization(cleanContent);
-        usageTokens = result.usageMetadata?.totalTokenCount || 0;
 
         const { getModelConfig } = await import('../../config/aiModels.js');
         const modelConfig = getModelConfig(validatedModel);
