@@ -559,6 +559,7 @@ router.get('/usage', async (req: Request, res: Response) => {
       gptCost: number;
       mathpixCost: number;
       modelUsed: string;
+      apiRequests: number; // NEW: API request count
     }> = [];
 
     let totalCost = 0;
@@ -566,6 +567,7 @@ router.get('/usage', async (req: Request, res: Response) => {
     let totalGeminiCost = 0;
     let totalGptCost = 0;
     let totalMathpixCost = 0;
+    let totalApiRequests = 0; // NEW: Total API requests
 
     snapshot.forEach(doc => {
       const record = doc.data();
@@ -576,6 +578,7 @@ router.get('/usage', async (req: Request, res: Response) => {
       const geminiCost = record.geminiCost ?? 0;
       const gptCost = record.gptCost ?? 0;
       const llmCost = record.llmCost ?? (geminiCost + gptCost);
+      const apiRequests = record.apiRequests || 0; // NEW: Get API requests
 
       usageData.push({
         sessionId: doc.id,
@@ -586,7 +589,8 @@ router.get('/usage', async (req: Request, res: Response) => {
         geminiCost,
         gptCost,
         mathpixCost: record.mathpixCost,
-        modelUsed: record.modelUsed
+        modelUsed: record.modelUsed,
+        apiRequests // NEW: Add to usage data
       });
 
       // Update totals
@@ -595,6 +599,7 @@ router.get('/usage', async (req: Request, res: Response) => {
       totalGeminiCost += geminiCost;
       totalGptCost += gptCost;
       totalMathpixCost += record.mathpixCost;
+      totalApiRequests += apiRequests; // NEW: Update total
     });
 
     // Sort by date descending (newest first)
@@ -624,7 +629,8 @@ router.get('/usage', async (req: Request, res: Response) => {
         totalGptCost,
         totalMathpixCost,
         totalUsers: uniqueUsers.size,
-        totalSessions: usageData.length
+        totalSessions: usageData.length,
+        totalApiRequests // NEW: Add to summary
       },
       usage: usageData
     });

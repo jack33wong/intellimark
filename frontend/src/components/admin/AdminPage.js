@@ -112,7 +112,8 @@ function AdminPage() {
     totalGptCost: 0,
     totalMathpixCost: 0,
     totalUsers: 0,
-    totalSessions: 0
+    totalSessions: 0,
+    totalApiRequests: 0
   });
   const [usageFilter, setUsageFilter] = useState('day');
   const [loadingUsage, setLoadingUsage] = useState(false);
@@ -673,6 +674,10 @@ function AdminPage() {
                 <div className="usage-summary-label">Total Sessions</div>
                 <div className="usage-summary-value">{usageSummary.totalSessions}</div>
               </div>
+              <div className="usage-summary-card">
+                <div className="usage-summary-label">Total API Requests</div>
+                <div className="usage-summary-value">{usageSummary.totalApiRequests || 0}</div>
+              </div>
             </div>
 
             {/* Filter Tabs */}
@@ -733,6 +738,7 @@ function AdminPage() {
                         <th className="admin-table__header">User ID</th>
                         <th className="admin-table__header">Created At</th>
                         <th className="admin-table__header">Model Used</th>
+                        <th className="admin-table__header">API Requests</th>
                         <th className="admin-table__header">Total Cost</th>
                         <th className="admin-table__header">Gemini Cost</th>
                         <th className="admin-table__header">GPT Cost</th>
@@ -745,6 +751,7 @@ function AdminPage() {
                           <td className="admin-table__cell">{session.userId}</td>
                           <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
                           <td className="admin-table__cell">{session.modelUsed}</td>
+                          <td className="admin-table__cell">{session.apiRequests || 0}</td>
                           <td className="admin-table__cell">${session.totalCost.toFixed(2)}</td>
                           <td className="admin-table__cell">${(session.geminiCost || 0).toFixed(2)}</td>
                           <td className="admin-table__cell">${(session.gptCost || 0).toFixed(2)}</td>

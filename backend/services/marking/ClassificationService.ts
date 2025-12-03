@@ -292,7 +292,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           results.push({
             pageIndex: i,
             result: {
-              category: category === "frontPage" ? "metadata" : category,
+              category: (category === "frontPage" ? "metadata" : category) as any,
               reasoning: category === "frontPage"
                 ? "Front page detected by Map Pass - contains exam metadata but no questions"
                 : "Page not mapped to any question",
