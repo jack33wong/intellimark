@@ -542,6 +542,19 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       usageTracker  // Pass tracker for auto-recording
     );
 
+    // DEBUG: Log Mapper Response (Page Index -> Question Number)
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[MAPPER RESPONSE] Page Index -> Question Number Map');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    allClassificationResults.forEach(({ pageIndex, result }) => {
+      const qNums = result.questions?.map((q: any) => {
+        const subQs = q.subQuestions?.map((sq: any) => sq.part).join(',') || '';
+        return q.questionNumber + (subQs ? `(${subQs})` : '');
+      }).filter(Boolean).join(', ') || 'No Questions';
+      console.log(`Page ${pageIndex}: [${qNums}] (Category: ${result.category})`);
+    });
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
     // Combine questions from all images
     // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
     const questionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
@@ -1342,6 +1355,38 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
       });
     });
 
+    // ENHANCEMENT: Also use classification results to map pages to questions
+    // This ensures pages with content but no annotations (e.g. continuation pages) are correctly sorted/labeled
+    if (allClassificationResults) {
+      allClassificationResults.forEach(pcr => {
+        if (pcr.result && pcr.result.questions) {
+          pcr.result.questions.forEach(q => {
+            const mainNumStr = q.questionNumber;
+            if (mainNumStr) {
+              const mainNum = parseFloat(mainNumStr);
+              if (!isNaN(mainNum)) {
+                if (!pageToQuestionNumbers.has(pcr.pageIndex)) {
+                  pageToQuestionNumbers.set(pcr.pageIndex, []);
+                }
+
+                // If subquestions exist, add them
+                if (q.subQuestions && q.subQuestions.length > 0) {
+                  q.subQuestions.forEach(sq => {
+                    const subVal = (sq.part.toLowerCase().charCodeAt(0) - 96) * 0.1;
+                    const sortKey = mainNum + subVal;
+                    pageToQuestionNumbers.get(pcr.pageIndex)?.push(sortKey);
+                  });
+                } else {
+                  // Just main number
+                  pageToQuestionNumbers.get(pcr.pageIndex)?.push(mainNum);
+                }
+              }
+            }
+          });
+        }
+      });
+    }
+
     // Create array with page info and annotated output for sorting
     const pagesWithOutput = standardizedPages.map((page, index) => {
       const pageNum = extractPageNumber(page.originalFileName);
@@ -1437,6 +1482,27 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
             });
           }
         });
+
+        // ENHANCEMENT: Also check classification results for this page
+        if (allClassificationResults) {
+          const pcr = allClassificationResults.find(r => r.pageIndex === p.pageIndex);
+          if (pcr && pcr.result && pcr.result.questions) {
+            pcr.result.questions.forEach(q => {
+              const mainNum = q.questionNumber;
+              if (mainNum) {
+                if (q.subQuestions && q.subQuestions.length > 0) {
+                  q.subQuestions.forEach(sq => {
+                    const fullLabel = `Q${mainNum}${sq.part}`;
+                    if (!subQs.includes(fullLabel)) subQs.push(fullLabel);
+                  });
+                } else {
+                  const fullLabel = `Q${mainNum}`;
+                  if (!subQs.includes(fullLabel)) subQs.push(fullLabel);
+                }
+              }
+            });
+          }
+        }
         // If we found specific sub-questions, use them. Otherwise fallback to Q#
         if (subQs.length > 0) {
           // Sort naturally

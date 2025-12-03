@@ -728,8 +728,8 @@ export class MarkingInstructionService {
     // Extract question number for logging (prefer input questionNumber which may include sub-question part)
     const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
-    // DEBUG LOG: Show full prompt for Q2 and Q11
-    if (questionNumber === '2' || questionNumber === '11' || String(questionNumber).startsWith('2') || String(questionNumber).startsWith('11')) {
+    // DEBUG LOG: Show full prompt for Q2, Q6, and Q11
+    if (questionNumber === '2' || questionNumber === '6' || questionNumber === '11' || String(questionNumber).startsWith('2') || String(questionNumber).startsWith('6') || String(questionNumber).startsWith('11')) {
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
       const RESET = '\x1b[0m';
@@ -841,6 +841,7 @@ export class MarkingInstructionService {
               if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
                 console.log(`Annotation ${idx + 1}:`);
                 console.log(`  - Text: ${anno.text}`);
+                console.log(`  - Raw Page Index from AI: ${anno.pageIndex}`);
                 // Validate pageIndex from AI (prevent out-of-bounds errors)
                 let validatedPageIndex = anno.pageIndex;
                 const maxPageIndex = (images && images.length > 0) ? images.length - 1 : 0;
