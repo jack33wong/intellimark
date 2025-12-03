@@ -533,7 +533,7 @@ export class FirestoreService {
       // DIAGNOSTIC: Calculate total payload size before saving
       const totalPayloadSize = JSON.stringify(unifiedMessages).length;
       const totalPayloadSizeMB = totalPayloadSize / (1024 * 1024);
-      console.log(`🔍 [DIAGNOSTIC] Total unifiedMessages payload: ${totalPayloadSize.toLocaleString()} bytes (${totalPayloadSizeMB.toFixed(2)}MB)`);
+
 
       // Calculate cost for the session if sessionStats exists
       let finalSessionStats = sessionStats || null;
@@ -567,10 +567,7 @@ export class FirestoreService {
       // DIAGNOSTIC: Calculate final document size
       const finalDocSize = JSON.stringify(sessionDoc).length;
       const finalDocSizeMB = finalDocSize / (1024 * 1024);
-      console.log(`🔍 [DIAGNOSTIC] Final session document payload: ${finalDocSize.toLocaleString()} bytes (${finalDocSizeMB.toFixed(2)}MB)`);
-      if (finalDocSizeMB > 10) {
-        console.log(`  - ❌ EXCEEDS FIRESTORE 10MB LIMIT!`);
-      }
+
 
       // Only include detectedQuestion if it exists and is not null
       if (detectedQuestion) {

@@ -24,6 +24,7 @@ export interface MarkingSessionContext extends SessionContext {
   usageTokens?: number;
   apiRequests?: number;                           // NEW: Total API request count
   apiRequestBreakdown?: { [key: string]: number }; // NEW: Breakdown by phase
+  model?: string;                                 // NEW: Model used for marking
 }
 
 export interface QuestionSessionContext extends SessionContext {

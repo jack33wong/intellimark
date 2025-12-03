@@ -178,7 +178,7 @@ export class UsageTracker {
      * Calculate cost with specific pricing
      */
     private calculateWithPricing(pricing: { input: number; output: number }): CostBreakdown {
-        const calculatePhaseCost = (phase: UsagePhase): number => {
+        const calculatePhaseCost = (phase: TokenUsage): number => {
             return (phase.inputTokens / 1_000_000 * pricing.input) +
                 (phase.outputTokens / 1_000_000 * pricing.output);
         };
@@ -203,6 +203,7 @@ export class UsageTracker {
     getBreakdown(): UsageBreakdown {
         // Return a deep copy to prevent mutation
         return {
+            mapper: { ...this.usage.mapper },
             classification: { ...this.usage.classification },
             marking: { ...this.usage.marking },
             questionMode: { ...this.usage.questionMode },
@@ -317,3 +318,5 @@ export class UsageTracker {
         };
     }
 }
+
+export const usageTracker = new UsageTracker();

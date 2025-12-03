@@ -157,7 +157,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         });
       });
 
-      console.log(`[CLASSIFICATION] Map Pass found ${markingTasks.length} unique questions. Starting Marking Pass...`);
+
 
       // --- PASS 2: MARKING PASS (User Model, Parallel) ---
       const CONCURRENCY_LIMIT = 10;
@@ -266,7 +266,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             await processQuestionTask(task);
             const duration = (Date.now() - startTime) / 1000;
             completedTasks++;
-            console.log(`⏱️ [PERFORMANCE] Worker ${workerId}: Marked Q${task.questionNumber} (${task.pageIndices.length} pages) in ${duration.toFixed(2)}s`);
+
           } catch (err) {
             console.error(`❌ [CLASSIFICATION] Failed to mark Q${task.questionNumber}:`, err);
           }
@@ -302,7 +302,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             }
           });
 
-          console.log(`📄 [FRONT PAGE] Page ${i + 1} detected as frontPage by Map Pass - will skip processing`);
+
         }
       }
 

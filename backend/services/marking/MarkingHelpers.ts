@@ -227,7 +227,6 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
   console.log('\n=== PERFORMANCE SUMMARY ===');
   console.log(`Total Processing Time: ${totalTime.toFixed(1)}s`);
   console.log(`Model Used: ${actualModel}`);
-  console.log(`Mode: ${mode}`);
   console.log('----------------------------');
 
   // Calculate step percentages
@@ -246,6 +245,249 @@ export function logPerformanceSummary(stepTimings: { [key: string]: { start: num
   }
 
   console.log('============================\n');
+}
+
+// Helper function to log annotation summary table
+export function logAnnotationSummary(allQuestionResults: QuestionResult[], markingTasks: any[]) {
+  // ========================== ANNOTATION SUMMARY ==========================
+  console.log('\n📊 [ANNOTATION SUMMARY]');
+  // Header line
+  console.log('-----------------------------------------------------------------------------------------------------------------');
+  console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Fallback/Split             |`);
+  console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
+
+  const sortedResults = allQuestionResults; // Now sorted in place
+
+  sortedResults.forEach(result => {
+    const qNum = String(result.questionNumber).padEnd(8);
+
+    // Extract Score
+    let scoreStr = '-';
+    const r = result as any;
+    const scoreObj = r.studentScore || r.score;
+    let isFullMark = true;
+
+    if (scoreObj) {
+      if (scoreObj.scoreText) {
+        scoreStr = scoreObj.scoreText;
+        // Try to parse "X/Y"
+        if (scoreStr.includes('/')) {
+          const parts = scoreStr.split('/');
+          const awarded = parseFloat(parts[0]);
+          const total = parseFloat(parts[1]);
+          if (!isNaN(awarded) && !isNaN(total) && awarded < total) {
+            isFullMark = false;
+          }
+        }
+      } else if (typeof scoreObj.awardedMarks === 'number') {
+        scoreStr = `${scoreObj.awardedMarks}/${scoreObj.totalMarks}`;
+        if (scoreObj.awardedMarks < scoreObj.totalMarks) {
+          isFullMark = false;
+        }
+      }
+    }
+    let paddedScore = scoreStr.padEnd(5);
+    if (!isFullMark) {
+      paddedScore = `\x1b[31m${paddedScore}\x1b[0m`;
+    }
+
+    // We need access to the original task to count blocks/drawings
+    const task = markingTasks.find(t => String(t.questionNumber) === String(result.questionNumber));
+
+    // Group annotations by sub-question
+    const annotationsBySubQ = new Map<string, string[]>();
+    const mainAnnotations: string[] = [];
+
+    if (result.annotations) {
+      result.annotations.forEach((ann: any) => {
+        const text = ann.text || '';
+        let codes: string[] = [];
+
+        if (text) {
+          codes = text.split(/[\s,]+/).filter((c: string) => c.trim());
+        } else {
+          // Handle textless annotations (tick/cross only)
+          if (ann.action === 'tick') codes.push('✓');
+          else if (ann.action === 'cross') codes.push('✗');
+        }
+
+        if (codes.length > 0) {
+          if (ann.subQuestion && ann.subQuestion !== 'null') {
+            const key = ann.subQuestion;
+            if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
+            annotationsBySubQ.get(key)!.push(...codes);
+          } else {
+            mainAnnotations.push(...codes);
+          }
+        }
+      });
+    }
+
+    // Sub-questions collection
+    const subQuestionStats: Array<{ label: string, wb: number, drw: number, annotations: string }> = [];
+
+    // Work Blocks & Drawings: Count Lines (Main + Sub-questions)
+    let lineCount = 0;
+    let drawingCount = 0;
+
+    if (task && task.classificationBlocks) {
+      task.classificationBlocks.forEach((b: any) => {
+        // Main lines
+        if (b.studentWorkLines) {
+          lineCount += b.studentWorkLines.length;
+
+          // Count main drawings
+          if (b.hasStudentDrawing) {
+            drawingCount++;
+            let textDrawings = 0;
+            b.studentWorkLines.forEach((line: any) => {
+              const txt = (line.text || '').toLowerCase();
+              if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                textDrawings++;
+              }
+            });
+            if (textDrawings > 1) drawingCount += (textDrawings - 1);
+          } else {
+            b.studentWorkLines.forEach((line: any) => {
+              const txt = (line.text || '').toLowerCase();
+              if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                drawingCount++;
+              }
+            });
+          }
+
+          // SYSTEMATIC FIX: Also check Marking AI results for drawings that Classification missed (e.g. Q11b)
+          // We look for annotations that are marked as 'drawing' or have drawing-related text
+          if (result.annotations) {
+            const aiFoundDrawing = result.annotations.some((ann: any) => {
+              const txt = (ann.text || '').toLowerCase();
+              const stepId = (ann.step_id || '').toLowerCase();
+              return stepId.includes('drawing') || txt.includes('[drawing]');
+            });
+            // If AI found a drawing but Classification didn't flag it (drawingCount is 0 for this block), increment it.
+            // Note: This is a rough heuristic. Ideally we'd map back to specific blocks.
+            // But for the summary table, we just want to show *some* drawing count if it exists.
+            if (aiFoundDrawing && !b.hasStudentDrawing && drawingCount === 0) {
+              drawingCount++;
+            }
+          }
+        }
+
+        // Sub-question lines
+        if (b.subQuestions && Array.isArray(b.subQuestions)) {
+          b.subQuestions.forEach((sq: any) => {
+            let sqWb = 0;
+            let sqDrw = 0;
+            if (sq.studentWorkLines) {
+              sqWb = sq.studentWorkLines.length;
+              lineCount += sqWb; // Add to total
+
+              // Count drawings for this sub-question
+              if (sq.hasStudentDrawing) {
+                sqDrw = 1;
+                if (sq.studentWorkLines && sq.studentWorkLines.length > 0) {
+                  let textDrawings = 0;
+                  sq.studentWorkLines.forEach((line: any) => {
+                    const txt = (line.text || '').toLowerCase();
+                    if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                      textDrawings++;
+                    }
+                  });
+                  if (textDrawings > 1) sqDrw = textDrawings;
+                }
+              } else {
+                sq.studentWorkLines.forEach((line: any) => {
+                  const txt = (line.text || '').toLowerCase();
+                  if (txt.includes('[drawing]') || txt.includes('graph') || txt.includes('plot') || txt.includes('sketch')) {
+                    sqDrw++;
+                  }
+                });
+              }
+            }
+
+            // Add to stats if there is work OR annotations
+            const subQAnns = annotationsBySubQ.get(sq.part) || [];
+            if (sqWb > 0 || subQAnns.length > 0) {
+              subQuestionStats.push({
+                label: `${result.questionNumber}${sq.part}`,
+                wb: sqWb,
+                drw: sqDrw,
+                annotations: subQAnns.length > 0 ? `(${subQAnns.join(',')})` : '-'
+              });
+            }
+          });
+        }
+      });
+    }
+
+    let matched = 0;
+    let fallback = 0;
+    let split = 0;
+
+    if (result.annotations) {
+      result.annotations.forEach((a: any) => {
+        if (a.ocr_match_status === 'FALLBACK') fallback++;
+        else if (a.hasLineData === false) split++;
+        else matched++;
+      });
+    }
+
+    // Color M value Orange (\x1b[33m)
+    const statusStr = `M:\x1b[33m${matched}\x1b[0m F:${fallback} S:${split}`;
+
+    // Color coding
+    const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
+
+    // Annotation Count (Main Question)
+    const annotationCodes = mainAnnotations; // Renamed for clarity
+    const annotationCount = (result.annotations || []).length; // Total count
+    const annotationStr = annotationCodes.length > 0 ? `(${annotationCodes.join(',')})` : '';
+    const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
+    const matchStats = `M:${matched} F:${fallback} S:${split}`;
+
+    const totalAnnCount = (result.annotations || []).length;
+    const countStr = String(totalAnnCount);
+    const coloredCount = totalAnnCount < lineCount ? `\x1b[31m${countStr}\x1b[0m` : countStr;
+
+    // If we have sub-questions, maybe we shouldn't list all codes in the main row to avoid clutter/confusion?
+    // Let's list main codes only if there are sub-questions.
+    const displayCodesStr = subQuestionStats.length > 0 ? (mainAnnotations.length > 0 ? ` (${mainAnnotations.join(',')})` : '') : annotationStr; // Use annotationStr here
+
+    const visibleLength = countStr.length + displayCodesStr.length;
+    const paddingNeeded = Math.max(0, 45 - visibleLength); // Use 45 for the new width
+    const padding = ' '.repeat(paddingNeeded);
+
+    const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
+
+    // Calculate padding for status string (visible length)
+    const rawStatusStr = `M:${matched} F:${fallback} S:${split}`;
+    const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
+    const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
+
+    console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
+
+    // Sort sub-question rows alphabetically by label (e.g., 11a, 11b, 11c)
+    subQuestionStats.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
+
+    // Print sub-question rows
+    subQuestionStats.forEach(sq => {
+      const sqLabel = `  ${sq.label}`.padEnd(8);
+      const coloredSqLabel = `\x1b[92m${sqLabel}\x1b[0m`;
+
+      // Format annotation column for sub-question
+      const subCodes = annotationsBySubQ.get(sq.label.replace(String(result.questionNumber), '')) || [];
+      const subCount = subCodes.length;
+      const subAnnotationStr = subCodes.length > 0 ? `(${subCodes.join(',')})` : '';
+      const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(44); // Increased from 30 to 44
+      const subWorkBlocks = sq.wb;
+      const subDrawings = sq.drw;
+      const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
+
+      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subAnnotationCol} | ${'-'.padEnd(33)}|`);
+    });
+
+    console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
+  });
 }
 
 // Helper function to generate session title
@@ -596,8 +838,8 @@ export function getQuestionSortValue(questionNumber: string | null | undefined):
  */
 export function buildClassificationPageToSubQuestionMap(
   classificationResult: any
-): Map<number, Map<string, string>> {
-  const classificationPageToSubQuestion = new Map<number, Map<string, string>>(); // pageIndex -> baseQNum -> subQNum
+): Map<number, string[]> {
+  const classificationPageToSubQuestion = new Map<number, string[]>(); // pageIndex -> list of subQNums
 
   if (classificationResult?.questions) {
     for (const q of classificationResult.questions) {
@@ -614,7 +856,7 @@ export function buildClassificationPageToSubQuestionMap(
         // Map each sub-question to its page(s)
         q.subQuestions.forEach((subQ: any, subIndex: number) => {
           const part = subQ.part || '';
-          if (!part) return;
+          // if (!part) return; // Allow empty part for some cases? No, usually subQ has part.
 
           const subQNum = `${baseQNum}${part}`;
 
@@ -622,11 +864,11 @@ export function buildClassificationPageToSubQuestionMap(
           if (subQ.pageIndex !== undefined) {
             const pageIndex = subQ.pageIndex;
             if (!classificationPageToSubQuestion.has(pageIndex)) {
-              classificationPageToSubQuestion.set(pageIndex, new Map());
+              classificationPageToSubQuestion.set(pageIndex, []);
             }
-            // Only set if not already set (first occurrence wins)
-            if (!classificationPageToSubQuestion.get(pageIndex)!.has(baseQNum)) {
-              classificationPageToSubQuestion.get(pageIndex)!.set(baseQNum, subQNum);
+            // Only add if not already present
+            if (!classificationPageToSubQuestion.get(pageIndex)!.includes(subQNum)) {
+              classificationPageToSubQuestion.get(pageIndex)!.push(subQNum);
             }
             return; // Skip fallback loop
           }
@@ -638,14 +880,23 @@ export function buildClassificationPageToSubQuestionMap(
             // Otherwise, try to match sub-question index to page index
             if (q.subQuestions.length === 1 || subIndex === pageIdx || (subIndex === 0 && pageIdx === 0)) {
               if (!classificationPageToSubQuestion.has(pageIndex)) {
-                classificationPageToSubQuestion.set(pageIndex, new Map());
+                classificationPageToSubQuestion.set(pageIndex, []);
               }
-              // Only set if not already set (first occurrence wins)
-              if (!classificationPageToSubQuestion.get(pageIndex)!.has(baseQNum)) {
-                classificationPageToSubQuestion.get(pageIndex)!.set(baseQNum, subQNum);
+              if (!classificationPageToSubQuestion.get(pageIndex)!.includes(subQNum)) {
+                classificationPageToSubQuestion.get(pageIndex)!.push(subQNum);
               }
             }
           });
+        });
+      } else {
+        // Main question without sub-questions
+        pageIndices.forEach((pageIndex) => {
+          if (!classificationPageToSubQuestion.has(pageIndex)) {
+            classificationPageToSubQuestion.set(pageIndex, []);
+          }
+          if (!classificationPageToSubQuestion.get(pageIndex)!.includes(baseQNum)) {
+            classificationPageToSubQuestion.get(pageIndex)!.push(baseQNum);
+          }
         });
       }
     }
@@ -660,7 +911,7 @@ export function buildClassificationPageToSubQuestionMap(
 export function buildPageToQuestionNumbersMap(
   allQuestionResults: Array<{ questionNumber: string | number | null | undefined; annotations?: Array<{ pageIndex?: number }> }>,
   markingSchemesMap: Map<string, any>,
-  classificationPageToSubQuestion: Map<number, Map<string, string>>
+  classificationPageToSubQuestion: Map<number, string[]>
 ): Map<number, number[]> {
   const pageToQuestionNumbers = new Map<number, number[]>();
 
@@ -695,13 +946,15 @@ export function buildPageToQuestionNumbersMap(
       // For each page with annotations, look up the actual sub-question number from classification
       pageIndexCounts.forEach((count, pageIndex) => {
         // Try to get the sub-question number from classification mapping
-        const pageSubQuestionMap = classificationPageToSubQuestion.get(pageIndex);
+        const pageSubQuestions = classificationPageToSubQuestion.get(pageIndex);
         let subQNum: string | undefined = undefined;
 
-        if (pageSubQuestionMap && pageSubQuestionMap.has(baseQNum)) {
-          // Found exact mapping from classification
-          subQNum = pageSubQuestionMap.get(baseQNum);
-        } else {
+        if (pageSubQuestions && pageSubQuestions.length > 0) {
+          // Find a sub-question that matches the base question number
+          subQNum = pageSubQuestions.find(sq => sq.startsWith(baseQNum));
+        }
+
+        if (!subQNum) {
           // Fallback: use order-based assignment (first page gets first sub-question, etc.)
           const sortedPages = Array.from(pageIndexCounts.keys()).sort((a, b) => a - b);
           const pageIndexInOrder = sortedPages.indexOf(pageIndex);
