@@ -670,17 +670,8 @@ function AdminPage() {
         {activeTab === 'usage' && (
           <div className="admin-tab-content">
             <div className="admin-section-header">
-              <div>
-                <h2 className="admin-section-header__title">Usage Statistics</h2>
-                <p>View cost breakdown and usage statistics for all users</p>
-              </div>
-              <button
-                className="admin-btn admin-btn--danger"
-                onClick={clearAllUsageData}
-                disabled={isClearingUsage || usageData.length === 0}
-              >
-                {isClearingUsage ? 'Clearing...' : 'Clear All Usage Data'}
-              </button>
+              <h2 className="admin-section-header__title">Usage Statistics</h2>
+              <p>View cost breakdown and usage statistics for all users</p>
             </div>
 
             {/* Summary Header */}
@@ -757,6 +748,19 @@ function AdminPage() {
 
             {/* Usage Table */}
             <div className="admin-data-section">
+              <div className="admin-data-section__header">
+                <h3 className="admin-data-section__title">Usage Records ({usageData.length})</h3>
+                {usageData.length > 0 && (
+                  <button
+                    className="admin-btn admin-btn--danger"
+                    onClick={clearAllUsageData}
+                    disabled={isClearingUsage}
+                  >
+                    {isClearingUsage ? 'Clearing...' : 'Clear All Usage Data'}
+                  </button>
+                )}
+              </div>
+
               {loadingUsage ? (
                 <div className="admin-empty-state">
                   <p className="admin-empty-state__text">Loading usage data...</p>
