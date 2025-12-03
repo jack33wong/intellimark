@@ -690,7 +690,7 @@ export class MarkingInstructionService {
         console.warn(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Marking scheme question number (${schemeQuestionNumber}) doesn't match current question. Skipping scheme.`);
         hasMarkingScheme = false;
         // Fallback to no marking scheme prompt
-        const fallbackPrompt = AI_PROMPTS.markingInstructions.noMarkingScheme;
+        const fallbackPrompt = AI_PROMPTS.markingInstructions.basic;
         systemPrompt = fallbackPrompt.system;
         userPrompt = fallbackPrompt.user(
           inputQuestionNumber || 'Unknown',
@@ -713,7 +713,7 @@ export class MarkingInstructionService {
       }
     } else {
       // Use the noMarkingScheme prompt
-      const prompt = AI_PROMPTS.markingInstructions.noMarkingScheme;
+      const prompt = AI_PROMPTS.markingInstructions.basic;
       systemPrompt = prompt.system;
       userPrompt = prompt.user(
         inputQuestionNumber || 'Unknown',

@@ -4,7 +4,7 @@ import { getPrompt } from '../../config/prompts.js';
 export interface PageMap {
     pageIndex: number;
     questions: string[]; // List of question numbers (e.g., "1", "2a", "3")
-    category?: "frontPage" | "questionPage" | "questionOnly"; // Front page/cover sheet, question with student work, or question only
+    category?: "frontPage" | "questionAnswer" | "questionOnly"; // Front page/cover sheet, question with student work, or question only
 }
 
 export class ClassificationMapper {
@@ -45,39 +45,38 @@ export class ClassificationMapper {
                    - "2(b)" → "2b"
                    - "3(a)(i)" → "3ai"
                    - "12(b)(ii)" → "12bii"
-            
-            2. **PAGE CATEGORIZATION (DECISION TREE):**
+                        2. **PAGE CATEGORIZATION (DECISION TREE):**
                - **STEP 1:** Did you find ANY question numbers (even just "1")?
                  * YES → Go to STEP 2
                  * NO → Is this a pure metadata page (exam board, code, date, subject, NO questions)?
                    - YES → category: "frontPage"
-                   - NO → category: "questionPage" (default if unsure)
+                   - NO → category: "questionOnly" (default if unsure)
                
                - **STEP 2:** You found question numbers. Are there student answers/work?
-                 * YES (handwritten numbers, calculations, drawings) → category: "questionPage"
+                 * YES (handwritten numbers, calculations, drawings) → category: "questionAnswer"
                  * NO (only printed questions, no answers) → category: "questionOnly"
             
             3. **CRITICAL CLARIFICATIONS:**
                - **"frontPage"** = Exam cover sheet with NO questions, just metadata (board, exam code, date)
                  * Example: "Pearson Edexcel GCSE Mathematics 1MA1/3H June 2024" ONLY, no question 1, 2, 3...
-               - **"questionPage"** = Has questions AND student work
+               - **"questionAnswer"** = Has questions AND student work
                  * Example: Question "1 Find the HCF..." with student's handwritten work
                - **"questionOnly"** = Has questions but NO student work (blank answer spaces)
                - **NOT METADATA:** "Answer ALL questions", "Write your answers in the spaces provided" are INSTRUCTIONS, not metadata
-                 * If you see "Answer ALL questions" + Question numbers → category: "questionPage" or "questionOnly"
+                 * If you see "Answer ALL questions" + Question numbers → category: "questionAnswer" or "questionOnly"
                - **HEADERS/FOOTERS:** Ignore "Pearson Edexcel" headers or "DO NOT WRITE IN THIS AREA" watermarks - NOT frontPage
                - **MATH CONTENT:** If you see equations, grids, or diagrams → NOT frontPage
             
             4. Return a JSON object with a "pages" array.
             5. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
-            6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionPage" | "questionOnly" }
+            6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionAnswer" | "questionOnly" }
             7. **CONTEXT AWARENESS:** If a page has a sub-question (e.g. "b") but no main number, look at other pages to infer the main number.
             
             OUTPUT FORMAT:
             {
               "pages": [
                 { "questions": [], "category": "frontPage" },
-                { "questions": ["1"], "category": "questionPage" }
+                { "questions": ["1"], "category": "questionAnswer" }
               ]
             }`;
 

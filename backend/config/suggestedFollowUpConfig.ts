@@ -13,22 +13,22 @@ export const SUGGESTED_FOLLOW_UP_MODES: Record<string, SuggestedFollowUpConfig> 
   modelanswer: {
     mode: 'modelanswer',
     displayName: 'Provide model answer according to the marking scheme.',
-    promptKey: 'modelAnswer',
+    promptKey: 'markingInstructions.modelAnswer',
     processingDelayMs: 1500
   },
   markingscheme: {
     mode: 'markingscheme',
     displayName: 'Show marking scheme.',
-    promptKey: 'markingScheme',
+    promptKey: 'markingInstructions.markingScheme',
     processingDelayMs: 1500
   },
   similarquestions: {
     mode: 'similarquestions',
     displayName: 'Similar practice questions.',
-    promptKey: 'similarquestions',
+    promptKey: 'markingInstructions.similarquestions',
     processingDelayMs: 1500
   }
-  
+
 };
 
 export const DEFAULT_SUGGESTED_FOLLOW_UP_SUGGESTIONS = [

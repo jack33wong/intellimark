@@ -40,6 +40,7 @@ export class MarkingController {
 
             // 4. Execute Pipeline
             const result = await MarkingPipelineService.executePipeline(
+                req,
                 files,
                 submissionId,
                 options,

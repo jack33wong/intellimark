@@ -83,55 +83,7 @@ export const AI_PROMPTS = {
       Please solve this math question step by step. Show only the mathematical working with no explanations. Keep the solution concise with 3-6 steps maximum.`
     },
 
-    // Marking mode with OCR text (when reviewing student's work)
-    markingWithOCR: {
-      system: `You are an AI assistant. 
-      
-      Your task is to check a student's final answer against a correct answer I will provide.
 
-      FORMAT EXPLANATION:
-      - "Question: [text]" shows the original question the student was asked to solve
-      - The following lines show the student's cleaned mathematical work (OCR errors have been corrected)
-
-     **YOUR TASK:**
-        1.  Compare "THE STUDENT'S FINAL ANSWER" to "THE CORRECT FINAL ANSWER".
-        2.  **IF** they match exactly, respond with a brief, supportive phrase like "Great job, that's the correct answer!"
-        3.  **IF** they do NOT match, respond ONLY with the text: "The correct answer is:" followed by the correct final answer.
-
-        `,
-
-      user: (ocrText: string) => `Student's work (extracted text):
-      ${ocrText}
-      
-      `
-    },
-
-    // Marking mode with image (legacy - when reviewing student's work from image)
-    markingWithImage: {
-      system: `You are an expert math tutor reviewing a student's work in an image.
-
-      You will receive an image of a student's homework and a message from the student.
-      Your task is to provide brief, targeted feedback with 1-2 follow-up questions.
-      
-      RESPONSE FORMAT REQUIREMENTS:
-      - Use Markdown formatting.
-      - CRITICAL RULE: Each step of the solution must have a title (e.g., 'Step 1:'). The title must be in its own paragraph with no other text.
-      - The explanation must start in the next, separate paragraph.
-      - Use italics for any inline emphasis, not bold.
-      - Always put the final, conclusive answer in the very last paragraph.
-      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-
-      YOUR TASK:
-      - Adopt the persona of an expert math tutor providing brief, targeted feedback.
-      - Your entire response must be under 150 words.
-      - Do not provide a full step-by-step walkthrough of the correct solution.
-      - Concisely point out the student's single key mistake.
-      - Ask 1-2 follow-up questions to guide the student.`,
-
-      user: (message: string) => `Student message: "${message}"
-      
-      Review the student's work and provide brief feedback with 1-2 follow-up questions.`
-    },
 
     // Contextual response (for follow-up chat)
     contextual: {
@@ -174,91 +126,7 @@ export const AI_PROMPTS = {
     }
   },
 
-  // ============================================================================
-  // OCR CLEANUP SERVICE PROMPTS
-  // ============================================================================
 
-  ocrCleanup: {
-    // With step IDs (used in marking pipeline)
-    withStepIds: {
-      system: `Analyze the provided OCR text of a math problem solution. Clean up the text by removing repeated lines, scribbles, and irrelevant content while preserving the mathematical structure.
-
-      Your task is to:
-      1. Identify the main mathematical steps and equations
-      2. Extract key values and variables
-      3. Remove repeated lines, scribbles, and irrelevant text
-      4. Structure the output in a logical, readable format
-      5. Preserve mathematical notation, LaTeX formatting and the original question
-      6. CRITICAL: PRESERVE the existing unified_step_id values from the input - do NOT reassign or change them
-      7. CRITICAL: PRESERVE the existing bbox coordinates from the input - do NOT modify them
-      8. CRITICAL: The "question" field should ONLY contain the original question text (if provided), NOT the student's work
-      9. CRITICAL: The "steps" field should ONLY contain the student's mathematical work, NOT the question
-
-      Return ONLY a valid JSON object with this exact format. Ensure all strings are properly escaped and all brackets are closed:
-      {
-          "question": "null", // Include question here
-          "steps": [
-              {
-                  "unified_step_id": "step_1",
-                  "bbox": [x1, y1, x2, y2],
-                  "cleanedText": "cleaned mathematical expression"
-              }
-          ]
-      }`,
-
-      user: (originalWithStepIds: string, extractedQuestionText?: string) => `Here is the OCR text to clean (JSON with steps including unified_step_id and bbox coordinates):
-      
-      ${originalWithStepIds}
-      
-      ${extractedQuestionText ? `IMPORTANT: The original question was: "${extractedQuestionText}"
-      
-      CRITICAL INSTRUCTIONS:
-      - Put ONLY the original question text in the "question" field
-      - Put ONLY the student's mathematical work in the "steps" field
-      - Do NOT include the student's work in the question field
-      - Do NOT include the question text in the steps field` : ''}
-      
-      CRITICAL: You MUST preserve ALL existing unified_step_id values and bbox coordinates exactly as they appear in the input. Do NOT reassign, change, or skip any step IDs.
-      
-      Please provide the cleaned, structured version.`
-    },
-
-    // Simple cleanup (legacy)
-    simple: {
-      system: `Analyze the provided OCR text of a math problem solution. Identify and extract the key steps of the solution and the original question. Structure the output as a clean, logical list of mathematical equations and key values. Ignore extraneous text, scribbles, or repeated lines from the OCR.
-
-      Your task is to:
-      1. Identify the main mathematical steps and equations
-      2. Extract key values and variables
-      3. Remove repeated lines, scribbles, and irrelevant text
-      4. Structure the output in a logical, readable format
-      5. Preserve mathematical notation, LaTeX formatting and the original question
-      6. Assign a unique step_id to each step for tracking purposes
-
-      Format:
-      {
-          "question": "The original question",
-          "steps": [
-              {
-                  "step_id": "step_1",
-                  "text": "l=0.6"
-              },
-              {
-                  "step_id": "step_2", 
-                  "text": "KE_A + PE_A + EE_A = KE_B + PE_B + EE_B"
-              }
-          ]
-      }
-
-      Return ONLY the cleaned text, no explanations or additional formatting.`,
-
-      user: (ocrText: string) => `Here is the OCR text to clean:
-
-      ${ocrText}
-
-      Please provide the cleaned, structured version:`
-    }
-  },
 
   // ============================================================================
   // MARKING INSTRUCTION SERVICE PROMPTS
@@ -327,86 +195,7 @@ INSTRUCTIONS:
     // ============================================================================
 
     modelAnswer: {
-      system: `
-    # [AI Persona & Instructions]
-
-    You are an AI expert in mathematics education, designed to generate highly concise, exam-style model answers.
-
-    ## Guiding Principles
-    - Minimalism: Your primary goal is brevity. Provide only the most essential calculations needed to earn full marks. Combine simple arithmetic steps and avoid showing intermediate calculations unless the marking scheme explicitly requires them.
-    - Scheme Adherence: The solution must strictly follow the provided MARKING SCHEME. Every line that awards a mark must end with the corresponding mark code.
-
-    ## Response Format (CRITICAL)
-    You will receive ONE question at a time. The question text provided to you is already formatted with proper numbering and labels:
-    - Main question has number prefix (e.g., "5. Sophie drives...")
-    - Sub-questions have labels (e.g., "a) Work out...", "b) Is your answer...")
-    - Format: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
-    
-    The marking scheme includes marks for ALL sub-questions combined.
-    
-    **Your response MUST follow this exact format:**
-    
-    **For questions WITH sub-questions (e.g., Question 5 with parts a), b)):**
-    
-        Question 5
-        
-        <span class="model_question">Sophie drives a distance of 513 kilometres on a motorway in France. She pays 0.81 euros for every 10 kilometres she drives.</span>
-        
-        <span class="model_question">a) Work out an estimate for the total amount that Sophie pays.</span>
-        
-        [Model answer for sub-question a) with mark codes]
-        
-        <span class="model_question">b) Is your answer to part (a) an underestimate or an overestimate? Give a reason for your answer.</span>
-        
-        [Model answer for sub-question b) with mark codes]
-    
-    **For questions WITHOUT sub-questions (e.g., Question 1):**
-    
-        Question 1
-        
-        <span class="model_question">1. Here are the first four terms of an arithmetic sequence. 1 5 9 13. Find an expression, in terms of n, for the nth term of this sequence.</span>
-        
-        [Model answer with mark codes]
-    
-    **CRITICAL FORMATTING RULES:**
-    - Start with "Question X" header (use the question number provided in the prompt, do NOT infer it from the question text)
-    - **WRAP EACH QUESTION TEXT PART SEPARATELY:**
-      * Main question text: Wrap in <span class="model_question">...</span> but REMOVE the "5. " prefix (keep only the question text itself)
-      * Each sub-question: Wrap in its own <span class="model_question">...</span> tag (keep the "a)", "b)" label)
-    - Example: The question text we pass is "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
-      * Wrap main question as: <span class="model_question">Sophie drives...</span> (remove "5. " prefix)
-      * Wrap sub-question a) as: <span class="model_question">a) Work out...</span> (keep "a)" label)
-      * Wrap sub-question b) as: <span class="model_question">b) Is your answer...</span> (keep "b)" label)
-    - After each wrapped sub-question, provide the model answer with mark codes
-    - Do NOT add "Question" prefix to sub-question labels (they already have "a)", "b)" format)
-
-    ## Formatting Rules
-    1.  **Markdown Only:** The entire response must be in markdown.
-    2.  **LaTeX for All Math:** ALL mathematical expressions, variables, and numbers in calculations (e.g., "$3x+5=14$", "$a=5$") must be enclosed in single dollar signs ("$") for inline math.
-    3.  **Layout:**
-      - Start with "Question X" header (use the question number provided in the prompt)
-      - **CRITICAL:** Wrap EACH question text part SEPARATELY in its own <span class="model_question">...</span> tag:
-        * Main question text: Remove the "5. " prefix, then wrap the question text in <span class="model_question">...</span>
-        * Each sub-question: Keep the "a)", "b)" label and wrap the entire sub-question text (including label) in <span class="model_question">...</span>
-      - Example: The question text we pass is "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
-        * Wrap as: <span class="model_question">Sophie drives...</span> (main question, no "5. " prefix)
-        * Then: <span class="model_question">a) Work out...</span> (sub-question a), keep "a)" label)
-        * Then: [Model answer for a) with mark codes]
-        * Then: <span class="model_question">b) Is your answer...</span> (sub-question b), keep "b)" label)
-        * Then: [Model answer for b) with mark codes]
-      - After each wrapped sub-question, provide the model answer with mark codes
-      - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
-      - CRITICAL RULE FOR FORMATTING: Put each step on a separate line with line breaks (\\n). Use double line breaks (\\n\\n) between major steps.
-      - IMPORTANT: Each mathematical expression should be on its own line with double line breaks before and after.
-      - **QUESTION TEXT STYLING:** Wrap EACH question text part separately:
-        * Main question text: Remove "5. " prefix, wrap in <span class="model_question">...</span>
-        * Each sub-question: Keep "a)", "b)" label, wrap in its own <span class="model_question">...</span>
-        * All question text parts MUST be wrapped. Do NOT leave any question text outside the span tags.
-    4.  **Marking Codes:** Append the correct mark code (e.g., "[M1]", "[M1dep]", "[A1]") to the end of the line where the mark is awarded.
-    5.  **Final Answer:** The final answer must be on its own line, bolded, and followed by its mark code. Example: "**Answer:** $5n^2 + 2n - 4$ [A1]"
-    ---
-    # [Task Data]
-    `,
+      system: loadPrompt('model_answer_system_prompt.txt'),
 
       user: (questionText: string, schemeText: string, totalMarks?: number, questionNumber?: string) => {
         // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
@@ -468,16 +257,7 @@ Please generate a model answer that would receive full marks according to the ma
     // ============================================================================
 
     markingScheme: {
-      system: `You are an AI that explains marking schemes for exam questions.
-
-            Your task is to provide a brief, simple explanation of the marking scheme ONLY - do NOT provide solutions or model answers.
-            Keep it concise and focus on the key marking points.
-            Your response MUST be in markdown format.
-            
-            **IMPORTANT FOR MULTIPLE QUESTIONS:**
-            - If you receive multiple questions, you MUST respond to them in ascending question number order (Q1, Q2, Q3, etc.)
-            - Clearly label each response with its question number (e.g., "**Question 1:**", "**Question 2:**")
-            - Separate each question's explanation with clear dividers`,
+      system: loadPrompt('marking_scheme_explanation_system_prompt.txt'),
 
       user: (questionText: string, schemeText: string) => {
         // schemeText must be plain text (same format as stored in detectedQuestion)
@@ -496,17 +276,7 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
       }
     },
     similarquestions: {
-      system: `You are an AI that generates similar practice questions for exam preparation.
-
-            Your task is to create exactly 3 similar questions that test the same concepts and skills.
-            Format your response with a clear title and numbered list of 3 questions.
-            Your response MUST be in markdown format with clear structure.
-            
-            **IMPORTANT FOR MULTIPLE QUESTIONS:**
-            - If you receive multiple original questions, generate similar questions for EACH one
-            - You MUST organize your response by original question number in ascending order (Q1, Q2, Q3, etc.)
-            - For each original question, generate the specified number of similar questions
-            - Clearly label each section with the original question number (e.g., "**Similar Questions for Question 1:**", "**Similar Questions for Question 2:**")`,
+      system: loadPrompt('similar_questions_system_prompt.txt'),
 
       user: (questionText: string, schemeJson: string, questionCount?: number) => {
         // Convert JSON marking scheme to clean bulleted list format
@@ -566,183 +336,12 @@ ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Q
     },
   },
 
-  // ============================================================================
-  // OCR SEGMENTATION PROMPTS
-  // ============================================================================
-
-  ocrSegmentation: {
-    system: `You are an expert OCR segmentation AI. Your task is to classify sequential text blocks from a homework image.
-
-    INPUT STRUCTURE:
-    The input is a sequential list of OCR blocks. Each block has an 'id', 'text', and an 'isHandwritten' flag (true/false).
-
-    YOUR GOAL: Identify the exact transition point where the "Question" ends and "StudentWork" begins.
-
-    CLASSIFICATION RULES:
-    - "Question": Text belonging to the original problem statement, instructions, or given data. Usually 'isHandwritten: false'.
-    - "StudentWork": Calculations, solutions, answers, or any student-generated content. Usually 'isHandwritten: true'.
-
-    CRITICAL INSTRUCTIONS:
-    1. **Prioritize the 'isHandwritten' flag.** If 'isHandwritten: true', it is almost certainly "StudentWork". This is objective evidence.
-    2. Analyze the sequence. The flow is generally Question -> StudentWork.
-    3. Use the Reference Question Text (RQT) for context.
-    4. If a block is ambiguous but contains calculations or results, classify it as "StudentWork".
-
-    OUTPUT FORMAT:
-    Return ONLY a JSON object with this exact structure:
-    {
-      "classifications": [
-        {"id": 0, "type": "Question"},
-        {"id": 1, "type": "StudentWork"},
-        ...
-      ]
-    }
-    Ensure every ID from the input is present in the output.`,
-
-    // Note: The order of placeholders matters for the getPrompt implementation.
-    user: `Classify the following sequential text blocks. Use the 'isHandwritten' flag and the Reference Question Text (RQT) to identify the student work.
-
-    Reference Question Text (RQT):
-    {extractedQuestionText}
-
-    Text Blocks (JSON format):
-    {inputBlocks}
-
-    Return only the JSON object with classifications.`
-  },
-
-  // ============================================================================
-  // MULTI-QUESTION DETECTION PROMPTS
-  // ============================================================================
-
-  multiQuestionDetection: {
-    system: `You are an AI that analyzes OCR text blocks from a math homework image.
-
-    YOUR GOAL: Analyze the provided OCR text blocks and classify each block as either question text or student work.
-
-    IMPORTANT: You must analyze the ACTUAL OCR text blocks provided, not generate examples.
-
-    CLASSIFICATION RULES:
-    1. **Question Text**: Contains the actual question/problem statement from the image
-    2. **Student Work**: Contains calculations, answers, or student responses written by the student
-    3. **Handwriting Clues**: Handwritten text is usually student work
-    4. **Content Analysis**: Look for mathematical operations, equations, or answers
-
-    OUTPUT FORMAT:
-    Return ONLY a JSON object with this exact structure:
-    {
-      "segments": [
-        {
-          "text": "The actual text content from the OCR block",
-          "type": "question_text",
-          "confidence": 0.9
-        },
-        {
-          "text": "The actual student work content from the OCR block",
-          "type": "student_work",
-          "confidence": 0.85
-        }
-      ]
-    }
-
-    CRITICAL REQUIREMENTS:
-    - You MUST use the actual text from the provided OCR blocks
-    - Do NOT generate fake or example content
-    - type must be either "question_text" or "student_work"
-    - confidence should be between 0.0 and 1.0
-    - text should contain the actual content from the OCR blocks
-    - Return all segments in the order they appear`,
-
-    user: `Analyze the following OCR text blocks from a math homework image. Classify each block as question text or student work.
-
-    Reference Question Text (if available):
-    {extractedQuestionText}
-
-    OCR Text Blocks (JSON format):
-    {inputBlocks}
-
-    IMPORTANT: Use the actual text content from the OCR blocks above. Do not generate examples.
-
-    Return only the JSON object with classified segments.`
-  },
 
 
-  // ============================================================================
-  // AI SEGMENTATION SERVICE PROMPTS
-  // ============================================================================
 
-  aiSegmentation: {
-    system: `Map OCR blocks to classification and merge best results. **DEFAULT: Classification** (better LaTeX). **ONLY use OCR when it's mathematically correct and classification is wrong.**
 
-**RULES:**
-- OCR is line-by-line: multiple blocks → one classification line (normal)
-- Map ALL classification lines (complete solution)
-- Preserve [DRAWING] entries
-- Filter question text blocks
 
-**SOURCE SELECTION (use question text to validate):**
 
-1. **Classification missing?** → Use OCR
-2. **Check math correctness vs question:**
-   - Classification wrong per question AND OCR correct → Use OCR
-   - Classification correct OR OCR wrong → Use Classification
-3. **Missing final answer?** → Use OCR if it has the value
-4. **Default:** Use Classification
-
-**OUTPUT:**
-{
-  "mappings": [
-    {"q": "18", "block": "block_123", "content": "$0.1\\dot{5} + 0.2\\dot{7}$", "src": "c", "conf": 0.95}
-  ],
-  "unmapped": [{"block": "block_789"}]
-}
-
-Fields: q=questionNumber, block=ocrBlockId, content=mergedContent, src=source (o/c/m), conf=confidence (0.0-1.0)`,
-
-    user: (ocrBlocks: Array<{ id: string; text: string; pageIndex: number; coordinates?: { x: number; y: number } }>, classificationQuestions: Array<{ questionNumber: string; questionText?: string | null; studentWork?: string | null; subQuestions?: Array<{ part: string; questionText?: string | null; studentWork?: string | null }> }>) => {
-      // Ultra-compact OCR format (minimal tokens)
-      const ocrBlocksText = ocrBlocks.map(block => {
-        return `${block.id}|${block.pageIndex}|${block.text}`;
-      }).join('\n');
-
-      // Compact classification with question text
-      const classificationText = classificationQuestions.map(q => {
-        let result = `Q${q.questionNumber}`;
-        if (q.questionText) {
-          const qText = q.questionText.length > 150 ? q.questionText.substring(0, 150) + '...' : q.questionText;
-          result += ` [Q: ${qText}]`;
-        }
-        if (q.studentWork) {
-          result += ` | ${q.studentWork.replace(/\n/g, '|').replace(/\\newline/g, '|').replace(/\\\\/g, '|')}`;
-        }
-        if (q.subQuestions) {
-          q.subQuestions.forEach(subQ => {
-            if (subQ.studentWork) {
-              const subQNum = `${q.questionNumber}${subQ.part}`;
-              const work = subQ.studentWork.replace(/\n/g, '|').replace(/\\newline/g, '|').replace(/\\\\/g, '|');
-              result += `\nQ${subQNum}`;
-              if (subQ.questionText) {
-                const subQText = subQ.questionText.length > 100 ? subQ.questionText.substring(0, 100) + '...' : subQ.questionText;
-                result += ` [Q: ${subQText}]`;
-              }
-              result += ` | ${work}`;
-            }
-          });
-        }
-        return result;
-      }).join('\n');
-
-      return `Map OCR→classification, merge best. Use question text to validate math.
-
-OCR(${ocrBlocks.length}):
-${ocrBlocksText}
-
-Classification:
-${classificationText}
-
-Rules: Map all lines, use question text to check correctness, default=classification, filter question text. JSON format.`;
-    }
-  },
 
   // ============================================================================
   // ANALYSIS SERVICE PROMPTS

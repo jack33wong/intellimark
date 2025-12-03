@@ -69,7 +69,9 @@ export class QuestionModeHandlerService {
     const logQuestionDetectionComplete = logStep('Question Detection', 'question-detection');
 
     // Extract individual questions from classification result
-    const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+    let individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
+
+
 
     // Detect each question individually to get proper exam data and marking schemes
     const allQuestionDetections = await Promise.all(
@@ -185,7 +187,7 @@ export class QuestionModeHandlerService {
         );
         return {
           questionIndex: index,
-          questionNumber: qd.detection.match?.questionNumber || `Q${index + 1}`,
+          questionNumber: (qd.questionText ? JSON.parse(`"${qd.questionText.replace(/"/g, '\\"')}"`) : null) || qd.detection.match?.questionNumber || `Q${index + 1}`,
           response: response.response,
           apiUsed: response.apiUsed,
           usageTokens: response.usageTokens
@@ -201,7 +203,7 @@ export class QuestionModeHandlerService {
 
     // Combine all responses into a single comprehensive response with clear separation
     const combinedResponse = aiResponses.map(ar =>
-      `## ${ar.questionNumber}\n\n${ar.response}`
+      `**Question:** ${ar.questionNumber}\n\n${ar.response}`
     ).join('\n\n' + '='.repeat(50) + '\n\n');
 
     const aiResponse = {
@@ -282,8 +284,8 @@ export class QuestionModeHandlerService {
           files,
           isPdf: false,
           isMultiplePdfs: false,
-          sessionId: req.body.sessionId || submissionId,
-          model: req.body.model || 'auto'
+          sessionId: req.body?.sessionId || submissionId,
+          model: req.body?.model || 'auto'
         },
         structuredImageDataArray,
         undefined, // structuredPdfContexts

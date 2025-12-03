@@ -157,6 +157,22 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         });
       });
 
+      // NEW: Handle pages that are categorized as question content but have no specific question number
+      // (e.g. "No Questions" detected by mapper, but category is "questionOnly")
+      const mappedPageIndices = new Set<number>();
+      questionToPages.forEach(indices => indices.forEach(i => mappedPageIndices.add(i)));
+
+      pageMaps.forEach(map => {
+        // If page is NOT mapped to a question AND is content (not metadata/frontPage)
+        if (!mappedPageIndices.has(map.pageIndex) && (map.category === 'questionOnly' || map.category === 'questionAnswer')) {
+          markingTasks.push({
+            questionNumber: `Page ${map.pageIndex + 1}`, // Placeholder name
+            pageIndices: [map.pageIndex],
+            isFullPage: true // Flag to indicate full page extraction
+          } as any); // Cast to any to avoid changing type definition if strict
+        }
+      });
+
 
 
       // --- PASS 2: MARKING PASS (User Model, Parallel) ---
@@ -173,8 +189,18 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
         // Construct prompt for this specific question
         // We tell the AI to focus ONLY on this question
-        const taskSystemPrompt = systemPrompt + `\n\nIMPORTANT: You are analyzing specific pages for Question ${questionNumber}. Focus ONLY on extracting Question ${questionNumber} and its parts.`;
-        const taskUserPrompt = `Extract Question ${questionNumber} and all its sub-questions/student work from these pages.`;
+        let taskSystemPrompt = systemPrompt;
+        let taskUserPrompt = '';
+
+        if ((task as any).isFullPage) {
+          // Full page extraction mode
+          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${pageIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to null.`;
+          taskUserPrompt = `Extract all text and student work from Page ${pageIndices[0] + 1}.`;
+        } else {
+          // Specific question extraction mode
+          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing specific pages for Question ${questionNumber}. Focus ONLY on extracting Question ${questionNumber} and its parts.`;
+          taskUserPrompt = `Extract Question ${questionNumber} and all its sub-questions/student work from these pages.`;
+        }
 
         // Call AI (User Selected Model)
         // We reuse the existing single-request logic but with a subset of images

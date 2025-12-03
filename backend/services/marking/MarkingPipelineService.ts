@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { Request, Response } from 'express';
 import type { ModelType } from '../../types/index.js';
 import PdfProcessingService from '../pdf/PdfProcessingService.js';
 import sharp from 'sharp';
@@ -69,6 +70,7 @@ export interface MarkingOptions {
 export class MarkingPipelineService {
 
     static async executePipeline(
+        req: Request,
         files: Express.Multer.File[],
         submissionId: string,
         options: MarkingOptions,
@@ -684,7 +686,7 @@ export class MarkingPipelineService {
                 category: combinedCategory,
                 reasoning: allClassificationResults[0]?.result?.reasoning || 'Multi-image classification',
                 questions: allQuestions,
-                text: (allClassificationResults[0]?.result?.questions && allClassificationResults[0]?.result?.questions[0]) ? allClassificationResults[0]?.result?.questions[0].text : '',
+                text: (allClassificationResults[0]?.result?.questions && allClassificationResults[0]?.result?.questions[0]) ? allClassificationResults[0]?.result?.questions[0].text : (allClassificationResults[0]?.result?.extractedQuestionText || allClassificationResults[0]?.result?.text || ''),
                 apiUsed: allClassificationResults[0]?.result?.apiUsed || 'Unknown',
                 usageTokens: allClassificationResults.reduce((sum, { result }) => sum + (result.usageTokens || 0), 0),
                 hasMixedContent: hasMixedContent,
@@ -766,7 +768,7 @@ export class MarkingPipelineService {
                     actualModel,
                     userId: options.userId || 'anonymous',
                     submissionId,
-                    req: {} as any, // Mock req for compatibility if needed, or update service to not need it
+                    req: req,
                     res: {
                         write: (data: string) => {
                             // Parse SSE data and call progressCallback
