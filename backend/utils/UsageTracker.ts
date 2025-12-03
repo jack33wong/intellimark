@@ -17,6 +17,7 @@ import { getLLMPricing } from '../config/pricing.js';
 interface TokenUsage {
     inputTokens: number;
     outputTokens: number;
+    requestCount: number;  // Number of API requests
 }
 
 export interface UsageBreakdown {
@@ -37,11 +38,11 @@ export interface CostBreakdown {
 
 export class UsageTracker {
     private usage: UsageBreakdown = {
-        mapper: { inputTokens: 0, outputTokens: 0 },
-        classification: { inputTokens: 0, outputTokens: 0 },
-        marking: { inputTokens: 0, outputTokens: 0 },
-        questionMode: { inputTokens: 0, outputTokens: 0 },
-        other: { inputTokens: 0, outputTokens: 0 }
+        mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        other: { inputTokens: 0, outputTokens: 0, requestCount: 0 }
     };
 
     /**
@@ -50,6 +51,7 @@ export class UsageTracker {
     recordMapper(inputTokens: number, outputTokens: number): void {
         this.usage.mapper.inputTokens += inputTokens;
         this.usage.mapper.outputTokens += outputTokens;
+        this.usage.mapper.requestCount++;
     }
 
     /**
@@ -58,6 +60,7 @@ export class UsageTracker {
     recordClassification(inputTokens: number, outputTokens: number): void {
         this.usage.classification.inputTokens += inputTokens;
         this.usage.classification.outputTokens += outputTokens;
+        this.usage.classification.requestCount++;
     }
 
     /**
@@ -66,6 +69,7 @@ export class UsageTracker {
     recordMarking(inputTokens: number, outputTokens: number): void {
         this.usage.marking.inputTokens += inputTokens;
         this.usage.marking.outputTokens += outputTokens;
+        this.usage.marking.requestCount++;
     }
 
     /**
@@ -74,6 +78,7 @@ export class UsageTracker {
     recordQuestionMode(inputTokens: number, outputTokens: number): void {
         this.usage.questionMode.inputTokens += inputTokens;
         this.usage.questionMode.outputTokens += outputTokens;
+        this.usage.questionMode.requestCount++;
     }
 
     /**
@@ -82,6 +87,7 @@ export class UsageTracker {
     recordOther(inputTokens: number, outputTokens: number): void {
         this.usage.other.inputTokens += inputTokens;
         this.usage.other.outputTokens += outputTokens;
+        this.usage.other.requestCount++;
     }
 
     /**
@@ -121,6 +127,27 @@ export class UsageTracker {
         }
         return (inputTokens / 1_000_000 * pricing.input) + (outputTokens / 1_000_000 * pricing.output);
     }
+
+    /**
+     * Get total API request count
+     */
+    getTotalRequests(): number {
+        return Object.values(this.usage).reduce((sum, phase) => sum + phase.requestCount, 0);
+    }
+
+    /**
+     * Get request counts by phase
+     */
+    getRequestCounts(): { [key: string]: number } {
+        return {
+            mapper: this.usage.mapper.requestCount,
+            classification: this.usage.classification.requestCount,
+            marking: this.usage.marking.requestCount,
+            questionMode: this.usage.questionMode.requestCount,
+            other: this.usage.other.requestCount
+        };
+    }
+
 
     /**
      * Calculate cost for a specific model
@@ -237,6 +264,7 @@ export class UsageTracker {
 
         let summary = `\n📊 [UsageTracker] Summary:\n`;
         summary += `   Model: ${model || 'unknown'}\n`;
+        summary += `   API Requests: ${this.getTotalRequests()} total\n`;
         summary += `   Total Tokens: ${totalTokens.toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;
         summary += `   Total Cost: $${totalCost.toFixed(6)}\n`;
 
@@ -249,7 +277,7 @@ export class UsageTracker {
 
         summary += `\n   Breakdown by Phase:\n`;
 
-        // Show each phase with tokens
+        //Show each phase with tokens and request count
         const phases: Array<{ name: string; key: keyof UsageBreakdown }> = [
             { name: 'Mapper (Map Pass)', key: 'mapper' },
             { name: 'Classification (Marking Pass)', key: 'classification' },
@@ -263,7 +291,7 @@ export class UsageTracker {
             const total = tokens.inputTokens + tokens.outputTokens;
             if (total > 0) {
                 const cost = this.calculatePhaseCost(tokens.inputTokens, tokens.outputTokens, model);
-                summary += `   • ${name}: ${total.toLocaleString()} tokens → $${cost.toFixed(6)}\n`;
+                summary += `   • ${name}: ${total.toLocaleString()} tokens (${tokens.requestCount} requests) → $${cost.toFixed(6)}\n`;
             }
         });
 
@@ -281,11 +309,11 @@ export class UsageTracker {
      */
     reset(): void {
         this.usage = {
-            mapper: { inputTokens: 0, outputTokens: 0 },
-            classification: { inputTokens: 0, outputTokens: 0 },
-            marking: { inputTokens: 0, outputTokens: 0 },
-            questionMode: { inputTokens: 0, outputTokens: 0 },
-            other: { inputTokens: 0, outputTokens: 0 }
+            mapper: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            other: { inputTokens: 0, outputTokens: 0, requestCount: 0 }
         };
     }
 }

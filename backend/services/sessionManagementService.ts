@@ -42,10 +42,10 @@ export interface UserMessageData {
 export interface AIMessageData {
   allQuestionResults: QuestionResult[];
   finalAnnotatedOutput: string[];
-  files: Express.Multer.File[];
+  files?: Express.Multer.File[];
   actualModel: string;
   startTime: number;
-  markingSchemesMap: Map<string, any>;
+  markingSchemesMap?: Map<string, any>;
   globalQuestionText: string;
   resolvedAIMessageId: string;
   questionOnlyResponses?: string[];

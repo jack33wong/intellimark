@@ -18,11 +18,12 @@ export interface SessionContext {
 }
 
 export interface MarkingSessionContext extends SessionContext {
-  allQuestionResults: any[];
-  markingSchemesMap: Map<string, any>;
-  files: Express.Multer.File[];
-  model: string;
-  usageTokens: number;
+  allQuestionResults: import('../services/marking/MarkingExecutor.js').QuestionResult[];
+  markingSchemesMap?: Map<string, any>;
+  files?: Express.Multer.File[];
+  usageTokens?: number;
+  apiRequests?: number;                           // NEW: Total API request count
+  apiRequestBreakdown?: { [key: string]: number }; // NEW: Breakdown by phase
 }
 
 export interface QuestionSessionContext extends SessionContext {

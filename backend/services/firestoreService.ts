@@ -1235,7 +1235,10 @@ export class FirestoreService {
       gptCost: Math.round(gptCost * 1000000) / 1000000,
       mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
       modelUsed,
-      date: createdAtDate.toISOString().split('T')[0] // YYYY-MM-DD format
+      date: createdAtDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      // NEW: API request tracking
+      apiRequests: sessionStats.apiRequests || 0,
+      apiRequestBreakdown: sessionStats.apiRequestBreakdown || {}
     };
 
     // Use sessionId as document ID

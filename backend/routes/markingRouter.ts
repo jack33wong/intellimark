@@ -1650,6 +1650,12 @@ router.post('/process', optionalAuth, upload.array('files'), async (req: Request
         model: actualModel,
         usageTokens: totalLLMTokens
       };
+
+      // Add API request count to context
+      const apiRequestCounts = usageTracker.getRequestCounts();
+      markingContext.apiRequests = usageTracker.getTotalRequests();
+      markingContext.apiRequestBreakdown = apiRequestCounts;
+
       stepTimings['database_persistence'] = { start: Date.now() };
       persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
       if (stepTimings['database_persistence']) {
