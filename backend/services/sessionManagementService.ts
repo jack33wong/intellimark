@@ -404,6 +404,8 @@ export class SessionManagementService {
     if ((context as MarkingSessionContext).apiRequests !== undefined) {
       stats.apiRequests = (context as MarkingSessionContext).apiRequests;
       stats.apiRequestBreakdown = (context as MarkingSessionContext).apiRequestBreakdown;
+      console.log('[DEBUG] Added to stats.apiRequests:', stats.apiRequests);
+      console.log('[DEBUG] Added to stats.apiRequestBreakdown:', JSON.stringify(stats.apiRequestBreakdown, null, 2));
     }
 
     return stats;

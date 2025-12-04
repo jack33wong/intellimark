@@ -1238,6 +1238,12 @@ export class FirestoreService {
       apiRequestBreakdown: sessionStats.apiRequestBreakdown || {}
     };
 
+    console.log('[DEBUG] Firestore usageRecord being saved:', JSON.stringify({
+      sessionId: usageRecord.sessionId,
+      apiRequests: usageRecord.apiRequests,
+      apiRequestBreakdown: usageRecord.apiRequestBreakdown
+    }, null, 2));
+
     // Use sessionId as document ID
     await db.collection(COLLECTIONS.USAGE_RECORDS).doc(sessionId).set(usageRecord);
   }

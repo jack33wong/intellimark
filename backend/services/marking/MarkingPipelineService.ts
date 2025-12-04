@@ -116,9 +116,8 @@ export class MarkingPipelineService {
         // Send initial message
         progressCallback(createProgressData(0, 'Processing started', MULTI_IMAGE_STEPS));
 
-        // Initialize UsageTracker
-        const { UsageTracker } = await import('../../utils/UsageTracker.js');
-        const usageTracker = new UsageTracker();
+        // Import global UsageTracker singleton (DO NOT create new instance)
+        const { usageTracker } = await import('../../utils/UsageTracker.js');
 
         try {
             // Determine authentication status early
