@@ -506,15 +506,15 @@ export async function executeMarkingForQuestion(
           const position = positionMatch ? positionMatch[1] : 'center';
 
           // Find correct page index for this drawing
-          let drawingPageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0; // Default to first page
+          // NOTE: We intentionally use the first page as default since the AI will determine
+          // the actual page index by visually analyzing all provided images.
+          // This drawingPageIndex is only used for bbox estimation within stepsDataForMapping.
+          let drawingPageIndex = task.sourcePages && task.sourcePages.length > 0 ? task.sourcePages[0] : 0;
 
           if (task.classificationBlocks && task.classificationBlocks.length > 0) {
-            // Find the block that contains this drawing entry
             const matchingBlock = task.classificationBlocks.find(b => b.text && b.text.includes(entry));
             if (matchingBlock) {
               drawingPageIndex = matchingBlock.pageIndex;
-
-              // Refinement: Check if this entry belongs to a sub-question with a specific page index
               if (matchingBlock.subQuestions && Array.isArray(matchingBlock.subQuestions)) {
                 const matchingSubQ = matchingBlock.subQuestions.find((sq: any) =>
                   sq.studentWorkLines && sq.studentWorkLines.some((line: any) => (line.text || '').includes(entry))
@@ -525,6 +525,7 @@ export async function executeMarkingForQuestion(
               }
             }
           }
+
 
           // Get blocks on the target page for interpolation
           const blocksOnTargetPage = stepsDataForMapping.filter(s => s.pageIndex === drawingPageIndex);
@@ -669,34 +670,13 @@ export async function executeMarkingForQuestion(
       return true;
     });
 
-    // Add synthetic drawing blocks to rawOcrBlocks if classification has [DRAWING] entries
-    // This ensures the AI can find drawing blocks in the prompt (they have IDs like "drawing_Q22a_1")
-    if (task.classificationStudentWork && task.classificationStudentWork.includes('[DRAWING]')) {
-      // Find drawing blocks that were added to stepsDataForMapping
-      const drawingBlocks = stepsDataForMapping.filter(step =>
-        step.text.includes('[DRAWING]') || step.cleanedText.includes('[DRAWING]')
-      );
-
-      // Add each drawing block to rawOcrBlocks
-      drawingBlocks.forEach((drawingBlock) => {
-        // Use bbox center as coordinates if available (bbox is [x, y, width, height])
-        let coordinates: { x: number; y: number } | undefined = undefined;
-
-        if (drawingBlock.bbox && (drawingBlock.bbox[0] !== 0 || drawingBlock.bbox[1] !== 0)) {
-          coordinates = {
-            x: drawingBlock.bbox[0] + drawingBlock.bbox[2] / 2,
-            y: drawingBlock.bbox[1] + drawingBlock.bbox[3] / 2
-          };
-        }
-
-        rawOcrBlocks.push({
-          id: drawingBlock.globalBlockId || `drawing_${questionId}_${rawOcrBlocks.length}`,
-          text: drawingBlock.text,
-          pageIndex: drawingBlock.pageIndex,
-          coordinates: coordinates
-        });
-      });
-    }
+    // REMOVED: Drawing blocks are no longer added to rawOcrBlocks.
+    // Rationale: Pre-determining the page index for drawings is error-prone because
+    // we cannot know where the drawing actually is until the AI performs visual analysis.
+    // The AI will see [DRAWING] entries in STUDENT WORK (STRUCTURED) and will determine
+    // the correct pageIndex by analyzing all provided images.
+    //
+    // Drawing blocks remain in stepsDataForMapping for bbox estimation purposes.
 
     // Call Marking Instruction Service (Pass Raw OCR Blocks + Classification for Enhanced Marking)
 

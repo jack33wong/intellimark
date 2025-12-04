@@ -163,7 +163,7 @@ MARKING TASK:
 Question Number: ${questionNumber}
 ${questionText ? `Question: ${questionText}` : ''}
 
-${generalMarkingGuidance ? `${generalMarkingGuidance}` : ''}
+
 
 MARKING SCHEME:
 ${markingScheme}
@@ -178,15 +178,6 @@ ${rawOcrBlocks ? `
 RAW OCR BLOCKS (For Reference):
 ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
 ` : ''}
-
-INSTRUCTIONS:
-1. Analyze the student's work against the marking scheme.
-2. If the marking scheme is for a specific sub-question but the student work contains multiple parts, focus on the relevant part.
-3. Award marks based on the specific criteria in the scheme (M marks, A marks, B marks).
-4. Be precise with method marks - look for the specific steps required.
-5. If the student uses an alternative valid method, award full marks if the answer is correct and the method is sound.
-6. Provide a brief explanation for each mark awarded or lost.
-7. Return the result in the specified JSON format.
 `,
     },
 

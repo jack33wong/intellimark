@@ -208,6 +208,12 @@ export interface MarkingInputs {
 }
 
 export class MarkingInstructionService {
+  private static hasLoggedDebugPrompt = false;
+
+  public static resetDebugLog() {
+    MarkingInstructionService.hasLoggedDebugPrompt = false;
+  }
+
   /**
    * Format general marking guidance into structured Markdown
    */
@@ -435,27 +441,30 @@ export class MarkingInstructionService {
         // Return empty annotations instead of throwing - allows pipeline to continue
         return {
           annotations: [],
-          usage: { llmTokens: annotationData.usageTokens || 0 },
+          usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
           cleanedOcrText: cleanedOcrText,
-          studentScore: annotationData.studentScore || { score: 0, total: 0 }
+          studentScore: annotationData.studentScore || { totalMarks: 0, awardedMarks: 0, scoreText: '0/0' }
         };
       }
 
       // ========================= NEW: IMMUTABLE ANNOTATION PIPELINE =========================
       // Replace legacy mutable enrichment with type-safe immutable pipeline
 
-      const rawAiAnnotations: RawAIAnnotation[] = annotationData.annotations.map((anno: any) => ({
-        text: anno.text,
-        pageIndex: anno.pageIndex,
-        subQuestion: anno.subQuestion,
-        visual_position: anno.visual_position,
-        step_id: anno.step_id,
-        student_text: anno.student_text,
-        classification_text: anno.classification_text,
-        action: anno.action,
-        reasoning: anno.reasoning,
-        line_index: anno.line_index
-      }));
+      const rawAiAnnotations: RawAIAnnotation[] = annotationData.annotations.map((anno: any) => {
+        return {
+          text: anno.text,
+          pageIndex: anno.pageIndex,
+          subQuestion: anno.subQuestion,
+          visual_position: anno.visual_position,
+          step_id: anno.step_id,
+          student_text: anno.student_text,
+          classification_text: anno.classification_text,
+          action: anno.action,
+          reasoning: anno.reasoning,
+          line_index: anno.line_index,
+          ocr_match_status: anno.ocr_match_status // NEW: Preserve AI's match status
+        };
+      });
 
       const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
         rawAiAnnotations,
@@ -470,7 +479,7 @@ export class MarkingInstructionService {
 
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
         annotations: enrichedAnnotations, // ✅ Return enriched annotations with bbox coordinates
-        usage: { llmTokens: annotationData.usageTokens || 0 },
+        usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
         cleanedOcrText: cleanedOcrText,
         studentScore: annotationData.studentScore
       };
@@ -728,17 +737,29 @@ export class MarkingInstructionService {
     // Extract question number for logging (prefer input questionNumber which may include sub-question part)
     const questionNumber = inputQuestionNumber || normalizedScheme?.questionNumber || examInfo?.questionNumber || 'Unknown';
 
-    // DEBUG LOG: Show full prompt for Q2, Q6, and Q11
-    if (questionNumber === '2' || questionNumber === '6' || questionNumber === '11' || String(questionNumber).startsWith('2') || String(questionNumber).startsWith('6') || String(questionNumber).startsWith('11')) {
+    // Check if this is a drawing question AND has multiple pages
+    // We only want to debug full prompts for complex multi-page drawing scenarios
+    const isDrawingQuestion = ((classificationStudentWork && classificationStudentWork.includes('[DRAWING]')) ||
+      (formattedOcrText && formattedOcrText.includes('[DRAWING]'))) &&
+      (images && images.length >= 2);
+
+    // DEBUG LOG: Show full prompt for multi-page drawing questions OR one random question
+    // We use a small probability (5%) to pick a "candidate" to be the one logged,
+    // but once we log one, we set a flag to prevent others.
+    // Multi-page drawing questions are ALWAYS logged.
+    if (isDrawingQuestion || !MarkingInstructionService.hasLoggedDebugPrompt) {
+      if (!isDrawingQuestion) {
+        MarkingInstructionService.hasLoggedDebugPrompt = true;
+      }
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
       const RESET = '\x1b[0m';
       console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
-      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT] Q${questionNumber}${RESET}`);
+      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT FULL] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
 
       console.log(`${BOLD}SYSTEM PROMPT:${RESET}`);
-      console.log(systemPrompt.substring(0, 500) + '...\n');
+      console.log(systemPrompt + '\n');
 
       console.log(`${BOLD}USER PROMPT:${RESET}`);
       console.log(userPrompt);
@@ -841,6 +862,8 @@ export class MarkingInstructionService {
               if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
                 console.log(`Annotation ${idx + 1}:`);
                 console.log(`  - Text: ${anno.text}`);
+                console.log(`  - Step ID: ${anno.step_id || 'N/A'}`);
+                console.log(`  - OCR Match Status: ${anno.ocr_match_status || 'N/A'}`);
                 console.log(`  - Raw Page Index from AI: ${anno.pageIndex}`);
                 // Validate pageIndex from AI (prevent out-of-bounds errors)
                 let validatedPageIndex = anno.pageIndex;
@@ -1049,7 +1072,7 @@ export class MarkingInstructionService {
           const isDrawing = anno.step_id && anno.step_id.includes('drawing');
           const hasNoCode = !anno.text || anno.text.trim() === '';
           const isTick = anno.action === 'tick';
-
+    
           if (isDrawing && hasNoCode && isTick) {
             console.log(`[MARKING FIX] Filtering out phantom drawing annotation for Q${questionNumber} (no mark code):`, JSON.stringify(anno));
             return false;

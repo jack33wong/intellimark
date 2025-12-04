@@ -40,6 +40,7 @@ export interface RawAIAnnotation {
     action?: string;
     reasoning?: string;
     line_index?: number;
+    ocr_match_status?: string; // NEW: Preserve AI's match status
 }
 
 export interface AIContext {
@@ -217,7 +218,8 @@ export function createAnnotationFromAI(
         ocrSource: undefined,
         hasLineData: undefined,
         action: aiAnnotation.action,
-        reasoning: aiAnnotation.reasoning
+        reasoning: aiAnnotation.reasoning,
+        aiMatchStatus: aiAnnotation.ocr_match_status // NEW: Preserve AI's match status
     };
 }
 
@@ -238,6 +240,11 @@ export function mapToGlobalPage(
     sourcePages: readonly GlobalPageIndex[]
 ): ImmutableAnnotation {
     const relativeIdx = annotation.page.relative;
+
+    // DEBUG: Trace mapping
+    if (annotation.text && (annotation.text.includes('B2') || annotation.text.includes('M1'))) { // Filter for likely Q12/Q8
+        console.log(`[TRANSFORM DEBUG] mapToGlobalPage: relative=${relativeIdx}, sourcePages=${JSON.stringify(sourcePages)}`);
+    }
 
     // If no relative index, annotation is already global (from OCR or inferred)
     if (relativeIdx === undefined) {
@@ -263,6 +270,18 @@ export function mapToGlobalPage(
         }
 
         // console.warn(`[WARN] Relative page ${relativeIdx} out of bounds for sourcePages ${JSON.stringify(sourcePages)}`);
+
+        // HEURISTIC: If sourcePages has only 1 page, and AI returns 1 (1-based index), assume it means index 0.
+        if (sourcePages.length === 1 && (relativeIdx as number) === 1) {
+            return {
+                ...annotation,
+                page: {
+                    ...annotation.page,
+                    global: sourcePages[0]
+                }
+            };
+        }
+
         return annotation;
     }
 
@@ -296,6 +315,12 @@ export function enrichWithOCRBbox(
 ): ImmutableAnnotation {
     if (!annotation.stepId) {
         return annotation; // No stepId, can't match to OCR
+    }
+
+    // CRITICAL FIX: Skip OCR bbox enrichment for VISUAL annotations (drawings)
+    // Visual annotations should ONLY use aiPosition, never OCR block coordinates
+    if (annotation.aiMatchStatus === 'VISUAL') {
+        return annotation; // Preserve visual_position, don't override with OCR bbox
     }
 
     // Find matching OCR block
@@ -352,7 +377,21 @@ export function processAnnotations(
  * Used during migration period for backward compatibility
  */
 export function toLegacyFormat(annotation: ImmutableAnnotation): any {
-    return {
+    // Determine match status
+    // Priority: AI's status > Computed status
+    let matchStatus = 'MATCHED';
+
+    if (annotation.aiMatchStatus) {
+        // Trust AI's original status (MATCHED, VISUAL)
+        matchStatus = annotation.aiMatchStatus;
+    } else {
+        // Legacy fallback: Detect visual annotations by presence of aiPosition without bbox
+        if (annotation.aiPosition && !annotation.bbox) {
+            matchStatus = 'VISUAL'; // Drawing annotation
+        }
+    }
+
+    const result = {
         text: annotation.text,
         pageIndex: annotation.page.global as number,
         subQuestion: annotation.subQuestion,
@@ -363,10 +402,13 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         hasLineData: annotation.hasLineData,
         action: annotation.action,
         reasoning: annotation.reasoning,
+        ocr_match_status: matchStatus,
         // Preserve new fields for debugging
         _immutable: true,
         _page: annotation.page
     };
+
+    return result;
 }
 
 /**

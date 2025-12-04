@@ -398,7 +398,7 @@ export class SVGOverlayService {
       aiW_px = (aiPos.width / 100) * originalWidth;
     }
 
-    if ((ocrStatus === 'FALLBACK' || positionDecision === 'TRUST_AI') && aiPos) {
+    if ((ocrStatus === 'VISUAL' || positionDecision === 'TRUST_AI') && aiPos) {
       // Calculate original dimensions from actual dimensions and scale
       const originalWidth = actualWidth / scaleX;
       const originalHeight = actualHeight / scaleY;
@@ -462,11 +462,7 @@ export class SVGOverlayService {
     let borderColor = 'black';
     let strokeDash = 'none';
 
-    if (ocrStatus === 'FALLBACK') {
-      // Fallback - student work found in Classification but missing in OCR
-      borderColor = 'green';
-      strokeDash = '5,5';
-    } else if (hasLineData === false) {
+    if (hasLineData === false) {
       // No line data - coordinates were estimated from split blocks
       borderColor = 'orange';
       strokeDash = '5,5';

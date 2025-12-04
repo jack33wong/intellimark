@@ -4,6 +4,7 @@ import type { ModelType } from '../../types/index.js';
 import PdfProcessingService from '../pdf/PdfProcessingService.js';
 import sharp from 'sharp';
 import { ImageUtils } from '../../utils/ImageUtils.js';
+import { MarkingInstructionService } from './MarkingInstructionService.js';
 import { MarkingOutputService } from './MarkingOutputService.js';
 import { MarkingPersistenceService } from './MarkingPersistenceService.js';
 import { createProgressData } from '../../utils/sseUtils.js';
@@ -79,6 +80,9 @@ export class MarkingPipelineService {
         // --- Basic Setup ---
         // submissionId is passed in
         const startTime = Date.now();
+
+        // Reset debug log flag for new marking session
+        MarkingInstructionService.resetDebugLog();
 
         // Performance tracking variables
         const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
@@ -1149,7 +1153,7 @@ export class MarkingPipelineService {
                         // Note: Tokens will be auto-recorded when services accept tracker
                         // For now, tracking via legacy usageTokens field
                     }
-                    if (qr.mathpixCalls) totalMathpixCalls += qr.mathpixCalls;
+                    // if (qr.mathpixCalls) totalMathpixCalls += qr.mathpixCalls; // FIX: Prevent double counting (already counted in OCR phase)
                 });
             }
 

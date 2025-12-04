@@ -421,19 +421,19 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     }
 
     let matched = 0;
-    let fallback = 0;
     let split = 0;
+    let visual = 0;
 
     if (result.annotations) {
       result.annotations.forEach((a: any) => {
-        if (a.ocr_match_status === 'FALLBACK') fallback++;
+        if (a.ocr_match_status === 'VISUAL') visual++;
         else if (a.hasLineData === false) split++;
         else matched++;
       });
     }
 
     // Color M value Orange (\x1b[33m)
-    const statusStr = `M:\x1b[33m${matched}\x1b[0m F:${fallback} S:${split}`;
+    const statusStr = `M:\x1b[33m${matched}\x1b[0m V:${visual} S:${split}`;
 
     // Color coding
     const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
@@ -443,7 +443,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const annotationCount = (result.annotations || []).length; // Total count
     const annotationStr = annotationCodes.length > 0 ? `(${annotationCodes.join(',')})` : '';
     const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
-    const matchStats = `M:${matched} F:${fallback} S:${split}`;
+    const matchStats = `M:${matched} V:${visual} S:${split}`;
 
     const totalAnnCount = (result.annotations || []).length;
     const countStr = String(totalAnnCount);
@@ -460,7 +460,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
 
     // Calculate padding for status string (visible length)
-    const rawStatusStr = `M:${matched} F:${fallback} S:${split}`;
+    const rawStatusStr = `M:${matched} V:${visual} S:${split}`;
     const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
     const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
 

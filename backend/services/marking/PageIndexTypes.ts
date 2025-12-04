@@ -176,6 +176,12 @@ export interface ImmutableAnnotation {
      * Reasoning provided by AI for the mark
      */
     readonly reasoning?: string;
+
+    /**
+     * AI's original match status (MATCHED, FALLBACK, VISUAL)
+     * Preserved from AI response to guide rendering decisions
+     */
+    readonly aiMatchStatus?: string;
 }
 
 // ============================================================================
