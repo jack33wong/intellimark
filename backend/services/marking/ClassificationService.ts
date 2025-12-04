@@ -214,7 +214,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         // For now, I will inline the essential parts or call a helper if I create one.
         // Let's use the existing logic structure but applied to taskImages.
 
-        const accessToken = await ModelProvider.getGeminiAccessToken();
+        const accessToken = ModelProvider.getGeminiApiKey();
         const parts: any[] = [
           { text: taskSystemPrompt },
           { text: taskUserPrompt }
@@ -550,7 +550,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   ): Promise<ClassificationResult> {
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = await ModelProvider.getGeminiAccessToken();
+      const accessToken = ModelProvider.getGeminiApiKey();
       const response = await this.makeGeminiRequest(accessToken, imageData, systemPrompt, userPrompt, model);
 
       // Check if response is HTML (error page)
@@ -604,11 +604,10 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await fetch(`${endpoint}?key=${accessToken}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody),
         signal: controller.signal
@@ -667,11 +666,10 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     };
 
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${endpoint}?key=${accessToken}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
     });

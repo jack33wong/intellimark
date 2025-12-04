@@ -264,6 +264,9 @@ export class UsageTracker {
         const { inputTokens: totalInput, outputTokens: totalOutput } = this.getTotalInputOutput();
 
         let summary = `\n📊 [UsageTracker] Summary:\n`;
+        if (process.env.GEMINI_API_KEY) {
+            summary += `   🔑 Auth: AI Studio API Key (74-88% cheaper than Vertex AI!)\n`;
+        }
         summary += `   Model: ${model || 'unknown'}\n`;
         summary += `   API Requests: ${this.getTotalRequests()} total\n`;
         summary += `   Total Tokens: ${totalTokens.toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;

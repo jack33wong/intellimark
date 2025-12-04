@@ -24,7 +24,7 @@ export class ModelProvider {
     tracker?: any, // UsageTracker (optional for backward compatibility during migration)
     phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
-    const accessToken = await this.getGeminiAccessToken();
+    const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
@@ -62,7 +62,7 @@ export class ModelProvider {
     tracker?: any,
     phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
-    const accessToken = await this.getGeminiAccessToken();
+    const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
     const result = await response.json() as any;
     const content = this.extractGeminiTextContent(result);
@@ -123,11 +123,10 @@ export class ModelProvider {
       }
     });
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${endpoint}?key=${accessToken}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         contents: [{
@@ -156,44 +155,17 @@ export class ModelProvider {
     return response;
   }
 
-  private static cachedAccessToken: string | null = null;
-  private static tokenExpiry: number = 0;
-
-  static async getGeminiAccessToken(): Promise<string> {
-    // Check if cached token is valid (with 5-minute buffer)
-    if (this.cachedAccessToken && Date.now() < this.tokenExpiry - 5 * 60 * 1000) {
-      return this.cachedAccessToken;
+  /**
+   * Get Gemini API key for AI Studio
+   * Reads from GEMINI_API_KEY environment variable
+   */
+  static getGeminiApiKey(): string {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY not configured in environment');
     }
 
-    const { GoogleAuth } = await import('google-auth-library');
-
-    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS || './intellimark-6649e-firebase-adminsdk-fbsvc-584c7c6d85.json';
-
-    const auth = new GoogleAuth({
-      keyFile,
-      scopes: [
-        'https://www.googleapis.com/auth/cloud-platform',
-        'https://www.googleapis.com/auth/generative-language.retriever'
-      ]
-    });
-
-    const client = await auth.getClient();
-    const accessToken = await client.getAccessToken();
-
-    if (!accessToken.token) {
-      throw new Error('Failed to get access token from service account');
-    }
-
-    // Cache the token
-    this.cachedAccessToken = accessToken.token;
-    // Set expiry (default to 1 hour if not provided, minus buffer)
-    // accessToken.res.data.expires_in is in seconds
-    const expiresIn = (accessToken.res?.data as any)?.expires_in || 3600;
-    this.tokenExpiry = Date.now() + (expiresIn * 1000);
-
-    console.log(`[MODEL PROVIDER] 🔑 Refreshed Google Access Token (Expires in ${expiresIn}s)`);
-
-    return accessToken.token;
+    return apiKey;
   }
 
   private static async makeGeminiTextRequest(
@@ -208,11 +180,10 @@ export class ModelProvider {
     const config = getModelConfig(model);
     const endpoint = config.apiEndpoint;
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${endpoint}?key=${accessToken}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],

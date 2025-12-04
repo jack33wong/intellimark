@@ -75,16 +75,22 @@ export class MarkingOutputService {
             return null;
         };
 
+        // --- Determine First Page After Sorting (for total score placement) ---
         // Create array to determine which page will be first after sorting
-        const pagesForSorting = standardizedPages.map((page, index) => ({
-            page,
-            pageIndex: page.pageIndex,
-            pageNumber: extractPageNumber(page.originalFileName),
-            isMetadataPage: (page as any).isMetadataPage || false,
-            originalIndex: index
-        }));
+        const pagesForSorting = standardizedPages.map((page, index) => {
+            const classificationForPage = allClassificationResults.find(c => c.pageIndex === page.pageIndex);
+            const mapperCategory = classificationForPage?.result?.category;
 
-        // Sort to find first page (same logic as final sorting)
+            return {
+                page,
+                pageIndex: page.pageIndex,
+                pageNumber: extractPageNumber(page.originalFileName),
+                isMetadataPage: mapperCategory === 'metadata' || mapperCategory === 'frontPage',
+                originalIndex: index
+            };
+        });
+
+        // Sort to find first page (metadata first, then by page number, then by original index)
         pagesForSorting.sort((a, b) => {
             if (a.isMetadataPage && !b.isMetadataPage) return -1;
             if (!a.isMetadataPage && b.isMetadataPage) return 1;
@@ -173,7 +179,13 @@ export class MarkingOutputService {
         // Create array with page info and annotated output for sorting
         const pagesWithOutput = standardizedPages.map((page, index) => {
             const pageNum = extractPageNumber(page.originalFileName);
-            let isLikelyMetadata = (page as any).isMetadataPage || (pageNum === 1 && (!pageToQuestionNumbers.has(page.pageIndex)));
+
+            // Use mapper's classification category as source of truth
+            const classificationForPage = allClassificationResults.find(c => c.pageIndex === page.pageIndex);
+            const mapperCategory = classificationForPage?.result?.category;
+
+            // A page is metadata if the mapper classified it as such
+            let isLikelyMetadata = mapperCategory === 'metadata' || mapperCategory === 'frontPage';
 
             let lowestQ = (pageToQuestionNumbers.get(page.pageIndex) || []).sort((a, b) => a - b)[0] || Infinity;
 
@@ -196,10 +208,13 @@ export class MarkingOutputService {
                 }
             }
 
-            // FIX: If questions detected, override metadata flag (e.g. back cover with questions)
-            // EXCEPTION: If it's the FIRST page (index 0), trust the metadata classification (Front Page)
-            // This prevents the front page from being sorted to the end if it contains numbers (e.g. "Total Marks: 80")
-            if (lowestQ !== Infinity && page.pageIndex > 0) {
+            // CRITICAL FIX: Trust the mapper's classification
+            // If mapper said it's metadata, DON'T override even if we detect question numbers
+            // (Front pages often contain spurious numbers like "Total Marks: 80")
+            // Only override metadata status if:
+            // 1. Questions were detected, AND
+            // 2. Mapper did NOT classify as metadata/frontPage
+            if (lowestQ !== Infinity && mapperCategory !== 'metadata' && mapperCategory !== 'frontPage') {
                 isLikelyMetadata = false;
             }
 
@@ -239,30 +254,35 @@ export class MarkingOutputService {
         const pageOrderLog = pagesWithOutput.map((p, i) => {
             let qInfo = 'NoQ';
 
-            // Get all question labels for this page from classification map
-            const pageLabels: string[] = [];
-            if (classificationPageToSubQuestion.has(p.pageIndex)) {
-                const subQList = classificationPageToSubQuestion.get(p.pageIndex);
-                if (subQList) {
-                    // Collect all sub-question labels
-                    subQList.forEach((subQNum) => {
-                        pageLabels.push(`Q${subQNum}`);
-                    });
+            // If this is a metadata/front page, show that clearly
+            if (p.isMetadataPage) {
+                qInfo = 'FRONT PAGE';
+            } else {
+                // Get all question labels for this page from classification map
+                const pageLabels: string[] = [];
+                if (classificationPageToSubQuestion.has(p.pageIndex)) {
+                    const subQList = classificationPageToSubQuestion.get(p.pageIndex);
+                    if (subQList) {
+                        // Collect all sub-question labels
+                        subQList.forEach((subQNum) => {
+                            pageLabels.push(`Q${subQNum}`);
+                        });
+                    }
                 }
-            }
 
-            // Deduplicate labels
-            const uniqueLabels = [...new Set(pageLabels)];
+                // Deduplicate labels
+                const uniqueLabels = [...new Set(pageLabels)];
 
-            // If no labels found but we have a lowestQuestionNumber, try to format it
-            if (uniqueLabels.length === 0 && p.lowestQuestionNumber !== Infinity) {
-                qInfo = `Q${p.lowestQuestionNumber}`; // Fallback
-            } else if (uniqueLabels.length > 0) {
-                // Sort labels naturally (e.g. Q3a before Q3b, Q3 before Q4)
-                uniqueLabels.sort((a, b) => {
-                    return getQuestionSortValue(a) - getQuestionSortValue(b);
-                });
-                qInfo = uniqueLabels.join(', ');
+                // If no labels found but we have a lowestQuestionNumber, try to format it
+                if (uniqueLabels.length === 0 && p.lowestQuestionNumber !== Infinity) {
+                    qInfo = `Q${p.lowestQuestionNumber}`; // Fallback
+                } else if (uniqueLabels.length > 0) {
+                    // Sort labels naturally (e.g. Q3a before Q3b, Q3 before Q4)
+                    uniqueLabels.sort((a, b) => {
+                        return getQuestionSortValue(a) - getQuestionSortValue(b);
+                    });
+                    qInfo = uniqueLabels.join(', ');
+                }
             }
 
             return `[${i + 1}] Page ${p.pageNumber} (\x1b[37m${qInfo}\x1b[32m)`;

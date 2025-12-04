@@ -768,6 +768,10 @@ export async function executeMarkingForQuestion(
       task // New argument
     );
 
+
+
+
+
     // 7. Generate Final Output
     const questionResult: QuestionResult = {
       questionNumber: questionId,
@@ -898,6 +902,60 @@ const enrichAnnotationsWithPositions = (
       }
     }
 
+    // UNMATCHED: No OCR blocks available - extract position from classification
+    if ((anno as any).ocr_match_status === 'UNMATCHED') {
+      const lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
+
+      // Find the position using line_index
+      let classificationPosition: any = null;
+      if (task.classificationBlocks) {
+        for (const block of task.classificationBlocks) {
+          if (block.studentWorkLines && block.studentWorkLines.length > 0) {
+            // Use line_index to access the correct line
+            if (lineIndex >= 0 && lineIndex < block.studentWorkLines.length) {
+              const line = block.studentWorkLines[lineIndex];
+
+              if (line.position) {
+                classificationPosition = {
+                  ...line.position,
+                  pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
+                };
+                break; // Found it!
+              }
+            }
+          }
+        }
+      }
+
+      // If we found a classification position, use it
+      if (classificationPosition) {
+        return {
+          ...anno,
+          bbox: [
+            classificationPosition.x,
+            classificationPosition.y,
+            classificationPosition.width || 100,
+            classificationPosition.height || 20
+          ] as [number, number, number, number],
+          pageIndex: classificationPosition.pageIndex,
+          unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED' // Preserve status for red border
+        };
+      }
+
+      // Fallback: staggered positioning if no classification position found
+      const yOffset = 10 + (idx % 3) * 5; // Stagger vertically at top of page (10%, 15%, 20%)
+      return {
+        ...anno,
+        aiPosition: { x: 50, y: yOffset, width: 40, height: 5 },
+        bbox: [1, 1, 1, 1] as [number, number, number, number],
+        pageIndex: defaultPageIndex,
+        unified_step_id: `unmatched_${idx}`,
+        ocr_match_status: 'UNMATCHED',
+        hasLineData: false
+      };
+    }
+
     // Fallback logic for missing step ID (e.g., Q3b "No effect")
     // If we can't find the step, use the previous valid annotation's location
     // This keeps sub-questions together instead of dropping them or defaulting to Page 1
@@ -966,7 +1024,7 @@ const enrichAnnotationsWithPositions = (
           unified_step_id: finalStepId,
           aiPosition: aiPos // Ensure it's passed through
         };
-        console.log(`[MARKING DEBUG] Enriched annotation (fallback): Q${questionId}, Step: ${finalStepId}, Page: ${pageIndex}`);
+        // Debug log removed
         lastValidAnnotation = enriched; // Update last valid annotation
         return enriched;
       }
@@ -998,10 +1056,11 @@ const enrichAnnotationsWithPositions = (
     // If AI provided a pageIndex (relative to the images array), map it to absolute page index
     // BUT only use it if we don't have a trusted pageIndex from the original step (OCR).
     // OCR/Classification is the ground truth for where the text physically is.
-    // FIX: If annotation comes from immutable pipeline, use its global pageIndex
+    // FIX: If annotation comes from immutable pipeline, use its GLOBAL pageIndex
     // This overrides any OCR-based page index because the pipeline handles multi-page logic
+    // CRITICAL: Use page.global (which has already been mapped) not raw pageIndex (which is relative)
     if ((anno as any)._immutable) {
-      pageIndex = (anno as any).pageIndex;
+      pageIndex = ((anno as any)._page?.global ?? (anno as any).pageIndex) as number;
     }
 
     if (String(questionId) === '11') {

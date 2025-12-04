@@ -283,7 +283,7 @@ export class MarkingInstructionService {
   static async executeMarking(inputs: MarkingInputs): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
     const { imageData: _imageData, images, model, processedImage, questionDetection, questionText, questionNumber: inputQuestionNumber, sourceImageIndices, tracker } = inputs;
 
-    console.log('[DEBUG] executeMarking received sourceImageIndices:', sourceImageIndices);
+    // Debug log removed
 
 
     // OCR processing completed - all OCR cleanup now done in Stage 3 OCRPipeline
@@ -466,6 +466,7 @@ export class MarkingInstructionService {
         };
       });
 
+      // Use immutable annotation pipeline for page index safety
       const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
         rawAiAnnotations,
         sourceImageIndices || [],
@@ -473,6 +474,7 @@ export class MarkingInstructionService {
         studentWorkLines
       );
 
+      // Convert back to plain objects (now preserves studentText, lineIndex, classificationText)
       const enrichedAnnotations = MarkingInstructionService.convertToLegacyFormat(immutableAnnotations);
 
       // ======================================================================================
@@ -747,19 +749,21 @@ export class MarkingInstructionService {
     // We use a small probability (5%) to pick a "candidate" to be the one logged,
     // but once we log one, we set a flag to prevent others.
     // Multi-page drawing questions are ALWAYS logged.
-    if (isDrawingQuestion || !MarkingInstructionService.hasLoggedDebugPrompt) {
-      if (!isDrawingQuestion) {
+    // TEMPORARILY DISABLED: AI prompt logging (too verbose)
+    const shouldLogPrompt = false; // Disabled
+
+    if (shouldLogPrompt) {
+      if (!isDrawingQuestion && String(questionNumber) !== '1') {
         MarkingInstructionService.hasLoggedDebugPrompt = true;
       }
       const BLUE = '\x1b[34m';
       const BOLD = '\x1b[1m';
       const RESET = '\x1b[0m';
       console.log(`\n${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
-      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT FULL] Q${questionNumber}${RESET}`);
+      console.log(`${BOLD}${BLUE}[AI MARKING PROMPT] Q${questionNumber}${RESET}`);
       console.log(`${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}\n`);
 
-      console.log(`${BOLD}SYSTEM PROMPT:${RESET}`);
-      console.log(systemPrompt + '\n');
+      // System prompt logging removed as requested
 
       console.log(`${BOLD}USER PROMPT:${RESET}`);
       console.log(userPrompt);
@@ -819,8 +823,6 @@ export class MarkingInstructionService {
       // Edge case: Use vision API when imageData is present (Drawing Classification returned 0)
       let res;
       if (imageData && imageData.trim() !== '') {
-        console.log(`[MARKING INSTRUCTION] Using vision API for Q${inputQuestionNumber} (imageData provided)`);
-
         // Determine which model provider to use
         const isOpenAI = model && model.toString().startsWith('openai-');
 
@@ -841,68 +843,72 @@ export class MarkingInstructionService {
       }
 
       aiResponseString = res.content;
-
-      // DEBUG LOG: AI Response for Drawing Page Index (for any question with drawings)
-      try {
-        const parsedResponse = JSON.parse(aiResponseString);
-        if (parsedResponse.annotations) {
-          // Check if this question has any drawing annotations
-          // We only consider it a drawing if it has [DRAWING] tag OR if it has visual_position AND no text content (pure visual)
-          const hasDrawings = parsedResponse.annotations.some((anno: any) =>
-            (anno.student_text && anno.student_text.includes('[DRAWING]')) ||
-            (anno.visual_position && (!anno.student_text || anno.student_text.trim() === ''))
-          );
-
-          if (hasDrawings) {
-            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} - Drawing Page Analysis`);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            parsedResponse.annotations.forEach((anno: any, idx: number) => {
-              // Check if it's a drawing annotation or has visual position
-              if (anno.visual_position || (anno.student_text && anno.student_text.includes('[DRAWING]'))) {
-                console.log(`Annotation ${idx + 1}:`);
-                console.log(`  - Text: ${anno.text}`);
-                console.log(`  - Step ID: ${anno.step_id || 'N/A'}`);
-                console.log(`  - OCR Match Status: ${anno.ocr_match_status || 'N/A'}`);
-                console.log(`  - Raw Page Index from AI: ${anno.pageIndex}`);
-                // Validate pageIndex from AI (prevent out-of-bounds errors)
-                let validatedPageIndex = anno.pageIndex;
-                const maxPageIndex = (images && images.length > 0) ? images.length - 1 : 0;
-
-                if (validatedPageIndex !== undefined && (validatedPageIndex < 0 || validatedPageIndex > maxPageIndex)) {
-                  // Smart Correction: Check if AI used 1-based indexing (common hallucination)
-                  // If pageIndex is exactly 1 greater than max index (e.g. returns 2 for length 2), or if pageIndex-1 is valid
-                  if (validatedPageIndex > 0 && (validatedPageIndex - 1) <= maxPageIndex) {
-                    console.warn(`⚠️ [AI MARKING] Invalid pageIndex ${validatedPageIndex} returned by AI. Detected 1-based indexing. Auto-correcting to ${validatedPageIndex - 1}.`);
-                    validatedPageIndex = validatedPageIndex - 1;
-                    anno.pageIndex = validatedPageIndex;
-                  } else {
-                    console.warn(`⚠️ [AI MARKING] Invalid pageIndex ${validatedPageIndex} returned by AI (max: ${maxPageIndex}). Defaulting to 0.`);
-                    validatedPageIndex = 0;
-                    // Update the annotation object with the corrected value
-                    anno.pageIndex = 0;
-                  }
-                }
-
-                console.log(`  - Relative Image Index (0-based): ${validatedPageIndex} (Raw AI Value: ${anno.pageIndex})`);
-                console.log(`  - Reasoning: ${anno.reasoning}`);
-                console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
-              }
-            });
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-          }
-        }
-      } catch (e) {
-        // Ignore parsing errors here, main flow handles it
-      }
       const usageTokens = res.usageTokens;
-
 
       // Parse the AI response (Add robust parsing/cleanup)
       let jsonString = aiResponseString;
       const jsonMatch = aiResponseString.match(/```json\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
         jsonString = jsonMatch[1];
+      }
+
+      // DEBUG LOG: AI Response for questions with UNMATCHED annotations only
+      try {
+        const parsedResponse = JSON.parse(jsonString);
+
+        // Only log if there are UNMATCHED annotations
+        const hasUnmatched = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
+          anno.ocr_match_status === 'UNMATCHED'
+        );
+
+        if (hasUnmatched) {
+          console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (HAS UNMATCHED)`);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+          if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
+            parsedResponse.annotations.forEach((anno: any, idx: number) => {
+              console.log(`Annotation ${idx + 1}:`);
+              console.log(`  - Text: ${anno.text}`);
+              console.log(`  - Step ID: ${anno.step_id || 'N/A'}`);
+              console.log(`  - OCR Match Status: ${anno.ocr_match_status || 'N/A'}`);
+              console.log(`  - Student Text: ${(anno.student_text || '').substring(0, 50)}${anno.student_text && anno.student_text.length > 50 ? '...' : ''}`);
+              console.log(`  - Line Index: ${anno.line_index || 'N/A'}`);
+
+              // Validate pageIndex from AI (prevent out-of-bounds errors)
+              if (anno.pageIndex !== undefined) {
+                let validatedPageIndex = anno.pageIndex;
+                const maxPageIndex = (images && images.length > 0) ? images.length - 1 : 0;
+
+                if (validatedPageIndex < 0 || validatedPageIndex > maxPageIndex) {
+                  // Smart Correction: Check if AI used 1-based indexing (common hallucination)
+                  if (validatedPageIndex > 0 && (validatedPageIndex - 1) <= maxPageIndex) {
+                    console.warn(`  ⚠️ Invalid pageIndex ${validatedPageIndex} (1-based). Auto-correcting to ${validatedPageIndex - 1}.`);
+                    validatedPageIndex = validatedPageIndex - 1;
+                    anno.pageIndex = validatedPageIndex;
+                  } else {
+                    console.warn(`  ⚠️ Invalid pageIndex ${validatedPageIndex} (max: ${maxPageIndex}). Defaulting to 0.`);
+                    validatedPageIndex = 0;
+                    anno.pageIndex = 0;
+                  }
+                }
+                console.log(`  - Page Index: ${validatedPageIndex}`);
+              }
+
+              if (anno.visual_position) {
+                console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
+              }
+              if (anno.reasoning) {
+                console.log(`  - Reasoning: ${anno.reasoning.substring(0, 80)}${anno.reasoning.length > 80 ? '...' : ''}`);
+              }
+            });
+          } else {
+            console.log('  No annotations returned');
+          }
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        }
+      } catch (e) {
+        // Ignore parsing errors here, main flow handles it
       }
 
       // Sanitize JSON string to handle unescaped characters
@@ -1003,7 +1009,7 @@ export class MarkingInstructionService {
 
             const newText = processedCodes.join(' ');
             if (newText !== anno.text.trim()) {
-              console.log(`[MARKING FIX] Deduplicated '0' codes for Q${questionNumber}: "${anno.text}" -> "${newText}"`);
+              // Log removed
               anno.text = newText;
             }
           }
@@ -1041,7 +1047,7 @@ export class MarkingInstructionService {
             const combinedCodes = processedCodes.join(' ');
 
             if (existing.text !== combinedCodes) {
-              console.log(`[MARKING FIX] Merging annotation for Q${questionNumber} step ${anno.step_id}: "${existing.text}" + "${anno.text}" -> "${combinedCodes}"`);
+              // Log removed
               existing.text = combinedCodes;
             }
             // Append reasoning if different
@@ -1074,7 +1080,7 @@ export class MarkingInstructionService {
           const isTick = anno.action === 'tick';
     
           if (isDrawing && hasNoCode && isTick) {
-            console.log(`[MARKING FIX] Filtering out phantom drawing annotation for Q${questionNumber} (no mark code):`, JSON.stringify(anno));
+            // Log removed
             return false;
           }
           return true;

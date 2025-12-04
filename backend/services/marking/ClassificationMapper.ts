@@ -29,59 +29,9 @@ export class ClassificationMapper {
         // SINGLE BATCH: Process all pages at once to maintain full context (e.g. Q11 on Page 13 -> Q11 on Page 12)
         // Gemini 1.5 Flash has 1M context window, so 50 images is trivial.
         const processAllPages = async () => {
-            const systemPrompt = `You are a fast document scanner.
-            GOAL: List ONLY the question numbers visible on each page AND categorize each page.
-            
-            RULES:
-            1. **QUESTION NUMBER DETECTION (DO THIS FIRST):**
-               - Look for question numbers (e.g., "1", "2", "3a", "4(b)")
-               - **NESTED SUB-QUESTIONS (CRITICAL):**
-                 * Detect nested structures like "2(a)(i)", "2(a)(ii)", "3(b)(i)"
-                 * FLATTEN these to simple format: "2(a)(i)" → "2ai", "2(a)(ii)" → "2aii", "3(b)(i)" → "3bi"
-                 * Pattern: {number}({letter})({roman/number}) → {number}{letter}{roman/number}
-                 * Examples:
-                   - "2(a)(i)" → "2ai"
-                   - "2(a)(ii)" → "2aii"
-                   - "2(b)" → "2b"
-                   - "3(a)(i)" → "3ai"
-                   - "12(b)(ii)" → "12bii"
-                        2. **PAGE CATEGORIZATION (DECISION TREE):**
-               - **STEP 1:** Did you find ANY question numbers (even just "1")?
-                 * YES → Go to STEP 2
-                 * NO → Is this a pure metadata page (exam board, code, date, subject, NO questions)?
-                   - YES → category: "frontPage"
-                   - NO → category: "questionOnly" (default if unsure)
-               
-               - **STEP 2:** You found question numbers. Are there student answers/work?
-                 * YES (handwritten numbers, calculations, drawings) → category: "questionAnswer"
-                 * NO (only printed questions, no answers) → category: "questionOnly"
-            
-            3. **CRITICAL CLARIFICATIONS:**
-               - **"frontPage"** = Exam cover sheet with NO questions, just metadata (board, exam code, date)
-                 * Example: "Pearson Edexcel GCSE Mathematics 1MA1/3H June 2024" ONLY, no question 1, 2, 3...
-               - **"questionAnswer"** = Has questions AND student work
-                 * Example: Question "1 Find the HCF..." with student's handwritten work
-               - **"questionOnly"** = Has questions but NO student work (blank answer spaces)
-               - **NOT METADATA:** "Answer ALL questions", "Write your answers in the spaces provided" are INSTRUCTIONS, not metadata
-                 * If you see "Answer ALL questions" + Question numbers → category: "questionAnswer" or "questionOnly"
-               - **HEADERS/FOOTERS:** Ignore "Pearson Edexcel" headers or "DO NOT WRITE IN THIS AREA" watermarks - NOT frontPage
-               - **MATH CONTENT:** If you see equations, grids, or diagrams → NOT frontPage
-            
-            4. Return a JSON object with a "pages" array.
-            5. **CRITICAL:** The "pages" array MUST have exactly ${images.length} entries.
-            6. For each page, return: { "questions": ["1", "2ai", "2aii", "2b"], "category": "frontPage" | "questionAnswer" | "questionOnly" }
-            7. **CONTEXT AWARENESS:** If a page has a sub-question (e.g. "b") but no main number, look at other pages to infer the main number.
-            
-            OUTPUT FORMAT:
-            {
-              "pages": [
-                { "questions": [], "category": "frontPage" },
-                { "questions": ["1"], "category": "questionAnswer" }
-              ]
-            }`;
-
-            const userPrompt = `Scan these ${images.length} pages and list question numbers.`;
-            const accessToken = await ModelProvider.getGeminiAccessToken();
+            const systemPrompt = getPrompt('classification.mapper.system', images.length);
+            const userPrompt = getPrompt('classification.mapper.user', images.length);
+            const accessToken = ModelProvider.getGeminiApiKey();
 
             const parts: any[] = [
                 { text: systemPrompt },
@@ -107,11 +57,10 @@ export class ClassificationMapper {
             const { getModelConfig } = await import('../../config/aiModels.js');
             const config = getModelConfig(MAPPING_MODEL as any);
 
-            const response = await fetch(config.apiEndpoint, {
+            const response = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     contents: [{ parts }],

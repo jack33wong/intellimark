@@ -178,10 +178,28 @@ export interface ImmutableAnnotation {
     readonly reasoning?: string;
 
     /**
-     * AI's original match status (MATCHED, FALLBACK, VISUAL)
+     * AI's original match status (MATCHED, VISUAL, UNMATCHED)
      * Preserved from AI response to guide rendering decisions
      */
     readonly aiMatchStatus?: string;
+
+    /**
+     * Student text from AI response (for UNMATCHED classification matching)
+     * Used to find the corresponding line in classificationBlocks.studentWorkLines
+     */
+    readonly studentText?: string;
+
+    /**
+     * Classification text from AI response
+     * Alternative text source when studentText not available
+     */
+    readonly classificationText?: string;
+
+    /**
+     * Line index from AI response (1-based)
+     * Used to map to classificationBlocks.studentWorkLines array
+     */
+    readonly lineIndex?: number;
 }
 
 // ============================================================================

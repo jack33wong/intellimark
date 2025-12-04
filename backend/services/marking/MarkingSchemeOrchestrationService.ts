@@ -196,8 +196,20 @@ export class MarkingSchemeOrchestrationService {
         const subQuestionAnswersMap = new Map<string, string>(); // NEW: Store answers for sub-questions (e.g., "a" -> "53000")
         const subQuestionMaxScoresMap = new Map<string, number>(); // NEW: Store max scores from database
 
+        const processedSubLabels = new Set<string>(); // Track processed sub-questions to prevent duplicates
+
         for (const item of group) {
           const displayQNum = item.originalQuestionNumber || item.actualQuestionNumber;
+
+          // Extract just the sub-question label (e.g., "11a" -> "a") for deduplication
+          const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
+          const subLabel = match ? match[1].toLowerCase() : displayQNum.toLowerCase();
+
+          // Skip if we've already processed this sub-question (prevents duplicate marks)
+          if (processedSubLabels.has(subLabel)) {
+            continue;
+          }
+          processedSubLabels.add(subLabel);
 
           // Extract answer for this sub-question
           const subQAnswer = item.detectionResult.match?.answer ||
@@ -208,10 +220,6 @@ export class MarkingSchemeOrchestrationService {
           if (subQAnswer && typeof subQAnswer === 'string') {
             // Always capture answer, even if 'cao' (we'll handle 'cao' replacement in MarkingInstructionService)
             subQuestionAnswers.push(subQAnswer);
-
-            // Extract just the sub-question label (e.g., "11a" -> "a")
-            const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
-            const subLabel = match ? match[1] : displayQNum;
             subQuestionAnswersMap.set(subLabel, subQAnswer);
           } else {
             subQuestionAnswers.push('');
@@ -253,9 +261,6 @@ export class MarkingSchemeOrchestrationService {
           // NEW: Extract max score directly from database (simple number from sub_questions[].marks)
           const maxScore = item.detectionResult.match?.marks; // This is the max score (e.g., 1, 2)
           if (typeof maxScore === 'number') {
-            // Extract just the sub-question label (e.g., "11a" -> "a")
-            const match = displayQNum.match(/([a-z]+|[ivx]+)$/i);
-            const subLabel = match ? match[1] : displayQNum;
             subQuestionMaxScoresMap.set(subLabel, maxScore);
           }
 
@@ -328,9 +333,15 @@ export class MarkingSchemeOrchestrationService {
           combinedDatabaseQuestionTexts
         );
 
+        // FIX: Calculate total marks dynamically from the detected sub-questions
+        // This ensures the max score matches the parts we are actually marking,
+        // rather than the database's total which might include missing parts.
+        const calculatedTotalMarks = Array.from(subQuestionMaxScoresMap.values()).reduce((a, b) => a + b, 0);
+        const finalTotalMarks = calculatedTotalMarks > 0 ? calculatedTotalMarks : parentQuestionMarks;
+
         const schemeWithTotalMarks = {
           questionMarks: mergedQuestionMarks,
-          totalMarks: parentQuestionMarks,
+          totalMarks: finalTotalMarks,
           questionNumber: baseQuestionNumber,
           questionDetection: questionDetection,
           databaseQuestionText: fullDatabaseQuestionText,

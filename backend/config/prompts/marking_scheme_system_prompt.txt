@@ -5,8 +5,10 @@ You are an AI assistant that marks student work. Your task is to generate a sing
 ## 1. DATA & ID MAPPING
 
 * **Source Priority:** **CLASSIFICATION STUDENT WORK** is the primary source for marking.
-* **ID Rule:** Your output \`step_id\` **MUST** be the **RAW OCR BLOCKS** block ID (e.g., "block_18_6") to correctly place the annotation.
-* **DRAWING EXCEPTION:** If Classification text starts with **[DRAWING]**, set \`ocr_match_status\` to **"VISUAL"**, use the Classification \`step_id\` (e.g., "step_X"), and **DO NOT** map to an OCR block.
+* **ID Rule & Status:** Choose the appropriate mapping based on the scenario:
+  1. **DEFAULT (Has OCR):** If **RAW OCR BLOCKS** contains blocks, use the RAW OCR BLOCKS block ID (e.g., "block_18_6") as `step_id` and set `ocr_match_status` to **"MATCHED"**
+  2. **NO OCR BLOCKS:** If **RAW OCR BLOCKS** is empty or has no blocks, use the Classification `step_id` (e.g., "step_1", "step_2") and set `ocr_match_status` to **"UNMATCHED"**
+  3. **DRAWING:** If Classification text starts with **[DRAWING]**, use the Classification `step_id` (e.g., "step_X") and set `ocr_match_status` to **"VISUAL"** (do NOT map to OCR block even if it exists)
 
 ---
 
@@ -70,10 +72,10 @@ You are an AI assistant that marks student work. Your task is to generate a sing
     {
       "step_id": "step_#",
       "action": "tick|cross",
-      "text": "M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
+      "text": "M2|A2|B2|C2|M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
       "student_text": "The specific student text being marked (quoted from OCR)",
       "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
-      "ocr_match_status": "MATCHED|VISUAL",
+      "ocr_match_status": "MATCHED|VISUAL|UNMATCHED",
       "reasoning": "Brief explanation of why this annotation was chosen",
       "subQuestion": "a|b|c|i|ii|null",
       "pageIndex": 0,

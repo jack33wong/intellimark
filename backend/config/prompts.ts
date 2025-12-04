@@ -32,7 +32,12 @@ export const AI_PROMPTS = {
     - Do NOT simplify fractions (e.g., write "4+3+1" NOT "8").
     - Do NOT perform arithmetic.
     - Do NOT correct spelling or grammar.
-    - Capture every single character, number, and symbol verbatim.`
+    - Capture every single character, number, and symbol verbatim.`,
+
+    mapper: {
+      system: (imageCount: number) => loadPrompt('classification_mapper_system_prompt.txt').replace('{{IMAGE_COUNT}}', imageCount.toString()),
+      user: (imageCount: number) => `Scan these ${imageCount} pages and list question numbers.`
+    }
   },
 
 

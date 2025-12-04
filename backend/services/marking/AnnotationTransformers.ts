@@ -219,7 +219,10 @@ export function createAnnotationFromAI(
         hasLineData: undefined,
         action: aiAnnotation.action,
         reasoning: aiAnnotation.reasoning,
-        aiMatchStatus: aiAnnotation.ocr_match_status // NEW: Preserve AI's match status
+        aiMatchStatus: aiAnnotation.ocr_match_status, // Preserve AI's match status
+        studentText: aiAnnotation.student_text, // NEW: Preserve for UNMATCHED classification matching
+        classificationText: aiAnnotation.classification_text, // NEW: Preserve alternative text source
+        lineIndex: aiAnnotation.line_index // NEW: Preserve for classification line mapping
     };
 }
 
@@ -240,11 +243,6 @@ export function mapToGlobalPage(
     sourcePages: readonly GlobalPageIndex[]
 ): ImmutableAnnotation {
     const relativeIdx = annotation.page.relative;
-
-    // DEBUG: Trace mapping
-    if (annotation.text && (annotation.text.includes('B2') || annotation.text.includes('M1'))) { // Filter for likely Q12/Q8
-        console.log(`[TRANSFORM DEBUG] mapToGlobalPage: relative=${relativeIdx}, sourcePages=${JSON.stringify(sourcePages)}`);
-    }
 
     // If no relative index, annotation is already global (from OCR or inferred)
     if (relativeIdx === undefined) {
@@ -403,6 +401,10 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
         action: annotation.action,
         reasoning: annotation.reasoning,
         ocr_match_status: matchStatus,
+        // Preserve classification matching fields for UNMATCHED annotations
+        studentText: annotation.studentText,
+        classificationText: annotation.classificationText,
+        lineIndex: annotation.lineIndex,
         // Preserve new fields for debugging
         _immutable: true,
         _page: annotation.page

@@ -2,15 +2,9 @@
  * Pricing Configuration
  * Centralized pricing for all external API services (LLM and Mathpix)
  * 
- * IMPORTANT: We are currently using VERTEX AI ENTERPRISE pricing, NOT Google AI Studio pricing
+ * UPDATED Dec 4, 2024:  Now using GOOGLE AI STUDIO pricing (via API key)
  * 
- * Pricing Discovery (Dec 2024):
- * - Despite using generativelanguage.googleapis.com endpoint (AI Studio endpoint)
- * - Google Cloud project 'intellimark-6649e' is billed at Vertex AI Enterprise rates
- * - This is 8x more expensive for output tokens, 3.8x for input tokens
- * - However, we have £743.46 promotional credits valid until Sept 2026
- * 
- * Pricing Comparison:
+ * Pricing Comparison (Dec 2024):
  * ┌─────────────────┬──────────────┬────────────┬────────────┐
  * │ Token Type      │ AI Studio    │ Vertex AI  │ Difference │
  * ├─────────────────┼──────────────┼────────────┼────────────┤
@@ -19,23 +13,19 @@
  * │ Cached Input    │ $0.01/1M     │ $0.037/1M  │ 3.7x       │
  * └─────────────────┴──────────────┴────────────┴────────────┘
  * 
- * Migration Plan:
- * - Current (Until April 2025): Use Vertex AI with promotional credits (FREE)
- * - Future (Post-credits): Switch to Google AI Studio for 7.25x cost reduction
- * 
- * Updated: Dec 4, 2024
+ * Migration completed: Now using AI Studio API key authentication
+ * Cost savings: 74-88% reduction compared to Vertex AI Enterprise
  */
 
 /**
  * LLM Pricing (per 1M tokens)
  * Prices are in USD
  * 
- * NOTE: Gemini pricing reflects VERTEX AI ENTERPRISE rates (as of Dec 2024)
- * These rates are 8x higher than AI Studio but we're using promotional credits
+ * NOTE: Gemini pricing reflects AI STUDIO rates (as of Dec 2024)
  */
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
-  // VERTEX AI ENTERPRISE PRICING (Current - using promotional credits until Sept 2026)
-  'gemini-2.5-flash': { input: 0.288, output: 2.40 },  // Vertex AI rates (was 0.075/0.30 for AI Studio)
+  // AI STUDIO PRICING (Current)
+  'gemini-2.5-flash': { input: 0.075, output: 0.30 },  // AI Studio rates (was 0.288/2.40 for Vertex AI)
   'gemini-2.5-pro': { input: 1.25, output: 5.00 },
   'gemini-3-pro-preview': { input: 1.25, output: 5.00 },
 
@@ -43,8 +33,8 @@ export const LLM_PRICING: Record<string, { input: number; output: number }> = {
   'openai-gpt-4o': { input: 2.50, output: 10.00 },
   'openai-gpt-4o-mini': { input: 0.15, output: 0.60 },
 
-  // Fallback for 'auto' model (resolves to gemini-2.5-flash with Vertex AI pricing)
-  'auto': { input: 0.288, output: 2.40 },
+  // Fallback for 'auto' model (resolves to gemini-2.5-flash with AI Studio pricing)
+  'auto': { input: 0.075, output: 0.30 },
 };
 
 /**

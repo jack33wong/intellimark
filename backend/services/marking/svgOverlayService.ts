@@ -382,13 +382,26 @@ export class SVGOverlayService {
     }
     const text = annotation.text || '';
 
+    // FIX: UNMATCHED annotations have bbox in percentages (0-100)
+    // We must convert them to pixels relative to the original image dimensions
+    const ocrStatus = (annotation as any).ocr_match_status;
+    if (ocrStatus === 'UNMATCHED') {
+      const originalWidth = actualWidth / scaleX;
+      const originalHeight = actualHeight / scaleY;
+
+      // Convert 0-100 percentage to pixels
+      x = (x / 100) * originalWidth;
+      y = (y / 100) * originalHeight;
+      width = (width / 100) * originalWidth;
+      height = (height / 100) * originalHeight;
+    }
+
     // FAIL FAST: Log annotation data for debugging
 
     // Scale the bounding box coordinates
     // MODIFIED: For split blocks (orange) or fallback (green), use AI position if available
     // This replaces inaccurate/missing OCR coords with the AI-estimated position
     const hasLineData = (annotation as any).hasLineData;
-    const ocrStatus = (annotation as any).ocr_match_status;
     const aiPos = (annotation as any).aiPosition;
 
     // 1. Calculate AI Width (if available)
@@ -398,7 +411,7 @@ export class SVGOverlayService {
       aiW_px = (aiPos.width / 100) * originalWidth;
     }
 
-    if ((ocrStatus === 'VISUAL' || positionDecision === 'TRUST_AI') && aiPos) {
+    if ((ocrStatus === 'VISUAL' || positionDecision === 'TRUST_AI' || ocrStatus === 'UNMATCHED') && aiPos) {
       // Calculate original dimensions from actual dimensions and scale
       const originalWidth = actualWidth / scaleX;
       const originalHeight = actualHeight / scaleY;
@@ -456,17 +469,21 @@ export class SVGOverlayService {
 
     let svg = '';
 
-    // Add color-coded border based on line data presence
+    // Add color-coded border based on annotation status
+    // Red = UNMATCHED (no OCR data - using classification position)
     // Orange = No line data (Block Data - estimated coords from split blocks)
     // Black = Has line data (True Line Data - precise Mathpix coords)
     let borderColor = 'black';
     let strokeDash = 'none';
 
-    if (hasLineData === false) {
+    if (ocrStatus === 'UNMATCHED') {
+      // UNMATCHED - no OCR blocks available, using classification position
+      borderColor = 'red';
+      strokeDash = '5,5'; // Dashed border to indicate fallback
+    } else if (hasLineData === false) {
       // No line data - coordinates were estimated from split blocks
       borderColor = 'orange';
       strokeDash = '5,5';
-
     }
 
     const borderWidth = 2;

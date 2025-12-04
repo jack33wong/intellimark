@@ -224,13 +224,8 @@ export class MarkingPersistenceService {
 
             // Add API request count to context
             const apiRequestCounts = usageTracker.getRequestCounts();
-            console.log('[DEBUG] usageTracker.getRequestCounts():', JSON.stringify(apiRequestCounts, null, 2));
-
             markingContext.apiRequests = usageTracker.getTotalRequests();
             markingContext.apiRequestBreakdown = apiRequestCounts;
-
-            console.log('[DEBUG] markingContext.apiRequests:', markingContext.apiRequests);
-            console.log('[DEBUG] markingContext.apiRequestBreakdown:', JSON.stringify(markingContext.apiRequestBreakdown, null, 2));
 
             stepTimings['database_persistence'] = { start: Date.now() };
             persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);

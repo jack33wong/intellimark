@@ -716,36 +716,38 @@ export class MarkingPipelineService {
             const rotationPromises = allClassificationResults.map(async ({ pageIndex, result }, index) => {
                 const rotation = (result as any).rotation;
                 if (rotation && typeof rotation === 'number' && rotation !== 0) {
-                    console.log(`🔄 [ROTATION] Page ${index + 1} (${standardizedPages[index].originalFileName}) detected rotation: ${rotation}°`);
+                    const page = standardizedPages[pageIndex];
+                    if (!page) {
+                        console.warn(`⚠️ [ROTATION] Could not find page for index ${pageIndex}, skipping rotation.`);
+                        return;
+                    }
+                    console.log(`🔄 [ROTATION] Page ${pageIndex + 1} (${page.originalFileName}) detected rotation: ${rotation}°`);
                     try {
-                        const rotatedBuffer = await ImageUtils.rotateImage(standardizedPages[index].imageData, rotation);
-                        standardizedPages[index].imageData = `data:image/png;base64,${rotatedBuffer.toString('base64')}`;
+                        const rotatedBuffer = await ImageUtils.rotateImage(page.imageData, rotation);
+                        page.imageData = `data:image/png;base64,${rotatedBuffer.toString('base64')}`;
 
                         // Swap dimensions if 90 or 270
                         if (rotation === 90 || rotation === 270) {
-                            const temp = standardizedPages[index].width;
-                            standardizedPages[index].width = standardizedPages[index].height;
-                            standardizedPages[index].height = temp;
+                            const temp = page.width;
+                            page.width = page.height;
+                            page.height = temp;
                         }
-                        console.log(`✅ [ROTATION] Page ${index + 1} rotated successfully.`);
+                        console.log(`✅ [ROTATION] Page ${pageIndex + 1} rotated successfully.`);
                     } catch (rotError) {
-                        console.error(`❌ [ROTATION] Failed to rotate page ${index + 1}:`, rotError);
+                        console.error(`❌ [ROTATION] Failed to rotate page ${pageIndex + 1}:`, rotError);
                     }
                 }
             });
             await Promise.all(rotationPromises);
 
             // ========================= MARK METADATA PAGES =========================
-            // Mark front pages (metadata pages) that should skip OCR, question detection, and marking
-            // but still appear in final output
+            // Log metadata pages (they will skip OCR processing)
             allClassificationResults.forEach(({ pageIndex, result }, index) => {
-                // Metadata page: explicitly marked as metadata by AI classification
                 const isMetadataPage = result.category === "metadata";
 
                 if (isMetadataPage) {
-                    // Mark the page as metadata page
-                    (standardizedPages[index] as any).isMetadataPage = true;
-                    console.log(`📄 [METADATA] Page ${index + 1} (${standardizedPages[index].originalFileName}) marked as metadata page - will skip OCR/processing`);
+                    const fileName = standardizedPages[pageIndex]?.originalFileName || 'unknown';
+                    console.log(`📄 [METADATA] Page ${pageIndex + 1} (${fileName}) marked as metadata page - will skip OCR/processing`);
                 }
             });
 
@@ -807,8 +809,11 @@ export class MarkingPipelineService {
 
 
             const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
-                // Skip OCR for metadata pages (front pages with no questions/answers)
-                if ((page as any).isMetadataPage) {
+                // Skip OCR for metadata pages (to save Mathpix costs)
+                const classificationResult = allClassificationResults[index]?.result;
+                const isMetadataPage = classificationResult?.category === "metadata";
+
+                if (isMetadataPage) {
                     console.log(`⏭️ [METADATA] Skipping OCR for metadata page: ${page.originalFileName}`);
                     return {
                         pageIndex: page.pageIndex,

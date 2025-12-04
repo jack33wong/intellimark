@@ -253,7 +253,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
   console.log('\n📊 [ANNOTATION SUMMARY]');
   // Header line
   console.log('-----------------------------------------------------------------------------------------------------------------');
-  console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Fallback/Split             |`);
+  console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Visual/Unmatch/Split       |`);
   console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
 
   const sortedResults = allQuestionResults; // Now sorted in place
@@ -420,20 +420,41 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       });
     }
 
-    let matched = 0;
-    let split = 0;
-    let visual = 0;
+    let matched = 0;      // M: Has OCR bbox
+    let visual = 0;       // V: Drawing with AI position
+    let unmatched = 0;    // U: No OCR data (AI returned UNMATCHED)
+    let split = 0;        // S: Multi-page split
+    let fallback = 0;     // F: Error case (shouldn't happen)
 
     if (result.annotations) {
       result.annotations.forEach((a: any) => {
-        if (a.ocr_match_status === 'VISUAL') visual++;
-        else if (a.hasLineData === false) split++;
-        else matched++;
+        // Priority 1: Check AI's explicit status
+        if (a.ocr_match_status === 'VISUAL') {
+          visual++;
+        }
+        else if (a.ocr_match_status === 'UNMATCHED') {
+          unmatched++;
+        }
+        // Priority 2: Check computed states
+        else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) {
+          split++;
+        }
+        // Priority 3: Check bbox validity
+        else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) {
+          matched++;
+        }
+        // Fallback: Should be rare with new UNMATCHED status
+        else {
+          fallback++;
+        }
       });
     }
 
-    // Color M value Orange (\x1b[33m)
-    const statusStr = `M:\x1b[33m${matched}\x1b[0m V:${visual} S:${split}`;
+    // Color coding: M=Green, V=White, U=Yellow, S=White, F=Red
+    const unmatchedStr = ` \x1b[33mU:${unmatched}\x1b[0m`; // Always show U count in yellow
+    const fallbackStr = fallback > 0 ? ` \x1b[31mF:${fallback}\x1b[0m` : '';
+    // M is now Green (\x1b[32m) instead of Orange (\x1b[33m)
+    const statusStr = `M:\x1b[32m${matched}\x1b[0m V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
 
     // Color coding
     const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
@@ -443,7 +464,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const annotationCount = (result.annotations || []).length; // Total count
     const annotationStr = annotationCodes.length > 0 ? `(${annotationCodes.join(',')})` : '';
     const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
-    const matchStats = `M:${matched} V:${visual} S:${split}`;
+    const matchStats = `M:${matched} V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
 
     const totalAnnCount = (result.annotations || []).length;
     const countStr = String(totalAnnCount);
@@ -460,7 +481,8 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
 
     // Calculate padding for status string (visible length)
-    const rawStatusStr = `M:${matched} V:${visual} S:${split}`;
+    // Raw string length calculation (stripping ANSI codes for length check)
+    const rawStatusStr = `M:${matched} V:${visual} U:${unmatched} S:${split}${fallback > 0 ? ` F:${fallback}` : ''}`;
     const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
     const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
 

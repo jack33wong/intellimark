@@ -223,7 +223,7 @@ export class MarkingServiceLocator {
 
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const accessToken = await ModelProvider.getGeminiAccessToken();
+      const accessToken = ModelProvider.getGeminiApiKey();
       const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
       const content = this.extractGeminiChatContent(result);
@@ -323,11 +323,10 @@ export class MarkingServiceLocator {
     const { getModelInfo } = await import('../../config/aiModels.js');
     const modelInfo = getModelInfo(model);
 
-    const response = await fetch(modelInfo.config.apiEndpoint, {
+    const response = await fetch(`${modelInfo.config.apiEndpoint}?key=${accessToken}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         contents: [{
