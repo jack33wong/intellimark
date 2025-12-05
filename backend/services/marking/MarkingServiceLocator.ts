@@ -136,12 +136,12 @@ export class MarkingServiceLocator {
 
     const isQuestionOnly = category === "questionOnly";
     const systemPrompt = isQuestionOnly
-      ? getPrompt('questionOnly.system')
+      ? getPrompt('marking.questionOnly.system')
       : getPrompt('modelAnswer.system')
 
     const userPrompt = isQuestionOnly
       // If no marking scheme (detection failed), use default message which instructs AI to solve without scheme
-      ? getPrompt('questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
+      ? getPrompt('marking.questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
       : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
 
 

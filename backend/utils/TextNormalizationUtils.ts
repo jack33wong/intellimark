@@ -269,3 +269,54 @@ export function extractQuestionNumberFromFilename(fileName?: string): string[] |
   return matches ? matches.map(m => m.replace('q', '')) : null;
 }
 
+
+/**
+ * Compare two sub-question parts for sorting
+ * Handles numeric (1, 2), alphabetic (a, b), Roman (i, ii), and combined (2a, 2b) parts.
+ * 
+ * @param partA - First sub-question part
+ * @param partB - Second sub-question part
+ * @returns -Negative if A < B, Positive if A > B, 0 if equal
+ */
+export function compareSubQuestionParts(partA: string | null | undefined, partB: string | null | undefined): number {
+  // Helper to normalize part for comparison
+  const normalize = (p: string) => (p || '').toLowerCase().replace(/[()]/g, '').trim();
+  const pA = normalize(partA || '');
+  const pB = normalize(partB || '');
+
+  // If both are numbers, compare numerically
+  const numA = parseInt(pA);
+  const numB = parseInt(pB);
+  if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+
+  // Roman numeral map for common sub-parts
+  const roman = { 'i': 1, 'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6, 'vii': 7, 'viii': 8, 'ix': 9, 'x': 10 };
+  const rA = roman[pA as keyof typeof roman];
+  const rB = roman[pB as keyof typeof roman];
+
+  // Sort Roman numerals specially
+  if (rA && rB) return rA - rB;
+
+  // Handle nested cases like "ai", "aii", "b"
+  // Split into alpha and roman parts if possible
+  const splitNested = (s: string) => {
+    const match = s.match(/^([a-z]+)(i+|v+|x+)$/);
+    return match ? { alpha: match[1], roman: match[2] } : { alpha: s, roman: '' };
+  };
+
+  const splitA = splitNested(pA);
+  const splitB = splitNested(pB);
+
+  // Compare alpha part first
+  if (splitA.alpha !== splitB.alpha) return splitA.alpha.localeCompare(splitB.alpha);
+
+  // Compare roman part if alphas are equal
+  if (splitA.roman && splitB.roman) {
+    const valA = roman[splitA.roman as keyof typeof roman] || 0;
+    const valB = roman[splitB.roman as keyof typeof roman] || 0;
+    return valA - valB;
+  }
+
+  // Fallback to standard string compare
+  return pA.localeCompare(pB);
+}

@@ -674,15 +674,23 @@ export class MarkingPipelineService {
                 });
             });
 
-            // Create combined classification result with enhanced mixed content detection
-            const hasAnyStudentWork = allClassificationResults.some(result => result.result?.category === "questionAnswer");
-            const hasMixedContent = allClassificationResults.some(result => result.result?.category !== allClassificationResults[0]?.result?.category);
+            // Sort questions by question number (natural sort for numbers like 1, 2, 3, 10, 11)
+            allQuestions.sort((a, b) => {
+                const numA = parseInt(a.questionNumber) || 0;
+                const numB = parseInt(b.questionNumber) || 0;
+                return numA - numB;
+            });
 
-            // Determine combined category
-            const allCategories = allClassificationResults.map(r => r.result?.category).filter(Boolean);
+            // Create combined classification result with enhanced mixed content detection
+            // Use MAPPER category (source of truth) instead of classification category
+            const hasAnyStudentWork = allClassificationResults.some(r => r.mapperCategory === "questionAnswer");
+            const hasMixedContent = allClassificationResults.some(r => r.mapperCategory !== allClassificationResults[0]?.mapperCategory);
+
+            // Determine combined category using MAPPER results (not classification results)
+            const allMapperCategories = allClassificationResults.map(r => r.mapperCategory).filter(Boolean);
             const combinedCategory: "questionOnly" | "questionAnswer" | "metadata" =
-                allCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
-                    allCategories.every(cat => cat === "metadata") ? "metadata" :
+                allMapperCategories.every(cat => cat === "questionOnly") ? "questionOnly" :
+                    allMapperCategories.every(cat => cat === "metadata" || cat === "frontPage") ? "metadata" :
                         "questionAnswer";
 
             let classificationResult = {

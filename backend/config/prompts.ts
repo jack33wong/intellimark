@@ -23,35 +23,28 @@ export const AI_PROMPTS = {
   // ============================================================================
 
   classification: {
-    system: loadPrompt('classification_system_prompt.txt'),
+    mapper: {
+      system: (imageCount: number) => loadPrompt('classification_mapper_system_prompt.txt').replace('{{IMAGE_COUNT}}', imageCount.toString()),
+      user: (imageCount: number) => `Scan these ${imageCount} pages and list question numbers.`
+    },
 
-    user: `Please classify this uploaded image and extract ALL question text and student work.
+    // Light classification (OCR-only for questionOnly pages - NO POSITIONS)
+    light: {
+      system: loadPrompt('classification_light_system_prompt.txt'),
+      user: `Extract all printed question text from the image. Ignore handwriting.`
+    },
+
+    // Heavy classification (full extraction with POSITIONS for questionAnswer pages)
+    heavy: {
+      system: loadPrompt('classification_system_prompt.txt'),
+      user: `Please classify this uploaded image and extract ALL question text and student work.
     
     CRITICAL INSTRUCTION:
     Transcribe student work EXACTLY as written.
     - Do NOT simplify fractions (e.g., write "4+3+1" NOT "8").
     - Do NOT perform arithmetic.
     - Do NOT correct spelling or grammar.
-    - Capture every single character, number, and symbol verbatim.`,
-
-    mapper: {
-      system: (imageCount: number) => loadPrompt('classification_mapper_system_prompt.txt').replace('{{IMAGE_COUNT}}', imageCount.toString()),
-      user: (imageCount: number) => `Scan these ${imageCount} pages and list question numbers.`
-    }
-  },
-
-  // ============================================================================
-  // QUESTION ONLY MODE PROMPTS
-  // ============================================================================
-
-  questionOnly: {
-    system: loadPrompt('question_only_system_prompt.txt'),
-
-    user: (message: string, markingScheme: string) => {
-      const template = loadPrompt('question_only_user_prompt.txt');
-      return template
-        .replace('{{QUESTION_TEXT}}', message)
-        .replace('{{MARKING_SCHEME}}', markingScheme);
+    - Capture every single character, number, and symbol verbatim.`
     }
   },
 
@@ -62,7 +55,41 @@ export const AI_PROMPTS = {
 
   marking: {
     // Question-only mode (when student asks for help with a question)
-    // This was moved to a top-level `questionOnly` prompt.
+    questionOnly: {
+      system: `You are a mathematics examiner providing model answers based STRICTLY on the provided marking scheme.`,
+
+      user: (message: string, markingScheme: string) => `
+Question: ${message}
+
+Marking Scheme:
+${markingScheme}
+
+Provide a concise model answer following this strict format:
+
+1. **Question Text:**
+   - Wrap the ENTIRE question text (including labels like a), i)) in a span with class "model_question".
+   - Format: <span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
+
+2. **Model Answer:**
+   - Provide the answer immediately after the span (on a new line).
+   - Always include mark allocation [B1], [M1], [A1] at the end.
+   - For complex questions, show working steps.
+
+**Example Output:**
+<span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
+53000 [B1]
+
+<span class="model_question">b) Work out the value of x.</span>
+3x = 12
+x = 4 [A1]
+
+**CRITICAL INSTRUCTIONS:**
+- You MUST use the <span class="model_question">...</span> tags for the question text.
+- Do NOT add your own "Question" headers (the system handles that).
+- Use the exact question numbering/labeling from the input question text.
+`
+    },
+
 
 
     // Contextual response (for follow-up chat)
@@ -139,24 +166,26 @@ export const AI_PROMPTS = {
         rawOcrBlocks?: any[],
         questionText?: string | null
       ) => `
-      MARKING TASK:
-      Question Number: ${questionNumber}
-      ${questionText ? `Question: ${questionText}` : ''}
+MARKING TASK:
+Question Number: ${questionNumber}
+${questionText ? `Question: ${questionText}` : ''}
 
-      MARKING SCHEME:
-      ${markingScheme}
 
-      ⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
-      Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
 
-      STUDENT WORK (STRUCTURED):
-      ${classificationStudentWork}
+MARKING SCHEME:
+${markingScheme}
 
-      ${rawOcrBlocks ? `
-      RAW OCR BLOCKS (For Reference):
-      ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
-      ` : ''}
-      `,
+⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
+Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
+
+STUDENT WORK (STRUCTURED):
+${classificationStudentWork}
+
+${rawOcrBlocks ? `
+RAW OCR BLOCKS (For Reference):
+${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
+` : ''}
+`,
     },
 
     // ============================================================================

@@ -16,13 +16,13 @@ export class ClassificationMapper {
      */
     static async mapQuestionsToPages(
         images: Array<{ imageData: string; fileName?: string; pageIndex: number }>,
-        tracker?: any  // UsageTracker (optional)
+        tracker?: any,  // UsageTracker (optional)
+        model?: string  // User-selected model (defaults to gemini-2.5-flash for backward compatibility)
     ): Promise<PageMap[]> {
-        // HARDCODED MODEL: Always use Flash for mapping (cost optimization)
-        // Mapping doesn't need high accuracy - Flash is 16x cheaper than Pro
-        const MAPPING_MODEL = 'gemini-2.5-flash';
+        // Use user-selected model or default to Flash for cost optimization
+        const MAPPING_MODEL = model || 'gemini-2.5-flash';
 
-        console.log(`[MAPPER] Using HARDCODED model: ${MAPPING_MODEL} (cost optimization)`);
+        console.log(`[MAPPER] Using model: ${MAPPING_MODEL}`);
         console.log(`[MAPPER] Starting Map Pass for ${images.length} pages...`);
         const startTime = Date.now(); // Track performance
 

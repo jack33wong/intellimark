@@ -58,12 +58,12 @@ export class ClassificationService {
     model: ModelType = 'auto',
     debug: boolean = false,
     tracker?: any  // UsageTracker (optional)
-  ): Promise<Array<{ pageIndex: number; result: ClassificationResult }>> {
+  ): Promise<Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>> {
     if (images.length === 0) return [];
 
-    // Use Gemini prompt for classification
-    const systemPrompt = getPrompt('classification.system');
-    const userPrompt = getPrompt('classification.user');
+    // Use heavy classification by default (positions required for marking)
+    const systemPrompt = getPrompt('classification.heavy.system');
+    const userPrompt = getPrompt('classification.heavy.user');
 
     // Enhanced prompt for multi-image context
     const multiImageSystemPrompt = systemPrompt + `\n\nIMPORTANT FOR MULTI-PAGE DOCUMENTS (${images.length} pages):
@@ -119,6 +119,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
         tracker  // Pass tracker for auto-recording
       );
+
+      console.log('[CLASSIFICATION DEBUG] Mapper Response:', JSON.stringify(pageMaps, null, 2));
 
       // Group pages by Question Number (base number for efficiency)
       // Map<QuestionNumber, Set<PageIndex>>
@@ -187,14 +189,32 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         // Get images for this question
         const taskImages = pageIndices.map(idx => images[idx]);
 
+        // ROUTING: Select light vs heavy classification based on mapper category
+        const firstPageIndex = pageIndices[0];
+        const mapperCategory = pageMaps[firstPageIndex]?.category || 'questionAnswer';
+
+        // CRITICAL: questionAnswer and frontPage MUST use heavy (needs positions)
+        // ONLY questionOnly uses light (no student work, no positions needed)
+        const useLight = mapperCategory === 'questionOnly';
+
+        console.log(`🔍 [CLASSIFICATION ROUTING] Q${questionNumber} Page ${firstPageIndex}: Category=${mapperCategory} → Using ${useLight ? 'LIGHT' : 'HEAVY'} classification`);
+
+        // Select prompt based on category
+        const baseSystemPrompt = useLight
+          ? getPrompt('classification.light.system')
+          : getPrompt('classification.heavy.system');
+        const baseUserPrompt = useLight
+          ? getPrompt('classification.light.user')
+          : getPrompt('classification.heavy.user');
+
         // Construct prompt for this specific question
         // We tell the AI to focus ONLY on this question
-        let taskSystemPrompt = systemPrompt;
+        let taskSystemPrompt = baseSystemPrompt;
         let taskUserPrompt = '';
 
         if ((task as any).isFullPage) {
           // Full page extraction mode
-          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${pageIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to null.`;
+          taskSystemPrompt += `\n\nIMPORTANT: You are analyzing Page ${pageIndices[0] + 1}. This page contains question content but no specific question number was detected. Extract ALL text and student work from this page as a single question. Set questionNumber to "${pageIndices[0] + 1}" (representing the page number).`;
           taskUserPrompt = `Extract all text and student work from Page ${pageIndices[0] + 1}.`;
         } else {
           // Specific question extraction mode
@@ -267,8 +287,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
             results.push({
               pageIndex: globalPageIndex,
+              mapperCategory: pageMaps[globalPageIndex]?.category || 'questionAnswer',  // Add mapper category for mode detection
               result: {
-                category: pageResult.category || 'questionAnswer',
+                category: pageMaps[globalPageIndex]?.category || 'questionAnswer', // TRUST MAPPER: Use mapper category as source of truth
                 reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
                 questions: processedQuestions,
                 apiUsed,
@@ -317,6 +338,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           // Mark as front page or metadata based on Map Pass category
           results.push({
             pageIndex: i,
+            mapperCategory: category,  // Add mapper category for mode detection
             result: {
               category: (category === "frontPage" ? "metadata" : category) as any,
               reasoning: category === "frontPage"
@@ -387,7 +409,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
           console.warn('⚠️ [CLASSIFICATION] Gemini RECITATION-style error detected in multi-image call. Falling back to individual image classification.');
 
           // Fallback: Classify each image individually using classifyImage (which has its own fallback)
-          const results: Array<{ pageIndex: number; result: ClassificationResult }> = [];
+          const results: Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }> = [];
 
           for (let i = 0; i < images.length; i++) {
             const img = images[i];
@@ -396,6 +418,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               const result = await this.classifyImage(img.imageData, model, debug, img.fileName);
               results.push({
                 pageIndex: img.pageIndex ?? i,
+                mapperCategory: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer',  // Fallback path
                 result
               });
             } catch (individualError) {
@@ -404,11 +427,12 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               // Add a fallback result to maintain page count
               results.push({
                 pageIndex: img.pageIndex ?? i,
+                mapperCategory: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer',  // Error fallback
                 result: {
-                  category: 'questionAnswer',
+                  category: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer', // TRUST MAPPER
                   reasoning: 'Classification failed for this image',
                   questions: [],
-                  apiUsed: 'Failed',
+                  apiUsed: 'error',
                   usageTokens: 0
                 }
               });
@@ -428,8 +452,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
   }
 
   static async classifyImage(imageData: string, model: ModelType, debug: boolean = false, fileName?: string): Promise<ClassificationResult> {
-    const systemPrompt = getPrompt('classification.system');
-    const userPrompt = getPrompt('classification.user');
+    const systemPrompt = getPrompt('classification.heavy.system');
+    const userPrompt = getPrompt('classification.heavy.user');
 
     try {
       // Hardcoded test data: Only trigger for specific filenames
@@ -497,8 +521,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         try {
           console.warn('⚠️ [CLASSIFICATION] Gemini RECITATION-style error detected. Falling back to OpenAI.');
           // Reuse the same classification prompt for OpenAI fallback
-          const systemPrompt = getPrompt('classification.system');
-          const userPrompt = getPrompt('classification.user');
+          const systemPrompt = getPrompt('classification.heavy.system');
+          const userPrompt = getPrompt('classification.heavy.user');
           const { ModelProvider } = await import('../../utils/ModelProvider.js');
           // Pass the image as data URL so OpenAI vision-capable models can see it
           const openai = await ModelProvider.callOpenAIChat(systemPrompt, userPrompt, imageData);
