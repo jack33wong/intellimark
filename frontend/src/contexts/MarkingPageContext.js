@@ -16,9 +16,10 @@ const getSavedModel = () => {
     const savedModel = localStorage.getItem(STORAGE_KEYS.SELECTED_MODEL);
     // Validate that saved model is one of the allowed models
     const validModels = [
-      AI_MODELS.AUTO,
+      AI_MODELS.GEMINI_2_0_FLASH,
       AI_MODELS.GEMINI_2_5_FLASH,
       AI_MODELS.GEMINI_2_5_PRO,
+      AI_MODELS.GEMINI_3_PRO_PREVIEW,
       AI_MODELS.OPENAI_GPT_4O
     ];
     if (savedModel && validModels.includes(savedModel)) {
@@ -28,7 +29,7 @@ const getSavedModel = () => {
     // localStorage might not be available (e.g., private browsing)
     console.warn('Failed to read selected model from localStorage:', error);
   }
-  return AI_MODELS.AUTO; // Default fallback
+  return AI_MODELS.GEMINI_2_0_FLASH; // Default to Gemini 2.0 Flash (cheapest, latest)
 };
 
 const initialState = {
@@ -56,7 +57,7 @@ function markingPageReducer(state, action) {
 export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageModeChange }) => {
   const { user, getAuthToken } = useAuth();
   const { selectedFile, processImage, clearFile, handleFileSelect } = useImageUpload();
-  
+
   const {
     currentSession, chatMessages, sessionTitle, isFavorite, rating,
     addMessage, clearSession, loadSession, onFavoriteToggle, onRatingChange, onTitleUpdate
@@ -65,10 +66,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const apiProcessor = useApiProcessor();
   const { isProcessing, isAIThinking, error, ...progressProps } = apiProcessor;
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
-  
+
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
   const { pageMode, selectedModel, showInfoDropdown, hoveredRating } = state;
-  
+
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);
 
@@ -97,12 +98,12 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const onSendMessage = useCallback(async (text) => {
     const trimmedText = text.trim();
     if (!trimmedText) return;
-    
+
     // Prevent duplicate calls for the same text
     if (textRequestInProgress.current) {
       return;
     }
-    
+
     try {
       textRequestInProgress.current = true;
       startProcessing();
@@ -138,14 +139,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         type: 'text'
       });
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-      
+
       const textProgressData = {
         isComplete: false,
         currentStepDescription: 'AI is thinking...',
         allSteps: ['AI is thinking...'],
         currentStepIndex: 0,
       };
-      
+
       // Generate a predictable AI message ID that backend can use
       const aiMessageId = createAIMessageId(trimmedText);
       startAIThinking(textProgressData, aiMessageId);
@@ -156,23 +157,23 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       const response = await fetch('/api/messages/chat', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ 
-          message: trimmedText, 
-          model: selectedModel || 'auto', 
+        body: JSON.stringify({
+          message: trimmedText,
+          model: selectedModel || 'gemini-2.0-flash',
           sessionId: currentSession?.id || null,
           aiMessageId: aiMessageId // Pass the AI message ID to backend
         })
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      
+
       if (data.success) {
         // Use the new standardized completion handler
-        simpleSessionService.handleTextChatComplete(data, selectedModel || 'auto');
+        simpleSessionService.handleTextChatComplete(data, selectedModel || 'gemini-2.0-flash');
       } else {
         throw new Error(data.error || 'Failed to get AI response');
       }
-      
+
       // Reset the request flag on success
       textRequestInProgress.current = false;
     } catch (err) {
@@ -184,7 +185,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       textRequestInProgress.current = false;
     }
   }, [getAuthToken, currentSession, selectedModel, addMessage, startAIThinking, stopAIThinking, stopProcessing, handleError, startProcessing]);
-  
+
   useEffect(() => {
     if (selectedMarkingResult) {
       loadSession(selectedMarkingResult);
@@ -198,12 +199,12 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   useEffect(() => {
     if (selectedMarkingResult && currentSession?.id === selectedMarkingResult.id) {
       const timeoutId = setTimeout(() => {
-          const lastUserMessage = [...(currentSession.messages || [])].reverse().find(m => m.role === 'user');
-          if (lastUserMessage) {
-              scrollToMessage(lastUserMessage.id);
-          } else {
-              scrollToBottom();
-          }
+        const lastUserMessage = [...(currentSession.messages || [])].reverse().find(m => m.role === 'user');
+        if (lastUserMessage) {
+          scrollToMessage(lastUserMessage.id);
+        } else {
+          scrollToBottom();
+        }
       }, 150);
       return () => clearTimeout(timeoutId);
     }
@@ -227,14 +228,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
       // Generate unique AI message ID for image processing
       const imageAiMessageId = createAIMessageId(imageData);
-      
+
       const imageProgressData = {
         isComplete: false,
         currentStepDescription: 'Analyzing image...',
         allSteps: ['Analyzing image...'],
         currentStepIndex: 0,
       };
-      
+
       startAIThinking(imageProgressData, imageAiMessageId);
       await processImageAPI(imageData, selectedModel, 'marking', customText || undefined, imageAiMessageId, targetFile.name);
       clearFile();
@@ -251,12 +252,12 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     if (!files || files.length === 0) return;
     try {
       startProcessing();
-      
+
       // Check if any files are PDFs
       const hasPDFs = files.some(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
-      
+
       let optimisticMessage;
-      
+
       if (hasPDFs) {
         // For PDFs, create message with PDF context instead of image data
         // Convert each PDF file to base64 and create blob URL for immediate display
@@ -285,17 +286,17 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
             reader.readAsDataURL(file);
           });
         };
-        
+
         const pdfContexts = await Promise.all(files.map(async (file) => {
           const { blobUrl } = await convertPdfToBlobUrl(file);
-          
+
           return {
             originalFileName: file.name,
             fileSize: file.size, // Use bytes (number) to match imageDataArray structure
             url: blobUrl // Use simplified structure: url field only
           };
         }));
-        
+
         optimisticMessage = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -318,9 +319,9 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
             reader.readAsDataURL(file);
           });
         };
-        
+
         const imageDataArray = await Promise.all(files.map(processImage));
-        
+
         optimisticMessage = {
           id: `user-${Date.now()}`,
           role: 'user',
@@ -336,16 +337,16 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       }
       await addMessage(optimisticMessage);
       dispatch({ type: 'SET_PAGE_MODE', payload: 'chat' });
-      
+
       // Generate unique AI message ID for multi-image processing
       const multiImageAiMessageId = createAIMessageId(`multi-${Date.now()}`);
-      
+
       const multiImageProgressData = {
         isComplete: false,
         currentStepDescription: `Processing ${files.length} image(s)...`,
         allSteps: [
           'Input Validation',
-          'Standardization', 
+          'Standardization',
           'Preprocessing',
           'OCR & Classification',
           'Question Detection',
@@ -355,7 +356,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
         ],
         currentStepIndex: 0,
       };
-      
+
       startAIThinking(multiImageProgressData, multiImageAiMessageId);
       await processMultiImageAPI(files, selectedModel, 'marking', customText || undefined, multiImageAiMessageId);
     } catch (err) {
@@ -365,13 +366,13 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
       stopProcessing();
     }
   }, [selectedModel, addMessage, startProcessing, stopProcessing, startAIThinking, stopAIThinking, processMultiImageAPI, handleError]);
-  
+
   const getImageSrc = useCallback((message) => {
     if (message?.imageData) return message.imageData;
     if (message?.imageLink) return message.imageLink;
     return null;
   }, []);
-  
+
   const handleModelChange = useCallback((model) => {
     // Save to localStorage
     try {
@@ -385,7 +386,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   }, []);
   const onToggleInfoDropdown = useCallback(() => dispatch({ type: 'TOGGLE_INFO_DROPDOWN' }), []);
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
-  
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -393,9 +394,9 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage,
     chatContainerRef,
-    scrollToBottom, 
-    showScrollButton, 
-    hasNewResponse, 
+    scrollToBottom,
+    showScrollButton,
+    hasNewResponse,
     scrollToNewResponse,
     onFollowUpImage: handleImageAnalysis,
     onAnalyzeMultiImage: handleMultiImageAnalysis,

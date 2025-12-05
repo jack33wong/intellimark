@@ -390,7 +390,7 @@ export function calculateMessageProcessingStats(
   // Get real model name (reusing logic from sessionManagementService.ts)
   const getRealModelName = (modelType: string): string => {
     if (modelType === 'auto') {
-      return 'gemini-2.5-flash'; // Default model for auto
+      return 'gemini-2.0-flash'; // Default model for backward compatibility
     }
     return modelType;
   };
@@ -445,7 +445,7 @@ export function calculateSessionStats(
   // Get real model name (reusing logic from sessionManagementService.ts)
   const getRealModelName = (modelType: string): string => {
     if (modelType === 'auto') {
-      return 'gemini-2.5-flash'; // Default model for auto
+      return 'gemini-2.0-flash'; // Default model for backward compatibility
     }
     return modelType;
   };

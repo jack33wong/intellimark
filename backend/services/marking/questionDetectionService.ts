@@ -379,6 +379,7 @@ export class QuestionDetectionService {
             if (questionContent) {
               const similarity = this.calculateSimilarity(questionText, questionContent);
 
+
               if (similarity > bestScore) {
                 bestScore = similarity;
                 bestQuestionMatch = questionNumber;

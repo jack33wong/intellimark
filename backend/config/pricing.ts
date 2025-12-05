@@ -2,44 +2,52 @@
  * Pricing Configuration
  * Centralized pricing for all external API services (LLM and Mathpix)
  * 
- * UPDATED Dec 4, 2024:  Now using GOOGLE AI STUDIO pricing (via API key)
+ * UPDATED Dec 5, 2025: Using GOOGLE AI STUDIO pricing + Added Gemini 2.0 Flash
  * 
- * Pricing Comparison (Dec 2024):
+ * Pricing Sources:
+ * - Google AI Studio: https://ai.google.dev/pricing
+ * - OpenAI: https://openai.com/api/pricing/
+ * - Mathpix: https://mathpix.com/pricing
+ * 
+ * Pricing Comparison (Dec 2025):
  * ┌─────────────────┬──────────────┬────────────┬────────────┐
- * │ Token Type      │ AI Studio    │ Vertex AI  │ Difference │
+ * │ Model           │ Input/1M     │ Output/1M  │ Use Case   │
  * ├─────────────────┼──────────────┼────────────┼────────────┤
- * │ Output          │ $0.30/1M     │ $2.40/1M   │ 8.0x       │
- * │ Input           │ $0.075/1M    │ $0.288/1M  │ 3.8x       │
- * │ Cached Input    │ $0.01/1M     │ $0.037/1M  │ 3.7x       │
+ * │ Gemini 2.0 Flash│ $0.075       │ $0.30      │ Default    │
+ * │ Gemini 2.5 Flash│ $0.30        │ $2.50      │ Advanced   │
+ * │ Gemini 2.5 Pro  │ $1.25        │ $5.00      │ Premium    │
  * └─────────────────┴──────────────┴────────────┴────────────┘
  * 
  * Migration completed: Now using AI Studio API key authentication
- * Cost savings: 74-88% reduction compared to Vertex AI Enterprise
  */
 
 /**
  * LLM Pricing (per 1M tokens)
  * Prices are in USD
  * 
- * NOTE: Gemini pricing reflects AI STUDIO rates (as of Dec 2024)
+ * Sources:
+ * - Google AI Studio: https://ai.google.dev/pricing
+ * - OpenAI: https://openai.com/api/pricing/
+ * 
+ * NOTE: Gemini pricing reflects AI STUDIO rates (as of Dec 2025)
  */
 export const LLM_PRICING: Record<string, { input: number; output: number }> = {
-  // AI STUDIO PRICING (Current)
-  'gemini-2.5-flash': { input: 0.075, output: 0.30 },  // AI Studio rates (was 0.288/2.40 for Vertex AI)
+  // GOOGLE AI STUDIO PRICING (Current - Dec 2025)
+  'gemini-2.0-flash': { input: 0.075, output: 0.30 },      // Latest flash model (cheapest)
+  'gemini-2.5-flash': { input: 0.30, output: 2.50 },       // Previous flash model (CORRECTED pricing)
   'gemini-2.5-pro': { input: 1.25, output: 5.00 },
   'gemini-3-pro-preview': { input: 1.25, output: 5.00 },
 
   // OPENAI PRICING
   'openai-gpt-4o': { input: 2.50, output: 10.00 },
   'openai-gpt-4o-mini': { input: 0.15, output: 0.60 },
-
-  // Fallback for 'auto' model (resolves to gemini-2.5-flash with AI Studio pricing)
-  'auto': { input: 0.075, output: 0.30 },
 };
 
 /**
  * Mathpix Pricing (per call)
  * Prices are in USD
+ * 
+ * Source: https://mathpix.com/pricing
  */
 export const MATHPIX_PRICING = {
   image: 0.002,  // $0.002 per image call (0-1M images tier)
@@ -51,8 +59,8 @@ export const MATHPIX_PRICING = {
  * @returns Pricing object with input and output costs, or null if model not found
  */
 export function getLLMPricing(model: string): { input: number; output: number } | null {
-  // Normalize model name (handle 'auto' and resolve to default)
-  const normalizedModel = model === 'auto' ? 'gemini-2.5-flash' : model;
+  // Normalize model name (handle 'auto' and resolve to default for backward compatibility)
+  const normalizedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
 
   const pricing = LLM_PRICING[normalizedModel];
   return pricing || null;

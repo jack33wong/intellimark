@@ -47,9 +47,9 @@ export function setDebugMode(debugMode: boolean) {
  * Configuration for all supported AI models
  */
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
-  'auto': {
-    name: 'Auto (Recommended)',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+  'gemini-2.0-flash': {
+    name: 'Google Gemini 2.0 Flash',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
     maxTokens: 64000,
     temperature: 0.1
   },
@@ -60,7 +60,7 @@ export const AI_MODELS: Record<ModelType, AIModelConfig> = {
     temperature: 0.1
   },
   'gemini-2.5-pro': {
-    name: 'Google Gemini 2.5 Pro (Latest)',
+    name: 'Google Gemini 2.5 Pro',
     apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent',
     maxTokens: 64000,
     temperature: 0.1
@@ -123,7 +123,7 @@ export function getModelDisplayName(modelType: ModelType): string {
  * @returns The default model type
  */
 export function getDefaultModel(): ModelType {
-  return 'gemini-2.5-flash'; // Return the actual model that 'auto' maps to
+  return 'gemini-2.0-flash'; // Default model is now Gemini 2.0 Flash
 }
 
 /**
@@ -185,7 +185,7 @@ export function getModelPromptTemplate(modelType: ModelType): string {
   const basePrompt = `You are an expert mathematics tutor. Please analyze the provided homework or question and provide detailed feedback, step-by-step solutions, and constructive comments.`;
 
   switch (modelType) {
-    case 'auto':
+    case 'gemini-2.0-flash':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
     case 'gemini-2.5-flash':
       return `${basePrompt} Use clear, concise language and focus on mathematical accuracy with efficient processing.`;
@@ -207,7 +207,7 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   const config = getModelConfig(modelType);
 
   switch (modelType) {
-    case 'auto':
+    case 'gemini-2.0-flash':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

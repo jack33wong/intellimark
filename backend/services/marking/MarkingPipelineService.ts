@@ -19,7 +19,7 @@ import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 // Helper functions for real model and API names
 function getRealModelName(modelType: string): string {
     if (modelType === 'auto') {
-        return 'gemini-2.5-flash'; // Default model for auto
+        return 'gemini-2.0-flash'; // Default model for backward compatibility
     }
     return modelType; // Return the actual model name
 }
@@ -814,7 +814,7 @@ export class MarkingPipelineService {
                 const isMetadataPage = classificationResult?.category === "metadata";
 
                 if (isMetadataPage) {
-                    console.log(`⏭️ [METADATA] Skipping OCR for metadata page: ${page.originalFileName}`);
+
                     return {
                         pageIndex: page.pageIndex,
                         ocrData: {
@@ -837,7 +837,7 @@ export class MarkingPipelineService {
                 const isQuestionOnly = pageClassification?.category === "questionOnly";
 
                 if (isMixedContent && isQuestionOnly) {
-                    console.log(`⏭️ [MIXED CONTENT] Skipping OCR for question-only image: ${page.originalFileName}`);
+
                     return {
                         pageIndex: page.pageIndex,
                         ocrData: {
@@ -887,6 +887,7 @@ export class MarkingPipelineService {
             progressCallback(createProgressData(4, 'Detecting questions and fetching schemes...', MULTI_IMAGE_STEPS));
 
             // Extract questions from AI classification result
+            // Extract questions from AI classification result
             const individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
 
             // Call question detection for each individual question
@@ -906,6 +907,17 @@ export class MarkingPipelineService {
 
             // Log detection statistics
             MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
+
+            // Warn if suspected missing paper in database
+            const detectionRate = detectionStats.totalQuestions > 0
+                ? (detectionStats.detected / detectionStats.totalQuestions) * 100
+                : 0;
+            if (detectionRate < 20 && detectionStats.totalQuestions > 5) {
+                console.log(`\n⚠️  \x1b[33m[WARNING] Suspected Missing Exam Paper in Database\x1b[0m`);
+                console.log(`   Detection rate is very low (${detectionRate.toFixed(0)}%).`);
+                console.log(`   This usually indicates that the exam paper is not in the database.`);
+                console.log(`   Please verify that the correct paper is uploaded to Firestore.\n`);
+            }
 
             progressCallback(createProgressData(4, `Detected ${markingSchemesMap.size} question scheme(s).`, MULTI_IMAGE_STEPS));
             // ========================== END: ADD QUESTION DETECTION STAGE ==========================

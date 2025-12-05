@@ -5,13 +5,13 @@
 import React, { useCallback, useState } from 'react';
 import { Brain } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  isUserMessage, 
-  hasImage, 
+import {
+  isUserMessage,
+  hasImage,
   getMessageDisplayText,
   getMessageTimestamp
 } from '../../utils/messageUtils.js';
-import { 
+import {
   isAnnotatedImageMessage
 } from '../../utils/sessionUtils';
 import { useDropdownState } from '../../hooks/useDropdownState';
@@ -38,8 +38,8 @@ interface ChatMessageProps {
   selectedModel?: string; // Selected AI model for follow-up requests
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = React.memo(({ 
-  message, 
+const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
+  message,
   onImageLoad,
   getImageSrc,
   MarkdownMathRenderer,
@@ -48,32 +48,32 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   session,
   addMessage,
   startAIThinking,
-  selectedModel = 'auto'
+  selectedModel = 'gemini-2.0-flash' // Default to Gemini 2.0 Flash
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  
+
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
     if (message.role === 'user') {
       return true; // Always render user messages
     }
-    
+
     // For assistant messages, check if it's not a ghost message
     if (message.role !== 'assistant') {
       return false;
     }
-    
+
     // Keep assistant messages that have content or are processing
     const hasContent = message.content && message.content.trim() !== '';
     const isProcessing = message.isProcessing === true;
     const hasProgressData = !!message.progressData;
-    
+
     // Filter out empty assistant messages that are not processing
     return hasContent || isProcessing || hasProgressData;
   };
-  
+
   // Use custom hook for dropdown state management
   const { showProgressDetails, toggleDropdown } = useDropdownState(message.id);
 
@@ -103,12 +103,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   // Helper function to format file size
   const formatFileSize = useCallback((fileSize: number | string) => {
     if (!fileSize) return 'Unknown size';
-    
+
     // If it's already a formatted string (like "0.78 MB"), return it as-is
     if (typeof fileSize === 'string') {
       return fileSize;
     }
-    
+
     // If it's a number (bytes), format it
     if (fileSize < 1024) return `${fileSize} B`;
     if (fileSize < 1024 * 1024) return `${Math.round(fileSize / 1024)} KB`;
@@ -118,7 +118,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   const handleMultiImageClick = useCallback((index: number) => {
     const imageDataArray = getMultiImageData();
-    
+
     // Check if this is a PDF message - if so, open the PDF from pdfContexts instead of image
     if ((message as any)?.originalFileType === 'pdf' && (message as any)?.pdfContexts?.length > 0) {
       const pdfContexts = (message as any).pdfContexts;
@@ -128,14 +128,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         return;
       }
     }
-    
+
     if (imageDataArray.length > 0) {
       // Convert image data array to SessionImage format for ImageModeModal
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
         const originalFileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
         const fileName = `annotated-${originalFileName}`;
-        
+
         return {
           id: `multi-${message.id}-${idx}`,
           src: src,
@@ -144,7 +144,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           type: 'uploaded' as const
         };
       });
-      
+
       // Open ImageModeModal with the selected image
       setIsImageModeOpen(true);
       // Store the images and initial index for the modal
@@ -160,7 +160,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         handleMultiImageClick(0); // Click on first image
       } else {
         // For single image results, use the original logic
-      setIsImageModeOpen(true);
+        setIsImageModeOpen(true);
       }
     }
   }, [message, imageError, handleMultiImageClick]);
@@ -168,7 +168,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
       // Mode is now passed directly from SuggestedFollowUpButtons
-      
+
       // Add user message immediately (same as text mode chat)
       if (addMessage) {
         addMessage({
@@ -179,7 +179,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           type: 'chat'
         });
       }
-      
+
       // Start AI thinking state (same as text mode chat)
       const textProgressData = {
         isComplete: false,
@@ -187,35 +187,35 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         allSteps: ['AI is thinking...'],
         currentStepIndex: 0,
       };
-      
+
       // Generate a predictable AI message ID
       const aiMessageId = `ai-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+
       // Start AI thinking if function is available
       if (startAIThinking) {
         startAIThinking(textProgressData, aiMessageId);
       }
-      
+
       // Send to backend via chat endpoint with mode parameter and source message ID
       // For unauthenticated users, pass detectedQuestion directly since it's not in Firestore
       const requestBody: any = {
         message: suggestion,
         sessionId: session?.id,
-        model: selectedModel || 'auto', // Use selected model from props, fallback to 'auto'
+        model: selectedModel || 'gemini-2.0-flash', // Use selected model from props, fallback to gemini-2.0-flash
         mode: mode,
         sourceMessageId: message.id  // Pass the specific message ID that triggered this follow-up
       };
-      
+
       // Only send detectedQuestion for unauthenticated users (authenticated users have it in Firestore)
       if (!user && message.detectedQuestion) {
         requestBody.detectedQuestion = message.detectedQuestion;
       }
-      
+
       // Get auth token for authentication
       const authToken = await getAuthToken();
       const headers: { 'Content-Type': string; 'Authorization'?: string } = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      
+
       const response = await fetch('/api/messages/chat', {
         method: 'POST',
         headers,
@@ -223,11 +223,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         // Use the standardized completion handler (same as text mode chat)
         const { simpleSessionService } = await import('../../services/markingApiService.js');
-        simpleSessionService.handleTextChatComplete(result, selectedModel || 'auto');
+        simpleSessionService.handleTextChatComplete(result, selectedModel || 'gemini-2.0-flash');
       } else {
         console.error('❌ [FOLLOW-UP] Failed:', result.error);
         alert(`Action failed: ${result.error}`);
@@ -247,7 +247,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const isPdfMessage = () => {
     // Check for explicit PDF type first
     if ((message as any)?.originalFileType === 'pdf') {
-      
+
       // Log warning if PDF but no pdfContexts, but don't throw exception
       if (!(message as any)?.pdfContexts || !Array.isArray((message as any).pdfContexts) || (message as any).pdfContexts.length === 0) {
         console.warn(`PDF message detected but pdfContexts is empty! Message: ${message.id}, originalFileType: ${(message as any)?.originalFileType}, pdfContexts: ${JSON.stringify((message as any)?.pdfContexts)}`);
@@ -290,7 +290,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
 
 
-  
+
   // Check if any message in the session is currently processing
   const isAnyMessageProcessing = session?.messages?.some((msg: any) => msg.isProcessing === true) || false;
   const timestamp = getMessageTimestamp(message);
@@ -304,7 +304,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   }
 
   return (
-    <div 
+    <div
       className={`chat-message ${isUser ? 'user' : 'assistant'}`}
       data-message-id={message.id}
       aria-roledescription={isUser ? 'user-message' : 'assistant-message'}
@@ -329,13 +329,13 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     </div>
                     {message.progressData?.allSteps && message.progressData.allSteps.length > 0 && (
                       <div className="progress-toggle-container">
-                                <button
-                                  className="progress-toggle-button"
-                                  onClick={handleProgressToggle}
-                                  style={{ transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                                >
+                        <button
+                          className="progress-toggle-button"
+                          onClick={handleProgressToggle}
+                          style={{ transform: showProgressDetails ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                        >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M6 9l6 6 6-6"/>
+                            <path d="M6 9l6 6 6-6" />
                           </svg>
                         </button>
                       </div>
@@ -346,51 +346,51 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
           {!isUser && message.detectedQuestion && message.detectedQuestion.found && (
-            <ExamPaperTab 
-              detectedQuestion={message.detectedQuestion} 
+            <ExamPaperTab
+              detectedQuestion={message.detectedQuestion}
               studentScore={message.studentScore}
               grade={(message as any).grade || null}
             />
           )}
-          
-                  {showProgressDetails && message.progressData?.allSteps && (
-             <div className="progress-details-container">
-                <div className="step-list-container">
-                  {(message.progressData.allSteps || [])
-                    .slice(0, (message.progressData?.currentStepIndex || 0) + 1) // Only show steps up to current
-                    .map((step: any, index: number) => {
-                      const stepText = typeof step === 'string' ? step : (step.description || 'Step');
-                      const currentStepIndex = message.progressData?.currentStepIndex || 0;
-                      const isComplete = message.progressData?.isComplete || false;
-                      
-                      // If process is complete, all steps are completed
-                      // Otherwise, step N is completed when currentStepIndex > N (we've moved past step N)
-                      const isCompleted = isComplete || index < currentStepIndex;
-                      // Step N is current when currentStepIndex === N AND process is not complete
-                      const isCurrent = !isComplete && index === currentStepIndex;
-                      
-                      return (
-                        <div key={index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
-                          <div className="step-indicator">
-                            {isCompleted ? '✓' : isCurrent ? '●' : '○'}
-                          </div>
-                          <div className="step-description">
-                            {stepText}
-                          </div>
+
+          {showProgressDetails && message.progressData?.allSteps && (
+            <div className="progress-details-container">
+              <div className="step-list-container">
+                {(message.progressData.allSteps || [])
+                  .slice(0, (message.progressData?.currentStepIndex || 0) + 1) // Only show steps up to current
+                  .map((step: any, index: number) => {
+                    const stepText = typeof step === 'string' ? step : (step.description || 'Step');
+                    const currentStepIndex = message.progressData?.currentStepIndex || 0;
+                    const isComplete = message.progressData?.isComplete || false;
+
+                    // If process is complete, all steps are completed
+                    // Otherwise, step N is completed when currentStepIndex > N (we've moved past step N)
+                    const isCompleted = isComplete || index < currentStepIndex;
+                    // Step N is current when currentStepIndex === N AND process is not complete
+                    const isCurrent = !isComplete && index === currentStepIndex;
+
+                    return (
+                      <div key={index} className={`step-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}`}>
+                        <div className="step-indicator">
+                          {isCompleted ? '✓' : isCurrent ? '●' : '○'}
                         </div>
-                      );
+                        <div className="step-description">
+                          {stepText}
+                        </div>
+                      </div>
+                    );
                   })}
-                </div>
-             </div>
+              </div>
+            </div>
           )}
 
           {!isUser && content && ensureStringContent(content).trim() !== '' && (
-            <MarkdownMathRenderer 
+            <MarkdownMathRenderer
               content={ensureStringContent(content)}
               className="chat-message-renderer"
             />
           )}
-          
+
           {/* Display multi-image annotated results FIRST (before suggested follow-ups) - only if more than 1 image */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (() => {
             return (
@@ -403,11 +403,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               </div>
             );
           })()}
-          
+
           {/* Display single annotated image if only 1 image - BEFORE suggested follow-ups */}
           {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && !isPdfMessage() && (
             <div className="homework-annotated-image" onClick={handleImageClick}>
-              <img 
+              <img
                 src={getImageSourceFromArray((message as any).imageDataArray, 0) || ''}
                 alt="Marked homework"
                 className="annotated-image"
@@ -416,11 +416,11 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               />
             </div>
           )}
-          
+
           {!isUser && isAnnotatedImageMessage(message) && (hasImage(message) || (message as any)?.imageDataArray?.length > 0) && imageSrc && !imageError && (
             <>
               <div className="homework-annotated-image" onClick={handleImageClick}>
-                <img 
+                <img
                   src={imageSrc}
                   alt="Marked homework"
                   className="annotated-image"
@@ -430,23 +430,23 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               </div>
             </>
           )}
-          
+
           {/* Show suggested follow-ups for any assistant message with detected question and follow-ups */}
           {!isUser && message.detectedQuestion?.found && message.suggestedFollowUps && message.suggestedFollowUps.length > 0 && (
-                <SuggestedFollowUpButtons 
-                  suggestions={message.suggestedFollowUps as string[]}
-                  onSuggestionClick={handleFollowUpClick}
-                  disabled={isAnyMessageProcessing}
-                />
+            <SuggestedFollowUpButtons
+              suggestions={message.suggestedFollowUps as string[]}
+              onSuggestionClick={handleFollowUpClick}
+              disabled={isAnyMessageProcessing}
+            />
           )}
-          
+
           {isUser && content && (
             <div className="message-text">
               {ensureStringContent(content)}
             </div>
           )}
         </div>
-        
+
         {isUser && hasImage(message) && !imageError && (
           <div className="chat-message-image">
             {(() => {
@@ -466,10 +466,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                     const fileSize = formatFileSize(pdfContext.fileSize);
 
                     return (
-                      <div 
+                      <div
                         key={index}
-                        className="chat-message-file-card" 
-                        role="button" 
+                        className="chat-message-file-card"
+                        role="button"
                         aria-label="Uploaded PDF"
                         onClick={() => {
                           // Use simplified structure: pdfContext.url (consolidates originalPdfDataUrl and originalPdfLink)
@@ -495,17 +495,17 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                       </div>
                     );
                   })}
-                  
+
                   {/* Handle single PDF without pdfContexts */}
                   {(!(message as any).pdfContexts || (message as any).pdfContexts.length === 0) && (
-                    <div 
-                      className="chat-message-file-card" 
-                      role="button" 
+                    <div
+                      className="chat-message-file-card"
+                      role="button"
                       aria-label="Uploaded PDF"
                       onClick={() => {
                         const pdfLink = (message as any)?.originalPdfLink;
                         const pdfDataUrl = (message as any)?.originalPdfDataUrl;
-                        
+
                         if (pdfLink) {
                           window.open(pdfLink, '_blank');
                         } else if (pdfDataUrl) {
@@ -531,38 +531,38 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   )}
                 </div>
               ) : (
-                  <SimpleImageGallery
-                    images={getMultiImageData()}
-                    onImageClick={handleMultiImageClick}
-                    className="multi-image-gallery"
-                  />
+                <SimpleImageGallery
+                  images={getMultiImageData()}
+                  onImageClick={handleMultiImageClick}
+                  className="multi-image-gallery"
+                />
               )
             ) : (
               imageSrc && (
                 <div onClick={handleImageClick}>
-            <img 
-              src={imageSrc}
-              alt="Uploaded"
-              className="content-image"
-              onLoad={onImageLoad}
-              onError={handleImageError}
-            />
+                  <img
+                    src={imageSrc}
+                    alt="Uploaded"
+                    className="content-image"
+                    onLoad={onImageLoad}
+                    onError={handleImageError}
+                  />
                 </div>
               )
             )}
           </div>
         )}
-        
+
         {hasImage(message) && imageError && (
           isPdfMessage() ? (
-            <div 
-              className="chat-message-file-card" 
-              role="button" 
+            <div
+              className="chat-message-file-card"
+              role="button"
               aria-label="Uploaded PDF"
               onClick={() => {
                 const pdfLink = (message as any)?.originalPdfLink;
                 const pdfDataUrl = (message as any)?.originalPdfDataUrl;
-                
+
                 if (pdfLink) {
                   // For authenticated users - open the stored PDF link
                   window.open(pdfLink, '_blank');
@@ -589,22 +589,22 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               </div>
             </div>
           ) : (
-          <div className="chat-message-image-error">
-            <span>📷 Image failed to load</span>
+            <div className="chat-message-image-error">
+              <span>📷 Image failed to load</span>
             </div>
           )
         )}
 
         {/* Show a file card for PDFs even if no image is present */}
         {!hasImage(message) && isPdfMessage() && (
-          <div 
-            className="chat-message-file-card" 
-            role="button" 
+          <div
+            className="chat-message-file-card"
+            role="button"
             aria-label="Uploaded PDF"
             onClick={() => {
               const pdfLink = (message as any)?.originalPdfLink;
               const pdfDataUrl = (message as any)?.originalPdfDataUrl;
-              
+
               if (pdfLink) {
                 // For authenticated users - open the stored PDF link
                 window.open(pdfLink, '_blank');
@@ -631,7 +631,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           </div>
         )}
-        
+
         {timestamp && (isUser || !message.isProcessing) && (
           <div className="chat-message-timestamp">
             {timestamp}
@@ -645,7 +645,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           isOpen={isImageModeOpen}
           onClose={() => setIsImageModeOpen(false)}
           images={
-            isMultiImageMessage() 
+            isMultiImageMessage()
               ? (window as any).__currentSessionImages || []
               : session ? getSessionImages(session) : []
           }

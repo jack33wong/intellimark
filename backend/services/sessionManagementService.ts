@@ -414,7 +414,7 @@ export class SessionManagementService {
    */
   private static getRealModelName(modelType: string): string {
     if (modelType === 'auto') {
-      return 'gemini-2.5-flash'; // Default model for auto
+      return 'gemini-2.0-flash'; // Default model for backward compatibility
     }
     return modelType; // Return the actual model name
   }

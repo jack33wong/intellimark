@@ -287,7 +287,7 @@ export class ModelProvider {
     phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     // Resolve 'auto' to default model
-    const resolvedModel = model === 'auto' ? 'gemini-2.5-flash' : model;
+    const resolvedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
 
     // Detect provider from model name
     const isOpenAI = resolvedModel.startsWith('openai-');
