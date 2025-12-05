@@ -10,7 +10,8 @@
 .markdown-ol,
 ul {
   margin: 0.5em 0;
-  line-height: 1.6; /* This is good for text, but bad for KaTeX */
+  line-height: 1.6;
+  /* This is good for text, but bad for KaTeX */
 }
 
 /* --- Title & Indentation --- */
@@ -21,9 +22,9 @@ ul {
   font-size: 1.1em;
 }
 
-.markdown-math-renderer h3 ~ .markdown-p,
-.markdown-math-renderer h3 ~ .markdown-ol,
-.markdown-math-renderer h3 ~ ul {
+.markdown-math-renderer h3~.markdown-p,
+.markdown-math-renderer h3~.markdown-ol,
+.markdown-math-renderer h3~ul {
   margin-left: 1.5em;
 }
 
@@ -32,14 +33,6 @@ ul {
 .markdown-math-renderer ul {
   list-style-position: outside;
   padding-left: 1.5em;
-}
-
-/* --- Final Answer Section --- */
-.markdown-math-renderer > p:last-of-type {
-  border-top: 1px solid var(--text-tertiary, #cccccc);
-  padding: 1em 0px;
-  margin-top: 1em;
-  margin-left: 0;
 }
 
 /* --- Math and Variable Styling --- */
@@ -59,4 +52,24 @@ ul {
 /* --- Model Answer Question Text Styling --- */
 .markdown-math-renderer .model_question {
   color: var(--text-tertiary);
+  display: block;
+  margin-bottom: 0.5em;
+  font-weight: 500;
+}
+
+/* --- Question Header Text Styling --- */
+.markdown-math-renderer .question_header_text {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  color: var(--text-primary);
+  display: block;
+}
+
+/* --- Separator Styling --- */
+.markdown-math-renderer hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--border-color, #e5e5e5);
 }

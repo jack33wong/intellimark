@@ -6,7 +6,8 @@ import {
   ClipboardList,
   Search,
   Award,
-  BarChart
+  BarChart,
+  RefreshCw
 } from 'lucide-react';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import { useAuth } from '../../contexts/AuthContext';
@@ -202,13 +203,19 @@ function AdminPage() {
     return markingSchemeEntries.some(entry => {
       const schemeData = entry.data || entry;
       const examDetails = schemeData.examDetails || schemeData.exam || {};
-      const schemeBoard = examDetails.exam_board || examDetails.board || '';
-      const schemeSeries = examDetails.exam_series || examDetails.date || '';
-      const schemeCode = examDetails.exam_code || examDetails.code || examDetails.paperCode || '';
 
-      return schemeBoard === board &&
-        (schemeSeries === examSeries || schemeSeries === examSeries.replace(/^June\s+/i, '')) &&
-        schemeCode === code;
+      const schemeBoard = (examDetails.exam_board || examDetails.board || '').trim().toLowerCase();
+      const schemeSeries = (examDetails.exam_series || examDetails.date || '').trim().toLowerCase();
+      const schemeCode = (examDetails.exam_code || examDetails.code || examDetails.paperCode || '').trim().toLowerCase();
+
+      const targetBoard = board.trim().toLowerCase();
+      const targetSeries = examSeries.trim().toLowerCase();
+      const targetCode = code.trim().toLowerCase();
+
+      const seriesMatch = schemeSeries === targetSeries ||
+        schemeSeries === targetSeries.replace(/^june\s+/i, '');
+
+      return schemeBoard === targetBoard && seriesMatch && schemeCode === targetCode;
     });
   }, [markingSchemeEntries]);
 
@@ -570,7 +577,23 @@ function AdminPage() {
 
 
 
-  // Handle JSON form input changes
+  // Refresh status checks
+  const refreshStatusChecks = useCallback(async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        loadMarkingSchemeEntries(),
+        loadGradeBoundaryEntries()
+      ]);
+      setError('✅ Status checks updated successfully');
+      setTimeout(() => setError(null), 3000);
+    } catch (err) {
+      setError('Failed to refresh status checks');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadMarkingSchemeEntries, loadGradeBoundaryEntries]);
   const handleJsonInputChange = useCallback((field, value) => {
     setJsonForm(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -851,15 +874,27 @@ function AdminPage() {
             <div className="admin-data-section">
               <div className="admin-data-section__header">
                 <h3 className="admin-data-section__title">Full Exam Papers ({jsonEntries.length})</h3>
-                {jsonEntries.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    className="admin-btn admin-btn--danger"
-                    onClick={deleteAllJsonEntries}
-                    disabled={isDeletingAll}
+                    className="admin-btn admin-btn--secondary"
+                    onClick={refreshStatusChecks}
+                    disabled={loading}
+                    title="Refresh status checks"
+                    style={{ marginBottom: 0 }}
                   >
-                    {isDeletingAll ? 'Deleting...' : 'Delete All'}
+                    <RefreshCw size={16} className={loading ? 'spin-animation' : ''} />
+                    Refresh Status
                   </button>
-                )}
+                  {jsonEntries.length > 0 && (
+                    <button
+                      className="admin-btn admin-btn--danger"
+                      onClick={deleteAllJsonEntries}
+                      disabled={isDeletingAll}
+                    >
+                      {isDeletingAll ? 'Deleting...' : 'Delete All'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {jsonEntries.length === 0 ? (

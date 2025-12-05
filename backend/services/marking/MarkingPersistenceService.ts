@@ -135,22 +135,57 @@ export class MarkingPersistenceService {
                 );
 
                 if (questionOnlyImages.length > 0) {
-                    questionOnlyResponses = await Promise.all(
+                    const tempResponses = await Promise.all(
                         questionOnlyImages.map(async (page, index) => {
                             const originalIndex = standardizedPages.indexOf(page);
-                            const questionText = classificationResult.questions[originalIndex]?.text || '';
+                            const question = classificationResult.questions[originalIndex];
+                            const questionText = question?.text || '';
+                            // Use detected question number or Q{index+1}, NEVER fallback to text for the number
+                            const questionNumber = question?.questionNumber || `Q${index + 1}`;
+
+                            // Lookup marking scheme from markingSchemesMap
+                            // Try exact match first, then potential variations (e.g. without 'Q' prefix)
+                            let markingScheme = '';
+                            if (markingSchemesMap) {
+                                let entry = markingSchemesMap.get(questionNumber);
+                                if (!entry && questionNumber.startsWith('Q')) {
+                                    entry = markingSchemesMap.get(questionNumber.substring(1));
+                                }
+                                if (entry && entry.questionDetection) {
+                                    markingScheme = entry.questionDetection.markingScheme || '';
+                                }
+                            }
 
                             const response = await MarkingServiceLocator.generateChatResponse(
                                 page.imageData,
                                 questionText,
                                 actualModel as ModelType,
                                 "questionOnly", // category
-                                false // debug
+                                false, // debug
+                                undefined,
+                                false,
+                                undefined,
+                                markingScheme // Pass marking scheme
                             );
 
-                            return `## Question Analysis (${page.originalFileName})\n\n${response.response}`;
+                            // Store object temporarily for sorting
+                            return {
+                                questionNumber: questionNumber,
+                                // User requested no H2, use P with specific class
+                                formattedResponse: `<p class="question_header_text">Question ${questionNumber.replace(/^Q/, '')}</p>\n\n${response.response}`
+                            };
                         })
                     );
+
+                    // Sort responses by question number
+                    const sortedResponses = tempResponses.sort((a, b) => {
+                        const numA = parseInt(a.questionNumber.replace(/\D/g, '') || '0');
+                        const numB = parseInt(b.questionNumber.replace(/\D/g, '') || '0');
+                        return numA - numB;
+                    });
+
+                    // Extract just the formatted strings
+                    questionOnlyResponses = sortedResponses.map(r => r.formattedResponse);
 
                     console.log(`✅ [MIXED CONTENT] Generated ${questionOnlyResponses.length} question-only responses`);
                 }

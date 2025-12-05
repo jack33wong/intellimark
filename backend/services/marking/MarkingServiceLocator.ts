@@ -110,8 +110,9 @@ export class MarkingServiceLocator {
     debug: boolean = false,
     onProgress?: (data: any) => void,
     useOcrText: boolean = false,
-    tracker?: any  // UsageTracker (optional)
-  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+    tracker?: any,  // UsageTracker (optional)
+    markingScheme?: string  // NEW: Marking scheme for model answer generation
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
 
     // Debug mode: Return mock response
     if (debug) {
@@ -139,7 +140,8 @@ export class MarkingServiceLocator {
       : getPrompt('modelAnswer.system')
 
     const userPrompt = isQuestionOnly
-      ? getPrompt('marking.questionOnly.user', message)
+      // If no marking scheme (detection failed), use default message which instructs AI to solve without scheme
+      ? getPrompt('marking.questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
       : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
 
 
@@ -201,7 +203,7 @@ export class MarkingServiceLocator {
     userPrompt: string,
     model: ModelType = 'auto',
     tracker?: any
-  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     try {
       // Check if model is OpenAI - route to OpenAI API instead
       const isOpenAI = model.toString().startsWith('openai-');
@@ -224,8 +226,21 @@ export class MarkingServiceLocator {
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       const accessToken = ModelProvider.getGeminiApiKey();
+
+      // [DEBUG] Log raw input prompt for Question Mode validation
+      console.log(`\n🔍 [QUESTION MODE PROMPT]`);
+      console.log(`SYSTEM: ${systemPrompt}`);
+      console.log(`USER: ${userPrompt}`);
+      console.log('----------------------------------------\n');
+
       const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
       const result = await response.json() as any;
+
+      // [DEBUG] Log raw JSON response for Question Mode validation
+      console.log(`\n🔍 [QUESTION MODE RAW RESPONSE]`);
+      console.log(JSON.stringify(result, null, 2));
+      console.log('----------------------------------------\n');
+
       const content = this.extractGeminiChatContent(result);
 
       const { getModelInfo } = await import('../../config/aiModels.js');
@@ -236,7 +251,9 @@ export class MarkingServiceLocator {
         response: content,
         apiUsed: apiUsed,
         confidence: 0.85, // Default confidence for AI responses (question mode)
-        usageTokens: (result.usageMetadata?.totalTokenCount as number) || 0
+        usageTokens: (result.usageMetadata?.totalTokenCount as number) || 0,
+        inputTokens: (result.usageMetadata?.promptTokenCount as number) || 0,
+        outputTokens: (result.usageMetadata?.candidatesTokenCount as number) || 0
       };
     } catch (error) {
       console.error('❌ Gemini chat response failed:', error);

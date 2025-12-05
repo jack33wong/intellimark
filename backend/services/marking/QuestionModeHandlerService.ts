@@ -6,8 +6,9 @@
 import type { Response } from 'express';
 import type { ModelType } from '../../types/index.js';
 import type { StandardizedPage } from '../../types/markingRouter.js';
-import { questionDetectionService } from './questionDetectionService.js';
-import { extractQuestionsFromClassification } from './MarkingHelpers.js';
+
+import { extractQuestionsFromClassification, convertMarkingSchemeToPlainText } from './MarkingHelpers.js';
+import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import { createAIMessage } from '../../utils/messageUtils.js';
 import { calculateMessageProcessingStats } from '../../utils/messageUtils.js';
@@ -73,18 +74,24 @@ export class QuestionModeHandlerService {
 
 
 
-    // Detect each question individually to get proper exam data and marking schemes
-    const allQuestionDetections = await Promise.all(
-      individualQuestions.map(async (question, index) => {
-        const detection = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
-        return {
-          questionIndex: index,
-          questionText: question.text,
-          detection: detection,
-          sourceImageIndex: classificationResult.questions[index]?.sourceImageIndex ?? index
-        };
-      })
+    // Use unified orchestration service (same as Marking Mode)
+    const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
+      individualQuestions,
+      classificationResult
     );
+
+    const { detectionStats, detectionResults } = orchestrationResult;
+
+    // Log detection statistics
+    MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
+
+    // Map orchestration results to Question Mode format
+    const allQuestionDetections = detectionResults.map((dr, index) => ({
+      questionIndex: index,
+      questionText: dr.question.text,
+      detection: dr.detectionResult,
+      sourceImageIndex: dr.question.sourceImageIndex ?? index
+    }));
 
     // Group questions by exam paper (board + code + year + tier)
     const examPaperGroups = new Map<string, any>();
@@ -116,7 +123,7 @@ export class QuestionModeHandlerService {
         questionNumber: qd.detection.match?.questionNumber || '',
         questionText: qd.questionText,
         marks: qd.detection.match?.marks || 0,
-        markingScheme: qd.detection.markingScheme || '',
+        markingScheme: qd.detection.match?.markingScheme || '',
         questionIndex: qd.questionIndex,
         sourceImageIndex: qd.sourceImageIndex
       });
@@ -139,17 +146,16 @@ export class QuestionModeHandlerService {
         // Use database question text if available, fallback to classification text
         const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
 
-        // markingScheme must be plain text (fail-fast for old format)
+        // Extract marking scheme and convert to plain text if needed
         let markingSchemePlainText = '';
-        if (qd.detection.markingScheme) {
-          if (typeof qd.detection.markingScheme !== 'string') {
-            throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text string, got ${typeof qd.detection.markingScheme}. Please clear old data and create new sessions.`);
+        if (qd.detection.match?.markingScheme) {
+          const scheme = qd.detection.match.markingScheme;
+          if (typeof scheme === 'string') {
+            markingSchemePlainText = scheme;
+          } else {
+            // Convert object to plain text
+            markingSchemePlainText = convertMarkingSchemeToPlainText(scheme, qd.detection.match.questionNumber || '');
           }
-          // Fail-fast if it looks like JSON (old format)
-          if (qd.detection.markingScheme.trim().startsWith('{') || qd.detection.markingScheme.trim().startsWith('[')) {
-            throw new Error(`[LEGACY QUESTIONS ARRAY] Invalid marking scheme format for Q${qd.detection.match?.questionNumber || '?'}: expected plain text, got JSON. Please clear old data and create new sessions.`);
-          }
-          markingSchemePlainText = qd.detection.markingScheme;
         }
 
         return {
@@ -162,7 +168,8 @@ export class QuestionModeHandlerService {
           paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
           subject: qd.detection.match?.qualification || '',
           tier: qd.detection.match?.tier || '',
-          examSeries: qd.detection.match?.examSeries || ''
+          examSeries: qd.detection.match?.examSeries || '',
+          sourceImageIndex: qd.sourceImageIndex
         };
       })
     };
@@ -176,35 +183,35 @@ export class QuestionModeHandlerService {
 
     // Generate AI responses for each question individually
     const aiResponses = await Promise.all(
-      allQuestionDetections.map(async (qd, index) => {
-        const imageData = standardizedPages[qd.sourceImageIndex]?.imageData || standardizedPages[0].imageData;
+      questionDetection.questions.map(async (q, index) => {
+        const imageData = standardizedPages[q.sourceImageIndex]?.imageData || standardizedPages[0].imageData;
         const response = await MarkingServiceLocator.generateChatResponse(
           imageData,
-          qd.questionText,
+          q.questionText,  // Use formatted database text
           actualModel as ModelType,
-          "questionOnly", // category
-          false // debug
+          "questionOnly",
+          false, // debug
+          undefined, // onProgress
+          false, // useOcrText
+          undefined, // tracker
+          q.markingScheme  // Pass marking scheme!
         );
         return {
           questionIndex: index,
-          questionNumber: (qd.questionText ? JSON.parse(`"${qd.questionText.replace(/"/g, '\\"')}"`) : null) || qd.detection.match?.questionNumber || `Q${index + 1}`,
+          questionNumber: q.questionNumber || `Q${index + 1}`,
           response: response.response,
           apiUsed: response.apiUsed,
-          usageTokens: response.usageTokens
+          usageTokens: response.usageTokens,
+          inputTokens: response.inputTokens,
+          outputTokens: response.outputTokens
         };
       })
     );
 
-    // Debug logging for multi-question responses
-    console.log(`🔍 [QUESTION MODE] Generated ${aiResponses.length} individual AI responses:`);
-    aiResponses.forEach((ar, index) => {
-      console.log(`  ${index + 1}. ${ar.questionNumber}: ${ar.response.substring(0, 100)}...`);
-    });
-
     // Combine all responses into a single comprehensive response with clear separation
-    const combinedResponse = aiResponses.map(ar =>
-      `**Question:** ${ar.questionNumber}\n\n${ar.response}`
-    ).join('\n\n' + '='.repeat(50) + '\n\n');
+    const combinedResponse = aiResponses.map((ar, index) =>
+      `Question ${index + 1}\n\n${ar.response}`
+    ).join('\n\n' + '_'.repeat(80) + '\n\n');
 
     const aiResponse = {
       response: combinedResponse,

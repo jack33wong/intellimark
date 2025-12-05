@@ -29,6 +29,10 @@ export interface MarkingSessionContext extends SessionContext {
 
 export interface QuestionSessionContext extends SessionContext {
   // Question mode specific data
+  usageTokens?: number;
+  apiRequests?: number;
+  model?: string;
+  files?: Express.Multer.File[];
 }
 
 export interface SessionResult {

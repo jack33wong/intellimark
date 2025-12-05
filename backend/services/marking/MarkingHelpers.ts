@@ -662,13 +662,14 @@ export function buildMarkingResponse({
 export function extractQuestionsFromClassification(
   classification: any,
   fileName?: string
-): Array<{ text: string; questionNumber?: string | null }> {
+): Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> {
   // Handle hierarchical questions array structure
   if (classification?.questions && Array.isArray(classification.questions)) {
-    const extractedQuestions: Array<{ text: string; questionNumber?: string | null }> = [];
+    const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> = [];
 
     for (const q of classification.questions) {
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
+      const sourceImageIndex = q.sourceImageIndex;
 
       // If question has sub-questions, extract each sub-question separately
       if (q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
@@ -688,7 +689,8 @@ export function extractQuestionsFromClassification(
           if (subQ.text || hasStudentWork) {
             extractedQuestions.push({
               questionNumber: combinedQuestionNumber,
-              text: subQ.text || '' // Use empty string if no text (detection will use question number only)
+              text: subQ.text || '', // Use empty string if no text (detection will use question number only)
+              sourceImageIndex
             });
           }
         }
@@ -697,7 +699,8 @@ export function extractQuestionsFromClassification(
         if (q.text) {
           extractedQuestions.push({
             questionNumber: mainQuestionNumber,
-            text: q.text
+            text: q.text,
+            sourceImageIndex
           });
         }
         // If main text is null but no sub-questions, skip (empty question)

@@ -790,7 +790,8 @@ export class MarkingPipelineService {
                         end: () => { }
                     } as any,
                     startTime,
-                    logStep
+                    logStep,
+                    usageTracker
                 });
                 return;
             }

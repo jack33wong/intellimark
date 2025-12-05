@@ -38,6 +38,10 @@ export interface MarkingSchemeOrchestrationResult {
   markingSchemesMap: Map<string, any>;
   detectionStats: DetectionStatistics;
   updatedClassificationResult: any;
+  detectionResults: Array<{
+    question: { text: string; questionNumber?: string | null };
+    detectionResult: any;
+  }>;
 }
 
 export class MarkingSchemeOrchestrationService {
@@ -293,18 +297,32 @@ export class MarkingSchemeOrchestrationService {
 
             const examPapersSnapshot = await db.collection('fullExamPapers')
               .where('metadata.exam_board', '==', firstMatch.board)
-              .where('metadata.exam_code', '==', firstMatch.paperCode)
-              .where('metadata.exam_series', '==', firstMatch.examSeries)
               .get();
 
             const examPapers = examPapersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
             const matchedExamPaper = examPapers.find((ep: any) => {
               const metadata = ep.metadata || {};
-              return metadata.exam_board === firstMatch.board &&
-                metadata.exam_code === firstMatch.paperCode &&
-                metadata.exam_series === firstMatch.examSeries &&
-                metadata.tier === firstMatch.tier;
+
+              const dbBoard = (metadata.exam_board || '').trim().toLowerCase();
+              const dbCode = (metadata.exam_code || '').trim().toLowerCase();
+              const dbSeries = (metadata.exam_series || '').trim().toLowerCase();
+              const dbTier = (metadata.tier || '').trim().toLowerCase();
+
+              const targetBoard = (firstMatch.board || '').trim().toLowerCase();
+              const targetCode = (firstMatch.paperCode || '').trim().toLowerCase();
+              const targetSeries = (firstMatch.examSeries || '').trim().toLowerCase();
+              const targetTier = (firstMatch.tier || '').trim().toLowerCase();
+
+              // Handle "June" prefix variation for series
+              const seriesMatch = dbSeries === targetSeries ||
+                dbSeries === targetSeries.replace(/^june\s+/i, '') ||
+                targetSeries === dbSeries.replace(/^june\s+/i, '');
+
+              return dbBoard === targetBoard &&
+                dbCode === targetCode &&
+                seriesMatch &&
+                dbTier === targetTier;
             });
 
             if (matchedExamPaper) {
@@ -406,7 +424,8 @@ export class MarkingSchemeOrchestrationService {
     return {
       markingSchemesMap,
       detectionStats,
-      updatedClassificationResult: classificationResult
+      updatedClassificationResult: classificationResult,
+      detectionResults // Return raw detection results for granular processing (e.g. Question Mode)
     };
   }
 

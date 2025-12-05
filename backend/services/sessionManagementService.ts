@@ -219,7 +219,10 @@ export class SessionManagementService {
             questionNumber: match.questionNumber || '',
             questionText: questionText,
             marks: match.marks || 0,
-            markingScheme: plainTextMarkingScheme // Store as plain text (same format as sent to AI)
+            markingScheme: [{
+              mark: 'Model',
+              answer: plainTextMarkingScheme
+            }] // Adapt plain text to structured format
           }],
           totalMarks: match.marks || 0
         }];
@@ -391,12 +394,12 @@ export class SessionManagementService {
         additionalData.usageTokens // Pass the pre-calculated total (includes classification)
       );
     } else {
-      // For question mode, use calculateSessionStats with empty results
       stats = calculateSessionStats(
         [], // No question results in question mode
         Date.now() - context.startTime,
-        'auto',
-        []
+        (context as QuestionSessionContext).model || 'auto',
+        (context as QuestionSessionContext).files || [],
+        (context as QuestionSessionContext).usageTokens || 0
       );
     }
 
