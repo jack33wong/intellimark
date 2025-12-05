@@ -136,12 +136,12 @@ export class MarkingServiceLocator {
 
     const isQuestionOnly = category === "questionOnly";
     const systemPrompt = isQuestionOnly
-      ? getPrompt('marking.questionOnly.system')
+      ? getPrompt('questionOnly.system')
       : getPrompt('modelAnswer.system')
 
     const userPrompt = isQuestionOnly
       // If no marking scheme (detection failed), use default message which instructs AI to solve without scheme
-      ? getPrompt('marking.questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
+      ? getPrompt('questionOnly.user', message, markingScheme || 'No marking scheme available. Solve as a mathematician.')
       : getPrompt('modelAnswer.user', ocrText, message); // ocrText and schemeJson (message)
 
 
@@ -163,12 +163,11 @@ export class MarkingServiceLocator {
       // Validate model using centralized validation
       const validatedModel = validateModel(model);
 
-      // For marking mode, always use text response (model answer)
-      if (!isQuestionOnly) {
-        return await this.callGeminiForTextResponse(ocrText, systemPrompt, userPrompt, validatedModel, tracker);
-      } else {
-        return await this.callGeminiForChatResponse(compressedImage, systemPrompt, userPrompt, validatedModel, tracker);
-      }
+      // Both marking mode and question mode use text-only responses (no image sent to AI)
+      // For Question Mode: message contains question text from database
+      // For Marking Mode: ocrText contains student work
+      const textInput = isQuestionOnly ? message : ocrText;
+      return await this.callGeminiForTextResponse(textInput, systemPrompt, userPrompt, validatedModel, tracker);
     } catch (error) {
       // Check if this is our validation error (fail fast)
       if (error instanceof Error && error.message.includes('Unsupported model')) {

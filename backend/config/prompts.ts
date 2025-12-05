@@ -40,6 +40,21 @@ export const AI_PROMPTS = {
     }
   },
 
+  // ============================================================================
+  // QUESTION ONLY MODE PROMPTS
+  // ============================================================================
+
+  questionOnly: {
+    system: loadPrompt('question_only_system_prompt.txt'),
+
+    user: (message: string, markingScheme: string) => {
+      const template = loadPrompt('question_only_user_prompt.txt');
+      return template
+        .replace('{{QUESTION_TEXT}}', message)
+        .replace('{{MARKING_SCHEME}}', markingScheme);
+    }
+  },
+
 
   // ============================================================================
   // AI MARKING SERVICE PROMPTS
@@ -47,41 +62,7 @@ export const AI_PROMPTS = {
 
   marking: {
     // Question-only mode (when student asks for help with a question)
-    questionOnly: {
-      system: `You are a mathematics examiner providing model answers based STRICTLY on the provided marking scheme.`,
-
-      user: (message: string, markingScheme: string) => `
-Question: ${message}
-
-Marking Scheme:
-${markingScheme}
-
-Provide a concise model answer following this strict format:
-
-1. **Question Text:**
-   - Wrap the ENTIRE question text (including labels like a), i)) in a span with class "model_question".
-   - Format: <span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
-
-2. **Model Answer:**
-   - Provide the answer immediately after the span (on a new line).
-   - Always include mark allocation [B1], [M1], [A1] at the end.
-   - For complex questions, show working steps.
-
-**Example Output:**
-<span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
-53000 [B1]
-
-<span class="model_question">b) Work out the value of x.</span>
-3x = 12
-x = 4 [A1]
-
-**CRITICAL INSTRUCTIONS:**
-- You MUST use the <span class="model_question">...</span> tags for the question text.
-- Do NOT add your own "Question" headers (the system handles that).
-- Use the exact question numbering/labeling from the input question text.
-`
-    },
-
+    // This was moved to a top-level `questionOnly` prompt.
 
 
     // Contextual response (for follow-up chat)
@@ -158,26 +139,24 @@ x = 4 [A1]
         rawOcrBlocks?: any[],
         questionText?: string | null
       ) => `
-MARKING TASK:
-Question Number: ${questionNumber}
-${questionText ? `Question: ${questionText}` : ''}
+      MARKING TASK:
+      Question Number: ${questionNumber}
+      ${questionText ? `Question: ${questionText}` : ''}
 
+      MARKING SCHEME:
+      ${markingScheme}
 
+      ⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
+      Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
 
-MARKING SCHEME:
-${markingScheme}
+      STUDENT WORK (STRUCTURED):
+      ${classificationStudentWork}
 
-⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
-Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
-
-STUDENT WORK (STRUCTURED):
-${classificationStudentWork}
-
-${rawOcrBlocks ? `
-RAW OCR BLOCKS (For Reference):
-${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
-` : ''}
-`,
+      ${rawOcrBlocks ? `
+      RAW OCR BLOCKS (For Reference):
+      ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
+      ` : ''}
+      `,
     },
 
     // ============================================================================

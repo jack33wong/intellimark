@@ -181,13 +181,12 @@ export class QuestionModeHandlerService {
     const logAiResponseComplete = logStep('AI Response Generation', actualModel);
     const { MarkingServiceLocator } = await import('./MarkingServiceLocator.js');
 
-    // Generate AI responses for each question individually
+    // Generate AI responses for each question individually (text-only, no image)
     const aiResponses = await Promise.all(
       questionDetection.questions.map(async (q, index) => {
-        const imageData = standardizedPages[q.sourceImageIndex]?.imageData || standardizedPages[0].imageData;
         const response = await MarkingServiceLocator.generateChatResponse(
-          imageData,
-          q.questionText,  // Use formatted database text
+          q.questionText,  // First param: question text from database (no image needed)
+          q.questionText,  // Second param: message (same as first for text-only mode)
           actualModel as ModelType,
           "questionOnly",
           false, // debug
