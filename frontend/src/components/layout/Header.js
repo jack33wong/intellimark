@@ -2,16 +2,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import SettingsModal from '../SettingsModal';
-import { 
-  User, 
-  LogOut, 
-  Settings, 
+import UsageModal from '../UsageModal';
+import {
+  User,
+  LogOut,
+  Settings,
   ChevronDown,
   Crown,
   Calendar,
   CreditCard,
   CheckCircle,
-  Bug
+  Bug,
+  BarChart3
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -24,6 +26,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(localStorage.getItem('debugMode') === 'true');
   const { user, logout } = useAuth();
@@ -77,13 +80,13 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             console.error('❌ Response error:', errorText);
             throw new Error(`HTTP error! status: ${response.status}`);
           }
-          
+
           await response.json();
-          
+
           // Refresh subscription data to get the latest
           const subscriptionResponse = await SubscriptionService.getUserSubscription(user.uid);
           setUserSubscription(subscriptionResponse.subscription);
-          
+
         } catch (error) {
           console.error('❌ Error creating subscription record:', error);
           // Still try to refresh existing data as fallback
@@ -95,9 +98,9 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
           }
         }
       };
-      
+
       createSubscriptionRecord();
-      
+
       // Clean up URL parameters
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
@@ -259,16 +262,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
         {/* Center - Navigation */}
         <nav className="header-nav">
           {user?.isAdmin && (
-            <button 
+            <button
               className="nav-item admin-nav"
               onClick={() => navigate('/admin')}
             >
               Admin
             </button>
           )}
-          
+
           {/* Debug Mode Toggle */}
-          <button 
+          <button
             className={`nav-item debug-nav ${debugMode ? 'active' : ''}`}
             onClick={handleDebugModeToggle}
             title={debugMode ? 'Debug Mode ON - External APIs disabled' : 'Debug Mode OFF - External APIs enabled'}
@@ -341,7 +344,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     </div>
 
                     <div className="subscription-actions">
-                      <button 
+                      <button
                         className="subscription-action manage"
                         onClick={() => {
                           alert('Manage subscription feature coming soon!');
@@ -350,7 +353,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       >
                         Manage Subscription
                       </button>
-                      <button 
+                      <button
                         className="subscription-action cancel"
                         onClick={handleCancelSubscription}
                       >
@@ -361,69 +364,79 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                 )}
               </div>
               <div className="profile-section" ref={profileRef}>
-              <button 
-                className="profile-button"
-                onClick={handleProfileClick}
-                aria-label="Profile menu"
-              >
-                <div className="profile-avatar">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" />
-                  ) : (
-                    <User size={20} />
-                  )}
-                </div>
-                <span className="profile-name">
-                  {user.displayName || user.email?.split('@')[0] || ''}
-                </span>
-                <ChevronDown size={16} className={`chevron ${isProfileMenuOpen ? 'rotated' : ''}`} />
-              </button>
+                <button
+                  className="profile-button"
+                  onClick={handleProfileClick}
+                  aria-label="Profile menu"
+                >
+                  <div className="profile-avatar">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="Profile" />
+                    ) : (
+                      <User size={20} />
+                    )}
+                  </div>
+                  <span className="profile-name">
+                    {user.displayName || user.email?.split('@')[0] || ''}
+                  </span>
+                  <ChevronDown size={16} className={`chevron ${isProfileMenuOpen ? 'rotated' : ''}`} />
+                </button>
 
-              {/* Profile Dropdown */}
-              {isProfileMenuOpen && (
-                <div className={`profile-dropdown ${isProfileClosing ? 'closing' : ''}`}>
-                  <div className="profile-info">
-                    <div className="profile-avatar large">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt="Profile" />
-                      ) : (
-                        <User size={24} />
-                      )}
+                {/* Profile Dropdown */}
+                {isProfileMenuOpen && (
+                  <div className={`profile-dropdown ${isProfileClosing ? 'closing' : ''}`}>
+                    <div className="profile-info">
+                      <div className="profile-avatar large">
+                        {user.photoURL ? (
+                          <img src={user.photoURL} alt="Profile" />
+                        ) : (
+                          <User size={24} />
+                        )}
+                      </div>
+                      <div className="profile-details">
+                        <div className="profile-name-large">
+                          {user.displayName || ''}
+                        </div>
+                        <div className="profile-email">
+                          {user.email}
+                        </div>
+                        {user.isAdmin && (
+                          <div className="admin-badge">Admin</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="profile-details">
-                      <div className="profile-name-large">
-                        {user.displayName || ''}
-                      </div>
-                      <div className="profile-email">
-                        {user.email}
-                      </div>
-                      {user.isAdmin && (
-                        <div className="admin-badge">Admin</div>
-                      )}
+
+                    <div className="profile-actions">
+                      <button
+                        className="profile-action"
+                        onClick={() => {
+                          setIsUsageModalOpen(true);
+                          handleProfileClose();
+                        }}
+                      >
+                        <BarChart3 size={16} />
+                        Usage
+                      </button>
+                      <button
+                        className="profile-action"
+                        onClick={() => {
+                          setIsSettingsModalOpen(true);
+                          handleProfileClose();
+                        }}
+                      >
+                        <Settings size={16} />
+                        Settings
+                      </button>
+                      <button
+                        className="profile-action logout"
+                        onClick={handleLogout}
+                      >
+                        <LogOut size={16} />
+                        Logout
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="profile-actions">
-                    <button 
-                      className="profile-action"
-                      onClick={() => {
-                        setIsSettingsModalOpen(true);
-                        handleProfileClose();
-                      }}
-                    >
-                      <Settings size={16} />
-                      Settings
-                    </button>
-                    <button 
-                      className="profile-action logout"
-                      onClick={handleLogout}
-                    >
-                      <LogOut size={16} />
-                      Logout
-                    </button>
-                  </div>
-                </div>
-              )}
+                )}
               </div>
             </>
           ) : (
@@ -434,7 +447,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
               >
                 Upgrade
               </button>
-              <button 
+              <button
                 className="login-button"
                 onClick={() => navigate('/login')}
               >
@@ -446,9 +459,15 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       </div>
 
       {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={isSettingsModalOpen} 
-        onClose={() => setIsSettingsModalOpen(false)} 
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
+
+      {/* Usage Modal */}
+      <UsageModal
+        isOpen={isUsageModalOpen}
+        onClose={() => setIsUsageModalOpen(false)}
       />
     </header>
   );

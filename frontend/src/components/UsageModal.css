@@ -1,0 +1,294 @@
+/* Usage Modal Styles - SettingsModal structure + AdminPage usage content */
+
+/* Modal Overlay & Container - From SettingsModal */
+.usage-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  padding: 20px;
+}
+
+.usage-modal {
+  background: var(--background-menu-white);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  max-width: 1200px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  border: 1px solid var(--border-main);
+  animation: usageModalSlideIn 0.3s ease-out;
+}
+
+@keyframes usageModalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal Header - From SettingsModal */
+.usage-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--background-menu-gray);
+  border-bottom: 1px solid var(--border-main);
+}
+
+.usage-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-primary);
+}
+
+.usage-modal-title h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.usage-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.usage-modal-close:hover {
+  background: var(--background-gray-main);
+  color: var(--text-primary);
+}
+
+/* Modal Content - From SettingsModal */
+.usage-modal-content {
+  padding: 24px;
+  background: var(--background-menu-white);
+  max-height: calc(90vh - 80px);
+  overflow-y: auto;
+}
+
+/* Usage Summary Header - From AdminPage */
+.usage-summary-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.usage-summary-card {
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: var(--shadow-S);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.usage-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-M);
+}
+
+.usage-summary-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.usage-summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Usage Filter Tabs - From AdminPage */
+.usage-filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border-main);
+  padding-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.usage-filter-tab {
+  padding: 12px 24px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  position: relative;
+  bottom: -2px;
+}
+
+.usage-filter-tab:hover {
+  color: var(--text-primary);
+  background: var(--background-card);
+}
+
+.usage-filter-tab--active {
+  color: var(--text-brand);
+  border-bottom-color: var(--text-brand);
+}
+
+/* Usage Table Section */
+.usage-table-section {
+  margin-top: 24px;
+}
+
+.usage-table-title {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Empty State */
+.usage-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-tertiary);
+}
+
+.usage-empty-state p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* Usage Table - From AdminPage */
+.usage-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-main);
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--background-card);
+}
+
+.usage-table thead {
+  background: var(--background-menu-gray);
+  border-bottom: 2px solid var(--border-main);
+}
+
+.usage-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.usage-table tbody tr {
+  border-bottom: 1px solid var(--border-main);
+  transition: background-color 0.2s ease;
+}
+
+.usage-table tbody tr:hover {
+  background: var(--background-menu-gray);
+}
+
+.usage-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.usage-table td {
+  padding: 16px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .usage-modal {
+    max-width: 100%;
+    margin: 10px;
+    max-height: 95vh;
+  }
+  
+  .usage-modal-header {
+    padding: 16px 20px;
+  }
+  
+  .usage-modal-content {
+    padding: 20px;
+  }
+  
+  .usage-summary-header {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .usage-filter-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .usage-filter-tab {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  
+  .usage-table {
+    font-size: 12px;
+  }
+  
+  .usage-table th,
+  .usage-table td {
+    padding: 12px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .usage-modal-overlay {
+    padding: 10px;
+  }
+  
+  .usage-modal-header {
+    padding: 12px 16px;
+  }
+  
+  .usage-modal-content {
+    padding: 16px;
+  }
+  
+  .usage-summary-header {
+    grid-template-columns: 1fr;
+  }
+  
+  .usage-summary-value {
+    font-size: 24px;
+  }
+}

@@ -35,7 +35,7 @@ app.use(limiter);
 // CORS configuration
 app.use(cors({
   origin: [
-    'http://localhost:3000', 
+    'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://intellimark-6649e.web.app'
   ],
@@ -53,7 +53,7 @@ try {
   const apiSpecPath = path.join(__dirname, 'api-spec.json');
   if (fs.existsSync(apiSpecPath)) {
     const apiSpec = JSON.parse(fs.readFileSync(apiSpecPath, 'utf8'));
-    
+
     // Serve Swagger UI at /api-docs
     app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiSpec, {
       customCss: '.swagger-ui .topbar { display: none }',
@@ -67,7 +67,7 @@ try {
         showCommonExtensions: true
       }
     }));
-    
+
     console.log('📚 Swagger UI available at: http://localhost:5001/api-docs');
   } else {
     console.warn('⚠️  API spec not found at:', apiSpecPath);
@@ -84,6 +84,7 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import messagesRoutes from './routes/messages.js';
 import analysisRouter from './routes/analysisRouter.js';
+import usageRoutes from './routes/usage.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -101,6 +102,8 @@ app.use('/api/messages', messagesRoutes);
 // Enable analysis API
 app.use('/api/analysis', analysisRouter);
 
+// Enable usage API (user-specific usage statistics)
+app.use('/api/usage', usageRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);
@@ -147,7 +150,7 @@ app.get('/api', (_req, res) => {
 // Error handling middleware
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err.stack);
-  res.status(500).json({ 
+  res.status(500).json({
     error: 'Something went wrong!',
     message: process.env['NODE_ENV'] === 'development' ? err.message : 'Internal server error'
   });
