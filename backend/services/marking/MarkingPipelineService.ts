@@ -856,56 +856,7 @@ export class MarkingPipelineService {
                 const isMetadataPage = classificationResult?.category === "metadata";
                 const isFrontPage = classificationResult?.category === "frontPage";
 
-                console.log(`🔍 [OCR DEBUG] Page ${index} (original=${page.originalPageIndex || page.pageIndex}):`);
-                console.log(`   - Category: ${classificationResult?.category}`);
-                console.log(`   - Is metadata: ${isMetadataPage}`);
-                console.log(`   - Is frontPage: ${isFrontPage}`);
 
-                if (isMetadataPage || isFrontPage) {
-                    console.log(`   - SKIPPING OCR (${isMetadataPage ? 'metadata' : 'frontPage'} page)`);
-                    return {
-                        pageIndex: page.pageIndex,
-                        ocrData: {
-                            text: '',
-                            mathBlocks: [],
-                            rawResponse: { rawLineData: [] },
-                            boundingBoxes: [],
-                            confidence: 1,
-                            dimensions: { width: 0, height: 0 },
-                            symbols: [],
-                            processingTime: 0
-                        },
-                        classificationText: globalQuestionText
-                    };
-                }
-
-                // Skip OCR for question-only images in mixed content scenarios
-                // Check if this specific page was classified as question-only
-                const pageClassification = allClassificationResults[index]?.result;
-                const isQuestionOnly = pageClassification?.category === "questionOnly";
-
-                console.log(`   - Is question-only: ${isQuestionOnly}`);
-                console.log(`   - Is mixed content: ${isMixedContent}`);
-
-                if (isMixedContent && isQuestionOnly) {
-                    console.log(`   - SKIPPING OCR (question-only in mixed mode)`);
-                    return {
-                        pageIndex: page.pageIndex,
-                        ocrData: {
-                            text: '',
-                            mathBlocks: [],
-                            rawResponse: { rawLineData: [] },
-                            boundingBoxes: [],
-                            confidence: 1,
-                            dimensions: { width: 0, height: 0 },
-                            symbols: [],
-                            processingTime: 0
-                        },
-                        classificationText: globalQuestionText
-                    };
-                }
-
-                console.log(`   - ✅ RUNNING OCR`);
                 const ocrResult = await OCRService.processImage(
                     page.imageData, {}, false, 'auto',
                     { extractedQuestionText: globalQuestionText }
@@ -1340,8 +1291,7 @@ export class MarkingPipelineService {
             // Extract questionOnly text responses so they can be added to AI message content
             let combinedQuestionResponses: any[] = [];
 
-            console.log('\n🔍 [COMBINATION DEBUG] questionOnlyResult structure:');
-            console.log('   - exists:', !!questionOnlyResult);
+
             if (questionOnlyResult && questionOnlyResult.unifiedSession?.questionResponses) {
                 console.log('\n📝 [RESULT COMBINATION] Extracting questionOnly responses...');
                 const questionOnlyResponses = questionOnlyResult.unifiedSession.questionResponses;
