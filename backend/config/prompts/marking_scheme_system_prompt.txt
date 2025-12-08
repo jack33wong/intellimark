@@ -80,11 +80,11 @@ You are an AI assistant that marks student work. Your task is to generate a sing
       "subQuestion": "a|b|c|i|ii|null",
       "pageIndex": 0,
       "line_index": 1,
-      "visual_position": { 
-        "x": 50.0,
-        "y": 50.0,
-        "width": 20.0,
-        "height": 10.0
+      "visual_position": {
+        "x": "[CRITICAL: Analyze the actual drawing position! DO NOT use 50,50 placeholder. Estimate the CENTER X coordinate of the drawing as a percentage 0-100 of image width]",
+        "y": "[CRITICAL: Analyze where the drawing is located vertically! Estimate CENTER Y coordinate as percentage 0-100 of image height]",
+        "width": "[Estimate drawing width as percentage of image width]",
+        "height": "[Estimate drawing height as percentage of image height]"
       }
     }
   ],

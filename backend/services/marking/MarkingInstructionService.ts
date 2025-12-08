@@ -860,10 +860,14 @@ export class MarkingInstructionService {
         const hasUnmatched = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
           anno.ocr_match_status === 'UNMATCHED'
         );
+        const hasVisual = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
+          anno.ocr_match_status === 'VISUAL'
+        );
 
-        if (hasUnmatched) {
+        if (hasUnmatched || hasVisual) {
+          const statusLabel = hasVisual ? 'HAS VISUAL/DRAWING' : 'HAS UNMATCHED';
           console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (HAS UNMATCHED)`);
+          console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (${statusLabel})`);
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
           if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
@@ -896,8 +900,34 @@ export class MarkingInstructionService {
               }
 
               if (anno.visual_position) {
-                console.log(`  - Visual Position: ${JSON.stringify(anno.visual_position)}`);
+                console.log(`  - AI Visual Position: ${JSON.stringify(anno.visual_position)}`);
+
+                // Check if it's a placeholder (50, 50, 50, 50 or similar generic values)
+                const isPlaceholder = anno.visual_position.x === 50 && anno.visual_position.y === 50;
+                if (isPlaceholder) {
+                  console.warn(`  ⚠️ WARNING: AI returned placeholder visual_position! Not actual drawing coordinates.`);
+                }
               }
+
+              // Show classification drawing position for comparison
+              const classificationBlocks = (processedImage as any).classificationBlocks;
+              if (anno.ocr_match_status === 'VISUAL' && classificationBlocks) {
+                console.log(`  - Classification Drawing Positions:`);
+                classificationBlocks.forEach((block: any, bIdx: number) => {
+                  if (block.subQuestions) {
+                    block.subQuestions.forEach((subQ: any, sqIdx: number) => {
+                      if (subQ.hasStudentDrawing && subQ.studentWorkLines) {
+                        subQ.studentWorkLines.forEach((line: any, lIdx: number) => {
+                          if (line.position) {
+                            console.log(`    Block[${bIdx}] SubQ[${sqIdx}] (${subQ.part}) Line[${lIdx}]: ${JSON.stringify(line.position)}`);
+                          }
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+
               if (anno.reasoning) {
                 console.log(`  - Reasoning: ${anno.reasoning.substring(0, 80)}${anno.reasoning.length > 80 ? '...' : ''}`);
               }
