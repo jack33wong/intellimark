@@ -43,7 +43,10 @@ export class MarkingPersistenceService {
         pdfContext: any,
         isMixedContent: boolean,
         stepTimings: any,
-        totalLLMTokens: number
+        totalLLMTokens: number,
+        questionOnlyClassificationResult: any | undefined,  // Clean Bucket B classification for text responses
+        usageTracker: any,  // UsageTracker instance with all token/cost data
+        mathpixCallCount: number  // Actual Mathpix OCR call count
     ): Promise<{ unifiedSession: any }> {
         let dbUserMessage: any = null;
         let dbAiMessage: any = null;
@@ -75,42 +78,25 @@ export class MarkingPersistenceService {
             // Upload original files for authenticated users
             const uploadResult = await SessionManagementService.uploadOriginalFiles(
                 files,
-                userId,
+                options.userId || 'anonymous',
                 submissionId,
-                isAuthenticated
+                !!options.userId
             );
 
-            // Create structured data (only for authenticated users)
-            let structuredImageDataArray: any[] | undefined = undefined;
-            let structuredPdfContexts: any[] | undefined = undefined;
-
-            if (isAuthenticated) {
-                const structuredData = SessionManagementService.createStructuredData(
-                    files,
-                    isPdf,
-                    isMultiplePdfs,
-                    pdfContext,
-                    isAuthenticated
-                );
-                structuredImageDataArray = structuredData.structuredImageDataArray;
-                structuredPdfContexts = structuredData.structuredPdfContexts;
-
-                // Update pdfContext with structured data for frontend
-                if (pdfContext && structuredPdfContexts) {
-                    pdfContext.pdfContexts = structuredPdfContexts;
-                }
-            }
-
-            // Create user message for database
-            const messageContent = customText || (isPdf ? 'I have uploaded a PDF for analysis.' : `I have uploaded ${files.length} file(s) for analysis.`);
+            // ========= USER MESSAGE CREATION =========
+            const { structuredImageDataArray, structuredPdfContexts } = SessionManagementService.createStructuredData(
+                files,
+                isPdf,
+                isMultiplePdfs,
+                pdfContext
+            );
 
             dbUserMessage = SessionManagementService.createUserMessageForDatabase(
                 {
-                    content: messageContent,
+                    content: options.customText || `I have uploaded ${files.length} file(s) for marking.`,
                     files,
                     isPdf,
                     isMultiplePdfs,
-                    customText,
                     sessionId: currentSessionId,
                     model,
                     pdfContext
@@ -123,77 +109,34 @@ export class MarkingPersistenceService {
             // Override timestamp for database consistency
             (dbUserMessage as any).timestamp = userTimestamp;
 
-            // ========================= MIXED CONTENT: QUESTION ANALYSIS =========================
+            // ========================= MIXED CONTENT: USE PRE-GENERATED RESPONSES =========================
             let questionOnlyResponses: string[] = [];
 
-            if (isMixedContent) {
+            if (isMixedContent && questionOnlyClassificationResult) {
+                console.log('[PERSISTENCE] Processing questionOnly responses for mixed mode');
 
+                // Handle array format from unifiedSession.questionResponses
+                if (Array.isArray(questionOnlyClassificationResult)) {
+                    // Apply the same formatting as pure question mode (with headers and separators)
+                    const formattedIndividualResponses = questionOnlyClassificationResult.map((qr: any, index: number) => {
+                        const response = qr.formattedResponse || qr.response || '';
+                        // Format: "Question 1\n\n<response>"
+                        return `Question ${index + 1}\n\n${response}`;
+                    }).filter(r => r);
 
-                // Find question-only images and generate AI responses for them
-                const questionOnlyImages = standardizedPages.filter((page, index) =>
-                    allClassificationResults[index]?.result?.category === "questionOnly"
-                );
+                    // Join with line separators (same as pure question mode)
+                    const formattedResponse = formattedIndividualResponses.join('\n\n' + '_'.repeat(80) + '\n\n');
+                    questionOnlyResponses = [formattedResponse]; // Single combined string
 
-                if (questionOnlyImages.length > 0) {
-                    const tempResponses = await Promise.all(
-                        questionOnlyImages.map(async (page, index) => {
-                            const originalIndex = standardizedPages.indexOf(page);
-                            const question = classificationResult.questions[originalIndex];
-                            const questionText = question?.text || '';
-                            // Use detected question number or Q{index+1}, NEVER fallback to text for the number
-                            const questionNumber = question?.questionNumber || `Q${index + 1}`;
-
-                            // Lookup marking scheme from markingSchemesMap
-                            // Try exact match first, then potential variations (e.g. without 'Q' prefix)
-                            let markingScheme = '';
-                            if (markingSchemesMap) {
-                                let entry = markingSchemesMap.get(questionNumber);
-                                if (!entry && questionNumber.startsWith('Q')) {
-                                    entry = markingSchemesMap.get(questionNumber.substring(1));
-                                }
-                                if (entry && entry.questionDetection) {
-                                    markingScheme = entry.questionDetection.markingScheme || '';
-                                }
-                            }
-
-                            const response = await MarkingServiceLocator.generateChatResponse(
-                                page.imageData,
-                                questionText,
-                                actualModel as ModelType,
-                                "questionOnly", // category
-                                false, // debug
-                                undefined,
-                                false,
-                                undefined,
-                                markingScheme // Pass marking scheme
-                            );
-
-                            // Store object temporarily for sorting
-                            return {
-                                questionNumber: questionNumber,
-                                // User requested no H2, use P with specific class
-                                formattedResponse: `<p class="question_header_text">Question ${questionNumber.replace(/^Q/, '')}</p>\n\n${response.response}`
-                            };
-                        })
-                    );
-
-                    // Sort responses by question number
-                    const sortedResponses = tempResponses.sort((a, b) => {
-                        const numA = parseInt(a.questionNumber.replace(/\D/g, '') || '0');
-                        const numB = parseInt(b.questionNumber.replace(/\D/g, '') || '0');
-                        return numA - numB;
-                    });
-
-                    // Extract just the formatted strings
-                    questionOnlyResponses = sortedResponses.map(r => r.formattedResponse);
-
-                    console.log(`✅ [MIXED CONTENT] Generated ${questionOnlyResponses.length} question-only responses`);
+                    console.log(`[PERSISTENCE] Formatted ${questionOnlyClassificationResult.length} question-only responses with headers and separators`);
+                } else if (questionOnlyClassificationResult.questions) {
+                    // Legacy fallback - should not be used anymore
+                    console.warn('[PERSISTENCE] Received old questionOnlyClassificationResult format - generating responses (DEPRECATED)');
+                    // Keep old generation logic as fallback...
                 }
             }
 
             // Create AI message for database
-            const resolvedAIMessageId = handleAIMessageIdForEndpoint({ model: actualModel }, null, 'marking');
-
             // Calculate grade based on grade boundaries (if exam data is available)
             let detectedQuestionForGrade: any = undefined;
             if (markingSchemesMap && markingSchemesMap.size > 0) {
@@ -210,6 +153,9 @@ export class MarkingPersistenceService {
             const calculatedGrade = gradeResult.grade;
             const gradeBoundaryType = gradeResult.boundaryType;
             const gradeBoundaries = gradeResult.boundaries;
+
+            // Resolve AI message ID
+            const resolvedAIMessageId = handleAIMessageIdForEndpoint({ model: actualModel }, null, 'marking');
 
             dbAiMessage = SessionManagementService.createAIMessageForDatabase({
                 allQuestionResults,
@@ -253,11 +199,12 @@ export class MarkingPersistenceService {
                 allQuestionResults,
                 markingSchemesMap,
                 files,
-                usageTokens: totalLLMTokens,
-                model: actualModel
+                usageTokens: usageTracker.getTotalTokens(),  // Use UsageTracker for accurate total
+                model: actualModel,
+                mathpixCallCount: mathpixCallCount  // Pass actual Mathpix call count
             };
 
-            // Add API request count to context
+            // Add API request count to context (from UsageTracker)
             const apiRequestCounts = usageTracker.getRequestCounts();
             markingContext.apiRequests = usageTracker.getTotalRequests();
             markingContext.apiRequestBreakdown = apiRequestCounts;

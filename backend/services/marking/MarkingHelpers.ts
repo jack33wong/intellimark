@@ -1168,3 +1168,359 @@ export function calculatePerPageScores(
 
   return pageScores;
 }
+
+/**
+ * Split classification result into two clean buckets:
+ * - Marking: Only questions that appear on questionAnswer pages
+ * - Question-Only: Only questions that appear on questionOnly pages
+ * 
+ * This prevents cross-contamination where a question appears on both page types.
+ */
+export function splitClassificationByCategory(
+  classificationResult: any,
+  allClassificationResults: any[]
+): {
+  markingClassificationResult: any;
+  questionOnlyClassificationResult: any;
+} {
+  if (!classificationResult?.questions || !Array.isArray(classificationResult.questions)) {
+    return {
+      markingClassificationResult: { ...classificationResult, questions: [] },
+      questionOnlyClassificationResult: { ...classificationResult, questions: [] }
+    };
+  }
+
+  const markingQuestions: any[] = [];
+  const questionOnlyQuestions: any[] = [];
+
+  // Debug: Show what we're working with
+  console.log(`\n🔍 [SPLIT DEBUG] Processing ${classificationResult.questions.length} questions`);
+  console.log(`🔍 [SPLIT DEBUG] allClassificationResults structure:`);
+  allClassificationResults.forEach((r, idx) => {
+    console.log(`   [${idx}]: pageIndex=${r.pageIndex}, category=${r.result?.category || r.mapperCategory}`);
+  });
+
+  classificationResult.questions.forEach((q: any) => {
+    const questionPages = q.sourceImageIndices || [q.sourceImageIndex];
+    const qNum = q.questionNumber || '?';
+
+    console.log(`\n🔍 [SPLIT DEBUG] Question ${qNum}:`);
+    console.log(`   sourceImageIndices: [${questionPages.join(', ')}]`);
+
+    // Split pages by category
+    const questionAnswerPages: number[] = [];
+    const questionOnlyPages: number[] = [];
+
+    questionPages.forEach((pageIdx: number) => {
+      console.log(`   Looking up pageIdx=${pageIdx}...`);
+
+      // CRITICAL FIX: Find the classification result for this page by pageIndex, not by array position
+      // The allClassificationResults array is NOT indexed by page number - it's indexed by classification result order
+      const pageResult = allClassificationResults.find(r => r.pageIndex === pageIdx);
+      const category = pageResult?.result?.category || pageResult?.mapperCategory;
+
+      console.log(`     → Found: pageIndex=${pageResult?.pageIndex}, category="${category}"`);
+
+      if (category === 'questionAnswer') {
+        questionAnswerPages.push(pageIdx);
+        console.log(`     ✅ Added to questionAnswer bucket`);
+      } else if (category === 'questionOnly') {
+        questionOnlyPages.push(pageIdx);
+        console.log(`     ✅ Added to questionOnly bucket`);
+      } else {
+        console.log(`     ⚠️  Category "${category}" - skipped`);
+      }
+    });
+
+    console.log(`   Final: questionAnswer pages=[${questionAnswerPages.join(', ')}], questionOnly pages=[${questionOnlyPages.join(', ')}]`);
+
+    // Helper function to filter studentWorkLines by page
+    const filterLinesByPages = (lines: any[], pageIndices: number[]): any[] => {
+      if (!lines || lines.length === 0) return [];
+      return lines.filter((line: any) => {
+        if (line.position && line.position.pageIndex !== undefined) {
+          return pageIndices.includes(line.position.pageIndex);
+        }
+        // If no pageIndex, keep it (fallback for legacy data)
+        return true;
+      });
+    };
+
+    // Helper function to filter sub-questions by page
+    const filterSubQuestionsByPages = (subQs: any[], pageIndices: number[]): any[] => {
+      if (!subQs || subQs.length === 0) return [];
+      return subQs.map((subQ: any) => {
+        // Filter the sub-question's studentWorkLines
+        const filteredLines = filterLinesByPages(subQ.studentWorkLines || [], pageIndices);
+        return {
+          ...subQ,
+          studentWorkLines: filteredLines
+        };
+      }).filter((subQ: any) =>
+        // Only keep sub-questions that have lines after filtering
+        subQ.studentWorkLines && subQ.studentWorkLines.length > 0
+      );
+    };
+
+    // Add to marking bucket if appears on questionAnswer pages
+    if (questionAnswerPages.length > 0) {
+      const filteredStudentWorkLines = filterLinesByPages(q.studentWorkLines || [], questionAnswerPages);
+      const filteredSubQuestions = filterSubQuestionsByPages(q.subQuestions || [], questionAnswerPages);
+
+      console.log(`   ➜ Adding Q${qNum} to MARKING bucket with pages [${questionAnswerPages.join(', ')}]`);
+      console.log(`      - studentWorkLines: ${q.studentWorkLines?.length || 0} → ${filteredStudentWorkLines.length}`);
+      console.log(`      - subQuestions: ${q.subQuestions?.length || 0} → ${filteredSubQuestions.length}`);
+
+      markingQuestions.push({
+        ...q,
+        sourceImageIndices: questionAnswerPages,
+        sourceImageIndex: questionAnswerPages[0],
+        studentWorkLines: filteredStudentWorkLines,
+        subQuestions: filteredSubQuestions
+      });
+    }
+
+    // Add to question-only bucket if appears on questionOnly pages
+    if (questionOnlyPages.length > 0) {
+      const filteredStudentWorkLines = filterLinesByPages(q.studentWorkLines || [], questionOnlyPages);
+      const filteredSubQuestions = filterSubQuestionsByPages(q.subQuestions || [], questionOnlyPages);
+
+      // CRITICAL FIX: Extract page-specific question text from allClassificationResults
+      // When a question appears on multiple pages (e.g., Q1 on both questionAnswer and questionOnly pages),
+      // we need to use the CORRECT question text from the questionOnly page, not the merged text
+      const pageIdx = questionOnlyPages[0]; // Use first questionOnly page
+      const pageResult = allClassificationResults.find(r => r.pageIndex === pageIdx);
+      let pageSpecificText = q.text; // Fallback to merged text
+
+      if (pageResult?.result?.questions) {
+        // Find the question in this page's classification result
+        const pageQuestion = pageResult.result.questions.find((pq: any) =>
+          String(pq.questionNumber || '') === String(q.questionNumber || '')
+        );
+        if (pageQuestion?.text) {
+          pageSpecificText = pageQuestion.text;
+          console.log(`   📝 Using page-specific text for Q${qNum} from page ${pageIdx}`);
+        }
+      }
+
+      console.log(`   ➜ Adding Q${qNum} to QUESTION-ONLY bucket with pages [${questionOnlyPages.join(', ')}]`);
+      console.log(`      - studentWorkLines: ${q.studentWorkLines?.length || 0} → ${filteredStudentWorkLines.length}`);
+      console.log(`      - subQuestions: ${q.subQuestions?.length || 0} → ${filteredSubQuestions.length}`);
+
+      questionOnlyQuestions.push({
+        ...q,
+        text: pageSpecificText, // Use page-specific text instead of merged text
+        sourceImageIndices: questionOnlyPages,
+        sourceImageIndex: questionOnlyPages[0],
+        studentWorkLines: filteredStudentWorkLines,
+        subQuestions: filteredSubQuestions
+      });
+    }
+  });
+
+  console.log(`\n🔄 [CLASSIFICATION SPLIT] DEBUG: Input categories`);
+  console.log(`  - Total pages: ${allClassificationResults.length}`);
+  allClassificationResults.forEach((pageResult, idx) => {
+    const category = pageResult?.result?.category || pageResult?.mapperCategory;
+    console.log(`  - Page ${idx}: category="${category}" (result.category="${pageResult?.result?.category}", mapperCategory="${pageResult?.mapperCategory}")`);
+  });
+
+  console.log(`\n🔄 [CLASSIFICATION SPLIT]`);
+  console.log(`  - Original questions: ${classificationResult.questions.length}`);
+  console.log(`  - Marking bucket: ${markingQuestions.length} questions`);
+  console.log(`  - Question-only bucket: ${questionOnlyQuestions.length} questions`);
+
+  return {
+    markingClassificationResult: {
+      ...classificationResult,
+      questions: markingQuestions,
+      category: 'questionAnswer'
+    },
+    questionOnlyClassificationResult: {
+      ...classificationResult,
+      questions: questionOnlyQuestions,
+      category: 'questionOnly'
+    }
+  };
+}
+
+/**
+ * Merge questions with same questionNumber across pages (for multi-page questions)
+ * Extracted from MarkingPipelineService to support bucket-based processing
+ */
+export function mergeQuestionsFromPages(
+  allClassificationResults: Array<{ pageIndex: number; result: any }>,
+  standardizedPages: any[]
+): any[] {
+  const questionsByNumber = new Map<string, Array<{ question: any; pageIndex: number }>>();
+  const questionsWithoutNumber: Array<{ question: any; pageIndex: number }> = [];
+
+  allClassificationResults.forEach(({ pageIndex, result }) => {
+    if (result.questions && Array.isArray(result.questions)) {
+      result.questions.forEach((question: any) => {
+        const qNum = question.questionNumber;
+
+        // Only merge if questionNumber exists and is not null/undefined
+        if (qNum && qNum !== 'null' && qNum !== 'undefined') {
+          const qNumStr = String(qNum);
+          if (!questionsByNumber.has(qNumStr)) {
+            questionsByNumber.set(qNumStr, []);
+          }
+          questionsByNumber.get(qNumStr)!.push({
+            question,
+            pageIndex
+          });
+        } else {
+          // No question number - can't merge, keep as separate entry
+          questionsWithoutNumber.push({
+            question,
+            pageIndex
+          });
+        }
+      });
+    }
+  });
+
+
+  // Merge questions with same questionNumber
+  const allQuestions: any[] = [];
+
+  // Process merged questions
+  questionsByNumber.forEach((questionInstances, questionNumber) => {
+
+    if (questionInstances.length === 1) {
+      // Single page - no merge needed
+      const { question, pageIndex } = questionInstances[0];
+      // Ensure sourceImage is found
+      const sourceImage = standardizedPages[pageIndex]?.originalFileName || 'unknown';
+      allQuestions.push({
+        ...question,
+        sourceImage: sourceImage,
+        sourceImageIndex: pageIndex,
+        // Ensure sourceImageIndices is set even for single page
+        sourceImageIndices: [pageIndex]
+      });
+    } else {
+      // Multiple pages with same questionNumber - merge them
+      // Find page with question text (not null/empty)
+      const pageWithText = questionInstances.find(({ question }) =>
+        question.text && question.text !== 'null' && question.text.trim().length > 0
+      ) || questionInstances[0];
+
+      // Combine student work from all pages
+      const combinedStudentWork = questionInstances
+        .map(({ question }) => question.studentWork)
+        .filter(sw => sw && sw !== 'null' && sw.trim().length > 0)
+        .join('\n');
+
+      // Merge sub-questions if present (group by part, combine student work)
+      // Also track which pages each sub-question came from
+      const mergedSubQuestions = new Map<string, any>();
+      const subQuestionPageIndices = new Set<number>(); // Track pages that have sub-questions
+
+      questionInstances.forEach(({ question, pageIndex }) => {
+        if (question.subQuestions && Array.isArray(question.subQuestions)) {
+          question.subQuestions.forEach((subQ: any) => {
+            const part = subQ.part || '';
+            // Track that this page has sub-questions
+            subQuestionPageIndices.add(pageIndex);
+
+            if (!mergedSubQuestions.has(part)) {
+              mergedSubQuestions.set(part, {
+                part: subQ.part,
+                text: subQ.text && subQ.text !== 'null' ? subQ.text : null,
+                studentWork: null,
+                confidence: subQ.confidence || 0.9,
+                pageIndex: pageIndex, // Track which page this sub-question came from
+                studentWorkLines: subQ.studentWorkLines || [], // Preserve lines
+                hasStudentDrawing: subQ.hasStudentDrawing // Preserve drawing flag
+              });
+            }
+
+            // Combine student work for same sub-question part
+            if (subQ.studentWork && subQ.studentWork !== 'null' && subQ.studentWork.trim().length > 0) {
+              const existing = mergedSubQuestions.get(part)!;
+              if (existing.studentWork) {
+                existing.studentWork += '\n' + subQ.studentWork;
+              } else {
+                existing.studentWork = subQ.studentWork;
+              }
+              // Merge lines if present
+              if (subQ.studentWorkLines && Array.isArray(subQ.studentWorkLines)) {
+                existing.studentWorkLines = [...(existing.studentWorkLines || []), ...subQ.studentWorkLines];
+              }
+              // Merge drawing flag
+              if (subQ.hasStudentDrawing) {
+                existing.hasStudentDrawing = true;
+                // Ensure [DRAWING] token exists in text if flag is true
+                if (existing.studentWork) {
+                  if (!existing.studentWork.includes('[DRAWING]')) {
+                    existing.studentWork += '\n[DRAWING]';
+                  }
+                } else {
+                  existing.studentWork = '[DRAWING]';
+                }
+              }
+            }
+            // Use text from sub-question that has it
+            if (subQ.text && subQ.text !== 'null' && !mergedSubQuestions.get(part)!.text) {
+              mergedSubQuestions.get(part)!.text = subQ.text;
+            }
+          });
+        }
+      });
+
+      // Collect all page indices for this merged question
+      // Include both question instance pages AND pages that have sub-questions
+      const questionInstancePageIndices = questionInstances.map(({ pageIndex }) => pageIndex);
+      const allPageIndices = [...new Set([...questionInstancePageIndices, ...Array.from(subQuestionPageIndices)])].sort((a, b) => a - b);
+
+
+      const merged = {
+        ...pageWithText.question,
+        questionNumber: questionNumber,
+        // Use text from page that has it (not null/empty)
+        text: pageWithText.question.text && pageWithText.question.text !== 'null'
+          ? pageWithText.question.text
+          : questionInstances[0].question.text,
+        // Combine student work from all pages
+        studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
+        // Use sourceImageIndex from page with text, or first page (for backward compatibility)
+        sourceImage: standardizedPages[pageWithText.pageIndex]?.originalFileName || 'unknown',
+        sourceImageIndex: pageWithText.pageIndex,
+        // Store all page indices this question spans (for multi-page questions)
+        sourceImageIndices: allPageIndices,
+        // Merge sub-questions if present
+        subQuestions: mergedSubQuestions.size > 0
+          ? Array.from(mergedSubQuestions.values())
+          : pageWithText.question.subQuestions || [],
+        // Use highest confidence
+        confidence: Math.max(...questionInstances.map(({ question }) => question.confidence || 0.9))
+      };
+
+
+      allQuestions.push(merged);
+    }
+  });
+
+  // Add questions without question number (can't be merged)
+  questionsWithoutNumber.forEach(({ question, pageIndex }) => {
+    allQuestions.push({
+      ...question,
+      sourceImage: standardizedPages[pageIndex]?.originalFileName || 'unknown',
+      sourceImageIndex: pageIndex,
+      // Ensure sourceImageIndices is set even if not merged
+      sourceImageIndices: [pageIndex]
+    });
+  });
+
+  // Sort questions by question number (natural sort for numbers like 1, 2, 3, 10, 11)
+  allQuestions.sort((a, b) => {
+    const numA = parseInt(a.questionNumber) || 0;
+    const numB = parseInt(b.questionNumber) || 0;
+    return numA - numB;
+  });
+
+  return allQuestions;
+}
+

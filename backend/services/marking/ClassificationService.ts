@@ -6,7 +6,7 @@ import { ErrorHandler } from '../../utils/errorHandler.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
 
 export interface ClassificationResult {
-  category: "questionOnly" | "questionAnswer" | "metadata";
+  category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
   reasoning: string;
   apiUsed: string;
   questions?: Array<{
@@ -57,7 +57,8 @@ export class ClassificationService {
     images: Array<{ imageData: string; fileName?: string; pageIndex?: number }>,
     model: ModelType = 'auto',
     debug: boolean = false,
-    tracker?: any  // UsageTracker (optional)
+    tracker?: any,  // UsageTracker (optional)
+    pageMaps?: Array<{ pageIndex: number; questions: string[]; category?: "frontPage" | "questionAnswer" | "questionOnly" }>  // Pre-computed mapper results (optional)
   ): Promise<Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }>> {
     if (images.length === 0) return [];
 
@@ -106,21 +107,28 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
 
       // =================================================================================
-      // NEW: TWO-PASS HYBRID STRATEGY
+      // TWO-PASS HYBRID STRATEGY
       // Pass 1: Map Questions (Flash) -> Pass 2: Mark Questions (User Model)
       // =================================================================================
 
-      const { ClassificationMapper } = await import('./ClassificationMapper.js');
+      let resolvedPageMaps;
 
-      // --- PASS 1: MAP PASS (Always Flash) ---
-      // Get a map of which questions are on which pages
-      // Cast images to required type (pageIndex is effectively required here)
-      const pageMaps = await ClassificationMapper.mapQuestionsToPages(
-        images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
-        tracker  // Pass tracker for auto-recording
-      );
+      if (pageMaps) {
+        // Use provided pageMaps (from pipeline bucket allocation)
+        console.log('[CLASSIFICATION] Using pre-computed pageMaps from pipeline');
+        resolvedPageMaps = pageMaps;
+      } else {
+        // Fallback: Call mapper internally (backward compatibility)
+        const { ClassificationMapper } = await import('./ClassificationMapper.js');
 
-      console.log('[CLASSIFICATION DEBUG] Mapper Response:', JSON.stringify(pageMaps, null, 2));
+        // --- PASS 1: MAP PASS (Always Flash) ---
+        // Get a map of which questions are on which pages
+        // Cast images to required type (pageIndex is effectively required here)
+        resolvedPageMaps = await ClassificationMapper.mapQuestionsToPages(
+          images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
+          tracker  // Pass tracker for auto-recording
+        );
+      }
 
       // Group pages by Question Number (base number for efficiency)
       // Map<QuestionNumber, Set<PageIndex>>
@@ -129,7 +137,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       // NEW: Track which sub-question is on which page for display purposes
       const subQuestionPageMap = new Map<string, Map<string, number>>();
 
-      pageMaps.forEach(map => {
+      resolvedPageMaps.forEach(map => {
         if (map.questions && Array.isArray(map.questions)) {
           map.questions.forEach(q => {
             // Extract base question number (e.g., "3a" → "3", "3b" → "3")
@@ -164,7 +172,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       const mappedPageIndices = new Set<number>();
       questionToPages.forEach(indices => indices.forEach(i => mappedPageIndices.add(i)));
 
-      pageMaps.forEach(map => {
+      resolvedPageMaps.forEach(map => {
         // If page is NOT mapped to a question AND is content (not metadata/frontPage)
         if (!mappedPageIndices.has(map.pageIndex) && (map.category === 'questionOnly' || map.category === 'questionAnswer')) {
           markingTasks.push({
@@ -179,7 +187,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
       // --- PASS 2: MARKING PASS (User Model, Parallel) ---
       const CONCURRENCY_LIMIT = 10;
-      const results: Array<{ pageIndex: number; result: ClassificationResult }> = [];
+      const results: Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }> = [];
       let completedTasks = 0;
 
       // Helper to process a single question task
@@ -191,7 +199,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
         // ROUTING: Select light vs heavy classification based on mapper category
         const firstPageIndex = pageIndices[0];
-        const mapperCategory = pageMaps[firstPageIndex]?.category || 'questionAnswer';
+        const mapperCategory = resolvedPageMaps[firstPageIndex]?.category || 'questionAnswer';
 
         // CRITICAL: questionAnswer and frontPage MUST use heavy (needs positions)
         // ONLY questionOnly uses light (no student work, no positions needed)
@@ -268,6 +276,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         const cleanContent = this.cleanGeminiResponse(content);
         parsed = this.parseJsonWithSanitization(cleanContent);
 
+
         const { getModelConfig } = await import('../../config/aiModels.js');
         const modelConfig = getModelConfig(validatedModel);
         const modelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || validatedModel;
@@ -285,11 +294,39 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
             const processedQuestions = this.parseQuestionsFromResponse({ questions: pageResult.questions }, 0.9);
 
+            // ✅ CRITICAL FIX: Inject pageIndex into studentWorkLines position objects
+            // This enables proper filtering by page in the bucket split logic
+            if (processedQuestions && Array.isArray(processedQuestions)) {
+              processedQuestions.forEach((q: any) => {
+                // Add pageIndex to main question studentWorkLines
+                if (q.studentWorkLines && Array.isArray(q.studentWorkLines)) {
+                  q.studentWorkLines.forEach((line: any) => {
+                    if (line.position) {
+                      line.position.pageIndex = globalPageIndex;
+                    }
+                  });
+                }
+
+                // Add pageIndex to sub-question studentWorkLines
+                if (q.subQuestions && Array.isArray(q.subQuestions)) {
+                  q.subQuestions.forEach((sq: any) => {
+                    if (sq.studentWorkLines && Array.isArray(sq.studentWorkLines)) {
+                      sq.studentWorkLines.forEach((line: any) => {
+                        if (line.position) {
+                          line.position.pageIndex = globalPageIndex;
+                        }
+                      });
+                    }
+                  });
+                }
+              });
+            }
+
             results.push({
               pageIndex: globalPageIndex,
-              mapperCategory: pageMaps[globalPageIndex]?.category || 'questionAnswer',  // Add mapper category for mode detection
+              mapperCategory: resolvedPageMaps[globalPageIndex]?.category || 'questionAnswer',  // Add mapper category for mode detection
               result: {
-                category: pageMaps[globalPageIndex]?.category || 'questionAnswer', // TRUST MAPPER: Use mapper category as source of truth
+                category: resolvedPageMaps[globalPageIndex]?.category || 'questionAnswer', // TRUST MAPPER: Use mapper category as source of truth
                 reasoning: pageResult.reasoning || `Question ${questionNumber} extraction`,
                 questions: processedQuestions,
                 apiUsed,
@@ -332,7 +369,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         // If this page was not in results, it was not mapped to any question
         const hasResult = results.some(r => r.pageIndex === i);
         if (!hasResult) {
-          const mapResult = pageMaps.find(m => m.pageIndex === i);
+          const mapResult = resolvedPageMaps.find(m => m.pageIndex === i);
           const category = mapResult?.category || "metadata";
 
           // Mark as front page or metadata based on Map Pass category
@@ -340,7 +377,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             pageIndex: i,
             mapperCategory: category,  // Add mapper category for mode detection
             result: {
-              category: (category === "frontPage" ? "metadata" : category) as any,
+              category: category,  // FIXED: Keep frontPage as-is, don't convert to metadata
               reasoning: category === "frontPage"
                 ? "Front page detected by Map Pass - contains exam metadata but no questions"
                 : "Page not mapped to any question",
@@ -418,7 +455,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               const result = await this.classifyImage(img.imageData, model, debug, img.fileName);
               results.push({
                 pageIndex: img.pageIndex ?? i,
-                mapperCategory: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer',  // Fallback path
+                mapperCategory: 'questionAnswer',  // Fallback path - pageMaps not in scope
                 result
               });
             } catch (individualError) {
@@ -427,9 +464,9 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
               // Add a fallback result to maintain page count
               results.push({
                 pageIndex: img.pageIndex ?? i,
-                mapperCategory: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer',  // Error fallback
+                mapperCategory: 'questionAnswer',  // Error fallback - pageMaps not in scope
                 result: {
-                  category: pageMaps[img.pageIndex ?? i]?.category || 'questionAnswer', // TRUST MAPPER
+                  category: 'questionAnswer', // Error fallback - pageMaps not in scope
                   reasoning: 'Classification failed for this image',
                   questions: [],
                   apiUsed: 'error',

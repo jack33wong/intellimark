@@ -38,6 +38,7 @@ export class MarkingOutputService {
         const { overallScore, totalPossibleScore, overallScoreText } = calculateOverallScore(allQuestionResults);
         const pageScores = calculatePerPageScores(allQuestionResults, classificationResult);
 
+
         // --- Annotation Grouping ---
         const annotationsByPage: { [pageIndex: number]: EnrichedAnnotation[] } = {};
 
@@ -54,6 +55,17 @@ export class MarkingOutputService {
                 }
             });
         });
+
+        // DEBUG: Log annotation grouping
+        console.log('\n🎯 [OUTPUT DEBUG] Annotation grouping by pageIndex:');
+        Object.keys(annotationsByPage).forEach(pageIdx => {
+            const annos = annotationsByPage[Number(pageIdx)];
+            console.log(`   Page ${pageIdx}: ${annos.length} annotation(s)`);
+            annos.forEach((anno, i) => {
+                console.log(`      [${i}] text="${anno.text}", _immutable=${(anno as any)._immutable}, _page.global=${(anno as any)._page?.global}`);
+            });
+        });
+
 
         // --- Determine First Page After Sorting (for total score placement) ---
         const extractPageNumber = (filename: string | undefined): number | null => {
@@ -105,7 +117,15 @@ export class MarkingOutputService {
         const firstPageIndexAfterSorting = pagesForSorting[0]?.pageIndex ?? 0;
 
         // --- Parallel Annotation Drawing using SVGOverlayService ---
+        // Note: Pages passed here are already filtered (metadata + questionAnswer only)
         progressCallback(createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
+
+
+        console.log('\n🖼️  [OUTPUT DEBUG] Starting annotation drawing on pages:');
+        standardizedPages.forEach((page, idx) => {
+            const annoCount = (annotationsByPage[page.pageIndex] || []).length;
+            console.log(`   [${idx}] pageIndex=${page.pageIndex}, annotations=${annoCount}`);
+        });
 
         const annotationPromises = standardizedPages.map(async (page) => {
             const pageIndex = page.pageIndex;

@@ -151,7 +151,7 @@ export interface MarkingInstructions {
 }
 
 export interface ImageClassification {
-  category: "questionOnly" | "questionAnswer" | "metadata";
+  category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
   reasoning: string;
   apiUsed: string;
   extractedQuestionText?: string; // Legacy support
@@ -489,7 +489,7 @@ export interface MarkHomeworkRequest {
 
 export interface MarkHomeworkResponse {
   success: boolean;
-  category?: "questionOnly" | "questionAnswer" | "metadata";
+  category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
   result?: ProcessedImageResult;
   annotatedImage?: string | null;
   instructions?: MarkingInstructions;

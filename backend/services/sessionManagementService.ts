@@ -385,14 +385,21 @@ export class SessionManagementService {
     let stats: SessionStats;
     if (additionalData) {
       // For marking mode, use calculateSessionStats with allQuestionResults
-      // CRITICAL FIX: Pass usageTokens from context to preserve classification tokens
+      // CRITICAL: Use actual mathpix count from context if available
+      const mathpixCount = (additionalData as any).mathpixCallCount ??
+        additionalData.allQuestionResults.reduce((sum, q) => sum + (q.mathpixCalls || 0), 0);
+
       stats = calculateSessionStats(
         additionalData.allQuestionResults,
         Date.now() - context.startTime,
         additionalData.model || 'auto',
         additionalData.files || [],
-        additionalData.usageTokens // Pass the pre-calculated total (includes classification)
+        additionalData.usageTokens // Pass the total from UsageTracker
       );
+
+      // Override mathpix count with actual value
+      stats.totalMathpixCalls = mathpixCount;
+      stats.totalTokens = (additionalData.usageTokens || 0) + mathpixCount;
     } else {
       stats = calculateSessionStats(
         [], // No question results in question mode
@@ -762,6 +769,11 @@ export class SessionManagementService {
       suggestedFollowUps: [], // Will be populated by caller
       detectedQuestion: detectedQuestion
     });
+
+    // Add questionOnlyResponses if provided (for mixed content)
+    if (questionOnlyResponses && questionOnlyResponses.length > 0) {
+      (dbAiMessage as any).questionOnlyResponses = questionOnlyResponses;
+    }
 
     // Add studentScore if provided
     if (studentScore) {

@@ -50,7 +50,9 @@ export class QuestionModeHandlerService {
     req,
     res,
     startTime,
-    logStep
+    logStep,
+    usageTracker,  // Add tracker parameter
+    suppressSseCompletion = false  // Skip SSE completion in mixed mode
   }: {
     classificationResult: any;
     standardizedPages: StandardizedPage[];
@@ -62,6 +64,8 @@ export class QuestionModeHandlerService {
     res: Response;
     startTime: number;
     logStep: (stepName: string, modelInfo: string) => () => void;
+    usageTracker?: any;  // Add tracker type
+    suppressSseCompletion?: boolean;  // Optional flag for mixed mode
   }): Promise<QuestionModeResult> {
     console.log(`📚 [QUESTION MODE] Processing ${standardizedPages.length} question-only image(s)`);
 
@@ -192,7 +196,7 @@ export class QuestionModeHandlerService {
           false, // debug
           undefined, // onProgress
           false, // useOcrText
-          undefined, // tracker
+          usageTracker, // Pass tracker so tokens are recorded!
           q.markingScheme  // Pass marking scheme!
         );
         return {
@@ -343,6 +347,18 @@ export class QuestionModeHandlerService {
       );
     }
 
+    // Add questionResponses to unifiedSession for mixed mode
+    // This allows MarkingPipeline to combine questionOnly responses with marking results
+    if (unifiedSession) {
+      unifiedSession.questionResponses = aiResponses.map((ar: any) => ({
+        questionNumber: ar.questionNumber,
+        questionText: questionDetection.questions[ar.questionIndex]?.questionText || '',
+        response: ar.response,
+        apiUsed: ar.apiUsed,
+        usageTokens: ar.usageTokens
+      }));
+    }
+
     // Send final result
     const finalResult: QuestionModeResult = {
       success: true,
@@ -352,18 +368,22 @@ export class QuestionModeHandlerService {
       unifiedSession: unifiedSession // Include unified session data for both user types
     };
 
-    // Send final result with completion flag
-    const finalProgressData = createProgressData(7, 'Complete!', MULTI_IMAGE_STEPS);
-    finalProgressData.isComplete = true;
-    sendSseUpdate(res, finalProgressData);
+    // Send final result with completion flag (skip in mixed mode)
+    if (!suppressSseCompletion) {
+      const finalProgressData = createProgressData(7, 'Complete!', MULTI_IMAGE_STEPS);
+      finalProgressData.isComplete = true;
+      sendSseUpdate(res, finalProgressData);
 
-    // Send completion event in the format expected by frontend
-    const completionEvent = {
-      type: 'complete',
-      result: finalResult
-    };
-    res.write(`data: ${JSON.stringify(completionEvent)}\n\n`);
-    res.end();
+      // Send completion event in the format expected by frontend
+      const completionEvent = {
+        type: 'complete',
+        result: finalResult
+      };
+      res.write(`data: ${JSON.stringify(completionEvent)}\n\n`);
+    } else {
+      console.log('   [MIXED MODE] Suppressed SSE completion - MarkingPipeline will send combined result');
+    }
+    // Don't call res.end() here - let Pipeline/Aggregator handle response ending
 
     return finalResult;
   }

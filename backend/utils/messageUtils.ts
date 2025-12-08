@@ -197,7 +197,7 @@ export interface AIMessageOptions {
   progressData?: any;
   processingStats?: any;
   messageId?: string;
-  category?: "questionOnly" | "questionAnswer" | "metadata";
+  category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   detectedQuestion?: DetectedQuestion;
 }

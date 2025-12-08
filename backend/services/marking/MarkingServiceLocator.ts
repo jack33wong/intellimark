@@ -106,7 +106,7 @@ export class MarkingServiceLocator {
     imageDataOrOcrText: string,
     message: string,
     model: ModelType,
-    category: "questionOnly" | "questionAnswer" | "metadata" = "questionOnly",
+    category: "questionOnly" | "questionAnswer" | "metadata" | "frontPage" = "questionOnly",
     debug: boolean = false,
     onProgress?: (data: any) => void,
     useOcrText: boolean = false,
@@ -167,7 +167,14 @@ export class MarkingServiceLocator {
       // For Question Mode: message contains question text from database
       // For Marking Mode: ocrText contains student work
       const textInput = isQuestionOnly ? message : ocrText;
-      return await this.callGeminiForTextResponse(textInput, systemPrompt, userPrompt, validatedModel, tracker);
+
+      // DEBUG: Track which phase will record tokens
+      console.log(`🔍 [TOKEN TRACKING DEBUG] generateChatResponse:`)
+      console.log(`   - Category: ${category}`);
+      console.log(`   - Has tracker: ${!!tracker}`);
+      console.log(`   - Phase will be: ${isQuestionOnly ? 'questionMode' : 'marking'}`);
+
+      return await this.callGeminiForTextResponse(textInput, systemPrompt, userPrompt, validatedModel, tracker, category);
     } catch (error) {
       // Check if this is our validation error (fail fast)
       if (error instanceof Error && error.message.includes('Unsupported model')) {
@@ -279,7 +286,8 @@ export class MarkingServiceLocator {
     systemPrompt: string,
     userPrompt: string,
     model: ModelType = 'auto',
-    tracker?: any
+    tracker?: any,
+    category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage"
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
     try {
       // Check if model is OpenAI - route to OpenAI API instead
@@ -301,7 +309,12 @@ export class MarkingServiceLocator {
 
       // Use Gemini API for Gemini models
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, 'marking');
+
+      // Determine correct phase for token tracking based on category
+      const isQuestionOnly = category === "questionOnly";
+      const phase = isQuestionOnly ? 'questionMode' : 'marking';
+
+      const result = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, phase);
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);

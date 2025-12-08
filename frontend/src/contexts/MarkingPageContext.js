@@ -348,9 +348,11 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
           'Input Validation',
           'Standardization',
           'Preprocessing',
-          'OCR & Classification',
+          'Mapping',
+          'Bucket Allocation',
+          'Classification',
+          'OCR',
           'Question Detection',
-          'Segmentation',
           'Marking',
           'Output Generation'
         ],

@@ -39,6 +39,7 @@ import { ClassificationService } from './ClassificationService.js';
 import { executeMarkingForQuestion, QuestionResult, EnrichedAnnotation, createMarkingTasksFromClassification } from './MarkingExecutor.js';
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { QuestionModeHandlerService } from './QuestionModeHandlerService.js';
+import { ModeSplitService } from './ModeSplitService.js';
 
 // Define the steps for multi-image processing
 const MULTI_IMAGE_STEPS = [
@@ -496,12 +497,13 @@ export class MarkingPipelineService {
 
 
             // Classify ALL images at once for better cross-page context (solves continuation page question number detection)
-            const allClassificationResults = await ClassificationService.classifyMultipleImages(
+            let allClassificationResults = await ClassificationService.classifyMultipleImages(
                 standardizedPages,
                 actualModel as ModelType,  // Cast to ModelType
                 false,  // debug
                 usageTracker  // Pass tracker for auto-recording
             );
+
 
             // DEBUG: Log Mapper Response (Page Index -> Question Number)
             console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -515,6 +517,33 @@ export class MarkingPipelineService {
                 console.log(`Page ${pageIndex}: [${qNums}] (Category: ${result.category})`);
             });
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+            logClassificationComplete();
+
+            // ========================= DEBUG: ORIGINAL MAPPER RESPONSE =========================
+            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🔍 [MAPPER SPLIT DEBUG] Original Mapper Response:');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(`Total Pages: ${standardizedPages.length}`);
+            console.log(`Total Classification Results: ${allClassificationResults.length}`);
+            allClassificationResults.forEach((result, idx) => {
+                const qNums = result.result?.questions?.map((q: any) => q.questionNumber || 'N/A').join(', ') || 'None';
+                console.log(`  [${idx}] PageIndex=${result.pageIndex}, Category=${result.result?.category}, Questions=[${qNums}]`);
+            });
+            //===================================================================================
+
+            // ========================= PERFECT SPLIT: USE MODE SPLIT SERVICE =========================
+            const splitResult = ModeSplitService.splitMixedContent(standardizedPages, allClassificationResults);
+
+            // Extract split structures for later use
+            const questionOnlyPages = splitResult.questionOnlyPages;
+            const questionOnlyClassificationResults = splitResult.questionOnlyClassificationResults;
+
+            // Use final structures for pipeline
+            standardizedPages = splitResult.finalPages;
+            allClassificationResults = splitResult.finalClassificationResults;
+            //=================================================================================================
+
 
             // Combine questions from all images
             // Merge questions with same questionNumber across pages (for multi-page questions like Q21)
@@ -557,9 +586,10 @@ export class MarkingPipelineService {
                 if (questionInstances.length === 1) {
                     // Single page - no merge needed
                     const { question, pageIndex } = questionInstances[0];
+                    const page = standardizedPages.find(p => p.pageIndex === pageIndex);
                     allQuestions.push({
                         ...question,
-                        sourceImage: standardizedPages[pageIndex].originalFileName,
+                        sourceImage: page?.originalFileName || 'unknown',
                         sourceImageIndex: pageIndex
                     });
                 } else {
@@ -648,7 +678,7 @@ export class MarkingPipelineService {
                         // Combine student work from all pages
                         studentWork: combinedStudentWork || pageWithText.question.studentWork || null,
                         // Use sourceImageIndex from page with text, or first page (for backward compatibility)
-                        sourceImage: standardizedPages[pageWithText.pageIndex]?.originalFileName || 'unknown',
+                        sourceImage: standardizedPages.find(p => p.pageIndex === pageWithText.pageIndex)?.originalFileName || 'unknown',
                         sourceImageIndex: pageWithText.pageIndex,
                         // Store all page indices this question spans (for multi-page questions)
                         sourceImageIndices: allPageIndices,
@@ -667,9 +697,10 @@ export class MarkingPipelineService {
 
             // Add questions without question number (can't be merged)
             questionsWithoutNumber.forEach(({ question, pageIndex }) => {
+                const page = standardizedPages.find(p => p.pageIndex === pageIndex);
                 allQuestions.push({
                     ...question,
-                    sourceImage: standardizedPages[pageIndex].originalFileName,
+                    sourceImage: page?.originalFileName || 'unknown',
                     sourceImageIndex: pageIndex
                 });
             });
@@ -722,9 +753,10 @@ export class MarkingPipelineService {
             // Check for rotation detected by AI and correct the image
             // This ensures OCR and Annotation work on the upright image
             const rotationPromises = allClassificationResults.map(async ({ pageIndex, result }, index) => {
-                const rotation = (result as any).rotation;
+                // Handle Rotation (90deg, -90deg, 180deg)
+                const rotation = result.rotation;
                 if (rotation && typeof rotation === 'number' && rotation !== 0) {
-                    const page = standardizedPages[pageIndex];
+                    const page = standardizedPages.find(p => p.pageIndex === pageIndex);
                     if (!page) {
                         console.warn(`⚠️ [ROTATION] Could not find page for index ${pageIndex}, skipping rotation.`);
                         return;
@@ -754,21 +786,22 @@ export class MarkingPipelineService {
                 const isMetadataPage = result.category === "metadata";
 
                 if (isMetadataPage) {
-                    const fileName = standardizedPages[pageIndex]?.originalFileName || 'unknown';
+                    const fileName = standardizedPages.find(p => p.pageIndex === pageIndex)?.originalFileName || 'unknown';
                     console.log(`📄 [METADATA] Page ${pageIndex + 1} (${fileName}) marked as metadata page - will skip OCR/processing`);
                 }
             });
 
             // ========================= ENHANCED MODE DETECTION =========================
-            // Smart mode detection based on content analysis
-            const isQuestionMode = classificationResult?.category === "questionOnly";
-            const isMixedContent = classificationResult?.hasMixedContent === true;
+            // Smart mode detection based on content categories
+            const hasStudentWorkPages = allClassificationResults.some(r => r.result?.category === 'questionAnswer');
+            const hasQuestionOnlyPages = allClassificationResults.every(r => r.result?.category === 'questionOnly');
+            const isQuestionMode = hasQuestionOnlyPages && allClassificationResults.length > 0;
+            const isMixedContent = hasStudentWorkPages && questionOnlyPages.length > 0;
 
-            console.log(`🔍 [MODE DETECTION] Analysis:`);
-
+            console.log(`🔍 [MODE DETECTION] Analysis (AFTER filtering):`);
             console.log(`  - All question-only: ${isQuestionMode}`);
             console.log(`  - Has mixed content: ${isMixedContent}`);
-            console.log(`  - Has any student work: ${classificationResult?.hasAnyStudentWork}`);
+            console.log(`  - Has any student work: ${hasStudentWorkPages}`);
             console.log(`  - Selected mode: ${isQuestionMode ? 'Question Mode' : 'Marking Mode'}`);
 
             if (isQuestionMode) {
@@ -818,12 +851,18 @@ export class MarkingPipelineService {
 
 
             const pageProcessingPromises = standardizedPages.map(async (page, index): Promise<PageOcrResult> => {
-                // Skip OCR for metadata pages (to save Mathpix costs)
+                // Skip OCR for metadata and frontPage (to save Mathpix costs)
                 const classificationResult = allClassificationResults[index]?.result;
                 const isMetadataPage = classificationResult?.category === "metadata";
+                const isFrontPage = classificationResult?.category === "frontPage";
 
-                if (isMetadataPage) {
+                console.log(`🔍 [OCR DEBUG] Page ${index} (original=${page.originalPageIndex || page.pageIndex}):`);
+                console.log(`   - Category: ${classificationResult?.category}`);
+                console.log(`   - Is metadata: ${isMetadataPage}`);
+                console.log(`   - Is frontPage: ${isFrontPage}`);
 
+                if (isMetadataPage || isFrontPage) {
+                    console.log(`   - SKIPPING OCR (${isMetadataPage ? 'metadata' : 'frontPage'} page)`);
                     return {
                         pageIndex: page.pageIndex,
                         ocrData: {
@@ -845,8 +884,11 @@ export class MarkingPipelineService {
                 const pageClassification = allClassificationResults[index]?.result;
                 const isQuestionOnly = pageClassification?.category === "questionOnly";
 
-                if (isMixedContent && isQuestionOnly) {
+                console.log(`   - Is question-only: ${isQuestionOnly}`);
+                console.log(`   - Is mixed content: ${isMixedContent}`);
 
+                if (isMixedContent && isQuestionOnly) {
+                    console.log(`   - SKIPPING OCR (question-only in mixed mode)`);
                     return {
                         pageIndex: page.pageIndex,
                         ocrData: {
@@ -863,6 +905,7 @@ export class MarkingPipelineService {
                     };
                 }
 
+                console.log(`   - ✅ RUNNING OCR`);
                 const ocrResult = await OCRService.processImage(
                     page.imageData, {}, false, 'auto',
                     { extractedQuestionText: globalQuestionText }
@@ -941,10 +984,11 @@ export class MarkingPipelineService {
                         const hasDrawingsInQuestion = q.hasStudentDrawing === true ||
                             (q.subQuestions && q.subQuestions.some(sq => sq.hasStudentDrawing === true));
 
-                        if (hasDrawingsInQuestion && standardizedPages[pageIndex]) {
-                            // Flag this question to receive the image for marking
-                            (q as any).requiresImageForMarking = true;
-                            (q as any).imageDataForMarking = standardizedPages[pageIndex].imageData;
+                        const pageForDrawing = standardizedPages.find(p => p.pageIndex === pageIndex);
+                        if (hasDrawingsInQuestion && pageForDrawing) {
+                            // Pass image data to Marking AI
+                            console.log(`[DRAWING] Q${q.questionNumber}: Passing image to Marking AI (Drawing Classification returned 0 for this drawing question)`);
+                            (q as any).imageDataForMarking = pageForDrawing.imageData;
                             console.log(`[DRAWING] Q${q.questionNumber || '?'}: Will pass image to Marking AI`);
                         }
                     });
@@ -1186,6 +1230,85 @@ export class MarkingPipelineService {
             logMarkingComplete();
             // ========================== END: IMPLEMENT STAGE 4 ==========================
 
+            // ========================= PROCESS QUESTION-ONLY PAGES (FILTERED EARLIER) =========================
+            // Process the questionOnly pages we filtered out earlier for text responses
+            let questionOnlyResult: any = null;
+            if (questionOnlyPages.length > 0) {
+                console.log(`\n📝 [QUESTION-ONLY] Processing ${questionOnlyPages.length} filtered questionOnly page(s)...`);
+
+                // Build PROPER standalone classificationResult (not just filtered array)
+                // Extract and sort all questions from questionOnly results
+                const allQuestionOnlyQuestions = questionOnlyClassificationResults
+                    .flatMap(r => r.result?.questions || [])
+                    .sort((a: any, b: any) => {
+                        const numA = parseInt(a.questionNumber?.toString().replace(/\D/g, '') || '0');
+                        const numB = parseInt(b.questionNumber?.toString().replace(/\D/g, '') || '0');
+                        return numA - numB;
+                    });
+
+                // Build complete standalone classificationResult (as if pure questionOnly mode)
+                const questionOnlyClassificationResult = {
+                    category: 'questionOnly',
+                    questions: allQuestionOnlyQuestions,
+                    hasAnyStudentWork: false,
+                    hasMixedContent: false
+                };
+
+                console.log(`   Built standalone classificationResult:`);
+                console.log(`     - Questions: ${questionOnlyClassificationResult.questions.length} (${questionOnlyClassificationResult.questions.map((q: any) => q.questionNumber).join(', ')})`);
+                console.log(`     - Category: ${questionOnlyClassificationResult.category}`);
+
+                // Call QuestionModeHandler for questionOnly pages and CAPTURE result
+                questionOnlyResult = await QuestionModeHandlerService.handleQuestionMode({
+                    classificationResult: questionOnlyClassificationResult,
+                    standardizedPages: questionOnlyPages,
+                    files,
+                    actualModel,
+                    userId: options.userId || 'anonymous',
+                    submissionId,
+                    req: req,
+                    res: {
+                        write: (data: string) => {
+                            if (data.startsWith('data: ')) {
+                                try {
+                                    const jsonStr = data.substring(6);
+                                    const parsed = JSON.parse(jsonStr);
+                                    progressCallback(parsed);
+                                } catch (e) {
+                                    // Ignore
+                                }
+                            }
+                        },
+                        end: () => { }
+                    } as any,
+                    startTime,
+                    logStep,
+                    usageTracker,
+                    suppressSseCompletion: true  // CRITICAL: Suppress completion in mixed mode!
+                });
+
+                console.log(`✅ [QUESTION-ONLY] Processed ${questionOnlyPages.length} page(s)`);
+                console.log(`   Result captured:`, questionOnlyResult ? 'YES' : 'NO');
+                if (questionOnlyResult) {
+                    console.log(`   - Mode: ${questionOnlyResult.mode}`);
+                    console.log(`   - message type: ${typeof questionOnlyResult.message}`);
+                    console.log(`   - message keys:`, questionOnlyResult.message ? Object.keys(questionOnlyResult.message) : 'null');
+                    console.log(`   - Has unifiedSession: ${!!questionOnlyResult.unifiedSession}`);
+
+                    // Check what's actually in the result
+                    if (questionOnlyResult.unifiedSession?.questionResponses) {
+                        console.log(`   - Found questionResponses in unifiedSession: ${questionOnlyResult.unifiedSession.questionResponses.length}`);
+                    }
+                }
+            }
+
+            // ========================= VERIFY DOWNSTREAM TRIGGERING =========================
+            console.log('\n🔍 [RESULT VERIFICATION] Checking what will be combined:');
+            console.log(`   📊 Marking Results: ${allQuestionResults?.length || 0} questions`);
+            console.log(`   📝 Question Results: ${questionOnlyResult ? 'YES (captured)' : 'NO'}`);
+            console.log(`   ✅ Both modes triggered: ${(allQuestionResults?.length > 0) && questionOnlyResult ? 'YES' : 'NO'}`);
+            //=================================================================================================
+
             // ========================= START: IMPLEMENT STAGE 5 =========================
             // --- Stage 5: Aggregation & Output ---
             progressCallback(createProgressData(7, 'Aggregating results and generating annotated images...', MULTI_IMAGE_STEPS));
@@ -1197,7 +1320,7 @@ export class MarkingPipelineService {
                 totalPossibleScore,
                 overallScoreText
             } = await MarkingOutputService.generateOutput(
-                standardizedPages,
+                standardizedPages,  // Already filtered upstream - only marking pages
                 allQuestionResults,
                 classificationResult,
                 allClassificationResults,
@@ -1210,7 +1333,33 @@ export class MarkingPipelineService {
                 MULTI_IMAGE_STEPS
             );
 
+
             logOutputGenerationComplete();
+
+            // ========================= COMBINE QUESTION-ONLY RESULTS (BEFORE PERSISTENCE) =========================
+            // Extract questionOnly text responses so they can be added to AI message content
+            let combinedQuestionResponses: any[] = [];
+
+            console.log('\n🔍 [COMBINATION DEBUG] questionOnlyResult structure:');
+            console.log('   - exists:', !!questionOnlyResult);
+            if (questionOnlyResult && questionOnlyResult.unifiedSession?.questionResponses) {
+                console.log('\n📝 [RESULT COMBINATION] Extracting questionOnly responses...');
+                const questionOnlyResponses = questionOnlyResult.unifiedSession.questionResponses;
+                console.log(`   - QuestionOnly responses: ${questionOnlyResponses.length}`);
+
+                // Sort questionOnly responses by question number
+                questionOnlyResponses.sort((a: any, b: any) => {
+                    const numA = parseInt(a.questionNumber?.toString().replace(/\D/g, '')) || 0;
+                    const numB = parseInt(b.questionNumber?.toString().replace(/\D/g, '')) || 0;
+                    return numA - numB;
+                });
+
+                combinedQuestionResponses = questionOnlyResponses;
+                console.log(`   - Sorted questionOnly: ${combinedQuestionResponses.map((r: any) => r.questionNumber).join(', ')}`);
+            } else {
+                console.log('⚠️  [COMBINATION] No questionResponses found');
+            }
+            //=================================================================================
 
             // ========================= START: DATABASE PERSISTENCE =========================
             const { unifiedSession } = await MarkingPersistenceService.persistSession(
@@ -1233,7 +1382,10 @@ export class MarkingPipelineService {
                 pdfContext,
                 isMixedContent,
                 stepTimings,
-                totalLLMTokens
+                totalLLMTokens,
+                combinedQuestionResponses,  // Pass questionOnly responses for persistence
+                usageTracker,  // Pass UsageTracker for accurate token/cost tracking
+                totalMathpixCalls  // Pass actual Mathpix call count
             );
 
             // Construct unified finalOutput that works for both authenticated and unauthenticated users
@@ -1274,6 +1426,13 @@ export class MarkingPipelineService {
                     })
                 })
             };
+
+            // DEBUG: Show what's being sent to frontend
+            console.log('\n📤 [FINAL OUTPUT DEBUG] Sending to frontend:');
+            console.log(`   - annotatedOutput: ${finalOutput.annotatedOutput?.length || 0} images`);
+            console.log(`   - results: ${finalOutput.results?.length || 0} marking results`);
+            console.log(`   - unifiedSession exists: ${!!finalOutput.unifiedSession}`);
+            console.log(`   - questionResponses in AI message: ${combinedQuestionResponses.length > 0 ? 'YES' : 'NO'}`);
 
             // --- Send FINAL Complete Event ---
             progressCallback({ type: 'complete', result: finalOutput }); // 'true' marks as final
