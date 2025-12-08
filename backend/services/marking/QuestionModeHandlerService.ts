@@ -77,7 +77,6 @@ export class QuestionModeHandlerService {
     let individualQuestions = extractQuestionsFromClassification(classificationResult, standardizedPages[0]?.originalFileName);
 
 
-
     // Use unified orchestration service (same as Marking Mode)
     const orchestrationResult = await MarkingSchemeOrchestrationService.orchestrateMarkingSchemeLookup(
       individualQuestions,
@@ -163,7 +162,7 @@ export class QuestionModeHandlerService {
         }
 
         return {
-          questionNumber: qd.detection.match?.questionNumber || '',
+          questionNumber: qd.detection.match?.questionNumber || `${qd.questionIndex + 1}`, // FIXED: Use index as fallback
           questionText: questionText,
           marks: qd.detection.match?.marks || 0,
           markingScheme: markingSchemePlainText,
@@ -199,10 +198,17 @@ export class QuestionModeHandlerService {
           usageTracker, // Pass tracker so tokens are recorded!
           q.markingScheme  // Pass marking scheme!
         );
+
+        // POST-PROCESS: Insert blank lines after marking codes for visual separation
+        const formattedResponse = response.response
+          .replace(/(\[M\d+(?:dep)?\])/g, '$1\n\n')  // [M1], [M1dep], [M2], etc.
+          .replace(/(\[A\d+\])/g, '$1\n\n')          // [A1], [A2], etc.
+          .replace(/(\[B\d+\])/g, '$1\n\n');         // [B1], [B2], etc.
+
         return {
           questionIndex: index,
           questionNumber: q.questionNumber || `Q${index + 1}`,
-          response: response.response,
+          response: formattedResponse,  // Use formatted response
           apiUsed: response.apiUsed,
           usageTokens: response.usageTokens,
           inputTokens: response.inputTokens,

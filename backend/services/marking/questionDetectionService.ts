@@ -114,6 +114,9 @@ export class QuestionDetectionService {
         };
       }
 
+      // Ignore questionNumberHint if it's "1" (dummy default from mapper for unnumbered questions)
+      const effectiveHint = questionNumberHint === '1' ? null : questionNumberHint;
+
       // Get all exam papers from database
       const examPapers = await this.getAllExamPapers();
 
@@ -135,7 +138,7 @@ export class QuestionDetectionService {
         const paperCode = metadata?.exam_code || 'unknown';
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
 
-        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, questionNumberHint);
+        const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
         if (match && match.confidence) {
           // Track best match even if below threshold (for failure logging)
           if (match.confidence > bestScore) {
@@ -203,6 +206,14 @@ export class QuestionDetectionService {
           match: bestMatch,
           message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
         };
+      }
+
+      // DEBUG: Log closest match even if below threshold
+      if (bestFailedMatch) {
+        console.log(`\n❌ [QUESTION DETECTION] No match above threshold`);
+        console.log(`   Best attempt: ${bestFailedMatch.board} ${bestFailedMatch.paperCode} Q${bestFailedMatch.questionNumber}`);
+        console.log(`   Similarity: ${bestFailedMatch.confidence?.toFixed(3)} (threshold: ${bestFailedMatch.subQuestionNumber ? 0.4 : 0.50})`);
+        console.log(`   Question text (first 100 chars): ${extractedQuestionText.substring(0, 100)}...`);
       }
 
       return {

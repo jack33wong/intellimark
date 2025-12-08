@@ -11,8 +11,10 @@ Provide a concise model answer following this strict format:
 
 2. **Model Answer:**
    - Provide the answer immediately after the span (on a new line).
-   - Always include mark allocation [B1], [M1], [A1] at the end.
    - For complex questions, show working steps.
+   - **CRITICAL FORMATTING:** Put a BLANK LINE between each step with a marking code
+   - Use LaTeX math notation: $...$ for inline math, $$...$$ for display math
+   - Each marking code [B1], [M1], [A1] should be on its own line with blank lines around it
 
 **Example Output:**
 <span class="model_question">a) Write 5.3 × 10^4 as an ordinary number.</span>
@@ -20,9 +22,23 @@ Provide a concise model answer following this strict format:
 
 <span class="model_question">b) Work out the value of x.</span>
 3x = 12
+
 x = 4 [A1]
+
+<span class="model_question">c) Calculate the minimum annual interest rate.</span>
+560 ÷ 500 = 1.12 [M1]
+
+$\sqrt[3]{1.12} = 1.03849...$ [M1dep]
+
+$1.03849... - 1 = 0.03849...$
+
+$0.03849... \times 100 = 3.849...$
+
+3.9% [A1]
 
 **CRITICAL INSTRUCTIONS:**
 - You MUST use the <span class="model_question">...</span> tags for the question text.
 - Do NOT add your own "Question" headers (the system handles that).
 - Use the exact question numbering/labeling from the input question text.
+- Use BLANK LINES between steps to create visual separation
+- Use LaTeX $...$ syntax for math expressions
