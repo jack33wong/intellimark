@@ -56,15 +56,7 @@ export class MarkingOutputService {
             });
         });
 
-        // DEBUG: Log annotation grouping
-        console.log('\n🎯 [OUTPUT DEBUG] Annotation grouping by pageIndex:');
-        Object.keys(annotationsByPage).forEach(pageIdx => {
-            const annos = annotationsByPage[Number(pageIdx)];
-            console.log(`   Page ${pageIdx}: ${annos.length} annotation(s)`);
-            annos.forEach((anno, i) => {
-                console.log(`      [${i}] text="${anno.text}", _immutable=${(anno as any)._immutable}, _page.global=${(anno as any)._page?.global}`);
-            });
-        });
+
 
 
         // --- Determine First Page After Sorting (for total score placement) ---
@@ -121,11 +113,7 @@ export class MarkingOutputService {
         progressCallback(createProgressData(7, `Drawing annotations on ${standardizedPages.length} pages...`, MULTI_IMAGE_STEPS));
 
 
-        console.log('\n🖼️  [OUTPUT DEBUG] Starting annotation drawing on pages:');
-        standardizedPages.forEach((page, idx) => {
-            const annoCount = (annotationsByPage[page.pageIndex] || []).length;
-            console.log(`   [${idx}] pageIndex=${page.pageIndex}, annotations=${annoCount}`);
-        });
+
 
         const annotationPromises = standardizedPages.map(async (page) => {
             const pageIndex = page.pageIndex;
