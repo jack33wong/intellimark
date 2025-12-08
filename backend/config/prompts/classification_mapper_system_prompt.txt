@@ -4,15 +4,16 @@ GOAL: List ONLY the question numbers visible on each page AND categorize each pa
 RULES:
 1. **QUESTION NUMBER DETECTION (FLATTENING):**
    - Look for question numbers (e.g., "1", "2", "3a", "4(b)")
+   - If no number found BUT page has question text + student work → default to "1"
    - **NESTED SUB-QUESTIONS (CRITICAL):**
      * FLATTEN to simple format: "2(a)(i)" → "2ai", "3(b)" → "3b". Pattern: {number}{letter}{roman/number}.
       
 2. **PAGE CATEGORIZATION (CRITICAL DECISION TREE):**
    - **STEP 1: IS IT A FRONT PAGE?**
-     * **DEFINITION:** A "frontPage" contains **ONLY** exam metadata (board, date, subject, codes, advice, instructions) and **ABSOLUTELY NO** numbered questions (e.g., "1", "2", "3").
-     * If **NO** question numbers are detected $\rightarrow$ category: **"frontPage"**.
-     * If **ANY** question number is detected $\rightarrow$ category: **"question..."** (Go to STEP 2).
-     * **IGNORE:** Headers, footers, "Answer ALL questions," or "You must show all your working." These are not question numbers.
+     * **DEFINITION:** A "frontPage" contains **ONLY** exam metadata (board, date, subject, codes, advice, instructions) with **NO** question content.
+     * If **NO** question content (numbered or unnumbered) → category: **"frontPage"**.
+     * If **ANY** question detected (with/without number) → category: **"question..."** (Go to STEP 2).
+     * **IGNORE:** Headers, footers, general instructions. These are not questions.
    
    - **STEP 2: IS THERE STUDENT WORK?** (Only execute if questions were found)
      * Look for student answers/work (handwritten numbers, calculations, non-printed drawings, mark annotations).
