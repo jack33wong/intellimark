@@ -520,17 +520,7 @@ export class MarkingPipelineService {
 
             logClassificationComplete();
 
-            // ========================= DEBUG: ORIGINAL MAPPER RESPONSE =========================
-            console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('🔍 [MAPPER SPLIT DEBUG] Original Mapper Response:');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log(`Total Pages: ${standardizedPages.length}`);
-            console.log(`Total Classification Results: ${allClassificationResults.length}`);
-            allClassificationResults.forEach((result, idx) => {
-                const qNums = result.result?.questions?.map((q: any) => q.questionNumber || 'N/A').join(', ') || 'None';
-                console.log(`  [${idx}] PageIndex=${result.pageIndex}, Category=${result.result?.category}, Questions=[${qNums}]`);
-            });
-            //===================================================================================
+
 
             // ========================= PERFECT SPLIT: USE MODE SPLIT SERVICE =========================
             const splitResult = ModeSplitService.splitMixedContent(standardizedPages, allClassificationResults);
