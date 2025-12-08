@@ -906,24 +906,11 @@ const enrichAnnotationsWithPositions = (
     if ((anno as any).ocr_match_status === 'UNMATCHED') {
       const lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
 
-      console.log(`🔍 [UNMATCHED DEBUG] Annotation "${(anno as any).text}"`);
-      console.log(`   - Line index: ${lineIndex}`);
-      console.log(`   - Has classificationBlocks: ${!!task.classificationBlocks}`);
-      console.log(`   - Blocks count: ${task.classificationBlocks?.length || 0}`);
-
       // Find the position using line_index
       let classificationPosition: any = null;
       if (task.classificationBlocks) {
-        console.log(`   - Searching through ${task.classificationBlocks.length} classification blocks...`);
         for (let i = 0; i < task.classificationBlocks.length; i++) {
           const block = task.classificationBlocks[i];
-          console.log(`   - Block[${i}]: pageIndex=${block.pageIndex}, lines=${block.studentWorkLines?.length || 0}`);
-
-          // DEBUG: For Q6, show full block structure
-          if (questionId === '6') {
-            console.log(`   📋 [Q6 BLOCK DEBUG] Full block structure:`);
-            console.log(JSON.stringify(block, null, 2));
-          }
 
           // 1. Check top-level studentWorkLines first
           if (block.studentWorkLines && block.studentWorkLines.length > 0) {
@@ -936,7 +923,6 @@ const enrichAnnotationsWithPositions = (
                   ...line.position,
                   pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
                 };
-                console.log(`   ✅ Found position in block[${i}] top-level, pageIndex=${classificationPosition.pageIndex}`);
                 break; // Found it!
               }
             }
@@ -944,11 +930,9 @@ const enrichAnnotationsWithPositions = (
 
           // 2. If not found, check nested subQuestions
           if (!classificationPosition && block.subQuestions) {
-            console.log(`   - Checking ${block.subQuestions.length} sub-questions...`);
             for (let sq = 0; sq < block.subQuestions.length; sq++) {
               const subQ = block.subQuestions[sq];
               if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
-                console.log(`     SubQ[${sq}] (${subQ.part}): ${subQ.studentWorkLines.length} lines`);
 
                 if (lineIndex >= 0 && lineIndex < subQ.studentWorkLines.length) {
                   const line = subQ.studentWorkLines[lineIndex];
@@ -958,7 +942,6 @@ const enrichAnnotationsWithPositions = (
                       ...line.position,
                       pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
                     };
-                    console.log(`   ✅ Found position in subQ[${sq}] (${subQ.part}), pageIndex=${classificationPosition.pageIndex}`);
                     break; // Found it!
                   }
                 }
@@ -969,10 +952,6 @@ const enrichAnnotationsWithPositions = (
               break; // Exit block loop if found in sub-questions
             }
           }
-        }
-
-        if (!classificationPosition) {
-          console.log(`   ❌ Position not found, falling back to defaultPageIndex=${defaultPageIndex}`);
         }
       }
 

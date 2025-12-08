@@ -750,7 +750,7 @@ export class MarkingInstructionService {
     // but once we log one, we set a flag to prevent others.
     // Multi-page drawing questions are ALWAYS logged.
     // TEMPORARILY DISABLED: AI prompt logging (too verbose)
-    const shouldLogPrompt = false; // Disabled
+    const shouldLogPrompt = (questionNumber === '2' || questionNumber === '6'); // Enable for Q2 and Q6
 
     if (shouldLogPrompt) {
       if (!isDrawingQuestion && String(questionNumber) !== '1') {
