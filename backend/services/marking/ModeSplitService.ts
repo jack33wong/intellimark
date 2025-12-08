@@ -70,16 +70,24 @@ export class ModeSplitService {
         const questionOnlyClassificationResults = questionOnlyOriginalResults.map(result => {
             const originalIdx = result.pageIndex;
             const newIdx = questionOnlyPages.findIndex(p => p.originalPageIndex === originalIdx);
+
+            // Deep copy and re-index ALL nested structures
             return {
                 ...result,
                 pageIndex: newIdx >= 0 ? newIdx : result.pageIndex,
-                result: {
+                result: result.result ? {
                     ...result.result,
-                    questions: result.result?.questions?.map((q: any) => ({
+                    questions: result.result.questions?.map((q: any) => ({
                         ...q,
-                        sourcePageIndex: newIdx >= 0 ? newIdx : q.sourcePageIndex
-                    }))
-                }
+                        sourcePageIndex: newIdx >= 0 ? newIdx : q.sourcePageIndex,
+                        pageIndex: newIdx >= 0 ? newIdx : q.pageIndex,
+                        // Re-index blocks array inside each question
+                        blocks: q.blocks?.map((block: any) => ({
+                            ...block,
+                            pageIndex: newIdx >= 0 ? newIdx : block.pageIndex
+                        })) || q.blocks
+                    })) || result.result.questions
+                } : result.result
             };
         });
 
@@ -109,10 +117,28 @@ export class ModeSplitService {
         const markingClassificationResults = markingOriginalResults.map(result => {
             const originalIdx = result.pageIndex;
             const newIdx = markingPages.findIndex(p => p.originalPageIndex === originalIdx);
-            return {
+
+            // Deep copy and re-index ALL nested structures
+            const reindexed = {
                 ...result,
-                pageIndex: newIdx >= 0 ? newIdx : result.pageIndex
+                pageIndex: newIdx >= 0 ? newIdx : result.pageIndex,
+                result: result.result ? {
+                    ...result.result,
+                    // Re-index questions array
+                    questions: result.result.questions?.map((q: any) => ({
+                        ...q,
+                        sourcePageIndex: newIdx >= 0 ? newIdx : q.sourcePageIndex,
+                        pageIndex: newIdx >= 0 ? newIdx : q.pageIndex,
+                        // Re-index blocks array inside each question
+                        blocks: q.blocks?.map((block: any) => ({
+                            ...block,
+                            pageIndex: newIdx >= 0 ? newIdx : block.pageIndex
+                        })) || q.blocks
+                    })) || result.result.questions
+                } : result.result
             };
+
+            return reindexed;
         });
 
         // ===== 3. DETERMINE MODE AND FINAL STRUCTURES =====
