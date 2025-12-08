@@ -3,12 +3,12 @@
  * Handles SVG overlay generation and image annotation placement
  */
 
-import { 
-  Annotation, 
-  ImageAnnotation, 
-  ImageAnnotationResult, 
-  ImageDimensions, 
-  BoundingBox 
+import {
+  Annotation,
+  ImageAnnotation,
+  ImageAnnotationResult,
+  ImageDimensions,
+  BoundingBox
 } from '../../types/index.js';
 import { SVGOverlayService } from './svgOverlayService.js';
 
@@ -28,7 +28,7 @@ export class ImageAnnotationService {
     }
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${imageDimensions.width}" height="${imageDimensions.height}" style="position: absolute; top: 0; left: 0; pointer-events: none;">`;
-    
+
     let processedCount = 0;
     annotations.forEach((annotation, index) => {
       // ========================= START OF FIX =========================
@@ -54,8 +54,8 @@ export class ImageAnnotationService {
    * @returns SVG markup for the comment
    */
   private static createCommentAnnotation(
-    annotation: Annotation, 
-    imageDimensions: ImageDimensions, 
+    annotation: Annotation,
+    imageDimensions: ImageDimensions,
     index: number
   ): string {
     // ========================= START OF FIX =========================
@@ -63,17 +63,29 @@ export class ImageAnnotationService {
     if (!annotation.text && !annotation.action) {
       return '';
     }
-    
+
     // Use action symbol if text is empty
     const displayText = annotation.text || (annotation.action === 'tick' ? '✓' : annotation.action === 'cross' ? '✗' : '');
     if (!displayText) {
       return '';
     }
     // ========================== END OF FIX ==========================
-    
+
     // ========================= START OF FIX =========================
     // Handle missing or invalid bbox coordinates
-    if (!annotation.bbox || !Array.isArray(annotation.bbox) || annotation.bbox.length !== 4) {
+    // FOR DRAWING ANNOTATIONS: Check if we have visualPosition (percentages) and convert to pixels
+    const hasVisualPosition = (annotation as any).visualPosition;
+
+    if (hasVisualPosition) {
+      // Visual position uses percentages (0-100) - convert to pixels for drawing annotations
+      const visualPos = (annotation as any).visualPosition;
+      const x = (visualPos.x / 100) * imageDimensions.width;
+      const y = (visualPos.y / 100) * imageDimensions.height;
+      const width = (visualPos.width / 100) * imageDimensions.width;
+      const height = (visualPos.height / 100) * imageDimensions.height;
+
+      annotation.bbox = [x, y, width, height];
+    } else if (!annotation.bbox || !Array.isArray(annotation.bbox) || annotation.bbox.length !== 4) {
       console.warn(`[IMAGE ANNOTATION] Annotation ${index} missing valid bbox coordinates, using default position`);
       // Use default position (top-right corner with offset based on index)
       const defaultX = imageDimensions.width - 200;
@@ -81,15 +93,15 @@ export class ImageAnnotationService {
       annotation.bbox = [defaultX, defaultY, 150, 60]; // [x, y, width, height]
     }
     // ========================== END OF FIX ==========================
-    
+
     const commentText = this.breakTextIntoLines(displayText, 50);
     let svg = '';
 
     // Add background rectangle for better readability
     const textWidth = this.estimateTextWidth(displayText, 24);
     const textHeight = commentText.length * 28.8;
-    
-    
+
+
     svg += `<rect 
       x="${annotation.bbox[0] - 5}" 
       y="${annotation.bbox[1] - 20}" 
@@ -183,8 +195,8 @@ export class ImageAnnotationService {
    * @returns Optimal position for the comment
    */
   static calculateCommentPosition(
-    boundingBox: BoundingBox, 
-    imageDimensions: ImageDimensions, 
+    boundingBox: BoundingBox,
+    imageDimensions: ImageDimensions,
     commentLength: number
   ): { x: number; y: number } {
     const commentWidth = this.estimateTextWidth('A'.repeat(Math.min(commentLength, 50)), 24);
@@ -217,11 +229,11 @@ export class ImageAnnotationService {
    * @returns True if annotation is within bounds
    */
   static validateAnnotationPosition(
-    annotation: Annotation, 
+    annotation: Annotation,
     imageDimensions: ImageDimensions
   ): boolean {
     if (!annotation.text) return false;
-    
+
     // ========================= START OF FIX =========================
     // Handle missing or invalid bbox coordinates
     if (!annotation.bbox || !Array.isArray(annotation.bbox) || annotation.bbox.length !== 4) {
@@ -229,7 +241,7 @@ export class ImageAnnotationService {
       return false; // Cannot validate without coordinates
     }
     // ========================== END OF FIX ==========================
-    
+
     const commentWidth = this.estimateTextWidth(annotation.text, 24);
     const commentHeight = this.breakTextIntoLines(annotation.text, 50).length * 28.8;
 
@@ -274,10 +286,10 @@ export class ImageAnnotationService {
         };
       }
 
-      
+
       // Create SVG overlay for reference
       const svgOverlay = this.createSVGOverlay(annotations, imageDimensions);
-      
+
       // ========================= START OF FIX =========================
       // Use the same SVGOverlayService that works in the PDF pipeline
       let burnedImage = originalImage;
@@ -297,7 +309,7 @@ export class ImageAnnotationService {
         burnedImage = originalImage;
       }
       // ========================== END OF FIX ==========================
-      
+
       // Convert annotations to ImageAnnotation format
       const imageAnnotations: ImageAnnotation[] = annotations.map(ann => {
         // ========================= START OF FIX =========================
@@ -310,7 +322,7 @@ export class ImageAnnotationService {
           ann.bbox = [defaultX, defaultY, 150, 60]; // [x, y, width, height]
         }
         // ========================== END OF FIX ==========================
-        
+
         return {
           position: { x: ann.bbox[0], y: ann.bbox[1] },
           comment: ann.text || '', // Legacy field for ImageAnnotation interface
@@ -325,7 +337,7 @@ export class ImageAnnotationService {
         };
       });
 
-      
+
       return {
         originalImage,
         annotatedImage: burnedImage, // Return burned image instead of original
@@ -336,7 +348,7 @@ export class ImageAnnotationService {
       console.error('❌ Failed to generate annotation result:', error);
       console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
       console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      
+
       // Throw the real error instead of failing silently
       throw new Error(`Image annotation generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
