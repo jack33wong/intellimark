@@ -825,11 +825,11 @@ const enrichAnnotationsWithPositions = (
 
   const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
-    const aiPos = (anno as any).visual_position; // AI returns visual_position, not aiPosition
+    const visualPos = (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
 
     // Trim both IDs to protect against hidden whitespace
     const aiStepId = (anno as any).step_id?.trim();
-    if (!aiStepId && !aiPos) {
+    if (!aiStepId && !visualPos) {
       return null;
     }
 
@@ -994,7 +994,7 @@ const enrichAnnotationsWithPositions = (
     // This keeps sub-questions together instead of dropping them or defaulting to Page 1
     if (!originalStep) {
       // NEW: Check if we have AI position to construct a synthetic bbox
-      if (aiPos) {
+      if (visualPos) {
         // Construct bbox from aiPos (x, y, w, h are percentages)
         // We need to convert to whatever unit bbox uses (likely pixels or normalized 0-1?)
         // stepsDataForMapping.bbox seems to be [x, y, w, h] in pixels?
@@ -1052,10 +1052,10 @@ const enrichAnnotationsWithPositions = (
 
         const enriched = {
           ...anno,
-          bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox (non-zero to pass filter), svgOverlayService uses aiPosition
+          bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox, visualPosition handles drawing positioning
           pageIndex: pageIndex,
           unified_step_id: finalStepId,
-          aiPosition: aiPos // Ensure it's passed through
+          visualPosition: visualPos // For DRAWING annotations only
         };
         // Debug log removed
         lastValidAnnotation = enriched; // Update last valid annotation
@@ -1112,11 +1112,11 @@ const enrichAnnotationsWithPositions = (
       // Non-VISUAL: Use OCR bbox if available, otherwise dummy if we have aiPos
       bbox: isVisualAnnotation
         ? [1, 1, 1, 1] as [number, number, number, number]
-        : (hasValidBbox ? originalStep.bbox : (aiPos ? [1, 1, 1, 1] : originalStep.bbox)),
+        : (hasValidBbox ? originalStep.bbox : (visualPos ? [1, 1, 1, 1] : originalStep.bbox)),
       pageIndex: pageIndex,
       unified_step_id: originalStep.unified_step_id,
-      // Pass through aiPosition if available (crucial for drawings)
-      aiPosition: aiPos,
+      // Visual position for DRAWING annotations only (NOT for text student work)
+      visualPosition: isVisualAnnotation ? visualPos : undefined,
       // Flag if we are using actual line data (OCR) or falling back to AI position
       // VISUAL annotations always use AI position (hasLineData = false)
       hasLineData: isVisualAnnotation ? false : hasValidBbox
