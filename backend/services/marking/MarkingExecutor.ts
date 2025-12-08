@@ -712,6 +712,12 @@ export async function executeMarkingForQuestion(
     // DEBUG: Log sourcePages for this task
 
 
+    // Debug: Log classification blocks for Q2 to verify position data
+    if (String(questionId) === '2' && task.classificationBlocks) {
+      console.log('\n📋 [Q2 CLASSIFICATION DEBUG] Full classification blocks:');
+      console.log(JSON.stringify(task.classificationBlocks, null, 2));
+    }
+
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
       images: task.images, // Pass all page images for multi-page context
@@ -909,48 +915,47 @@ const enrichAnnotationsWithPositions = (
       // Find the position using line_index
       let classificationPosition: any = null;
       if (task.classificationBlocks) {
-        for (let i = 0; i < task.classificationBlocks.length; i++) {
-          const block = task.classificationBlocks[i];
+        // Flatten all studentWorkLines from all blocks and sub-questions into a single global array
+        // This matches the AI prompt format which numbers lines globally: [1], [2], [3]...
+        const allLines: Array<{ text: string; position: any; pageIndex: number }> = [];
 
-          // 1. Check top-level studentWorkLines first
+        task.classificationBlocks.forEach(block => {
+          // Add top-level studentWorkLines
           if (block.studentWorkLines && block.studentWorkLines.length > 0) {
-            // Use line_index to access the correct line
-            if (lineIndex >= 0 && lineIndex < block.studentWorkLines.length) {
-              const line = block.studentWorkLines[lineIndex];
-
-              if (line.position) {
-                classificationPosition = {
-                  ...line.position,
-                  pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
-                };
-                break; // Found it!
-              }
-            }
+            block.studentWorkLines.forEach(line => {
+              allLines.push({
+                text: line.text,
+                position: line.position,
+                pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
+              });
+            });
           }
 
-          // 2. If not found, check nested subQuestions
-          if (!classificationPosition && block.subQuestions) {
-            for (let sq = 0; sq < block.subQuestions.length; sq++) {
-              const subQ = block.subQuestions[sq];
+          // Add studentWorkLines from all sub-questions
+          if (block.subQuestions) {
+            block.subQuestions.forEach(subQ => {
               if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
-
-                if (lineIndex >= 0 && lineIndex < subQ.studentWorkLines.length) {
-                  const line = subQ.studentWorkLines[lineIndex];
-
-                  if (line.position) {
-                    classificationPosition = {
-                      ...line.position,
-                      pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
-                    };
-                    break; // Found it!
-                  }
-                }
+                subQ.studentWorkLines.forEach(line => {
+                  allLines.push({
+                    text: line.text,
+                    position: line.position,
+                    pageIndex: block.pageIndex !== undefined ? block.pageIndex : defaultPageIndex
+                  });
+                });
               }
-            }
+            });
+          }
+        });
 
-            if (classificationPosition) {
-              break; // Exit block loop if found in sub-questions
-            }
+        // Now use global lineIndex to find the correct line
+        if (lineIndex >= 0 && lineIndex < allLines.length) {
+          const line = allLines[lineIndex];
+
+          if (line.position) {
+            classificationPosition = {
+              ...line.position,
+              pageIndex: line.pageIndex
+            };
           }
         }
       }
