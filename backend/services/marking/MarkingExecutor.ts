@@ -712,11 +712,6 @@ export async function executeMarkingForQuestion(
     // DEBUG: Log sourcePages for this task
 
 
-    // Debug: Log classification blocks for Q2 to verify position data
-    if (String(questionId) === '2' && task.classificationBlocks) {
-      console.log('\n📋 [Q2 CLASSIFICATION DEBUG] Full classification blocks:');
-      console.log(JSON.stringify(task.classificationBlocks, null, 2));
-    }
 
     const markingResult = await MarkingInstructionService.executeMarking({
       imageData: task.imageData || '', // Pass image for edge cases where Drawing Classification failed
