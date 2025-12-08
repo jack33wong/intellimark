@@ -1102,18 +1102,24 @@ const enrichAnnotationsWithPositions = (
 
     // Fallback logic removed - relying purely on AI page index as per new design.
 
+    // For VISUAL annotations (drawings), ALWAYS use aiPosition, NOT OCR bbox
+    // OCR bbox would point to question text, but visual_position points to drawing location
+    const isVisualAnnotation = (anno as any).ocr_match_status === 'VISUAL';
+
     const enriched = {
       ...anno,
-      // If we have a valid bbox, use it. Otherwise, if we have aiPos, use dummy bbox.
-      bbox: hasValidBbox ? originalStep.bbox : (aiPos ? [1, 1, 1, 1] : originalStep.bbox),
+      // VISUAL: Use dummy bbox, let aiPosition handle positioning (design: visual_position is source of truth)
+      // Non-VISUAL: Use OCR bbox if available, otherwise dummy if we have aiPos
+      bbox: isVisualAnnotation
+        ? [1, 1, 1, 1] as [number, number, number, number]
+        : (hasValidBbox ? originalStep.bbox : (aiPos ? [1, 1, 1, 1] : originalStep.bbox)),
       pageIndex: pageIndex,
       unified_step_id: originalStep.unified_step_id,
-      // Pass through aiPosition if available (crucial for Q10/Q16 drawings)
+      // Pass through aiPosition if available (crucial for drawings)
       aiPosition: aiPos,
       // Flag if we are using actual line data (OCR) or falling back to AI position
-      // If hasValidBbox is true, we have line data.
-      // If hasValidBbox is false but we have aiPos, we DON'T have line data (it's a split block or drawing).
-      hasLineData: hasValidBbox
+      // VISUAL annotations always use AI position (hasLineData = false)
+      hasLineData: isVisualAnnotation ? false : hasValidBbox
     };
     lastValidAnnotation = enriched as any;
     return enriched;
