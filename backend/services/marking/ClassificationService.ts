@@ -205,7 +205,7 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         // ONLY questionOnly uses light (no student work, no positions needed)
         const useLight = mapperCategory === 'questionOnly';
 
-        console.log(`🔍 [CLASSIFICATION ROUTING] Q${questionNumber} Page ${firstPageIndex}: Category=${mapperCategory} → Using ${useLight ? 'LIGHT' : 'HEAVY'} classification`);
+
 
         // Select prompt based on category
         const baseSystemPrompt = useLight
