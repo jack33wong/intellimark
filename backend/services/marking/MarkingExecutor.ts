@@ -819,7 +819,7 @@ const enrichAnnotationsWithPositions = (
 
   const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
-    const aiPos = (anno as any).aiPosition; // Original was aiPosition, user changed to visual_position in snippet
+    const aiPos = (anno as any).visual_position; // AI returns visual_position, not aiPosition
 
     // Trim both IDs to protect against hidden whitespace
     const aiStepId = (anno as any).step_id?.trim();
