@@ -39,7 +39,7 @@ export interface MarkingSchemeOrchestrationResult {
   detectionStats: DetectionStatistics;
   updatedClassificationResult: any;
   detectionResults: Array<{
-    question: { text: string; questionNumber?: string | null };
+    question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
     detectionResult: any;
   }>;
 }
@@ -53,7 +53,7 @@ export class MarkingSchemeOrchestrationService {
    * @returns Map of marking schemes and detection statistics
    */
   static async orchestrateMarkingSchemeLookup(
-    individualQuestions: Array<{ text: string; questionNumber?: string | null }>,
+    individualQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }>,
     classificationResult: any
   ): Promise<MarkingSchemeOrchestrationResult> {
     const markingSchemesMap: Map<string, any> = new Map();
@@ -72,7 +72,7 @@ export class MarkingSchemeOrchestrationService {
 
     // First pass: Collect all detection results
     const detectionResults: Array<{
-      question: { text: string; questionNumber?: string | null };
+      question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
       detectionResult: any;
     }> = [];
 
@@ -136,7 +136,7 @@ export class MarkingSchemeOrchestrationService {
 
     // Second pass: Group sub-questions by base question number and merge
     const groupedResults = new Map<string, Array<{
-      question: { text: string; questionNumber?: string | null };
+      question: { text: string; questionNumber?: string | null; sourceImageIndex?: number };
       detectionResult: any;
       actualQuestionNumber: string;
       originalQuestionNumber: string | null | undefined;

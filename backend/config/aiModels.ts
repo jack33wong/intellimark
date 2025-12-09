@@ -49,7 +49,7 @@ export function setDebugMode(debugMode: boolean) {
 export const AI_MODELS: Record<ModelType, AIModelConfig> = {
   'gemini-2.0-flash': {
     name: 'Google Gemini 2.0 Flash',
-    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+    apiEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     maxTokens: 64000,
     temperature: 0.1
   },
@@ -119,11 +119,19 @@ export function getModelDisplayName(modelType: ModelType): string {
 
 
 /**
- * Get default model configuration
- * @returns The default model type
+ * Get the default model
+ * @returns The default model type (Gemini 2.5 Flash Lite)
  */
 export function getDefaultModel(): ModelType {
-  return 'gemini-2.0-flash'; // Default model is now Gemini 2.0 Flash
+  return 'gemini-2.0-flash';
+}
+
+/**
+ * Get the default classification model
+ * @returns The default classification model type (Gemini 2.5 Flash Lite)
+ */
+export function getClassificationModel(): ModelType {
+  return 'gemini-2.0-flash'; // Default classification model
 }
 
 /**
@@ -207,7 +215,7 @@ export function getModelParameters(modelType: ModelType): Record<string, any> {
   const config = getModelConfig(modelType);
 
   switch (modelType) {
-    case 'gemini-2.0-flash':
+    case 'gemini-2.5-flash-exp-0827':
       return {
         maxOutputTokens: config.maxTokens,
         temperature: config.temperature,

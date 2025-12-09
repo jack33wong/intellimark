@@ -168,12 +168,6 @@ export class MarkingServiceLocator {
       // For Marking Mode: ocrText contains student work
       const textInput = isQuestionOnly ? message : ocrText;
 
-      // DEBUG: Track which phase will record tokens
-      console.log(`🔍 [TOKEN TRACKING DEBUG] generateChatResponse:`)
-      console.log(`   - Category: ${category}`);
-      console.log(`   - Has tracker: ${!!tracker}`);
-      console.log(`   - Phase will be: ${isQuestionOnly ? 'questionMode' : 'marking'}`);
-
       return await this.callGeminiForTextResponse(textInput, systemPrompt, userPrompt, validatedModel, tracker, category);
     } catch (error) {
       // Check if this is our validation error (fail fast)

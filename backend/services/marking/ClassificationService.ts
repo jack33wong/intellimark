@@ -126,7 +126,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
         // Cast images to required type (pageIndex is effectively required here)
         resolvedPageMaps = await ClassificationMapper.mapQuestionsToPages(
           images as Array<{ imageData: string; fileName?: string; pageIndex: number }>,
-          tracker  // Pass tracker for auto-recording
+          tracker,  // Pass tracker for auto-recording
+          model     // Pass user-selected model instead of defaulting to Flash
         );
       }
 

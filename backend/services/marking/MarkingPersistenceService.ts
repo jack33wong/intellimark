@@ -54,6 +54,12 @@ export class MarkingPersistenceService {
         let unifiedSession: any = null;
         let actualModel = options.model || 'auto';
 
+        // DEBUG: Check what we received
+        console.log(`[PERSISTENCE ENTRY] questionOnlyClassificationResult type: ${typeof questionOnlyClassificationResult}`);
+        console.log(`[PERSISTENCE ENTRY] Is array: ${Array.isArray(questionOnlyClassificationResult)}`);
+        console.log(`[PERSISTENCE ENTRY] Length: ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'}`);
+        console.log(`[PERSISTENCE ENTRY] isMixedContent: ${isMixedContent}`);
+
         try {
             // Extract request data
             const userId = options.userId || 'anonymous';
@@ -114,12 +120,17 @@ export class MarkingPersistenceService {
 
             if (isMixedContent && questionOnlyClassificationResult) {
                 console.log('[PERSISTENCE] Processing questionOnly responses for mixed mode');
+                console.log(`[PERSISTENCE DEBUG] Received ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'} responses`);
 
                 // Handle array format from unifiedSession.questionResponses
                 if (Array.isArray(questionOnlyClassificationResult)) {
                     // Apply the same formatting as pure question mode (with headers and separators)
                     const formattedIndividualResponses = questionOnlyClassificationResult.map((qr: any, index: number) => {
                         const response = qr.formattedResponse || qr.response || '';
+                        const isEmpty = !response || response.trim() === '';
+                        if (isEmpty) {
+                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY - formattedResponse: ${!!qr.formattedResponse}, response: ${!!qr.response}`);
+                        }
                         // Format: "Question 1\n\n<response>"
                         return `Question ${index + 1}\n\n${response}`;
                     }).filter(r => r);
@@ -128,6 +139,7 @@ export class MarkingPersistenceService {
                     const formattedResponse = formattedIndividualResponses.join('\n\n' + '_'.repeat(80) + '\n\n');
                     questionOnlyResponses = [formattedResponse]; // Single combined string
 
+                    console.log(`[PERSISTENCE DEBUG] formattedIndividualResponses count: ${formattedIndividualResponses.length}`);
                     console.log(`[PERSISTENCE] Formatted ${questionOnlyClassificationResult.length} question-only responses with headers and separators`);
                 } else if (questionOnlyClassificationResult.questions) {
                     // Legacy fallback - should not be used anymore

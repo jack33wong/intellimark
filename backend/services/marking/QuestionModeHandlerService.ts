@@ -92,6 +92,7 @@ export class QuestionModeHandlerService {
     const allQuestionDetections = detectionResults.map((dr, index) => ({
       questionIndex: index,
       questionText: dr.question.text,
+      classificationQuestionNumber: dr.question.questionNumber, // Preserve original classification Q# (e.g., "9i", "9ii", "19ai")
       detection: dr.detectionResult,
       sourceImageIndex: dr.question.sourceImageIndex ?? index
     }));
@@ -137,15 +138,76 @@ export class QuestionModeHandlerService {
     const examPapers = Array.from(examPaperGroups.values());
     const multipleExamPapers = examPapers.length > 1;
 
+    // SMART DEDUPLICATION
+    // Goal: Merge over-split questions (Q10a,b,c → Q10) while preserving genuine sub-questions (Q9i,ii,iii)
+    // 
+    // Strategy:
+    // 1. Group by base question number (10a, 10b, 10c → "10")
+    // 2. For each group, check if ALL parts matched to SAME database question using FALLBACK (low similarity ~0.700)
+    // 3. If yes → merge into ONE question (mapper over-split)
+    // 4. If no → keep separate (genuine sub-questions with high similarity to database)
+
+    // Group questions by base number
+    const questionsByBaseNumber = new Map<string, typeof allQuestionDetections>();
+    allQuestionDetections.forEach(qd => {
+      const baseNumber = qd.classificationQuestionNumber?.replace(/[a-z]+$/i, '') || 'unknown';
+      if (!questionsByBaseNumber.has(baseNumber)) {
+        questionsByBaseNumber.set(baseNumber, []);
+      }
+      questionsByBaseNumber.get(baseNumber)!.push(qd);
+    });
+
+    const deduplicatedDetections: typeof allQuestionDetections = [];
+
+    for (const [baseNumber, questions] of questionsByBaseNumber.entries()) {
+      if (questions.length === 1) {
+        // Single question, no deduplication needed
+        deduplicatedDetections.push(questions[0]);
+        continue;
+      }
+
+      // Multiple parts - check if they should be merged
+      const allMatchedToSameDbQuestion = questions.every(q =>
+        q.detection.found &&
+        q.detection.match?.questionNumber === questions[0].detection.match?.questionNumber
+      );
+
+      // Check if all used fallback (low similarity, typically 0.700-0.800)
+      const allUsedFallback = questions.every(q =>
+        q.detection.match?.confidence !== undefined &&
+        q.detection.match.confidence < 0.85 // Threshold to detect fallback
+      );
+
+      const shouldMerge = allMatchedToSameDbQuestion && allUsedFallback;
+
+      if (shouldMerge) {
+        // MERGE: Mapper over-split (e.g., Q10a, Q10b, Q10c → Q10)
+        const mergedQuestion = {
+          ...questions[0],
+          // Use base number without suffix for merged questions
+          classificationQuestionNumber: baseNumber,
+          // Combine question texts with line breaks
+          questionText: questions.map(q => q.questionText).join('\n\n')
+        };
+        deduplicatedDetections.push(mergedQuestion);
+      } else {
+        // KEEP SEPARATE: Genuine sub-questions (e.g., Q9i, Q9ii, Q9iii)
+        deduplicatedDetections.push(...questions);
+      }
+    }
+
+
+
+
     // Create enhanced question detection result
     const questionDetection = {
-      found: allQuestionDetections.some(qd => qd.detection.found),
+      found: deduplicatedDetections.some(qd => qd.detection.found),
       multipleExamPapers,
       examPapers,
-      totalMarks: allQuestionDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
+      totalMarks: deduplicatedDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
       // Legacy fields for backward compatibility (removed unnecessary fields: questionIndex, sourceImageIndex)
-      multipleQuestions: allQuestionDetections.length > 1,
-      questions: allQuestionDetections.map(qd => {
+      multipleQuestions: deduplicatedDetections.length > 1,
+      questions: deduplicatedDetections.map(qd => {
         // Use database question text if available, fallback to classification text
         const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
 
@@ -162,7 +224,9 @@ export class QuestionModeHandlerService {
         }
 
         return {
-          questionNumber: qd.detection.match?.questionNumber || `${qd.questionIndex + 1}`, // FIXED: Use index as fallback
+          // Use CLASSIFICATION question number (e.g., "9i", "9ii") instead of database match (e.g., "9")
+          // This preserves the sub-question structure in the AI response
+          questionNumber: qd.classificationQuestionNumber || qd.detection.match?.questionNumber || `${qd.questionIndex + 1}`,
           questionText: questionText,
           marks: qd.detection.match?.marks || 0,
           markingScheme: markingSchemePlainText,
@@ -184,19 +248,62 @@ export class QuestionModeHandlerService {
     const logAiResponseComplete = logStep('AI Response Generation', actualModel);
     const { MarkingServiceLocator } = await import('./MarkingServiceLocator.js');
 
-    // Generate AI responses for each question individually (text-only, no image)
+    // GROUP SUB-QUESTIONS by main question before AI generation
+    // This preserves nested structure and reduces API calls
+    // Example: Q9i, Q9ii, Q9iii → ONE request for Q9 with all parts
+
+    const groupedQuestions = new Map<string, typeof questionDetection.questions>();
+    questionDetection.questions.forEach(q => {
+      // Extract base number (e.g., "9i" → "9", "19ai" → "19")
+      const baseNumber = q.questionNumber.toString().replace(/[a-z()]+$/i, '');
+
+      if (!groupedQuestions.has(baseNumber)) {
+        groupedQuestions.set(baseNumber, []);
+      }
+      groupedQuestions.get(baseNumber)!.push(q);
+    });
+
+
+
+    // Generate AI responses for each MAIN question (with all sub-parts combined)
     const aiResponses = await Promise.all(
-      questionDetection.questions.map(async (q, index) => {
+      Array.from(groupedQuestions.entries()).map(async ([baseNumber, subQuestions], groupIndex) => {
+        const isGrouped = subQuestions.length > 1;
+
+        // Combine question texts and marking schemes for grouped questions
+        const combinedQuestionText = isGrouped
+          ? subQuestions.map((sq, idx) => {
+            // Extract sub-part label (e.g., "9i" → "i", "19ai" → "ai")
+            const subPart = sq.questionNumber.toString().replace(baseNumber, '');
+            const label = subPart ? `(${subPart})` : '';
+            return `${label ? label + ' ' : ''}${sq.questionText}`;
+          }).join('\n\n')
+          : subQuestions[0].questionText;
+
+        const combinedMarkingScheme = isGrouped
+          ? subQuestions.map(sq => sq.markingScheme).filter(ms => ms).join('\n\n')
+          : subQuestions[0].markingScheme;
+
+        // Determine display question number
+        // - If grouped (Q9i, Q9ii, Q9iii), show as "9(i, ii, iii)"
+        // - If single question with suffix (Q1a alone), strip suffix to show "1" (mapper error)
+        // - If single question without suffix (Q2), keep as "2"
+        const mainQuestionNumber = isGrouped
+          ? `${baseNumber}(${subQuestions.map(sq => sq.questionNumber.toString().replace(baseNumber, '')).join(', ')})`
+          : baseNumber; // Use base number without suffix for single questions
+
+
+
         const response = await MarkingServiceLocator.generateChatResponse(
-          q.questionText,  // First param: question text from database (no image needed)
-          q.questionText,  // Second param: message (same as first for text-only mode)
+          combinedQuestionText,
+          combinedQuestionText,
           actualModel as ModelType,
           "questionOnly",
           false, // debug
           undefined, // onProgress
           false, // useOcrText
-          usageTracker, // Pass tracker so tokens are recorded!
-          q.markingScheme  // Pass marking scheme!
+          usageTracker,
+          combinedMarkingScheme
         );
 
         // POST-PROCESS: Insert blank lines after marking codes for visual separation
@@ -206,20 +313,22 @@ export class QuestionModeHandlerService {
           .replace(/(\[B\d+\])/g, '$1\n\n');         // [B1], [B2], etc.
 
         return {
-          questionIndex: index,
-          questionNumber: q.questionNumber || `Q${index + 1}`,
-          response: formattedResponse,  // Use formatted response
+          questionIndex: groupIndex,
+          questionNumber: mainQuestionNumber,
+          response: formattedResponse,
           apiUsed: response.apiUsed,
           usageTokens: response.usageTokens,
           inputTokens: response.inputTokens,
-          outputTokens: response.outputTokens
+          outputTokens: response.outputTokens,
+          isGrouped,
+          subQuestions: isGrouped ? subQuestions.map(sq => sq.questionNumber) : undefined
         };
       })
     );
 
     // Combine all responses into a single comprehensive response with clear separation
     const combinedResponse = aiResponses.map((ar, index) =>
-      `Question ${index + 1}\n\n${ar.response}`
+      `Question ${ar.questionNumber}\n\n${ar.response}`
     ).join('\n\n' + '_'.repeat(80) + '\n\n');
 
     const aiResponse = {
@@ -229,6 +338,12 @@ export class QuestionModeHandlerService {
     };
 
     logAiResponseComplete();
+
+    // Log usage tracker summary (tokens, confidence, image size)
+    if (usageTracker) {
+      console.log(usageTracker.getSummary(actualModel, 0)); // 0 mathpix calls in question mode
+    }
+
 
     // Generate suggested follow-ups (same as marking mode)
     const suggestedFollowUps = await getSuggestedFollowUps();

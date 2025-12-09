@@ -520,7 +520,43 @@ export class MarkingPipelineService {
 
             logClassificationComplete();
 
+            // ========================= CATEGORY OVERRIDE (BEFORE SPLIT) =========================
+            // Override 1: Drawing-only pages → questionOnly
+            const questionAnswerPages = allClassificationResults.filter(r => r.result?.category === 'questionAnswer');
+            if (questionAnswerPages.length > 0) {
+                const allWorkIsDrawingsOnly = questionAnswerPages.every(r => {
+                    const questions = r.result?.questions || [];
+                    return questions.every((q: any) => {
+                        const hasDrawing = q.hasStudentDrawing === true;
+                        const workLines = q.studentWorkLines || [];
+                        const hasMinimalText = workLines.length < 2;
+                        return hasDrawing && hasMinimalText;
+                    });
+                });
 
+                if (allWorkIsDrawingsOnly) {
+                    console.log('📐 [DRAWING OVERRIDE] All student work is drawings only, overriding to questionOnly');
+                    questionAnswerPages.forEach(r => {
+                        if (r.result) r.result.category = 'questionOnly';
+                    });
+                }
+            }
+
+            // Override 2: FrontPage → questionOnly when no actual student work exists
+            const hasActualStudentWork = allClassificationResults.some(r => r.result?.category === 'questionAnswer');
+            const hasFrontPages = allClassificationResults.some(r => r.result?.category === 'frontPage');
+
+            if (!hasActualStudentWork && hasFrontPages) {
+                console.log('📄 [FRONTPAGE OVERRIDE] No student work detected, converting frontPages to questionOnly for text-only response');
+                allClassificationResults.forEach(r => {
+                    if (r.result?.category === 'frontPage') {
+                        r.result.category = 'questionOnly';
+                    }
+                });
+            }
+
+            // Save original results BEFORE split for mode detection
+            const originalClassificationResults = [...allClassificationResults];
 
             // ========================= PERFECT SPLIT: USE MODE SPLIT SERVICE =========================
             const splitResult = ModeSplitService.splitMixedContent(standardizedPages, allClassificationResults);
@@ -777,18 +813,17 @@ export class MarkingPipelineService {
 
                 if (isMetadataPage) {
                     const fileName = standardizedPages.find(p => p.pageIndex === pageIndex)?.originalFileName || 'unknown';
-                    console.log(`📄 [METADATA] Page ${pageIndex + 1} (${fileName}) marked as metadata page - will skip OCR/processing`);
                 }
             });
 
             // ========================= ENHANCED MODE DETECTION =========================
-            // Smart mode detection based on content categories
-            const hasStudentWorkPages = allClassificationResults.some(r => r.result?.category === 'questionAnswer');
-            const hasQuestionOnlyPages = allClassificationResults.every(r => r.result?.category === 'questionOnly');
-            const isQuestionMode = hasQuestionOnlyPages && allClassificationResults.length > 0;
+            // Check ORIGINAL results (before split), not filtered marking-only results
+            const hasStudentWorkPages = originalClassificationResults.some(r => r.result?.category === 'questionAnswer');
+            const hasQuestionOnlyPages = originalClassificationResults.every(r => r.result?.category === 'questionOnly');
+            const isQuestionMode = hasQuestionOnlyPages && originalClassificationResults.length > 0;
             const isMixedContent = hasStudentWorkPages && questionOnlyPages.length > 0;
 
-            console.log(`🔍 [MODE DETECTION] Analysis (AFTER filtering):`);
+            console.log(`🔍 [MODE DETECTION] Analysis (AFTER overrides):`);
             console.log(`  - All question-only: ${isQuestionMode}`);
             console.log(`  - Has mixed content: ${isMixedContent}`);
             console.log(`  - Has any student work: ${hasStudentWorkPages}`);

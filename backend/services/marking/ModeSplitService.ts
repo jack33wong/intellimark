@@ -192,27 +192,28 @@ export class ModeSplitService {
         markingPages: StandardizedPage[],
         markingClassificationResults: any[]
     ) {
-        console.log('\n📝 QUESTION MODE STRUCTURE (Re-indexed):');
-        console.log(`   Pages: ${questionOnlyPages.length}`);
-        questionOnlyPages.forEach((p, idx) => {
-            console.log(`     [${idx}] pageIndex=${p.pageIndex}, original=${p.originalPageIndex}`);
-        });
-        console.log(`   Classifications: ${questionOnlyClassificationResults.length}`);
-        questionOnlyClassificationResults.forEach((result, idx) => {
-            const qNums = result.result?.questions?.map((q: any) => q.questionNumber).join(', ') || 'None';
-            console.log(`     [${idx}] pageIndex=${result.pageIndex}, Questions=[${qNums}]`);
-        });
+        // DEBUG: Verbose structure logging (commented out for cleaner logs)
+        // console.log('\n📝 QUESTION MODE STRUCTURE (Re-indexed):');
+        // console.log(`   Pages: ${questionOnlyPages.length}`);
+        // questionOnlyPages.forEach((p, idx) => {
+        //     console.log(`     [${idx}] pageIndex=${p.pageIndex}, original=${p.originalPageIndex}`);
+        // });
+        // console.log(`   Classifications: ${questionOnlyClassificationResults.length}`);
+        // questionOnlyClassificationResults.forEach((result, idx) => {
+        //     const qNums = result.result?.questions?.map((q: any) => q.questionNumber).join(', ') || 'None';
+        //     console.log(`     [${idx}] pageIndex=${result.pageIndex}, Questions=[${qNums}]`);
+        // });
 
-        console.log('\n🎯 MARKING MODE STRUCTURE (Re-indexed):');
-        console.log(`   Pages: ${markingPages.length}`);
-        markingPages.forEach((p, idx) => {
-            console.log(`     [${idx}] pageIndex=${p.pageIndex}, original=${p.originalPageIndex}`);
-        });
-        console.log(`   Classifications: ${markingClassificationResults.length}`);
-        markingClassificationResults.forEach((result, idx) => {
-            const qNums = result.result?.questions?.map((q: any) => q.questionNumber).join(', ') || 'None';
-            console.log(`     [${idx}] pageIndex=${result.pageIndex}, Category=${result.result?.category}, Questions=[${qNums}]`);
-        });
+        // console.log('\n🎯 MARKING MODE STRUCTURE (Re-indexed):');
+        // console.log(`   Pages: ${markingPages.length}`);
+        // markingPages.forEach((p, idx) => {
+        //     console.log(`     [${idx}] pageIndex=${p.pageIndex}, original=${p.originalPageIndex}`);
+        // });
+        // console.log(`   Classifications: ${markingClassificationResults.length}`);
+        // markingClassificationResults.forEach((result, idx) => {
+        //     const qNums = result.result?.questions?.map((q: any) => q.questionNumber).join(', ') || 'None';
+        //     console.log(`     [${idx}] pageIndex=${result.pageIndex}, Category=${result.result?.category}, Questions=[${qNums}]`);
+        // });
 
         console.log('\n✅ Perfect split complete - each mode has consecutive 0-based indices');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');

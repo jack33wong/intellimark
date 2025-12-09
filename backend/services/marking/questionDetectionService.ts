@@ -208,13 +208,55 @@ export class QuestionDetectionService {
         };
       }
 
-      // DEBUG: Log closest match even if below threshold
-      if (bestFailedMatch) {
-        console.log(`\n❌ [QUESTION DETECTION] No match above threshold`);
-        console.log(`   Best attempt: ${bestFailedMatch.board} ${bestFailedMatch.paperCode} Q${bestFailedMatch.questionNumber}`);
-        console.log(`   Similarity: ${bestFailedMatch.confidence?.toFixed(3)} (threshold: ${bestFailedMatch.subQuestionNumber ? 0.4 : 0.50})`);
-        console.log(`   Question text (first 100 chars): ${extractedQuestionText.substring(0, 100)}...`);
+      // FALLBACK: If no match found and hint has sub-question marker (e.g., "1a"),
+      // try again with base question number (e.g., "1")
+      // This handles mapper errors where it adds sub-question markers incorrectly
+      if (!bestMatch && effectiveHint && /[a-z]+$/i.test(effectiveHint)) {
+        const baseQuestionNumber = effectiveHint.replace(/[a-z]+$/i, ''); // Strip trailing letters
+
+        if (baseQuestionNumber && baseQuestionNumber !== effectiveHint) {
+          // Retrying with base question number (fallback)
+
+          // Reset and try again with base number
+          bestMatch = null;
+          bestScore = 0;
+          bestTextMatch = null;
+
+          for (const examPaper of examPapers) {
+            const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, baseQuestionNumber);
+            if (match && match.confidence) {
+              if (match.confidence > bestScore) {
+                bestFailedMatch = match;
+                bestScore = match.confidence;
+                const threshold = match.subQuestionNumber ? 0.4 : 0.50;
+                if (match.confidence >= threshold) {
+                  bestMatch = match;
+                  if (match.databaseQuestionText) {
+                    const textSimilarity = this.calculateSimilarity(extractedQuestionText, match.databaseQuestionText);
+                    bestTextMatch = { match, textSimilarity };
+                  }
+                }
+              }
+            }
+          }
+
+          // If fallback succeeded, return the match
+          if (bestMatch) {
+            const markingScheme = await this.findCorrespondingMarkingScheme(bestMatch);
+            if (markingScheme) {
+              bestMatch.markingScheme = markingScheme;
+            }
+
+            return {
+              found: true,
+              match: bestMatch,
+              message: `Matched with ${bestMatch.board} ${getShortSubjectName(bestMatch.qualification)} - ${bestMatch.paperCode} (${bestMatch.examSeries})`
+            };
+          }
+        }
       }
+
+      // No match found
 
       return {
         found: false,
