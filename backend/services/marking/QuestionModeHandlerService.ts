@@ -337,6 +337,8 @@ export class QuestionModeHandlerService {
       usageTokens: aiResponses.reduce((sum, ar) => sum + (ar.usageTokens || 0), 0) + (classificationResult.usageTokens || 0)
     };
 
+
+
     logAiResponseComplete();
 
     // Log usage tracker summary (tokens, confidence, image size)
@@ -364,6 +366,8 @@ export class QuestionModeHandlerService {
       standardizedPages[0].imageData.length,
       [] // No question results in question mode
     );
+
+
 
     // Transform question detection result to match frontend DetectedQuestion structure
     const transformedDetectedQuestion = questionDetection ? {
@@ -438,7 +442,10 @@ export class QuestionModeHandlerService {
         aiMessage,
         questionDetection,
         globalQuestionText: globalQuestionText || '',
-        mode: 'Question'
+        mode: 'Question',
+        usageTokens: aiResponse.usageTokens, // CRITICAL: Pass tokens for database persistence
+        model: actualModel,
+        files: files
       };
       persistenceResult = await SessionManagementService.persistQuestionSession(questionContext);
 
