@@ -1591,3 +1591,48 @@
   font-size: 16px;
   margin: 0;
 }
+
+/* Subscription List Section */
+.admin-subscription-list-section {
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.admin-subscription-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.admin-subscription-list-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-subscriptions-table {
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+/* Pagination */
+.admin-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.admin-pagination-info {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  min-width: 120px;
+  text-align: center;
+}

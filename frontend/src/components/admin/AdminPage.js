@@ -127,6 +127,10 @@ function AdminPage() {
   const [userCredits, setUserCredits] = useState(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [adjustmentAmount, setAdjustmentAmount] = useState('');
+  const [subscriptionsList, setSubscriptionsList] = useState([]);
+  const [subscriptionsPage, setSubscriptionsPage] = useState(1);
+  const [subscriptionsPagination, setSubscriptionsPagination] = useState({ total: 0, totalPages: 0 });
+  const [loadingList, setLoadingList] = useState(false);
 
   // Constants removed - using ApiClient instead
 
@@ -629,6 +633,28 @@ function AdminPage() {
       loadUsageData(usageFilter);
     }
   }, [activeTab, usageFilter, loadUsageData]);
+
+  // Load subscriptions list when tab opens or page changes
+  useEffect(() => {
+    if (activeTab === 'subscriptions') {
+      const loadList = async () => {
+        setLoadingList(true);
+        try {
+          const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20`);
+          if (response.ok) {
+            const data = await response.json();
+            setSubscriptionsList(data.subscriptions);
+            setSubscriptionsPagination(data.pagination);
+          }
+        } catch (error) {
+          console.error('Error loading subscriptions:', error);
+        } finally {
+          setLoadingList(false);
+        }
+      };
+      loadList();
+    }
+  }, [activeTab, subscriptionsPage]);
 
   // Loading state is now managed in the individual load functions
 
@@ -1819,7 +1845,141 @@ function AdminPage() {
           <div className="admin-tab-content">
             <div className="admin-section-header">
               <h2 className="admin-section-header__title">Subscription & Credit Management</h2>
-              <p>Search users and manage their subscriptions and credits</p>
+              <p>View all subscribers and manage their subscriptions and credits</p>
+            </div>
+
+            {/* All Subscriptions List */}
+            <div className="admin-subscription-list-section">
+              <div className="admin-subscription-list-header">
+                <h3>All Subscriptions ({subscriptionsPagination.total})</h3>
+                <button
+                  className="admin-btn admin-btn--primary"
+                  onClick={async () => {
+                    setLoadingList(true);
+                    try {
+                      const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20`);
+                      if (response.ok) {
+                        const data = await response.json();
+                        setSubscriptionsList(data.subscriptions);
+                        setSubscriptionsPagination(data.pagination);
+                      }
+                    } catch (error) {
+                      console.error('Error loading subscriptions:', error);
+                    } finally {
+                      setLoadingList(false);
+                    }
+                  }}
+                  disabled={loadingList}
+                >
+                  <RefreshCw size={16} />
+                  {loadingList ? 'Loading...' : 'Refresh List'}
+                </button>
+              </div>
+
+              {loadingList ? (
+                <div className="admin-empty-state">
+                  <p>Loading subscriptions...</p>
+                </div>
+              ) : subscriptionsList.length > 0 ? (
+                <>
+                  <div className="admin-subscriptions-table">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th className="admin-table__header">Email</th>
+                          <th className="admin-table__header">Plan</th>
+                          <th className="admin-table__header">Status</th>
+                          <th className="admin-table__header">Amount</th>
+                          <th className="admin-table__header">Period End</th>
+                          <th className="admin-table__header">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {subscriptionsList.map((sub) => (
+                          <tr key={sub.id} className="admin-table__row">
+                            <td className="admin-table__cell">{sub.email}</td>
+                            <td className="admin-table__cell" style={{ textTransform: 'capitalize' }}>{sub.planId}</td>
+                            <td className="admin-table__cell">
+                              <span className={`status-badge status-badge--${sub.status === 'active' ? 'success' : 'warning'}`}>
+                                {sub.status}
+                              </span>
+                            </td>
+                            <td className="admin-table__cell">
+                              {(sub.amount / 100).toFixed(2)} {sub.currency?.toUpperCase()}
+                            </td>
+                            <td className="admin-table__cell">
+                              {new Date(sub.currentPeriodEnd * 1000).toLocaleDateString()}
+                            </td>
+                            <td className="admin-table__cell">
+                              <button
+                                className="admin-btn admin-btn--secondary"
+                                style={{ padding: '6px 12px', fontSize: '13px' }}
+                                onClick={() => {
+                                  setSearchUserId(sub.userId);
+                                  // Auto-load this user's data
+                                  (async () => {
+                                    setLoadingSubscription(true);
+                                    try {
+                                      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${sub.userId}`);
+                                      if (subResponse.ok) {
+                                        const subData = await subResponse.json();
+                                        setUserSubscription(subData.subscription);
+                                      }
+                                      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${sub.userId}`);
+                                      if (creditsResponse.ok) {
+                                        setUserCredits(await creditsResponse.json());
+                                      }
+                                    } catch (error) {
+                                      console.error('Error:', error);
+                                    } finally {
+                                      setLoadingSubscription(false);
+                                    }
+                                  })();
+                                }}
+                              >
+                                Manage
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  <div className="admin-pagination">
+                    <button
+                      className="admin-btn admin-btn--secondary"
+                      onClick={() => {
+                        if (subscriptionsPage > 1) {
+                          setSubscriptionsPage(subscriptionsPage - 1);
+                        }
+                      }}
+                      disabled={subscriptionsPage === 1}
+                    >
+                      Previous
+                    </button>
+                    <span className="admin-pagination-info">
+                      Page {subscriptionsPage} of {subscriptionsPagination.totalPages}
+                    </span>
+                    <button
+                      className="admin-btn admin-btn--secondary"
+                      onClick={() => {
+                        if (subscriptionsPage < subscriptionsPagination.totalPages) {
+                          setSubscriptionsPage(subscriptionsPage + 1);
+                        }
+                      }}
+                      disabled={subscriptionsPage >= subscriptionsPagination.totalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="admin-empty-state">
+                  <p>No subscriptions found. Click "Refresh List" to load subscribers.</p>
+                </div>
+              )}
             </div>
 
             {/* User Search */}

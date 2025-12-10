@@ -124,10 +124,55 @@ router.get('/subscription/:id', async (req, res) => {
   }
 });
 
-// Cancel subscription
-router.delete('/cancel-subscription/:id', async (req, res) => {
+// Get all subscriptions (admin - with pagination)
+router.get('/list-subscriptions', async (req, res) => {
   try {
-    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const skip = (page - 1) * limit;
+
+    // Get all subscriptions from Firestore
+    const db = (await import('../config/firebase.js')).db;
+    const subscriptionsRef = db.collection('userSubscriptions');
+
+    // Get total count
+    const snapshot = await subscriptionsRef.get();
+    const total = snapshot.size;
+
+    // Get paginated results sorted by most recent
+    const paginatedSnapshot = await subscriptionsRef
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .offset(skip)
+      .get();
+
+    const subscriptions = paginatedSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json({
+      subscriptions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error listing subscriptions:', error);
+    res.status(500).json({
+      error: 'Failed to list subscriptions',
+      details: error.message
+    });
+  }
+});
+
+// Cancel subscription
+router.post('/cancel-subscription', async (req, res) => {
+  try {
+    const { id } = req.body; // Changed from req.params to req.body
 
     // Check if this is a test subscription (starts with 'sub_test_' or 'sub_debug_')
     const isTestSubscription = id.startsWith('sub_test_') || id.startsWith('sub_debug_');
