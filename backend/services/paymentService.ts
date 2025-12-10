@@ -80,7 +80,7 @@ export class PaymentService {
     console.log(`Creating checkout session for plan "${planId}" (${billingCycle}) with price ID: ${priceId}`);
 
     // Check if user already has an active subscription
-    const existingSubscription = await SubscriptionService.getSubscriptionByUserId(userId);
+    const existingSubscription = await SubscriptionService.getUserSubscription(userId);
 
     let mode: 'subscription' | 'payment' = 'subscription';
     let sessionParams: any = {
