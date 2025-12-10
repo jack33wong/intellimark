@@ -12,11 +12,8 @@ const SubscriptionPage: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [planCredits, setPlanCredits] = useState({
-    free: 5,
-    pro: 50,
-    enterprise: 500
-  });
+  const [planCredits, setPlanCredits] = useState<{ free: number; pro: number; enterprise: number } | null>(null);
+  const [creditError, setCreditError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -25,13 +22,16 @@ const SubscriptionPage: React.FC = () => {
     const fetchCreditConfig = async () => {
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}/api/config/credits`);
-        if (response.ok) {
-          const data = await response.json();
-          setPlanCredits(data.planCredits);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch credit config: ${response.status}`);
         }
+        const data = await response.json();
+        setPlanCredits(data.planCredits);
       } catch (error) {
         console.error('Error fetching credit config:', error);
-        // Keep default values if fetch fails
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        setCreditError(`Cannot connect to server to fetch credit configuration: ${errorMsg}`);
+        alert(`⚠️ Credit Configuration Error\n\nCannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`);
       }
     };
     fetchCreditConfig();
@@ -55,6 +55,24 @@ const SubscriptionPage: React.FC = () => {
     };
     fetchSubscription();
   }, [user]);
+
+  // Don't render plans if credits haven't loaded
+  if (!planCredits) {
+    return (
+      <div className="upgrade-page">
+        <div className="upgrade-page-container">
+          <div className="upgrade-page-header">
+            <h1>Loading Credit Configuration...</h1>
+            {creditError && (
+              <p style={{ color: 'var(--function-error)' }}>
+                {creditError}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const plans = [
     {
