@@ -131,6 +131,7 @@ function AdminPage() {
   const [subscriptionsPage, setSubscriptionsPage] = useState(1);
   const [subscriptionsPagination, setSubscriptionsPagination] = useState({ total: 0, totalPages: 0 });
   const [loadingList, setLoadingList] = useState(false);
+  const [subscriptionFilter, setSubscriptionFilter] = useState('active'); // Filter: 'active' or 'all'
 
   // Constants removed - using ApiClient instead
 
@@ -640,7 +641,7 @@ function AdminPage() {
       const loadList = async () => {
         setLoadingList(true);
         try {
-          const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20`);
+          const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
           if (response.ok) {
             const data = await response.json();
             setSubscriptionsList(data.subscriptions);
@@ -654,7 +655,7 @@ function AdminPage() {
       };
       loadList();
     }
-  }, [activeTab, subscriptionsPage]);
+  }, [activeTab, subscriptionsPage, subscriptionFilter]);
 
   // Loading state is now managed in the individual load functions
 
@@ -1851,13 +1852,35 @@ function AdminPage() {
             {/* All Subscriptions List */}
             <div className="admin-subscription-list-section">
               <div className="admin-subscription-list-header">
-                <h3>All Subscriptions ({subscriptionsPagination.total})</h3>
+                <div>
+                  <h3>Subscriptions ({subscriptionsPagination.total})</h3>
+                  <div className="admin-filter-tabs" style={{ marginTop: '8px' }}>
+                    <button
+                      className={`admin-filter-tab ${subscriptionFilter === 'active' ? 'admin-filter-tab--active' : ''}`}
+                      onClick={() => {
+                        setSubscriptionFilter('active');
+                        setSubscriptionsPage(1); // Reset to page 1 when filter changes
+                      }}
+                    >
+                      Active Only
+                    </button>
+                    <button
+                      className={`admin-filter-tab ${subscriptionFilter === 'all' ? 'admin-filter-tab--active' : ''}`}
+                      onClick={() => {
+                        setSubscriptionFilter('all');
+                        setSubscriptionsPage(1);
+                      }}
+                    >
+                      All Statuses
+                    </button>
+                  </div>
+                </div>
                 <button
                   className="admin-btn admin-btn--primary"
                   onClick={async () => {
                     setLoadingList(true);
                     try {
-                      const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20`);
+                      const response = await fetch(`http://localhost:5001/api/payment/list-subscriptions?page=${subscriptionsPage}&limit=20&status=${subscriptionFilter}`);
                       if (response.ok) {
                         const data = await response.json();
                         setSubscriptionsList(data.subscriptions);

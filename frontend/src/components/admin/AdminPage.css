@@ -1636,3 +1636,32 @@
   min-width: 120px;
   text-align: center;
 }
+
+/* Filter Tabs for Subscriptions */
+.admin-filter-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-filter-tab {
+  padding: 6px 12px;
+  background: var(--background-menu-gray);
+  border: 1px solid var(--border-main);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-filter-tab:hover {
+  background: var(--background-card);
+  color: var(--text-primary);
+}
+
+.admin-filter-tab--active {
+  background: var(--text-brand);
+  color: white;
+  border-color: var(--text-brand);
+}

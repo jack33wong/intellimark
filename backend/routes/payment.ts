@@ -125,11 +125,12 @@ router.get('/subscription/:id', async (req, res) => {
   }
 });
 
-// Get all subscriptions (admin - with pagination)
+// Get all subscriptions (admin - with pagination and status filter)
 router.get('/list-subscriptions', async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const status = req.query.status as string || 'active'; // Default to active only
     const skip = (page - 1) * limit;
 
     // Get all subscriptions from Firestore
@@ -137,14 +138,20 @@ router.get('/list-subscriptions', async (req, res) => {
     if (!db) {
       return res.status(500).json({ error: 'Database not available' });
     }
-    const subscriptionsRef = db.collection('userSubscriptions');
 
-    // Get total count
-    const snapshot = await subscriptionsRef.get();
+    let query = db.collection('userSubscriptions');
+
+    // Apply status filter if not 'all'
+    if (status !== 'all') {
+      query = query.where('status', '==', status) as any;
+    }
+
+    // Get total count with filter
+    const snapshot = await query.get();
     const total = snapshot.size;
 
     // Get paginated results sorted by most recent
-    const paginatedSnapshot = await subscriptionsRef
+    const paginatedSnapshot = await query
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .offset(skip)
