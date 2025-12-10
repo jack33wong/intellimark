@@ -160,7 +160,7 @@ const SubscriptionPage: React.FC = () => {
 
     try {
       // Create checkout session on backend
-      const response = await fetch(`${API_CONFIG.BASE_URL} /api/payment / create - checkout - session`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
