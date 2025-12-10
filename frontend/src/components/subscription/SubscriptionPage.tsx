@@ -156,7 +156,7 @@ const SubscriptionPage: React.FC = () => {
               <div className="upgrade-plan-pricing">
                 <div className="upgrade-plan-price">
                   £{plan.price}
-                  <span className="upgrade-plan-period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
+                  <span className="upgrade-plan-period"> / {billingCycle === 'monthly' ? 'month' : 'year'}</span>
                 </div>
               </div>
 
