@@ -281,9 +281,9 @@ const SubscriptionPage: React.FC = () => {
                   ? 'Current Plan'
                   : plan.id === 'free'
                     ? 'Downgrade to Free'
-                    : currentPlanLevel < planLevel
-                      ? `Upgrade to ${plan.name}`
-                      : `Downgrade to ${plan.name}`
+                    : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
+                      ? `Downgrade to ${plan.name}`
+                      : `Upgrade to ${plan.name}`
                 }
               </button>
 
