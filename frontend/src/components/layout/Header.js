@@ -49,7 +49,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
         // Fetch credits
         try {
-          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
+          const creditsResponse = await fetch(`/api/credits/${user.uid}`);
           if (creditsResponse.ok) {
             const creditsData = await creditsResponse.json();
             setUserCredits(creditsData);
