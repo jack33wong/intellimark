@@ -46,7 +46,22 @@ const SubscriptionPage: React.FC = () => {
       }
       try {
         const response = await SubscriptionService.getUserSubscription(user.uid);
-        setCurrentSubscription(response.subscription);
+        const subscription = response.subscription;
+
+        // Fetch credits if subscription exists
+        if (subscription) {
+          try {
+            const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
+            if (creditsResponse.ok) {
+              const creditsData = await creditsResponse.json();
+              subscription.credits = creditsData;
+            }
+          } catch (creditsError) {
+            console.error('Error fetching credits:', creditsError);
+          }
+        }
+
+        setCurrentSubscription(subscription);
       } catch (error) {
         console.error('Error fetching subscription:', error);
       } finally {
@@ -202,6 +217,14 @@ const SubscriptionPage: React.FC = () => {
               <span className="compact-billing">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
               <span className="compact-divider">•</span>
               <span className="compact-next">Next: {new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+              {currentSubscription.credits && (
+                <>
+                  <span className="compact-divider">•</span>
+                  <span className={`compact-credits ${currentSubscription.credits.remainingCredits < 5 ? 'low-credits' : ''}`}>
+                    💳 {currentSubscription.credits.remainingCredits}/{currentSubscription.credits.totalCredits} credits
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}

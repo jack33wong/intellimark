@@ -25,6 +25,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSubscriptionDetailsOpen, setIsSubscriptionDetailsOpen] = useState(false);
   const [isSubscriptionDetailsClosing, setIsSubscriptionDetailsClosing] = useState(false);
   const [userSubscription, setUserSubscription] = useState(null);
+  const [userCredits, setUserCredits] = useState(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
@@ -36,7 +37,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
   // Debug mode is now passed per request, no need to sync with backend
 
-  // Fetch user subscription data
+  // Fetch user subscription and credits data
   useEffect(() => {
     const fetchUserSubscription = async () => {
       if (!user?.uid) return;
@@ -44,6 +45,17 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       try {
         const response = await SubscriptionService.getUserSubscription(user.uid);
         setUserSubscription(response.subscription);
+
+        // Fetch credits
+        try {
+          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
+          if (creditsResponse.ok) {
+            const creditsData = await creditsResponse.json();
+            setUserCredits(creditsData);
+          }
+        } catch (creditsError) {
+          console.error('Error fetching credits:', creditsError);
+        }
       } catch (error) {
         console.error('Error fetching user subscription:', error);
       } finally {
@@ -341,6 +353,21 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                           </span>
                         </div>
                       </div>
+
+                      {userCredits && (
+                        <div className="subscription-detail-item">
+                          <span style={{ fontSize: '16px' }}>💳</span>
+                          <div className="detail-content">
+                            <span className="detail-label">Credits</span>
+                            <span className="detail-value">
+                              <span className={userCredits.remainingCredits < 5 ? 'low-credits' : ''}>
+                                {userCredits.remainingCredits}
+                              </span>
+                              <span className="credit-total"> / {userCredits.totalCredits}</span>
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="subscription-actions">

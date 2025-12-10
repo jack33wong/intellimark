@@ -1,0 +1,36 @@
+/* Credit Display Styling */
+
+/* Header Dropdown Credits */
+.low-credits {
+    color: var(--function-warning) !important;
+    font-weight: 700;
+}
+
+.credit-total {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* Subscription Page Compact Credits */
+.compact-credits {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.compact-credits.low-credits {
+    color: var(--function-warning);
+    font-weight: 700;
+    animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
