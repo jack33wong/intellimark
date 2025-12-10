@@ -1106,7 +1106,7 @@ export function buildExamPaperStructure(detectionResults: any[]): {
         examCode,
         examSeries,
         tier,
-        subject: match.qualification || '',
+        subject: match.subject || '', // Use subject from fullExamPapers.metadata.subject
         paperTitle: `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})`,
         questions: [],
         totalMarks: 0

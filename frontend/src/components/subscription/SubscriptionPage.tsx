@@ -20,10 +20,8 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        'Limited homework submissions per month',
-        'Limited number of homework PDFs submission',
-        'Past paper model answers based on marking scheme',
-        'Full access to progress analysis'
+        'Limited marking submissions per month',
+        'Past paper model answers based on marking scheme'
       ],
       popular: false
     },
@@ -35,10 +33,8 @@ const SubscriptionPage: React.FC = () => {
       icon: <Users size={24} />,
       features: [
         'Everything in free plus',
-        'Extended limits on homework submission',
-        'Extended limits on number of homework PDFs submission',
-        'Standard response time',
-        'Standard email support'
+        'Extended limits on marking submission',
+        'Full access to progress analysis'
       ],
       popular: true
     },
@@ -50,8 +46,7 @@ const SubscriptionPage: React.FC = () => {
       icon: <Building2 size={24} />,
       features: [
         '20x of everything in Pro',
-        'Priority email support',
-        'Priority access to new features'
+        'Support AI Model selection like gemini,openai'
       ],
       popular: false
     }
@@ -194,7 +189,7 @@ const SubscriptionPage: React.FC = () => {
 
         {/* Footer */}
         <div className="upgrade-page-footer">
-          <p>Questions? Contact us at <a href="mailto:support@intellimark.com">support@intellimark.com</a></p>
+          <p>Questions? Contact us at <a href="mailto:support@aimarking.ai">support@aimarking.ai</a></p>
         </div>
       </div>
     </div>

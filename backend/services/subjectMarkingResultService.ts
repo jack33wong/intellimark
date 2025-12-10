@@ -17,6 +17,7 @@ export function extractSubjectFromDetectedQuestion(detectedQuestion: DetectedQue
 
   if (detectedQuestion.examPapers && detectedQuestion.examPapers.length > 0) {
     const subject = detectedQuestion.examPapers[0].subject;
+    console.log(`🔍 [SUBJECT EXTRACTION] examPapers[0].subject = "${subject}"`); // DEBUG: Verify new code is running
     if (subject) {
       return normalizeSubjectName(subject);
     }
@@ -30,7 +31,7 @@ export function extractSubjectFromDetectedQuestion(detectedQuestion: DetectedQue
  */
 export function normalizeSubjectName(subject: string): string {
   if (!subject) return '';
-  
+
   // Map common variations to standard names
   const subjectMap: { [key: string]: string } = {
     'mathematics': 'Mathematics',
@@ -40,14 +41,14 @@ export function normalizeSubjectName(subject: string): string {
     'chemistry': 'Chemistry',
     'biology': 'Biology'
   };
-  
+
   const lowerSubject = subject.toLowerCase().trim();
-  
+
   // Check if it's a known subject variation
   if (subjectMap[lowerSubject]) {
     return subjectMap[lowerSubject];
   }
-  
+
   // Convert to title case
   return subject.charAt(0).toUpperCase() + subject.slice(1).toLowerCase();
 }
@@ -61,7 +62,7 @@ export function convertMarkingResultToSubjectFormat(
 ): any | null {
   try {
     const detectedQuestion = markingMessage.detectedQuestion || session.detectedQuestion;
-    
+
     if (!detectedQuestion || !detectedQuestion.found) {
       return null;
     }
@@ -83,7 +84,7 @@ export function convertMarkingResultToSubjectFormat(
 
     // Build question results from detectedQuestion
     const questionResults: any[] = [];
-    
+
     if (detectedQuestion.examPapers) {
       detectedQuestion.examPapers.forEach((examPaper: any) => {
         if (examPaper.questions && Array.isArray(examPaper.questions)) {
@@ -92,9 +93,9 @@ export function convertMarkingResultToSubjectFormat(
             const overallPercentage = markingMessage.studentScore!.totalMarks > 0
               ? markingMessage.studentScore!.awardedMarks / markingMessage.studentScore!.totalMarks
               : 0;
-            
+
             const estimatedAwardedMarks = Math.round((q.marks || 0) * overallPercentage);
-            
+
             questionResults.push({
               questionNumber: q.questionNumber || '',
               score: {
@@ -150,7 +151,7 @@ export async function persistMarkingResultToSubject(
 ): Promise<void> {
   try {
     const converted = convertMarkingResultToSubjectFormat(session, markingMessage);
-    
+
     if (!converted || !converted.subject || !converted.markingResult) {
       return; // Skip if conversion failed or no subject
     }
