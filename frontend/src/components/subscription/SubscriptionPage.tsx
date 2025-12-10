@@ -1,4 +1,3 @@
-```typescript
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
