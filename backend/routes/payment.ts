@@ -676,6 +676,12 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object);
         break;
+      case 'subscription_schedule.created':
+        await handleScheduleCreated(event.data.object);
+        break;
+      case 'subscription_schedule.canceled':
+        await handleScheduleCanceled(event.data.object);
+        break;
       default:
     }
 
@@ -745,10 +751,47 @@ async function handleSubscriptionCreated(subscription: any) {
 // Handle subscription updated
 async function handleSubscriptionUpdated(subscription: any) {
   try {
+    // Check if this update is from a schedule activation
+    const isScheduledChange = subscription.schedule !== null;
 
-    // Update subscription status in Firestore
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
-    if (existingSubscription) {
+    if (!existingSubscription) {
+      console.log('⚠️ Subscription not found in Firestore:', subscription.id);
+      return;
+    }
+
+    if (isScheduledChange) {
+      // This is a scheduled plan change activating
+      console.log('📅 Scheduled plan change activated:', subscription.id);
+
+      // Extract new plan from price ID
+      const newPriceId = subscription.items.data[0]?.price?.id;
+      const { extractPlanIdFromPrice } = await import('../services/scheduleService.js');
+      const newPlanId = extractPlanIdFromPrice(newPriceId);
+
+      if (newPlanId && existingSubscription.scheduledPlanId) {
+        // Update subscription with new plan
+        await SubscriptionService.updateSubscription(subscription.id, {
+          previousPlanId: existingSubscription.planId,
+          planId: newPlanId,
+          amount: subscription.items.data[0]?.price?.unit_amount || 0,
+          scheduledPlanId: null,  // Clear schedule
+          scheduleId: null,
+          scheduleEffectiveDate: null,
+        });
+
+        // Update credits for new plan
+        await updateCreditsOnPlanChange(
+          existingSubscription.userId,
+          existingSubscription.planId,
+          newPlanId as 'free' | 'pro' | 'enterprise',
+          subscription.current_period_end * 1000
+        );
+
+        console.log(`✅ Plan changed: ${existingSubscription.planId} → ${newPlanId} (scheduled)`);
+      }
+    } else {
+      // Regular subscription update (status change, etc.)
       await SubscriptionService.updateSubscriptionStatus(
         subscription.id,
         subscription.status as any
@@ -756,6 +799,40 @@ async function handleSubscriptionUpdated(subscription: any) {
     }
   } catch (error) {
     console.error('Error handling subscription update:', error);
+  }
+}
+
+// Handle schedule created
+async function handleScheduleCreated(schedule: any) {
+  try {
+    console.log('📅 Subscription schedule created:', schedule.id);
+    // Schedule info is already stored in Firestore by the change-plan endpoint
+    // This webhook just confirms it was created successfully
+  } catch (error) {
+    console.error('Error handling schedule creation:', error);
+  }
+}
+
+// Handle schedule canceled
+async function handleScheduleCanceled(schedule: any) {
+  try {
+    console.log('❌ Subscription schedule canceled:', schedule.id);
+
+    // Find subscription with this schedule ID and clear schedule fields
+    const subscriptionId = schedule.subscription;
+    if (subscriptionId) {
+      const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscriptionId);
+      if (existingSubscription && existingSubscription.scheduleId === schedule.id) {
+        await SubscriptionService.updateSubscription(subscriptionId, {
+          scheduledPlanId: null,
+          scheduleId: null,
+          scheduleEffectiveDate: null,
+        });
+        console.log('✅ Cleared schedule from subscription');
+      }
+    }
+  } catch (error) {
+    console.error('Error handling schedule cancellation:', error);
   }
 }
 
