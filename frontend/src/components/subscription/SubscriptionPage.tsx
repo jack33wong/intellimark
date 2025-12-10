@@ -46,7 +46,7 @@ const SubscriptionPage: React.FC = () => {
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
-        '20x of everything in Pro',
+        '10x of everything in Pro',
         'Support AI Model selection like gemini,openai'
       ],
       popular: false
