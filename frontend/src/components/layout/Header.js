@@ -14,7 +14,8 @@ import {
   CheckCircle,
   Bug,
   BarChart3,
-  Coins
+  Coins,
+  AlertCircle
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -368,6 +369,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                               <span className="credit-total"> / {userCredits.totalCredits}</span>
                             </span>
                           </div>
+                        </div>
+                      )}
+
+                      {userSubscription?.scheduledPlanId && (
+                        <div className="scheduled-change-warning">
+                          <AlertCircle size={14} />
+                          <span>
+                            Downgrade to <strong>{userSubscription.scheduledPlanId}</strong> scheduled for{' '}
+                            {new Date(userSubscription.scheduleEffectiveDate).toLocaleDateString()}
+                          </span>
                         </div>
                       )}
                     </div>
