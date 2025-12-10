@@ -153,6 +153,20 @@ const SubscriptionPage: React.FC = () => {
           <p>Unlock the full potential of AI-powered homework assistance</p>
         </div>
 
+        {/* Current Subscription Info - Compact */}
+        {currentSubscription && currentSubscription.status === 'active' && (
+          <div className="current-subscription-compact">
+            <div className="subscription-compact-content">
+              <span className="compact-label">Current Plan:</span>
+              <span className="compact-plan">{SubscriptionService.getPlanDisplayName(currentSubscription.planId)}</span>
+              <span className="compact-divider">•</span>
+              <span className="compact-billing">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
+              <span className="compact-divider">•</span>
+              <span className="compact-next">Next: {new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+            </div>
+          </div>
+        )}
+
         {/* Billing Toggle */}
         <div className="upgrade-billing-toggle">
           <span className={billingCycle === 'monthly' ? 'active' : ''}>Monthly</span>
@@ -173,16 +187,10 @@ const SubscriptionPage: React.FC = () => {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''}`}
+              className={`upgrade-plan-card ${plan.popular ? 'popular' : ''} ${selectedPlan === plan.id ? 'selected' : ''} ${plan.id === 'enterprise' ? 'enterprise' : ''} ${plan.id === currentSubscription?.planId ? 'current-plan' : ''}`}
               onClick={() => handlePlanSelect(plan.id)}
             >
               {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
-              {plan.id === currentSubscription?.planId && (
-                <div className="current-plan-badge">
-                  <Crown size={14} />
-                  Current Plan
-                </div>
-              )}
 
               <div className="upgrade-plan-header">
                 <div className="upgrade-plan-icon">{plan.icon}</div>
@@ -215,23 +223,6 @@ const SubscriptionPage: React.FC = () => {
                 }
               </button>
 
-              {/* Plan Change Info */}
-              {currentSubscription && currentSubscription.planId !== 'free' && plan.id !== currentSubscription.planId && (
-                <div className="plan-change-info">
-                  {plan.id > currentSubscription.planId ? (
-                    <div className="upgrade-info">
-                      <ArrowUp size={14} />
-                      <span>Upgrade: Takes effect immediately. Prorated billing.</span>
-                    </div>
-                  ) : (
-                    <div className="downgrade-info">
-                      <ArrowDown size={14} />
-                      <span>Downgrade: Takes effect at period end. Keep current benefits until then.</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <ul className="upgrade-plan-features">
                 {plan.features.map((feature, index) => (
                   <li key={index}>
@@ -240,40 +231,30 @@ const SubscriptionPage: React.FC = () => {
                   </li>
                 ))}
               </ul>
+
+              {/* Plan Change Info - Moved to bottom */}
+              {currentSubscription && currentSubscription.planId !== 'free' && plan.id !== currentSubscription.planId && (
+                <div className="plan-change-info">
+                  {plan.id > currentSubscription.planId ? (
+                    // Only show upgrade info on Enterprise if coming from Pro
+                    plan.id === 'enterprise' && (
+                      <div className="upgrade-info">
+                        <ArrowUp size={14} />
+                        <span>Upgrade: Immediate effect. Prorated billing.</span>
+                      </div>
+                    )
+                  ) : (
+                    // Show downgrade info on Free and Pro if downgrading
+                    <div className="downgrade-info">
+                      <ArrowDown size={14} />
+                      <span>Downgrade: Takes effect at period end. Keep benefits until then.</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
-
-
-        {/* Current Subscription Info */}
-        {currentSubscription && currentSubscription.status === 'active' && (
-          <div className="current-subscription-info">
-            <div className="subscription-info-header">
-              <AlertCircle size={20} />
-              <h3>Your Current Subscription</h3>
-            </div>
-            <div className="subscription-info-details">
-              <div className="info-item">
-                <span className="label">Plan:</span>
-                <span className="value">{SubscriptionService.getPlanDisplayName(currentSubscription.planId)}</span>
-              </div>
-              <div className="info-item">
-                <span className="label">Billing:</span>
-                <span className="value">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
-              </div>
-              <div className="info-item">
-                <span className="label">Next billing:</span>
-                <span className="value">{new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
-              </div>
-            </div>
-            <div className="plan-change-notice">
-              <strong>Plan Changes:</strong>
-              <p>• <strong>Upgrades</strong> take effect immediately with prorated billing</p>
-              <p>• <strong>Downgrades</strong> take effect at the end of your current billing period</p>
-              <p>• Unused credits are preserved on upgrades, capped on downgrades</p>
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="upgrade-page-footer">

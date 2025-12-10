@@ -53,7 +53,7 @@
 /* Upgrade Page Header - Dark Mode */
 .upgrade-page-header {
   text-align: center;
-  margin-bottom: 64px;
+  margin-bottom: 32px;
 }
 
 
@@ -73,6 +73,50 @@
   max-width: 600px;
   line-height: 1.6;
   font-weight: 400;
+}
+
+/* Compact Subscription Info */
+.current-subscription-compact {
+  max-width: 800px;
+  margin: 0 auto 24px auto;
+  padding: 12px 20px;
+  background: var(--background-card);
+  border: 1px solid var(--border-main);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.subscription-compact-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.compact-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.compact-plan {
+  color: var(--text-brand);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.compact-divider {
+  color: var(--text-tertiary);
+}
+
+.compact-billing {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.compact-next {
+  color: var(--text-secondary);
 }
 
 /* Billing Cycle Toggle - Dark Mode */
@@ -329,29 +373,36 @@
   flex-shrink: 0;
 }
 
-/* Current Plan Badge */
-.current-plan-badge {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: linear-gradient(135deg, #FFD700, #FFA500);
-  color: var(--text-black);
-  padding: 6px 12px;
-  border-radius: 0 16px 0 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  text-transform: uppercase;
-  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+/* Current Plan Badge - REMOVED, using glowing border instead */
+
+/* Current Plan Glowing Effect */
+.upgrade-plan-card.current-plan {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--background-card), var(--background-card)) padding-box,
+    linear-gradient(135deg, #FFD700, #FFA500, #FF6B6B, #9B59B6, #3498DB, #2ECC71, #FFD700) border-box;
+  animation: glow-rotate 3s linear infinite;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
 }
 
-/* Plan Change Info */
+@keyframes glow-rotate {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
+
+.upgrade-plan-card.current-plan:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+}
+
+/* Plan Change Info - Positioned at bottom after features */
 .plan-change-info {
-  margin: 12px 0 0 0;
-  padding: 10px 12px;
+  margin: 16px 0 0 0;
+  padding: 0;
   border-radius: 8px;
   font-size: 12px;
   line-height: 1.4;
