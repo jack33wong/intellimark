@@ -3,8 +3,10 @@
  * Manages user credit allocation, consumption, and reset
  */
 
-import { db } from './firebase.js';
+import { getFirestore } from '../config/firebase.js';
 import { CREDIT_CONFIG, costToCredits } from '../config/credit.config.js';
+
+const db = getFirestore();
 
 interface UserCredits {
     userId: string;
