@@ -327,11 +327,6 @@
   flex-shrink: 0;
 }
 
-.upgrade-plan-card.enterprise .upgrade-plan-features li {
-  font-weight: 600;
-  font-size: 15px;
-}
-
 
 /* Upgrade Page Footer - Dark Mode */
 .upgrade-page-footer {
