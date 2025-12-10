@@ -104,7 +104,9 @@ export class MarkingServiceLocator {
         response: 'I apologize, but I encountered an error while processing your message. Please try again.',
         apiUsed: 'Error',
         confidence: 0,
-        usageTokens: 0
+        usageTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0
       };
     }
   }
