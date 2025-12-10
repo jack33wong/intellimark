@@ -384,12 +384,50 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             </div>
           )}
 
-          {!isUser && content && ensureStringContent(content).trim() !== '' && (
-            <MarkdownMathRenderer
-              content={ensureStringContent(content)}
-              className="chat-message-renderer"
-            />
-          )}
+          {!isUser && content && ensureStringContent(content).trim() !== '' && (() => {
+            // Preprocess content to:
+            // 1. Remove sub-question parts from headers (e.g., "Question 8(a, b, c)" → "Question 8")
+            // 2. Calculate total marks from [B2], [M1], [A1] tags and add to header in green
+            let processedContent = ensureStringContent(content);
+
+            // Split content by question headers to process each question separately
+            const questionSections = processedContent.split(/^(###\s+Question\s+\d+[^\n]*)/gim);
+
+            for (let i = 1; i < questionSections.length; i += 2) {
+              const header = questionSections[i];
+              const questionContent = questionSections[i + 1] || '';
+
+              // Extract all mark tags like [B2], [M1], [A1], etc.
+              const markMatches = questionContent.match(/\[([A-Z])(\d+)\]/g) || [];
+              let totalMarks = 0;
+
+              markMatches.forEach(tag => {
+                const match = tag.match(/\[([A-Z])(\d+)\]/);
+                if (match) {
+                  totalMarks += parseInt(match[2], 10);
+                }
+              });
+
+              // Clean the header: remove (a, b, c) suffixes
+              let cleanedHeader = header.replace(/\s*\([^)]+\)/, '');
+
+              // Add marks if found
+              if (totalMarks > 0) {
+                cleanedHeader += ` <span class="question-marks">(${totalMarks} ${totalMarks === 1 ? 'mark' : 'marks'})</span>`;
+              }
+
+              questionSections[i] = cleanedHeader;
+            }
+
+            processedContent = questionSections.join('');
+
+            return (
+              <MarkdownMathRenderer
+                content={processedContent}
+                className="chat-message-renderer"
+              />
+            );
+          })()}
 
           {/* Display multi-image annotated results FIRST (before suggested follow-ups) - only if more than 1 image */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (() => {

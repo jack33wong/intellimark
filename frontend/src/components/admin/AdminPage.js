@@ -1049,9 +1049,11 @@ function AdminPage() {
                                           </span>
                                           <span className="admin-summary-item">
                                             <strong>Total Marks:</strong> {examData.questions.reduce((total, q) => {
-                                              const questionMarks = q.marks || 0;
-                                              const subQuestionMarks = (q.subQuestions || q.sub_questions) ? (q.subQuestions || q.sub_questions).reduce((subTotal, subQ) => subTotal + (subQ.marks || 0), 0) : 0;
-                                              return total + questionMarks + subQuestionMarks;
+                                              // Fix: Only sum the parent question marks as requested by user.
+                                              // Previous logic double-counted (parent + subQuestions).
+                                              // Also ensure marks are parsed as integers to avoid string concatenation.
+                                              const questionMarks = parseInt(q.marks) || 0;
+                                              return total + questionMarks;
                                             }, 0)}
                                           </span>
                                         </div>

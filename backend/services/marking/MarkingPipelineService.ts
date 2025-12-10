@@ -620,10 +620,24 @@ export class MarkingPipelineService {
                     });
                 } else {
                     // Multiple pages with same questionNumber - merge them
-                    // Find page with question text (not null/empty)
-                    const pageWithText = questionInstances.find(({ question }) =>
-                        question.text && question.text !== 'null' && question.text.trim().length > 0
-                    ) || questionInstances[0];
+                    // Multiple pages with same questionNumber - merge them
+                    // Fix: Prioritize finding the BEST text, not just the first one.
+                    // "BLANK PAGE" is "valid" text but we want the real question text from the other page (e.g. Page 9 vs Page 4)
+                    const sortedInstances = [...questionInstances].sort((a, b) => {
+                        const textA = a.question.text || '';
+                        const textB = b.question.text || '';
+
+                        // Deprioritize "BLANK PAGE" explicitly
+                        const isBlankA = textA.toUpperCase().includes('BLANK PAGE');
+                        const isBlankB = textB.toUpperCase().includes('BLANK PAGE');
+                        if (isBlankA && !isBlankB) return 1;
+                        if (!isBlankA && isBlankB) return -1;
+
+                        // Otherwise prefer longer text
+                        return textB.length - textA.length;
+                    });
+
+                    const pageWithText = sortedInstances[0];
 
                     // Combine student work from all pages
                     const combinedStudentWork = questionInstances
@@ -928,6 +942,7 @@ export class MarkingPipelineService {
             );
 
             const markingSchemesMap = orchestrationResult.markingSchemesMap;
+            const detectionResults = orchestrationResult.detectionResults;
             const detectionStats = orchestrationResult.detectionStats;
             classificationResult = orchestrationResult.updatedClassificationResult;
 
@@ -1347,6 +1362,7 @@ export class MarkingPipelineService {
                 classificationResult,
                 allClassificationResults,
                 markingSchemesMap,
+                detectionResults,  // Add detection results for Exam Tab building
                 globalQuestionText,
                 finalAnnotatedOutput,
                 overallScore,

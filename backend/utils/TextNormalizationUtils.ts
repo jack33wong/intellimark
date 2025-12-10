@@ -30,10 +30,20 @@ export function normalizeTextForComparison(text: string | null | undefined): str
   if (!text || typeof text !== 'string') {
     return '';
   }
-  
+
+  // CRITICAL: Normalize OCR-extracted fractions that use newlines
+  // OCR often extracts LaTeX \frac{1}{5} as literal "1\n5" with newlines
+  // Convert "\n1\n5" or "1\n5" pattern to "1/5" format
+  // Pattern: Optional delimiter, digit(s), \n, digit(s) -> fraction
+  let normalized = text.replace(/(^|\s|\n)(\d+)\n(\d+)(\s|\n|$|!|\?|\.|,)/g, '$1$2/$3$4'); // "1\n5" → "1/5"
+
+  // Also handle specific case where it's JUST newlines around numbers without spaces
+  normalized = normalized.replace(/\\n(\d+)\\n(\d+)/g, '$1/$2'); // literal \n strings if escaped
+  normalized = normalized.replace(/\n(\d+)\n(\d+)/g, ' $1/$2 '); // standard newlines
+
   // Remove diagram descriptions from database text (e.g., "[A coordinate grid shows...]")
   // Classification doesn't extract question diagrams, so we shouldn't compare against diagram descriptions
-  let normalized = text
+  normalized = normalized
     .replace(/\[.*?\]/g, '') // Remove [diagram description] blocks
     // Remove LaTeX formatting: \( \), \[ \], \frac{}{}, \times, etc.
     .replace(/\\\(|\\\)/g, '') // Remove \( and \)
@@ -51,7 +61,7 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     .replace(/\\/g, '') // Remove any remaining backslashes
     .replace(/\{|\}/g, '') // Remove braces
     .replace(/\$+/g, '') // Remove $ signs
-  
+
   // Remove question number prefixes (e.g., "1 ", "2 (a)", "Q1 ", "Question 1")
   // BUT: Only if followed by common question words or if it's clearly a question number pattern
   // Don't remove numbers that are part of math expressions (e.g., "35 / 24")
@@ -77,7 +87,7 @@ export function normalizeTextForComparison(text: string | null | undefined): str
       // Default: keep it (better safe than sorry - might be part of math expression)
       return match;
     })
-  
+
   normalized = normalized
     .toLowerCase()
     // Preserve colons (:) for ratio notation (e.g., "3:4", "S:M:L")
@@ -87,7 +97,7 @@ export function normalizeTextForComparison(text: string | null | undefined): str
     // Note: This is only for comparison - original text with spaces is still passed to AI
     .replace(/\s+/g, '') // Remove all spaces
     .trim();
-  
+
   // Normalize sign variations: \frac{5}{x} and -\frac{5}{x} should match
   // Only normalize fractions (not other expressions) to avoid false matches
   // This handles cases where classification returns different sign than database
@@ -96,7 +106,7 @@ export function normalizeTextForComparison(text: string | null | undefined): str
   if (normalized.includes('frac')) {
     normalized = normalized.replace(/-frac/g, 'frac'); // Remove negative before 'frac' anywhere
   }
-  
+
   return normalized;
 }
 
@@ -149,7 +159,7 @@ export function normalizeLatexDelimiters(text: string): string {
   if (!text || typeof text !== 'string') {
     return text;
   }
-  
+
   // Replace \( ... \) with $ ... $ (non-greedy match to handle nested cases)
   text = text.replace(/\\\(([^\\]*?)\\\)/g, '$$1$');
   // Replace \[ ... \] with $ ... $ (display math to inline)
@@ -163,7 +173,7 @@ export function normalizeLatexDelimiters(text: string): string {
   // This helps match: "$ 3 \sqrt{5} $" with "3$sqrt{5}$" in marking scheme
   text = text.replace(/\$\s+/g, '$');
   text = text.replace(/\s+\$/g, '$');
-  
+
   return text;
 }
 
@@ -185,7 +195,7 @@ export function normalizeSubQuestionPart(part: string | null | undefined): strin
   if (!part || typeof part !== 'string') {
     return '';
   }
-  
+
   // Remove parentheses, spaces, and convert to lowercase
   // Handles: "(i)", "i", "(I)", "I", " (i) ", etc.
   return part
@@ -234,12 +244,12 @@ export function formatFullQuestionText(
   subQuestionTexts: string[]
 ): string {
   const parts: string[] = [];
-  
+
   // Format main question with number prefix
   if (mainQuestionText) {
     parts.push(`${baseQuestionNumber}. ${mainQuestionText}`);
   }
-  
+
   // Format sub-questions with labels
   if (subQuestionNumbers.length > 0 && subQuestionTexts.length > 0) {
     const formattedSubQuestions = subQuestionTexts.map((subQText, index) => {
@@ -252,7 +262,7 @@ export function formatFullQuestionText(
     });
     parts.push(...formattedSubQuestions);
   }
-  
+
   return parts.join('\n\n');
 }
 
@@ -263,7 +273,7 @@ export function formatFullQuestionText(
  */
 export function extractQuestionNumberFromFilename(fileName?: string): string[] | null {
   if (!fileName) return null;
-  
+
   // Extract question numbers from filename patterns like "q13-14", "q21", etc.
   const matches = fileName.toLowerCase().match(/q(\d+[a-z]?)/g);
   return matches ? matches.map(m => m.replace('q', '')) : null;

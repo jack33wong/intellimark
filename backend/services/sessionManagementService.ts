@@ -10,6 +10,7 @@ import { createUserMessage, createAIMessage, calculateMessageProcessingStats, ca
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
+import { buildExamPaperStructure } from './marking/questionDetectionService.js';
 import type {
   SessionContext,
   MarkingSessionContext,
@@ -46,6 +47,7 @@ export interface AIMessageData {
   actualModel: string;
   startTime: number;
   markingSchemesMap?: Map<string, any>;
+  detectionResults?: any[];  // Add detection results for Exam Tab building
   globalQuestionText: string;
   resolvedAIMessageId: string;
   questionOnlyResponses?: string[];
@@ -164,8 +166,19 @@ export class SessionManagementService {
   private static prepareMarkingAiMessage(context: MarkingSessionContext): any {
     const dbAiMessage = { ...context.aiMessage };
 
-    // Create detectedQuestion data from markingSchemesMap for frontend display
-    if (context.markingSchemesMap) {
+    // Create detectedQuestion data from detection results for frontend display
+    if (context.detectionResults && context.detectionResults.length > 0) {
+      // Use common function with detection results (new way)
+      const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(context.detectionResults);
+      dbAiMessage.detectedQuestion = {
+        found: true,
+        multipleExamPapers,
+        multipleQuestions: examPapers.some(ep => ep.questions.length > 1),
+        totalMarks,
+        examPapers
+      };
+    } else if (context.markingSchemesMap) {
+      // Fallback to legacy method if detection results not provided
       const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(context.markingSchemesMap, context.globalQuestionText);
       dbAiMessage.detectedQuestion = detectedQuestion;
     }
@@ -745,8 +758,31 @@ export class SessionManagementService {
       fileSize: annotatedImage.length
     }));
 
-    // Create detectedQuestion data from markingSchemesMap for frontend display
-    const detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(markingSchemesMap, globalQuestionText);
+    // Create detectedQuestion data from detection results for frontend display
+    let detectedQuestion: any;
+    if (aiData.detectionResults && aiData.detectionResults.length > 0) {
+      // Use common function with detection results (Marking Mode)
+      const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(aiData.detectionResults);
+      detectedQuestion = {
+        found: true,
+        multipleExamPapers,
+        multipleQuestions: examPapers.some(ep => ep.questions.length > 1),
+        totalMarks,
+        examPapers
+      };
+    } else if (aiData.markingSchemesMap) {
+      // Fallback to legacy method if detection results not provided
+      detectedQuestion = this.createDetectedQuestionFromMarkingSchemes(aiData.markingSchemesMap, aiData.globalQuestionText);
+    } else {
+      // No detection data available
+      detectedQuestion = {
+        found: false,
+        multipleExamPapers: false,
+        multipleQuestions: false,
+        totalMarks: 0,
+        examPapers: []
+      };
+    }
 
     // Create AI message content - include question-only responses if available
     let aiContent = 'Marking completed - see results below';

@@ -20,6 +20,7 @@ export interface SessionContext {
 export interface MarkingSessionContext extends SessionContext {
   allQuestionResults: import('../services/marking/MarkingExecutor.js').QuestionResult[];
   markingSchemesMap?: Map<string, any>;
+  detectionResults?: any[];  // Add detection results for Exam Tab building
   files?: Express.Multer.File[];
   usageTokens?: number;
   apiRequests?: number;                           // NEW: Total API request count

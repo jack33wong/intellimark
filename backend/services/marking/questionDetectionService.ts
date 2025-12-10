@@ -117,6 +117,14 @@ export class QuestionDetectionService {
       // Ignore questionNumberHint if it's "1" (dummy default from mapper for unnumbered questions)
       const effectiveHint = questionNumberHint === '1' ? null : questionNumberHint;
 
+      // DEBUG: Log Q5 specifically
+      if (effectiveHint === '5') {
+        console.log(`\n🔍 [Q5 DETECTION START]`);
+        console.log(`   Classification text (raw): "${extractedQuestionText}"`);
+        console.log(`   Classification text (escaped): "${extractedQuestionText.replace(/\n/g, '\\n')}"`);
+        console.log(`   Question number hint: ${effectiveHint}`);
+      }
+
       // Get all exam papers from database
       const examPapers = await this.getAllExamPapers();
 
@@ -139,6 +147,19 @@ export class QuestionDetectionService {
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
 
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
+
+        // DEBUG: Log Q5 specifically for Edexcel paper
+        if (effectiveHint === '5' && match && examPaper.metadata?.exam_code === '1MA1/1F') {
+          console.log(`\n🔍 [Q5 EDEXCEL MATCH]`);
+          console.log(`   Paper: ${examPaper.metadata.board} ${examPaper.metadata.qualification} ${examPaper.metadata.exam_code} (${examPaper.metadata.exam_series})`);
+          console.log(`   Similarity: ${match.confidence?.toFixed(4) || 'N/A'}`);
+          console.log(`   Threshold: ${match.subQuestionNumber ? '0.40' : '0.50'}`);
+          console.log(`   Passed threshold: ${match.confidence >= (match.subQuestionNumber ? 0.4 : 0.5)}`);
+          if (match.databaseQuestionText) {
+            console.log(`   DB Text: "${match.databaseQuestionText}"`);
+          }
+        }
+
         if (match && match.confidence) {
           // Track best match even if below threshold (for failure logging)
           if (match.confidence > bestScore) {
@@ -394,8 +415,31 @@ export class QuestionDetectionService {
                 const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
                 const normalizedHint = normalizeSubQuestionPart(hintSubPart);
 
-                // Only match if sub-question parts match (after normalization)
-                if (normalizedSubPart !== normalizedHint) {
+                // MATCHING LOGIC WITH FALLBACKS (Fixes Q12ai dropped issue)
+                let isMatch = normalizedSubPart === normalizedHint;
+
+                // Fallback 1: Hint "ai" -> Match DB "a" (Strip trailing Roman Numeral)
+                // Useful when DB stores "a" but Classification sees "ai"
+                if (!isMatch) {
+                  const hintWithoutRoman = normalizedHint.replace(/[ivx]+$/i, '');
+                  if (hintWithoutRoman.length > 0 && hintWithoutRoman === normalizedSubPart) {
+                    isMatch = true;
+                    // console.log(`[MATCH DEBUG] Fallback 1: Hint "${normalizedHint}" -> "${hintWithoutRoman}" matches DB "${normalizedSubPart}"`);
+                  }
+                }
+
+                // Fallback 2: Hint "ai" -> Match DB "i" (Strip leading Letter)
+                // Useful when DB stores "i" but Classification sees "ai"
+                if (!isMatch) {
+                  const hintRomanOnly = normalizedHint.replace(/^[a-z]/i, '');
+                  if (hintRomanOnly.length > 0 && hintRomanOnly === normalizedSubPart) {
+                    isMatch = true;
+                    // console.log(`[MATCH DEBUG] Fallback 2: Hint "${normalizedHint}" -> "${hintRomanOnly}" matches DB "${normalizedSubPart}"`);
+                  }
+                }
+
+                // Only match if sub-question parts match (after normalization checks)
+                if (!isMatch) {
                   continue;
                 }
 
@@ -406,13 +450,12 @@ export class QuestionDetectionService {
                 // Calculate similarity for sub-question text
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
 
-
                 if (subSimilarity > bestScore) {
                   bestScore = subSimilarity;
                   bestQuestionMatch = questionNumber;
                   bestMatchedQuestion = question;
-                  bestSubQuestionNumber = subQuestionPart;
-                } else if (subQuestionPart === hintSubPart && subSimilarity >= 0.2) {
+                  bestSubQuestionNumber = subQuestionPart; // Use DB version
+                } else if ((normalizedSubPart === normalizedHint || isMatch) && subSimilarity >= 0.2) {
                   // Fallback: Sub-question part matches but text similarity is low
                   // Use lower confidence (0.5) but still accept the match
                   // This handles cases where classification text format differs but sub-question part is correct
@@ -626,7 +669,10 @@ export class QuestionDetectionService {
         // If we matched a sub-question, get marks from sub_questions[].marks - fail fast if not found
         // Store parent question marks (bestMatchedQuestion.marks) for use when grouping sub-questions
         const parentQuestionMarks = bestMatchedQuestion.marks;
-        let questionMarks = parentQuestionMarks;
+
+        // FIX: Do NOT default sub-questions to parent marks. Default to 0.
+        // If it's a main question match (no sub-number), THEN use parent marks.
+        let questionMarks = bestSubQuestionNumber ? 0 : parentQuestionMarks;
 
         if (bestSubQuestionNumber && hasSubQuestions) {
           // Use ONLY question_part - fail fast if missing
@@ -1011,6 +1057,129 @@ export class QuestionDetectionService {
     }
     return ngrams;
   }
+}
+
+/**
+ * Calculate total marks from detection results with deduplication
+ * Groups by base question number and uses parent marks from database
+ * This ensures single source of truth and consistency across Question Mode and Marking Mode
+ * 
+ * @param detectionResults Array of detection results from orchestration
+ * @returns Total marks (sum of unique parent question marks)
+ */
+export function calculateTotalMarks(detectionResults: any[]): number {
+  const marksMap = new Map<string, number>();
+
+  detectionResults.forEach(dr => {
+    // Extract base question number (e.g., "12ai" → "12", "9i" → "9")
+    const baseNum = String(dr.question.questionNumber).replace(/[a-z()]+$/i, '');
+
+    // Only count each base question once (deduplication)
+    if (!marksMap.has(baseNum)) {
+      // Use parent marks from database detection result
+      const parentMarks = dr.detectionResult.match?.parentQuestionMarks || 0;
+      marksMap.set(baseNum, parentMarks);
+    }
+  });
+
+  // Sum all unique parent question marks
+  return Array.from(marksMap.values()).reduce((sum, marks) => sum + marks, 0);
+}
+
+/**
+ * Build exam paper structure from detection results
+ * Groups questions by exam paper and calculates total marks
+ * This ensures single source of truth and consistency across Question Mode and Marking Mode
+ * 
+ * @param detectionResults Array of detection results from orchestration
+ * @returns Object containing examPapers array and metadata
+ */
+export function buildExamPaperStructure(detectionResults: any[]): {
+  examPapers: any[];
+  multipleExamPapers: boolean;
+  totalMarks: number;
+} {
+  // Group questions by exam paper (board + code + series + tier)
+  const examPaperGroups = new Map<string, any>();
+
+  console.log(`[DEBUG buildExamPaperStructure] Processing ${detectionResults.length} detection results`);
+
+  detectionResults.forEach((qd, index) => {
+    // Debug first entry to understand structure
+    if (index === 0) {
+      console.log(`[DEBUG buildExamPaperStructure] Sample entry structure:`, JSON.stringify({
+        hasDetection: !!qd.detection,
+        hasDetectionResult: !!qd.detectionResult,
+        hasMatch: !!qd.detection?.match,
+        hasDetectionResultMatch: !!qd.detectionResult?.match,
+        keys: Object.keys(qd)
+      }, null, 2));
+    }
+
+    // Handle both Question Mode format (detection.match) and Marking Mode format (detectionResult.match)
+    const detectionObj = qd.detection || qd.detectionResult;
+
+    // Skip if no detection result or match
+    if (!detectionObj || !detectionObj.match) {
+      if (index === 0) {
+        console.log(`[DEBUG buildExamPaperStructure] Skipping entry - no valid detection`);
+      }
+      return;
+    }
+
+    const match = detectionObj.match;
+    const examBoard = match.board || '';
+    const examCode = match.paperCode || '';
+    const examSeries = match.examSeries || '';
+    const tier = match.tier || '';
+
+    // Create unique key for exam paper grouping
+    const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
+
+    if (!examPaperGroups.has(examPaperKey)) {
+      examPaperGroups.set(examPaperKey, {
+        examBoard,
+        examCode,
+        examSeries,
+        tier,
+        subject: match.qualification || '',
+        paperTitle: `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})`,
+        questions: [],
+        totalMarks: 0
+      });
+    }
+
+    const examPaper = examPaperGroups.get(examPaperKey)!;
+    examPaper.questions.push({
+      questionNumber: qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '',
+      questionText: match.databaseQuestionText || qd.questionText,
+      marks: match.marks || 0,
+      markingScheme: match.markingScheme || '',
+      questionIndex: qd.questionIndex,
+      sourceImageIndex: qd.sourceImageIndex
+    });
+  });
+
+  console.log(`[DEBUG buildExamPaperStructure] Created ${examPaperGroups.size} exam paper groups`);
+
+  // Calculate total marks using common function
+  const totalMarks = calculateTotalMarks(detectionResults);
+
+  // Set total marks for each exam paper (if multiple papers, distribute proportionally)
+  examPaperGroups.forEach(examPaper => {
+    examPaper.totalMarks = totalMarks; // For single paper, this is the total
+    // For multiple papers, each gets the same total (they're all parts of same submission)
+  });
+
+  // Convert to array and determine if multiple exam papers
+  const examPapers = Array.from(examPaperGroups.values());
+  const multipleExamPapers = examPapers.length > 1;
+
+  return {
+    examPapers,
+    multipleExamPapers,
+    totalMarks
+  };
 }
 
 // Export singleton instance

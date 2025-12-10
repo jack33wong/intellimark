@@ -33,6 +33,7 @@ export class MarkingPersistenceService {
         classificationResult: any,
         allClassificationResults: any[],
         markingSchemesMap: Map<string, any>,
+        detectionResults: any[],  // Add detection results for Exam Tab building
         globalQuestionText: string,
         finalAnnotatedOutput: string[],
         overallScore: number,
@@ -176,6 +177,7 @@ export class MarkingPersistenceService {
                 actualModel,
                 startTime,
                 markingSchemesMap,
+                detectionResults,  // Add detection results for Exam Tab building
                 globalQuestionText,
                 resolvedAIMessageId,
                 questionOnlyResponses: isMixedContent ? questionOnlyResponses : undefined,
@@ -210,6 +212,7 @@ export class MarkingPersistenceService {
                 mode: 'Marking',
                 allQuestionResults,
                 markingSchemesMap,
+                detectionResults,  // Add detection results for Exam Tab building
                 files,
                 usageTokens: usageTracker.getTotalTokens(),  // Use UsageTracker for accurate total
                 model: actualModel,

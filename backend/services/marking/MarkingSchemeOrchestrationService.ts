@@ -95,6 +95,9 @@ export class MarkingSchemeOrchestrationService {
     for (const question of individualQuestions) {
       const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
 
+      // === RAW DETECTION LOG (User Requested - shows individual detections BEFORE merging) ===
+      console.log(`[RAW DETECTION] Q${question.questionNumber}: DB=${detectionResult.match?.questionNumber || 'None'}, SubKey="${detectionResult.match?.subQuestionNumber || ''}", Marks=${detectionResult.match?.marks || 0}`);
+
       const similarity = detectionResult.match?.confidence || 0;
       const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
 
@@ -356,10 +359,11 @@ export class MarkingSchemeOrchestrationService {
         // rather than the database's total which might include missing parts.
         const calculatedTotalMarks = Array.from(subQuestionMaxScoresMap.values()).reduce((a, b) => a + b, 0);
         const finalTotalMarks = calculatedTotalMarks > 0 ? calculatedTotalMarks : parentQuestionMarks;
-
+        // Store merged marking scheme with totalMarks AND parentQuestionMarks for calculateOverallScore
         const schemeWithTotalMarks = {
           questionMarks: mergedQuestionMarks,
           totalMarks: finalTotalMarks,
+          parentQuestionMarks: parentQuestionMarks, // Add for student score calculation (64/80)
           questionNumber: baseQuestionNumber,
           questionDetection: questionDetection,
           databaseQuestionText: fullDatabaseQuestionText,
@@ -390,9 +394,11 @@ export class MarkingSchemeOrchestrationService {
           questionSpecificMarks = item.detectionResult.match.markingScheme;
         }
 
+        // Store single-question marking scheme with totalMarks AND parentQuestionMarks for calculateOverallScore
         const schemeWithTotalMarks = {
           questionMarks: questionSpecificMarks,
           totalMarks: item.detectionResult.match.marks,
+          parentQuestionMarks: item.detectionResult.match.marks, // Add for student score calculation (64/80)
           questionNumber: actualQuestionNumber,
           questionDetection: item.detectionResult,
           questionText: item.question.text,

@@ -668,6 +668,14 @@ export function extractQuestionsFromClassification(
     const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> = [];
 
     for (const q of classification.questions) {
+      // DEBUG: Trace Q5 extraction
+      if (q.questionNumber === '5' || q.questionNumber === 5) {
+        console.log(`\n🔍 [EXTRACTION DEBUG] Found Q5 in classification output:`);
+        console.log(`   Page: ${q.sourceImageIndex}`);
+        console.log(`   Text Length: ${q.text?.length || 0}`);
+        console.log(`   Has SubQuestions: ${q.subQuestions?.length > 0}`);
+      }
+
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
       const sourceImageIndex = q.sourceImageIndex;
 
@@ -1092,19 +1100,32 @@ export function calculateOverallScore(
 } {
   const overallScore = allQuestionResults.reduce((sum, qr) => sum + (qr.score?.awardedMarks || 0), 0);
 
-  // For total marks: avoid double-counting sub-questions that share the same parent question
-  // Group by base question number and only count total marks once per base question
+  // For total marks: Use parent marks from database (marking scheme) - single source of truth
+  // Group by base question number and only count parent marks once per base question
   const baseQuestionToTotalMarks = new Map<string, number>();
-  allQuestionResults.forEach((qr) => {
+
+  console.log(`[calculateOverallScore] Processing ${allQuestionResults.length} question results`);
+
+  allQuestionResults.forEach((qr, index) => {
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
-    const totalMarks = qr.score?.totalMarks || 0;
+
+    // Debug first few entries
+    if (index < 3) {
+      console.log(`[calculateOverallScore] Q${qr.questionNumber}: base=${baseQNum}, hasMarkingScheme=${!!qr.markingScheme}, parentMarks=${qr.markingScheme?.parentQuestionMarks || 'undefined'}`);
+    }
+
     // Only set if not already set (first occurrence wins)
-    // This ensures sub-questions (Q17a, Q17b) share the same total marks as their parent (Q17)
     if (!baseQuestionToTotalMarks.has(baseQNum)) {
-      baseQuestionToTotalMarks.set(baseQNum, totalMarks);
+      // Use parent marks from marking scheme (database) instead of AI score
+      const parentMarks = qr.markingScheme?.parentQuestionMarks || 0;
+      baseQuestionToTotalMarks.set(baseQNum, parentMarks);
     }
   });
+
   const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
+
+  console.log(`[calculateOverallScore] Total unique questions: ${baseQuestionToTotalMarks.size}, totalPossibleScore: ${totalPossibleScore}`);
+
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
 
   return {

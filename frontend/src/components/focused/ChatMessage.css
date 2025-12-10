@@ -7,7 +7,8 @@
 
 /* Ensure last message is fully visible */
 .chat-message:last-child {
-  margin-bottom: 24px; /* Extra margin for last message to ensure visibility */
+  margin-bottom: 24px;
+  /* Extra margin for last message to ensure visibility */
 }
 
 /* Progress steps display */
@@ -143,7 +144,7 @@
 }
 
 .chat-message.user .chat-message-bubble {
-  background:  var(--chat-user) ;
+  background: var(--chat-user);
   color: white;
   border-bottom-right-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -182,10 +183,12 @@
 .chat-message.user .chat-message-bubble.marking-message {
   max-width: 70%;
   width: auto;
-  background: #363537; /* Dark grey background */
+  background: #363537;
+  /* Dark grey background */
   padding: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  border: 1px solid #4b5563; /* Dark grey border */
+  border: 1px solid #4b5563;
+  /* Dark grey border */
   margin-left: auto;
   margin-right: 0;
   text-align: right;
@@ -256,7 +259,8 @@
   width: 100%;
   height: auto;
   max-width: 500px;
-  max-height: none; /* Remove height constraint to maintain aspect ratio */
+  max-height: none;
+  /* Remove height constraint to maintain aspect ratio */
   display: block;
   object-fit: contain;
   border-radius: 8px;
@@ -331,7 +335,7 @@
   .chat-message-bubble {
     max-width: 85%;
   }
-  
+
   .chat-message-image {
     max-width: 150px;
   }
@@ -397,3 +401,12 @@
   font-weight: 600;
 }
 
+/* Question marks styling - green and right-aligned */
+.question-marks {
+  color: #10b981;
+  /* green-500 */
+  float: right;
+  font-weight: 500;
+  font-size: 14px;
+  margin-left: 12px;
+}

@@ -11,6 +11,7 @@ import { extractQuestionsFromClassification, convertMarkingSchemeToPlainText } f
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import { createAIMessage } from '../../utils/messageUtils.js';
+import { calculateTotalMarks, buildExamPaperStructure } from './questionDetectionService.js';
 import { calculateMessageProcessingStats } from '../../utils/messageUtils.js';
 import { sendSseUpdate, createProgressData } from '../../utils/sseUtils.js';
 import { SessionManagementService } from '../sessionManagementService.js';
@@ -88,6 +89,61 @@ export class QuestionModeHandlerService {
     // Log detection statistics
     MarkingSchemeOrchestrationService.logDetectionStatistics(detectionStats);
 
+    // === DB TRUTH vs CALCULATED COMPARISON (User Requested) ===
+    // Group by base question number to compare DB marks vs calculated marks
+    const comparisonMap = new Map<string, { dbParentMarks: number; calculatedMarks: number; detections: any[] }>();
+
+    detectionResults.forEach((dr: any) => {
+      const baseNum = String(dr.question.questionNumber).replace(/[a-z()]+$/i, '');
+      if (!comparisonMap.has(baseNum)) {
+        comparisonMap.set(baseNum, {
+          dbParentMarks: dr.detectionResult.match?.parentQuestionMarks || 0,
+          calculatedMarks: 0,
+          detections: []
+        });
+      }
+      comparisonMap.get(baseNum)!.detections.push(dr);
+    });
+
+    // Calculate marks using parent marks from database (not sum of individual detections)
+    comparisonMap.forEach((data, baseNum) => {
+      // Use parent marks for main question (e.g., Q10 = 3, not 3+3+3=9)
+      data.calculatedMarks = data.dbParentMarks;
+    });
+
+    console.log('\n╔════════════════════════════════════════════════════════════╗');
+    console.log('║  DB TRUTH vs CALCULATED MARKS (Q1-Q27)                    ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log('║  Q#  │  DB Parent  │  Calculated  │  Status               ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+
+    let totalDbParent = 0;
+    let totalCalculated = 0;
+
+    for (let i = 1; i <= 27; i++) {
+      const qNum = String(i);
+      const data = comparisonMap.get(qNum);
+
+      if (data) {
+        const dbMarks = data.dbParentMarks;
+        const calcMarks = data.calculatedMarks;
+        totalDbParent += dbMarks;
+        totalCalculated += calcMarks;
+
+        const status = dbMarks === calcMarks ? '✅ MATCH' : '❌ MISMATCH';
+        const qDisplay = qNum.padStart(3, ' ');
+        const dbDisplay = String(dbMarks).padStart(11, ' ');
+        const calcDisplay = String(calcMarks).padStart(12, ' ');
+        console.log(`║  ${qDisplay} │ ${dbDisplay} │ ${calcDisplay} │  ${status.padEnd(21, ' ')}║`);
+      } else {
+        console.log(`║  ${qNum.padStart(3, ' ')} │ ${' '.repeat(11)} │ ${' '.repeat(12)} │  NOT DETECTED         ║`);
+      }
+    }
+
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log(`║ TOTAL │ ${String(totalDbParent).padStart(11, ' ')} │ ${String(totalCalculated).padStart(12, ' ')} │  ${totalDbParent === totalCalculated ? '✅ MATCH' : '❌ MISMATCH'.padEnd(21, ' ')}║`);
+    console.log('╚════════════════════════════════════════════════════════════╝\n');
+
     // Map orchestration results to Question Mode format
     const allQuestionDetections = detectionResults.map((dr, index) => ({
       questionIndex: index,
@@ -97,46 +153,8 @@ export class QuestionModeHandlerService {
       sourceImageIndex: dr.question.sourceImageIndex ?? index
     }));
 
-    // Group questions by exam paper (board + code + year + tier)
-    const examPaperGroups = new Map<string, any>();
-
-    allQuestionDetections.forEach(qd => {
-      const examBoard = qd.detection.match?.board || '';
-      const examCode = qd.detection.match?.paperCode || '';
-      const examSeries = qd.detection.match?.examSeries || '';
-      const tier = qd.detection.match?.tier || '';
-
-      // Create unique key for exam paper grouping
-      const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
-
-      if (!examPaperGroups.has(examPaperKey)) {
-        examPaperGroups.set(examPaperKey, {
-          examBoard,
-          examCode,
-          examSeries,
-          tier,
-          subject: qd.detection.match?.qualification || '',
-          paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-          questions: [],
-          totalMarks: 0
-        });
-      }
-
-      const examPaper = examPaperGroups.get(examPaperKey);
-      examPaper.questions.push({
-        questionNumber: qd.detection.match?.questionNumber || '',
-        questionText: qd.questionText,
-        marks: qd.detection.match?.marks || 0,
-        markingScheme: qd.detection.match?.markingScheme || '',
-        questionIndex: qd.questionIndex,
-        sourceImageIndex: qd.sourceImageIndex
-      });
-      examPaper.totalMarks += qd.detection.match?.marks || 0;
-    });
-
-    // Convert to array and determine if multiple exam papers
-    const examPapers = Array.from(examPaperGroups.values());
-    const multipleExamPapers = examPapers.length > 1;
+    // Build exam paper structure using common function (ensures consistency with Marking Mode)
+    const { examPapers, multipleExamPapers, totalMarks } = buildExamPaperStructure(detectionResults);
 
     // SMART DEDUPLICATION
     // Goal: Merge over-split questions (Q10a,b,c → Q10) while preserving genuine sub-questions (Q9i,ii,iii)
@@ -199,14 +217,14 @@ export class QuestionModeHandlerService {
 
 
 
-    // Create enhanced question detection result
+    // Create enhanced question detection result using common function results
     const questionDetection = {
-      found: deduplicatedDetections.some(qd => qd.detection.found),
+      found: examPapers.length > 0 && examPapers.some(ep => ep.questions.length > 0),
       multipleExamPapers,
       examPapers,
-      totalMarks: deduplicatedDetections.reduce((sum, qd) => sum + (qd.detection.match?.marks || 0), 0),
-      // Legacy fields for backward compatibility (removed unnecessary fields: questionIndex, sourceImageIndex)
+      totalMarks,  // Use total from buildExamPaperStructure (ensures database parent marks)
       multipleQuestions: deduplicatedDetections.length > 1,
+      // Legacy questions array for AI generation (still needed for response generation)
       questions: deduplicatedDetections.map(qd => {
         // Use database question text if available, fallback to classification text
         const questionText = qd.detection.match?.databaseQuestionText || qd.questionText;
@@ -306,8 +324,30 @@ export class QuestionModeHandlerService {
           combinedMarkingScheme
         );
 
-        // POST-PROCESS: Insert blank lines after marking codes for visual separation
-        const formattedResponse = response.response
+        // Reuse parent marks from comparison table (already calculated correctly)
+        const parentMarks = comparisonMap.get(baseNumber)?.dbParentMarks || 0;
+
+        // DEBUG: Trace marks injection
+        console.log(`\n[MARKS DEBUG] Q${baseNumber}:`);
+        console.log(`  Parent Marks (DB): ${parentMarks}`);
+        console.log(`  SubQuestions:`, subQuestions.map(sq => ({ qNum: sq.questionNumber, marks: sq.marks })));
+
+        // POST-PROCESS:
+        // 1. Remove AI-generated "Question X" header to avoid duplication
+        // 2. PREPEND markdown header with question number and marks
+        // 3. Insert blank lines after marking codes
+        let formattedResponse = response.response;
+
+        // Step 1: Remove plain text "Question X" at the start (AI sometimes generates this)
+        formattedResponse = formattedResponse.replace(/^Question\s+\d+\s*\n*/i, '');
+
+        // Step 2: Prepend markdown header with parent marks
+        const marksText = parentMarks > 0 ? ` (${parentMarks} ${parentMarks === 1 ? 'mark' : 'marks'})` : '';
+        const header = `### Question ${baseNumber}${marksText}\n\n`;
+        formattedResponse = header + formattedResponse;
+
+        // Step 3: Insert blank lines after marking codes for visual separation
+        formattedResponse = formattedResponse
           .replace(/(\[M\d+(?:dep)?\])/g, '$1\n\n')  // [M1], [M1dep], [M2], etc.
           .replace(/(\[A\d+\])/g, '$1\n\n')          // [A1], [A2], etc.
           .replace(/(\[B\d+\])/g, '$1\n\n');         // [B1], [B2], etc.
@@ -326,9 +366,9 @@ export class QuestionModeHandlerService {
       })
     );
 
-    // Combine all responses into a single comprehensive response with clear separation
+    // Combine all responses with separators (no "Question X" prefix - already in response)
     const combinedResponse = aiResponses.map((ar, index) =>
-      `Question ${ar.questionNumber}\n\n${ar.response}`
+      ar.response
     ).join('\n\n' + '_'.repeat(80) + '\n\n');
 
     const aiResponse = {
