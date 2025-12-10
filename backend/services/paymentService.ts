@@ -76,23 +76,30 @@ export class PaymentService {
       );
     }
 
-    const session = await stripe.checkout.sessions.create({
+    console.log(`Creating checkout session for plan "${planId}" (${billingCycle}) with price ID: ${priceId}`);
+
+    // Check if user already has an active subscription
+    const existingSubscription = await SubscriptionService.getSubscriptionByUserId(userId);
+
+    let mode: 'subscription' | 'payment' = 'subscription';
+    let sessionParams: any = {
       payment_method_types: ['card'],
+      mode: mode,
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      mode: 'subscription',
-      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${successUrl}&session_id={CHECKOUT_SESSION_ID}`, // Original success_url format
       cancel_url: cancelUrl,
+      client_reference_id: userId,
       metadata: {
-        planId,
-        billingCycle,
-        userId,
+        userId: userId,
+        planId: planId,
+        billingCycle: billingCycle,
       },
-      subscription_data: {
+      subscription_data: { // Re-incorporating subscription_data from original method
         metadata: {
           planId,
           billingCycle,
