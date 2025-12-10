@@ -22,7 +22,7 @@ const SubscriptionPage: React.FC = () => {
   useEffect(() => {
     const fetchCreditConfig = async () => {
       try {
-        const response = await fetch(`/api/config/credits`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/config/credits`);
         if (!response.ok) {
           throw new Error(`Failed to fetch credit config: ${response.status}`);
         }
@@ -52,7 +52,7 @@ const SubscriptionPage: React.FC = () => {
         // Fetch credits if subscription exists
         if (subscription) {
           try {
-            const creditsResponse = await fetch(`/api/credits/${user.uid}`);
+            const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
             if (creditsResponse.ok) {
               const creditsData = await creditsResponse.json();
               (subscription as any).credits = creditsData;
