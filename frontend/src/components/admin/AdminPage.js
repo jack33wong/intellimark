@@ -704,12 +704,8 @@ function AdminPage() {
                 <div className="usage-summary-value">${usageSummary.totalCost.toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
-                <div className="usage-summary-label">Gemini Cost</div>
-                <div className="usage-summary-value">${usageSummary.totalGeminiCost.toFixed(2)}</div>
-              </div>
-              <div className="usage-summary-card">
-                <div className="usage-summary-label">GPT Cost</div>
-                <div className="usage-summary-value">${usageSummary.totalGptCost.toFixed(2)}</div>
+                <div className="usage-summary-label">AI Cost</div>
+                <div className="usage-summary-value">${(usageSummary.totalGeminiCost + usageSummary.totalGptCost).toFixed(2)}</div>
               </div>
               <div className="usage-summary-card">
                 <div className="usage-summary-label">Mathpix Cost</div>
@@ -802,8 +798,7 @@ function AdminPage() {
                         <th className="admin-table__header">Model Used</th>
                         <th className="admin-table__header">API Requests</th>
                         <th className="admin-table__header">Total Cost</th>
-                        <th className="admin-table__header">Gemini Cost</th>
-                        <th className="admin-table__header">GPT Cost</th>
+                        <th className="admin-table__header">AI Cost</th>
                         <th className="admin-table__header">Mathpix Cost</th>
                       </tr>
                     </thead>
@@ -815,8 +810,7 @@ function AdminPage() {
                           <td className="admin-table__cell">{session.modelUsed}</td>
                           <td className="admin-table__cell">{session.apiRequests || 0}</td>
                           <td className="admin-table__cell">${session.totalCost.toFixed(2)}</td>
-                          <td className="admin-table__cell">${(session.geminiCost || 0).toFixed(2)}</td>
-                          <td className="admin-table__cell">${(session.gptCost || 0).toFixed(2)}</td>
+                          <td className="admin-table__cell">${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(2)}</td>
                           <td className="admin-table__cell">${session.mathpixCost.toFixed(2)}</td>
                         </tr>
                       ))}

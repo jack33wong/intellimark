@@ -121,12 +121,8 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
                             <div className="usage-summary-value">${usageSummary.totalCost.toFixed(2)}</div>
                         </div>
                         <div className="usage-summary-card">
-                            <div className="usage-summary-label">Gemini Cost</div>
-                            <div className="usage-summary-value">${usageSummary.totalGeminiCost.toFixed(2)}</div>
-                        </div>
-                        <div className="usage-summary-card">
-                            <div className="usage-summary-label">GPT Cost</div>
-                            <div className="usage-summary-value">${usageSummary.totalGptCost.toFixed(2)}</div>
+                            <div className="usage-summary-label">AI Cost</div>
+                            <div className="usage-summary-value">${(usageSummary.totalGeminiCost + usageSummary.totalGptCost).toFixed(2)}</div>
                         </div>
                         <div className="usage-summary-card">
                             <div className="usage-summary-label">Mathpix Cost</div>
@@ -203,8 +199,7 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
                                             <th>Model Used</th>
                                             <th>API Requests</th>
                                             <th>Total Cost</th>
-                                            <th>Gemini Cost</th>
-                                            <th>GPT Cost</th>
+                                            <th>AI Cost</th>
                                             <th>Mathpix Cost</th>
                                         </tr>
                                     </thead>
@@ -215,8 +210,7 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
                                                 <td>{session.modelUsed}</td>
                                                 <td>{session.apiRequests || 0}</td>
                                                 <td>${session.totalCost.toFixed(2)}</td>
-                                                <td>${(session.geminiCost || 0).toFixed(2)}</td>
-                                                <td>${(session.gptCost || 0).toFixed(2)}</td>
+                                                <td>${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(2)}</td>
                                                 <td>${session.mathpixCost.toFixed(2)}</td>
                                             </tr>
                                         ))}
