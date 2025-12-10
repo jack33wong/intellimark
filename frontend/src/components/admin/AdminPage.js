@@ -41,7 +41,7 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
   }
 
   return marks.map((mark, index) => {
-    const markCode = mark.mark || `M${index + 1} `;
+    const markCode = mark.mark || `M${index + 1}`;
     let answer = mark.answer || '';
 
     // Convert LaTeX math expressions to Markdown format
@@ -50,18 +50,18 @@ const formatMarkingSchemeAsMarkdown = (marks) => {
     // Convert \sqrt{x} to $\sqrt{x}$
     answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '$\\sqrt{$1}$');
     // Convert \pi, \alpha, \beta, etc. to $\pi$, $\alpha$, $\beta$
-    answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `$${match} $`);
+    answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `$${match}$`);
     // Convert standalone numbers in math context to $number$
     answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
       // Only convert if it's in a mathematical context (surrounded by math symbols)
       const before = answer.substring(0, answer.indexOf(match));
       const after = answer.substring(answer.indexOf(match) + match.length);
       const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-      return mathContext ? `$${number} $` : number;
+      return mathContext ? `$${number}$` : number;
     });
 
     const comments = mark.comments ? ` (${mark.comments})` : '';
-    return `• ** ${markCode}** ${answer}${comments} `;
+    return `• **${markCode}** ${answer}${comments}`;
   }).join('\n');
 };
 
@@ -192,7 +192,7 @@ function AdminPage() {
       setJsonEntries(sortedEntries);
       setLoading(false); // Set loading to false when data is loaded (even if empty)
     } catch (e) {
-      setError(`Failed to load JSON entries: ${e.message} `);
+      setError(`Failed to load JSON entries: ${e.message}`);
       setLoading(false); // Set loading to false on error
       setTimeout(() => setError(null), 4000);
     }
@@ -308,7 +308,7 @@ function AdminPage() {
       setLoadingUsage(true);
       const authToken = await getAuthToken();
       const data = await ApiClient.get(
-        `/ api / admin / usage ? filter = ${filter} `,
+        `/api/admin/usage?filter=${filter}`,
         authToken
       );
 
@@ -325,7 +325,7 @@ function AdminPage() {
         });
       }
     } catch (e) {
-      setError(`Failed to load usage data: ${e.message} `);
+      setError(`Failed to load usage data: ${e.message}`);
       setTimeout(() => setError(null), 4000);
     } finally {
       setLoadingUsage(false);
@@ -348,7 +348,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error deleting all entries:', error);
-      setError(`Error deleting all entries: ${error.message} `);
+      setError(`Error deleting all entries: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsDeletingAll(false);
@@ -363,14 +363,14 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/ api / admin / json / collections / fullExamPapers / ${entryId} `, authToken);
+      const result = await ApiClient.delete(`/api/admin/json/collections/fullExamPapers/${entryId}`, authToken);
       console.log('Entry deleted:', result.message);
       setJsonEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Exam paper deleted successfully.`);
       setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting entry:', error);
-      setError(`Error deleting entry: ${error.message} `);
+      setError(`Error deleting entry: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
@@ -390,7 +390,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting all marking schemes:', error);
-      setError(`Error deleting all marking schemes: ${error.message} `);
+      setError(`Error deleting all marking schemes: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
@@ -403,14 +403,14 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/ api / admin / json / collections / markingSchemes / ${entryId} `, authToken);
+      const result = await ApiClient.delete(`/api/admin/json/collections/markingSchemes/${entryId}`, authToken);
       console.log('Marking scheme deleted:', result.message);
       setMarkingSchemeEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Marking scheme deleted successfully.`);
       setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting marking scheme:', error);
-      setError(`Error deleting marking scheme: ${error.message} `);
+      setError(`Error deleting marking scheme: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
@@ -431,7 +431,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error deleting all grade boundaries:', error);
-      setError(`Error deleting all grade boundaries: ${error.message} `);
+      setError(`Error deleting all grade boundaries: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsDeletingAllGradeBoundaries(false);
@@ -446,14 +446,14 @@ function AdminPage() {
 
     try {
       const authToken = await getAuthToken();
-      const result = await ApiClient.delete(`/ api / admin / json / collections / gradeBoundaries / ${entryId} `, authToken);
+      const result = await ApiClient.delete(`/api/admin/json/collections/gradeBoundaries/${entryId}`, authToken);
       console.log('Grade boundary deleted:', result.message);
       setGradeBoundaryEntries(prev => prev.filter(entry => entry.id !== entryId));
       setError(`✅ Grade boundary deleted successfully.`);
       setTimeout(() => setError(null), 3000);
     } catch (error) {
       console.error('Error deleting grade boundary:', error);
-      setError(`Error deleting grade boundary: ${error.message} `);
+      setError(`Error deleting grade boundary: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [getAuthToken]);
@@ -476,7 +476,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error uploading JSON:', error);
-      setError(`Error uploading JSON: ${error.message} `);
+      setError(`Error uploading JSON: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [jsonForm, getAuthToken, resetJsonForm, isJsonFormValid]);
@@ -501,7 +501,7 @@ function AdminPage() {
       loadMarkingSchemeEntries();
     } catch (error) {
       console.error('Error uploading marking scheme:', error);
-      setError(`Error uploading marking scheme: ${error.message} `);
+      setError(`Error uploading marking scheme: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [markingSchemeForm, getAuthToken, resetMarkingSchemeForm, isMarkingSchemeFormValid, loadMarkingSchemeEntries]);
@@ -525,7 +525,7 @@ function AdminPage() {
       setTimeout(() => setError(null), 5000);
     } catch (error) {
       console.error('Error uploading grade boundary:', error);
-      setError(`Error uploading grade boundary: ${error.message} `);
+      setError(`Error uploading grade boundary: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     }
   }, [gradeBoundaryForm, getAuthToken, resetGradeBoundaryForm, isGradeBoundaryFormValid]);
@@ -551,7 +551,7 @@ function AdminPage() {
       window.location.href = '/mark-homework';
     } catch (error) {
       console.error('Error clearing sessions:', error);
-      setError(`Error clearing sessions: ${error.message} `);
+      setError(`Error clearing sessions: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsClearingSessions(false);
@@ -576,7 +576,7 @@ function AdminPage() {
       loadUsageData(usageFilter);
     } catch (error) {
       console.error('Error clearing usage records:', error);
-      setError(`Error clearing usage records: ${error.message} `);
+      setError(`Error clearing usage records: ${error.message}`);
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsClearingUsage(false);
@@ -653,7 +653,7 @@ function AdminPage() {
 
         {/* Error Display */}
         {error && (
-          <div className={`alert ${error.includes('✅') ? 'alert-success' : 'alert-error'} `}>
+          <div className={`alert ${error.includes('✅') ? 'alert-success' : 'alert-error'}`}>
             {error}
           </div>
         )}
@@ -661,42 +661,42 @@ function AdminPage() {
         {/* Tab Navigation */}
         <div className="admin-tabs">
           <button
-            className={`admin - tab ${activeTab === 'usage' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'usage' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('usage')}
           >
             <BarChart size={16} />
             Usage
           </button>
           <button
-            className={`admin - tab ${activeTab === 'json' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'json' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('json')}
           >
             <Database size={16} />
             Exam JSON
           </button>
           <button
-            className={`admin - tab ${activeTab === 'marking-scheme' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'marking-scheme' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('marking-scheme')}
           >
             <ClipboardList size={16} />
             Marking Scheme
           </button>
           <button
-            className={`admin - tab ${activeTab === 'grade-boundaries' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'grade-boundaries' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('grade-boundaries')}
           >
             <Award size={16} />
             Grade Boundaries
           </button>
           <button
-            className={`admin - tab ${activeTab === 'query' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'query' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('query')}
           >
             <Search size={16} />
             Query
           </button>
           <button
-            className={`admin - tab ${activeTab === 'subscriptions' ? 'admin-tab--active' : ''} `}
+            className={`admin-tab ${activeTab === 'subscriptions' ? 'admin-tab--active' : ''}`}
             onClick={() => setActiveTab('subscriptions')}
           >
             <CreditCard size={16} />
@@ -743,37 +743,37 @@ function AdminPage() {
             {/* Filter Tabs */}
             <div className="usage-filter-tabs">
               <button
-                className={`usage - filter - tab ${usageFilter === 'all' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'all' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('all')}
               >
                 All
               </button>
               <button
-                className={`usage - filter - tab ${usageFilter === 'year' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'year' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('year')}
               >
                 Year
               </button>
               <button
-                className={`usage - filter - tab ${usageFilter === 'month' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'month' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('month')}
               >
                 Month
               </button>
               <button
-                className={`usage - filter - tab ${usageFilter === 'week' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'week' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('week')}
               >
                 Week
               </button>
               <button
-                className={`usage - filter - tab ${usageFilter === 'yesterday' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'yesterday' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('yesterday')}
               >
                 Yesterday
               </button>
               <button
-                className={`usage - filter - tab ${usageFilter === 'day' ? 'usage-filter-tab--active' : ''} `}
+                className={`usage-filter-tab ${usageFilter === 'day' ? 'usage-filter-tab--active' : ''}`}
                 onClick={() => setUsageFilter('day')}
               >
                 Day
@@ -969,7 +969,7 @@ function AdminPage() {
                                 >
                                   <span className="exam-paper-name">
                                     {board !== 'N/A' ?
-                                      `${board} ${examSeries} ${code} `.replace(/\s+/g, ' ').trim() :
+                                      `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                       examData.originalName || examData.filename || entry.id
                                     }
                                   </span>
@@ -1029,7 +1029,7 @@ function AdminPage() {
                                     <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Exam Paper Content: {
                                         board !== 'N/A' ?
-                                          `${board} ${examSeries} ${code} `.replace(/\s+/g, ' ').trim() :
+                                          `${board} ${examSeries} ${code}`.replace(/\s+/g, ' ').trim() :
                                           examData.originalName || examData.filename || entry.id
                                       }</h4>
                                       <div className="admin-content-info">
@@ -1243,8 +1243,8 @@ function AdminPage() {
                                 >
                                   <span className="exam-paper-name">
                                     {board !== 'N/A' ?
-                                      `${board} ${qualification} - ${paperCode} `.replace(/\s+/g, ' ').trim() :
-                                      `Marking Scheme ${entry.id} `
+                                      `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
+                                      `Marking Scheme ${entry.id}`
                                     }
                                   </span>
                                   <span className="expand-indicator">
@@ -1300,8 +1300,8 @@ function AdminPage() {
                                     <div className="admin-content-header">
                                       <h4 className="admin-content-header__title">Marking Scheme Details: {
                                         board !== 'N/A' ?
-                                          `${board} ${qualification} - ${paperCode} `.replace(/\s+/g, ' ').trim() :
-                                          `Marking Scheme ${entry.id} `
+                                          `${board} ${qualification} - ${paperCode}`.replace(/\s+/g, ' ').trim() :
+                                          `Marking Scheme ${entry.id}`
                                       }</h4>
                                       <div className="admin-content-info">
                                         <span className="admin-content-info__text">Questions are displayed in numerical order</span>
@@ -1385,7 +1385,7 @@ function AdminPage() {
                                                 <div className="admin-question-main">
                                                   <span className="admin-question-number">{questionNum}</span>
                                                   <span className="admin-question-text">
-                                                    {question.answer ? `Answer: ${question.answer} ` : 'No answer provided'}
+                                                    {question.answer ? `Answer: ${question.answer}` : 'No answer provided'}
                                                   </span>
                                                 </div>
 
@@ -1395,18 +1395,18 @@ function AdminPage() {
                                                     <h6 className="admin-questions-summary__title">Marks ({question.marks.length})</h6>
                                                     <div className="markdown-marking-scheme">
                                                       {question.marks.map((mark, index) => {
-                                                        const markCode = mark.mark || `M${index + 1} `;
+                                                        const markCode = mark.mark || `M${index + 1}`;
                                                         let answer = mark.answer || '';
 
                                                         // Convert LaTeX math expressions to proper LaTeX delimiters for KaTeX
                                                         answer = answer.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\(\\frac{$1}{$2}\\)');
                                                         answer = answer.replace(/\\sqrt\{([^}]+)\}/g, '\\(\\sqrt{$1}\\)');
-                                                        answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match} \\)`);
+                                                        answer = answer.replace(/\\[a-zA-Z]+/g, (match) => `\\(${match}\\)`);
                                                         answer = answer.replace(/(?<!\$)\b(\d+(?:\.\d+)?)\b(?!\$)/g, (match, number) => {
                                                           const before = answer.substring(0, answer.indexOf(match));
                                                           const after = answer.substring(answer.indexOf(match) + match.length);
                                                           const mathContext = /[+\-*/=<>(){}[\]]/.test(before.slice(-1)) || /[+\-*/=<>(){}[\]]/.test(after[0]);
-                                                          return mathContext ? `\\(${number} \\)` : number;
+                                                          return mathContext ? `\\(${number}\\)` : number;
                                                         });
 
                                                         const comments = mark.comments ? ` (${mark.comments})` : '';
@@ -1414,7 +1414,7 @@ function AdminPage() {
                                                         return (
                                                           <div key={index} className="marking-scheme-item">
                                                             <MarkdownMathRenderer
-                                                              content={`** ${markCode}** ${answer}${comments} `}
+                                                              content={`**${markCode}** ${answer}${comments}`}
                                                               className="admin-markdown-content"
                                                             />
                                                           </div>
@@ -1434,7 +1434,7 @@ function AdminPage() {
                                                           <span className="admin-sub-question-number">{guidanceIndex + 1}</span>
                                                           <span className="admin-sub-question-text">
                                                             <strong>Scenario:</strong> {guidance.scenario}
-                                                            {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome} `}
+                                                            {guidance.outcome && ` | <strong>Outcome:</strong> ${guidance.outcome}`}
                                                           </span>
                                                         </div>
                                                       </div>
@@ -1581,7 +1581,7 @@ function AdminPage() {
                                   <span className="exam-paper-name">
                                     {examBoard !== 'N/A' ?
                                       `${examBoard} ${qualification} (${examSeries})` :
-                                      `Grade Boundary ${entry.id} `
+                                      `Grade Boundary ${entry.id}`
                                     }
                                   </span>
                                   <span className="expand-indicator">
@@ -1629,7 +1629,7 @@ function AdminPage() {
                                       <h4 className="admin-content-header__title">Grade Boundary Details: {
                                         examBoard !== 'N/A' ?
                                           `${examBoard} ${qualification} (${examSeries})` :
-                                          `Grade Boundary ${entry.id} `
+                                          `Grade Boundary ${entry.id}`
                                       }</h4>
                                       <div className="admin-content-info">
                                         <button
@@ -1870,162 +1870,156 @@ function AdminPage() {
                 >
                   <Search size={16} />
                   {loadingSubscription ? 'Searching...' : 'Search'}
-                </button >
-              </div >
-            </div >
+                </button>
+              </div>
+            </div>
 
             {/* Subscription Details */}
-            {
-              userSubscription && (
-                <div className="admin-subscription-details">
-                  <h3>Subscription Details</h3>
-                  <div className="admin-details-grid">
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Email:</span>
-                      <span className="admin-detail-value">{userSubscription.email}</span>
-                    </div>
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Plan:</span>
-                      <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.planId}</span>
-                    </div>
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Status:</span>
-                      <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.status}</span>
-                    </div>
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Billing Cycle:</span>
-                      <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.billingCycle}</span>
-                    </div>
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Amount:</span>
-                      <span className="admin-detail-value">{(userSubscription.amount / 100).toFixed(2)} {userSubscription.currency.toUpperCase()}</span>
-                    </div>
-                    <div className="admin-detail-item">
-                      <span className="admin-detail-label">Period End:</span>
-                      <span className="admin-detail-value">{new Date(userSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
-                    </div>
-                    {userSubscription.scheduledPlanId && (
-                      <div className="admin-detail-item" style={{ gridColumn: '1 / -1' }}>
-                        <span className="admin-detail-label">Scheduled Change:</span>
-                        <span className="admin-detail-value" style={{ color: '#f59e0b', fontWeight: 600 }}>
-                          ⚠️ Downgrade to {userSubscription.scheduledPlanId} on {new Date(userSubscription.scheduleEffectiveDate).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
+            {userSubscription && (
+              <div className="admin-subscription-details">
+                <h3>Subscription Details</h3>
+                <div className="admin-details-grid">
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Email:</span>
+                    <span className="admin-detail-value">{userSubscription.email}</span>
                   </div>
-                </div>
-              )
-            }
-
-            {/* Credit Management */}
-            {
-              userCredits && (
-                <div className="admin-credits-management">
-                  <h3>Credit Management</h3>
-                  <div className="admin-credits-display">
-                    <div className="admin-credit-stat">
-                      <span className="admin-credit-label">Total Credits:</span>
-                      <span className="admin-credit-value">{userCredits.totalCredits}</span>
-                    </div>
-                    <div className="admin-credit-stat">
-                      <span className="admin-credit-label">Used Credits:</span>
-                      <span className="admin-credit-value">{userCredits.usedCredits}</span>
-                    </div>
-                    <div className="admin-credit-stat">
-                      <span className="admin-credit-label">Remaining Credits:</span>
-                      <span className="admin-credit-value" style={{ color: userCredits.remainingCredits < 10 ? '#EF4444' : '#10B981', fontWeight: 600 }}>
-                        {userCredits.remainingCredits}
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Plan:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.planId}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Status:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.status}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Billing Cycle:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.billingCycle}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Amount:</span>
+                    <span className="admin-detail-value">{(userSubscription.amount / 100).toFixed(2)} {userSubscription.currency.toUpperCase()}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Period End:</span>
+                    <span className="admin-detail-value">{new Date(userSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+                  </div>
+                  {userSubscription.scheduledPlanId && (
+                    <div className="admin-detail-item" style={{ gridColumn: '1 / -1' }}>
+                      <span className="admin-detail-label">Scheduled Change:</span>
+                      <span className="admin-detail-value" style={{ color: '#f59e0b', fontWeight: 600 }}>
+                        ⚠️ Downgrade to {userSubscription.scheduledPlanId} on {new Date(userSubscription.scheduleEffectiveDate).toLocaleDateString()}
                       </span>
                     </div>
-                  </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-                  <div className="admin-credit-actions">
+            {/* Credit Management */}
+            {userCredits && (
+              <div className="admin-credits-management">
+                <h3>Credit Management</h3>
+                <div className="admin-credits-display">
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Total Credits:</span>
+                    <span className="admin-credit-value">{userCredits.totalCredits}</span>
+                  </div>
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Used Credits:</span>
+                    <span className="admin-credit-value">{userCredits.usedCredits}</span>
+                  </div>
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Remaining Credits:</span>
+                    <span className="admin-credit-value" style={{ color: userCredits.remainingCredits < 10 ? '#EF4444' : '#10B981', fontWeight: 600 }}>
+                      {userCredits.remainingCredits}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="admin-credit-actions">
+                  <button
+                    className="admin-btn admin-btn--warning"
+                    onClick={async () => {
+                      if (!window.confirm('Reset credits to plan default?')) return;
+                      try {
+                        const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
+                          method: 'POST'
+                        });
+                        if (response.ok) {
+                          alert('Credits reset successfully!');
+                          // Refetch credits
+                          const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
+                          if (creditsResponse.ok) {
+                            setUserCredits(await creditsResponse.json());
+                          }
+                        } else {
+                          alert('Failed to reset credits');
+                        }
+                      } catch (error) {
+                        console.error('Error resetting credits:', error);
+                        alert('Error resetting credits');
+                      }
+                    }}
+                  >
+                    Reset to Plan Default
+                  </button>
+
+                  <div className="admin-adjust-credits">
+                    <input
+                      type="number"
+                      placeholder="Adjustment amount (+/-)"
+                      value={adjustmentAmount}
+                      onChange={(e) => setAdjustmentAmount(e.target.value)}
+                      className="admin-adjust-input"
+                    />
                     <button
-                      className="admin-btn admin-btn--warning"
+                      className="admin-btn admin-btn--primary"
                       onClick={async () => {
-                        if (!window.confirm('Reset credits to plan default?')) return;
+                        const amount = parseInt(adjustmentAmount);
+                        if (isNaN(amount) || amount === 0) {
+                          alert('Please enter a valid adjustment amount');
+                          return;
+                        }
                         try {
-                          const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
-                            method: 'POST'
+                          const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/adjust`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ adjustment: amount })
                           });
                           if (response.ok) {
-                            alert('Credits reset successfully!');
+                            alert(`Credits adjusted by ${amount}!`);
+                            setAdjustmentAmount('');
                             // Refetch credits
                             const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
                             if (creditsResponse.ok) {
                               setUserCredits(await creditsResponse.json());
                             }
                           } else {
-                            alert('Failed to reset credits');
+                            alert('Failed to adjust credits');
                           }
                         } catch (error) {
-                          console.error('Error resetting credits:', error);
-                          alert('Error resetting credits');
+                          console.error('Error adjusting credits:', error);
+                          alert('Error adjusting credits');
                         }
                       }}
+                      disabled={!adjustmentAmount}
                     >
-                      Reset to Plan Default
+                      Adjust Credits
                     </button>
-
-                    <div className="admin-adjust-credits">
-                      <input
-                        type="number"
-                        placeholder="Adjustment amount (+/-)"
-                        value={adjustmentAmount}
-                        onChange={(e) => setAdjustmentAmount(e.target.value)}
-                        className="admin-adjust-input"
-                      />
-                      <button
-                        className="admin-btn admin-btn--primary"
-                        onClick={async () => {
-                          const amount = parseInt(adjustmentAmount);
-                          if (isNaN(amount) || amount === 0) {
-                            alert('Please enter a valid adjustment amount');
-                            return;
-                          }
-                          try {
-                            const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/adjust`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ adjustment: amount })
-                            });
-                            if (response.ok) {
-                              alert(`Credits adjusted by ${amount}!`);
-                              setAdjustmentAmount('');
-                              // Refetch credits
-                              const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
-                              if (creditsResponse.ok) {
-                                setUserCredits(await creditsResponse.json());
-                              }
-                            } else {
-                              alert('Failed to adjust credits');
-                            }
-                          } catch (error) {
-                            console.error('Error adjusting credits:', error);
-                            alert('Error adjusting credits');
-                          }
-                        }}
-                        disabled={!adjustmentAmount}
-                      >
-                        Adjust Credits
-                      </button>
-                    </div>
                   </div>
                 </div>
-              )
-            }
+              </div>
+            )}
 
-            {
-              !userSubscription && !userCredits && !loadingSubscription && (
-                <div className="admin-empty-state">
-                  <p>Search for a user to view and manage their subscription and credits</p>
-                </div>
-              )
-            }
-          </div >
+            {!userSubscription && !userCredits && !loadingSubscription && (
+              <div className="admin-empty-state">
+                <p>Search for a user to view and manage their subscription and credits</p>
+              </div>
+            )}
+          </div>
         )}
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
 
