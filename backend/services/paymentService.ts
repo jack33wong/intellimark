@@ -1,5 +1,6 @@
 import stripe from '../config/stripe.js';
 import { STRIPE_CONFIG } from '../config/stripe.js';
+import SubscriptionService from './subscriptionService.js';
 
 export interface CreatePaymentIntentRequest {
   planId: string;
@@ -106,7 +107,30 @@ export class PaymentService {
           userId,
         },
       },
-    });
+    };
+
+    // If user has an existing active subscription, cancel it before creating new one
+    if (existingSubscription && existingSubscription.status === 'active') {
+      console.log(`⚠️ User ${userId} has existing active subscription: ${existingSubscription.stripeSubscriptionId}`);
+      console.log(`   Canceling old subscription before creating new checkout session...`);
+
+      try {
+        // Cancel the old subscription immediately
+        await stripe.subscriptions.cancel(existingSubscription.stripeSubscriptionId);
+        console.log(`✅ Canceled old subscription: ${existingSubscription.stripeSubscriptionId}`);
+
+        // Update our database to reflect cancellation
+        await SubscriptionService.updateSubscriptionStatus(
+          existingSubscription.stripeSubscriptionId,
+          'canceled'
+        );
+      } catch (error) {
+        console.error(`❌ Failed to cancel existing subscription:`, error);
+        // Continue anyway - user might still be able to subscribe
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return session;
   }
