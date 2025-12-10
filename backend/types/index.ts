@@ -463,6 +463,13 @@ export interface UserSubscription {
   currentPeriodEnd: number;
   createdAt: Date;
   updatedAt: Date;
+
+  // Schedule tracking fields
+  scheduledPlanId?: string;      // Plan scheduled for next period
+  scheduleId?: string;            // Stripe schedule ID  
+  scheduleEffectiveDate?: number; // When change takes effect (timestamp)
+  previousPlanId?: string;        // Previous plan (for history)
+  planChangedAt?: number;         // When plan was changed (timestamp)
 }
 
 export interface CreateSubscriptionData {

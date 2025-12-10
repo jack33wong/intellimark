@@ -56,7 +56,7 @@ export class SubscriptionService {
 
       // Check if this specific Stripe subscription already exists
       const existingSubscription = await this.getSubscriptionByStripeId(data.stripeSubscriptionId);
-      
+
       if (existingSubscription) {
         // Update existing subscription (same Stripe subscription ID)
         subscriptionData.createdAt = existingSubscription.createdAt;
@@ -68,7 +68,7 @@ export class SubscriptionService {
       } else {
         // This is a new subscription - cancel any existing active subscriptions first
         await this.cancelAllActiveSubscriptions(data.userId);
-        
+
         // Create new subscription (let Firestore generate a unique document ID)
         const docRef = await FirestoreService.createDocument(
           this.COLLECTION_NAME,
@@ -96,12 +96,12 @@ export class SubscriptionService {
         '==',
         userId
       );
-      
+
       // Find the active subscription (most recent one with status 'active')
       const activeSubscription = subscriptions
         .filter(sub => sub.status === 'active')
         .sort((a, b) => b.createdAt - a.createdAt)[0];
-      
+
       return activeSubscription as UserSubscription | null;
     } catch (error) {
       console.error('Error getting user subscription:', error);
@@ -120,7 +120,7 @@ export class SubscriptionService {
         '==',
         userId
       );
-      
+
       return subscriptions.sort((a, b) => b.createdAt - a.createdAt) as UserSubscription[];
     } catch (error) {
       console.error('Error getting all user subscriptions:', error);
@@ -132,7 +132,7 @@ export class SubscriptionService {
    * Update subscription status by Stripe subscription ID
    */
   static async updateSubscriptionStatus(
-    stripeSubscriptionId: string, 
+    stripeSubscriptionId: string,
     status: UserSubscription['status']
   ): Promise<void> {
     try {
@@ -140,7 +140,7 @@ export class SubscriptionService {
       if (!subscription) {
         throw new Error(`Subscription not found: ${stripeSubscriptionId}`);
       }
-      
+
       await FirestoreService.updateDocument(
         this.COLLECTION_NAME,
         (subscription as any).id,
@@ -152,6 +152,33 @@ export class SubscriptionService {
     } catch (error) {
       console.error('Error updating subscription status:', error);
       throw new Error('Failed to update subscription status');
+    }
+  }
+
+  /**
+   * Update subscription with partial data by Stripe subscription ID
+   */
+  static async updateSubscription(
+    stripeSubscriptionId: string,
+    updates: Partial<Omit<UserSubscription, 'userId' | 'stripeSubscriptionId' | 'stripeCustomerId'>>
+  ): Promise<void> {
+    try {
+      const subscription = await this.getSubscriptionByStripeId(stripeSubscriptionId);
+      if (!subscription) {
+        throw new Error(`Subscription not found: ${stripeSubscriptionId}`);
+      }
+
+      await FirestoreService.updateDocument(
+        this.COLLECTION_NAME,
+        (subscription as any).id,
+        {
+          ...updates,
+          updatedAt: Date.now(),
+        }
+      );
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+      throw new Error('Failed to update subscription');
     }
   }
 
@@ -178,9 +205,9 @@ export class SubscriptionService {
         '==',
         userId
       );
-      
+
       const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
-      
+
       for (const subscription of activeSubscriptions) {
         await FirestoreService.updateDocument(
           this.COLLECTION_NAME,
@@ -208,8 +235,8 @@ export class SubscriptionService {
         '==',
         stripeSubscriptionId
       );
-      
-      
+
+
       return subscriptions.length > 0 ? subscriptions[0] as UserSubscription : null;
     } catch (error) {
       console.error('❌ Error getting subscription by Stripe ID:', error);
