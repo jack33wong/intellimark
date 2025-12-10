@@ -13,7 +13,8 @@ import {
   CreditCard,
   CheckCircle,
   Bug,
-  BarChart3
+  BarChart3,
+  Coins
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -357,7 +358,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
                       {userCredits && (
                         <div className="subscription-detail-item">
-                          <span style={{ fontSize: '16px' }}>💳</span>
+                          <Coins size={16} />
                           <div className="detail-content">
                             <span className="detail-label">Credits</span>
                             <span className="detail-value">

@@ -2,6 +2,7 @@ import express from 'express';
 import { STRIPE_CONFIG } from '../config/stripe.js';
 import paymentService from '../services/paymentService.js';
 import SubscriptionService from '../services/subscriptionService.js';
+import { initializeUserCredits } from '../services/creditService.js';
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ router.post('/create-checkout-session', async (req, res) => {
   } catch (error) {
     console.error('Error creating checkout session:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create checkout session',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
@@ -92,17 +93,17 @@ router.get('/user-subscription/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const subscription = await SubscriptionService.getUserSubscription(userId);
-    
+
     if (!subscription) {
-      return res.json({ 
+      return res.json({
         hasSubscription: false,
-        subscription: null 
+        subscription: null
       });
     }
-    
-    res.json({ 
+
+    res.json({
       hasSubscription: true,
-      subscription 
+      subscription
     });
   } catch (error) {
     console.error('Error getting user subscription:', error);
@@ -126,10 +127,10 @@ router.get('/subscription/:id', async (req, res) => {
 router.delete('/cancel-subscription/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Check if this is a test subscription (starts with 'sub_test_' or 'sub_debug_')
     const isTestSubscription = id.startsWith('sub_test_') || id.startsWith('sub_debug_');
-    
+
     let subscription;
     if (isTestSubscription) {
       // For test subscriptions, just update Firestore status
@@ -138,19 +139,19 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
       // Cancel subscription in Stripe for real subscriptions
       subscription = await paymentService.cancelSubscription(id);
     }
-    
+
     // Update subscription status in Firestore
-    
+
     try {
       const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(id);
-      
+
       if (existingSubscription) {
         await SubscriptionService.cancelSubscription(id);
       } else {
         // Try to find it using direct Firestore query as fallback
         const { FirestoreService } = await import('../services/firestoreService.js');
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
-        
+
         if (directQuery.length > 0) {
           await FirestoreService.updateDocument('userSubscriptions', directQuery[0].id, {
             status: 'canceled',
@@ -164,7 +165,7 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
       try {
         const { FirestoreService } = await import('../services/firestoreService.js');
         const directQuery = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', id);
-        
+
         if (directQuery.length > 0) {
           await FirestoreService.updateDocument('userSubscriptions', directQuery[0].id, {
             status: 'canceled',
@@ -175,9 +176,9 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
         console.error('❌ Fallback query also failed:', fallbackError);
       }
     }
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Subscription canceled successfully',
       subscription: {
         id: subscription.id,
@@ -188,9 +189,9 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
     console.error('❌ Error canceling subscription:', error);
     console.error('❌ Error details:', error.message);
     console.error('❌ Error stack:', error.stack);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to cancel subscription',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -199,22 +200,22 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
 router.post('/create-subscription-after-payment', async (req, res) => {
   try {
     const { sessionId, userId } = req.body;
-    
+
     if (!sessionId || !userId) {
       return res.status(400).json({ error: 'Missing sessionId or userId' });
     }
-    
-    
+
+
     // Retrieve the checkout session from Stripe
     const stripe = (await import('../config/stripe.js')).default;
-    
+
     let session;
     try {
       session = await stripe.checkout.sessions.retrieve(sessionId, {
         expand: ['subscription', 'customer']
       });
-      
-      
+
+
       if (!session.subscription) {
         return res.status(400).json({
           error: 'No subscription found in session',
@@ -230,23 +231,23 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       }
     } catch (stripeError) {
       console.error('❌ Stripe API error:', stripeError);
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: 'Failed to retrieve session from Stripe',
-        details: stripeError.message 
+        details: stripeError.message
       });
     }
-    
+
     // Get subscription details
     const subscription = session.subscription;
     const customer = session.customer;
-    
+
     // Extract data from session metadata
     const { planId, billingCycle } = session.metadata || {};
-    
+
     if (!planId || !billingCycle) {
       return res.status(400).json({ error: 'Missing planId or billingCycle in session metadata' });
     }
-    
+
     // Create subscription record
     const now = Date.now();
     const subscriptionData = {
@@ -264,22 +265,34 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       createdAt: now,
       updatedAt: now,
     };
-    
-    
+
+
     const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
-    
-    
-    res.json({ 
-      success: true, 
+
+    // Initialize user credits
+    try {
+      await initializeUserCredits(
+        userId,
+        planId as 'free' | 'pro' | 'enterprise',
+        subscription.current_period_end * 1000
+      );
+      console.log('✅ User credits initialized for', planId);
+    } catch (creditError) {
+      console.error('⚠️ Failed to initialize credits:', creditError);
+      // Don't fail the request if credits initialization fails
+    }
+
+    res.json({
+      success: true,
       message: 'Subscription created successfully',
-      subscription: result 
+      subscription: result
     });
-    
+
   } catch (error) {
     console.error('❌ Error creating subscription after payment:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create subscription',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -287,21 +300,21 @@ router.post('/create-subscription-after-payment', async (req, res) => {
 // Debug endpoint to list all subscriptions
 router.get('/debug/all-subscriptions', async (req, res) => {
   try {
-    
+
     // Get all subscriptions from Firestore directly
     const { FirestoreService } = await import('../services/firestoreService.js');
     const allSubscriptions = await FirestoreService.queryCollection('userSubscriptions', 'userId', '!=', null);
-    
-    res.json({ 
+
+    res.json({
       message: 'All subscriptions',
       count: allSubscriptions.length,
-      subscriptions: allSubscriptions 
+      subscriptions: allSubscriptions
     });
   } catch (error) {
     console.error('Error getting all subscriptions:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to get subscriptions',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -310,22 +323,22 @@ router.get('/debug/all-subscriptions', async (req, res) => {
 router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
   try {
     const { stripeId } = req.params;
-    
+
     const { FirestoreService } = await import('../services/firestoreService.js');
     const subscriptions = await FirestoreService.queryCollection('userSubscriptions', 'stripeSubscriptionId', '==', stripeId);
-    
-    
-    res.json({ 
+
+
+    res.json({
       message: 'Subscription lookup test',
       stripeId,
       found: subscriptions.length > 0,
-      subscriptions 
+      subscriptions
     });
   } catch (error) {
     console.error('Error testing subscription lookup:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to test subscription lookup',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -334,11 +347,11 @@ router.get('/debug/test-subscription-lookup/:stripeId', async (req, res) => {
 router.post('/debug/create-subscription-for-user', async (req, res) => {
   try {
     const { userId, planId = 'pro', billingCycle = 'monthly', email } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'Missing userId' });
     }
-    
+
     const testData = {
       userId: userId,
       email: email || 'debug@example.com',
@@ -352,20 +365,20 @@ router.post('/debug/create-subscription-for-user', async (req, res) => {
       currentPeriodStart: Math.floor(Date.now() / 1000),
       currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
     };
-    
-    
+
+
     const result = await SubscriptionService.createOrUpdateSubscription(testData);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Debug subscription created successfully',
-      subscription: result 
+      subscription: result
     });
   } catch (error) {
     console.error('Error creating debug subscription:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create debug subscription',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -374,32 +387,32 @@ router.post('/debug/create-subscription-for-user', async (req, res) => {
 router.post('/debug/simulate-subscription-success', async (req, res) => {
   try {
     const { userId } = req.body;
-    
+
     if (!userId) {
       return res.status(400).json({ error: 'Missing userId' });
     }
-    
+
     // Create a test checkout session
     const stripe = (await import('../config/stripe.js')).default;
-    
+
     // Create a test customer first
     const testCustomer = await stripe.customers.create({
       email: 'test@example.com',
       metadata: { userId }
     });
-    
+
     // Create a test product and price
     const testProduct = await stripe.products.create({
       name: 'Pro Plan Test',
     });
-    
+
     const testPrice = await stripe.prices.create({
       unit_amount: 2999,
       currency: 'usd',
       recurring: { interval: 'month' },
       product: testProduct.id,
     });
-    
+
     // Create a test subscription
     const testSubscription = await stripe.subscriptions.create({
       customer: testCustomer.id,
@@ -410,7 +423,7 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
         userId
       }
     });
-    
+
     // Create a test checkout session
     const testSession = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -424,8 +437,8 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
         userId
       }
     });
-    
-    
+
+
     // Now simulate the subscription creation process
     const subscriptionData = {
       userId: userId,
@@ -440,22 +453,22 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
       currentPeriodStart: (testSubscription as any).current_period_start,
       currentPeriodEnd: (testSubscription as any).current_period_end,
     };
-    
+
     const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Subscription success flow simulated',
       sessionId: testSession.id,
       subscription: result,
       testUrl: `http://localhost:3000/?subscription=success&session_id=${testSession.id}`
     });
-    
+
   } catch (error) {
     console.error('Error simulating subscription success:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to simulate subscription success',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -463,7 +476,7 @@ router.post('/debug/simulate-subscription-success', async (req, res) => {
 // Test endpoint to manually trigger subscription creation (for debugging)
 router.post('/test-create-subscription', async (req, res) => {
   try {
-    
+
     const testData = {
       userId: req.body.userId || 'test_user_' + Date.now(),
       email: req.body.email || 'test@example.com',
@@ -477,20 +490,20 @@ router.post('/test-create-subscription', async (req, res) => {
       currentPeriodStart: Math.floor(Date.now() / 1000),
       currentPeriodEnd: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60),
     };
-    
-    
+
+
     const result = await SubscriptionService.createOrUpdateSubscription(testData);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Test subscription created successfully',
-      subscription: result 
+      subscription: result
     });
   } catch (error) {
     console.error('Error creating test subscription:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create test subscription',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -498,7 +511,7 @@ router.post('/test-create-subscription', async (req, res) => {
 // Stripe webhook endpoint
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    
+
     const sig = req.headers['stripe-signature'];
     if (!sig) {
       return res.status(400).json({ error: 'Missing stripe-signature header' });
@@ -537,13 +550,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // Handle successful checkout session
 async function handleCheckoutSessionCompleted(session: any) {
   try {
-    
+
     // Extract subscription data from session metadata
     const { planId, billingCycle, userId } = session.metadata || {};
     const customerId = session.customer;
     const subscriptionId = session.subscription;
-    
-    
+
+
     if (!planId || !billingCycle || !customerId || !subscriptionId) {
       console.error('❌ Missing required data in checkout session:', { planId, billingCycle, customerId, subscriptionId });
       return;
@@ -552,13 +565,13 @@ async function handleCheckoutSessionCompleted(session: any) {
     // Get subscription details from Stripe
     const stripe = (await import('../config/stripe.js')).default;
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    
+
     // Get customer details
     const customer = await stripe.customers.retrieve(customerId);
-    
+
     // Save subscription to Firestore
     const finalUserId = (customer as any).metadata?.userId || session.metadata?.userId || customerId;
-    
+
     const subscriptionData = {
       userId: finalUserId,
       email: (customer as any).email || session.customer_email,
@@ -572,10 +585,10 @@ async function handleCheckoutSessionCompleted(session: any) {
       currentPeriodStart: (subscription as any).current_period_start,
       currentPeriodEnd: (subscription as any).current_period_end,
     };
-    
-    
+
+
     await SubscriptionService.createOrUpdateSubscription(subscriptionData);
-    
+
   } catch (error) {
     console.error('Error handling checkout session completion:', error);
   }
@@ -593,7 +606,7 @@ async function handleSubscriptionCreated(subscription: any) {
 // Handle subscription updated
 async function handleSubscriptionUpdated(subscription: any) {
   try {
-    
+
     // Update subscription status in Firestore
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
     if (existingSubscription) {
@@ -610,7 +623,7 @@ async function handleSubscriptionUpdated(subscription: any) {
 // Handle subscription deleted
 async function handleSubscriptionDeleted(subscription: any) {
   try {
-    
+
     // Update subscription status to canceled
     const existingSubscription = await SubscriptionService.getSubscriptionByStripeId(subscription.id);
     if (existingSubscription) {

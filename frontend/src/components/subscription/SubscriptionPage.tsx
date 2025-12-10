@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown, Coins } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
@@ -222,7 +222,8 @@ const SubscriptionPage: React.FC = () => {
                 <>
                   <span className="compact-divider">•</span>
                   <span className={`compact-credits ${currentSubscription.credits.remainingCredits < 5 ? 'low-credits' : ''}`}>
-                    💳 {currentSubscription.credits.remainingCredits}/{currentSubscription.credits.totalCredits} credits
+                    <Coins size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                    {currentSubscription.credits.remainingCredits}/{currentSubscription.credits.totalCredits} credits
                   </span>
                 </>
               )}
