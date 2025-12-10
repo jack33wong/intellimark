@@ -85,6 +85,7 @@ import paymentRoutes from './routes/payment.js';
 import messagesRoutes from './routes/messages.js';
 import analysisRouter from './routes/analysisRouter.js';
 import usageRoutes from './routes/usage.js';
+import configRoutes from './routes/config.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -107,6 +108,9 @@ app.use('/api/usage', usageRoutes);
 
 // Enable payment system
 app.use('/api/payment', paymentRoutes);
+
+// Enable config API (credit system configuration)
+app.use('/api/config', configRoutes);
 
 
 
