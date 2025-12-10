@@ -120,6 +120,13 @@ function AdminPage() {
   const [loadingUsage, setLoadingUsage] = useState(false);
   const [isClearingUsage, setIsClearingUsage] = useState(false);
 
+  // Subscriptions tab state
+  const [searchUserId, setSearchUserId] = useState('');
+  const [userSubscription, setUserSubscription] = useState(null);
+  const [userCredits, setUserCredits] = useState(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+  const [adjustmentAmount, setAdjustmentAmount] = useState('');
+
   // Constants removed - using ApiClient instead
 
   // Form validation
@@ -686,6 +693,13 @@ function AdminPage() {
           >
             <Search size={16} />
             Query
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'subscriptions' ? 'admin-tab--active' : ''}`}
+            onClick={() => setActiveTab('subscriptions')}
+          >
+            <CreditCard size={16} />
+            Subscriptions
           </button>
         </div>
 
@@ -1796,6 +1810,211 @@ function AdminPage() {
             </div>
 
 
+          </div>
+        )}
+
+        {/* Subscriptions Tab */}
+        {activeTab === 'subscriptions' && (
+          <div className="admin-tab-content">
+            <div className="admin-section-header">
+              <h2 className="admin-section-header__title">Subscription & Credit Management</h2>
+              <p>Search users and manage their subscriptions and credits</p>
+            </div>
+
+            {/* User Search */}
+            <div className="admin-subscription-search">
+              <h3>Search User</h3>
+              <div className="admin-search-box">
+                <input
+                  type="text"
+                  placeholder="Enter User ID..."
+                  value={searchUserId}
+                  onChange={(e) => setSearchUserId(e.target.value)}
+                  className="admin-search-input"
+                />
+                <button
+                  className="admin-btn admin-btn--primary"
+                  onClick={async () => {
+                    if (!searchUserId.trim()) {
+                      alert('Please enter a User ID');
+                      return;
+                    }
+                    setLoadingSubscription(true);
+                    try {
+                      // Fetch subscription
+                      const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${searchUserId}`);
+                      if (subResponse.ok) {
+                        const subData = await subResponse.json();
+                        setUserSubscription(subData.subscription);
+                      } else {
+                        setUserSubscription(null);
+                      }
+
+                      // Fetch credits
+                      const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
+                      if (creditsResponse.ok) {
+                        const creditsData = await creditsResponse.json();
+                        setUserCredits(creditsData);
+                      } else {
+                        setUserCredits(null);
+                      }
+                    } catch (error) {
+                      console.error('Error fetching user data:', error);
+                      alert('Failed to fetch user data');
+                    } finally {
+                      setLoadingSubscription(false);
+                    }
+                  }}
+                  disabled={loadingSubscription}
+                >
+                  <Search size={16} />
+                  {loadingSubscription ? 'Searching...' : 'Search'}
+                </button>
+              </div>
+            </div>
+
+            {/* Subscription Details */}
+            {userSubscription && (
+              <div className="admin-subscription-details">
+                <h3>Subscription Details</h3>
+                <div className="admin-details-grid">
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Email:</span>
+                    <span className="admin-detail-value">{userSubscription.email}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Plan:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.planId}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Status:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.status}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Billing Cycle:</span>
+                    <span className="admin-detail-value" style={{ textTransform: 'capitalize' }}>{userSubscription.billingCycle}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Amount:</span>
+                    <span className="admin-detail-value">{(userSubscription.amount / 100).toFixed(2)} {userSubscription.currency.toUpperCase()}</span>
+                  </div>
+                  <div className="admin-detail-item">
+                    <span className="admin-detail-label">Period End:</span>
+                    <span className="admin-detail-value">{new Date(userSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+                  </div>
+                  {userSubscription.scheduledPlanId && (
+                    <div className="admin-detail-item" style={{ gridColumn: '1 / -1' }}>
+                      <span className="admin-detail-label">Scheduled Change:</span>
+                      <span className="admin-detail-value" style={{ color: '#f59e0b', fontWeight: 600 }}>
+                        ⚠️ Downgrade to {userSubscription.scheduledPlanId} on {new Date(userSubscription.scheduleEffectiveDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Credit Management */}
+            {userCredits && (
+              <div className="admin-credits-management">
+                <h3>Credit Management</h3>
+                <div className="admin-credits-display">
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Total Credits:</span>
+                    <span className="admin-credit-value">{userCredits.totalCredits}</span>
+                  </div>
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Used Credits:</span>
+                    <span className="admin-credit-value">{userCredits.usedCredits}</span>
+                  </div>
+                  <div className="admin-credit-stat">
+                    <span className="admin-credit-label">Remaining Credits:</span>
+                    <span className="admin-credit-value" style={{ color: userCredits.remainingCredits < 10 ? '#EF4444' : '#10B981', fontWeight: 600 }}>
+                      {userCredits.remainingCredits}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="admin-credit-actions">
+                  <button
+                    className="admin-btn admin-btn--warning"
+                    onClick={async () => {
+                      if (!window.confirm('Reset credits to plan default?')) return;
+                      try {
+                        const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
+                          method: 'POST'
+                        });
+                        if (response.ok) {
+                          alert('Credits reset successfully!');
+                          // Refetch credits
+                          const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
+                          if (creditsResponse.ok) {
+                            setUserCredits(await creditsResponse.json());
+                          }
+                        } else {
+                          alert('Failed to reset credits');
+                        }
+                      } catch (error) {
+                        console.error('Error resetting credits:', error);
+                        alert('Error resetting credits');
+                      }
+                    }}
+                  >
+                    Reset to Plan Default
+                  </button>
+
+                  <div className="admin-adjust-credits">
+                    <input
+                      type="number"
+                      placeholder="Adjustment amount (+/-)"
+                      value={adjustmentAmount}
+                      onChange={(e) => setAdjustmentAmount(e.target.value)}
+                      className="admin-adjust-input"
+                    />
+                    <button
+                      className="admin-btn admin-btn--primary"
+                      onClick={async () => {
+                        const amount = parseInt(adjustmentAmount);
+                        if (isNaN(amount) || amount === 0) {
+                          alert('Please enter a valid adjustment amount');
+                          return;
+                        }
+                        try {
+                          const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/adjust`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ adjustment: amount })
+                          });
+                          if (response.ok) {
+                            alert(`Credits adjusted by ${amount}!`);
+                            setAdjustmentAmount('');
+                            // Refetch credits
+                            const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
+                            if (creditsResponse.ok) {
+                              setUserCredits(await creditsResponse.json());
+                            }
+                          } else {
+                            alert('Failed to adjust credits');
+                          }
+                        } catch (error) {
+                          console.error('Error adjusting credits:', error);
+                          alert('Error adjusting credits');
+                        }
+                      }}
+                      disabled={!adjustmentAmount}
+                    >
+                      Adjust Credits
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!userSubscription && !userCredits && !loadingSubscription && (
+              <div className="admin-empty-state">
+                <p>Search for a user to view and manage their subscription and credits</p>
+              </div>
+            )}
           </div>
         )}
       </div>
