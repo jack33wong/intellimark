@@ -831,7 +831,7 @@ export class FirestoreService {
         examBoard: questionDetection.match?.board || '',
         examCode: questionDetection.match?.paperCode || '',
         paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.qualification || '', // Using qualification as subject
+        subject: questionDetection.match?.subject || '', // Using subject from fullExamPapers.metadata.subject
         tier: questionDetection.match?.tier || '',
         examSeries: questionDetection.match?.examSeries || '',
         marks: questionDetection.match?.marks
@@ -937,7 +937,7 @@ export class FirestoreService {
         examBoard: questionDetection.match?.board || '',
         examCode: questionDetection.match?.paperCode || '',
         paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.qualification || '', // Using qualification as subject
+        subject: questionDetection.match?.subject || '', // Using subject from fullExamPapers.metadata.subject
         tier: questionDetection.match?.tier || '',
         examSeries: questionDetection.match?.examSeries || '',
         marks: questionDetection.match?.marks

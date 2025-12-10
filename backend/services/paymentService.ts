@@ -36,7 +36,7 @@ export interface SubscriptionData {
 export class PaymentService {
   async createCheckoutSession(data: CreateCheckoutSessionRequest) {
     const { planId, billingCycle, successUrl, cancelUrl, userId } = data;
-    
+
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
     if (!planConfig) {
       throw new Error(`Plan ${planId} not found`);
@@ -47,29 +47,40 @@ export class PaymentService {
       throw new Error(`Billing cycle ${billingCycle} not found for plan ${planId}`);
     }
 
-    // Check if priceId is valid (starts with 'price_')
-    if (!priceConfig.priceId || !priceConfig.priceId.startsWith('price_')) {
-      // Create a price dynamically for testing
-      
-      const price = await stripe.prices.create({
-        unit_amount: priceConfig.amount,
-        currency: STRIPE_CONFIG.currency,
-        recurring: {
-          interval: billingCycle === 'monthly' ? 'month' : 'year',
-        },
-        product_data: {
-          name: `${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan (${billingCycle})`,
-        },
+    let priceId = priceConfig.priceId;
+
+    // Check if priceId is actually a product ID (starts with 'prod_')
+    if (priceId && priceId.startsWith('prod_')) {
+      // Fetch the product to get its default price
+      const product = await stripe.products.retrieve(priceId, {
+        expand: ['default_price']
       });
-      
-      priceConfig.priceId = price.id;
+
+      if (product.default_price) {
+        priceId = typeof product.default_price === 'string'
+          ? product.default_price
+          : product.default_price.id;
+      } else {
+        throw new Error(
+          `Product ${priceId} has no default price. Please set a default price in Stripe Dashboard or use a Price ID.`
+        );
+      }
+    }
+
+    // Validate that we have a valid price ID
+    if (!priceId || !priceId.startsWith('price_')) {
+      throw new Error(
+        `Stripe Price ID not configured for ${planId} ${billingCycle}. ` +
+        `Please set STRIPE_${planId.toUpperCase()}_${billingCycle.toUpperCase()}_PRICE_ID in .env.local ` +
+        `with either a Price ID (price_xxx) or Product ID (prod_xxx)`
+      );
     }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
         {
-          price: priceConfig.priceId,
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -95,7 +106,7 @@ export class PaymentService {
 
   async createPaymentIntent(data: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponse> {
     const { planId, billingCycle, customerEmail, customerId } = data;
-    
+
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
     if (!planConfig) {
       throw new Error(`Plan ${planId} not found`);
@@ -148,7 +159,7 @@ export class PaymentService {
 
   async createSubscription(data: SubscriptionData) {
     const { planId, billingCycle, customerEmail, customerId } = data;
-    
+
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
     if (!planConfig) {
       throw new Error(`Plan ${planId} not found`);

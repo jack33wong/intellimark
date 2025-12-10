@@ -143,7 +143,7 @@
 
 .upgrade-billing-toggle .upgrade-billing-save-badge {
   background: none;
-  color: var(--text-brand) !important;
+  color: var(--function-error);
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 11px;
@@ -361,12 +361,12 @@
   .upgrade-page {
     padding: 80px 40px;
   }
-  
+
   .upgrade-plans-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: 32px;
   }
-  
+
   .upgrade-plan-card {
     padding: 40px;
   }
@@ -379,11 +379,11 @@
     align-items: flex-start;
     justify-content: center;
   }
-  
+
   .upgrade-page-container {
     padding: 0 20px;
   }
-  
+
   .upgrade-page-close-button {
     top: 15px;
     right: 15px;
@@ -435,11 +435,11 @@
     align-items: flex-start;
     justify-content: center;
   }
-  
+
   .upgrade-page-container {
     padding: 0 16px;
   }
-  
+
   .upgrade-page-close-button {
     top: 10px;
     right: 10px;

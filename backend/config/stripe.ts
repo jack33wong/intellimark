@@ -11,15 +11,15 @@ export const STRIPE_CONFIG = {
   publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
   secretKey: process.env.STRIPE_SECRET_KEY || '',
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-  currency: 'usd',
+  currency: 'gbp',
   plans: {
     pro: {
-      monthly: { priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || '', amount: 1900 },
-      yearly: { priceId: process.env.STRIPE_PRO_YEARLY_PRICE_ID || '', amount: 19000 },
+      monthly: { priceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || '', amount: 2000 }, // £20
+      yearly: { priceId: process.env.STRIPE_PRO_YEARLY_PRICE_ID || '', amount: 19200 }, // £192 (20 * 12 * 0.8)
     },
     enterprise: {
-      monthly: { priceId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID || '', amount: 10000 },
-      yearly: { priceId: process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID || '', amount: 100000 },
+      monthly: { priceId: process.env.STRIPE_ENTERPRISE_MONTHLY_PRICE_ID || '', amount: 10000 }, // £100
+      yearly: { priceId: process.env.STRIPE_ENTERPRISE_YEARLY_PRICE_ID || '', amount: 96000 }, // £960 (100 * 12 * 0.8)
     },
   },
 };

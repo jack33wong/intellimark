@@ -20,41 +20,37 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        '5 homework submissions per month',
-        'Standard response time',
-        'Email support',
-        'Advanced AI feedback with detailed explanations',
-        'Math step-by-step solutions',
-        'Full access to progress tracking'
+        'Limited homework submissions per month',
+        'Limited number of homework PDFs submission',
+        'Past paper model answers based on marking scheme',
+        'Full access to progress analysis'
       ],
       popular: false
     },
     {
       id: 'pro' as Plan,
       name: 'Pro',
-      price: billingCycle === 'monthly' ? 19 : 190,
+      price: billingCycle === 'monthly' ? 20 : 192, // 20 * 12 * 0.8 = 192 (20% off yearly)
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
+        'Everything in free plus',
         'Extended limits on homework submission',
         'Extended limits on number of homework PDFs submission',
-        'Full access to all mock homework papers',
-        'Advanced AI feedback with detailed explanations',
-        'Priority response time',
-        'Math step-by-step solutions',
-        'Priority email support',
-        'Full access to progress tracking'
+        'Standard response time',
+        'Standard email support'
       ],
       popular: true
     },
     {
       id: 'enterprise' as Plan,
       name: 'Enterprise',
-      price: billingCycle === 'monthly' ? 100 : 1000,
+      price: billingCycle === 'monthly' ? 100 : 960, // 100 * 12 * 0.8 = 960 (20% off yearly)
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
         '20x of everything in Pro',
+        'Priority email support',
         'Priority access to new features'
       ],
       popular: false
@@ -101,7 +97,7 @@ const SubscriptionPage: React.FC = () => {
       }
 
       const { url } = await response.json();
-      
+
       // Redirect to Stripe Checkout
       window.location.href = url;
     } catch (error) {
@@ -116,13 +112,13 @@ const SubscriptionPage: React.FC = () => {
   return (
     <div className="upgrade-page">
       {/* Close Button - Top Right */}
-      <button 
+      <button
         className="upgrade-page-close-button"
-        onClick={() => navigate(-1)}
+        onClick={() => navigate('/mark-homework')}
       >
         <X size={24} />
       </button>
-      
+
       <div className="upgrade-page-container">
         {/* Header */}
         <div className="upgrade-page-header">
@@ -154,7 +150,7 @@ const SubscriptionPage: React.FC = () => {
               onClick={() => handlePlanSelect(plan.id)}
             >
               {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
-              
+
               <div className="upgrade-plan-header">
                 <div className="upgrade-plan-icon">{plan.icon}</div>
                 <h3>{plan.name}</h3>
@@ -163,7 +159,7 @@ const SubscriptionPage: React.FC = () => {
 
               <div className="upgrade-plan-pricing">
                 <div className="upgrade-plan-price">
-                  ${plan.price}
+                  £{plan.price}
                   <span className="upgrade-plan-period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
                 </div>
               </div>
@@ -175,10 +171,10 @@ const SubscriptionPage: React.FC = () => {
                   handleSubscribe(plan.id);
                 }}
               >
-                {plan.id === 'free' 
-                  ? 'Current Plan' 
-                  : plan.id === 'pro' 
-                    ? 'Upgrade to Pro' 
+                {plan.id === 'free'
+                  ? 'Current Plan'
+                  : plan.id === 'pro'
+                    ? 'Upgrade to Pro'
                     : 'Upgrade to Enterprise'
                 }
               </button>
