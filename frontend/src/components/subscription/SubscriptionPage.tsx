@@ -84,6 +84,12 @@ const SubscriptionPage: React.FC = () => {
     }
   ];
 
+  // Helper function to get plan level for comparison
+  const getPlanLevel = (planId: string) => {
+    const levels: { [key: string]: number } = { free: 0, pro: 1, enterprise: 2 };
+    return levels[planId] || 0;
+  };
+
   const handlePlanSelect = (planId: Plan) => {
     setSelectedPlan(planId);
   };
@@ -206,7 +212,7 @@ const SubscriptionPage: React.FC = () => {
               </div>
 
               <button
-                className={`upgrade-plan-subscribe-button ${plan.id === 'free' ? 'free' : ''} ${plan.id === currentSubscription?.planId ? 'current' : ''}`}
+                className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId ? 'current' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleSubscribe(plan.id);
@@ -217,7 +223,7 @@ const SubscriptionPage: React.FC = () => {
                   ? 'Current Plan'
                   : plan.id === 'free'
                     ? 'Downgrade to Free'
-                    : currentSubscription && plan.id < currentSubscription.planId
+                    : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
                       ? `Change to ${plan.name}`
                       : `Upgrade to ${plan.name}`
                 }
@@ -235,16 +241,14 @@ const SubscriptionPage: React.FC = () => {
               {/* Plan Change Info - Moved to bottom */}
               {currentSubscription && currentSubscription.planId !== 'free' && plan.id !== currentSubscription.planId && (
                 <div className="plan-change-info">
-                  {plan.id > currentSubscription.planId ? (
-                    // Only show upgrade info on Enterprise if coming from Pro
-                    plan.id === 'enterprise' && (
-                      <div className="upgrade-info">
-                        <ArrowUp size={14} />
-                        <span>Upgrade: Immediate effect. Prorated billing.</span>
-                      </div>
-                    )
+                  {getPlanLevel(plan.id) > getPlanLevel(currentSubscription.planId) ? (
+                    // Show upgrade info for any upgrade (Pro->Enterprise, Free->Pro, etc)
+                    <div className="upgrade-info">
+                      <ArrowUp size={14} />
+                      <span>Upgrade: Immediate effect. Prorated billing.</span>
+                    </div>
                   ) : (
-                    // Show downgrade info on Free and Pro if downgrading
+                    // Show downgrade info when going down
                     <div className="downgrade-info">
                       <ArrowDown size={14} />
                       <span>Downgrade: Takes effect at period end. Keep benefits until then.</span>

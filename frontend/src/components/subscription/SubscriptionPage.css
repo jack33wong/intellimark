@@ -335,19 +335,6 @@
   box-shadow: var(--shadow-M);
 }
 
-.upgrade-plan-subscribe-button.free {
-  background: var(--background-gray-main);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-main);
-  cursor: not-allowed;
-}
-
-.upgrade-plan-subscribe-button.free:hover {
-  background: var(--fill-gray);
-  transform: none;
-  box-shadow: none;
-}
-
 .upgrade-plan-features {
   list-style: none;
   padding: 0;
@@ -373,30 +360,36 @@
   flex-shrink: 0;
 }
 
-/* Current Plan Badge - REMOVED, using glowing border instead */
-
-/* Current Plan Glowing Effect */
+/* Current Plan Glowing Effect - Always On */
 .upgrade-plan-card.current-plan {
-  border: 2px solid transparent;
-  background: linear-gradient(var(--background-card), var(--background-card)) padding-box,
-    linear-gradient(135deg, #FFD700, #FFA500, #FF6B6B, #9B59B6, #3498DB, #2ECC71, #FFD700) border-box;
-  animation: glow-rotate 3s linear infinite;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  position: relative;
+  border: 2px solid;
+  border-image-slice: 1;
+  border-image-source: linear-gradient(135deg, #FFD700, #FFA500, #FF6B6B, #9B59B6, #3498DB, #2ECC71, #FFD700);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5),
+    0 0 40px rgba(255, 165, 0, 0.3);
+  animation: glow-pulse 2s ease-in-out infinite;
 }
 
-@keyframes glow-rotate {
-  0% {
-    filter: hue-rotate(0deg);
+/* Glowing animation */
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5),
+      0 0 40px rgba(255, 165, 0, 0.3);
   }
 
-  100% {
-    filter: hue-rotate(360deg);
+  50% {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.8),
+      0 0 60px rgba(255, 165, 0, 0.5);
   }
 }
 
 .upgrade-plan-card.current-plan:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.6),
+    0 0 50px rgba(255, 165, 0, 0.4);
 }
 
 /* Plan Change Info - Positioned at bottom after features */
