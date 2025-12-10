@@ -347,17 +347,11 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       <button
                         className="subscription-action manage"
                         onClick={() => {
-                          alert('Manage subscription feature coming soon!');
+                          navigate('/upgrade');
                           handleSubscriptionDetailsClose();
                         }}
                       >
                         Manage Subscription
-                      </button>
-                      <button
-                        className="subscription-action cancel"
-                        onClick={handleCancelSubscription}
-                      >
-                        Cancel Subscription
                       </button>
                     </div>
                   </div>
