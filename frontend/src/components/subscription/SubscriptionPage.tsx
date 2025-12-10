@@ -1,16 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Zap, Users, Building2 } from 'lucide-react';
+import { X, Check, Zap, Users, Building2, Crown, AlertCircle, ArrowUp, ArrowDown } from 'lucide-react';
 import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
+import SubscriptionService from '../../services/subscriptionService';
 import './SubscriptionPage.css';
 
 const SubscriptionPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan>('pro');
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
+  const [currentSubscription, setCurrentSubscription] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Plan credits configuration
+  const planCredits = {
+    free: 5,
+    pro: 50,
+    enterprise: 500
+  };
+
+  // Fetch current subscription
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      if (!user?.uid) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await SubscriptionService.getUserSubscription(user.uid);
+        setCurrentSubscription(response.subscription);
+      } catch (error) {
+        console.error('Error fetching subscription:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSubscription();
+  }, [user]);
 
   const plans = [
     {
@@ -20,7 +49,8 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        'Limited marking submissions per month',
+        `${planCredits.free} credits per month`,
+        'Limited marking submissions',
         'Limited marking result storage'
       ],
       popular: false
@@ -32,8 +62,8 @@ const SubscriptionPage: React.FC = () => {
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
-        'Everything in free plus',
-        'Extended limits on marking submission',
+        `${planCredits.pro} credits per month`,
+        'Extended marking submissions',
         'Extended marking result storage',
         'Full access to progress analysis'
       ],
@@ -46,8 +76,9 @@ const SubscriptionPage: React.FC = () => {
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
+        `${planCredits.enterprise} credits per month`,
         '10x of everything in Pro',
-        'Support AI Model selection like gemini,openai'
+        'AI Model selection (Gemini, OpenAI)'
       ],
       popular: false
     }
@@ -146,6 +177,12 @@ const SubscriptionPage: React.FC = () => {
               onClick={() => handlePlanSelect(plan.id)}
             >
               {plan.popular && <div className="upgrade-plan-popular-badge">Most Popular</div>}
+              {plan.id === currentSubscription?.planId && (
+                <div className="current-plan-badge">
+                  <Crown size={14} />
+                  Current Plan
+                </div>
+              )}
 
               <div className="upgrade-plan-header">
                 <div className="upgrade-plan-icon">{plan.icon}</div>
@@ -161,19 +198,39 @@ const SubscriptionPage: React.FC = () => {
               </div>
 
               <button
-                className={`upgrade-plan-subscribe-button ${plan.id === 'free' ? 'free' : ''}`}
+                className={`upgrade-plan-subscribe-button ${plan.id === 'free' ? 'free' : ''} ${plan.id === currentSubscription?.planId ? 'current' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleSubscribe(plan.id);
                 }}
+                disabled={plan.id === currentSubscription?.planId}
               >
-                {plan.id === 'free'
+                {plan.id === currentSubscription?.planId
                   ? 'Current Plan'
-                  : plan.id === 'pro'
-                    ? 'Upgrade to Pro'
-                    : 'Upgrade to Enterprise'
+                  : plan.id === 'free'
+                    ? 'Downgrade to Free'
+                    : currentSubscription && plan.id < currentSubscription.planId
+                      ? `Change to ${plan.name}`
+                      : `Upgrade to ${plan.name}`
                 }
               </button>
+
+              {/* Plan Change Info */}
+              {currentSubscription && currentSubscription.planId !== 'free' && plan.id !== currentSubscription.planId && (
+                <div className="plan-change-info">
+                  {plan.id > currentSubscription.planId ? (
+                    <div className="upgrade-info">
+                      <ArrowUp size={14} />
+                      <span>Upgrade: Takes effect immediately. Prorated billing.</span>
+                    </div>
+                  ) : (
+                    <div className="downgrade-info">
+                      <ArrowDown size={14} />
+                      <span>Downgrade: Takes effect at period end. Keep current benefits until then.</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <ul className="upgrade-plan-features">
                 {plan.features.map((feature, index) => (
@@ -187,6 +244,36 @@ const SubscriptionPage: React.FC = () => {
           ))}
         </div>
 
+
+        {/* Current Subscription Info */}
+        {currentSubscription && currentSubscription.status === 'active' && (
+          <div className="current-subscription-info">
+            <div className="subscription-info-header">
+              <AlertCircle size={20} />
+              <h3>Your Current Subscription</h3>
+            </div>
+            <div className="subscription-info-details">
+              <div className="info-item">
+                <span className="label">Plan:</span>
+                <span className="value">{SubscriptionService.getPlanDisplayName(currentSubscription.planId)}</span>
+              </div>
+              <div className="info-item">
+                <span className="label">Billing:</span>
+                <span className="value">£{(currentSubscription.amount / 100).toFixed(2)}/{currentSubscription.billingCycle}</span>
+              </div>
+              <div className="info-item">
+                <span className="label">Next billing:</span>
+                <span className="value">{new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div className="plan-change-notice">
+              <strong>Plan Changes:</strong>
+              <p>• <strong>Upgrades</strong> take effect immediately with prorated billing</p>
+              <p>• <strong>Downgrades</strong> take effect at the end of your current billing period</p>
+              <p>• Unused credits are preserved on upgrades, capped on downgrades</p>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="upgrade-page-footer">

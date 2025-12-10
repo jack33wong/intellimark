@@ -329,6 +329,154 @@
   flex-shrink: 0;
 }
 
+/* Current Plan Badge */
+.current-plan-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: var(--text-black);
+  padding: 6px 12px;
+  border-radius: 0 16px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+}
+
+/* Plan Change Info */
+.plan-change-info {
+  margin: 12px 0 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.upgrade-info {
+  background: var(--background-success);
+  color: var(--function-success);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.downgrade-info {
+  background: var(--background-warning);
+  color: var(--function-warning);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.upgrade-info svg,
+.downgrade-info svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Button Disabled State */
+.upgrade-plan-subscribe-button:disabled,
+.upgrade-plan-subscribe-button.current {
+  background: var(--background-gray-main);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.upgrade-plan-subscribe-button:disabled:hover,
+.upgrade-plan-subscribe-button.current:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Current Subscription Info Section */
+.current-subscription-info {
+  max-width: 900px;
+  margin: 48px auto 32px auto;
+  padding: 28px;
+  background: var(--background-card);
+  border: 2px solid var(--border-main);
+  border-radius: 16px;
+  box-shadow: var(--shadow-S);
+}
+
+.subscription-info-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-main);
+}
+
+.subscription-info-header svg {
+  color: var(--text-brand);
+}
+
+.subscription-info-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.subscription-info-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-item .label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.info-item .value {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.plan-change-notice {
+  background: var(--background-gray-main);
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid var(--text-brand);
+}
+
+.plan-change-notice strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.plan-change-notice p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 
 /* Upgrade Page Footer - Dark Mode */
 .upgrade-page-footer {
