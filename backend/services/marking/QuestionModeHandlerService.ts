@@ -11,7 +11,7 @@ import { extractQuestionsFromClassification, convertMarkingSchemeToPlainText } f
 import { MarkingSchemeOrchestrationService } from './MarkingSchemeOrchestrationService.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import { createAIMessage } from '../../utils/messageUtils.js';
-import { calculateTotalMarks, buildExamPaperStructure } from './questionDetectionService.js';
+import { calculateTotalMarks, buildExamPaperStructure, extractExamMetadata } from './questionDetectionService.js'; // ✅ Import utility
 import { calculateMessageProcessingStats } from '../../utils/messageUtils.js';
 import { sendSseUpdate, createProgressData } from '../../utils/sseUtils.js';
 import { SessionManagementService } from '../sessionManagementService.js';
@@ -208,19 +208,20 @@ export class QuestionModeHandlerService {
           }
         }
 
+        const metadata = extractExamMetadata(qd.detection.match); // ✅ Use utility function
         return {
           // Use CLASSIFICATION question number (e.g., "9i", "9ii") instead of database match (e.g., "9")
           // This preserves the sub-question structure in the AI response
-          questionNumber: qd.classificationQuestionNumber || qd.detection.match?.questionNumber || `${qd.questionIndex + 1}`,
+          questionNumber: qd.classificationQuestionNumber || metadata.questionNumber || `${qd.questionIndex + 1}`,
           questionText: questionText,
-          marks: qd.detection.match?.marks || 0,
+          marks: metadata.marks || 0,
           markingScheme: markingSchemePlainText,
-          examBoard: qd.detection.match?.board || '',
-          examCode: qd.detection.match?.paperCode || '',
+          examBoard: metadata.examBoard,
+          examCode: metadata.examCode,
           paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-          subject: qd.detection.match?.subject || '', // Use subject from fullExamPapers.metadata.subject
-          tier: qd.detection.match?.tier || '',
-          examSeries: qd.detection.match?.examSeries || '',
+          subject: metadata.subject, // ✅ From utility (always match.subject)
+          tier: metadata.tier,
+          examSeries: metadata.examSeries,
           sourceImageIndex: qd.sourceImageIndex
         };
       })

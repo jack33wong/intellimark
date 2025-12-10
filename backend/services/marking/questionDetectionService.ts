@@ -82,6 +82,38 @@ export interface QuestionDetectionResult {
   questionText?: string;
 }
 
+/**
+ * Extract exam metadata from ExamPaperMatch
+ * Single source of truth - prevents using wrong fields (e.g., qualification instead of subject)
+ */
+export function extractExamMetadata(match: ExamPaperMatch | null | undefined) {
+  if (!match) {
+    return {
+      examBoard: '',
+      examCode: '',
+      paperTitle: '',
+      subject: '',
+      tier: '',
+      examSeries: '',
+      questionNumber: '',
+      subQuestionNumber: '',
+      marks: undefined
+    };
+  }
+
+  return {
+    examBoard: match.board || '',
+    examCode: match.paperCode || '',
+    paperTitle: match.qualification || '',
+    subject: match.subject || '', // ✅ Always use match.subject (not qualification)
+    tier: match.tier || '',
+    examSeries: match.examSeries || '',
+    questionNumber: match.questionNumber || '',
+    subQuestionNumber: match.subQuestionNumber || '',
+    marks: match.marks
+  };
+}
+
 export class QuestionDetectionService {
   private static instance: QuestionDetectionService;
   private db: any;
@@ -1101,12 +1133,13 @@ export function buildExamPaperStructure(detectionResults: any[]): {
     const examPaperKey = `${examBoard}_${examCode}_${examSeries}_${tier}`;
 
     if (!examPaperGroups.has(examPaperKey)) {
+      const metadata = extractExamMetadata(match); // ✅ Use utility function
       examPaperGroups.set(examPaperKey, {
-        examBoard,
-        examCode,
-        examSeries,
-        tier,
-        subject: match.subject || '', // Use subject from fullExamPapers.metadata.subject
+        examBoard: metadata.examBoard,
+        examCode: metadata.examCode,
+        examSeries: metadata.examSeries,
+        tier: metadata.tier,
+        subject: metadata.subject, // ✅ From utility (always match.subject)
         paperTitle: `${match.board} ${match.qualification} ${match.paperCode} (${match.examSeries})`,
         questions: [],
         totalMarks: 0

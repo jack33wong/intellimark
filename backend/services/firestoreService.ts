@@ -820,21 +820,24 @@ export class FirestoreService {
       };
 
       // Create detected question info
+      // Use extractExamMetadata utility for consistency
+      const { extractExamMetadata } = await import('./marking/questionDetectionService.js');
+      const metadata = extractExamMetadata(questionDetection?.match); // ✅ Use utility function
 
       const detectedQuestion = questionDetection?.found ? {
         found: true,
         questionText: classification?.questions && Array.isArray(classification.questions)
           ? classification.questions.map((q: any) => q.text).join(' ')
           : classification?.extractedQuestionText || '',
-        questionNumber: questionDetection.match?.questionNumber || '',
-        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
-        examBoard: questionDetection.match?.board || '',
-        examCode: questionDetection.match?.paperCode || '',
-        paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.subject || '', // Using subject from fullExamPapers.metadata.subject
-        tier: questionDetection.match?.tier || '',
-        examSeries: questionDetection.match?.examSeries || '',
-        marks: questionDetection.match?.marks
+        questionNumber: metadata.questionNumber,
+        subQuestionNumber: metadata.subQuestionNumber,
+        examBoard: metadata.examBoard,
+        examCode: metadata.examCode,
+        paperTitle: metadata.paperTitle,
+        subject: metadata.subject, // ✅ From utility (always match.subject)
+        tier: metadata.tier,
+        examSeries: metadata.examSeries,
+        marks: metadata.marks
       } : {
         found: false,
         questionText: '',
@@ -926,21 +929,24 @@ export class FirestoreService {
       };
 
       // Create detected question info
+      // Use extractExamMetadata utility for consistency
+      const { extractExamMetadata } = await import('./marking/questionDetectionService.js');
+      const metadata = extractExamMetadata(questionDetection?.match); // ✅ Use utility function
 
       const detectedQuestion = questionDetection?.found ? {
         found: true,
         questionText: classification?.questions && Array.isArray(classification.questions)
           ? classification.questions.map((q: any) => q.text).join(' ')
           : classification?.extractedQuestionText || '',
-        questionNumber: questionDetection.match?.questionNumber || '',
-        subQuestionNumber: questionDetection.match?.subQuestionNumber || '',
-        examBoard: questionDetection.match?.board || '',
-        examCode: questionDetection.match?.paperCode || '',
-        paperTitle: questionDetection.match?.qualification || '',
-        subject: questionDetection.match?.subject || '', // Using subject from fullExamPapers.metadata.subject
-        tier: questionDetection.match?.tier || '',
-        examSeries: questionDetection.match?.examSeries || '',
-        marks: questionDetection.match?.marks
+        questionNumber: metadata.questionNumber,
+        subQuestionNumber: metadata.subQuestionNumber,
+        examBoard: metadata.examBoard,
+        examCode: metadata.examCode,
+        paperTitle: metadata.paperTitle,
+        subject: metadata.subject, // ✅ From utility (always match.subject)
+        tier: metadata.tier,
+        examSeries: metadata.examSeries,
+        marks: metadata.marks
       } : {
         found: false,
         questionText: '',

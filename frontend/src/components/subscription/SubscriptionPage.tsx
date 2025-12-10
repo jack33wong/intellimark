@@ -21,7 +21,7 @@ const SubscriptionPage: React.FC = () => {
       icon: <Zap size={24} />,
       features: [
         'Limited marking submissions per month',
-        'Past paper model answers based on marking scheme'
+        'Limited marking result storage'
       ],
       popular: false
     },
