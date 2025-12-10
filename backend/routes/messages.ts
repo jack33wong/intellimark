@@ -11,6 +11,7 @@ import { createUserMessage, createAIMessage, createChatProgressData, handleAIMes
 import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
+import { checkCredits, deductCredits } from '../services/creditService.js';
 
 const router = express.Router();
 
@@ -22,19 +23,19 @@ const router = express.Router();
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
     const { message, imageData, model = 'auto', sessionId, mode, aiMessageId, sourceMessageId } = req.body;
-    
+
     // Use centralized model configuration for 'auto'
     let resolvedModel = model;
     if (model === 'auto') {
       const { getDefaultModel } = await import('../config/aiModels.js');
       resolvedModel = getDefaultModel();
     }
-    
+
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
-    
-    
+
+
     // Validate required fields - allow empty message if imageData is provided
     if ((!message || typeof message !== 'string') && !imageData) {
       return res.status(400).json({
@@ -73,7 +74,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         sessionId: sessionId,
         model: model
       });
-      
+
     }
 
     // Session management - use provided sessionId or create new one
@@ -96,13 +97,31 @@ router.post('/chat', optionalAuth, async (req, res) => {
       }
     }
 
+    // Check credits before processing (skip for anonymous users)
+    let creditWarning: string | undefined;
+    if (isAuthenticated && userId !== 'anonymous') {
+      try {
+        // Estimate cost based on message length and image size
+        const estimatedCost = ((imageData ? imageData.length / 1000 : 0) + (message?.length || 0) / 100) * 0.001;
+        const creditCheck = await checkCredits(userId, estimatedCost);
+        creditWarning = creditCheck.warning;
+
+        if (creditWarning) {
+          console.log(`💳 Credit warning for user ${userId}: ${creditWarning}`);
+        }
+      } catch (error) {
+        console.error('❌ Credit check failed:', error);
+        // Continue anyway - don't block user on credit check failure
+      }
+    }
+
     // Generate AI response using real AI service
     let aiResponse: string;
     let apiUsed: string;
     let finalProgressData: any = null;
     let contextualResult: any = null;
     const startTime = Date.now();
-    
+
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
@@ -113,7 +132,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
       } else if (isFollowUpMode(mode)) {
         // Handle all follow-up requests using the centralized service
         const { SuggestedFollowUpService } = await import('../services/marking/suggestedFollowUpService.js');
-        
+
         const followUpResult = await SuggestedFollowUpService.handleSuggestedFollowUp({
           mode,
           sessionId: currentSessionId,
@@ -121,7 +140,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
           model: resolvedModel,
           detectedQuestion: req.body.detectedQuestion  // Pass detectedQuestion from request (for unauthenticated users)
         });
-        
+
         aiResponse = followUpResult.response;
         apiUsed = followUpResult.apiUsed;
         finalProgressData = followUpResult.progressData;
@@ -133,7 +152,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         };
       } else {
         // For text-only messages, use contextual response with progress tracking
-        
+
         const progressTracker = new ProgressTracker(getStepsForMode('text'), (data) => {
           finalProgressData = data;
         });
@@ -151,7 +170,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
                 role: msg.role,
                 content: msg.content
               }));
-              
+
             }
           } catch (error) {
           }
@@ -199,7 +218,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         processingTimeMs: Date.now() - startTime
       }
     });
-    
+
 
     // Handle session creation and message storage - only for authenticated users
     if (isAuthenticated) {
@@ -237,9 +256,36 @@ router.post('/chat', optionalAuth, async (req, res) => {
       }
     }
 
+    // Deduct credits after processing (skip for anonymous users)
+    if (isAuthenticated && userId !== 'anonymous') {
+      try {
+        // Wait briefly to ensure usageRecord is created
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Get usage cost from usageRecords collection
+        const { getFirestore } = await import('../config/firebase.js');
+        const db = getFirestore();
+        if (db) {
+          const usageDoc = await db.collection('usageRecords').doc(currentSessionId).get();
+          if (usageDoc.exists) {
+            const usageData = usageDoc.data();
+            const actualCost = usageData?.totalCost || 0;
+
+            if (actualCost > 0) {
+              await deductCredits(userId, actualCost, currentSessionId);
+              console.log(`💳 Deducted ${actualCost} cost (session: ${currentSessionId}) from user ${userId}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Credit deduction failed:', error);
+        // Don't fail the request if credit deduction fails
+      }
+    }
+
     // Get session data for response
     let sessionData;
-    
+
     if (isAuthenticated) {
       // Load session data for response - add small delay to ensure database consistency
       try {
@@ -264,9 +310,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
         updatedAt: new Date().toISOString(),
         isPastPaper: false
       };
-      
+
     }
-    
+
     // Return consistent response format (same as process-single)
     if (isAuthenticated) {
       // Authenticated users get only AI message (like marking/question modes)
@@ -303,11 +349,11 @@ router.post('/chat', optionalAuth, async (req, res) => {
 router.post('/', optionalAuth, async (req, res) => {
   try {
     const messageData = req.body;
-    
+
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
-    
+
     // Validate required fields
     if (!messageData.id || !messageData.sessionId || !messageData.role || !messageData.content) {
       return res.status(400).json({
@@ -318,7 +364,7 @@ router.post('/', optionalAuth, async (req, res) => {
 
     // For individual message creation, we'll create a single-message session
     const sessionId = messageData.sessionId || `single-msg-${Date.now()}`;
-    
+
     if (isAuthenticated) {
       const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
         sessionId: sessionId,
@@ -425,7 +471,7 @@ router.get('/sessions/:userId', requireAuth, async (req, res) => {
 router.post('/batch', optionalAuth, async (req, res) => {
   try {
     const { messages } = req.body;
-    
+
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({
         success: false,
@@ -436,10 +482,10 @@ router.post('/batch', optionalAuth, async (req, res) => {
     // Use authenticated user ID or anonymous
     const userId = req.user?.uid || 'anonymous';
     const isAuthenticated = !!req.user?.uid;
-    
+
     // Create session with all messages using batch creation
     const sessionId = messages[0]?.sessionId || `batch-session-${Date.now()}`;
-    
+
     if (isAuthenticated) {
       const sessionId_result = await FirestoreService.createUnifiedSessionWithMessages({
         sessionId: sessionId,
@@ -501,7 +547,7 @@ router.delete('/session/:sessionId', requireAuth, async (req, res) => {
 
     // Delete the UnifiedSession
     await FirestoreService.deleteUnifiedSession(sessionId, session.userId);
-    
+
     return res.json({
       success: true,
       message: 'Session deleted successfully'
