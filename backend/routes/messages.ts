@@ -239,7 +239,39 @@ router.post('/chat', optionalAuth, async (req, res) => {
             totalTokens: contextualResult?.usageTokens || 0,
             averageConfidence: contextualResult?.confidence || 0,
             imageSize: imageData ? imageData.length : 0,
-            totalAnnotations: 0
+            totalAnnotations: 0,
+            // Add cost breakdown to enable usageRecord creation
+            costBreakdown: await (async () => {
+              try {
+                const { getLLMPricing } = await import('../config/pricing.js');
+                const pricing = getLLMPricing(resolvedModel);
+                const tokens = contextualResult?.usageTokens || 0;
+                // Assume 50/50 split for input/output tokens (rough estimate for chat)
+                const inputTokens = Math.floor(tokens * 0.5);
+                const outputTokens = Math.ceil(tokens * 0.5);
+                const llmCost = (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
+                return {
+                  llmCost,
+                  mathpixCost: 0,
+                  total: llmCost
+                };
+              } catch (error) {
+                console.error('Cost calculation error:', error);
+                return { llmCost: 0, mathpixCost: 0, total: 0 };
+              }
+            })(),
+            totalCost: await (async () => {
+              try {
+                const { getLLMPricing } = await import('../config/pricing.js');
+                const pricing = getLLMPricing(resolvedModel);
+                const tokens = contextualResult?.usageTokens || 0;
+                const inputTokens = Math.floor(tokens * 0.5);
+                const outputTokens = Math.ceil(tokens * 0.5);
+                return (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
+              } catch (error) {
+                return 0;
+              }
+            })()
           }
         });
       } else {
