@@ -14,6 +14,13 @@ export interface UserSubscription {
   currentPeriodEnd: number;
   createdAt: number;
   updatedAt: number;
+
+  // Schedule tracking fields
+  scheduledPlanId?: string;
+  scheduleId?: string;
+  scheduleEffectiveDate?: number;
+  previousPlanId?: string;
+  planChangedAt?: number;
 }
 
 export interface CreateSubscriptionData {

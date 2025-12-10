@@ -87,6 +87,7 @@ import analysisRouter from './routes/analysisRouter.js';
 import usageRoutes from './routes/usage.js';
 import configRoutes from './routes/config.js';
 import creditsRoutes from './routes/credits.js';
+import adminCreditsRoutes from './routes/admin/credits.js';
 
 // Enable auth routes
 app.use('/api/auth', authRoutes);
@@ -96,7 +97,6 @@ app.use('/api/marking', markingRouter);
 
 // Enable admin routes
 app.use('/api/admin', adminRoutes);
-
 
 // Enable messages API (new UnifiedMessage system)
 app.use('/api/messages', messagesRoutes);

@@ -218,11 +218,62 @@ export async function updateCreditsOnPlanChange(
     }
 }
 
+/**
+ * Admin: Reset user credits to plan default allocation
+ */
+export async function adminResetCredits(userId: string): Promise<void> {
+    const userCreditsRef = db.collection('userCredits').doc(userId);
+    const doc = await userCreditsRef.get();
+
+    if (!doc.exists) {
+        throw new Error('Credits not initialized for this user');
+    }
+
+    const credits = doc.data() as UserCredits;
+    const planCredits = CREDIT_CONFIG.planCredits[credits.planId];
+    const now = Date.now();
+
+    await userCreditsRef.update({
+        usedCredits: 0,
+        remainingCredits: planCredits,
+        updatedAt: now
+    });
+
+    console.log(`🔧 Admin: Reset credits for user ${userId} to ${planCredits} (${credits.planId} plan)`);
+}
+
+/**
+ * Admin: Adjust user credits by a specific amount (positive or negative)
+ */
+export async function adminAdjustCredits(userId: string, adjustment: number): Promise<void> {
+    const userCreditsRef = db.collection('userCredits').doc(userId);
+    const doc = await userCreditsRef.get();
+
+    if (!doc.exists) {
+        throw new Error('Credits not initialized for this user');
+    }
+
+    const credits = doc.data() as UserCredits;
+    const newRemaining = Math.max(0, credits.remainingCredits + adjustment);
+    const newUsed = credits.totalCredits - newRemaining;
+    const now = Date.now();
+
+    await userCreditsRef.update({
+        usedCredits: newUsed,
+        remainingCredits: newRemaining,
+        updatedAt: now
+    });
+
+    console.log(`🔧 Admin: Adjusted credits for user ${userId}: ${credits.remainingCredits} ${adjustment >= 0 ? '+' : ''}${adjustment} = ${newRemaining}`);
+}
+
 export default {
     initializeUserCredits,
     getUserCredits,
     checkCredits,
     deductCredits,
     resetCreditsOnRenewal,
-    updateCreditsOnPlanChange
+    updateCreditsOnPlanChange,
+    adminResetCredits,
+    adminAdjustCredits
 };
