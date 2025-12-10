@@ -18,9 +18,16 @@ router.get('/:userId', async (req, res) => {
         const credits = await getUserCredits(userId);
 
         if (!credits) {
-            return res.status(404).json({
-                error: 'Credits not initialized',
-                message: 'Subscribe to a plan to get credits'
+            // Return default 0 credits instead of 404
+            return res.json({
+                userId,
+                planId: 'free',
+                totalCredits: 0,
+                usedCredits: 0,
+                remainingCredits: 0,
+                resetDate: 0,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
             });
         }
 
