@@ -218,7 +218,7 @@ export class QuestionModeHandlerService {
           examBoard: qd.detection.match?.board || '',
           examCode: qd.detection.match?.paperCode || '',
           paperTitle: qd.detection.match ? `${qd.detection.match.board} ${qd.detection.match.qualification} ${qd.detection.match.paperCode} (${qd.detection.match.examSeries})` : '',
-          subject: qd.detection.match?.qualification || '',
+          subject: qd.detection.match?.subject || '', // Use subject from fullExamPapers.metadata.subject
           tier: qd.detection.match?.tier || '',
           examSeries: qd.detection.match?.examSeries || '',
           sourceImageIndex: qd.sourceImageIndex
