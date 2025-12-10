@@ -320,6 +320,8 @@
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.5;
+  font-weight: 600;
+  /* Make all features bold */
 }
 
 .upgrade-plan-features li svg {
