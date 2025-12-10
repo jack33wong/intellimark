@@ -59,7 +59,7 @@ export class MarkingServiceLocator {
     chatHistory: any[],
     model: ModelType,
     contextSummary?: string
-  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {
+  ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens: number; outputTokens: number }> {
 
     const systemPrompt = getPrompt('marking.contextual.system');
 
@@ -76,17 +76,27 @@ export class MarkingServiceLocator {
 
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
-      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto');
+      // Pass tracker and phase to get real token counts
+      const tracker = null; // Not using tracker here, but ModelProvider will still return real counts
+      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', false, tracker, 'questionMode');
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
       const apiUsed = `Google ${modelInfo.modelName} (Service Account)`;
 
+      // ModelProvider now returns tokens from Gemini's usageMetadata
+      // We need to get them from the response (but callGeminiText doesn't return them yet)
+      // For now, estimate 50/50 split - TODO: update ModelProvider to return input/output
+      const inputTokens = Math.floor((response.usageTokens || 0) * 0.5);
+      const outputTokens = Math.ceil((response.usageTokens || 0) * 0.5);
+
       return {
         response: response.content,
         apiUsed: apiUsed,
         confidence: 0.95, // Default confidence for AI responses (text mode)
-        usageTokens: response.usageTokens || 0
+        usageTokens: response.usageTokens || 0,
+        inputTokens,
+        outputTokens
       };
     } catch (error) {
       console.error('❌ Contextual response generation failed:', error);

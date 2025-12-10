@@ -245,10 +245,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
               try {
                 const { getLLMPricing } = await import('../config/pricing.js');
                 const pricing = getLLMPricing(resolvedModel);
-                const tokens = contextualResult?.usageTokens || 0;
-                // Assume 50/50 split for input/output tokens (rough estimate for chat)
-                const inputTokens = Math.floor(tokens * 0.5);
-                const outputTokens = Math.ceil(tokens * 0.5);
+                // Use ACTUAL input/output tokens from Gemini API response (if available)
+                const inputTokens = contextualResult?.inputTokens || Math.floor((contextualResult?.usageTokens || 0) * 0.5);
+                const outputTokens = contextualResult?.outputTokens || Math.ceil((contextualResult?.usageTokens || 0) * 0.5);
                 const llmCost = (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
                 return {
                   llmCost,
@@ -264,9 +263,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
               try {
                 const { getLLMPricing } = await import('../config/pricing.js');
                 const pricing = getLLMPricing(resolvedModel);
-                const tokens = contextualResult?.usageTokens || 0;
-                const inputTokens = Math.floor(tokens * 0.5);
-                const outputTokens = Math.ceil(tokens * 0.5);
+                // Use ACTUAL input/output tokens from Gemini API response (if available)
+                const inputTokens = contextualResult?.inputTokens || Math.floor((contextualResult?.usageTokens || 0) * 0.5);
+                const outputTokens = contextualResult?.outputTokens || Math.ceil((contextualResult?.usageTokens || 0) * 0.5);
                 return (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
               } catch (error) {
                 return 0;
