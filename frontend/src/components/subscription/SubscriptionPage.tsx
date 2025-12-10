@@ -22,17 +22,17 @@ const SubscriptionPage: React.FC = () => {
   useEffect(() => {
     const fetchCreditConfig = async () => {
       try {
-        const response = await fetch(`${API_CONFIG.BASE_URL} /api/config / credits`);
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/config/credits`);
         if (!response.ok) {
-          throw new Error(`Failed to fetch credit config: ${response.status} `);
+          throw new Error(`Failed to fetch credit config: ${response.status}`);
         }
         const data = await response.json();
         setPlanCredits(data.planCredits);
       } catch (error) {
         console.error('Error fetching credit config:', error);
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        setCreditError(`Cannot connect to server to fetch credit configuration: ${errorMsg} `);
-        alert(`⚠️ Credit Configuration Error\n\nCannot fetch credit values from backend server.\n\nError: ${errorMsg} \n\nPlease ensure: \n1.Backend server is running\n2. / api / config / credits endpoint is registered\n3.Backend.env.local has credit variables set`);
+        setCreditError(`Cannot connect to server to fetch credit configuration: ${errorMsg}`);
+        alert(`⚠️ Credit Configuration Error\n\nCannot fetch credit values from backend server.\n\nError: ${errorMsg}\n\nPlease ensure:\n1. Backend server is running\n2. /api/config/credits endpoint is registered\n3. Backend .env.local has credit variables set`);
       }
     };
     fetchCreditConfig();
@@ -52,7 +52,7 @@ const SubscriptionPage: React.FC = () => {
         // Fetch credits if subscription exists
         if (subscription) {
           try {
-            const creditsResponse = await fetch(`${API_CONFIG.BASE_URL} /api/credits / ${user.uid} `);
+            const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
             if (creditsResponse.ok) {
               const creditsData = await creditsResponse.json();
               (subscription as any).credits = creditsData;
