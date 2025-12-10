@@ -2,7 +2,8 @@ import express from 'express';
 import { STRIPE_CONFIG } from '../config/stripe.js';
 import paymentService from '../services/paymentService.js';
 import SubscriptionService from '../services/subscriptionService.js';
-import { initializeUserCredits } from '../services/creditService.js';
+import { initializeUserCredits, updateCreditsOnPlanChange } from '../services/creditService.js';
+import { createDowngradeSchedule, cancelSchedule, getActiveSchedule } from '../services/scheduleService.js';
 
 const router = express.Router();
 
@@ -193,6 +194,144 @@ router.delete('/cancel-subscription/:id', async (req, res) => {
       error: 'Failed to cancel subscription',
       details: error.message
     });
+  }
+});
+
+// Change subscription plan (upgrade or downgrade)
+router.post('/change-plan', async (req, res) => {
+  try {
+    const { userId, newPlanId, billingCycle } = req.body;
+
+    if (!userId || !newPlanId || !billingCycle) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Get current subscription
+    const subscription = await SubscriptionService.getUserSubscription(userId);
+    if (!subscription) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    const currentPlanId = subscription.planId;
+
+    // Helper to get plan level (free=0, pro=1, enterprise=2)
+    const getPlanLevel = (plan: string): number => {
+      const levels = { free: 0, pro: 1, enterprise: 2 };
+      return levels[plan] || 0;
+    };
+
+    const isUpgrade = getPlanLevel(newPlanId) > getPlanLevel(currentPlanId);
+    const isDowngrade = getPlanLevel(newPlanId) < getPlanLevel(currentPlanId);
+
+    if (isUpgrade) {
+      // Immediate upgrade with proration
+      const stripe = (await import('../config/stripe.js')).default;
+      const newPlanConfig = STRIPE_CONFIG.plans[newPlanId];
+      const newPriceId = newPlanConfig[billingCycle].priceId;
+
+      const stripeSubscription = await stripe.subscriptions.retrieve(
+        subscription.stripeSubscriptionId
+      );
+
+      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        items: [{
+          id: stripeSubscription.items.data[0].id,
+          price: newPriceId,
+        }],
+        proration_behavior: 'create_prorations', // Charge difference
+      });
+
+      // Update Firestore
+      await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+        planId: newPlanId,
+        amount: newPlanConfig[billingCycle].amount,
+        previousPlanId: currentPlanId,
+        planChangedAt: Date.now(),
+      });
+
+      // Update credits immediately
+      await updateCreditsOnPlanChange(
+        userId,
+        currentPlanId,
+        newPlanId as 'free' | 'pro' | 'enterprise',
+        stripeSubscription.current_period_end * 1000
+      );
+
+      console.log(`⬆️ Immediate upgrade: ${currentPlanId} → ${newPlanId}`);
+
+      res.json({
+        success: true,
+        changeType: 'immediate_upgrade',
+        newPlan: newPlanId,
+      });
+    } else if (isDowngrade) {
+      // Schedule downgrade for next period
+      const schedule = await createDowngradeSchedule(
+        subscription.stripeSubscriptionId,
+        currentPlanId as 'pro' | 'enterprise',
+        newPlanId as 'free' | 'pro' | 'enterprise',
+        billingCycle as 'monthly' | 'yearly',
+        subscription.currentPeriodEnd
+      );
+
+      // Update Firestore with schedule info
+      await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+        scheduledPlanId: newPlanId,
+        scheduleId: schedule.id,
+        scheduleEffectiveDate: subscription.currentPeriodEnd * 1000,
+        planChangedAt: Date.now(),
+      });
+
+      console.log(`⬇️ Scheduled downgrade: ${currentPlanId} → ${newPlanId} on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
+
+      res.json({
+        success: true,
+        changeType: 'scheduled_downgrade',
+        currentPlan: currentPlanId,
+        scheduledPlan: newPlanId,
+        effectiveDate: subscription.currentPeriodEnd * 1000,
+        scheduleId: schedule.id,
+      });
+    } else {
+      // Same plan - no change
+      res.status(400).json({ error: 'New plan is same as current plan' });
+    }
+  } catch (error) {
+    console.error('❌ Error changing plan:', error);
+    res.status(500).json({
+      error: 'Failed to change plan',
+      details: error.message,
+    });
+  }
+});
+
+// Cancel scheduled plan change
+router.post('/cancel-schedule', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing userId' });
+    }
+
+    const subscription = await SubscriptionService.getUserSubscription(userId);
+    if (!subscription || !subscription.scheduleId) {
+      return res.status(404).json({ error: 'No scheduled plan change found' });
+    }
+
+    await cancelSchedule(subscription.scheduleId);
+
+    // Clear schedule from Firestore
+    await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+      scheduledPlanId: null,
+      scheduleId: null,
+      scheduleEffectiveDate: null,
+    });
+
+    res.json({ success: true, message: 'Scheduled plan change canceled' });
+  } catch (error) {
+    console.error('❌ Error canceling schedule:', error);
+    res.status(500).json({ error: 'Failed to cancel schedule' });
   }
 });
 
