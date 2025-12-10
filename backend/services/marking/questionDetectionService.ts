@@ -117,14 +117,6 @@ export class QuestionDetectionService {
       // Ignore questionNumberHint if it's "1" (dummy default from mapper for unnumbered questions)
       const effectiveHint = questionNumberHint === '1' ? null : questionNumberHint;
 
-      // DEBUG: Log Q5 specifically
-      if (effectiveHint === '5') {
-        console.log(`\n🔍 [Q5 DETECTION START]`);
-        console.log(`   Classification text (raw): "${extractedQuestionText}"`);
-        console.log(`   Classification text (escaped): "${extractedQuestionText.replace(/\n/g, '\\n')}"`);
-        console.log(`   Question number hint: ${effectiveHint}`);
-      }
-
       // Get all exam papers from database
       const examPapers = await this.getAllExamPapers();
 
@@ -147,18 +139,6 @@ export class QuestionDetectionService {
         const is1MA1_1H = paperCode === '1MA1/1H' || paperCode.includes('1MA1/1H');
 
         const match = await this.matchQuestionWithExamPaper(extractedQuestionText, examPaper, effectiveHint);
-
-        // DEBUG: Log Q5 specifically for Edexcel paper
-        if (effectiveHint === '5' && match && examPaper.metadata?.exam_code === '1MA1/1F') {
-          console.log(`\n🔍 [Q5 EDEXCEL MATCH]`);
-          console.log(`   Paper: ${examPaper.metadata.board} ${examPaper.metadata.qualification} ${examPaper.metadata.exam_code} (${examPaper.metadata.exam_series})`);
-          console.log(`   Similarity: ${match.confidence?.toFixed(4) || 'N/A'}`);
-          console.log(`   Threshold: ${match.subQuestionNumber ? '0.40' : '0.50'}`);
-          console.log(`   Passed threshold: ${match.confidence >= (match.subQuestionNumber ? 0.4 : 0.5)}`);
-          if (match.databaseQuestionText) {
-            console.log(`   DB Text: "${match.databaseQuestionText}"`);
-          }
-        }
 
         if (match && match.confidence) {
           // Track best match even if below threshold (for failure logging)

@@ -111,39 +111,6 @@ export class QuestionModeHandlerService {
       data.calculatedMarks = data.dbParentMarks;
     });
 
-    console.log('\n╔════════════════════════════════════════════════════════════╗');
-    console.log('║  DB TRUTH vs CALCULATED MARKS (Q1-Q27)                    ║');
-    console.log('╠════════════════════════════════════════════════════════════╣');
-    console.log('║  Q#  │  DB Parent  │  Calculated  │  Status               ║');
-    console.log('╠════════════════════════════════════════════════════════════╣');
-
-    let totalDbParent = 0;
-    let totalCalculated = 0;
-
-    for (let i = 1; i <= 27; i++) {
-      const qNum = String(i);
-      const data = comparisonMap.get(qNum);
-
-      if (data) {
-        const dbMarks = data.dbParentMarks;
-        const calcMarks = data.calculatedMarks;
-        totalDbParent += dbMarks;
-        totalCalculated += calcMarks;
-
-        const status = dbMarks === calcMarks ? '✅ MATCH' : '❌ MISMATCH';
-        const qDisplay = qNum.padStart(3, ' ');
-        const dbDisplay = String(dbMarks).padStart(11, ' ');
-        const calcDisplay = String(calcMarks).padStart(12, ' ');
-        console.log(`║  ${qDisplay} │ ${dbDisplay} │ ${calcDisplay} │  ${status.padEnd(21, ' ')}║`);
-      } else {
-        console.log(`║  ${qNum.padStart(3, ' ')} │ ${' '.repeat(11)} │ ${' '.repeat(12)} │  NOT DETECTED         ║`);
-      }
-    }
-
-    console.log('╠════════════════════════════════════════════════════════════╣');
-    console.log(`║ TOTAL │ ${String(totalDbParent).padStart(11, ' ')} │ ${String(totalCalculated).padStart(12, ' ')} │  ${totalDbParent === totalCalculated ? '✅ MATCH' : '❌ MISMATCH'.padEnd(21, ' ')}║`);
-    console.log('╚════════════════════════════════════════════════════════════╝\n');
-
     // Map orchestration results to Question Mode format
     const allQuestionDetections = detectionResults.map((dr, index) => ({
       questionIndex: index,
