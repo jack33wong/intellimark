@@ -41,13 +41,18 @@ export class MarkingController {
 
             const userId = options.userId;
 
+            console.log(`🔍 [CREDIT DEBUG] userId: ${userId}, isAuthenticated: ${!!userId}, isAnonymous: ${userId === 'anonymous'}`);
+
             // Check credits before processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
+                console.log(`💳 [CREDIT CHECK] Starting credit check for user: ${userId}`);
                 try {
                     // Estimate cost based on file size and count
                     const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
                     const estimatedCost = (totalBytes / 10000 + files.length * 5) * 0.001;
+                    console.log(`💳 [CREDIT CHECK] Estimated cost: ${estimatedCost}, files: ${files.length}, bytes: ${totalBytes}`);
                     const creditCheck = await checkCredits(userId, estimatedCost);
+                    console.log(`💳 [CREDIT CHECK] Result: ${JSON.stringify(creditCheck)}`);
 
                     if (creditCheck.warning) {
                         console.log(`💳 Credit warning for user ${userId}: ${creditCheck.warning}`);
@@ -62,6 +67,8 @@ export class MarkingController {
                     console.error('❌ Credit check failed:', error);
                     // Continue anyway - don't block user on credit check failure
                 }
+            } else {
+                console.log(`⏭️  [CREDIT CHECK] Skipped for userId: ${userId} (anonymous or missing)`);
             }
 
             // 4. Execute Pipeline
@@ -87,6 +94,7 @@ export class MarkingController {
 
             // Deduct credits after processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
+                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId: ${options.sessionId}`);
                 try {
                     // Wait briefly to ensure usageRecord is created
                     await new Promise(resolve => setTimeout(resolve, 500));
@@ -95,21 +103,31 @@ export class MarkingController {
                     const { getFirestore } = await import('../config/firebase.js');
                     const db = getFirestore();
                     if (db && options.sessionId) {
+                        console.log(`💳 [CREDIT DEDUCT] Looking for usageRecord: ${options.sessionId}`);
                         const usageDoc = await db.collection('usageRecords').doc(options.sessionId).get();
                         if (usageDoc.exists) {
                             const usageData = usageDoc.data();
                             const actualCost = usageData?.totalCost || 0;
+                            console.log(`💳 [CREDIT DEDUCT] Found usageRecord, totalCost: ${actualCost}`);
 
                             if (actualCost > 0) {
                                 await deductCredits(userId, actualCost, options.sessionId);
                                 console.log(`💳 Deducted ${actualCost} cost (session: ${options.sessionId}) from user ${userId}`);
+                            } else {
+                                console.log(`⚠️  [CREDIT DEDUCT] totalCost is 0, skipping deduction`);
                             }
+                        } else {
+                            console.log(`⚠️  [CREDIT DEDUCT] usageRecord not found for session: ${options.sessionId}`);
                         }
+                    } else {
+                        console.log(`⚠️  [CREDIT DEDUCT] Missing db or sessionId - db: ${!!db}, sessionId: ${options.sessionId}`);
                     }
                 } catch (error) {
                     console.error('❌ Credit deduction failed:', error);
                     // Don't fail the request if credit deduction fails
                 }
+            } else {
+                console.log(`⏭️  [CREDIT DEDUCT] Skipped for userId: ${userId} (anonymous or missing)`);
             }
 
             res.end();
