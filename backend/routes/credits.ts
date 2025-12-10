@@ -4,7 +4,6 @@
 
 import express from 'express';
 import { getUserCredits } from '../services/creditService.js';
-import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -12,14 +11,9 @@ const router = express.Router();
  * GET /api/credits/:userId
  * Get user's current credit status
  */
-router.get('/:userId', requireAuth, async (req, res) => {
+router.get('/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-
-        // Verify user can only access their own credits (or admin)
-        if (req.user.uid !== userId && !req.user.isAdmin) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
 
         const credits = await getUserCredits(userId);
 
