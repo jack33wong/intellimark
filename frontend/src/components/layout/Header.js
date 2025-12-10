@@ -33,6 +33,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(localStorage.getItem('debugMode') === 'true');
+  const [refreshKey, setRefreshKey] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const profileRef = useRef(null);
@@ -46,12 +47,16 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       if (!user?.uid) return;
       setSubscriptionLoading(true);
       try {
+        // Add timestamp to prevent caching
+        const timestamp = Date.now();
         const response = await SubscriptionService.getUserSubscription(user.uid);
         setUserSubscription(response.subscription);
 
-        // Fetch credits
+        // Fetch credits with cache-busting
         try {
-          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}`);
+          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
+            cache: 'no-store'
+          });
           if (creditsResponse.ok) {
             const creditsData = await creditsResponse.json();
             setUserCredits(creditsData);
@@ -67,7 +72,17 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     };
 
     fetchUserSubscription();
-  }, [user?.uid]);
+  }, [user?.uid, refreshKey]);
+
+  // Expose refresh function globally for other components to trigger
+  useEffect(() => {
+    window.refreshHeaderSubscription = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    return () => {
+      delete window.refreshHeaderSubscription;
+    };
+  }, []);
 
   // Check for subscription success parameter and create subscription record
   useEffect(() => {

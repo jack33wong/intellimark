@@ -206,17 +206,28 @@ const SubscriptionPage: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const { url } = await response.json();
+      const { url: checkoutUrl } = await response.json(); // Renamed 'url' to 'checkoutUrl'
 
       // Redirect to Stripe Checkout
-      window.location.href = url;
+      window.location.href = checkoutUrl;
+      refreshHeaderData(); // Added refresh call after successful subscription
     } catch (error) {
       console.error('Error creating checkout session:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to start checkout process. Please try again.';
-      alert(`Error: ${errorMessage}`);
+      alert('Failed to create checkout session. Please try again.');
     }
   };
 
+  // Refresh Header data when subscription changes
+  const refreshHeaderData = () => {
+    if (typeof window.refreshHeaderSubscription === 'function') {
+      window.refreshHeaderSubscription();
+    }
+  };
+
+  // Handle billing cycle change
+  const handleBillingCycleChange = (cycle: BillingCycle) => {
+    setBillingCycle(cycle);
+  };
 
 
   return (
