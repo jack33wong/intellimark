@@ -34,6 +34,7 @@ export interface QuestionSessionContext extends SessionContext {
   apiRequests?: number;
   model?: string;
   files?: Express.Multer.File[];
+  detectionResults?: any[];  // Add detection results for title generation
 }
 
 export interface SessionResult {

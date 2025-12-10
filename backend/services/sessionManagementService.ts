@@ -10,7 +10,7 @@ import { createUserMessage, createAIMessage, calculateMessageProcessingStats, ca
 import { ImageStorageService } from './imageStorageService.js';
 import { getBaseQuestionNumber } from '../utils/TextNormalizationUtils.js';
 import { formatMarkingSchemeAsBullets } from '../config/prompts.js';
-import { buildExamPaperStructure } from './marking/questionDetectionService.js';
+import { buildExamPaperStructure, generateSessionTitleFromDetectionResults } from './marking/questionDetectionService.js';
 import type {
   SessionContext,
   MarkingSessionContext,
@@ -79,7 +79,10 @@ export class SessionManagementService {
     const dbAiMessage = this.prepareMarkingAiMessage(context);
 
     // Generate session title
-    const sessionTitle = this.generateMarkingSessionTitle(context);
+    // Generate session title using common function (if detectionResults available)
+    const sessionTitle = context.detectionResults && context.detectionResults.length > 0
+      ? generateSessionTitleFromDetectionResults(context.detectionResults)
+      : this.generateMarkingSessionTitle(context);  // Fallback to old method
 
     // FIXED: Create separate database and response objects
     const { MessageFactory } = await import('./messageFactory.js');
@@ -129,8 +132,10 @@ export class SessionManagementService {
     // Create database AI message with detected question data
     const dbAiMessage = this.prepareQuestionAiMessage(context);
 
-    // Generate session title
-    const sessionTitle = generateSessionTitle(context.questionDetection, context.globalQuestionText || '', 'Question');
+    // Generate session title using common function
+    const sessionTitle = context.detectionResults && context.detectionResults.length > 0
+      ? generateSessionTitleFromDetectionResults(context.detectionResults)
+      : generateSessionTitle(context.questionDetection, context.globalQuestionText || '', 'Question');  // Fallback
 
     // Persist to database for authenticated users
     if (isAuthenticated) {

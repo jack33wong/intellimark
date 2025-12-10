@@ -327,11 +327,6 @@ export class QuestionModeHandlerService {
         // Reuse parent marks from comparison table (already calculated correctly)
         const parentMarks = comparisonMap.get(baseNumber)?.dbParentMarks || 0;
 
-        // DEBUG: Trace marks injection
-        console.log(`\n[MARKS DEBUG] Q${baseNumber}:`);
-        console.log(`  Parent Marks (DB): ${parentMarks}`);
-        console.log(`  SubQuestions:`, subQuestions.map(sq => ({ qNum: sq.questionNumber, marks: sq.marks })));
-
         // POST-PROCESS:
         // 1. Remove AI-generated "Question X" header to avoid duplication
         // 2. PREPEND markdown header with question number and marks
@@ -485,7 +480,8 @@ export class QuestionModeHandlerService {
         mode: 'Question',
         usageTokens: aiResponse.usageTokens, // CRITICAL: Pass tokens for database persistence
         model: actualModel,
-        files: files
+        files: files,
+        detectionResults  // Pass detection results for title generation
       };
       persistenceResult = await SessionManagementService.persistQuestionSession(questionContext);
 

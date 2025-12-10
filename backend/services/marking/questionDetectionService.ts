@@ -1172,14 +1172,82 @@ export function buildExamPaperStructure(detectionResults: any[]): {
   });
 
   // Convert to array and determine if multiple exam papers
-  const examPapers = Array.from(examPaperGroups.values());
-  const multipleExamPapers = examPapers.length > 1;
-
   return {
-    examPapers,
-    multipleExamPapers,
+    examPapers: Array.from(examPaperGroups.values()),
+    multipleExamPapers: examPaperGroups.size > 1,
     totalMarks
   };
+}
+
+/**
+ * Generate session title from detection results
+ * Uses exam paper structure to create formatted title like:
+ * "Pearson Edexcel GCSE 1MA1/1F (November 2023) Q1 to Q27 80 marks"
+ */
+export function generateSessionTitleFromDetectionResults(detectionResults: any[]): string {
+  if (!detectionResults || detectionResults.length === 0) {
+    return 'Question - No exam paper detected';
+  }
+
+  const { examPapers, totalMarks } = buildExamPaperStructure(detectionResults);
+
+  if (examPapers.length === 0) {
+    return 'Question - No exam paper detected';
+  }
+
+  // If multiple exam papers, use simplified title
+  if (examPapers.length > 1) {
+    const allQuestionNumbers = examPapers.flatMap(ep => ep.questions.map(q => q.questionNumber));
+    return `Past paper - ${allQuestionNumbers.map(q => `Q${q}`).join(', ')}`;
+  }
+
+  // Single exam paper - use detailed title
+  const examPaper = examPapers[0];
+
+  if (examPaper.questions.length === 0) {
+    return 'Question - No questions detected';
+  }
+
+  // Extract question numbers and sort them
+  const questionNumbers = examPaper.questions
+    .map(q => {
+      const qNum = String(q.questionNumber || '').replace(/[a-z()]+$/i, '');
+      const num = parseInt(qNum, 10);
+      return isNaN(num) ? 0 : num;
+    })
+    .filter(num => num > 0)
+    .sort((a, b) => a - b);
+
+  const uniqueNumbers = Array.from(new Set(questionNumbers));
+
+  // Format question number display
+  let questionNumberDisplay: string;
+  if (uniqueNumbers.length === 0) {
+    questionNumberDisplay = 'Unknown';
+  } else if (uniqueNumbers.length === 1) {
+    questionNumberDisplay = `Q${uniqueNumbers[0]}`;
+  } else {
+    // Check if in sequence
+    const isSequence = uniqueNumbers.every((num, index) =>
+      index === 0 || num === uniqueNumbers[index - 1] + 1
+    );
+
+    if (isSequence) {
+      questionNumberDisplay = `Q${uniqueNumbers[0]} to Q${uniqueNumbers[uniqueNumbers.length - 1]}`;
+    } else {
+      questionNumberDisplay = uniqueNumbers.map(num => `Q${num}`).join(', ');
+    }
+  }
+
+  // Build title: "Board Subject PaperCode (Series) Q1 to Q27 80 marks"
+  const { examBoard, subject, examCode, examSeries } = examPaper;
+
+  if (examBoard && subject && examCode && examSeries) {
+    return `${examBoard} ${subject} ${examCode} (${examSeries}) ${questionNumberDisplay} ${totalMarks} marks`;
+  }
+
+  // Fallback if missing exam details
+  return `Past paper ${questionNumberDisplay} ${totalMarks} marks`;
 }
 
 // Export singleton instance
