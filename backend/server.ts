@@ -116,6 +116,9 @@ app.use('/api/config', configRoutes);
 // Enable credits API (user credit management)
 app.use('/api/credits', creditsRoutes);
 
+// Enable admin credits API
+app.use('/api/admin/credits', adminCreditsRoutes);
+
 
 
 

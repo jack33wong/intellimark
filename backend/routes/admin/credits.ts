@@ -3,7 +3,7 @@
  */
 
 import express from 'express';
-import { adminResetCredits, adminAdjustCredits } from '../services/creditService.js';
+import { adminResetCredits, admin AdjustCredits } from '../../services/creditService.js';
 
 const router = express.Router();
 
