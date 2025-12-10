@@ -72,6 +72,34 @@ const SubscriptionPage: React.FC = () => {
     fetchSubscription();
   }, [user]);
 
+  // Cancel scheduled plan change
+  const handleCancelSchedule = async () => {
+    if (!user?.uid) return;
+
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/cancel-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid })
+      });
+
+      if (response.ok) {
+        // Refresh subscription data
+        const subResponse = await fetch(`${API_CONFIG.BASE_URL}/api/payment/user-subscription/${user.uid}`);
+        if (subResponse.ok) {
+          const data = await subResponse.json();
+          setCurrentSubscription(data.subscription);
+        }
+        alert('Scheduled downgrade cancelled successfully!');
+      } else {
+        alert('Failed to cancel scheduled downgrade');
+      }
+    } catch (error) {
+      console.error('Error cancelling schedule:', error);
+      alert('Error cancelling scheduled downgrade');
+    }
+  };
+
   // Don't render plans if credits haven't loaded
   if (!planCredits) {
     return (
@@ -203,10 +231,36 @@ const SubscriptionPage: React.FC = () => {
 
       <div className="upgrade-page-container">
         {/* Header */}
-        <div className="upgrade-page-header">
-          <h1>Choose Your Plan</h1>
-          <p>Unlock the full potential of AI-powered homework assistance</p>
+        <div className="upgrade-header">
+          <h1>Subscription Plans</h1>
+          <p>Choose the plan that's right for you</p>
         </div>
+
+        {/* Scheduled Change Banner */}
+        {currentSubscription?.scheduledPlanId && (
+          <div className="scheduled-banner">
+            <div className="scheduled-banner-content">
+              <AlertCircle size={20} />
+              <div className="scheduled-banner-text">
+                <strong>Plan Change Scheduled</strong>
+                <span>
+                  Your plan will downgrade to <strong>{currentSubscription.scheduledPlanId}</strong> on{' '}
+                  {new Date(currentSubscription.scheduleEffectiveDate).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </span>
+              </div>
+            </div>
+            <button
+              className="cancel-schedule-button"
+              onClick={handleCancelSchedule}
+            >
+              Cancel Downgrade
+            </button>
+          </div>
+        )}
 
         {/* Current Subscription Info - Compact */}
         {currentSubscription && currentSubscription.status === 'active' && (
