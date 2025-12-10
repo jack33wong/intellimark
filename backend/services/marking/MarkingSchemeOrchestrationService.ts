@@ -95,9 +95,6 @@ export class MarkingSchemeOrchestrationService {
     for (const question of individualQuestions) {
       const detectionResult = await questionDetectionService.detectQuestion(question.text, question.questionNumber);
 
-      // === RAW DETECTION LOG (User Requested - shows individual detections BEFORE merging) ===
-      console.log(`[RAW DETECTION] Q${question.questionNumber}: DB=${detectionResult.match?.questionNumber || 'None'}, SubKey="${detectionResult.match?.subQuestionNumber || ''}", Marks=${detectionResult.match?.marks || 0}`);
-
       const similarity = detectionResult.match?.confidence || 0;
       const hasMarkingScheme = detectionResult.match?.markingScheme !== null && detectionResult.match?.markingScheme !== undefined;
 

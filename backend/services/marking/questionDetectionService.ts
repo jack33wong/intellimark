@@ -1102,28 +1102,12 @@ export function buildExamPaperStructure(detectionResults: any[]): {
   // Group questions by exam paper (board + code + series + tier)
   const examPaperGroups = new Map<string, any>();
 
-  console.log(`[DEBUG buildExamPaperStructure] Processing ${detectionResults.length} detection results`);
-
   detectionResults.forEach((qd, index) => {
-    // Debug first entry to understand structure
-    if (index === 0) {
-      console.log(`[DEBUG buildExamPaperStructure] Sample entry structure:`, JSON.stringify({
-        hasDetection: !!qd.detection,
-        hasDetectionResult: !!qd.detectionResult,
-        hasMatch: !!qd.detection?.match,
-        hasDetectionResultMatch: !!qd.detectionResult?.match,
-        keys: Object.keys(qd)
-      }, null, 2));
-    }
-
     // Handle both Question Mode format (detection.match) and Marking Mode format (detectionResult.match)
     const detectionObj = qd.detection || qd.detectionResult;
 
     // Skip if no detection result or match
     if (!detectionObj || !detectionObj.match) {
-      if (index === 0) {
-        console.log(`[DEBUG buildExamPaperStructure] Skipping entry - no valid detection`);
-      }
       return;
     }
 
@@ -1159,8 +1143,6 @@ export function buildExamPaperStructure(detectionResults: any[]): {
       sourceImageIndex: qd.sourceImageIndex
     });
   });
-
-  console.log(`[DEBUG buildExamPaperStructure] Created ${examPaperGroups.size} exam paper groups`);
 
   // Calculate total marks using common function
   const totalMarks = calculateTotalMarks(detectionResults);

@@ -668,14 +668,6 @@ export function extractQuestionsFromClassification(
     const extractedQuestions: Array<{ text: string; questionNumber?: string | null; sourceImageIndex?: number }> = [];
 
     for (const q of classification.questions) {
-      // DEBUG: Trace Q5 extraction
-      if (q.questionNumber === '5' || q.questionNumber === 5) {
-        console.log(`\n🔍 [EXTRACTION DEBUG] Found Q5 in classification output:`);
-        console.log(`   Page: ${q.sourceImageIndex}`);
-        console.log(`   Text Length: ${q.text?.length || 0}`);
-        console.log(`   Has SubQuestions: ${q.subQuestions?.length > 0}`);
-      }
-
       const mainQuestionNumber = q.questionNumber !== undefined ? (q.questionNumber || null) : undefined;
       const sourceImageIndex = q.sourceImageIndex;
 
@@ -1104,8 +1096,6 @@ export function calculateOverallScore(
   // Group by base question number and only count parent marks once per base question
   const baseQuestionToTotalMarks = new Map<string, number>();
 
-  console.log(`[calculateOverallScore] Processing ${allQuestionResults.length} question results`);
-
   allQuestionResults.forEach((qr, index) => {
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
 
@@ -1123,9 +1113,6 @@ export function calculateOverallScore(
   });
 
   const totalPossibleScore = Array.from(baseQuestionToTotalMarks.values()).reduce((sum, marks) => sum + marks, 0);
-
-  console.log(`[calculateOverallScore] Total unique questions: ${baseQuestionToTotalMarks.size}, totalPossibleScore: ${totalPossibleScore}`);
-
   const overallScoreText = `${overallScore}/${totalPossibleScore}`;
 
   return {
