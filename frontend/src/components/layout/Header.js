@@ -18,6 +18,7 @@ import {
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
 import './Header.css';
+import '../credits.css';
 
 const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
