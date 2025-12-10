@@ -34,6 +34,7 @@ const SubscriptionPage: React.FC = () => {
       features: [
         'Everything in free plus',
         'Extended limits on marking submission',
+        'Extended marking result storage',
         'Full access to progress analysis'
       ],
       popular: true
