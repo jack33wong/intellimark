@@ -98,7 +98,7 @@ const SubscriptionPage: React.FC = () => {
       description: 'Perfect for getting started',
       icon: <Zap size={24} />,
       features: [
-        `${planCredits.free} credits per month`,
+        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.free} credits per month`}</>,
         'Limited marking submissions',
         'Limited marking result storage'
       ],
@@ -111,7 +111,7 @@ const SubscriptionPage: React.FC = () => {
       description: 'For serious students',
       icon: <Users size={24} />,
       features: [
-        `${planCredits.pro} credits per month`,
+        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.pro} credits per month`}</>,
         'Extended marking submissions',
         'Extended marking result storage',
         'Full access to progress analysis'
@@ -125,7 +125,7 @@ const SubscriptionPage: React.FC = () => {
       description: 'For schools and institutions',
       icon: <Building2 size={24} />,
       features: [
-        `${planCredits.enterprise} credits per month`,
+        <><Coins size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />{`${planCredits.enterprise} credits per month`}</>,
         '10x of everything in Pro',
         'AI Model selection (Gemini, OpenAI)'
       ],
@@ -281,9 +281,9 @@ const SubscriptionPage: React.FC = () => {
                   ? 'Current Plan'
                   : plan.id === 'free'
                     ? 'Downgrade to Free'
-                    : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
-                      ? `Change to ${plan.name}`
-                      : `Upgrade to ${plan.name}`
+                    : currentPlanLevel < planLevel
+                      ? `Upgrade to ${plan.name}`
+                      : `Downgrade to ${plan.name}`
                 }
               </button>
 
