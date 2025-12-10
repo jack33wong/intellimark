@@ -12,15 +12,30 @@ const SubscriptionPage: React.FC = () => {
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [currentSubscription, setCurrentSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
-  // Plan credits configuration
-  const planCredits = {
+  const [planCredits, setPlanCredits] = useState({
     free: 5,
     pro: 50,
     enterprise: 500
-  };
+  });
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Fetch credit configuration from API
+  useEffect(() => {
+    const fetchCreditConfig = async () => {
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/config/credits`);
+        if (response.ok) {
+          const data = await response.json();
+          setPlanCredits(data.planCredits);
+        }
+      } catch (error) {
+        console.error('Error fetching credit config:', error);
+        // Keep default values if fetch fails
+      }
+    };
+    fetchCreditConfig();
+  }, []);
 
   // Fetch current subscription
   useEffect(() => {
