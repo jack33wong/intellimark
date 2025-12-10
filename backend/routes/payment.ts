@@ -4,7 +4,7 @@ import paymentService from '../services/paymentService.js';
 import SubscriptionService from '../services/subscriptionService.js';
 import { initializeUserCredits, updateCreditsOnPlanChange } from '../services/creditService.js';
 import { createDowngradeSchedule, cancelSchedule, getActiveSchedule } from '../services/scheduleService.js';
-import admin from '../config/firebase.js';
+import { getFirestore } from '../config/firebase.js';
 
 const router = express.Router();
 
@@ -133,7 +133,10 @@ router.get('/list-subscriptions', async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Get all subscriptions from Firestore
-    const db = admin.firestore();
+    const db = getFirestore();
+    if (!db) {
+      return res.status(500).json({ error: 'Database not available' });
+    }
     const subscriptionsRef = db.collection('userSubscriptions');
 
     // Get total count
