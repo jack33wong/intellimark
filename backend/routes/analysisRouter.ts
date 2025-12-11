@@ -5,6 +5,7 @@
 import express, { Request, Response } from 'express';
 import { optionalAuth } from '../middleware/auth.js';
 import { attachUserPlan, requirePlan } from '../middleware/planMiddleware.js';
+import { PERMISSIONS } from '../config/permissions.js';
 import { AnalysisService } from '../services/analysis/AnalysisService.js';
 import { FirestoreService } from '../services/firestoreService.js';
 import type { AnalysisResult } from '../services/analysis/analysisTypes.js';
@@ -21,7 +22,7 @@ const router = express.Router();
  * Generate analysis report for a session
  * Requires Pro or Enterprise plan
  */
-router.post('/generate', optionalAuth, attachUserPlan, requirePlan(['pro', 'enterprise']), async (req: Request, res: Response) => {
+router.post('/generate', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.ANALYSIS_PLANS), async (req: Request, res: Response) => {
   try {
     const { sessionId, sessionIds, subject, model = 'auto' } = req.body;
     const userId = (req as any)?.user?.uid;
@@ -278,7 +279,7 @@ router.get('/grade-boundaries', optionalAuth, async (req: Request, res: Response
  * GET /api/analysis/subjects
  * Get all subjects with marking results for the authenticated user
  */
-router.get('/subjects', optionalAuth, attachUserPlan, requirePlan(['pro', 'enterprise']), async (req: Request, res: Response) => {
+router.get('/subjects', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.ANALYSIS_PLANS), async (req: Request, res: Response) => {
   try {
     const userId = (req as any)?.user?.uid;
     const isAuthenticated = !!userId;
@@ -318,7 +319,7 @@ router.get('/subjects', optionalAuth, attachUserPlan, requirePlan(['pro', 'enter
  * GET /api/analysis/:subject
  * Get full subjectMarkingResults document (including marking results and analysis)
  */
-router.get('/:subject', optionalAuth, attachUserPlan, requirePlan(['pro', 'enterprise']), async (req: Request, res: Response) => {
+router.get('/:subject', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.ANALYSIS_PLANS), async (req: Request, res: Response) => {
   try {
     const { subject } = req.params;
     const userId = (req as any)?.user?.uid;
@@ -366,7 +367,7 @@ router.get('/:subject', optionalAuth, attachUserPlan, requirePlan(['pro', 'enter
  * DELETE /api/analysis/:subject/:sessionId
  * Delete a marking result from subjectMarkingResults and set reAnalysisNeeded flag
  */
-router.delete('/:subject/:sessionId', optionalAuth, attachUserPlan, requirePlan(['pro', 'enterprise']), async (req: Request, res: Response) => {
+router.delete('/:subject/:sessionId', optionalAuth, attachUserPlan, requirePlan(PERMISSIONS.ANALYSIS_PLANS), async (req: Request, res: Response) => {
   try {
     const { subject, sessionId } = req.params;
     const userId = (req as any)?.user?.uid;

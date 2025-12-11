@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { MarkingPipelineService } from '../services/marking/MarkingPipelineService.js';
 import { sendSseUpdate } from '../utils/sseUtils.js';
+import { PERMISSIONS, hasPermission } from '../config/permissions.js';
 import { usageTracker } from '../utils/usageTracker.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 
@@ -39,9 +40,9 @@ export class MarkingController {
                 model: req.body.model
             };
 
-            // Enforce Plan Limits: Only Enterprise can select custom models
+            // Enforce Plan Limits: Only allowed plans can select custom models
             const userPlan = (req as any).userPlan || 'free';
-            if (userPlan !== 'enterprise' && options.model && options.model !== 'auto') {
+            if (!hasPermission(userPlan, PERMISSIONS.MODEL_SELECTION_PLANS) && options.model && options.model !== 'auto') {
                 console.log(`🔒 [PLAN LIMIT] User ${options.userId} (${userPlan}) tried to use model '${options.model}'. Forcing 'auto'.`);
                 options.model = 'auto';
             }

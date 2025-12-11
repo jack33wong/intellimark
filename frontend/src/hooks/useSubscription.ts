@@ -59,16 +59,16 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';
 
+    // Get allowed plans from env vars or default
+    const ALLOWED_ANALYSIS_PLANS = (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',');
+    const ALLOWED_MODEL_SELECTION_PLANS = (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',');
+
     const checkPermission = (feature: 'analysis' | 'model_selection') => {
         if (feature === 'analysis') {
-            // Free: Block Analysis
-            // Pro/Enterprise: Allowed
-            return planId !== 'free';
+            return ALLOWED_ANALYSIS_PLANS.includes(planId);
         }
         if (feature === 'model_selection') {
-            // Free/Pro: Block Model Selection
-            // Enterprise: Allowed
-            return planId === 'enterprise';
+            return ALLOWED_MODEL_SELECTION_PLANS.includes(planId);
         }
         return false;
     };
