@@ -18,3 +18,8 @@ export const PERMISSIONS = {
 export const hasPermission = (userPlan: string, allowedPlans: string[]): boolean => {
     return allowedPlans.includes(userPlan);
 };
+
+// Log loaded configuration for verification
+console.log('✅ Permissions configuration loaded from .env.local:');
+console.log(`   - Analysis Plans: ${PERMISSIONS.ANALYSIS_PLANS.join(', ')}`);
+console.log(`   - Model Selection Plans: ${PERMISSIONS.MODEL_SELECTION_PLANS.join(', ')}`);
