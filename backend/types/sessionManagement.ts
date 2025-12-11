@@ -55,6 +55,11 @@ export interface SessionStats {
   totalAnnotations: number;
   apiRequests?: number;
   apiRequestBreakdown?: { [key: string]: number };
+  totalCost?: number; // ADDED: Cost from UsageTracker (single source of truth)
+  costBreakdown?: {    // ADDED: Cost breakdown
+    llmCost: number;
+    mathpixCost: number;
+  };
 }
 
 export interface CreateSessionData {
