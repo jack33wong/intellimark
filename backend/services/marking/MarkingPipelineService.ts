@@ -873,7 +873,16 @@ export class MarkingPipelineService {
                     logStep,
                     usageTracker
                 });
-                return;
+
+                // CRITICAL FIX: Return result with sessionId for credit deduction
+                return {
+                    mode: 'Question',
+                    sessionId: questionOnlyResult.sessionId,
+                    unifiedSession: questionOnlyResult.unifiedSession,
+                    message: questionOnlyResult.message,
+                    annotatedOutput: [],
+                    results: []
+                };
             }
 
             // ========================= ENHANCED MARKING MODE =========================
