@@ -125,18 +125,17 @@ export class MarkingPersistenceService {
 
                 // Handle array format from unifiedSession.questionResponses
                 if (Array.isArray(questionOnlyClassificationResult)) {
-                    // FIX: Use raw response, NOT formattedResponse (which already has headers)
-                    // formattedResponse = "Question 1\n\n<answer>" (from QuestionModeHandler)
-                    // We're adding "Question X" again here, causing duplicates
-                    // Solution: Use qr.response (raw answer without header)
+                    // REUSE Question Mode's formatted responses AS-IS (no duplicate formatting!)
+                    // qr.response already has the proper markdown header from QuestionModeHandler
+                    // Example: "### Question 1 (1 mark)\n\n<answer with marking codes>"
                     const formattedIndividualResponses = questionOnlyClassificationResult.map((qr: any, index: number) => {
-                        const response = qr.response || ''; // Use raw response, NOT formattedResponse
+                        const response = qr.response || ''; // Already formatted by Question Mode!
                         const isEmpty = !response || response.trim() === '';
                         if (isEmpty) {
-                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY - response: ${!!qr.response}`);
+                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY`);
                         }
-                        // Format: "Question 1\n\n<response>" - only ONE header now
-                        return `Question ${index + 1}\n\n${response}`;
+                        // NO additional header needed - already has "### Question X (Y marks)"
+                        return response;
                     }).filter(r => r);
 
                     // Join with line separators (same as pure question mode)
@@ -144,7 +143,7 @@ export class MarkingPersistenceService {
                     questionOnlyResponses = [formattedResponse]; // Single combined string
 
                     console.log(`[PERSISTENCE DEBUG] formattedIndividualResponses count: ${formattedIndividualResponses.length}`);
-                    console.log(`[PERSISTENCE] Formatted ${questionOnlyClassificationResult.length} question-only responses with headers and separators`);
+                    console.log(`[PERSISTENCE] Reused ${questionOnlyClassificationResult.length} pre-formatted question responses from Question Mode`);
                 } else if (questionOnlyClassificationResult.questions) {
                     // Legacy fallback - should not be used anymore
                     console.warn('[PERSISTENCE] Received old questionOnlyClassificationResult format - generating responses (DEPRECATED)');
