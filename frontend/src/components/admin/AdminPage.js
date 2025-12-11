@@ -2121,12 +2121,11 @@ function AdminPage() {
 
                 <div className="admin-credit-actions">
                   <button
-                    className="admin-btn admin-btn--warning"
+                    className="admin-btn admin-btn--danger"
                     onClick={async () => {
-                      if (!window.confirm('Reset credits to plan default?')) return;
+                      if (!window.confirm('⚠️ WARNING: This is a HARD RESET.\n\nThis will:\n1. Cancel any active Stripe subscription/schedule\n2. Set plan to Free\n3. WIPE all credits to 0\n\nAre you sure completely reset this user?')) return;
                       try {
                         const token = await getAuthToken();
-
                         const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
                           method: 'POST',
                           headers: {
@@ -2134,22 +2133,28 @@ function AdminPage() {
                           }
                         });
                         if (response.ok) {
-                          alert('Credits reset successfully!');
+                          alert('User has been HARD RESET successfully.');
                           // Refetch credits
                           const creditsResponse = await fetch(`http://localhost:5001/api/credits/${searchUserId}`);
                           if (creditsResponse.ok) {
                             setUserCredits(await creditsResponse.json());
                           }
+                          // Also refetch subscription if looking at it
+                          const subResponse = await fetch(`http://localhost:5001/api/payment/user-subscription/${searchUserId}`);
+                          if (subResponse.ok) {
+                            const subData = await subResponse.json();
+                            setUserSubscription(subData.subscription);
+                          }
                         } else {
-                          alert('Failed to reset credits');
+                          alert('Failed to reset user');
                         }
                       } catch (error) {
-                        console.error('Error resetting credits:', error);
-                        alert('Error resetting credits');
+                        console.error('Error resetting user:', error);
+                        alert('Error resetting user');
                       }
                     }}
                   >
-                    Reset to Plan Default
+                    Hard Reset User (Free + 0 Credits)
                   </button>
 
                   <div className="admin-adjust-credits">
