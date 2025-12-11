@@ -125,14 +125,17 @@ export class MarkingPersistenceService {
 
                 // Handle array format from unifiedSession.questionResponses
                 if (Array.isArray(questionOnlyClassificationResult)) {
-                    // Apply the same formatting as pure question mode (with headers and separators)
+                    // FIX: Use raw response, NOT formattedResponse (which already has headers)
+                    // formattedResponse = "Question 1\n\n<answer>" (from QuestionModeHandler)
+                    // We're adding "Question X" again here, causing duplicates
+                    // Solution: Use qr.response (raw answer without header)
                     const formattedIndividualResponses = questionOnlyClassificationResult.map((qr: any, index: number) => {
-                        const response = qr.formattedResponse || qr.response || '';
+                        const response = qr.response || ''; // Use raw response, NOT formattedResponse
                         const isEmpty = !response || response.trim() === '';
                         if (isEmpty) {
-                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY - formattedResponse: ${!!qr.formattedResponse}, response: ${!!qr.response}`);
+                            console.log(`[PERSISTENCE DEBUG] Response ${index + 1} (Q${qr.questionNumber}) is EMPTY - response: ${!!qr.response}`);
                         }
-                        // Format: "Question 1\n\n<response>"
+                        // Format: "Question 1\n\n<response>" - only ONE header now
                         return `Question ${index + 1}\n\n${response}`;
                     }).filter(r => r);
 
