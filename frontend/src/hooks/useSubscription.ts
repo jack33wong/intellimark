@@ -59,9 +59,21 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';
 
-    // Get allowed plans from env vars or default
-    const ALLOWED_ANALYSIS_PLANS = (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',');
-    const ALLOWED_MODEL_SELECTION_PLANS = (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',');
+    // Get allowed plans from env vars or default (ROBUST: trim spaces)
+    const ALLOWED_ANALYSIS_PLANS = (process.env.REACT_APP_PLAN_ANALYSIS || 'pro,enterprise').split(',').map(p => p.trim());
+    const ALLOWED_MODEL_SELECTION_PLANS = (process.env.REACT_APP_PLAN_MODEL_SELECTION || 'enterprise').split(',').map(p => p.trim());
+
+    // Debug log to verify configuration loading
+    useEffect(() => {
+        if (!loading && subscription) {
+            console.log('🔧 [CONFIG DEBUG] Loaded Permissions:', {
+                userPlan: planId,
+                analysisAllowed: ALLOWED_ANALYSIS_PLANS,
+                modelSelectionAllowed: ALLOWED_MODEL_SELECTION_PLANS,
+                rawEnvModel: process.env.REACT_APP_PLAN_MODEL_SELECTION
+            });
+        }
+    }, [loading, subscription, planId]);
 
     const checkPermission = (feature: 'analysis' | 'model_selection') => {
         if (feature === 'analysis') {
