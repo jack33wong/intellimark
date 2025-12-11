@@ -310,7 +310,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <button className="mark-homework-main-btn" onClick={handleGoToMarkHomework}>
           <BookOpen size={20} />
-          Mark Homework
+          <span>Mark Homework</span>
         </button>
         <button
           className="mark-homework-main-btn"
@@ -318,7 +318,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           style={{ marginTop: '8px' }}
         >
           <Library size={20} />
-          Library
+          <span>Library</span>
         </button>
         <button
           className={`mark-homework-main-btn ${!canAccessAnalysis ? 'disabled-feature' : ''}`}
@@ -335,7 +335,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           title={!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis"}
         >
           {canAccessAnalysis ? <BarChart3 size={20} /> : <Lock size={20} />}
-          Analysis
+          <span>Analysis</span>
         </button>
         <div className="sidebar-section">
           <div className="mark-history-tabs">
@@ -399,7 +399,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="admin-section">
           <div className="admin-link" onClick={() => navigate('/admin')}>
             <Settings size={16} />
-            Admin
+            <span>Admin</span>
           </div>
         </div>
       )}

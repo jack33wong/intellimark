@@ -21,8 +21,91 @@
   gap: 32px;
 }
 
+/* Collapsed state (Gemini-style mini sidebar) */
 .sidebar.collapsed {
-  transform: translateX(-100%);
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  transform: none;
+  /* Don't hide it, just shrink it */
+  padding: 0;
+  align-items: center;
+  /* Center items horizontally */
+}
+
+/* Hide text elements in collapsed mode */
+.sidebar.collapsed .sidebar-logo-text,
+.sidebar.collapsed .sidebar-logo-subtitle,
+.sidebar.collapsed .mark-homework-main-btn svg+span,
+/* Text inside main buttons */
+.sidebar.collapsed .mark-homework-main-btn::after,
+/* Hide any text content */
+.sidebar.collapsed .mark-history-tabs,
+.sidebar.collapsed .mark-history-content,
+/* Hide history text content */
+.sidebar.collapsed .mark-history-actions,
+.sidebar.collapsed .sidebar-section,
+.sidebar.collapsed .admin-link svg+span
+
+/* Text inside admin link */
+  {
+  display: none !important;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Specific adjustments for collapsed items */
+.sidebar.collapsed .mark-homework-main-btn {
+  justify-content: center;
+  padding: 10px;
+  width: 44px;
+  height: 44px;
+  margin: 4px auto;
+  /* Center button */
+  border-radius: 50%;
+  /* Circle shape or compact */
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-content {
+  align-items: center;
+  width: 100%;
+}
+
+.sidebar.collapsed .sidebar-header {
+  padding: 20px 10px;
+  justify-content: center;
+  width: 100%;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar.collapsed .sidebar-menu-toggle {
+  margin: 0;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+  margin: 0;
+}
+
+.sidebar.collapsed .sidebar-logo-img {
+  margin: 0;
+}
+
+/* Hide admin text */
+.sidebar.collapsed .admin-link {
+  justify-content: center;
+  padding: 12px;
+}
+
+/* Hide scrollbars/sections that don't fit */
+.sidebar.collapsed .mark-history-scrollable {
+  display: none;
 }
 
 /* Responsive sidebar */
@@ -60,8 +143,7 @@
 .sidebar-header {
   display: flex;
   align-items: center;
-
-  padding: 20px;
+  padding: 16px;
   flex-shrink: 0;
 }
 
