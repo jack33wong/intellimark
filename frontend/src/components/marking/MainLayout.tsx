@@ -1,10 +1,11 @@
+```typescript
 /**
  * MainLayout Component (TypeScript)
  * This is the definitive version with the fix for the re-mounting bug.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { useMarkingPage } from '../../contexts/MarkingPageContext';
+import { useMarkingPage } '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
@@ -37,8 +38,19 @@ const MainLayout: React.FC = () => {
 
   const isFollowUp = (chatMessages || []).length > 0;
 
+  // Auto-refresh Header credits when session completes
+  useEffect(() => {
+    // Only refresh for completed sessions (not temp)
+    if (currentSession && !currentSession.id?.startsWith('temp-')) {
+      console.log('[MainLayout] Session completed, refreshing Header credits');
+      if (typeof window.refreshHeaderSubscription === 'function') {
+        window.refreshHeaderSubscription();
+      }
+    }
+  }, [currentSession?.id]); // Trigger when session ID changes
+
   return (
-    <div className={`mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'}`}>
+    <div className={`mark - homework - page ${ isFollowUp ? 'chat-mode' : 'initial-mode' } `}>
       <div className="mark-homework-main-content">
         <div className="chat-container" ref={chatContainerRef}>
           {currentSession && (
@@ -67,9 +79,9 @@ const MainLayout: React.FC = () => {
               {/* Removed empty assistant message div that was causing ghost messages */}
           </div>
           
-          <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) ? 'show' : 'hidden'}`}>
+          <div className={`scroll - to - bottom - container ${ (showScrollButton || hasNewResponse) ? 'show' : 'hidden' } `}>
              <button 
-              className={`scroll-to-bottom-btn ${hasNewResponse ? 'new-response-btn' : ''}`}
+              className={`scroll - to - bottom - btn ${ hasNewResponse ? 'new-response-btn' : '' } `}
               onClick={hasNewResponse ? scrollToNewResponse : scrollToBottom}
             >
               {hasNewResponse ? (
@@ -81,7 +93,7 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
         
-        <div className={`follow-up-chat-input-container ${isFollowUp ? 'follow-up-bottom' : 'follow-up-center'}`}>
+        <div className={`follow - up - chat - input - container ${ isFollowUp ? 'follow-up-bottom' : 'follow-up-center' } `}>
             <FollowUpChatInput
                 selectedModel={selectedModel}
                 onModelChange={onModelChange}
