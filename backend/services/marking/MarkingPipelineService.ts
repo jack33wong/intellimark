@@ -188,9 +188,10 @@ export class MarkingPipelineService {
                     standardizedPages = await PdfProcessingService.convertPdfToImages(pdfBuffer);
 
                     // TEMP: Limit to first 10 pages
-                    const MAX_PAGES_LIMIT = 10;
+                    // Enforce Page Limit
+                    const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
                     if (standardizedPages.length > MAX_PAGES_LIMIT) {
-                        standardizedPages = standardizedPages.slice(0, MAX_PAGES_LIMIT);
+                        throw new Error(`Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
                     }
                     // Set originalFileName
                     standardizedPages.forEach((page) => {
@@ -215,17 +216,19 @@ export class MarkingPipelineService {
                                 return { index, pdfPages: [] };
                             }
 
-                            // TEMP: Limit to first 10 pages per PDF
-                            const MAX_PAGES_LIMIT = 10;
-                            const limitedPages = pdfPages.slice(0, MAX_PAGES_LIMIT);
+                            // Enforce Page Limit per PDF (part of total check later, but good early check)
+                            const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
+                            if (pdfPages.length > MAX_PAGES_LIMIT) {
+                                throw new Error(`Single PDF exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages.`);
+                            }
 
                             // Store original index
-                            limitedPages.forEach((page, pageIndex) => {
+                            pdfPages.forEach((page, pageIndex) => {
                                 page.originalFileName = file.originalname || `pdf-${index + 1}.pdf`;
                                 (page as any)._sourceIndex = index;
                             });
 
-                            return { index, pdfPages: limitedPages };
+                            return { index, pdfPages };
                         } catch (error) {
                             console.error(`❌ Failed to convert PDF ${index + 1} (${file.originalname}):`, error);
                             return { index, pdfPages: [] };
@@ -250,6 +253,13 @@ export class MarkingPipelineService {
                     }
 
                     standardizedPages = allPdfPages;
+
+                    // Enforce Total Page Limit for Multiple PDFs
+                    const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
+                    if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                        throw new Error(`Total upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} pages/images. Processed ${standardizedPages.length} pages.`);
+                    }
+
                     if (standardizedPages.length === 0) throw new Error('All PDF conversions yielded no pages.');
                     progressCallback(createProgressData(1, `Converted ${files.length} PDFs to ${standardizedPages.length} total pages.`, MULTI_IMAGE_STEPS));
                 }
@@ -465,6 +475,12 @@ export class MarkingPipelineService {
                 standardizedPages.forEach((page, index) => {
                     page.pageIndex = index;
                 });
+
+                // Enforce Page Limit for Multiple Images
+                const MAX_PAGES_LIMIT = parseInt(process.env.MAX_UPLOAD_PAGES || '50');
+                if (standardizedPages.length > MAX_PAGES_LIMIT) {
+                    throw new Error(`Upload exceeds the maximum limit of ${MAX_PAGES_LIMIT} images. Selected ${standardizedPages.length} images.`);
+                }
 
                 progressCallback(createProgressData(1, `Collected ${standardizedPages.length} image(s).`, MULTI_IMAGE_STEPS));
 

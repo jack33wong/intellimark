@@ -14,9 +14,12 @@ import {
   FileText,
   MessageSquare,
   Library,
-  BarChart3
+  Library,
+  BarChart3,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubscription } from '../../hooks/useSubscription';
 import MarkingHistoryService from '../../services/markingHistoryService';
 import { simpleSessionService } from '../../services/markingApiService';
 import { ensureStringContent } from '../../utils/contentUtils';
@@ -53,7 +56,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
+  const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const { checkPermission, loading: subLoading } = useSubscription();
+  const canAccessAnalysis = checkPermission('analysis');
 
   const initializeSessions = useCallback(async () => {
     if (!user?.uid) {
@@ -315,11 +321,20 @@ const Sidebar: React.FC<SidebarProps> = ({
           Library
         </button>
         <button
-          className="mark-homework-main-btn"
-          onClick={() => navigate('/analysis')}
-          style={{ marginTop: '8px' }}
+          className={`mark-homework-main-btn ${!canAccessAnalysis ? 'disabled-feature' : ''}`}
+          onClick={() => {
+            if (canAccessAnalysis) {
+              navigate('/analysis');
+            } else {
+              if (window.confirm('Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade?')) {
+                navigate('/subscription');
+              }
+            }
+          }}
+          style={{ marginTop: '8px', opacity: canAccessAnalysis ? 1 : 0.6 }}
+          title={!canAccessAnalysis ? "Available on Pro and Enterprise plans" : "Analysis"}
         >
-          <BarChart3 size={20} />
+          {canAccessAnalysis ? <BarChart3 size={20} /> : <Lock size={20} />}
           Analysis
         </button>
         <div className="sidebar-section">

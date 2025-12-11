@@ -7,6 +7,7 @@ import express from 'express';
 import multer from 'multer';
 import { MarkingController } from '../controllers/MarkingController.js';
 import { optionalAuth } from '../middleware/auth.js';
+import { attachUserPlan } from '../middleware/planMiddleware.js';
 
 // --- Configure Multer ---
 const upload = multer({
@@ -25,6 +26,7 @@ const router = express.Router();
  */
 router.post('/process',
   optionalAuth,
+  attachUserPlan,
   upload.array('files'),
   MarkingController.processMarkingRequest
 );

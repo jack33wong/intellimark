@@ -39,6 +39,13 @@ export class MarkingController {
                 model: req.body.model
             };
 
+            // Enforce Plan Limits: Only Enterprise can select custom models
+            const userPlan = (req as any).userPlan || 'free';
+            if (userPlan !== 'enterprise' && options.model && options.model !== 'auto') {
+                console.log(`🔒 [PLAN LIMIT] User ${options.userId} (${userPlan}) tried to use model '${options.model}'. Forcing 'auto'.`);
+                options.model = 'auto';
+            }
+
             const userId = options.userId;
 
             console.log(`🔍 [CREDIT DEBUG] userId: ${userId}, isAuthenticated: ${!!userId}, isAnonymous: ${userId === 'anonymous'}`);
