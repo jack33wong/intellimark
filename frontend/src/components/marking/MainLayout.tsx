@@ -90,17 +90,6 @@ const MainLayout: React.FC = () => {
                   onEnterSplitMode={enterSplitMode}
                 />
               ))}
-
-              {isProcessing && (
-                <div className="chat-message assistant">
-                  <div className="chat-message-bubble processing">
-                    <div className="assistant-header">
-                      <Brain className="assistant-brain-icon" />
-                      <span>AI Thinking...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
