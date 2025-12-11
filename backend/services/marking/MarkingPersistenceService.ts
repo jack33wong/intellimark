@@ -226,6 +226,20 @@ export class MarkingPersistenceService {
             markingContext.apiRequests = usageTracker.getTotalRequests();
             markingContext.apiRequestBreakdown = apiRequestCounts;
 
+            // CRITICAL: Calculate total cost from UsageTracker (single source of truth)
+            // This ensures logged cost matches credit deduction
+            const { getMathpixPricing } = await import('../../config/pricing.js');
+            const llmCost = usageTracker.getTotalCost(actualModel); // Actual LLM cost from UsageTracker
+            const mathpixCost = mathpixCallCount * getMathpixPricing(); // Mathpix cost
+            const totalCost = llmCost + mathpixCost;
+
+            // Store totalCost in context for sessionStats
+            markingContext.totalCost = totalCost;
+            markingContext.costBreakdown = {
+                llmCost,
+                mathpixCost
+            };
+
             stepTimings['database_persistence'] = { start: Date.now() };
             persistenceResult = await SessionManagementService.persistMarkingSession(markingContext);
             if (stepTimings['database_persistence']) {

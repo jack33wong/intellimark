@@ -538,16 +538,25 @@ export class FirestoreService {
       // Calculate cost for the session if sessionStats exists
       let finalSessionStats = sessionStats || null;
       if (sessionStats) {
-        const { calculateTotalCost } = await import('../utils/CostCalculator.js');
-        const cost = calculateTotalCost(sessionStats);
-        finalSessionStats = {
-          ...sessionStats,
-          totalCost: cost.total,
-          costBreakdown: {
-            llmCost: cost.llmCost,
-            mathpixCost: cost.mathpixCost
-          }
-        };
+        // CRITICAL: Reuse UsageTracker cost if already calculated (single source of truth)
+        // Otherwise fall back to calculateTotalCost
+        if (sessionStats.totalCost !== undefined && sessionStats.costBreakdown) {
+          // Already has UsageTracker cost - REUSE IT!
+          console.log(`💰 [FIRESTORE] Using UsageTracker cost: $${sessionStats.totalCost} (llm: $${sessionStats.costBreakdown.llmCost} + mathpix: $${sessionStats.costBreakdown.mathpixCost})`);
+          finalSessionStats = sessionStats;
+        } else {
+          // Fall back to calculateTotalCost for backward compatibility
+          const { calculateTotalCost } = await import('../utils/CostCalculator.js');
+          const cost = calculateTotalCost(sessionStats);
+          finalSessionStats = {
+            ...sessionStats,
+            totalCost: cost.total,
+            costBreakdown: {
+              llmCost: cost.llmCost,
+              mathpixCost: cost.mathpixCost
+            }
+          };
+        }
       }
 
       const sessionDoc: any = {

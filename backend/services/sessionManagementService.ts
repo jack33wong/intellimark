@@ -434,6 +434,13 @@ export class SessionManagementService {
       stats.apiRequestBreakdown = (context as MarkingSessionContext).apiRequestBreakdown;
     }
 
+    // CRITICAL: Use UsageTracker cost if available (single source of truth)
+    // This ensures logged cost matches credit deduction
+    if ((context as any).totalCost !== undefined) {
+      stats.totalCost = (context as any).totalCost;
+      stats.costBreakdown = (context as any).costBreakdown;
+    }
+
     return stats;
   }
 
