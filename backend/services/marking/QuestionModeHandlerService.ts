@@ -484,13 +484,13 @@ export class QuestionModeHandlerService {
     }
 
     // Add questionResponses to unifiedSession for mixed mode
-    // CRITICAL: Use rawResponse (without header) for Mixed Mode
-    // Mixed Mode will add its own "Question X" header
+    // Use ar.response which has the markdown headers: "### Question 1 (1 mark)\n\n<answer>"
+    // Mixed Mode will reuse these AS-IS without adding more headers
     if (unifiedSession) {
       unifiedSession.questionResponses = aiResponses.map((ar: any) => ({
         questionNumber: ar.questionNumber,
         questionText: questionDetection.questions[ar.questionIndex]?.questionText || '',
-        response: ar.rawResponse, // RAW response without header (for Mixed Mode)
+        response: ar.response, // Formatted response WITH markdown headers
         apiUsed: ar.apiUsed,
         usageTokens: ar.usageTokens
       }));
