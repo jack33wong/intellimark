@@ -307,6 +307,9 @@ export class QuestionModeHandlerService {
         // Step 2: Prepend markdown header with parent marks
         const marksText = parentMarks > 0 ? ` (${parentMarks} ${parentMarks === 1 ? 'mark' : 'marks'})` : '';
         const header = `### Question ${baseNumber}${marksText}\n\n`;
+
+        // CRITICAL: Save raw response BEFORE adding header (for Mixed Mode)
+        const rawResponseWithoutHeader = formattedResponse;
         formattedResponse = header + formattedResponse;
 
         // Step 3: Insert blank lines after marking codes for visual separation
@@ -318,7 +321,8 @@ export class QuestionModeHandlerService {
         return {
           questionIndex: groupIndex,
           questionNumber: mainQuestionNumber,
-          response: formattedResponse,
+          rawResponse: rawResponseWithoutHeader, // RAW for Mixed Mode (no header)
+          response: formattedResponse, // Formatted for Pure Question Mode (has header)
           apiUsed: response.apiUsed,
           usageTokens: response.usageTokens,
           inputTokens: response.inputTokens,
@@ -480,12 +484,13 @@ export class QuestionModeHandlerService {
     }
 
     // Add questionResponses to unifiedSession for mixed mode
-    // This allows MarkingPipeline to combine questionOnly responses with marking results
+    // CRITICAL: Use rawResponse (without header) for Mixed Mode
+    // Mixed Mode will add its own "Question X" header
     if (unifiedSession) {
       unifiedSession.questionResponses = aiResponses.map((ar: any) => ({
         questionNumber: ar.questionNumber,
         questionText: questionDetection.questions[ar.questionIndex]?.questionText || '',
-        response: ar.response,
+        response: ar.rawResponse, // RAW response without header (for Mixed Mode)
         apiUsed: ar.apiUsed,
         usageTokens: ar.usageTokens
       }));
