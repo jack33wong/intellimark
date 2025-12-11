@@ -103,9 +103,23 @@ router.get('/user-subscription/:userId', async (req, res) => {
       });
     }
 
+    // Fetch user credits to include in response
+    const { getUserCredits } = await import('../services/creditService.js');
+    const userCredits = await getUserCredits(userId);
+
+    // Add credits to subscription object
+    const subscriptionWithCredits = {
+      ...subscription,
+      credits: userCredits ? {
+        remainingCredits: userCredits.remainingCredits,
+        totalCredits: userCredits.totalCredits,
+        resetDate: userCredits.resetDate
+      } : null
+    };
+
     res.json({
       hasSubscription: true,
-      subscription
+      subscription: subscriptionWithCredits
     });
   } catch (error) {
     console.error('Error getting user subscription:', error);
@@ -282,8 +296,13 @@ router.post('/change-plan', async (req, res) => {
     if (isUpgrade) {
       // Immediate upgrade with proration
       const stripe = (await import('../config/stripe.js')).default;
+      const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
+
       const newPlanConfig = STRIPE_CONFIG.plans[newPlanId];
-      const newPriceId = newPlanConfig[billingCycle].priceId;
+      const productId = newPlanConfig[billingCycle].productId;
+
+      // Fetch the default price from the product
+      const newPriceId = await getDefaultPriceFromProduct(productId);
 
       const stripeSubscription = await stripe.subscriptions.retrieve(
         subscription.stripeSubscriptionId
@@ -310,7 +329,7 @@ router.post('/change-plan', async (req, res) => {
         userId,
         currentPlanId,
         newPlanId as 'free' | 'pro' | 'enterprise',
-        stripeSubscription.current_period_end * 1000
+        ((stripeSubscription as any).current_period_end || Math.floor(Date.now() / 1000)) * 1000
       );
 
       console.log(`⬆️ Immediate upgrade: ${currentPlanId} → ${newPlanId}`);
@@ -321,33 +340,62 @@ router.post('/change-plan', async (req, res) => {
         newPlan: newPlanId,
       });
     } else if (isDowngrade) {
-      // Schedule downgrade for next period
-      const schedule = await createDowngradeSchedule(
-        subscription.stripeSubscriptionId,
-        currentPlanId as 'pro' | 'enterprise',
-        newPlanId as 'free' | 'pro' | 'enterprise',
-        billingCycle as 'monthly' | 'yearly',
-        subscription.currentPeriodEnd
-      );
+      // Special case: Downgrading to FREE plan
+      if (newPlanId === 'free') {
+        // Cancel subscription at period end (not immediately)
+        const stripe = (await import('../config/stripe.js')).default;
 
-      // Update Firestore with schedule info
-      await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
-        scheduledPlanId: newPlanId,
-        scheduleId: schedule.id,
-        scheduleEffectiveDate: subscription.currentPeriodEnd * 1000,
-        planChangedAt: Date.now(),
-      });
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        });
 
-      console.log(`⬇️ Scheduled downgrade: ${currentPlanId} → ${newPlanId} on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
+        // Update Firestore with scheduled free plan
+        await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+          scheduledPlanId: 'free',
+          scheduleId: null, // No schedule for free plan
+          scheduleEffectiveDate: subscription.currentPeriodEnd * 1000,
+          planChangedAt: Date.now(),
+        });
 
-      res.json({
-        success: true,
-        changeType: 'scheduled_downgrade',
-        currentPlan: currentPlanId,
-        scheduledPlan: newPlanId,
-        effectiveDate: subscription.currentPeriodEnd * 1000,
-        scheduleId: schedule.id,
-      });
+        console.log(`⬇️ Scheduled downgrade to FREE: ${currentPlanId} → free on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
+
+        res.json({
+          success: true,
+          changeType: 'scheduled_downgrade',
+          currentPlan: currentPlanId,
+          scheduledPlan: 'free',
+          effectiveDate: subscription.currentPeriodEnd * 1000,
+          scheduleId: null,
+        });
+      } else {
+        // Regular downgrade between paid plans (pro <-> enterprise)
+        const schedule = await createDowngradeSchedule(
+          subscription.stripeSubscriptionId,
+          currentPlanId as 'pro' | 'enterprise',
+          newPlanId as 'free' | 'pro' | 'enterprise',
+          billingCycle as 'monthly' | 'yearly',
+          subscription.currentPeriodEnd
+        );
+
+        // Update Firestore with schedule info
+        await SubscriptionService.updateSubscription(subscription.stripeSubscriptionId, {
+          scheduledPlanId: newPlanId,
+          scheduleId: schedule.id,
+          scheduleEffectiveDate: subscription.currentPeriodEnd * 1000,
+          planChangedAt: Date.now(),
+        });
+
+        console.log(`⬇️ Scheduled downgrade: ${currentPlanId} → ${newPlanId} on ${new Date(subscription.currentPeriodEnd * 1000).toISOString()}`);
+
+        res.json({
+          success: true,
+          changeType: 'scheduled_downgrade',
+          currentPlan: currentPlanId,
+          scheduledPlan: newPlanId,
+          effectiveDate: subscription.currentPeriodEnd * 1000,
+          scheduleId: schedule.id,
+        });
+      }
     } else {
       // Same plan - no change
       res.status(400).json({ error: 'New plan is same as current plan' });
@@ -462,6 +510,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
     };
 
 
+
     const result = await SubscriptionService.createOrUpdateSubscription(subscriptionData);
 
     // Initialize user credits
@@ -469,7 +518,7 @@ router.post('/create-subscription-after-payment', async (req, res) => {
       await initializeUserCredits(
         userId,
         planId as 'free' | 'pro' | 'enterprise',
-        subscription.current_period_end * 1000
+        subscriptionData.currentPeriodEnd * 1000 // Use subscriptionData which has fallback
       );
       console.log('✅ User credits initialized for', planId);
     } catch (creditError) {
@@ -817,20 +866,23 @@ async function handleSubscriptionUpdated(subscription: any) {
     }
 
     if (isScheduledChange) {
-      // This is a scheduled plan change activating
-      console.log('📅 Scheduled plan change activated:', subscription.id);
+      // Update subscription in Firestore with new plan details
+      const stripe = (await import('../config/stripe.js')).default;
+      const stripeSubscription = await stripe.subscriptions.retrieve(subscription.id);
+      const newPriceId = stripeSubscription.items.data[0]?.price?.id;
 
-      // Extract new plan from price ID
-      const newPriceId = subscription.items.data[0]?.price?.id;
-      const { extractPlanIdFromPrice } = await import('../services/scheduleService.js');
-      const newPlanId = extractPlanIdFromPrice(newPriceId);
+      // Get product ID from price
+      const price = await stripe.prices.retrieve(newPriceId);
+      const productId = typeof price.product === 'string' ? price.product : price.product.id;
 
-      if (newPlanId && existingSubscription.scheduledPlanId) {
-        // Update subscription with new plan
+      const { extractPlanIdFromProduct } = await import('../services/scheduleService.js');
+      const newPlanId = extractPlanIdFromProduct(productId);
+
+      if (newPlanId) {
         await SubscriptionService.updateSubscription(subscription.id, {
           previousPlanId: existingSubscription.planId,
           planId: newPlanId,
-          amount: subscription.items.data[0]?.price?.unit_amount || 0,
+          amount: stripeSubscription.items.data[0]?.price?.unit_amount || 0,
           scheduledPlanId: null,  // Clear schedule
           scheduleId: null,
           scheduleEffectiveDate: null,

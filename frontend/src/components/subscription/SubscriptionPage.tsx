@@ -172,31 +172,198 @@ const SubscriptionPage: React.FC = () => {
   };
 
   const handleSubscribe = async (planId: Plan) => {
-    if (planId === 'free') {
-      alert('You are already on the free plan!');
-      return;
-    }
-
     if (!user) {
       alert('Please sign in to subscribe to a plan.');
       navigate('/login');
       return;
     }
 
+    // ============================================
+    // CASE 1: Already on this plan
+    // ============================================
+    if (planId === currentSubscription?.planId) {
+      alert('You are already on this plan!');
+      return;
+    }
+
+    // ============================================
+    // CASE 2: Already scheduled this plan
+    // ============================================
+    if (planId === currentSubscription?.scheduledPlanId) {
+      alert(`Change to ${SubscriptionService.getPlanDisplayName(planId)} is already scheduled.`);
+      return;
+    }
+
+    // ============================================
+    // CASE 2b: Block if ANY other schedule exists
+    // ============================================
+    if (currentSubscription?.scheduledPlanId && planId !== currentSubscription.scheduledPlanId) {
+      alert(
+        `⚠️ Plan Change Already Scheduled\n\n` +
+        `You have a scheduled change to ${SubscriptionService.getPlanDisplayName(currentSubscription.scheduledPlanId)}.\n` +
+        `Please cancel the existing schedule before making another change.`
+      );
+      return;
+    }
+
     const plan = plans.find(p => p.id === planId);
     if (!plan) return;
 
+    // ============================================
+    // CASE 3: Downgrade to Free (Cancel subscription)
+    // ============================================
+    if (planId === 'free' && currentSubscription && currentSubscription.planId !== 'free') {
+      const confirmDowngrade = window.confirm(
+        '⚠️ Cancel Subscription\n\n' +
+        'Your subscription will be cancelled at the end of your current billing period.\n' +
+        `You will keep your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits and credits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}.\n\n` +
+        'Are you sure you want to cancel?'
+      );
+
+      if (!confirmDowngrade) return;
+
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            newPlanId: 'free',
+            billingCycle: currentSubscription.billingCycle
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.details || 'Failed to cancel subscription');
+        }
+
+        const result = await response.json();
+        alert(
+          `✅ Subscription Cancelled!\n\n` +
+          `Your plan will end on ${new Date(result.effectiveDate).toLocaleDateString()}.\n` +
+          `You'll keep your current benefits and credits until then.`
+        );
+
+        // Refresh subscription data
+        const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+        setCurrentSubscription(subResponse.subscription);
+        refreshHeaderData();
+      } catch (error) {
+        console.error('Error cancelling subscription:', error);
+        alert(`Failed to cancel subscription: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      return;
+    }
+
+    // ============================================
+    // CASE 4: Plan Changes on Existing Subscription
+    // Upgrades: Immediate via /change-plan
+    // Downgrades: Scheduled via /change-plan
+    // ============================================
+    if (currentSubscription && currentSubscription.planId !== 'free') {
+      const currentLevel = getPlanLevel(currentSubscription.planId);
+      const newLevel = getPlanLevel(planId);
+      const isUpgrade = newLevel > currentLevel;
+      const isDowngrade = newLevel < currentLevel;
+
+      if (isUpgrade) {
+        // Immediate upgrade (server-side, like Netflix/Spotify)
+        const confirmUpgrade = window.confirm(
+          `⬆️ Upgrade to ${plan.name}\n\n` +
+          `You will be charged a prorated amount for the upgrade.\n` +
+          `Your new credits will be available immediately.\n\n` +
+          'Proceed with upgrade?'
+        );
+
+        if (!confirmUpgrade) return;
+
+        try {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.uid,
+              newPlanId: planId,
+              billingCycle: currentSubscription.billingCycle
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.details || 'Failed to upgrade plan');
+          }
+
+          const result = await response.json();
+          alert(`✅ Upgraded to ${plan.name}!\n\nYour new credits are now available.`);
+
+          // Refresh subscription data
+          const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+          setCurrentSubscription(subResponse.subscription);
+          refreshHeaderData();
+        } catch (error) {
+          console.error('Error upgrading plan:', error);
+          alert(`Failed to upgrade: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        return;
+      } else if (isDowngrade) {
+        // Scheduled downgrade
+        const confirmDowngrade = window.confirm(
+          `⬇️ Downgrade to ${plan.name}\n\n` +
+          `Your subscription will downgrade at the end of your current billing period.\n` +
+          `You will keep your ${SubscriptionService.getPlanDisplayName(currentSubscription.planId)} benefits and credits until ${new Date(currentSubscription.currentPeriodEnd * 1000).toLocaleDateString()}.\n\n` +
+          'Are you sure you want to downgrade?'
+        );
+
+        if (!confirmDowngrade) return;
+
+        try {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/change-plan`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.uid,
+              newPlanId: planId,
+              billingCycle: currentSubscription.billingCycle
+            })
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.details || 'Failed to schedule downgrade');
+          }
+
+          const result = await response.json();
+          alert(
+            `✅ Downgrade Scheduled!\n\n` +
+            `Your plan will downgrade to ${plan.name} on ${new Date(result.effectiveDate).toLocaleDateString()}.\n` +
+            `You'll keep your current benefits and credits until then.`
+          );
+
+          // Refresh subscription data
+          const subResponse = await SubscriptionService.getUserSubscription(user.uid);
+          setCurrentSubscription(subResponse.subscription);
+          refreshHeaderData();
+        } catch (error) {
+          console.error('Error scheduling downgrade:', error);
+          alert(`Failed to schedule downgrade: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        return;
+      }
+    }
+
+    // ============================================
+    // CASE 5: New Subscription
+    // Only new subscriptions use Stripe Checkout
+    // ============================================
     try {
-      // Create checkout session on backend
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/payment/create-checkout-session`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           planId,
           billingCycle,
-          userId: user.uid, // Include the user ID
+          userId: user.uid,
           successUrl: `${window.location.origin}/mark-homework?subscription=success`,
           cancelUrl: `${window.location.origin}/upgrade?canceled=true`,
         }),
@@ -206,11 +373,10 @@ const SubscriptionPage: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const { url: checkoutUrl } = await response.json(); // Renamed 'url' to 'checkoutUrl'
+      const { url: checkoutUrl } = await response.json();
 
       // Redirect to Stripe Checkout
       window.location.href = checkoutUrl;
-      refreshHeaderData(); // Added refresh call after successful subscription
     } catch (error) {
       console.error('Error creating checkout session:', error);
       alert('Failed to create checkout session. Please try again.');
@@ -335,20 +501,36 @@ const SubscriptionPage: React.FC = () => {
               </div>
 
               <button
-                className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId ? 'current' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSubscribe(plan.id);
-                }}
-                disabled={plan.id === currentSubscription?.planId}
+                onClick={() => handleSubscribe(plan.id)}
+                disabled={
+                  plan.id === currentSubscription?.planId ||
+                  (currentSubscription?.scheduledPlanId === plan.id) ||
+                  (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                }
+                className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId
+                    ? 'current'
+                    : (currentSubscription?.scheduledPlanId === plan.id)
+                      ? 'scheduled'
+                      : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                        ? 'disabled'
+                        : ''
+                  }`}
               >
                 {plan.id === currentSubscription?.planId
                   ? 'Current Plan'
-                  : plan.id === 'free'
-                    ? 'Downgrade to Free'
-                    : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
-                      ? `Downgrade to ${plan.name}`
-                      : `Upgrade to ${plan.name}`
+                  : (currentSubscription?.scheduledPlanId === plan.id)
+                    ? `Change Scheduled`
+                    : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                      ? 'Change Pending'
+                      : !currentSubscription
+                        ? plan.id === 'free'
+                          ? 'Get Started'
+                          : `Subscribe to ${plan.name}`
+                        : plan.id === 'free'
+                          ? 'Downgrade to Free'
+                          : currentSubscription && getPlanLevel(plan.id) < getPlanLevel(currentSubscription.planId)
+                            ? `Downgrade to ${plan.name}`
+                            : `Upgrade to ${plan.name}`
                 }
               </button>
 

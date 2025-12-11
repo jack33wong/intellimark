@@ -19,7 +19,9 @@ export async function createDowngradeSchedule(
     currentPeriodEnd: number
 ): Promise<Stripe.SubscriptionSchedule> {
     try {
-        // Get price IDs for both plans
+        const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
+
+        // Get product IDs for both plans
         const currentPlanConfig = STRIPE_CONFIG.plans[currentPlanId];
         const newPlanConfig = STRIPE_CONFIG.plans[newPlanId];
 
@@ -27,36 +29,56 @@ export async function createDowngradeSchedule(
             throw new Error(`Plan configuration not found for ${currentPlanId} or ${newPlanId}`);
         }
 
-        const currentPriceId = currentPlanConfig[billingCycle].priceId;
-        const newPriceId = newPlanConfig[billingCycle].priceId;
+        const currentProductId = currentPlanConfig[billingCycle].productId;
+        const newProductId = newPlanConfig[billingCycle].productId;
 
-        // Create subscription schedule
-        const schedule = await stripe.subscriptionSchedules.create({
-            from_subscription: subscriptionId,
+        // Fetch default prices from products
+        const newPriceId = await getDefaultPriceFromProduct(newProductId);
+
+        // Get current subscription 
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+        // Check if subscription already has a schedule
+        let schedule;
+        if (subscription.schedule) {
+            // Subscription already has a schedule, retrieve it
+            const scheduleId = typeof subscription.schedule === 'string'
+                ? subscription.schedule
+                : subscription.schedule.id;
+            schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+            console.log(`📋 Found existing schedule: ${scheduleId}`);
+        } else {
+            // Create new schedule from subscription
+            schedule = await stripe.subscriptionSchedules.create({
+                from_subscription: subscriptionId,
+            });
+            console.log(`📋 Created new schedule: ${schedule.id}`);
+        }
+
+        // Get the current phase from the schedule
+        const currentPhase = schedule.phases[0];
+
+        // Update the schedule: keep current phase, add new phase for downgrade
+        const updatedSchedule = await stripe.subscriptionSchedules.update(schedule.id, {
+            end_behavior: 'release',
             phases: [
-                // Phase 1: Current plan until period end
+                // Phase 1: Keep current phase as-is  
                 {
-                    items: [{ price: currentPriceId, quantity: 1 }],
-                    start_date: Math.floor(Date.now() / 1000),
+                    items: currentPhase.items,
+                    start_date: currentPhase.start_date,
                     end_date: currentPeriodEnd,
                 },
                 // Phase 2: New plan from period end onwards
                 {
                     items: [{ price: newPriceId, quantity: 1 }],
                     start_date: currentPeriodEnd,
-                    // No end_date = continues indefinitely
                 },
             ],
-            metadata: {
-                fromPlan: currentPlanId,
-                toPlan: newPlanId,
-                createdAt: Date.now().toString(),
-            },
         });
 
-        console.log(`✅ Created downgrade schedule: ${currentPlanId} → ${newPlanId} on ${new Date(currentPeriodEnd * 1000).toISOString()}`);
+        console.log(`✅ Scheduled downgrade: ${currentPlanId} → ${newPlanId} at ${new Date(currentPeriodEnd * 1000).toISOString()}`);
 
-        return schedule;
+        return updatedSchedule;
     } catch (error) {
         console.error('❌ Error creating downgrade schedule:', error);
         throw error;
@@ -96,12 +118,12 @@ export async function getActiveSchedule(
 }
 
 /**
- * Extract plan ID from Stripe price ID
+ * Extract plan ID from Stripe product ID
  */
-export function extractPlanIdFromPrice(priceId: string): 'free' | 'pro' | 'enterprise' | null {
-    // Match against known price IDs in config
+export function extractPlanIdFromProduct(productId: string): 'free' | 'pro' | 'enterprise' | null {
+    // Match against known product IDs in config
     for (const [planId, planConfig] of Object.entries(STRIPE_CONFIG.plans)) {
-        if (planConfig.monthly?.priceId === priceId || planConfig.yearly?.priceId === priceId) {
+        if (planConfig.monthly?.productId === productId || planConfig.yearly?.productId === productId) {
             return planId as 'free' | 'pro' | 'enterprise';
         }
     }
@@ -112,5 +134,5 @@ export default {
     createDowngradeSchedule,
     cancelSchedule,
     getActiveSchedule,
-    extractPlanIdFromPrice,
+    extractPlanIdFromProduct,
 };

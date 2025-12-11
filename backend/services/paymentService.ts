@@ -48,34 +48,18 @@ export class PaymentService {
       throw new Error(`Billing cycle ${billingCycle} not found for plan ${planId}`);
     }
 
-    let priceId = priceConfig.priceId;
+    const productId = priceConfig.productId;
 
-    // Check if priceId is actually a product ID (starts with 'prod_')
-    if (priceId && priceId.startsWith('prod_')) {
-      // Fetch the product to get its default price
-      const product = await stripe.products.retrieve(priceId, {
-        expand: ['default_price']
-      });
-
-      if (product.default_price) {
-        priceId = typeof product.default_price === 'string'
-          ? product.default_price
-          : product.default_price.id;
-      } else {
-        throw new Error(
-          `Product ${priceId} has no default price. Please set a default price in Stripe Dashboard or use a Price ID.`
-        );
-      }
-    }
-
-    // Validate that we have a valid price ID
-    if (!priceId || !priceId.startsWith('price_')) {
+    if (!productId) {
       throw new Error(
-        `Stripe Price ID not configured for ${planId} ${billingCycle}. ` +
-        `Please set STRIPE_${planId.toUpperCase()}_${billingCycle.toUpperCase()}_PRICE_ID in .env.local ` +
-        `with either a Price ID (price_xxx) or Product ID (prod_xxx)`
+        `Stripe Product ID not configured for ${planId} ${billingCycle}. ` +
+        `Please set STRIPE_${planId.toUpperCase()}_${billingCycle.toUpperCase()}_PRODUCT_ID in .env.local`
       );
     }
+
+    // Fetch the default price from the product
+    const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
+    const priceId = await getDefaultPriceFromProduct(productId);
 
     console.log(`Creating checkout session for plan "${planId}" (${billingCycle}) with price ID: ${priceId}`);
 
@@ -188,7 +172,7 @@ export class PaymentService {
     };
   }
 
-  async createSubscription(data: SubscriptionData) {
+  async createSubscription(data: CreateSubscriptionRequest) {
     const { planId, billingCycle, customerEmail, customerId } = data;
 
     const planConfig = STRIPE_CONFIG.plans[planId as keyof typeof STRIPE_CONFIG.plans];
@@ -201,7 +185,10 @@ export class PaymentService {
       throw new Error(`Billing cycle ${billingCycle} not found for plan ${planId}`);
     }
 
-    // Create or retrieve customer
+    // Fetch the default price from the product
+    const { getDefaultPriceFromProduct } = await import('../config/stripe.js');
+    const priceId = await getDefaultPriceFromProduct(priceConfig.productId);
+
     let customer;
     if (customerId) {
       try {

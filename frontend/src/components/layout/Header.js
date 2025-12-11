@@ -131,6 +131,23 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
 
       createSubscriptionRecord();
 
+      // Refresh credits after successful subscription
+      setTimeout(async () => {
+        try {
+          const timestamp = Date.now();
+          const creditsResponse = await fetch(`${API_CONFIG.BASE_URL}/api/credits/${user.uid}?t=${timestamp}`, {
+            cache: 'no-store'
+          });
+          if (creditsResponse.ok) {
+            const creditsData = await creditsResponse.json();
+            setUserCredits(creditsData);
+            console.log('✅ Credits synced after subscription:', creditsData);
+          }
+        } catch (creditsError) {
+          console.error('Error syncing credits:', creditsError);
+        }
+      }, 1000); // Wait 1 second for backend to initialize credits
+
       // Clean up URL parameters
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);

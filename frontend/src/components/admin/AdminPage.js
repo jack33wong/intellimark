@@ -2125,8 +2125,13 @@ function AdminPage() {
                     onClick={async () => {
                       if (!window.confirm('Reset credits to plan default?')) return;
                       try {
+                        const token = await getAuthToken();
+
                         const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/reset`, {
-                          method: 'POST'
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          }
                         });
                         if (response.ok) {
                           alert('Credits reset successfully!');
@@ -2164,9 +2169,13 @@ function AdminPage() {
                           return;
                         }
                         try {
+                          const token = await getAuthToken();
                           const response = await fetch(`http://localhost:5001/api/admin/credits/${searchUserId}/adjust`, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${token}`
+                            },
                             body: JSON.stringify({ adjustment: amount })
                           });
                           if (response.ok) {
