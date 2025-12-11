@@ -14,7 +14,7 @@ import {
   FileText,
   MessageSquare,
   Library,
-  Library,
+
   BarChart3,
   Lock
 } from 'lucide-react';
@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
-  const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
+
   const editInputRef = useRef<HTMLInputElement>(null);
   const { checkPermission, loading: subLoading } = useSubscription();
   const canAccessAnalysis = checkPermission('analysis');
