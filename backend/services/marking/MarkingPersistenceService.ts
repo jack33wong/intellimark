@@ -226,17 +226,13 @@ export class MarkingPersistenceService {
             markingContext.apiRequests = usageTracker.getTotalRequests();
             markingContext.apiRequestBreakdown = apiRequestCounts;
 
-            // CRITICAL: Calculate total cost from UsageTracker (single source of truth)
-            // This ensures logged cost matches credit deduction
-            const { getMathpixPricing } = await import('../../config/pricing.js');
-            const llmCost = usageTracker.getTotalCost(actualModel); // Actual LLM cost from UsageTracker
-            const mathpixPricing = getMathpixPricing();
-            const mathpixCost = mathpixCallCount * mathpixPricing; // Mathpix cost
-            const totalCost = llmCost + mathpixCost;
+            // CRITICAL: Use UsageTracker combined total directly (NO recalculation!)
+            // This is the EXACT value shown in UsageTracker summary
+            const totalCost = usageTracker.getCombinedTotal(actualModel, mathpixCallCount);
+            const llmCost = usageTracker.getTotalCost(actualModel);
+            const mathpixCost = totalCost - llmCost; // Derive from total
 
-            // DEBUG: Log cost calculation
-            console.log(`💰 [COST CALC] mathpixCallCount: ${mathpixCallCount}, mathpixPricing: $${mathpixPricing}, mathpixCost: $${mathpixCost}`);
-            console.log(`💰 [COST CALC] llmCost: $${llmCost}, totalCost: $${totalCost}`);
+            console.log(`💰 [COST] UsageTracker Combined Total: $${totalCost} (LLM: $${llmCost} + Mathpix: $${mathpixCost})`);
 
             // Store totalCost in context for sessionStats
             markingContext.totalCost = totalCost;

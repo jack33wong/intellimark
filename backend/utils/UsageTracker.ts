@@ -118,6 +118,16 @@ export class UsageTracker {
     }
 
     /**
+     * Get combined total cost including Mathpix
+     * This is the SINGLE SOURCE OF TRUTH for total cost
+     */
+    getCombinedTotal(model: string, mathpixCalls: number): number {
+        const llmCost = this.getTotalCost(model);
+        const mathpixCost = mathpixCalls * 0.004; // $0.004 per page
+        return llmCost + mathpixCost;
+    }
+
+    /**
      * Calculate cost for a specific phase
      */
     private calculatePhaseCost(inputTokens: number, outputTokens: number, model?: string): number {
