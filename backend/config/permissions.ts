@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from .env.local (Safe practice)
+dotenv.config({ path: '.env.local' });
 
 export const PERMISSIONS = {
     // Parsing comma-separated strings into arrays
