@@ -875,14 +875,19 @@ export class MarkingPipelineService {
                 });
 
                 // CRITICAL FIX: Return result with sessionId for credit deduction
-                return {
+                const pureQuestionResult = {
                     mode: 'Question',
-                    sessionId: questionOnlyResult.sessionId,
-                    unifiedSession: questionOnlyResult.unifiedSession,
-                    message: questionOnlyResult.message,
+                    sessionId: questionOnlyResult?.sessionId,
+                    unifiedSession: questionOnlyResult?.unifiedSession,
+                    message: questionOnlyResult?.message,
                     annotatedOutput: [],
                     results: []
                 };
+                console.log(`\n🔍 [RETURN DEBUG] Pure Question Mode - Returning:`);
+                console.log(`   - sessionId: ${pureQuestionResult.sessionId}`);
+                console.log(`   - hasUnifiedSession: ${!!pureQuestionResult.unifiedSession}`);
+                console.log(`   - result object exists: true\n`);
+                return pureQuestionResult;
             }
 
             // ========================= ENHANCED MARKING MODE =========================
@@ -1103,6 +1108,9 @@ export class MarkingPipelineService {
                 };
 
 
+                console.log(`\n🔍 [RETURN DEBUG] No Marking Tasks - Returning:`);
+                console.log(`   - submissionId: ${finalOutput.submissionId}`);
+                console.log(`   - result object exists: true\n`);
                 // sendSseUpdate(res, { type: 'complete', result: finalOutput }, true);
                 // res.end();
                 return finalOutput; // Exit early
@@ -1456,6 +1464,11 @@ export class MarkingPipelineService {
             console.log(`🏁 ==========================================\n`);
             // ========================== END: IMPLEMENT STAGE 5 ==========================
 
+            console.log(`\n🔍 [RETURN DEBUG] Normal/Mixed Mode - Returning:`);
+            console.log(`   - sessionId: ${finalOutput.sessionId}`);
+            console.log(`   - hasUnifiedSession: ${!!finalOutput.unifiedSession}`);
+            console.log(`   - mode: ${finalOutput.mode || 'not set'}`);
+            console.log(`   - result object exists: true\n`);
             return finalOutput;
 
         } catch (error: any) {
