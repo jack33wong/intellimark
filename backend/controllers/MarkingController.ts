@@ -94,7 +94,9 @@ export class MarkingController {
 
             // Deduct credits after processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
-                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId: ${options.sessionId}`);
+                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId from result: ${result.sessionId}`);
+                const actualSessionId = result.sessionId || options.sessionId;
+
                 try {
                     // Wait briefly to ensure usageRecord is created
                     await new Promise(resolve => setTimeout(resolve, 500));
@@ -102,25 +104,25 @@ export class MarkingController {
                     // Get usage cost from usageRecords collection
                     const { getFirestore } = await import('../config/firebase.js');
                     const db = getFirestore();
-                    if (db && options.sessionId) {
-                        console.log(`💳 [CREDIT DEDUCT] Looking for usageRecord: ${options.sessionId}`);
-                        const usageDoc = await db.collection('usageRecords').doc(options.sessionId).get();
+                    if (db && actualSessionId) {
+                        console.log(`💳 [CREDIT DEDUCT] Looking for usageRecord: ${actualSessionId}`);
+                        const usageDoc = await db.collection('usageRecords').doc(actualSessionId).get();
                         if (usageDoc.exists) {
                             const usageData = usageDoc.data();
                             const actualCost = usageData?.totalCost || 0;
                             console.log(`💳 [CREDIT DEDUCT] Found usageRecord, totalCost: ${actualCost}`);
 
                             if (actualCost > 0) {
-                                await deductCredits(userId, actualCost, options.sessionId);
-                                console.log(`💳 Deducted ${actualCost} cost (session: ${options.sessionId}) from user ${userId}`);
+                                await deductCredits(userId, actualCost, actualSessionId);
+                                console.log(`💳 Deducted ${actualCost} credits (session: ${actualSessionId}) from user ${userId}`);
                             } else {
                                 console.log(`⚠️  [CREDIT DEDUCT] totalCost is 0, skipping deduction`);
                             }
                         } else {
-                            console.log(`⚠️  [CREDIT DEDUCT] usageRecord not found for session: ${options.sessionId}`);
+                            console.log(`⚠️  [CREDIT DEDUCT] usageRecord not found for session: ${actualSessionId}`);
                         }
                     } else {
-                        console.log(`⚠️  [CREDIT DEDUCT] Missing db or sessionId - db: ${!!db}, sessionId: ${options.sessionId}`);
+                        console.log(`⚠️  [CREDIT DEDUCT] Missing db or sessionId - db: ${!!db}, sessionId: ${actualSessionId}`);
                     }
                 } catch (error) {
                     console.error('❌ Credit deduction failed:', error);

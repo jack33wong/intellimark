@@ -1405,6 +1405,10 @@ export class MarkingPipelineService {
                     maxScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.totalMarks || 0), 0),
                     processingTime: (Date.now() - startTime) / 1000
                 },
+                // Add sessionId for credit deduction
+                sessionId: unifiedSession?.sessionId,
+                // Add sessionStats for usageRecord lookup
+                sessionStats: unifiedSession?.sessionStats || null,
                 // Add PDF context for frontend display
                 ...(pdfContext && {
                     originalFileType: pdfContext.originalFileType,
