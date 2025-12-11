@@ -37,6 +37,8 @@ const initialState = {
   selectedModel: getSavedModel(),
   showInfoDropdown: false,
   hoveredRating: 0,
+  splitModeImages: null,
+  activeImageIndex: 0,
 };
 
 function markingPageReducer(state, action) {
@@ -49,12 +51,22 @@ function markingPageReducer(state, action) {
       return { ...state, showInfoDropdown: !state.showInfoDropdown };
     case 'SET_HOVERED_RATING':
       return { ...state, hoveredRating: action.payload };
+    case 'ENTER_SPLIT_MODE':
+      return {
+        ...state,
+        splitModeImages: action.payload.images,
+        activeImageIndex: action.payload.index || 0
+      };
+    case 'EXIT_SPLIT_MODE':
+      return { ...state, splitModeImages: null, activeImageIndex: 0 };
+    case 'SET_ACTIVE_IMAGE_INDEX':
+      return { ...state, activeImageIndex: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
 }
 
-export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageModeChange }) => {
+export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageModeChange, setSidebarOpen }) => {
   const { user, getAuthToken } = useAuth();
   const { selectedFile, processImage, clearFile, handleFileSelect } = useImageUpload();
 
@@ -68,7 +80,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating } = state;
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex } = state;
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);
@@ -389,6 +401,22 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const onToggleInfoDropdown = useCallback(() => dispatch({ type: 'TOGGLE_INFO_DROPDOWN' }), []);
   const setHoveredRating = useCallback((rating) => dispatch({ type: 'SET_HOVERED_RATING', payload: rating }), []);
 
+  const enterSplitMode = useCallback((images, index = 0) => {
+    dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index } });
+    // Auto-collapse sidebar to mini mode (72px)
+    if (setSidebarOpen) {
+      setSidebarOpen(false); // Collapsed = false in your Sidebar logic
+    }
+  }, [setSidebarOpen]);
+
+  const exitSplitMode = useCallback(() => {
+    dispatch({ type: 'EXIT_SPLIT_MODE' });
+  }, []);
+
+  const setActiveImageIndex = useCallback((index) => {
+    dispatch({ type: 'SET_ACTIVE_IMAGE_INDEX', payload: index });
+  }, []);
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -405,12 +433,14 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     onFollowUpMultiImage: handleMultiImageAnalysis,
     getImageSrc,
     startAIThinking,
+    splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
-    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking
+    onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
+    splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex
   ]);
 
   return (

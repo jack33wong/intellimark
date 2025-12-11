@@ -36,6 +36,7 @@ interface ChatMessageProps {
   addMessage?: (message: any) => void; // Function to add messages to chat
   startAIThinking?: (progressData: any, aiMessageId?: string) => void;
   selectedModel?: string; // Selected AI model for follow-up requests
+  onEnterSplitMode?: (images: any[], index: number) => void; // Handler for Split Mode
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
@@ -48,7 +49,8 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   session,
   addMessage,
   startAIThinking,
-  selectedModel = 'gemini-2.0-flash' // Default to Gemini 2.0 Flash
+  selectedModel = 'gemini-2.0-flash', // Default to Gemini 2.0 Flash
+  onEnterSplitMode
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
@@ -130,7 +132,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
 
     if (imageDataArray.length > 0) {
-      // Convert image data array to SessionImage format for ImageModeModal
+
+
+      // Convert image data array to SessionImage format
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
         const originalFileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
@@ -139,19 +143,23 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         return {
           id: `multi-${message.id}-${idx}`,
           src: src,
-          filename: fileName, // FIXED: Add filename property
+          filename: fileName,
           alt: fileName,
           type: 'uploaded' as const
         };
       });
 
-      // Open ImageModeModal with the selected image
-      setIsImageModeOpen(true);
-      // Store the images and initial index for the modal
-      (window as any).__currentSessionImages = sessionImages;
-      (window as any).__currentImageIndex = index;
+      if (onEnterSplitMode) {
+        onEnterSplitMode(sessionImages, index);
+      } else {
+        // Fallback to local modal
+        setIsImageModeOpen(true);
+        (window as any).__currentSessionImages = sessionImages;
+        (window as any).__currentImageIndex = index;
+      }
     }
-  }, [message.id, getMultiImageData, message]);
+  }, [message.id, getMultiImageData, message, onEnterSplitMode]);
+
 
   const handleImageClick = useCallback(() => {
     if ((hasImage(message) || (message as any)?.imageDataArray?.length > 0) && !imageError) {
@@ -159,11 +167,19 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       if ((message as any)?.imageDataArray?.length > 0) {
         handleMultiImageClick(0); // Click on first image
       } else {
-        // For single image results, use the original logic
-        setIsImageModeOpen(true);
+        // For single image results
+        if (onEnterSplitMode && session) {
+          // Use session-wide images for navigation context
+          const sessionImages = getSessionImages(session);
+          const index = findImageIndex(sessionImages, message.id);
+          onEnterSplitMode(sessionImages, index >= 0 ? index : 0);
+        } else {
+          // Fallback to local modal
+          setIsImageModeOpen(true);
+        }
       }
     }
-  }, [message, imageError, handleMultiImageClick]);
+  }, [message, imageError, handleMultiImageClick, onEnterSplitMode, session]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {

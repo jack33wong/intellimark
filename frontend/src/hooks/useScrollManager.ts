@@ -9,23 +9,29 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
   const [hasNewResponse, setHasNewResponse] = useState(false);
   const [newResponseMessageId, setNewResponseMessageId] = useState<string | number | null>(null);
 
-  // 👇 FIX: The ref is now correctly typed to hold an HTMLDivElement.
-  const chatContainerRef = useRef<HTMLDivElement>(null);
+  // State to hold the actual DOM element. This triggers re-renders/effects when the node changes.
+  const [chatContainerElement, setChatContainerElement] = useState<HTMLDivElement | null>(null);
+
+  // Callback ref to capture the DOM element from the consumer
+  const chatContainerRef = useCallback((node: HTMLDivElement | null) => {
+    setChatContainerElement(node);
+  }, []);
+
   const prevMessagesCountRef = useRef(chatMessages.length);
   const prevIsAIThinkingRef = useRef(isAIThinking);
 
   const scrollToBottom = useCallback(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
+    if (chatContainerElement) {
+      chatContainerElement.scrollTo({
+        top: chatContainerElement.scrollHeight,
         behavior: 'smooth'
       });
     }
-  }, []);
+  }, [chatContainerElement]);
 
   const scrollToMessage = useCallback((messageId: string | number) => {
-    if (chatContainerRef.current && messageId) {
-      const targetMessage = chatContainerRef.current.querySelector(`[data-message-id="${messageId}"]`);
+    if (chatContainerElement && messageId) {
+      const targetMessage = chatContainerElement.querySelector(`[data-message-id="${messageId}"]`);
       if (targetMessage) {
         targetMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return true;
@@ -33,7 +39,7 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
     }
     scrollToBottom();
     return false;
-  }, [scrollToBottom]);
+  }, [chatContainerElement, scrollToBottom]);
 
   const scrollToNewResponse = useCallback(() => {
     if (newResponseMessageId) {
@@ -43,13 +49,16 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
     setNewResponseMessageId(null);
   }, [newResponseMessageId, scrollToMessage]);
 
+  // Effect to attach scroll listener whenever the element is available/changes
   useEffect(() => {
-    const container = chatContainerRef.current;
+    const container = chatContainerElement;
     if (!container) return;
 
     const handleScroll = () => {
+      // Show button if scrolled up more than 200px
       const isUp = container.scrollHeight - container.scrollTop - container.clientHeight > 200;
       setShowScrollButton(isUp);
+
       if (hasNewResponse && !isUp) {
         setHasNewResponse(false);
         setNewResponseMessageId(null);
@@ -59,8 +68,9 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
     container.addEventListener('scroll', handleScroll);
     handleScroll(); // Initial check
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [hasNewResponse]); 
+  }, [chatContainerElement, hasNewResponse]);
 
+  // Auto-scroll on new messages
   useEffect(() => {
     if (chatMessages.length > prevMessagesCountRef.current) {
       const lastMessage = chatMessages[chatMessages.length - 1];
@@ -74,7 +84,7 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
   useLayoutEffect(() => {
     if (prevIsAIThinkingRef.current === true && isAIThinking === false) {
       const animationFrameId = requestAnimationFrame(() => {
-        const container = chatContainerRef.current;
+        const container = chatContainerElement;
         if (!container) return;
         const lastMessage = chatMessages[chatMessages.length - 1];
         if (!lastMessage) return;
@@ -90,10 +100,10 @@ export const useScrollManager = (chatMessages: UnifiedMessage[], isAIThinking: b
       return () => cancelAnimationFrame(animationFrameId);
     }
     prevIsAIThinkingRef.current = isAIThinking;
-  }, [isAIThinking, chatMessages, scrollToBottom]);
+  }, [isAIThinking, chatMessages, scrollToBottom, chatContainerElement]);
 
   return {
-    chatContainerRef,
+    chatContainerRef, // Now exposing the callback
     showScrollButton,
     hasNewResponse,
     scrollToBottom,

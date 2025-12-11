@@ -71,8 +71,8 @@ function AppContent() {
   const AdminLayout = ({ children, hideHeader = false }: { children: React.ReactNode; hideHeader?: boolean }) => (
     <div className="app-container">
       <div className="app-body">
-        <Sidebar 
-          isOpen={isSidebarOpen} 
+        <Sidebar
+          isOpen={isSidebarOpen}
           onMarkingHistoryClick={handleMarkingHistoryClick}
           onMarkHomeworkClick={handleMarkHomeworkClick}
           onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -93,7 +93,7 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/upgrade" element={<SubscriptionPage />} />
-        
+
         <Route path="/library" element={
           <OptionalAuthRoute>
             <AdminLayout hideHeader={true}>
@@ -101,7 +101,7 @@ function AppContent() {
             </AdminLayout>
           </OptionalAuthRoute>
         } />
-        
+
         <Route path="/analysis" element={
           <OptionalAuthRoute>
             <AdminLayout hideHeader={true}>
@@ -109,7 +109,7 @@ function AppContent() {
             </AdminLayout>
           </OptionalAuthRoute>
         } />
-        
+
         <Route path="/admin" element={
           <ProtectedRoute requireAdmin={true}>
             <AdminLayout>
@@ -117,13 +117,13 @@ function AppContent() {
             </AdminLayout>
           </ProtectedRoute>
         } />
-        
+
         <Route path="/mark-homework" element={
           <OptionalAuthRoute>
             <div className="app-container">
               <div className="app-body">
-                <Sidebar 
-                  isOpen={isSidebarOpen} 
+                <Sidebar
+                  isOpen={isSidebarOpen}
                   onMarkingHistoryClick={handleMarkingHistoryClick}
                   onMarkHomeworkClick={handleMarkHomeworkClick}
                   onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -132,10 +132,11 @@ function AppContent() {
                 <div className={`right-side ${isChatMode ? 'chat-mode' : ''}`}>
                   <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
                   <div className="mark-homework-main-content">
-                    <MarkingPageProvider 
-                      key={markHomeworkResetKey} 
+                    <MarkingPageProvider
+                      key={markHomeworkResetKey}
                       selectedMarkingResult={selectedMarkingResult}
                       onPageModeChange={setIsChatMode}
+                      setSidebarOpen={setIsSidebarOpen}
                     >
                       <MarkingPage />
                     </MarkingPageProvider>
@@ -145,13 +146,13 @@ function AppContent() {
             </div>
           </OptionalAuthRoute>
         } />
-        
+
         <Route path="/" element={
           <OptionalAuthRoute>
-             <div className="app-container">
+            <div className="app-container">
               <div className="app-body">
-                <Sidebar 
-                  isOpen={isSidebarOpen} 
+                <Sidebar
+                  isOpen={isSidebarOpen}
                   onMarkingHistoryClick={handleMarkingHistoryClick}
                   onMarkHomeworkClick={handleMarkHomeworkClick}
                   onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -159,7 +160,7 @@ function AppContent() {
                 />
                 <div className="right-side">
                   <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-                   <div className="main-content">
+                  <div className="main-content">
                     <div className="welcome-message">
                       <h1>Welcome to IntelliMark</h1>
                       <p>Your AI-powered homework marking assistant</p>
@@ -179,9 +180,9 @@ function AppContent() {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router future={{ 
+      <Router future={{
         v7_startTransition: true,
-        v7_relativeSplatPath: true 
+        v7_relativeSplatPath: true
       }}>
         <AppContent />
       </Router>

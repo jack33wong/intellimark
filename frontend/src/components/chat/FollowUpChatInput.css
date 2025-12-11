@@ -14,6 +14,8 @@
   z-index: 100;
 }
 
+
+
 .followup-chat-input-bar.expanded {
   z-index: 1000;
 }
@@ -260,7 +262,7 @@
   border: none;
   outline: none;
   font-size: 16px;
- 
+
   color: var(--text-primary);
   resize: none;
   box-sizing: border-box;
@@ -340,43 +342,43 @@
     left: 0;
     padding: 8px 12px;
   }
-  
+
   .followup-single-line-container {
     gap: 8px;
     padding: 6px 10px;
   }
-  
+
   .followup-upload-button {
     min-height: 28px;
     min-width: 28px;
     padding: 6px;
     border-radius: 50%;
   }
-  
+
   .followup-upload-button svg {
     width: 12px;
     height: 12px;
   }
-  
+
   .followup-model-button {
     padding: 3px 8px;
     font-size: 11px;
     min-height: 28px;
     height: 28px;
   }
-  
+
   .followup-send-button {
     min-height: 28px;
     min-width: 28px;
     padding: 6px;
     border-radius: 50%;
   }
-  
+
   .followup-preview-image {
     width: 50px;
     height: 50px;
   }
-  
+
   .followup-remove-preview {
     width: 18px;
     height: 18px;

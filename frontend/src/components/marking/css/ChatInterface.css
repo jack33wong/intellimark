@@ -15,7 +15,8 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80vw; /* Match chat content width */
+  width: 80vw;
+  /* Match chat content width */
   max-width: 1100px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
@@ -26,52 +27,121 @@
 @media (max-width: 768px) {
   .follow-up-chat-input-container.follow-up-center {
     left: 50%;
-    width: 100vw; /* Full width on mobile */
+    width: 100vw;
+    /* Full width on mobile */
   }
 }
 
-/* Follow-up Chat Input Container - Bottom position (after transition) */
+/* Main Layout Flex Container for Chat Panel */
+.chat-panel-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Follow-up Chat Input Container - Bottom position (Systematic Fix) */
 .follow-up-chat-input-container.follow-up-bottom {
-  position: fixed;
-  bottom: 0;
+  position: relative;
+  /* Natural flow in flex container */
+  bottom: auto;
+  left: auto;
+  right: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  z-index: 100;
+  flex: 0 0 auto;
+  /* Don't shrink */
+  display: flex;
+  justify-content: center;
+  background: var(--background-gray-main);
+  padding: 0;
+}
+
+/* Ensure Chat Container takes remaining space */
+.chat-container {
+  flex: 1;
+  min-height: 0;
+  /* Crucial for scrolling inside flex */
+  overflow-y: auto;
+  width: 100%;
+}
+
+
+/* Scroll to Bottom Button - Centered relative to Chat Panel */
+.scroll-to-bottom-container {
+  position: absolute;
+  bottom: 90px;
+  /* Position above the input bar */
   left: 50%;
   transform: translateX(-50%);
-  width: 80vw; /* Match chat content width */
-  max-width: 1100px;
-  z-index: 1000;
-  transition: all 0.3s ease-in-out;
+  right: auto;
+  display: flex;
+  justify-content: center;
+  z-index: 1001;
+  opacity: 1;
+  transition: all 0.3s ease;
+  pointer-events: auto;
 }
 
 /* Compact styling for bottom input only */
 .follow-up-chat-input-container.follow-up-bottom .followup-chat-input-bar {
-  padding: 8px 12px; /* Reduced padding */
+  padding: 8px 12px;
+  /* Reduced padding */
+  position: relative !important;
+  /* Force reset of fixed positioning from UnifiedChatInput.css */
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 80% !important;
+  /* Reduced width by 20% */
+  margin: 0 auto !important;
+  /* Center the bar */
+  max-width: 800px;
+  /* Optional: prevent it from getting too wide */
+  border-radius: 12px;
+  /* Add radius since it's floating now */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-single-line-container {
-  padding: 4px 8px; /* More reduced padding */
-  border-radius: 6px; /* Smaller border radius */
-  gap: 8px; /* Reduced gap between elements */
+  padding: 4px 8px;
+  /* More reduced padding */
+  border-radius: 6px;
+  /* Smaller border radius */
+  gap: 8px;
+  /* Reduced gap between elements */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-text-input {
-  min-height: 24px; /* Match button height */
-  padding: 12px 10px 0px; /* More reduced padding */
-  font-size: 1rem; /* Smaller font */
+  min-height: 24px;
+  /* Match button height */
+  padding: 12px 10px 0px;
+  /* More reduced padding */
+  font-size: 1rem;
+  /* Smaller font */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .followup-upload-button {
-  height: 24px; /* More compact button */
+  height: 24px;
+  /* More compact button */
   width: 24px;
-  font-size: 12px; /* Smaller icon */
+  font-size: 12px;
+  /* Smaller icon */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .send-button {
-  height: 24px !important; /* More compact button */
+  height: 24px !important;
+  /* More compact button */
   width: 24px !important;
   min-height: 24px !important;
   min-width: 24px !important;
-  padding: 4px !important; /* Reduced padding */
-  font-size: 12px; /* Smaller icon */
+  padding: 4px !important;
+  /* Reduced padding */
+  font-size: 12px;
+  /* Smaller icon */
 }
 
 .follow-up-chat-input-container.follow-up-bottom .send-button.small {
@@ -90,16 +160,20 @@
 
 /* Model selector button in bottom input */
 .follow-up-chat-input-container.follow-up-bottom .model-selector-button {
-  height: 24px; /* More compact button */
-  padding: 4px 8px; /* Reduced padding */
-  font-size: 12px; /* Smaller text */
+  height: 24px;
+  /* More compact button */
+  padding: 4px 8px;
+  /* Reduced padding */
+  font-size: 12px;
+  /* Smaller text */
 }
 
 /* Mobile responsive - when sidebar is collapsed */
 @media (max-width: 768px) {
   .follow-up-chat-input-container.follow-up-bottom {
     left: 50%;
-    width: 100vw; /* Full width on mobile */
+    width: 100vw;
+    /* Full width on mobile */
   }
 }
 
@@ -118,10 +192,12 @@
   border: none;
   padding: 0;
   margin-top: 0;
-  height: 100vh; /* Full height for proper layout */
+  height: 100vh;
+  /* Full height for proper layout */
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Prevent page scrolling */
+  overflow: hidden;
+  /* Prevent page scrolling */
 }
 
 .mark-homework-page.chat-mode .chat-interface {
@@ -167,7 +243,8 @@
   border: none;
   padding: 0;
   margin-top: 0;
-  height: 100vh; /* Full height to work with parent container */
+  height: 100vh;
+  /* Full height to work with parent container */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -181,19 +258,24 @@
   padding: 0;
   margin: 0;
   align-items: stretch;
-  overflow-y: auto; /* Only this area scrolls */
+  overflow-y: auto;
+  /* Only this area scrolls */
   overflow-x: hidden;
   background: var(--background-gray-main);
-  max-height: 88vh; /* Limit the viewable height */
-  flex: 1; /* Take up remaining space in chat-mode */
-  min-height: 0; /* Allow flex item to shrink below content size */
+  max-height: 88vh;
+  /* Limit the viewable height */
+  flex: 1;
+  /* Take up remaining space in chat-mode */
+  min-height: 0;
+  /* Allow flex item to shrink below content size */
 }
 
 
 .chat-header {
   position: sticky !important;
   top: 0 !important;
-  z-index: 100 !important; /* Above main header (9998) */
+  z-index: 100 !important;
+  /* Above main header (9998) */
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
@@ -205,7 +287,8 @@
   transform: translateY(0) !important;
   transition: transform 0.3s ease-out, opacity 0.3s ease-out !important;
   opacity: 1 !important;
-  height: 50px !important; /* Slightly more compact for better scroll pane */
+  height: 50px !important;
+  /* Slightly more compact for better scroll pane */
 }
 
 .chat-header-content {
@@ -324,7 +407,8 @@
 }
 
 .header-btn.favorite-btn.favorited {
-  color: #ffc107; /* Gold color for favorited state */
+  color: #ffc107;
+  /* Gold color for favorited state */
 }
 
 .header-btn.favorite-btn.favorited:hover {
@@ -345,9 +429,10 @@
 
 .chat-messages {
   flex: 1;
-  padding-left  : 60px;
-  padding-right  : 60px;
-  padding-bottom: 40px; /* Extra bottom padding for last message visibility */
+  padding-left: 60px;
+  padding-right: 60px;
+  padding-bottom: 40px;
+  /* Extra bottom padding for last message visibility */
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -357,18 +442,23 @@
   background: transparent;
   border-radius: 0;
   border: none;
-  min-height: 0; /* Important for flex scrolling */
+  min-height: 0;
+  /* Important for flex scrolling */
 }
 
-/* Scroll to Bottom Button - Centered within input bar width */
+/* Scroll to Bottom Button - Centered relative to Chat Panel */
 .scroll-to-bottom-container {
-  position: fixed; /* Must be fixed to float */
-  bottom: 100px; /* Middle of chat input bar height */
-  left: 280px; /* Start after sidebar, same as input bar */
-  right: 0; /* Extend to right edge, same as input bar */
+  position: absolute;
+  bottom: 100px;
+  /* Position above the floating input bar */
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  width: auto;
+  /* Let content dictate width */
   display: flex;
-  justify-content: center; /* Center horizontally within input bar width */
-  z-index: 1001; /* Above input bar z-index: 1000 */
+  justify-content: center;
+  z-index: 1001;
   opacity: 1;
   transition: all 0.3s ease;
   pointer-events: auto;
@@ -376,11 +466,13 @@
 
 .scroll-to-bottom-container.show {
   opacity: 1;
+  visibility: visible;
 }
 
 .scroll-to-bottom-container.hidden {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .scroll-to-bottom-btn {
@@ -397,8 +489,10 @@
   transition: all 0.2s ease;
   color: white;
   font-size: 18px;
-  pointer-events: auto; /* Ensure button is clickable */
-  z-index: 1001; /* Higher z-index to ensure it's above other elements */
+  pointer-events: auto;
+  /* Ensure button is clickable */
+  z-index: 1001;
+  /* Higher z-index to ensure it's above other elements */
 }
 
 .scroll-to-bottom-btn:hover {
@@ -414,7 +508,8 @@
 
 /* New Response Button Styles */
 .scroll-to-bottom-btn.new-response-btn {
-  background: #10b981; /* Green color for new response */
+  background: #10b981;
+  /* Green color for new response */
 }
 
 .scroll-to-bottom-btn.new-response-btn.blinking {
@@ -422,7 +517,8 @@
 }
 
 .scroll-to-bottom-btn.new-response-btn:hover {
-  background: #059669; /* Darker green on hover */
+  background: #059669;
+  /* Darker green on hover */
   transform: translateY(-3px) scale(1.1);
   box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
 }
@@ -450,11 +546,15 @@
 
 /* Blink Animation */
 @keyframes blink {
-  0%, 50% {
+
+  0%,
+  50% {
     opacity: 1;
     transform: scale(1);
   }
-  25%, 75% {
+
+  25%,
+  75% {
     opacity: 0.7;
     transform: scale(0.95);
   }
@@ -470,7 +570,8 @@
 
 /* Ensure last message is fully visible */
 .chat-message:last-child {
-  margin-bottom: 24px; /* Extra margin for last message to ensure visibility */
+  margin-bottom: 24px;
+  /* Extra margin for last message to ensure visibility */
 }
 
 .chat-message.user {
@@ -529,7 +630,8 @@
 /* Annotated images can be slightly larger - maintain original orientation */
 .annotated-image {
   max-width: 500px;
-  max-height: none; /* Remove height constraint to maintain aspect ratio */
+  max-height: none;
+  /* Remove height constraint to maintain aspect ratio */
   border-radius: 8px;
 }
 
@@ -628,7 +730,8 @@
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-shrink: 0; /* Prevent shrinking */
+  flex-shrink: 0;
+  /* Prevent shrinking */
 }
 
 .thinking-dot {
@@ -661,7 +764,8 @@
   font-style: italic;
   font-weight: 500;
   text-align: center;
-  flex-shrink: 0; /* Prevent shrinking */
+  flex-shrink: 0;
+  /* Prevent shrinking */
 }
 
 .ai-thinking.expanded .thinking-text {
@@ -704,7 +808,7 @@
   padding-left: 0 !important;
 }
 
-.thinking-indicator details > * {
+.thinking-indicator details>* {
   margin-left: 0 !important;
   padding-left: 0 !important;
 }
@@ -787,16 +891,28 @@
 }
 
 @keyframes progressFill {
-  0% { width: 0%; }
-  50% { width: 70%; }
-  100% { width: 100%; }
+  0% {
+    width: 0%;
+  }
+
+  50% {
+    width: 70%;
+  }
+
+  100% {
+    width: 100%;
+  }
 }
 
 @keyframes thinkingPulse {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
+
   40% {
     transform: scale(1.2);
     opacity: 1;
@@ -970,4 +1086,3 @@
   color: var(--text-primary);
   font-weight: 500;
 }
-

@@ -12,11 +12,15 @@
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: #363537; /* Match chat history input background */
-  border: 1px solid #111827; /* Darker border to match chat input */
-  border-radius: 16px; /* More rounded corners */
+  background: #363537;
+  /* Match chat history input background */
+  border: 1px solid #111827;
+  /* Darker border to match chat input */
+  border-radius: 16px;
+  /* More rounded corners */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  min-width: 380px; /* Even wider dropdown */
+  min-width: 380px;
+  /* Even wider dropdown */
   z-index: 10000 !important;
   opacity: 1;
   transform: translateY(0);
@@ -31,14 +35,18 @@
 
 .info-dropdown-content {
   padding: 20px;
-  background: #363537; /* Match chat history input background */
-  border-radius: 16px; /* Match parent rounded corners */
-  overflow: hidden; /* Ensure content respects rounded corners */
+  background: #363537;
+  /* Match chat history input background */
+  border-radius: 16px;
+  /* Match parent rounded corners */
+  overflow: hidden;
+  /* Ensure content respects rounded corners */
 }
 
 /* Dropdown Header */
 .dropdown-header {
-  border-bottom: 1px solid #111827; /* Darker border to match chat input */
+  border-bottom: 1px solid #111827;
+  /* Darker border to match chat input */
   padding-bottom: 12px;
   margin-bottom: 16px;
 }
@@ -47,7 +55,8 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #ffffff; /* White text for contrast */
+  color: #ffffff;
+  /* White text for contrast */
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -75,7 +84,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid #111827; /* Darker border to match chat input */
+  border-bottom: 1px solid #111827;
+  /* Darker border to match chat input */
 }
 
 .label-value-item:last-child {
@@ -84,18 +94,21 @@
 
 .label-value-item .label {
   font-size: 13px;
-  color: #adb5bd; /* Light grey text */
+  color: #adb5bd;
+  /* Light grey text */
   font-weight: 500;
 }
 
 .label-value-item .value {
   font-size: 13px;
-  color: #ffffff; /* White text for contrast */
+  color: #ffffff;
+  /* White text for contrast */
   font-weight: 600;
 }
 
 .label-value-item .value.grade-value {
-  color: #3b82f6; /* Blue color for grade */
+  color: #3b82f6;
+  /* Blue color for grade */
   font-weight: 600;
 }
 
@@ -150,18 +163,24 @@
   justify-content: space-between;
   margin-bottom: 16px;
   padding: 12px;
-  background: #2a2a2b; /* Darker background for contrast */
-  border-radius: 12px; /* More rounded corners */
-  border: 1px solid #111827; /* Darker border to match chat input */
+  background: #2a2a2b;
+  /* Darker background for contrast */
+  border-radius: 12px;
+  /* More rounded corners */
+  border: 1px solid #111827;
+  /* Darker border to match chat input */
 }
 
 /* Cost Section */
 .cost-section {
   margin-bottom: 16px;
   padding: 12px;
-  background: #2a2a2b; /* Darker background for contrast */
-  border-radius: 12px; /* More rounded corners */
-  border: 1px solid #111827; /* Darker border to match chat input */
+  background: #2a2a2b;
+  /* Darker background for contrast */
+  border-radius: 12px;
+  /* More rounded corners */
+  border: 1px solid #111827;
+  /* Darker border to match chat input */
 }
 
 .cost-section .label-value-item {
@@ -202,16 +221,20 @@
   text-align: right;
 }
 
-.agent-info .label, .speed-info .label {
+.agent-info .label,
+.speed-info .label {
   font-size: 11px;
-  color: #adb5bd; /* Light grey text */
+  color: #adb5bd;
+  /* Light grey text */
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.agent-info .value, .speed-info .value {
+.agent-info .value,
+.speed-info .value {
   font-size: 14px;
-  color: #ffffff; /* White text for contrast */
+  color: #ffffff;
+  /* White text for contrast */
   font-weight: 600;
 }
 
@@ -228,15 +251,19 @@
   margin-bottom: 16px;
   margin-top: 16px;
   padding: 12px 16px;
-  background: #2a2a2b; /* Gray background */
-  border-radius: 12px; /* Rounded corners */
-  border: 1px solid #111827; /* Dark border */
+  background: #2a2a2b;
+  /* Gray background */
+  border-radius: 12px;
+  /* Rounded corners */
+  border: 1px solid #111827;
+  /* Dark border */
 }
 
 .dropdown-rating-section .rating-container {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* Left label, right stars */
+  justify-content: space-between;
+  /* Left label, right stars */
   width: 100%;
 }
 
@@ -246,7 +273,8 @@
 
 .dropdown-rating-section .rating-label .label {
   font-size: 13px;
-  color: #adb5bd; /* Light grey text */
+  color: #adb5bd;
+  /* Light grey text */
   font-weight: 500;
   margin: 0;
 }
@@ -259,7 +287,8 @@
 
 .rating-section .label {
   font-size: 13px;
-  color: #adb5bd; /* Light grey text */
+  color: #adb5bd;
+  /* Light grey text */
   font-weight: 500;
 }
 
@@ -267,18 +296,21 @@
 
 .star {
   font-size: 16px;
-  color: #6c757d; /* Medium grey for empty stars */
+  color: #6c757d;
+  /* Medium grey for empty stars */
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
 .star.filled {
-  color: #ffc107; /* Gold color for filled stars */
+  color: #ffc107;
+  /* Gold color for filled stars */
 }
 
 /* Dropdown Footer */
 .dropdown-footer {
-  border-top: 1px solid #111827; /* Darker border to match chat input */
+  border-top: 1px solid #111827;
+  /* Darker border to match chat input */
   padding-top: 12px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -300,14 +332,16 @@
 }
 
 .dropdown-footer .last-update {
-  grid-column: 1 / -1; /* Span full width */
+  grid-column: 1 / -1;
+  /* Span full width */
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid #111827;
 }
 
 .dropdown-footer .label {
-  color: #adb5bd; /* Light grey text */
+  color: #adb5bd;
+  /* Light grey text */
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -319,22 +353,26 @@
 }
 
 .dropdown-footer .value {
-  color: #ffffff; /* White text for contrast */
+  color: #ffffff;
+  /* White text for contrast */
   font-weight: 600;
 }
 
 /* Special styling for processing time */
 .dropdown-footer .processing-time .value {
-  color: #10b981; /* Green color for processing time */
+  color: #10b981;
+  /* Green color for processing time */
 }
 
 /* Special styling for token counts */
 .dropdown-footer .token-count .value {
-  color: #3b82f6; /* Blue color for LLM tokens */
+  color: #3b82f6;
+  /* Blue color for LLM tokens */
 }
 
 .dropdown-footer .mathpix-count .value {
-  color: #f59e0b; /* Orange color for Mathpix calls */
+  color: #f59e0b;
+  /* Orange color for Mathpix calls */
 }
 
 /* Back Button - House Style */
@@ -375,19 +413,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: nowrap; 
+  flex-wrap: nowrap;
   position: sticky;
   top: 0;
-  z-index: 100; 
-  margin: 0 auto ;
-  background: var(--background-gray-main) ;
-  flex-shrink: 0 ;
-  max-width: 1000px ;
-  width: 85vw ;
-  transform: translateY(0) ;
-  transition: transform 0.3s ease-out, opacity 0.3s ease-out ;
-  opacity: 1 ;
-  height: 50px ; /* Slightly more compact for better scroll pane */
+  z-index: 100;
+  margin: 0 auto;
+  background: var(--background-gray-main);
+  flex-shrink: 0;
+  max-width: 1000px;
+  width: 85vw;
+  transform: translateY(0);
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+  opacity: 1;
+  height: 50px;
+  /* Slightly more compact for better scroll pane */
   padding-left: 60px;
   padding-right: 60px;
 }
@@ -403,7 +442,7 @@
 .session-title {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-tertiary);
   margin: 0;
   line-height: 1.3;
   word-break: break-word;
@@ -415,7 +454,7 @@
   gap: 12px;
   flex-shrink: 0;
 }
- 
+
 
 /* Favorite button styles are defined in ChatInterface.css */
 
@@ -455,14 +494,13 @@
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .session-actions {
     justify-content: space-between;
     width: 100%;
   }
-  
+
   .session-title {
     font-size: 18px;
   }
 }
-

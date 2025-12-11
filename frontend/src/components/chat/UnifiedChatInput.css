@@ -120,15 +120,23 @@
 /* Follow-up mode title positioning */
 .chat-title-followup {
   position: fixed;
-  bottom: 200px; /* Position above the fixed input bar */
-  left: 280px; /* Match chat input box left position */
-  right: 0; /* Match chat input box right position */
-  max-width: 1000px; /* Match chat input box max width */
-  margin: 0 auto; /* Center the content within the available space */
-  text-align: left; /* Align text to left */
+  bottom: 200px;
+  /* Position above the fixed input bar */
+  left: 280px;
+  /* Match chat input box left position */
+  right: 0;
+  /* Match chat input box right position */
+  max-width: 1000px;
+  /* Match chat input box max width */
+  margin: 0 auto;
+  /* Center the content within the available space */
+  text-align: left;
+  /* Align text to left */
   z-index: 50;
-  pointer-events: none; /* Allow clicks to pass through */
-  padding: 0 16px; /* Match chat input box padding */
+  pointer-events: none;
+  /* Allow clicks to pass through */
+  padding: 0 16px;
+  /* Match chat input box padding */
 }
 
 /* Hide title when chat input is in bottom mode (chat mode) */
@@ -153,7 +161,8 @@
 .chat-mode .main-upload-input-bar {
   position: fixed;
   bottom: 0;
-  left: 280px; /* Start after sidebar width */
+  left: 280px;
+  /* Start after sidebar width */
   right: 0;
   top: auto;
   background: var(--background-gray-main);
@@ -170,24 +179,28 @@
     width: 90%;
     margin-bottom: 24px;
   }
-  
+
   .chat-title-followup {
-    left: 0; /* Full width on mobile (no sidebar) */
+    left: 0;
+    /* Full width on mobile (no sidebar) */
     right: 0;
-    bottom: 100px; /* Adjust for mobile */
-    padding: 0 20px; /* More padding on mobile */
+    bottom: 100px;
+    /* Adjust for mobile */
+    padding: 0 20px;
+    /* More padding on mobile */
   }
-  
+
   .chat-title-greeting {
     font-size: 28px;
   }
-  
+
   .chat-title-subtitle {
     font-size: 16px;
   }
-  
+
   .chat-mode .main-upload-input-bar {
-    left: 0; /* Full width on mobile */
+    left: 0;
+    /* Full width on mobile */
   }
 }
 
@@ -307,8 +320,13 @@
 }
 
 @keyframes loading-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 /* ============================================================================
@@ -324,6 +342,8 @@
   padding: 12px 16px;
   z-index: 100;
 }
+
+
 
 .followup-chat-input-bar.expanded {
   z-index: 1000;
@@ -522,7 +542,8 @@
   overflow-x: auto;
   overflow-y: scroll;
   max-height: 300px;
-  padding: 12px 12px 4px 0; /* Add right padding to prevent button clipping */
+  padding: 12px 12px 4px 0;
+  /* Add right padding to prevent button clipping */
   scrollbar-width: thin;
   scrollbar-color: #ccc transparent;
 }
@@ -595,9 +616,10 @@
 /* Mobile responsive - follow-up input bar takes full width when sidebar is hidden */
 @media (max-width: 768px) {
   .followup-chat-input-bar {
-    left: 0; /* Full width on mobile */
+    left: 0;
+    /* Full width on mobile */
   }
-  
+
   .multi-image-item .followup-preview-image {
     max-width: 150px;
     max-height: 120px;
