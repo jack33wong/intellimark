@@ -327,7 +327,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               navigate('/analysis');
             } else {
               if (window.confirm('Analysis feature is available on Pro and Enterprise plans. Would you like to upgrade?')) {
-                navigate('/subscription');
+                navigate('/upgrade');
               }
             }
           }}
