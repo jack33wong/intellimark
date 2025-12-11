@@ -77,8 +77,7 @@ export class MarkingController {
                 files,
                 submissionId,
                 options,
-                (progressData) => {
-                    (data: any) => sendSseUpdate(res, data)
+                (data: any) => sendSseUpdate(res, data)
             );
 
             console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
