@@ -46,59 +46,52 @@ const MainLayout: React.FC = () => {
             // unmounted and remounted, which was resetting the dropdown state.
             <SessionManagement key={currentSession.id} />
           )}
-        
+
           <div className="chat-messages">
-              {(chatMessages || []).map((message: any) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  onImageLoad={handleImageLoad}
-                  getImageSrc={getImageSrc}
-                  MarkdownMathRenderer={MarkdownMathRenderer}
-                  ensureStringContent={ensureStringContent}
-                  scrollToBottom={scrollToBottom}
-                  session={currentSession}
-                  addMessage={addMessage}
-                  startAIThinking={startAIThinking}
-                  selectedModel={selectedModel}
-                />
-              ))}
-              
-              {/* Removed empty assistant message div that was causing ghost messages */}
-          </div>
-          
-          <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) ? 'show' : 'hidden'}`}>
-             <button 
-              className={`scroll-to-bottom-btn ${hasNewResponse ? 'new-response-btn' : ''}`}
-              onClick={hasNewResponse ? scrollToNewResponse : scrollToBottom}
-            >
-              {hasNewResponse ? (
-                <div className="new-response-icon"><span>New</span><ChevronDown size={16} /></div>
-              ) : (
-                <ChevronDown size={20} />
-              )}
-            </button>
-          </div>
-        </div>
-        
-        <div className={`follow-up-chat-input-container ${isFollowUp ? 'follow-up-bottom' : 'follow-up-center'}`}>
-            <FollowUpChatInput
-                selectedModel={selectedModel}
-                onModelChange={onModelChange}
-                isProcessing={isProcessing}
-                onAnalyzeImage={handleImageAnalysis}
-                onFollowUpImage={handleImageAnalysis}
-                onAnalyzeMultiImage={onAnalyzeMultiImage}
-                onFollowUpMultiImage={onFollowUpMultiImage}
-                onSendMessage={onSendMessage}
-                mode={isFollowUp ? 'follow-up' : 'first-time'}
-                currentSession={currentSession}
-            />
-        </div>
-      </div>
-    </div>
-  );
+            <div className="main-layout">
+              <SessionHeader />
+              <div className="tab-container">
+                <div className="tab-headers">
+                  <button
+                    className={`tab-header ${view === 'annotated' ? 'active' : ''}`}
+                    onClick={() => onViewChange('annotated')}
+                  >
+                    Annotated Output
+                  </button>
+                  <button
+                    className={`tab-header ${view === 'exam' ? 'active' : ''}`}
+                    onClick={() => onViewChange('exam')}
+                  >
+                    Exam Paper
+                  </button>
+                </div>
+
+                <div className="tab-content">
+                  {view === 'annotated' && (
+                    <>
+                      <SessionFilters
+                        filterView={filterView}
+                        onFilterViewChange={onFilterViewChange}
+                      />
+                      {currentSession ? (
+                        <AnnotatedOutput
+                          session={currentSession}
+                          isLoading={resultsLoading}
+                        />
+                      ) : (
+                        <div className="no-session">No session loaded</div>
+                      )}
+                    </>
+                  )}
+
+                  {view === 'exam' && (
+                    <ExamPaperTab session={currentSession} />
+                  )}
+                </div>
+              </div>
+            </div>
+            );
 };
 
-export default MainLayout;
+            export default MainLayout;
 
