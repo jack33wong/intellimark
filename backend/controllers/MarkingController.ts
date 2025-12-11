@@ -78,10 +78,10 @@ export class MarkingController {
                 submissionId,
                 options,
                 (progressData) => {
-                    // 5. Handle Progress Updates (Callback)
-                    sendSseUpdate(res, progressData);
-                }
+                    (data: any) => sendSseUpdate(res, data)
             );
+
+            console.log(`✅ [CONTROLLER] Pipeline completed, result exists: ${!!result}, sessionId: ${result?.sessionId}`);
 
             // 6. Handle Completion (if not already handled by progressCallback with type: 'complete')
             // The service sends a 'complete' event via the callback, so we might not need to do anything here
@@ -94,8 +94,8 @@ export class MarkingController {
 
             // Deduct credits after processing (skip for anonymous users)
             if (userId && userId !== 'anonymous') {
-                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId from result: ${result.sessionId}`);
-                const actualSessionId = result.sessionId || options.sessionId;
+                console.log(`💳 [CREDIT DEDUCT] Starting deduction for user: ${userId}, sessionId from result: ${result?.sessionId}`);
+                const actualSessionId = result?.sessionId || options.sessionId;
 
                 try {
                     // Wait briefly to ensure usageRecord is created
