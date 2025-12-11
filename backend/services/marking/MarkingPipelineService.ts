@@ -846,7 +846,7 @@ export class MarkingPipelineService {
             if (isQuestionMode) {
                 // ========================= ENHANCED QUESTION MODE =========================
                 // Question mode: Handle multiple question-only images with detailed responses
-                await QuestionModeHandlerService.handleQuestionMode({
+                const questionOnlyResult = await QuestionModeHandlerService.handleQuestionMode({
                     classificationResult,
                     standardizedPages,
                     files,
