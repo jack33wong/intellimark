@@ -1405,53 +1405,48 @@ export class MarkingPipelineService {
                 unifiedSession: unifiedSession,
                 results: allQuestionResults,
                 metadata: {
-                    totalQuestions: allQuestionResults.length,
-                    totalScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.awardedMarks || 0), 0),
-                    maxScore: allQuestionResults.reduce((acc, r) => acc + (r.score?.totalMarks || 0), 0),
-                    processingTime: (Date.now() - startTime) / 1000
-                },
-                // Add sessionId for credit deduction
-                sessionId: unifiedSession?.sessionId,
-                // Add sessionStats for usageRecord lookup
-                sessionStats: unifiedSession?.sessionStats || null,
-                // Add PDF context for frontend display
-                ...(pdfContext && {
-                    originalFileType: pdfContext.originalFileType,
-                    originalPdfLink: pdfContext.originalPdfLink,
-                    originalPdfDataUrl: pdfContext.originalPdfDataUrl,
-                    originalFileName: pdfContext.originalFileName,
-                    // Include pdfContexts for multiple PDFs
-                    ...(pdfContext.pdfContexts && {
-                        pdfContexts: pdfContext.pdfContexts
+                    // Add sessionId for credit deduction (from questionOnly result or unified session)
+                    sessionId: questionOnlyResult?.sessionId || unifiedSession?.sessionId,
+                    // Add sessionStats for usageRecord lookup
+                    sessionStats: unifiedSession?.sessionStats || null,
+                    // Add PDF context for frontend display
+                    ...(pdfContext && {
+                        originalFileType: pdfContext.originalFileType,
+                        originalPdfLink: pdfContext.originalPdfLink,
+                        originalPdfDataUrl: pdfContext.originalPdfDataUrl,
+                        originalFileName: pdfContext.originalFileName,
+                        // Include pdfContexts for multiple PDFs
+                        ...(pdfContext.pdfContexts && {
+                            pdfContexts: pdfContext.pdfContexts
+                        })
                     })
-                })
-            };
+                };
 
-            // DEBUG: Show what's being sent to frontend
-            console.log('\n📤 [FINAL OUTPUT DEBUG] Sending to frontend:');
-            console.log(`   - annotatedOutput: ${finalOutput.annotatedOutput?.length || 0} images`);
-            console.log(`   - results: ${finalOutput.results?.length || 0} marking results`);
-            console.log(`   - unifiedSession exists: ${!!finalOutput.unifiedSession}`);
-            console.log(`   - questionResponses in AI message: ${combinedQuestionResponses.length > 0 ? 'YES' : 'NO'}`);
+                // DEBUG: Show what's being sent to frontend
+                console.log('\n📤 [FINAL OUTPUT DEBUG] Sending to frontend:');
+                console.log(`   - annotatedOutput: ${finalOutput.annotatedOutput?.length || 0} images`);
+                console.log(`   - results: ${finalOutput.results?.length || 0} marking results`);
+                console.log(`   - unifiedSession exists: ${!!finalOutput.unifiedSession}`);
+                console.log(`   - questionResponses in AI message: ${combinedQuestionResponses.length > 0 ? 'YES' : 'NO'}`);
 
-            // --- Send FINAL Complete Event ---
-            progressCallback({ type: 'complete', result: finalOutput }); // 'true' marks as final
+                // --- Send FINAL Complete Event ---
+                progressCallback({ type: 'complete', result: finalOutput }); // 'true' marks as final
 
             // --- Performance Summary ---
             const totalProcessingTime = Date.now() - startTime;
-            logAnnotationSummary(allQuestionResults, markingTasks);
+                logAnnotationSummary(allQuestionResults, markingTasks);
             logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
             console.log(usageTracker.getSummary(actualModel, totalMathpixCalls));
 
-            console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
-            console.log(`🏁 ==========================================\n`);
-            // ========================== END: IMPLEMENT STAGE 5 ==========================
+                console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
+                console.log(`🏁 ==========================================\n`);
+                // ========================== END: IMPLEMENT STAGE 5 ==========================
 
-            return finalOutput;
+                return finalOutput;
 
-        } catch (error: any) {
-            console.error('❌ Pipeline Error:', error);
-            throw error;
+            } catch (error: any) {
+                console.error('❌ Pipeline Error:', error);
+                throw error;
+            }
         }
-    }
 }
