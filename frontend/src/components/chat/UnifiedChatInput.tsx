@@ -4,6 +4,7 @@
  */
 import React, { useState, useCallback } from 'react';
 import { Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { ModelSelector, SendButton } from '../focused';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -36,6 +37,7 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
   onFollowUpMultiImage,
   currentSession,
 }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { checkPermission } = useSubscription();
   const canSelectModel = checkPermission('model_selection');
@@ -288,6 +290,17 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
     }
   }, [handleSendClick]);
 
+  const handleModelSelection = useCallback((newModel: string) => {
+    // If user is trying to change away from 'auto' (or the current allowed default), check permissions
+    if (newModel !== 'auto' && !canSelectModel) {
+      if (window.confirm('Custom model selection is available on Enterprise plan. Would you like to upgrade?')) {
+        navigate('/upgrade');
+      }
+      return;
+    }
+    onModelChange(newModel);
+  }, [canSelectModel, navigate, onModelChange]);
+
   const handleError = (error: Error) => {
     console.error("Component Error:", error);
   };
@@ -380,8 +393,8 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
                   {/* 👇 Disable model selection if session exists and has messages (model cannot be changed after session creation) */}
                   <ModelSelector
                     selectedModel={selectedModel}
-                    onModelChange={onModelChange}
-                    disabled={isProcessing || (currentSession && currentSession.messages && currentSession.messages.length > 0) || !canSelectModel}
+                    onModelChange={handleModelSelection}
+                    disabled={isProcessing || (currentSession && currentSession.messages && currentSession.messages.length > 0)}
                     size={mode === 'first-time' ? 'main' : 'small'}
                     onError={handleError}
                   />

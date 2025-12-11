@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import SubscriptionService from '../services/subscriptionService';
+import EventManager, { EVENT_TYPES } from '../utils/eventManager';
 import { UserSubscription } from '../types/payment';
 
 export interface UseSubscriptionResult {
@@ -44,6 +45,16 @@ export const useSubscription = (): UseSubscriptionResult => {
 
     useEffect(() => {
         fetchSubscription();
+
+        // Listen for subscription updates (e.g., after upgrade/downgrade)
+        const cleanup = EventManager.listen(EVENT_TYPES.SUBSCRIPTION_UPDATED, () => {
+            console.log('🔄 [useSubscription] Received update event, refreshing...');
+            fetchSubscription();
+        });
+
+        return () => {
+            cleanup();
+        };
     }, [user?.uid]);
 
     const planId = (subscription?.status === 'active' ? subscription.planId : 'free') as 'free' | 'pro' | 'enterprise';

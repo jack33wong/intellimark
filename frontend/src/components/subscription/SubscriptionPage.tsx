@@ -5,6 +5,7 @@ import { Plan, BillingCycle } from '../../types/payment';
 import { useAuth } from '../../contexts/AuthContext';
 import API_CONFIG from '../../config/api';
 import SubscriptionService from '../../services/subscriptionService';
+import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import './SubscriptionPage.css';
 import '../credits.css';
 
@@ -248,6 +249,8 @@ const SubscriptionPage: React.FC = () => {
         // Refresh subscription data
         const subResponse = await SubscriptionService.getUserSubscription(user.uid);
         setCurrentSubscription(subResponse.subscription);
+        // Dispatch event so other components refresh
+        EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
         refreshHeaderData();
       } catch (error) {
         console.error('Error cancelling subscription:', error);
@@ -300,6 +303,8 @@ const SubscriptionPage: React.FC = () => {
           // Refresh subscription data
           const subResponse = await SubscriptionService.getUserSubscription(user.uid);
           setCurrentSubscription(subResponse.subscription);
+          // Dispatch event so other components refresh
+          EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
           refreshHeaderData();
         } catch (error) {
           console.error('Error upgrading plan:', error);
@@ -343,6 +348,8 @@ const SubscriptionPage: React.FC = () => {
           // Refresh subscription data
           const subResponse = await SubscriptionService.getUserSubscription(user.uid);
           setCurrentSubscription(subResponse.subscription);
+          // Dispatch event so other components refresh
+          EventManager.dispatch(EVENT_TYPES.SUBSCRIPTION_UPDATED, { subscription: subResponse.subscription });
           refreshHeaderData();
         } catch (error) {
           console.error('Error scheduling downgrade:', error);
@@ -508,12 +515,12 @@ const SubscriptionPage: React.FC = () => {
                   (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
                 }
                 className={`upgrade-plan-subscribe-button ${plan.id === currentSubscription?.planId
-                    ? 'current'
-                    : (currentSubscription?.scheduledPlanId === plan.id)
-                      ? 'scheduled'
-                      : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
-                        ? 'disabled'
-                        : ''
+                  ? 'current'
+                  : (currentSubscription?.scheduledPlanId === plan.id)
+                    ? 'scheduled'
+                    : (currentSubscription?.scheduledPlanId && currentSubscription.scheduledPlanId !== plan.id)
+                      ? 'disabled'
+                      : ''
                   }`}
               >
                 {plan.id === currentSubscription?.planId

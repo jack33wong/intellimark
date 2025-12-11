@@ -52,7 +52,9 @@ export const EVENT_TYPES = {
   PAGE_MODE_CHANGED: 'pageModeChanged',
   CHAT_MESSAGE_SENT: 'chatMessageSent',
   IMAGE_UPLOADED: 'imageUploaded',
-  MARKING_COMPLETED: 'markingCompleted'
+  IMAGE_UPLOADED: 'imageUploaded',
+  MARKING_COMPLETED: 'markingCompleted',
+  SUBSCRIPTION_UPDATED: 'subscriptionUpdated'
 };
 
 export default EventManager;
