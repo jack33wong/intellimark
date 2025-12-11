@@ -230,8 +230,13 @@ export class MarkingPersistenceService {
             // This ensures logged cost matches credit deduction
             const { getMathpixPricing } = await import('../../config/pricing.js');
             const llmCost = usageTracker.getTotalCost(actualModel); // Actual LLM cost from UsageTracker
-            const mathpixCost = mathpixCallCount * getMathpixPricing(); // Mathpix cost
+            const mathpixPricing = getMathpixPricing();
+            const mathpixCost = mathpixCallCount * mathpixPricing; // Mathpix cost
             const totalCost = llmCost + mathpixCost;
+
+            // DEBUG: Log cost calculation
+            console.log(`💰 [COST CALC] mathpixCallCount: ${mathpixCallCount}, mathpixPricing: $${mathpixPricing}, mathpixCost: $${mathpixCost}`);
+            console.log(`💰 [COST CALC] llmCost: $${llmCost}, totalCost: $${totalCost}`);
 
             // Store totalCost in context for sessionStats
             markingContext.totalCost = totalCost;
