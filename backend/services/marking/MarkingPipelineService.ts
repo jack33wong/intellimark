@@ -1079,9 +1079,14 @@ export class MarkingPipelineService {
                 console.log('[PIPELINE DEBUG] No marking tasks created, exiting early');
                 progressCallback(createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
                 const finalOutput = {
-                    submissionId,
-                    annotatedOutput: standardizedPages.map(p => p.imageData), // Return originals if no work
-                    outputFormat: isPdf ? 'pdf' : 'images',
+                    annotatedOutput: [],
+                    results: [],
+                    mode: 'Question',
+                    unifiedSession: questionOnlyResult.unifiedSession,
+                    // Add sessionId for credit deduction (Question Mode)
+                    sessionId: questionOnlyResult.sessionId || questionOnlyResult.unifiedSession?.sessionId,
+                    // Add sessionStats for usageRecord lookup
+                    sessionStats: questionOnlyResult.unifiedSession?.sessionStats || null,
                     processingStats: {
                         totalLLMTokens,
                         totalMathpixCalls
