@@ -1,11 +1,10 @@
-```typescript
 /**
  * MainLayout Component (TypeScript)
  * This is the definitive version with the fix for the re-mounting bug.
  */
 import React, { useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { useMarkingPage } '../../contexts/MarkingPageContext';
+import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
 import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
@@ -40,17 +39,16 @@ const MainLayout: React.FC = () => {
 
   // Auto-refresh Header credits when session completes
   useEffect(() => {
-    // Only refresh for completed sessions (not temp)
     if (currentSession && !currentSession.id?.startsWith('temp-')) {
       console.log('[MainLayout] Session completed, refreshing Header credits');
       if (typeof window.refreshHeaderSubscription === 'function') {
         window.refreshHeaderSubscription();
       }
     }
-  }, [currentSession?.id]); // Trigger when session ID changes
+  }, [currentSession?.id]);
 
   return (
-    <div className={`mark - homework - page ${ isFollowUp ? 'chat-mode' : 'initial-mode' } `}>
+    <div className={`mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'}`}>
       <div className="mark-homework-main-content">
         <div className="chat-container" ref={chatContainerRef}>
           {currentSession && (
@@ -58,30 +56,30 @@ const MainLayout: React.FC = () => {
             // unmounted and remounted, which was resetting the dropdown state.
             <SessionManagement key={currentSession.id} />
           )}
-        
+
           <div className="chat-messages">
-              {(chatMessages || []).map((message: any) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  onImageLoad={handleImageLoad}
-                  getImageSrc={getImageSrc}
-                  MarkdownMathRenderer={MarkdownMathRenderer}
-                  ensureStringContent={ensureStringContent}
-                  scrollToBottom={scrollToBottom}
-                  session={currentSession}
-                  addMessage={addMessage}
-                  startAIThinking={startAIThinking}
-                  selectedModel={selectedModel}
-                />
-              ))}
-              
-              {/* Removed empty assistant message div that was causing ghost messages */}
+            {(chatMessages || []).map((message: any) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                onImageLoad={handleImageLoad}
+                getImageSrc={getImageSrc}
+                MarkdownMathRenderer={MarkdownMathRenderer}
+                ensureStringContent={ensureStringContent}
+                scrollToBottom={scrollToBottom}
+                session={currentSession}
+                addMessage={addMessage}
+                startAIThinking={startAIThinking}
+                selectedModel={selectedModel}
+              />
+            ))}
+
+            {/* Removed empty assistant message div that was causing ghost messages */}
           </div>
-          
-          <div className={`scroll - to - bottom - container ${ (showScrollButton || hasNewResponse) ? 'show' : 'hidden' } `}>
-             <button 
-              className={`scroll - to - bottom - btn ${ hasNewResponse ? 'new-response-btn' : '' } `}
+
+          <div className={`scroll-to-bottom-container ${(showScrollButton || hasNewResponse) ? 'show' : 'hidden'}`}>
+            <button
+              className={`scroll-to-bottom-btn ${hasNewResponse ? 'new-response-btn' : ''}`}
               onClick={hasNewResponse ? scrollToNewResponse : scrollToBottom}
             >
               {hasNewResponse ? (
@@ -92,20 +90,20 @@ const MainLayout: React.FC = () => {
             </button>
           </div>
         </div>
-        
-        <div className={`follow - up - chat - input - container ${ isFollowUp ? 'follow-up-bottom' : 'follow-up-center' } `}>
-            <FollowUpChatInput
-                selectedModel={selectedModel}
-                onModelChange={onModelChange}
-                isProcessing={isProcessing}
-                onAnalyzeImage={handleImageAnalysis}
-                onFollowUpImage={handleImageAnalysis}
-                onAnalyzeMultiImage={onAnalyzeMultiImage}
-                onFollowUpMultiImage={onFollowUpMultiImage}
-                onSendMessage={onSendMessage}
-                mode={isFollowUp ? 'follow-up' : 'first-time'}
-                currentSession={currentSession}
-            />
+
+        <div className={`follow-up-chat-input-container ${isFollowUp ? 'follow-up-bottom' : 'follow-up-center'}`}>
+          <FollowUpChatInput
+            selectedModel={selectedModel}
+            onModelChange={onModelChange}
+            isProcessing={isProcessing}
+            onAnalyzeImage={handleImageAnalysis}
+            onFollowUpImage={handleImageAnalysis}
+            onAnalyzeMultiImage={onAnalyzeMultiImage}
+            onFollowUpMultiImage={onFollowUpMultiImage}
+            onSendMessage={onSendMessage}
+            mode={isFollowUp ? 'follow-up' : 'first-time'}
+            currentSession={currentSession}
+          />
         </div>
       </div>
     </div>
