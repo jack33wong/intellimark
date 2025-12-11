@@ -484,6 +484,7 @@ export class SessionManagementService {
 
     return {
       id: currentSessionId,
+      sessionId: currentSessionId, // ADDED: For backward compatibility and credit deduction
       title: sessionTitle,
       messages: responseMessages, // Use response messages (follows design)
       userId: userId,
