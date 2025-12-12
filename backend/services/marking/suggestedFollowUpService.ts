@@ -169,59 +169,76 @@ export class SuggestedFollowUpService {
 
       console.log(`📋 [${mode.toUpperCase()}] Questions sorted: ${sortedAllQuestions.map(q => q.questionNumber).join(', ')}`);
 
-      // For model answer mode with multiple questions: run in parallel
-      if (mode === 'modelanswer' && sortedAllQuestions.length > 1) {
-        // Use already sorted questions (sorted above)
-        const sortedQuestions = sortedAllQuestions;
-
-        // Run parallel AI calls for each question (1 call per question, not per sub-question)
-        // Each question already has FULL question text + FULL marking scheme stored
+      // For model answer mode: Group sub-questions (e.g., 8a, 8b) under main question (Question 8)
+      if (mode === 'modelanswer') {
         const { ModelProvider } = await import('../../utils/ModelProvider.js');
         const systemPrompt = getPrompt(`${config.promptKey}.system`);
 
+        // Group questions by base number (regex for leading digits)
+        const groupedMap = new Map<string, typeof sortedAllQuestions>();
+        sortedAllQuestions.forEach(q => {
+          const qNumStr = String(q.questionNumber || '');
+          const match = qNumStr.match(/^(\d+)/);
+          const baseNum = match ? match[1] : qNumStr;
+          if (!groupedMap.has(baseNum)) {
+            groupedMap.set(baseNum, []);
+          }
+          groupedMap.get(baseNum)!.push(q);
+        });
+
+        // Sort groups by base number
+        const sortedGroups = Array.from(groupedMap.entries())
+          .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+          .map(([baseNum, questions]) => ({ baseNum, questions }));
+
+        console.log(`📋 [MODELANSWER] Grouped ${sortedAllQuestions.length} questions into ${sortedGroups.length} groups: ${sortedGroups.map(g => g.baseNum).join(', ')}`);
+
         const parallelResults = await Promise.all(
-          sortedQuestions.map(async (q) => {
-            const questionNumberStr = String(q.questionNumber || '');
+          sortedGroups.map(async ({ baseNum, questions }) => {
+            // Combine text and marking schemes for the group
+            // Join with double newlines to ensure separation
+            const combinedQuestionText = questions.map(q => {
+              const text = q.questionText || '';
+              const qNum = String(q.questionNumber || '');
 
-            // Question text is already FULL (main + all sub-questions) - just clean prefix if needed
-            let cleanedQuestionText = q.questionText || '';
+              // Extract sub-label (e.g., "2ai" -> "ai", "8a" -> "a")
+              const subLabel = qNum.replace(baseNum, '');
 
-            // Remove question number prefix from question text (e.g., "Question 12", "Q12", "12")
-            const questionNumberPattern = questionNumberStr.replace(/[()]/g, '\\$&'); // Escape special chars
-            const patterns = [
-              new RegExp(`^Question\\s+${questionNumberPattern}\\s*[)\\-:\\.]?\\s*`, 'i'),
-              new RegExp(`^Q\\s*${questionNumberPattern}\\s*[)\\-:\\.]?\\s*`, 'i'),
-              new RegExp(`^${questionNumberPattern}\\s*[)\\-:\\.]\\s*`, 'i'), // "12)", "12:", "12."
-              new RegExp(`^${questionNumberPattern}\\s+`, 'i') // "12 "
-            ];
+              // If text already starts with label, don't double-add
+              if (subLabel && !text.trim().startsWith(subLabel)) {
+                return `${subLabel}) ${text}`;
+              }
+              return text;
+            }).join('\n\n');
 
-            for (const pattern of patterns) {
-              cleanedQuestionText = cleanedQuestionText.replace(pattern, '');
-            }
-            cleanedQuestionText = cleanedQuestionText.trim();
+            // markingScheme must be plain text
+            const combinedMarkingScheme = questions.map(q => {
+              if (typeof q.markingScheme !== 'string') {
+                throw new Error(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}.`);
+              }
+              return q.markingScheme;
+            }).join('\n\n');
 
-            // markingScheme must be plain text (FULL marking scheme - all sub-questions combined, same format as sent to AI for marking instruction)
-            if (typeof q.markingScheme !== 'string') {
-              throw new Error(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
-            }
-            const markingScheme = q.markingScheme; // FULL marking scheme (all sub-questions combined)
-            const userPrompt = getPrompt(`${config.promptKey}.user`, cleanedQuestionText, markingScheme, q.marks, questionNumberStr);
+            const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+
+            // Pass the group's "Question X" number explicitly
+            const questionNumberStr = baseNum;
+
+            const userPrompt = getPrompt(`${config.promptKey}.user`, combinedQuestionText, combinedMarkingScheme, totalMarks, questionNumberStr);
 
             const aiResult = await ModelProvider.callText(systemPrompt, userPrompt, model as any);
 
             return {
-              questionNumber: q.questionNumber,
-              response: aiResult.content, // AI returns response in the format we specify (Question X, then sub-questions if any)
+              response: aiResult.content,
               usageTokens: aiResult.usageTokens || 0
             };
           })
         );
 
-        // Simply combine all responses with separators (no parsing logic needed)
-        // AI already returns responses in the correct format: "Question X\n\nquestion text\n\na) sub question text\n\nmodel answer\n\nb) sub question text\n\nmodel answer"
+        // Simply combine all responses with separators
         const separator = '\n\n---\n\n';
         const combinedResponse = parallelResults
-          .map(result => result.response) // Use AI response directly (already in correct format)
+          .map(result => result.response)
           .join(separator);
 
         const totalUsageTokens = parallelResults.reduce((sum, r) => sum + r.usageTokens, 0);
@@ -243,7 +260,7 @@ export class SuggestedFollowUpService {
 
         return {
           response: combinedResponse,
-          apiUsed: `${getRealApiName(model)} (${model}) - Parallel execution`,
+          apiUsed: `${getRealApiName(model)} (${model}) - Grouped execution`,
           progressData: null,
           usageTokens: totalUsageTokens
         };
