@@ -7,7 +7,7 @@ import admin from 'firebase-admin';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getFirestore } from '../config/firebase.js';
-import { createUserMessage, createAIMessage } from '../utils/messageUtils.js';
+import { createUserMessage, createAIMessage, createChatProgressData, createMarkingProgressData } from '../utils/messageUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -645,6 +645,20 @@ export class FirestoreService {
       // Map messages to ensure frontend compatibility while preserving object references
       const mappedMessages = unifiedMessages.map((msg: any) => {
 
+        // HYDRATION: Ensure progressData exists for AI messages (fixes missing UI for history)
+        if (msg.role === 'assistant' && !msg.progressData) {
+          // Robust detection for marking messages (check score or explicit type)
+          const isMarkingMessage = msg.studentScore ||
+            msg.type === 'marking_annotated' ||
+            msg.type === 'marking_original';
+
+          if (isMarkingMessage) {
+            msg.progressData = createMarkingProgressData(true);
+          } else {
+            msg.progressData = createChatProgressData(true);
+          }
+        }
+
         // Only modify if absolutely necessary to preserve React component state
         if (!msg.id && msg.messageId) {
           // Add id field if missing - but only if it's actually missing
@@ -740,7 +754,22 @@ export class FirestoreService {
           updatedAt: sessionData.updatedAt,
           favorite: sessionData.favorite || false,
           rating: sessionData.rating || 0,
-          messages: unifiedMessages, // Include the actual messages array
+          messages: unifiedMessages.map((msg: any) => {
+            // HYDRATION: Ensure progressData exists for AI messages (same as getUnifiedSession)
+            if (msg.role === 'assistant' && !msg.progressData) {
+              // Robust detection for marking messages (check score or explicit type)
+              const isMarkingMessage = msg.studentScore ||
+                msg.type === 'marking_annotated' ||
+                msg.type === 'marking_original';
+
+              if (isMarkingMessage) {
+                msg.progressData = createMarkingProgressData(true);
+              } else {
+                msg.progressData = createChatProgressData(true);
+              }
+            }
+            return msg;
+          }), // Include the actual messages array
           detectedQuestion: sessionData.detectedQuestion || null, // Include detectedQuestion for Library page
           lastMessage: lastMessage ? {
             content: lastMessage.content,

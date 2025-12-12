@@ -26,6 +26,12 @@ export interface MarkingSessionContext extends SessionContext {
   apiRequests?: number;                           // NEW: Total API request count
   apiRequestBreakdown?: { [key: string]: number }; // NEW: Breakdown by phase
   model?: string;                                 // NEW: Model used for marking
+  mathpixCallCount?: number;                      // CORRECT: Actual Mathpix calls
+  totalCost?: number;                             // CORRECT: Total cost from UsageTracker
+  costBreakdown?: {
+    llmCost: number;
+    mathpixCost: number;
+  };
 }
 
 export interface QuestionSessionContext extends SessionContext {

@@ -285,9 +285,72 @@ export interface UnifiedMessage {
   // Exam information for frontend display
   detectedQuestion?: DetectedQuestion;
 
+  // Context for follow-up chat (Stored Once principle)
+  markingContext?: MarkingContext;
+
   // Firestore metadata
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Context Types for Chat
+export interface MarkingContext {
+  sessionType: 'Marking' | 'Question' | 'Mixed';
+  totalQuestionsMarked: number;
+  overallScore: {
+    awarded: number;
+    total: number;
+    percentage: number;
+    scoreText: string;
+  };
+  examInfo?: {
+    examBoard: string;
+    subject: string;
+    examCode: string;
+    examSeries: string;
+    tier: string;
+    totalMarks: number;
+  };
+  grade?: {
+    achieved: string;
+    boundaryType: 'Paper-Specific' | 'Overall-Total';
+    boundaries: { [grade: string]: number };
+  };
+  questionResults: MarkingContextQuestionResult[];
+  followUpHistory?: FollowUpHistoryEntry[];
+}
+
+export interface MarkingContextQuestionResult {
+  questionNumber: string;
+  questionText: string; // Truncated
+  totalMarks: number;
+  awardedMarks: number;
+  scoreText: string;
+  hasMarkingScheme: boolean;
+  annotationCount: number;
+  annotations: Array<{
+    text: string;
+    action: string;
+    reasoning?: string;
+    studentText?: string;
+    sourceType?: string;
+  }>;
+  // Note: studentWorkSummary is covered by annotations
+  schemeSummary?: string; // Truncated key criteria
+  revisionHistory?: Array<{
+    timestamp: string;
+    awardedMarks: number;
+    scoreText: string;
+    annotations: any[];
+    reason: string;
+  }>;
+}
+
+export interface FollowUpHistoryEntry {
+  timestamp: string;
+  userMessage: string;
+  aiResponse: string; // Truncated
+  wasImageBased: boolean;
 }
 
 // Unified Session types

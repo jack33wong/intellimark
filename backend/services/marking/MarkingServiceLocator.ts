@@ -67,6 +67,7 @@ export class MarkingServiceLocator {
     let contextPrompt = '';
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
+      console.log(`[CONTEXT FLOW] 🤖 Sending to AI with context (${contextPrompt.length} chars). FULL CONTEXT:\n${contextSummary}`);
     } else if (chatHistory.length > 0) {
       // Always provide context - let the AI decide what's relevant
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;

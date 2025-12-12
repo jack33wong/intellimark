@@ -8,6 +8,7 @@ import { handleAIMessageIdForEndpoint } from '../../utils/messageUtils.js';
 import { getSuggestedFollowUps } from './MarkingHelpers.js';
 import type { MarkingSessionContext } from '../../types/sessionManagement.js';
 import { usageTracker } from '../../utils/UsageTracker.js';
+import { ChatContextBuilder } from './ChatContextBuilder.js';
 
 export class MarkingPersistenceService {
 
@@ -169,6 +170,23 @@ export class MarkingPersistenceService {
             const gradeBoundaryType = gradeResult.boundaryType;
             const gradeBoundaries = gradeResult.boundaries;
 
+            // Build rich marking context using "Store Once" pattern
+            const richMarkingContext = await ChatContextBuilder.buildMarkingContext({
+                allQuestionResults,
+                questionDetection: detectionResults?.[0] || null,
+                markingSchemesMap,
+                detectionResults,
+                overallScore: {
+                    awardedMarks: overallScore,
+                    totalMarks: totalPossibleScore,
+                    percentage: totalPossibleScore > 0 ? Math.round((overallScore / totalPossibleScore) * 100) : 0,
+                    scoreText: overallScoreText
+                },
+                gradeBoundaryResult: gradeResult
+            });
+
+            console.log(`[CONTEXT FLOW] 💾 Persisting marking context (Qs: ${richMarkingContext.totalQuestionsMarked}, Score: ${richMarkingContext.overallScore.scoreText})`);
+
             // Resolve AI message ID
             const resolvedAIMessageId = handleAIMessageIdForEndpoint({ model: actualModel }, null, 'marking');
 
@@ -190,7 +208,8 @@ export class MarkingPersistenceService {
                 },
                 grade: calculatedGrade,
                 gradeBoundaryType: gradeBoundaryType,
-                gradeBoundaries: gradeBoundaries
+                gradeBoundaries: gradeBoundaries,
+                markingContext: richMarkingContext
             });
 
             // Add suggested follow-ups

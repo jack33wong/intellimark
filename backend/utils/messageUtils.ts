@@ -200,6 +200,7 @@ export interface AIMessageOptions {
   category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage";
   suggestedFollowUps?: Array<{ text: string; mode: string }> | string[];
   detectedQuestion?: DetectedQuestion;
+  markingContext?: import('../types/index.js').MarkingContext;
 }
 
 /**
@@ -324,8 +325,9 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
     timestamp: new Date().toISOString(),
     imageData: undefined, // FIXED: Don't use legacy imageData field to avoid duplicates
     imageDataArray: imageDataArray, // Use structured format for all cases
-    progressData: progressData,
-    suggestedFollowUps: suggestedFollowUps
+    suggestedFollowUps,
+    markingContext: options.markingContext,
+    progressData: progressData
   };
 
 
@@ -358,6 +360,21 @@ export function createChatProgressData(isComplete: boolean = false) {
     currentStepDescription: isComplete ? 'Generating response...' : 'AI is thinking...',
     allSteps: isComplete ? ['AI is thinking...', 'Generating response...'] : ['AI is thinking...'],
     currentStepIndex: isComplete ? 1 : 0 // Use new format with currentStepIndex
+  };
+}
+
+/**
+ * Creates a marking progress data object
+ * @param isComplete - Whether processing is complete
+ * @returns A marking progress data object
+ */
+export function createMarkingProgressData(isComplete: boolean = false) {
+  const steps = ['Input Validation', 'Standardization', 'Preprocessing', 'OCR & Classification', 'Question Detection', 'Segmentation', 'Marking', 'Output Generation'];
+  return {
+    isComplete,
+    currentStepDescription: isComplete ? 'Marking completed' : 'Processing submission...',
+    allSteps: steps,
+    currentStepIndex: isComplete ? steps.length - 1 : 0
   };
 }
 

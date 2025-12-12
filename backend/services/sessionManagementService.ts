@@ -59,6 +59,7 @@ export interface AIMessageData {
   grade?: string | null;
   gradeBoundaryType?: 'Paper-Specific' | 'Overall-Total' | null;
   gradeBoundaries?: { [grade: string]: number };
+  markingContext?: import('../types/index.js').MarkingContext;
 }
 
 export class SessionManagementService {
@@ -744,7 +745,8 @@ export class SessionManagementService {
       studentScore,
       grade,
       gradeBoundaryType,
-      gradeBoundaries
+      gradeBoundaries,
+      markingContext
     } = aiData;
 
     // Calculate real processing stats for the AI message
@@ -816,7 +818,8 @@ export class SessionManagementService {
       },
       processingStats: realProcessingStats,
       suggestedFollowUps: [], // Will be populated by caller
-      detectedQuestion: detectedQuestion
+      detectedQuestion: detectedQuestion,
+      markingContext: markingContext // FIXED: Pass markingContext to message creation
     });
 
     // Add questionOnlyResponses if provided (for mixed content)

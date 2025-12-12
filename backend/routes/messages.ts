@@ -162,6 +162,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
         // First get existing session messages for context
         let chatHistory: any[] = [];
+        let contextSummary: string | undefined = undefined; // Rich marking context and history
+
         if (currentSessionId) {
           try {
             const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
@@ -171,8 +173,44 @@ router.post('/chat', optionalAuth, async (req, res) => {
                 content: msg.content
               }));
 
+              // INJECT: Find rich marking context from the assistant's marking result
+              // Look for the last message that has markingContext (usually the initial marking response)
+              const lastMarkingMessage = [...existingSession.messages].reverse().find(msg => (msg as any).markingContext);
+
+              if (lastMarkingMessage && (lastMarkingMessage as any).markingContext) {
+                const { ChatContextBuilder } = await import('../services/marking/ChatContextBuilder.js');
+                const markingContext = (lastMarkingMessage as any).markingContext;
+
+                // Populate followUpHistory from the recent chat history
+                // We pair User -> Assistant messages to create coherent history entries
+                const followUpHistory = [];
+                const msgs = existingSession.messages;
+
+                for (let i = 0; i < msgs.length - 1; i++) {
+                  if (msgs[i].role === 'user' && msgs[i + 1]?.role === 'assistant') {
+                    followUpHistory.push({
+                      userMessage: msgs[i].content,
+                      aiResponse: msgs[i + 1].content,
+                      timestamp: Date.parse(msgs[i].timestamp || new Date().toISOString())
+                    });
+                  }
+                }
+
+                // Update the context object (in memory only) with recent history
+                markingContext.followUpHistory = followUpHistory;
+
+                // Generate the full prompt including marking details + history
+                contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext);
+
+                console.log(`[CONTEXT FLOW] 🔍 Found marking context in session history (Qs: ${markingContext.totalQuestionsMarked})`);
+                console.log(`[CONTEXT FLOW] 📝 Generated context prompt (Length: ${contextSummary.length} chars)`);
+
+                // Update progress tracker to indicate context mode
+                progressTracker.updateStepDescription('generating_response', 'Thinking with marking context...');
+              }
             }
           } catch (error) {
+            console.error('Failed to load chat/marking context:', error);
           }
         }
 
@@ -185,8 +223,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
         contextualResult = await MarkingServiceLocator.generateContextualResponse(
           message,  // user's message text
-          chatHistory,  // chat history for context
-          resolvedModel
+          chatHistory,  // chat history for context (fallback if contextSummary used, or ignored)
+          resolvedModel,
+          contextSummary // Pass the rich context summary
         );
         aiResponse = contextualResult.response;
         apiUsed = contextualResult.apiUsed;
