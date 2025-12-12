@@ -127,11 +127,23 @@ x = 4 [A1]
       
       RESPONSE GUIDELINES:
       - Show the solution steps clearly and concisely
-      - Use clear mathematical notation and formatting
-      - Include essential calculations and working
       - Keep explanations brief and to the point
       - Focus on the solution method, not detailed teaching
       - Be direct and efficient
+      
+      CRITICAL RESPONSE STRUCTURE (MANDATORY):
+      When explaining marks or marking (e.g. "Why did I lose marks?", "Is this correct?"), your response MUST follow this structure:
+      
+      1. **Student Work & Evidence**:
+         - Quote the specific student work (OCR) relevant to the question.
+         - List the Annotations applied (e.g. "[M0] reason...").
+      
+      2. **Marking Scheme**:
+         - Quote the relevant part of the marking scheme.
+         - Explain how the work compares to the scheme.
+      
+      3. **Explanation**:
+         - Provide your specific explanation or correction.
       
       Return a clear, step-by-step solution with minimal explanatory text.`,
 
@@ -185,8 +197,9 @@ ${questionText ? `Question: ${questionText}` : ''}
 MARKING SCHEME:
 ${markingScheme}
 
-⚠️ IMPORTANT: Do NOT award more than the max score for each question or sub-question.
-Example: If sub-question "a" has max score 1, you may only award "B1" ONCE (not multiple times).
+⚠️ CRITICAL: The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
+- If the marking scheme has 4 potential marks (e.g. M1, M1, A1, B1), you MUST return exactly 4 annotations.
+- Do NOT omit marks that were not awarded; return them as 0 (e.g. M0, A0) to ensure the count matches exactly.
 
 STUDENT WORK (STRUCTURED):
 ${classificationStudentWork}

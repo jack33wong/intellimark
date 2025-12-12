@@ -57,19 +57,29 @@ export class ClassificationMapper {
             const { getModelConfig } = await import('../../config/aiModels.js');
             const config = getModelConfig(MAPPING_MODEL as any);
 
-            const response = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    contents: [{ parts }],
-                    generationConfig: {
-                        temperature: 0.1,
-                        maxOutputTokens: 8192, // Increased for larger output
-                        responseMimeType: "application/json"
-                    }
-                })
+            const response = await ModelProvider.withRetry(async () => {
+                const res = await fetch(`${config.apiEndpoint}?key=${accessToken}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{ parts }],
+                        generationConfig: {
+                            temperature: 0.1,
+                            maxOutputTokens: 8192, // Increased for larger output
+                            responseMimeType: "application/json"
+                        }
+                    })
+                });
+
+                if (!res.ok) {
+                    if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`); // Explicitly throw 429 for retry match
+                    if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
+                    const txt = await res.text();
+                    throw new Error(`Gemini API error: ${res.status} - ${txt}`);
+                }
+                return res;
             });
 
             if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);

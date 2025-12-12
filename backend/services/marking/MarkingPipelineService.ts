@@ -86,10 +86,11 @@ export class MarkingPipelineService {
         MarkingInstructionService.resetDebugLog();
 
         // Performance tracking variables
-        const stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
+        let stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
         let totalLLMTokens = 0;
         let totalMathpixCalls = 0;
         let actualModel = 'auto'; // Will be updated when model is determined
+        let questionOnlyResult: any = null; // Hoisted for scope access in fallback blocks
 
         // Performance tracking function
         const logStep = (stepName: string, modelInfo: string) => {
@@ -862,7 +863,7 @@ export class MarkingPipelineService {
             if (isQuestionMode) {
                 // ========================= ENHANCED QUESTION MODE =========================
                 // Question mode: Handle multiple question-only images with detailed responses
-                const questionOnlyResult = await QuestionModeHandlerService.handleQuestionMode({
+                questionOnlyResult = await QuestionModeHandlerService.handleQuestionMode({
                     classificationResult,
                     standardizedPages,
                     files,
@@ -1109,14 +1110,15 @@ export class MarkingPipelineService {
                 console.log('[PIPELINE DEBUG] No marking tasks created, exiting early');
                 progressCallback(createProgressData(5, 'No student work found to mark.', MULTI_IMAGE_STEPS));
                 const finalOutput = {
+                    submissionId, // Pass through submissionId
                     annotatedOutput: [],
                     results: [],
                     mode: 'Question',
-                    unifiedSession: questionOnlyResult.unifiedSession,
+                    unifiedSession: questionOnlyResult?.unifiedSession,
                     // Add sessionId for credit deduction (Question Mode)
-                    sessionId: questionOnlyResult.sessionId || questionOnlyResult.unifiedSession?.sessionId,
+                    sessionId: questionOnlyResult?.sessionId || questionOnlyResult?.unifiedSession?.sessionId,
                     // Add sessionStats for usageRecord lookup
-                    sessionStats: questionOnlyResult.unifiedSession?.sessionStats || null,
+                    sessionStats: questionOnlyResult?.unifiedSession?.sessionStats || null,
                     processingStats: {
                         totalLLMTokens,
                         totalMathpixCalls
@@ -1164,9 +1166,10 @@ export class MarkingPipelineService {
                 'AI Marking',
                 actualModel,
                 async () => {
-                    // Implement Worker Pool for Marking (Concurrency Limit: 10)
+                    const { PROCESSING_CONSTANTS } = await import('../../config/constants.js');
+                    // Implement Worker Pool for Marking (Concurrency Limit: Global)
                     // This prevents "thundering herd" on the API and network saturation
-                    const MARKING_CONCURRENCY = 10;
+                    const MARKING_CONCURRENCY = PROCESSING_CONSTANTS.CONCURRENCY_LIMIT;
                     const results: QuestionResult[] = [];
                     const queue = [...tasksWithSchemes];
                     let activeWorkers = 0;
@@ -1203,6 +1206,38 @@ export class MarkingPipelineService {
 
                                     executeMarkingForQuestion(task, mockRes, submissionId, actualModel, allPagesOcrData, usageTracker)
                                         .then(result => {
+                                            // Attach scheme to result for persistence
+                                            if (result.cleanedOcrText) {
+                                                // Already attached by service if it returns it
+                                            }
+
+                                            // FIX: Explicitly attach student work for Context Chat
+                                            // ChatContextBuilder expects result.studentWork or result.classificationBlocks with text
+
+                                            // DEBUG TRACE: Check if data is even present in the task
+                                            if (['15'].includes(String(task.questionNumber))) {
+                                                console.log(`🔍 [DEBUG PIPELINE Q${task.questionNumber}] Student Work Trace:`);
+                                                console.log(`   - task.classificationStudentWork: ${task.classificationStudentWork ? task.classificationStudentWork.length + ' chars' : 'MISSING'}`);
+                                                console.log(`   - task.formattedOcrText: ${task.formattedOcrText ? task.formattedOcrText.length + ' chars' : 'MISSING'}`);
+                                                console.log(`   - task.classificationBlocks: ${task.classificationBlocks ? task.classificationBlocks.length + ' blocks' : 'MISSING'}`);
+                                            }
+
+                                            if (!result.studentWork) {
+                                                result.studentWork = task.classificationStudentWork || task.formattedOcrText || '';
+                                            }
+                                            // Also attach classification blocks if missing, as they contain precise line data
+                                            if (!result.classificationBlocks && task.classificationBlocks) {
+                                                result.classificationBlocks = task.classificationBlocks;
+                                            }
+
+                                            // Attach original question text from detection if available (for Context Chat)
+                                            if (task.questionText && !result.questionText) {
+                                                result.questionText = task.questionText;
+                                            }
+                                            if (task.databaseQuestionText && !result.databaseQuestionText) {
+                                                result.databaseQuestionText = task.databaseQuestionText;
+                                            }
+
                                             results.push(result);
                                         })
                                         .catch(error => {
@@ -1261,7 +1296,7 @@ export class MarkingPipelineService {
 
             // ========================= PROCESS QUESTION-ONLY PAGES (FILTERED EARLIER) =========================
             // Process the questionOnly pages we filtered out earlier for text responses
-            let questionOnlyResult: any = null;
+            questionOnlyResult = null; // Reset or reuse
             if (questionOnlyPages.length > 0) {
                 console.log(`\n📝 [QUESTION-ONLY] Processing ${questionOnlyPages.length} filtered questionOnly page(s)...`);
 
@@ -1385,7 +1420,7 @@ export class MarkingPipelineService {
                 combinedQuestionResponses = questionOnlyResponses;
                 console.log(`   - Sorted questionOnly: ${combinedQuestionResponses.map((r: any) => r.questionNumber).join(', ')}`);
             } else {
-                console.log('⚠️  [COMBINATION] No questionResponses found');
+                // console.log('⚠️  [COMBINATION] No questionResponses found');
             }
             //=================================================================================
 

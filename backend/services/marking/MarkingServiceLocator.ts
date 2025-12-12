@@ -67,7 +67,10 @@ export class MarkingServiceLocator {
     let contextPrompt = '';
     if (contextSummary) {
       contextPrompt = `\n\nPrevious conversation summary:\n${contextSummary}`;
-      console.log(`[CONTEXT FLOW] 🤖 Sending to AI with context (${contextPrompt.length} chars). FULL CONTEXT:\n${contextSummary}`);
+      // Truncate log to show only Question 1 to reduce noise
+      const q2Index = contextSummary.indexOf('### Q2');
+      const logSummary = q2Index > 0 ? contextSummary.substring(0, q2Index) + '\n... [Remaining Questions Truncated]' : contextSummary.substring(0, 1000);
+
     } else if (chatHistory.length > 0) {
       // Always provide context - let the AI decide what's relevant
       contextPrompt = `\n\nPrevious conversation context:\n${chatHistory.slice(-3).map(item => `${item.role}: ${item.content}`).join('\n')}`;

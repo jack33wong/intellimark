@@ -542,7 +542,7 @@ export class FirestoreService {
         // Otherwise fall back to calculateTotalCost
         if (sessionStats.totalCost !== undefined && sessionStats.costBreakdown) {
           // Already has UsageTracker cost - REUSE IT!
-          console.log(`💰 [FIRESTORE] Using UsageTracker cost: $${sessionStats.totalCost} (llm: $${sessionStats.costBreakdown.llmCost} + mathpix: $${sessionStats.costBreakdown.mathpixCost})`);
+          // console.log(`💰 [FIRESTORE] Using UsageTracker cost: $${sessionStats.totalCost} (llm: $${sessionStats.costBreakdown.llmCost} + mathpix: $${sessionStats.costBreakdown.mathpixCost})`);
           finalSessionStats = sessionStats;
         } else {
           // Fall back to calculateTotalCost for backward compatibility

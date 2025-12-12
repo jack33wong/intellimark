@@ -16,6 +16,48 @@ export class ModelProvider {
     return !modelsRequiringDefault.some(restricted => modelName.includes(restricted));
   }
 
+
+  // --- Exponential Backoff Helper ---
+  /**
+   * Execute an operation with exponential backoff retry logic
+   * Specifically handles 429 (Too Many Requests) and 503 (Service Unavailable)
+   */
+  public static async withRetry<T>(
+    operation: () => Promise<T>,
+    retries = 3, // Default retries
+    initialDelay = 2000 // Start with 2 seconds
+  ): Promise<T> {
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        attempt++;
+
+        // Check if we should retry
+        const isRetryable = error.message.includes('429') || // Too Many Requests
+          error.message.includes('503') || // Service Unavailable
+          error.message.includes('Resource exhausted'); // Gemini specific
+
+        if (attempt > retries || !isRetryable) {
+          throw error;
+        }
+
+        // Calculate delay with exponential backoff and jitter
+        // delay = initialDelay * 2^(attempt-1) + random_jitter
+        const backoff = initialDelay * Math.pow(2, attempt - 1);
+        const jitter = Math.random() * 1000; // 0-1000ms jitter
+        const delay = backoff + jitter;
+
+        console.warn(`⚠️ [API RETRY] Attempt ${attempt}/${retries} failed. Retrying in ${Math.round(delay)}ms... (Error: ${error.message})`);
+
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
   static async callGeminiText(
     systemPrompt: string,
     userPrompt: string,
@@ -99,60 +141,60 @@ export class ModelProvider {
     userPrompt: string,
     model: ModelType = 'auto'
   ): Promise<Response> {
-    const { getModelConfig } = await import('../config/aiModels.js');
-    const config = getModelConfig(model);
-    const endpoint = config.apiEndpoint;
+    return this.withRetry(async () => {
+      const { getModelConfig } = await import('../config/aiModels.js');
+      const config = getModelConfig(model);
+      const endpoint = config.apiEndpoint;
 
-    const parts: any[] = [
-      { text: systemPrompt },
-      { text: userPrompt }
-    ];
+      const parts: any[] = [
+        { text: systemPrompt },
+        { text: userPrompt }
+      ];
 
-    // Handle single or multiple images
-    const images = Array.isArray(imageData) ? imageData : [imageData];
+      // Handle single or multiple images
+      const images = Array.isArray(imageData) ? imageData : [imageData];
 
-    images.forEach(img => {
-      if (img && img.trim() !== '') {
-        const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
-        parts.push({
-          inline_data: {
-            mime_type: 'image/jpeg',
-            data: cleanImageData
-          }
-        });
-      }
-    });
+      images.forEach(img => {
+        if (img && img.trim() !== '') {
+          const cleanImageData = img.includes('base64,') ? img.split('base64,')[1] : img;
+          parts.push({
+            inline_data: {
+              mime_type: 'image/jpeg',
+              data: cleanImageData
+            }
+          });
+        }
+      });
 
-    const response = await fetch(`${endpoint}?key=${accessToken}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: parts
-        }],
-        generationConfig: {
-          temperature: config.temperature,
-          maxOutputTokens: config.maxTokens
+      const response = await fetch(`${endpoint}?key=${accessToken}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
         },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      })
-    });
+        body: JSON.stringify({
+          contents: [{
+            parts: parts
+          }],
+          generationConfig: {
+            temperature: config.temperature,
+            maxOutputTokens: config.maxTokens
+          },
+          safetySettings: [
+            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+          ]
+        })
+      });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
 
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response;
+      return response;
+    }, 5, 2000);
   }
 
   /**
@@ -175,81 +217,52 @@ export class ModelProvider {
     model: ModelType = 'auto',
     forceJsonResponse: boolean = false
   ): Promise<Response> {
-    // Use centralized model configuration
-    const { getModelConfig } = await import('../config/aiModels.js');
-    const config = getModelConfig(model);
-    const endpoint = config.apiEndpoint;
-
-    const response = await fetch(`${endpoint}?key=${accessToken}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,
-          ...(forceJsonResponse && { responseMimeType: "application/json" })
-        }, // Use centralized config
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_NONE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_NONE"
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
+    return this.withRetry(async () => {
+      // Use centralized model configuration
       const { getModelConfig } = await import('../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+      const config = getModelConfig(model);
+      const endpoint = config.apiEndpoint;
 
-      // Capture error response body for detailed diagnostics
-      let errorBody = '';
-      try {
-        errorBody = await response.text();
-      } catch (e) {
-        errorBody = 'Unable to read error response body';
+      const response = await fetch(`${endpoint}?key=${accessToken}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }, { text: userPrompt }] }],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: (await import('../config/aiModels.js')).getModelConfig(model).maxTokens,
+            ...(forceJsonResponse && { responseMimeType: "application/json" })
+          }, // Use centralized config
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_NONE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_NONE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_NONE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_NONE"
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      // Log detailed error information
-      console.error(`❌ [MODEL PROVIDER ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR RESPONSE BODY] ${errorBody}`);
-
-      // Try to parse error body for structured error info
-      let parsedError = null;
-      try {
-        parsedError = JSON.parse(errorBody);
-        if (parsedError.error) {
-          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
-        }
-      } catch (e) {
-        // Not JSON, that's okay
-      }
-
-      // Include error details in thrown error
-      const errorMessage = parsedError?.error?.message || errorBody || response.statusText;
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorMessage}`);
-    }
-
-    return response;
+      return response;
+    }, 5, 2000);
   }
 
   static extractGeminiTextContent(result: any): string {

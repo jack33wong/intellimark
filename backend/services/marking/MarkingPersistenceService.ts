@@ -57,10 +57,10 @@ export class MarkingPersistenceService {
         let actualModel = options.model || 'auto';
 
         // DEBUG: Check what we received
-        console.log(`[PERSISTENCE ENTRY] questionOnlyClassificationResult type: ${typeof questionOnlyClassificationResult}`);
-        console.log(`[PERSISTENCE ENTRY] Is array: ${Array.isArray(questionOnlyClassificationResult)}`);
-        console.log(`[PERSISTENCE ENTRY] Length: ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'}`);
-        console.log(`[PERSISTENCE ENTRY] isMixedContent: ${isMixedContent}`);
+        // console.log(`[PERSISTENCE ENTRY] questionOnlyClassificationResult type: ${typeof questionOnlyClassificationResult}`);
+        // console.log(`[PERSISTENCE ENTRY] Is array: ${Array.isArray(questionOnlyClassificationResult)}`);
+        // console.log(`[PERSISTENCE ENTRY] Length: ${Array.isArray(questionOnlyClassificationResult) ? questionOnlyClassificationResult.length : 'N/A'}`);
+        // console.log(`[PERSISTENCE ENTRY] isMixedContent: ${isMixedContent}`);
 
         try {
             // Extract request data
@@ -185,7 +185,7 @@ export class MarkingPersistenceService {
                 gradeBoundaryResult: gradeResult
             });
 
-            console.log(`[CONTEXT FLOW] 💾 Persisting marking context (Qs: ${richMarkingContext.totalQuestionsMarked}, Score: ${richMarkingContext.overallScore.scoreText})`);
+            // console.log(`[CONTEXT FLOW] 💾 Persisting marking context (Qs: ${richMarkingContext.totalQuestionsMarked}, Score: ${richMarkingContext.overallScore.scoreText})`);
 
             // Resolve AI message ID
             const resolvedAIMessageId = handleAIMessageIdForEndpoint({ model: actualModel }, null, 'marking');
@@ -251,7 +251,7 @@ export class MarkingPersistenceService {
             const llmCost = usageTracker.getTotalCost(actualModel);
             const mathpixCost = totalCost - llmCost; // Derive from total
 
-            console.log(`💰 [COST] UsageTracker Combined Total: $${totalCost} (LLM: $${llmCost} + Mathpix: $${mathpixCost})`);
+            // console.log(`💰 [COST] UsageTracker Combined Total: $${totalCost} (LLM: $${llmCost} + Mathpix: $${mathpixCost})`);
 
             // Store totalCost in context for sessionStats
             markingContext.totalCost = totalCost;

@@ -1,4 +1,5 @@
 import type { ModelType } from '../../types/index.js';
+import { ModelProvider } from '../../utils/ModelProvider.js';
 import { getPrompt } from '../../config/prompts.js';
 import * as path from 'path';
 import { getModelConfig, getDebugMode, validateModel } from '../../config/aiModels.js';
@@ -187,7 +188,8 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
 
 
       // --- PASS 2: MARKING PASS (User Model, Parallel) ---
-      const CONCURRENCY_LIMIT = 10;
+      const { PROCESSING_CONSTANTS } = await import('../../config/constants.js');
+      const CONCURRENCY_LIMIT = PROCESSING_CONSTANTS.CONCURRENCY_LIMIT;
       const results: Array<{ pageIndex: number; mapperCategory?: string; result: ClassificationResult }> = [];
       let completedTasks = 0;
 
@@ -666,32 +668,38 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
 
     try {
-      const response = await fetch(`${endpoint}?key=${accessToken}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
-      });
+      const response = await ModelProvider.withRetry(async () => {
+        const res = await fetch(`${endpoint}?key=${accessToken}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+
+        if (!res.ok) {
+          // If we hit 429, throw standard error for withRetry to catch
+          if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
+          if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
+
+          const errorText = await res.text();
+          const { getModelConfig } = await import('../../config/aiModels.js');
+          const modelConfig = getModelConfig(model);
+          const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+          const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
+
+          console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
+          console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+          console.error(`❌ [HTTP STATUS] ${res.status} ${res.statusText}`);
+          console.error(`❌ [ERROR DETAILS] ${errorText}`);
+
+          throw new Error(`Gemini API request failed: ${res.status} ${res.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
+        }
+        return res;
+      }, 5, 2000); // 5 retries, 2s initial delay
 
       clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        const { getModelConfig } = await import('../../config/aiModels.js');
-        const modelConfig = getModelConfig(model);
-        const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-        const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-
-        console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-        console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-        console.error(`❌ [ERROR DETAILS] ${errorText}`);
-
-        throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorText}`);
-      }
-
       return response;
     } catch (error) {
       clearTimeout(timeoutId);
@@ -727,49 +735,33 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
       safetySettings: this.SAFETY_SETTINGS
     };
 
+    const response = await ModelProvider.withRetry(async () => {
+      const res = await fetch(`${endpoint}?key=${accessToken}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-    const response = await fetch(`${endpoint}?key=${accessToken}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
+      if (!res.ok) {
+        if (res.status === 429) throw new Error(`Gemini API error: 429 Too Many Requests`);
+        if (res.status === 503) throw new Error(`Gemini API error: 503 Service Unavailable`);
 
-    if (!response.ok) {
-      // Capture error response body for detailed diagnostics
-      let errorText = '';
-      try {
-        errorText = await response.text();
-      } catch (e) {
-        errorText = 'Unable to read error response body';
+        const errorText = await res.text();
+        const { getModelConfig } = await import('../../config/aiModels.js');
+        const modelConfig = getModelConfig(model);
+        const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
+
+        console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName}`);
+        console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
+        console.error(`❌ [HTTP STATUS] ${res.status} ${res.statusText}`);
+        console.error(`❌ [ERROR DETAILS] ${errorText}`);
+
+        throw new Error(`Gemini API request failed: ${res.status} ${res.statusText} - ${errorText}`);
       }
-
-      const { getModelConfig } = await import('../../config/aiModels.js');
-      const modelConfig = getModelConfig(model);
-      const actualModelName = modelConfig.apiEndpoint.split('/').pop()?.replace(':generateContent', '') || model;
-      const apiVersion = modelConfig.apiEndpoint.includes('/v1beta/') ? 'v1beta' : 'v1';
-
-      console.error(`❌ [GEMINI API ERROR] Failed with model: ${actualModelName} (${apiVersion})`);
-      console.error(`❌ [API ENDPOINT] ${modelConfig.apiEndpoint}`);
-      console.error(`❌ [HTTP STATUS] ${response.status} ${response.statusText}`);
-      console.error(`❌ [ERROR RESPONSE BODY] ${errorText}`);
-
-      // Try to parse error body for structured error info
-      let parsedError = null;
-      try {
-        parsedError = JSON.parse(errorText);
-        if (parsedError.error) {
-          console.error(`❌ [ERROR DETAILS]`, JSON.stringify(parsedError.error, null, 2));
-        }
-      } catch (e) {
-        // Not JSON, that's okay
-      }
-
-      // Include error details in thrown error
-      const errorMessage = parsedError?.error?.message || errorText || response.statusText;
-      throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} for ${actualModelName} (${apiVersion}) - ${errorMessage}`);
-    }
+      return res;
+    }, 5, 2000);
 
     return response;
   }

@@ -1099,6 +1099,40 @@ export function calculateTotalMarks(detectionResults: any[]): number {
 }
 
 /**
+ * Helper to extract structured marks from scheme object
+ * Converts various scheme formats into a standardized array for DetectedQuestion
+ */
+export function extractStructuredMarks(scheme: any): Array<{ mark: string; answer: string; comments?: string }> {
+  if (!scheme) return [];
+
+  let marksArray: any[] = [];
+
+  // Handle various structures
+  if (scheme.questionMarks) {
+    if (Array.isArray(scheme.questionMarks.marks)) {
+      marksArray = scheme.questionMarks.marks;
+    } else if (Array.isArray(scheme.questionMarks)) {
+      marksArray = scheme.questionMarks;
+    }
+    // Sub-questions composite handling (from synthesized scheme)
+    else if (scheme.questionMarks.isComposite && Array.isArray(scheme.questionMarks.marks)) {
+      marksArray = scheme.questionMarks.marks;
+    }
+  } else if (Array.isArray(scheme.marks)) {
+    marksArray = scheme.marks;
+  } else if (Array.isArray(scheme)) {
+    marksArray = scheme;
+  }
+
+  // Map to desired format
+  return marksArray.map((m: any) => ({
+    mark: m.mark || '',
+    answer: m.answer || '',
+    comments: m.comments || m.guidance || undefined
+  }));
+}
+
+/**
  * Build exam paper structure from detection results
  * Groups questions by exam paper and calculates total marks
  * This ensures single source of truth and consistency across Question Mode and Marking Mode
@@ -1151,10 +1185,12 @@ export function buildExamPaperStructure(detectionResults: any[]): {
       questionNumber: qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '',
       questionText: match.databaseQuestionText || qd.questionText,
       marks: match.marks || 0,
-      markingScheme: typeof match.markingScheme === 'string' ? match.markingScheme : '', // Prevent storing heavy object; SuggestedFollowUpService requires string
+      markingScheme: extractStructuredMarks(match.markingScheme), // ✅ Use helper to extract structured array
       questionIndex: qd.questionIndex,
       sourceImageIndex: qd.sourceImageIndex
     });
+
+
   });
 
   // Calculate total marks using common function
@@ -1213,7 +1249,7 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     .filter(num => num > 0)
     .sort((a, b) => a - b);
 
-  const uniqueNumbers = Array.from(new Set(questionNumbers));
+  const uniqueNumbers: number[] = Array.from(new Set(questionNumbers));
 
   // Format question number display
   let questionNumberDisplay: string;
@@ -1223,8 +1259,8 @@ export function generateSessionTitleFromDetectionResults(detectionResults: any[]
     questionNumberDisplay = `Q${uniqueNumbers[0]}`;
   } else {
     // Check if in sequence
-    const isSequence = uniqueNumbers.every((num, index) =>
-      index === 0 || num === uniqueNumbers[index - 1] + 1
+    const isSequence = uniqueNumbers.every((num: number, index: number) =>
+      index === 0 || num === (uniqueNumbers[index - 1] as number) + 1
     );
 
     if (isSequence) {

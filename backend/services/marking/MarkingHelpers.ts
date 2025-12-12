@@ -252,9 +252,9 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
   // ========================== ANNOTATION SUMMARY ==========================
   console.log('\n📊 [ANNOTATION SUMMARY]');
   // Header line
-  console.log('-----------------------------------------------------------------------------------------------------------------');
-  console.log(`| Q#       | Score | WS,Drw    | Ann${' '.repeat(42)}| Match/Visual/Unmatch/Split       |`);
-  console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
+  console.log('------------------------------------------------------------------------------------------------------------------------------------------');
+  console.log(`| Q#       | Score | WS,Drw    | Scheme               | Ann${' '.repeat(42)}| Match/Visual/Unmatch/Split       |`);
+  console.log(`|----------|-------|-----------|----------------------|${'-'.repeat(46)}|----------------------------------|`);
 
   const sortedResults = allQuestionResults; // Now sorted in place
 
@@ -420,34 +420,117 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       });
     }
 
+    // Track stats for main question (or aggregate)
     let matched = 0;      // M: Has OCR bbox
     let visual = 0;       // V: Drawing with AI position
     let unmatched = 0;    // U: No OCR data (AI returned UNMATCHED)
     let split = 0;        // S: Multi-page split
     let fallback = 0;     // F: Error case (shouldn't happen)
+    let totalAnnotationCount = 0; // Total count of codes (marks)
+    let totalAnnotationCodes: string[] = [];
 
-    if (result.annotations) {
-      result.annotations.forEach((a: any) => {
-        // Priority 1: Check AI's explicit status
-        if (a.ocr_match_status === 'VISUAL') {
-          visual++;
-        }
-        else if (a.ocr_match_status === 'UNMATCHED') {
-          unmatched++;
-        }
-        // Priority 2: Check computed states
-        else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) {
-          split++;
-        }
-        // Priority 3: Check bbox validity
-        else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) {
-          matched++;
-        }
-        // Fallback: Should be rare with new UNMATCHED status
-        else {
-          fallback++;
-        }
+    // Helper to calc stats for a list of annotations
+    const calcStats = (list: any[]) => {
+      let m = 0, v = 0, u = 0, s = 0, f = 0;
+      list.forEach((a: any) => {
+        if (a.ocr_match_status === 'VISUAL') v++;
+        else if (a.ocr_match_status === 'UNMATCHED') u++;
+        else if (a.hasLineData === false && a.bbox && a.bbox.length === 4) s++;
+        else if (a.bbox && a.bbox.length === 4 && a.bbox[0] > 1) m++;
+        else f++;
       });
+      return { m, v, u, s, f };
+    };
+
+    if (subQuestionStats.length > 0) {
+      // AGGREGATE MODE: Sum stats from sub-questions
+      subQuestionStats.forEach((sq: any) => {
+        // Re-fetch annotations for this sub-q
+        const subPart = sq.label.replace(String(result.questionNumber), '');
+        const subAnns = result.annotations ? result.annotations.filter((a: any) => {
+          // Basic matching: aiStepId contains subPart, or unified_step_id contains it
+          // Better: we already have annotationsBySubQ map which stores codes. 
+          // But we need the objects for Stats. 
+          // MarkingExecutor stores step_id. Let's filter by it.
+          const sId = (a.step_id || '').toLowerCase();
+          const uId = (a.unified_step_id || '').toLowerCase();
+          return (sId.includes(`_${subPart}`) || uId.includes(subPart));
+        }) : [];
+
+        const stats = calcStats(subAnns);
+        matched += stats.m;
+        visual += stats.v;
+        unmatched += stats.u;
+        split += stats.s;
+        fallback += stats.f;
+
+        // Codes count
+        const subCodes = annotationsBySubQ.get(subPart) || [];
+        totalAnnotationCount += subCodes.length;
+        totalAnnotationCodes.push(...subCodes);
+      });
+
+      // FIX: Also add "unassigned" annotations (those belonging to main question but not specific sub-question)
+      // These are stored in 'mainAnnotations' list (codes) and result.annotations (objects)
+      // We need to filter result.annotations for those that were NOT matched in the loop above?
+      // Simpler: Just filter for annotations that do NOT have a matching sub-question ID.
+
+      const unassignedAnns = result.annotations ? result.annotations.filter((a: any) => {
+        const sId = (a.step_id || '').toLowerCase();
+        const uId = (a.unified_step_id || '').toLowerCase();
+
+        // Check if this annotation belongs to ANY sub-question
+        const isAssigned = subQuestionStats.some((sq: any) => {
+          const part = sq.label.replace(String(result.questionNumber), '').toLowerCase();
+          return sId.includes(`_${part}`) || uId.includes(part);
+        });
+        return !isAssigned;
+      }) : [];
+
+      if (['2', '6'].includes(String(result.questionNumber))) {
+        console.log(`\n🔍 [DEBUG Q${result.questionNumber} TABLE ANALYSIS]`);
+        console.log(`   - Total Annotations: ${result.annotations?.length || 0}`);
+        console.log(`   - Aggregated Count: ${totalAnnotationCount} + ${unassignedAnns.length} (Unassigned)`);
+        console.log(`   - Unassigned: ${unassignedAnns.map((a: any) => `${a.text} [${a.ocr_match_status}]`).join(', ')}`);
+        console.log(`   - Sub-Q Stats: ${JSON.stringify(subQuestionStats.map((s: any) => ({ label: s.label, anns: s.annotations })))}`);
+        result.annotations?.forEach((a: any) => {
+          console.log(`     > [${a.text}] ID: ${a.step_id || a.unified_step_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
+        });
+        console.log(`---------------------------------------------------\n`);
+      }
+
+
+      if (unassignedAnns.length > 0) {
+        const stats = calcStats(unassignedAnns);
+        matched += stats.m;
+        visual += stats.v;
+        unmatched += stats.u;
+        split += stats.s;
+        fallback += stats.f;
+
+        // Add unassigned codes
+        // These are already in `mainAnnotations` array populated at start of function
+        // But `mainAnnotations` might contain ALL codes if logic was loose?
+        // Let's rely on `mainAnnotations` array which we populated based on `!ann.subQuestion` check earlier.
+        // IF `ann.subQuestion` was null, it went to `mainAnnotations`.
+        totalAnnotationCount += mainAnnotations.length;
+        totalAnnotationCodes.push(...mainAnnotations);
+      }
+
+    } else {
+      // STANDARD MODE: Use main annotations directly
+      if (result.annotations) {
+        const stats = calcStats(result.annotations);
+        matched = stats.m;
+        visual = stats.v;
+        unmatched = stats.u;
+        split = stats.s;
+        fallback = stats.f;
+
+        // Count codes
+        totalAnnotationCount = mainAnnotations.length;
+        totalAnnotationCodes = mainAnnotations;
+      }
     }
 
     // Color coding: M=Green, V=White, U=Yellow, S=White, F=Red
@@ -460,13 +543,13 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const coloredQNum = `\x1b[32m${qNum}\x1b[0m`;
 
     // Annotation Count (Main Question)
-    const annotationCodes = mainAnnotations; // Renamed for clarity
-    const annotationCount = (result.annotations || []).length; // Total count
-    const annotationStr = annotationCodes.length > 0 ? `(${annotationCodes.join(',')})` : '';
+    // FIX: Use totalAnnotationCount (which is code sum) instead of raw annotation object count
+    const annotationCount = totalAnnotationCount;
+    const annotationStr = totalAnnotationCodes.length > 0 ? `(${totalAnnotationCodes.join(',')})` : '';
     const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
     const matchStats = `M:${matched} V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
 
-    const totalAnnCount = (result.annotations || []).length;
+    const totalAnnCount = totalAnnotationCount;
     const countStr = String(totalAnnCount);
     const coloredCount = totalAnnCount < lineCount ? `\x1b[31m${countStr}\x1b[0m` : countStr;
 
@@ -484,9 +567,68 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     // Raw string length calculation (stripping ANSI codes for length check)
     const rawStatusStr = `M:${matched} V:${visual} U:${unmatched} S:${split}${fallback > 0 ? ` F:${fallback}` : ''}`;
     const statusPadding = ' '.repeat(Math.max(0, 32 - rawStatusStr.length));
+    // Recalculate Total WS/Drw if Sub-Questions exist (Ensure Main Row = Sum of Sub Rows)
+    if (subQuestionStats.length > 0) {
+      lineCount = subQuestionStats.reduce((sum, sq) => sum + sq.wb, 0);
+      drawingCount = subQuestionStats.reduce((sum, sq) => sum + sq.drw, 0);
+    }
+
     const wsDrwCol = `${lineCount},${drawingCount}`.padEnd(10);
 
-    console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
+    // Extract Scheme Summary
+    let schemeStr = '-';
+    if (task && task.markingScheme) {
+      // DEBUG: Log scheme structure for Q14 to understand why column is empty
+      if (result.questionNumber == 14) {
+        console.log('[DEBUG TABLE] Q14 Scheme:', JSON.stringify(task.markingScheme).substring(0, 200));
+      }
+      try {
+        let schemeMarks: any[] = [];
+        let schemeJson = result.markingScheme || task.markingScheme; // Prefer Scheme actually used by AI
+
+        // Handle if likely already an object, or string
+        if (typeof schemeJson === 'string') {
+          try { schemeJson = JSON.parse(schemeJson); } catch (e) { }
+        }
+
+        if (Array.isArray(schemeJson)) {
+          schemeMarks = schemeJson;
+        } else if (schemeJson && schemeJson.marks) {
+          schemeMarks = schemeJson.marks;
+        } else if (schemeJson && schemeJson.questionMarks && schemeJson.questionMarks.marks) {
+          schemeMarks = schemeJson.questionMarks.marks;
+        } else {
+          // DEBUG: Log why we couldn't find marks
+          if (result.questionNumber == 14) {
+            console.log('[DEBUG TABLE] Q14 Scheme Structure Invalid:',
+              typeof schemeJson,
+              schemeJson ? Object.keys(schemeJson) : 'null'
+            );
+          }
+        }
+
+        if (schemeMarks.length > 0) {
+          const codes = schemeMarks.map((m: any) => m.mark || '?');
+          // Summarize: 4(P1,P1,P1,A1)
+          const countStr = String(codes.length);
+          // Highlight count in GREEN if it matches the total annotation count EXACTLY
+          const coloredCount = (codes.length === totalAnnotationCount)
+            ? `\x1b[32m${countStr}\x1b[0m`
+            : countStr;
+
+          schemeStr = `${coloredCount}(${codes.join(',')})`;
+        }
+      } catch (e) {
+        // invalid json
+      }
+    }
+    // Truncate if too long to fit in 22 chars (column width)
+    if (schemeStr.length > 20) {
+      schemeStr = schemeStr.substring(0, 19) + '…';
+    }
+    const schemeCol = schemeStr.padEnd(21); // Fix alignment: 21 chars + ' |' = 23 chars (Header matches)
+
+    console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${schemeCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
 
     // Sort sub-question rows alphabetically by label (e.g., 11a, 11b, 11c)
     subQuestionStats.sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }));
@@ -505,10 +647,36 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       const subDrawings = sq.drw;
       const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
 
-      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subAnnotationCol} | ${'-'.padEnd(33)}|`);
+      // Format Scheme column for sub-question
+      let subSchemeStr = '-';
+      if (task && task.markingScheme) {
+        try {
+          let schemeJson: any = result.markingScheme || task.markingScheme;
+          if (typeof schemeJson === 'string') { try { schemeJson = JSON.parse(schemeJson); } catch (e) { } }
+
+          let marks: any[] = [];
+          if (Array.isArray(schemeJson)) marks = schemeJson;
+          else if (schemeJson && schemeJson.marks) marks = schemeJson.marks;
+          else if (schemeJson && schemeJson.questionMarks && schemeJson.questionMarks.marks) marks = schemeJson.questionMarks.marks;
+
+          // Filter for this sub-question (e.g. "a" from "6a")
+          // sq.label includes question number e.g. "11a". We need "a".
+          const part = sq.label.replace(String(result.questionNumber), '');
+          const subMarks = marks.filter((m: any) => m.subQuestion === part);
+
+          if (subMarks.length > 0) {
+            const codes = subMarks.map((m: any) => m.mark || '?');
+            subSchemeStr = `${codes.length} (${codes.join(',')})`;
+          }
+        } catch (e) { }
+      }
+      if (subSchemeStr.length > 20) subSchemeStr = subSchemeStr.substring(0, 19) + '…';
+      const subSchemeCol = subSchemeStr.padEnd(21);
+
+      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subSchemeCol}| ${subAnnotationCol} | ${'-'.padEnd(32)} |`);
     });
 
-    console.log(`|----------|-------|-----------|${'-'.repeat(46)}|----------------------------------|`);
+    console.log(`|----------|-------|-----------|----------------------|${'-'.repeat(46)}|----------------------------------|`);
   });
 }
 

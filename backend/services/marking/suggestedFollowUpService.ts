@@ -145,6 +145,15 @@ export class SuggestedFollowUpService {
     // Use new clean structure if available, otherwise fall back to legacy
     const detectedQuestion = targetMessage.detectedQuestion;
 
+    // Helper to stringify marking scheme (handles both string and array formats)
+    const stringifyMarkingScheme = (scheme: any): string => {
+      if (typeof scheme === 'string') return scheme;
+      if (Array.isArray(scheme)) {
+        return scheme.map((s: any) => `- ${s.mark || 'Mark'}: ${s.answer} ${s.comments ? `(${s.comments})` : ''}`).join('\n');
+      }
+      return '';
+    };
+
     if (detectedQuestion?.examPapers && Array.isArray(detectedQuestion.examPapers)) {
       // Extract all questions from examPapers
       const allQuestions = detectedQuestion.examPapers.flatMap(examPaper =>
@@ -158,7 +167,7 @@ export class SuggestedFollowUpService {
       );
 
       // Log all extracted questions for debugging
-      console.log(`📋 [${mode.toUpperCase()}] Extracted ${allQuestions.length} questions: ${allQuestions.map(q => q.questionNumber).join(', ')}`);
+
 
       // Sort all questions by question number (ascending) for consistent ordering across all modes
       const sortedAllQuestions = [...allQuestions].sort((a, b) => {
@@ -167,7 +176,7 @@ export class SuggestedFollowUpService {
         return numA - numB;
       });
 
-      console.log(`📋 [${mode.toUpperCase()}] Questions sorted: ${sortedAllQuestions.map(q => q.questionNumber).join(', ')}`);
+
 
       // For model answer mode: Group sub-questions (e.g., 8a, 8b) under main question (Question 8)
       if (mode === 'modelanswer') {
@@ -191,7 +200,7 @@ export class SuggestedFollowUpService {
           .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
           .map(([baseNum, questions]) => ({ baseNum, questions }));
 
-        console.log(`📋 [MODELANSWER] Grouped ${sortedAllQuestions.length} questions into ${sortedGroups.length} groups: ${sortedGroups.map(g => g.baseNum).join(', ')}`);
+
 
         const parallelResults = await Promise.all(
           sortedGroups.map(async ({ baseNum, questions }) => {
@@ -213,8 +222,14 @@ export class SuggestedFollowUpService {
 
             // markingScheme must be plain text
             const combinedMarkingScheme = questions.map(q => {
+              // Convert array format to string if needed
+              if (Array.isArray(q.markingScheme)) {
+                return stringifyMarkingScheme(q.markingScheme);
+              }
               if (typeof q.markingScheme !== 'string') {
-                throw new Error(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}.`);
+                // Return empty if invalid, or throw? Better to return empty to avoid crashing if data is weird
+                console.warn(`[MODEL ANSWER] Invalid marking scheme format for Q${q.questionNumber}: expected string/array, got ${typeof q.markingScheme}`);
+                return '';
               }
               return q.markingScheme;
             }).join('\n\n');
@@ -285,13 +300,14 @@ export class SuggestedFollowUpService {
           return `${separator}Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
         }).join('\n\n');
 
-        // Aggregate all marking schemes (must be plain text format)
+        // Aggregate all marking schemes (matches plain text requirement)
         // Format them with question labels for clarity (already sorted by question number)
         const combinedSchemeText = sortedAllQuestions.map(q => {
-          if (typeof q.markingScheme !== 'string') {
-            throw new Error(`[MULTI-QUESTION] Invalid marking scheme format for Q${q.questionNumber}: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
+          const schemeText = stringifyMarkingScheme(q.markingScheme);
+          if (!schemeText && q.markingScheme) {
+            console.warn(`[MULTI-QUESTION] Could not stringify marking scheme for Q${q.questionNumber} (type: ${typeof q.markingScheme})`);
           }
-          return `**Question ${q.questionNumber} (${q.marks} marks):**\n${q.markingScheme}`;
+          return `**Question ${q.questionNumber} (${q.marks} marks):**\n${schemeText}`;
         }).join('\n\n');
 
         markingScheme = combinedSchemeText;
@@ -299,21 +315,17 @@ export class SuggestedFollowUpService {
         // Sum total marks across all questions
         totalMarks = sortedAllQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
-        // Enhanced debug logging for multiple questions
-        console.log(`📋 [${mode.toUpperCase()}] Aggregating data for ${sortedAllQuestions.length} questions (sorted by question number)`);
-        sortedAllQuestions.forEach(q => {
-          console.log(`  - Q${q.questionNumber}: ${q.marks} marks, ${q.markingScheme?.length || 0} mark points (${q.examBoard} ${q.examCode})`);
-          console.log(`    Text: ${q.questionText?.substring(0, 60)}...`);
-        });
+
       } else {
         // Single question (use sorted array for consistency)
         const q = sortedAllQuestions[0];
         questionText = q.questionText;
+        questionText = q.questionText;
         // markingScheme must be plain text (same format as sent to AI for marking instruction)
-        if (typeof q.markingScheme !== 'string') {
-          throw new Error(`[SINGLE QUESTION] Invalid marking scheme format: expected plain text string, got ${typeof q.markingScheme}. Please clear old data and create new sessions.`);
+        markingScheme = stringifyMarkingScheme(q.markingScheme);
+        if (!markingScheme && q.markingScheme) {
+          console.warn(`[SINGLE QUESTION] Could not stringify marking scheme for Q${q.questionNumber}`);
         }
-        markingScheme = q.markingScheme;
         totalMarks = q.marks;
       }
 
@@ -329,21 +341,7 @@ export class SuggestedFollowUpService {
         mode === 'modelanswer' ? singleQuestionNumber : undefined  // For model answer: pass question number
       );
 
-      // DEBUG: Print the detectedQuestion data and user prompt for all multi-question follow-ups
-      if (sortedAllQuestions.length > 1) {
-        console.log('='.repeat(80));
-        console.log(`🔍 [${mode.toUpperCase()} DEBUG] detectedQuestion data (${sortedAllQuestions.length} questions, sorted by question number):`);
-        sortedAllQuestions.forEach((q, idx) => {
-          console.log(`  Q${q.questionNumber}: ${q.marks} marks, ${q.questionText?.substring(0, 50)}...`);
-        });
-        console.log('Aggregated questionText length:', questionText.length);
-        console.log('Aggregated markingScheme length:', markingScheme.length);
-        console.log('Total marks:', totalMarks);
-        console.log('='.repeat(80));
-        console.log(`🔍 [${mode.toUpperCase()} DEBUG] Generated user prompt (first 500 chars):`);
-        console.log(userPrompt.substring(0, 500) + '...');
-        console.log('='.repeat(80));
-      }
+
 
       // Use ModelProvider directly with custom prompts
       const { ModelProvider } = await import('../../utils/ModelProvider.js');

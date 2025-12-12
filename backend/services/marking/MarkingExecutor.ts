@@ -19,6 +19,9 @@ export interface MarkingTask {
   markingScheme: any;
   sourcePages: number[];
   classificationStudentWork?: string | null; // Raw classification student work (may include [DRAWING])
+  formattedOcrText?: string; // Formatted OCR text for context
+  questionText?: string; // Detected question text
+  databaseQuestionText?: string; // Text from database match
   classificationBlocks?: Array<{  // Original classification blocks with position data (for Q18-style accumulated questions)
     text: string;
     pageIndex: number;
@@ -53,6 +56,11 @@ export interface QuestionResult {
   confidence?: number; // Add confidence score
   mathpixCalls?: number; // Add mathpix calls count
   markingScheme?: any; // Include marking scheme for reference
+  studentWork?: string; // Raw student work text (OCR/Classification)
+  promptMarkingScheme?: string; // The exact text-based marking scheme used in the prompt
+  classificationBlocks?: any[]; // Classification blocks with line data
+  questionText?: string; // Detected question text
+  databaseQuestionText?: string; // Text from database match
 }
 
 export interface EnrichedAnnotation extends Annotation {
@@ -794,7 +802,10 @@ export async function executeMarkingForQuestion(
           return acc + ((pageData as any)?.confidence || 0.9); // Default to 0.9 if missing
         }, 0) / task.sourcePages.length
       ) : 0.9,
-      markingScheme: task.markingScheme // Include marking scheme for reference
+      markingScheme: (markingResult as any).markingScheme || task.markingScheme, // Prefer returned scheme (normalized/used) over task input
+      studentWork: task.classificationStudentWork || undefined, // Explicitly use Classification Student Work
+      databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
+      promptMarkingScheme: (markingResult as any).schemeTextForPrompt // Exact scheme text from prompt
     };
 
     return questionResult;
@@ -817,6 +828,32 @@ const enrichAnnotationsWithPositions = (
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
+
+
+
+  // Build Code -> SubQuestion Map from Scheme (to fix misplaced annotations)
+  const codeToSubQMap = new Map<string, string>();
+  if (task && task.markingScheme) {
+    try {
+      // Handle nested questionMarks.marks (Q14 case)
+      let marks = [];
+      const scheme = task.markingScheme;
+      if (Array.isArray(scheme)) marks = scheme;
+      else if (scheme.marks) marks = scheme.marks;
+      else if (scheme.questionMarks && scheme.questionMarks.marks) marks = scheme.questionMarks.marks;
+
+      if (marks && Array.isArray(marks)) {
+        marks.forEach((m: any) => {
+          if (m.mark && m.subQuestion) {
+            // Map "A1" -> "b"
+            codeToSubQMap.set(m.mark.trim(), m.subQuestion);
+          }
+        });
+      }
+    } catch (e) {
+      // ignore parsing errors
+    }
+  }
 
   const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
@@ -905,7 +942,20 @@ const enrichAnnotationsWithPositions = (
 
     // UNMATCHED: No OCR blocks available - extract position from classification
     if ((anno as any).ocr_match_status === 'UNMATCHED') {
-      const lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
+      let lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
+
+      // FIX: Check if we can map this annotation to a specific sub-question
+      // This fixes Q6b annotations appearing at top of Q6a
+      const annoText = ((anno as any).text || '').trim();
+      // Extract code "A1" from "A1" or "M1"
+      const codeMatch = annoText.match(/^([A-Z]+\d*\w*)/);
+      const code = codeMatch ? codeMatch[1] : annoText;
+
+      const targetSubQ = codeToSubQMap.get(code); // e.g. "b"
+
+      let targetSubStartIndex = -1;
+      let targetSubEndIndex = -1;
+
 
       // Find the position using line_index
       let classificationPosition: any = null;
@@ -929,6 +979,11 @@ const enrichAnnotationsWithPositions = (
           // Add studentWorkLines from all sub-questions
           if (block.subQuestions) {
             block.subQuestions.forEach(subQ => {
+              // Capture start index for this sub-question
+              if (targetSubQ && subQ.part === targetSubQ && targetSubStartIndex === -1) {
+                targetSubStartIndex = allLines.length;
+              }
+
               if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
                 subQ.studentWorkLines.forEach(line => {
                   allLines.push({
@@ -938,9 +993,29 @@ const enrichAnnotationsWithPositions = (
                   });
                 });
               }
+
+              // Capture end index
+              if (targetSubQ && subQ.part === targetSubQ) {
+                targetSubEndIndex = allLines.length - 1;
+              }
             });
           }
         });
+
+        // FIX: If we found a target sub-question range, force the lineIndex into it
+        if (targetSubStartIndex !== -1) {
+          // If defaulting to 0, move to the end of the sub-question (usually the answer line)
+          if (lineIndex <= 0) {
+            lineIndex = Math.max(targetSubStartIndex, targetSubEndIndex);
+          } else {
+            // If it's valid relative index, should we treat it as relative to sub-question?
+            // AI often returns 0-based. Let's assume absolute first. 
+            // If absolute is outside range, move it inside.
+            if (lineIndex < targetSubStartIndex || lineIndex > targetSubEndIndex) {
+              lineIndex = Math.max(targetSubStartIndex, targetSubEndIndex);
+            }
+          }
+        }
 
         // Now use global lineIndex to find the correct line
         if (lineIndex >= 0 && lineIndex < allLines.length) {
@@ -1310,11 +1385,17 @@ export function createMarkingTasksFromClassification(
 
 
 
-    if (hasMainLines || hasSubQuestions || hasDrawing) {
-      // Build text from lines (if any)
-      const studentWorkText = hasMainLines ? q.studentWorkLines.map((line: any) => line.text).join('\n') : '';
+    if (hasMainLines || hasSubQuestions || hasDrawing || (q.studentWork && q.studentWork.trim().length > 0)) {
+      // Build text from lines (if any), otherwise use raw studentWork
+      let studentWorkText = hasMainLines
+        ? q.studentWorkLines.map((line: any) => line.text).join('\n')
+        : (q.studentWork || '');
 
-      if (hasMainLines) {
+      // Check if we should add this to main parts
+      // Note: If it's pure sub-questions, we might not want to add to main parts?
+      // Current logic: "if (hasMainLines)" implies it adds to main parts.
+      // So if we have fallback text, we should probably add it too.
+      if (hasMainLines || (!hasSubQuestions && studentWorkText)) {
         group.mainStudentWorkParts.push(studentWorkText.trim());
       }
 
@@ -1338,18 +1419,21 @@ export function createMarkingTasksFromClassification(
     // Collect sub-questions
     if (q.subQuestions && Array.isArray(q.subQuestions)) {
       for (const subQ of q.subQuestions) {
-        if (subQ.studentWorkLines && subQ.studentWorkLines.length > 0) {
-          const studentWorkText = subQ.studentWorkLines.map(line => line.text).join('\n');
+        if ((subQ.studentWorkLines && subQ.studentWorkLines.length > 0) || (subQ.studentWork && subQ.studentWork.trim().length > 0)) {
+          const studentWorkText = (subQ.studentWorkLines && subQ.studentWorkLines.length > 0)
+            ? subQ.studentWorkLines.map(line => line.text).join('\n')
+            : (subQ.studentWork || '');
+
           group.subQuestions.push({
             part: subQ.part || '',
             studentWork: studentWorkText,
             text: subQ.text,
-            studentWorkLines: subQ.studentWorkLines // Store lines with positions
+            studentWorkLines: subQ.studentWorkLines || [] // Store lines with positions
           } as any);
 
           (group.aiSegmentationResults as any[]).push({
             content: studentWorkText,
-            studentWorkLines: subQ.studentWorkLines
+            studentWorkLines: subQ.studentWorkLines || []
           });
         }
       }

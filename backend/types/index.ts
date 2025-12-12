@@ -110,7 +110,7 @@ export interface ImageAnnotationResult {
 }
 
 // AI model types
-export type ModelType = 'gemini-2.0-flash' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview' | 'openai-gpt-4o' | 'openai-gpt-4o-mini';
+export type ModelType = 'gemini-2.0-flash' | 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview' | 'openai-gpt-4o' | 'openai-gpt-4o-mini' | 'auto';
 
 export interface AIModelConfig {
   name: string;
@@ -334,8 +334,13 @@ export interface MarkingContextQuestionResult {
     reasoning?: string;
     studentText?: string;
     sourceType?: string;
+    step_id?: string;
+    unified_step_id?: string;
   }>;
   // Note: studentWorkSummary is covered by annotations
+  studentWork?: string; // Raw OCR/students work text
+  databaseQuestionText?: string; // Fallback question text
+  classificationBlocks?: any[]; // Fallback student work blocks
   schemeSummary?: string; // Truncated key criteria
   revisionHistory?: Array<{
     timestamp: string;

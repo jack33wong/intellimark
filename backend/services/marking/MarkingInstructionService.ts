@@ -595,7 +595,24 @@ export class MarkingInstructionService {
       }
 
       normalizedScheme.marks.forEach((m: any) => {
-        output += `- ${m.mark}: ${m.answer}`;
+        let markText = m.answer;
+
+        // FIX: Replace "cao" with actual answer if available
+        if (typeof markText === 'string' && markText.trim().toLowerCase() === 'cao') {
+          // 1. Try question level answer
+          if (normalizedScheme.questionLevelAnswer) {
+            markText = `$${normalizedScheme.questionLevelAnswer}$ (cao)`;
+          }
+          // 2. Try sub-question answer if applicable
+          else if (m.subQuestion && normalizedScheme.subQuestionAnswersMap) {
+            const subAns = normalizedScheme.subQuestionAnswersMap[m.subQuestion];
+            if (subAns) {
+              markText = `$${subAns}$ (cao)`;
+            }
+          }
+        }
+
+        output += `- ${m.mark}: ${markText}`;
         if (m.comments) output += ` (${m.comments})`;
         output += '\n';
       });
@@ -625,7 +642,7 @@ export class MarkingInstructionService {
     positionMap?: Map<string, { x: number; y: number; width: number; height: number }>, // NEW: Position map for drawing fallback
     sourceImageIndices?: number[], // NEW: Source image indices for drawing fallback
     tracker?: any // NEW: UsageTracker for tracking LLM tokens
-  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string }> {
+  ): Promise<MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; markingScheme?: any; schemeTextForPrompt?: string }> {
     // Parse and format OCR text if it's JSON
     let formattedOcrText = ocrText;
     try {
@@ -656,7 +673,9 @@ export class MarkingInstructionService {
       formattedOcrText = normalizeLatexDelimiters(ocrText);
     }
 
-    // ========================= START: USE SINGLE PROMPT =========================
+    // Initialize schemeText at higher scope for return
+    let schemeText: string | undefined;
+
     // Use the centralized prompt from prompts.ts
     const { AI_PROMPTS } = await import('../../config/prompts.js');
 
@@ -667,9 +686,6 @@ export class MarkingInstructionService {
     let hasMarkingScheme = normalizedScheme !== null &&
       normalizedScheme !== undefined &&
       normalizedScheme.marks.length > 0;
-
-    if (normalizedScheme) {
-    }
 
     let systemPrompt: string;
     let userPrompt: string;
@@ -686,7 +702,6 @@ export class MarkingInstructionService {
       const baseSchemeQNum = String(schemeQuestionNumber || '').replace(/[a-z]/i, '');
       const baseCurrentQNum = String(currentQuestionNumber || '').replace(/[a-z]/i, '');
 
-      let schemeText = '';
       // Only use this scheme if it matches the current question
       if (baseSchemeQNum === baseCurrentQNum || schemeQuestionNumber === currentQuestionNumber) {
         try {
@@ -704,15 +719,21 @@ export class MarkingInstructionService {
         const fallbackPrompt = AI_PROMPTS.markingInstructions.basic;
         systemPrompt = fallbackPrompt.system;
         userPrompt = fallbackPrompt.user(
-          inputQuestionNumber || 'Unknown',
           formattedOcrText,
-          classificationStudentWork || 'No student work provided',
-          formattedGeneralGuidance
+          classificationStudentWork || 'No student work provided'
         );
       }
 
-      if (hasMarkingScheme) {
-        userPrompt = prompt.user(
+      if (hasMarkingScheme && schemeText) {
+        if (inputQuestionNumber === '14' || inputQuestionNumber === '6') {
+          console.log(`\n🔍 [DEBUG Q${inputQuestionNumber}] Scheme sent to AI:\n${schemeText}\n`);
+          if (inputQuestionNumber === '6') {
+            console.log(`\n🔍 [DEBUG Q6 EVIDENCE] Student Work/OCR Sent to AI:`);
+            console.log(`--- STUDENT WORK ---\n${classificationStudentWork}\n`);
+            console.log(`--- OCR DATA (Block IDs) ---\n${formattedOcrText}\n--------------------\n`);
+          }
+        }
+        userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
           inputQuestionNumber || 'Unknown',
           schemeText, // Pass text instead of JSON
           formattedOcrText,
@@ -721,16 +742,30 @@ export class MarkingInstructionService {
           rawOcrBlocks, // Pass raw blocks for drawing page detection
           questionText // Pass question text explicitly
         );
+      } else if (!hasMarkingScheme) {
+        // Redundant else block if hasMarkingScheme was set to false above, but handles the distinct path
+        const prompt = AI_PROMPTS.markingInstructions.basic;
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user(
+          formattedOcrText,
+          classificationStudentWork || 'No student work provided'
+        );
+      } else {
+        // Should not happen if logic is correct, but safe fallback
+        const prompt = AI_PROMPTS.markingInstructions.basic;
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user(
+          formattedOcrText,
+          classificationStudentWork || 'No student work provided'
+        );
       }
     } else {
       // Use the noMarkingScheme prompt
       const prompt = AI_PROMPTS.markingInstructions.basic;
       systemPrompt = prompt.system;
       userPrompt = prompt.user(
-        inputQuestionNumber || 'Unknown',
         formattedOcrText,
-        classificationStudentWork || 'No student work provided',
-        formattedGeneralGuidance
+        classificationStudentWork || 'No student work provided'
       );
     }
 
@@ -838,7 +873,6 @@ export class MarkingInstructionService {
           res = { content: visionResult.content, usageTokens: visionResult.usageTokens };
         }
       } else {
-        // Normal flow: text-only API
         res = await ModelProvider.callText(systemPrompt, userPrompt, model, true, tracker, 'marking');
       }
 
@@ -856,6 +890,72 @@ export class MarkingInstructionService {
       try {
         const parsedResponse = JSON.parse(jsonString);
 
+        // =========================================================================================
+        // STRICT MARK LIMIT ENFORCEMENT (Ref: Step 1779)
+        // Prevent AI from awarding more marks than available in the scheme (e.g. 7 marks for Q14 when max is 4)
+        // =========================================================================================
+        if (normalizedScheme) { // Use normalizedScheme argument
+          try {
+            // normalizedScheme is likely already parsed and normalized
+            let marksList: any[] = [];
+            if (normalizedScheme.marks && Array.isArray(normalizedScheme.marks)) {
+              marksList = normalizedScheme.marks;
+            }
+
+            if (marksList.length > 0) {
+              // 1. Build Limit Map (e.g. { "P1": 3, "A1": 1 })
+              const limitMap = new Map<string, number>();
+              marksList.forEach((m: any) => {
+                const code = (m.mark || '').trim();
+                if (code) {
+                  limitMap.set(code, (limitMap.get(code) || 0) + 1);
+                }
+              });
+
+              // 2. Filter Annotations
+              if (parsedResponse.annotations && Array.isArray(parsedResponse.annotations)) {
+                const validAnnotations: any[] = [];
+                const usageMap = new Map<string, number>();
+
+                parsedResponse.annotations.forEach((anno: any) => {
+                  const rawText = (anno.text || '').trim();
+                  // Extract code (e.g. "P1" from "P1") or "M1" from "M1: Correct method"
+                  const code = rawText.split(/[^a-zA-Z0-9]/)[0];
+
+                  if (limitMap.has(code)) {
+                    const currentUsage = usageMap.get(code) || 0;
+                    const limit = limitMap.get(code)!;
+
+                    if (currentUsage < limit) {
+                      validAnnotations.push(anno);
+                      usageMap.set(code, currentUsage + 1);
+                    } else {
+                      console.warn(`⚠️ [MARK LIMIT] Dropped excess annotation '${rawText}' for Q${inputQuestionNumber || '?'} (Limit for ${code} is ${limit})`);
+                    }
+                  } else {
+                    // Allow unknown codes if they don't clash, but warn
+                    if (limitMap.size > 0) {
+                      // Opt to KEEP unknown marks for now to avoid false negatives on valid but hallucinated codes?
+                      // No, if user wants STRICT adherence, we should arguably Warn/Drop. 
+                      // But Q6 "B1" is usually valid.
+                      // Let's keep it but log warning.
+                      validAnnotations.push(anno);
+                    } else {
+                      validAnnotations.push(anno);
+                    }
+                  }
+                });
+
+                // Update annotations
+                parsedResponse.annotations = validAnnotations;
+              }
+            }
+          } catch (e) {
+            console.error('Error enforcing mark limits:', e);
+          }
+        }
+        // =========================================================================================
+
         // Only log if there are UNMATCHED annotations
         const hasUnmatched = parsedResponse.annotations && parsedResponse.annotations.some((anno: any) =>
           anno.ocr_match_status === 'UNMATCHED'
@@ -864,8 +964,10 @@ export class MarkingInstructionService {
           anno.ocr_match_status === 'VISUAL'
         );
 
-        if (hasUnmatched || hasVisual) {
-          const statusLabel = hasVisual ? 'HAS VISUAL/DRAWING' : 'HAS UNMATCHED';
+        // Log mostly for non-standard cases (User request: disable STANDARD logs)
+        const statusLabel = hasVisual ? 'HAS VISUAL/DRAWING' : (hasUnmatched ? 'HAS UNMATCHED' : 'STANDARD');
+
+        if (statusLabel !== 'STANDARD') {
           console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (${statusLabel})`);
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -877,7 +979,8 @@ export class MarkingInstructionService {
               console.log(`  - Step ID: ${anno.step_id || 'N/A'}`);
               console.log(`  - OCR Match Status: ${anno.ocr_match_status || 'N/A'}`);
               console.log(`  - Student Text: ${(anno.student_text || '').substring(0, 50)}${anno.student_text && anno.student_text.length > 50 ? '...' : ''}`);
-              console.log(`  - Line Index: ${anno.line_index || 'N/A'}`);
+              // Fix: Check for undefined specifically to handle index 0 correctly
+              console.log(`  - Line Index: ${anno.line_index !== undefined ? anno.line_index : 'N/A'}`);
 
               // Validate pageIndex from AI (prevent out-of-bounds errors)
               if (anno.pageIndex !== undefined) {
@@ -909,24 +1012,7 @@ export class MarkingInstructionService {
                 }
               }
 
-              // Show classification drawing position for comparison
-              const classificationBlocks = (processedImage as any).classificationBlocks;
-              if (anno.ocr_match_status === 'VISUAL' && classificationBlocks) {
-                console.log(`  - Classification Drawing Positions:`);
-                classificationBlocks.forEach((block: any, bIdx: number) => {
-                  if (block.subQuestions) {
-                    block.subQuestions.forEach((subQ: any, sqIdx: number) => {
-                      if (subQ.hasStudentDrawing && subQ.studentWorkLines) {
-                        subQ.studentWorkLines.forEach((line: any, lIdx: number) => {
-                          if (line.position) {
-                            console.log(`    Block[${bIdx}] SubQ[${sqIdx}] (${subQ.part}) Line[${lIdx}]: ${JSON.stringify(line.position)}`);
-                          }
-                        });
-                      }
-                    });
-                  }
-                });
-              }
+              // (processedImage not available in this scope, skipping classification comparison)
 
               if (anno.reasoning) {
                 console.log(`  - Reasoning: ${anno.reasoning.substring(0, 80)}${anno.reasoning.length > 80 ? '...' : ''}`);
@@ -937,6 +1023,7 @@ export class MarkingInstructionService {
           }
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
         }
+
       } catch (e) {
         // Ignore parsing errors here, main flow handles it
       }
@@ -1210,13 +1297,16 @@ export class MarkingInstructionService {
       }
 
       // Return the correct MarkingInstructions structure
-      const markingResult = {
-        annotations: parsedResponse.annotations || [], // Default to empty array if missing
-        studentScore: parsedResponse.studentScore || null,
-        usageTokens
+      return {
+        annotations: parsedResponse.annotations,
+        studentScore: parsedResponse.studentScore,
+        usage: {
+          llmTokens: usageTokens
+        },
+        cleanedOcrText: formattedOcrText,
+        markingScheme: normalizedScheme, // Pass normalized scheme so executor can use it
+        schemeTextForPrompt: schemeText // Pass the exact scheme text used in prompt
       };
-
-      return markingResult;
 
     } catch (error) {
       console.error("❌ Error calling AI for marking instructions or parsing response:", error);
