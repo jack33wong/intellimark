@@ -219,7 +219,7 @@ export class SuggestedFollowUpService {
 
         // Simply combine all responses with separators (no parsing logic needed)
         // AI already returns responses in the correct format: "Question X\n\nquestion text\n\na) sub question text\n\nmodel answer\n\nb) sub question text\n\nmodel answer"
-        const separator = '\n\n' + '='.repeat(50) + '\n\n';
+        const separator = '\n\n---\n\n';
         const combinedResponse = parallelResults
           .map(result => result.response) // Use AI response directly (already in correct format)
           .join(separator);
@@ -261,7 +261,7 @@ export class SuggestedFollowUpService {
       if (sortedAllQuestions.length > 1) {
         // Aggregate all question texts with clear separation (already sorted by question number)
         questionText = sortedAllQuestions.map((q, index) => {
-          const separator = '\n' + '='.repeat(50) + '\n';
+          const separator = '\n\n---\n\n';
           if (index === 0) {
             return `Question ${q.questionNumber} (${q.marks} marks) - ${q.examBoard} ${q.examCode} (${q.examSeries}) ${q.tier}:\n${q.questionText}`;
           }

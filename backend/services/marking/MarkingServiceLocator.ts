@@ -78,7 +78,7 @@ export class MarkingServiceLocator {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       // Pass tracker and phase to get real token counts
       const tracker = null; // Not using tracker here, but ModelProvider will still return real counts
-      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, 'auto', false, tracker, 'questionMode');
+      const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, 'questionMode');
 
       const { getModelInfo } = await import('../../config/aiModels.js');
       const modelInfo = getModelInfo(model);
@@ -213,7 +213,7 @@ export class MarkingServiceLocator {
     imageData: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto',
+    model: ModelType = 'gemini-2.0-flash',
     tracker?: any
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens?: number; outputTokens?: number }> {
     try {
@@ -291,7 +291,7 @@ export class MarkingServiceLocator {
     ocrText: string,
     systemPrompt: string,
     userPrompt: string,
-    model: ModelType = 'auto',
+    model: ModelType = 'gemini-2.0-flash',
     tracker?: any,
     category?: "questionOnly" | "questionAnswer" | "metadata" | "frontPage"
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number }> {

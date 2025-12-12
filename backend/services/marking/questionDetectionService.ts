@@ -1151,7 +1151,7 @@ export function buildExamPaperStructure(detectionResults: any[]): {
       questionNumber: qd.classificationQuestionNumber || qd.question?.questionNumber || match.questionNumber || '',
       questionText: match.databaseQuestionText || qd.questionText,
       marks: match.marks || 0,
-      markingScheme: match.markingScheme || '',
+      markingScheme: typeof match.markingScheme === 'string' ? match.markingScheme : '', // Prevent storing heavy object; SuggestedFollowUpService requires string
       questionIndex: qd.questionIndex,
       sourceImageIndex: qd.sourceImageIndex
     });
