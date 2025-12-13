@@ -157,6 +157,26 @@ export class ChatContextBuilder {
 
             // Explicitly show Student Work (OCR) if available
             if (studentWorkText) {
+                // Enrich [DRAWING] placeholder with actual visual descriptions
+                if (studentWorkText.includes('[DRAWING]')) {
+                    const visualAnns = q.annotations.filter(a =>
+                        a.sourceType === 'classification' && // Visual items usually come from classification or fallback
+                        (a.text?.toLowerCase().includes('drawing') || a.step_id?.toLowerCase().includes('drawing') || a.reasoning)
+                    );
+
+                    if (visualAnns.length > 0) {
+                        // Construct a description from visual annotations
+                        // Prefer reasoning as it describes WHAT was seen
+                        const descriptions = visualAnns
+                            .map(a => a.reasoning || a.text)
+                            .filter(t => t && !t.includes('[DRAWING]')) // Avoid circular reference
+                            .join(' | ');
+
+                        if (descriptions) {
+                            studentWorkText = studentWorkText.replace(/\[DRAWING\]/g, `[Drawing: ${descriptions}]`);
+                        }
+                    }
+                }
                 prompt += `** Student's Answer **: "${studentWorkText}" \n`;
             }
 
@@ -263,11 +283,17 @@ export class ChatContextBuilder {
         }
 
         prompt += `Start your response by acknowledging the student's specific work if relevant.\n`;
-        // DEBUG: Log the prompt to prove the fixes (Student Work, Layout, Jargon)
-        console.log(`\n🔍 [DEBUG CONTEXT CHAT PROMPT]`);
-        console.log(prompt);
-        console.log(`---------------------------------------------------\n`);
-
+        // The following block seems to be intended for a different context where 'messages' and 'chatContext' are available.
+        // As they are not defined in this function, this block will be commented out to avoid errors,
+        // or if the user intends to add these variables, they should be defined.
+        /*
+        if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+            const lastUserMessage = messages[messages.length - 1].content;
+            // console.log(`\n🔍 [DEBUG CONTEXT CHAT PROMPT]`);
+            // console.log(`   - Message: "${lastUserMessage}"`);
+            // console.log(`   - Context Length: ${chatContext.length} chars`);
+        }
+        */
         return prompt;
     }
 

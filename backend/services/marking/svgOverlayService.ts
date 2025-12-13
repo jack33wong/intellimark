@@ -331,22 +331,39 @@ export class SVGOverlayService {
 
       // 2. Calculate Offsets
       const offsets = new Map<number, number>(); // Index -> Y Offset
+
+      // Calculate font scale to determine appropriate spacing
+      const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
+      const baseSpacing = Math.round(this.CONFIG.baseFontSizes.tick * fontScaleFactor * 1.2); // 1.2x tick size
+
       positionGroups.forEach((indices) => {
         if (indices.length > 1) {
           indices.forEach((annoIndex, groupIndex) => {
             if (groupIndex > 0) {
-              // Offset subsequent annotations by 40px * groupIndex
-              offsets.set(annoIndex, 40 * groupIndex);
+              // Offset subsequent annotations by dynamic spacing
+              offsets.set(annoIndex, baseSpacing * groupIndex);
             }
           });
         }
       });
 
+      // 3. Smart Height Adjustment: Count unique Sub-Questions on this page
+      // This helps determine density to restrict "Whole Page" drawing blocks (like Q11)
+      const uniqueSubQuestions = new Set<string>();
+      annotations.forEach(a => {
+        if (a.subQuestion) uniqueSubQuestions.add(a.subQuestion);
+      });
+      // Fallback: If no explicit sub-questions (e.g. Q1, Q2), count detected questions from other sources?
+      // Or just default to 1 if set is empty? 
+      // Q11 with Q11a, Q11b -> set size 2.
+      // Q1 without sub-parts -> set size 0 (count as 1).
+      const subQuestionCount = Math.max(1, uniqueSubQuestions.size);
+
       annotations.forEach((annotation, index) => {
         try {
           const decision = decisionMap.get(index) || 'TRUST_OCR';
           const yOffset = offsets.get(index) || 0;
-          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset);
+          svg += this.createAnnotationSVG(annotation, index, scaleX, scaleY, actualWidth, actualHeight, decision, yOffset, subQuestionCount);
         } catch (error) {
           console.error(`❌ [SVG ERROR] Failed to create SVG for annotation ${index}:`, error);
           console.error(`❌ [SVG ERROR] Annotation data:`, annotation);
@@ -372,7 +389,7 @@ export class SVGOverlayService {
   /**
    * Create annotation SVG element based on type
    */
-  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR', yOffset: number = 0): string {
+  private static createAnnotationSVG(annotation: Annotation, index: number, scaleX: number, scaleY: number, actualWidth: number, actualHeight: number, positionDecision: 'TRUST_AI' | 'TRUST_OCR' = 'TRUST_OCR', yOffset: number = 0, subQuestionCount: number = 1): string {
     let [x, y, width, height] = annotation.bbox;
     const action = annotation.action;
     if (!action) {
@@ -417,16 +434,38 @@ export class SVGOverlayService {
       const originalHeight = actualHeight / scaleY;
 
       // Convert AI % to Original Pixels
-      const aiH_orig = (aiPos.height / 100) * originalHeight;
-      const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Baseline
+      const aiW_px = (aiPos.width / 100) * originalWidth;
+      let aiH_orig = (aiPos.height / 100) * originalHeight;
+      const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Center/Baseline
 
-      // Target: Annotation Bottom (y + h) should match Cyan Circle Center (aiY + aiH/2)
-      // y + aiH = aiY + aiH/2
-      // y = aiY - aiH/2
+      console.log(`🔍 [SMART CLAMP DEBUG] Index: ${index}, Action: ${action}, Status: ${ocrStatus}, SubQ: ${subQuestionCount}`);
+      console.log(`   Input AI: w=${aiPos.width}%, h=${aiPos.height}%, y=${aiPos.y}%`);
+      console.log(`   Orig Height: ${originalHeight}, Calc AI Height: ${aiH_orig}`);
+
+      // SMART HEIGHT CAP: Restrict max height based on density (sub-question count)
+      // If there are 2 sub-questions, max height is ~42% (85/2)
+      // If there is 1 sub-question, max height is 85%
+      // This prevents Q11 (covering whole page) from overlapping Q11a/Q11b areas if separate
+      if (subQuestionCount > 1) {
+        const maxHtPct = 85 / subQuestionCount;
+        const maxHtPx = (maxHtPct / 100) * originalHeight;
+        console.log(`   Claming Multi: MaxPct=${maxHtPct}, MaxPx=${maxHtPx}`);
+        if (aiH_orig > maxHtPx) {
+          console.log(`   >>> CLAMPING TRIGGERED (Multi) <<< New H=${maxHtPx}`);
+          aiH_orig = maxHtPx;
+        }
+      } else {
+        // Even for single questions, if height is >90%, it's suspicious, clamp to 85%
+        const maxHtPx = 0.85 * originalHeight;
+        if (aiH_orig > maxHtPx) {
+          console.log(`   >>> CLAMPING TRIGGERED (Single) <<< New H=${maxHtPx}`);
+          aiH_orig = maxHtPx;
+        }
+      }
 
       x = (aiPos.x / 100) * originalWidth;
-      // Target: Raise one block higher than previous (which was aiY + aiH/2)
-      // New y = (aiY + aiH/2) - aiH = aiY - aiH/2
+      // Target: Center the new height around the original center
+      // Assuming aiY_orig was intended as the center (observation from Q11 being y=50, h=90)
       y = aiY_orig - (aiH_orig / 2);
       width = aiW_px;
       height = aiH_orig;
@@ -463,8 +502,21 @@ export class SVGOverlayService {
 
     const scaledX = x * scaleX;
     const scaledY = (y * scaleY) + yOffset; // Apply vertical offset for overlapping annotations
-    const scaledWidth = width * scaleX;
-    const scaledHeight = height * scaleY;
+    let scaledWidth = width * scaleX;
+    let scaledHeight = height * scaleY;
+
+    // CLAMP HEIGHT LOGIC (Same as in createSymbolAnnotation)
+    // Ensure the visual box doesn't run off the bottom of the page
+    // const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight; // Already defined above
+    const requiredBottomSpace = 150 * fontScaleFactor;
+    const maxBottomY = actualHeight - requiredBottomSpace;
+
+    if (scaledY + scaledHeight > maxBottomY) {
+      const availableHeight = maxBottomY - scaledY;
+      if (availableHeight > 50 * fontScaleFactor) {
+        scaledHeight = availableHeight;
+      }
+    }
 
 
     let svg = '';
@@ -497,26 +549,33 @@ export class SVGOverlayService {
     const reasoning = (annotation as any).reasoning;
 
     // Determine if we should show classification text (only for AI-positioned blocks)
-    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK') && aiPos;
+    // Determine if we should show classification text (only for AI-positioned blocks)
+    // We treat unmatched/fallback blocks as candidates for showing what the AI saw
+    const useAiPos = (hasLineData === false || ocrStatus === 'FALLBACK' || ocrStatus === 'UNMATCHED') && aiPos;
     const classificationText = useAiPos ? (annotation as any).classification_text : undefined;
 
-    switch (action) {
-      case 'tick':
-        svg += this.createTickAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight, classificationText);
-        break;
-      case 'cross':
-        svg += this.createCrossAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, text, reasoning, actualWidth, actualHeight, classificationText);
-        break;
-      case 'circle':
-        svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
-        break;
-      case 'underline':
-        svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
-        break;
-      default:
-        // Log warning and skip instead of throwing error
-        console.warn(`⚠️ [SVG WARNING] Unknown action type: "${action}" for annotation ${index}, skipping.`);
-        return '';
+    // Determine if we should show classification text (green)
+    // Logic: Show if explicitly requested via green scheme OR if likely correct answer
+    const showClassification = !!classificationText && (action === 'tick' || action === 'cross');
+
+    // Create symbol annotation
+    // Pass subQuestionCount if needed (currently not used inside createSymbolAnnotation explicitly, 
+    // but dimensions passed are already clamped)
+    if (action === 'tick' || action === 'cross' || action === 'write') {
+      let symbol = '';
+      if (action === 'tick') symbol = '✓';
+      else if (action === 'cross') symbol = '✗';
+      else if (action === 'write') symbol = text && text.length < 5 ? text : '✎'; // Use pencil for long text writes
+
+      svg += this.createSymbolAnnotation(scaledX, scaledY, scaledWidth, scaledHeight, symbol, text, reasoning, actualWidth, actualHeight, classificationText);
+    } else if (action === 'circle') {
+      svg += this.createCircleAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+    } else if (action === 'underline') {
+      svg += this.createUnderlineAnnotation(scaledX, scaledY, scaledWidth, scaledHeight);
+    } else {
+      // Log warning and skip instead of throwing error
+      console.warn(`⚠️ [SVG WARNING] Unknown action type: "${action}" for annotation ${index}, skipping.`);
+      return '';
     }
 
     return svg;
@@ -591,15 +650,48 @@ export class SVGOverlayService {
   private static createSymbolAnnotation(x: number, y: number, width: number, height: number, symbol: string, text: string | undefined, reasoning: string | undefined, actualWidth: number, actualHeight: number, classificationText?: string): string {
     // Position at the end of the bounding box
     const symbolX = x + width;
-    // Calculate base Y position using configurable percentage offset
-    const baseYOffsetPixels = (height * this.CONFIG.yPositions.baseYOffset) / 100;
-    const textY = y + height + baseYOffsetPixels;
+    // Determine positioning strategy
+    // User Request: "Reasoning should be under the block" AND "Drawing block is too large"
+    // STRATEGY: Instead of moving text to top, we CLAMP the visual height of the block
+    // to ensure there is always room at the bottom for the text.
 
-    // Scale font sizes relative to actual image height
+    // Scale font sizes
     const fontScaleFactor = actualHeight / this.CONFIG.baseReferenceHeight;
     const symbolSize = Math.max(20, Math.round((symbol === '✓' ? this.CONFIG.baseFontSizes.tick : this.CONFIG.baseFontSizes.cross) * fontScaleFactor));
     const textSize = Math.max(16, Math.round(this.CONFIG.baseFontSizes.markingSchemeCode * fontScaleFactor));
-    const classificationSize = Math.max(14, Math.round(textSize * 0.8)); // Slightly smaller than mark code
+    const classificationSize = Math.max(14, Math.round(textSize * 0.8));
+
+    // Calculate required bottom space (Reasoning + Margins)
+    // Estimate 2 lines of reasoning max usually, or just reserve a fixed %
+    const requiredBottomSpace = 150 * fontScaleFactor; // Enough for ~3 lines
+    const maxBottomY = actualHeight - requiredBottomSpace;
+
+    // Check if the current block bottom (y + height) exceeds the safe limit
+    let effectiveHeight = height;
+    if (y + effectiveHeight > maxBottomY) {
+      // CLAMP HEIGHT: Visually shrink the block so text fits below
+      // But don't shrink it to nothing - ensure min height
+      const availableHeight = maxBottomY - y;
+      if (availableHeight > 50 * fontScaleFactor) {
+        effectiveHeight = availableHeight;
+      }
+      // If really no space, we might still overlap, but this handles the 90% case
+    }
+
+    // Position text relative to EFFECTIVE height
+    const baseYOffsetPixels = (effectiveHeight * this.CONFIG.yPositions.baseYOffset) / 100;
+
+    // Align symbol with baseline of text
+    const textY = y + effectiveHeight + baseYOffsetPixels;
+    // For M1M0A0 stacking, we might need to be careful, but they share the same box usually?
+    // If they have different boxes, they get clamped individually.
+
+    // Visually, does this affect the rect border? 
+    // The rect is drawn in createAnnotationSVG. We are in createSymbolAnnotation.
+    // We only control text position here. 
+    // To resize the RECT itself, we'd need to change createAnnotationSVG.
+    // Actually, createAnnotationSVG draws the RECT first.
+    // If I want to shrink the rect, I must do it in createAnnotationSVG.
 
     let svg = `
       <text x="${symbolX}" y="${textY}" text-anchor="start" fill="#ff0000" 
@@ -652,19 +744,11 @@ export class SVGOverlayService {
       let reasoningX: number;
       let reasoningY: number;
 
-      if (blockTooWide) {
-        // Position reasoning below the answer block, starting at block's left edge
-        reasoningX = x; // Start at block's left edge
-        // Position below the block: block bottom + spacing
-        const spacingBelowBlock = 10 * fontScaleFactor; // Small spacing below block
-        reasoningY = y + height + spacingBelowBlock;
-      } else {
-        // Position reasoning inline
-        reasoningX = reasoningXInline;
-        // Calculate reasoning Y position using configurable percentage offset
-        const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
-        reasoningY = textY + reasoningYOffsetPixels;
-      }
+      // Standard positioning logic (reverting complex forceful top logic)
+      reasoningX = reasoningXInline;
+      const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
+      reasoningY = textY + reasoningYOffsetPixels;
+
 
       reasoningLines.forEach((line, index) => {
         // For multi-line reasoning, add line height offset for subsequent lines

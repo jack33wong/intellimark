@@ -238,10 +238,20 @@ export class MarkingOutputService {
         });
 
         // Sort: metadata pages first, then by question number, then by page number
+        // Sort: metadata pages first, then strictly by page number
+        // Rationale: Question numbers can be detected out of order (e.g. Q11 appearing on an earlier page due to errors)
+        // or misidentified. Page numbers are the physical truth of the exam paper structure.
         pagesWithOutput.sort((a, b) => {
             if (a.isMetadataPage && !b.isMetadataPage) return -1;
             if (!a.isMetadataPage && b.isMetadataPage) return 1;
 
+            // Strict Page Number Sorting
+            // Only use question number if page numbers are totally missing (rare) or equal
+            if (a.pageNumber !== null && b.pageNumber !== null) {
+                return a.pageNumber - b.pageNumber;
+            }
+
+            // Fallback for missing page numbers:
             const aHasQuestions = a.lowestQuestionNumber !== Infinity;
             const bHasQuestions = b.lowestQuestionNumber !== Infinity;
 
@@ -252,7 +262,7 @@ export class MarkingOutputService {
                 return a.lowestQuestionNumber - b.lowestQuestionNumber;
             }
 
-            return a.pageNumber - b.pageNumber;
+            return a.originalIndex - b.originalIndex;
         });
 
         // Extract sorted annotated output

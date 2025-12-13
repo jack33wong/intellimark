@@ -94,64 +94,9 @@ x = 4 [A1]
 
     // Contextual response (for follow-up chat)
     contextual: {
-      system: `You are a helpful AI assistant for mathematics students.
-      
-      You will receive a message from the student and their marking session context (including scores, annotations, and chat history).
-      
-      YOUR ROLES:
-      1. **Math Solver**: Solve specific math problems step-by-step.
-      2. **Marking Explainer**: Explain why a student received specific marks, based strictly on the provided 'Marking Session Context'.
-      3. **Performance Analyst**: Discuss grades, overall performance, and improvement tips if asked.
-      
-      CRITICAL CONTEXT HANDLING RULES:
-      - If the user asks about their MARKS or SCORING (e.g., "Why is Q1 wrong?", "Why did I get full marks?"):
-        * You MUST refer to the "Marking Session Context" provided.
-        * Quote specific annotations or mark codes (e.g., "[M1] was awarded for...") to support your explanation.
-        * If the student claims they are right but marked wrong, review the question and annotations objectively.
-      
-      - If the user asks a MATH PROBLEM (e.g., "How do I solve Q5?"):
-        * Focus ONLY on solving that specific problem.
-        * Use previous context only if it helps (e.g., referring to the specific numbers in Q5).
-        * Ignore irrelevant previous context (e.g., previous questions about Q1).
-      
-      - If the user asks a GENERAL question (e.g., "What is 2+2?"):
-        * Answer directly and simply.
-      
-      RESPONSE FORMAT REQUIREMENTS:
-      - Use Markdown formatting
-      - CRITICAL RULE: Each step of the solution must have a title and an explanation. The title (e.g., 'Step 1:') must be in its own paragraph with no other text. 
-      - The explanation must start in the next, separate paragraph.
-      - For any inline emphasis, use italics instead of bold
-      - Always put the final, conclusive answer in the very last paragraph
-      - CRITICAL RULE FOR MATH: All mathematical expressions, no matter how simple, must be enclosed in single dollar signs for inline math (e.g., $A = P(1+r)^3$) or double dollar signs for block math. Ensure all numbers and syntax are correct (e.g., use 1.12, not 1. 12).
-      
-      RESPONSE GUIDELINES:
-      - Show the solution steps clearly and concisely
-      - Keep explanations brief and to the point
-      - Focus on the solution method, not detailed teaching
-      - Be direct and efficient
-      
-      CRITICAL RESPONSE STRUCTURE (MANDATORY):
-      When explaining marks or marking (e.g. "Why did I lose marks?", "Is this correct?"), your response MUST follow this structure:
-      
-      1. **Student Work & Evidence**:
-         - Quote the specific student work (OCR) relevant to the question.
-         - List the Annotations applied (e.g. "[M0] reason...").
-      
-      2. **Marking Scheme**:
-         - Quote the relevant part of the marking scheme.
-         - Explain how the work compares to the scheme.
-      
-      3. **Explanation**:
-         - Provide your specific explanation or correction.
-      
-      Return a clear, step-by-step solution with minimal explanatory text.`,
+      system: loadPrompt('contextual_system_prompt.txt'),
 
-      user: (message: string, contextPrompt: string) => `Math problem: "${message}"${contextPrompt}
-      
-      IMPORTANT: Focus ONLY on the current math problem above. If the previous conversation context is about a different topic, ignore it completely and solve only the current question.
-      
-      Solve this problem step by step. Show your work and give the final answer. Do not ask questions.`
+      user: (message: string, contextPrompt: string) => `Math problem: "${message}"${contextPrompt}`
     }
   },
 
@@ -172,7 +117,7 @@ x = 4 [A1]
        
        ${classificationStudentWork ? `\nSTUDENT WORK (STRUCTURED):\n${classificationStudentWork}\n` : ''}
        
-       Please analyze this work and generate appropriate marking annotations. Focus on mathematical correctness, method accuracy. Do not generate any feedback text.`
+       Please analyze this work and generate appropriate marking annotations.Focus on mathematical correctness, method accuracy.Do not generate any feedback text.`
     },
 
     // With marking scheme (when exam paper is detected)
@@ -198,16 +143,17 @@ MARKING SCHEME:
 ${markingScheme}
 
 ⚠️ CRITICAL: The number of annotations you generate MUST BE EXACTLY EQUAL to the number of marks available in the MARKING SCHEME.
-- If the marking scheme has 4 potential marks (e.g. M1, M1, A1, B1), you MUST return exactly 4 annotations.
-- Do NOT omit marks that were not awarded; return them as 0 (e.g. M0, A0) to ensure the count matches exactly.
+- If the marking scheme has 4 potential marks(e.g.M1, M1, A1, B1), you MUST return exactly 4 annotations.
+- Do NOT omit marks that were not awarded; return them as 0 (e.g.M0, A0) to ensure the count matches exactly.
 
-STUDENT WORK (STRUCTURED):
+STUDENT WORK(STRUCTURED):
 ${classificationStudentWork}
 
 ${rawOcrBlocks ? `
 RAW OCR BLOCKS (For Reference):
 ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g, ' ')}`).join('\n')}
-` : ''}
+` : ''
+        }
 `,
     },
 
@@ -222,52 +168,52 @@ ${rawOcrBlocks.map(b => `[${b.id}] (Page ${b.pageIndex}): ${b.text.replace(/\n/g
         // schemeText must be plain text (FULL marking scheme - all sub-questions combined, same format as stored in detectedQuestion)
         // Fail-fast if it looks like JSON (old format)
         if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+          throw new Error(`[MODEL ANSWER PROMPT] Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
         }
 
-        const marksInfo = totalMarks ? `\n**TOTAL MARKS:** ${totalMarks}` : '';
+        const marksInfo = totalMarks ? `\n ** TOTAL MARKS:** ${totalMarks} ` : '';
 
-        return `**QUESTION NUMBER:** ${questionNumber || 'Unknown'}
-**QUESTION:**
-${questionText}${marksInfo}
+        return `** QUESTION NUMBER:** ${questionNumber || 'Unknown'}
+** QUESTION:**
+  ${questionText}${marksInfo}
 
-**MARKING SCHEME:**
-${schemeText}
+** MARKING SCHEME:**
+  ${schemeText}
 
-**WHAT WE PASS TO YOU:**
-- The question text above is already formatted with proper numbering and labels:
-  * Main question has number prefix (e.g., "5. Sophie drives...")
-  * Sub-questions have labels (e.g., "a) Work out...", "b) Is your answer...")
-  * The format is: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
-- The marking scheme includes marks for ALL sub-questions combined.
+** WHAT WE PASS TO YOU:**
+  - The question text above is already formatted with proper numbering and labels:
+  * Main question has number prefix(e.g., "5. Sophie drives...")
+  * Sub - questions have labels(e.g., "a) Work out...", "b) Is your answer...")
+    * The format is: "{number}. {main question text}\\n\\n{part}) {sub-question text}\\n\\n{part}) {sub-question text}"
+      - The marking scheme includes marks for ALL sub - questions combined.
 
-**WHAT WE EXPECT IN YOUR RESPONSE:**
-1. **Start with "Question ${questionNumber || 'X'}" header** (use the exact number provided above: ${questionNumber || 'X'}, do NOT infer it from the question text).
+** WHAT WE EXPECT IN YOUR RESPONSE:**
+  1. ** Start with "Question ${questionNumber || 'X'}" header ** (use the exact number provided above: ${questionNumber || 'X'}, do NOT infer it from the question text).
 
-2. **Wrap EACH question text part SEPARATELY in its own <span class="model_question">...</span> tag:**
-   - The question text we pass to you has format: "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
-   - **Main question text:** Remove the "5. " prefix, then wrap the question text in <span class="model_question">Sophie drives...</span>
-   - **Each sub-question:** Keep the "a)", "b)" label and wrap the entire sub-question text (including label) in its own <span class="model_question">a) Work out...</span>
-   - Example format:
-     * <span class="model_question">Sophie drives a distance of 513 kilometres...</span>
-     * <span class="model_question">a) Work out an estimate...</span>
-     * [Model answer for a) with mark codes]
-     * <span class="model_question">b) Is your answer...</span>
-     * [Model answer for b) with mark codes]
+2. ** Wrap EACH question text part SEPARATELY in its own < span class="model_question" >...</span> tag:**
+  - The question text we pass to you has format: "5. Sophie drives...\n\na) Work out...\n\nb) Is your answer..."
+    - ** Main question text:** Remove the "5. " prefix, then wrap the question text in <span class="model_question" > Sophie drives...</span>
+      - ** Each sub - question:** Keep the "a)", "b)" label and wrap the entire sub - question text(including label) in its own < span class="model_question" > a) Work out...</span>
+        - Example format:
+     * <span class="model_question" > Sophie drives a distance of 513 kilometres...</span>
+  * <span class="model_question" > a) Work out an estimate...</span>
+    * [Model answer for a) with mark codes]
+     * <span class="model_question" > b) Is your answer...</span>
+  * [Model answer for b) with mark codes]
 
-3. **After each wrapped sub-question, provide model answers:**
-   - For each sub-question, provide the model answer with mark codes (do NOT repeat the sub-question text)
-   - Format: After <span class="model_question">a) Work out...</span>, provide [model answer for a with mark codes]
-   - Then after <span class="model_question">b) Is your answer...</span>, provide [model answer for b with mark codes]
-   - Each sub-question's model answer should be complete and include all required mark codes.
-   - **IMPORTANT:** Do NOT repeat the sub-question text when providing model answers (it's already in the wrapped span above)
+3. ** After each wrapped sub - question, provide model answers:**
+  - For each sub - question, provide the model answer with mark codes(do NOT repeat the sub - question text)
+- Format: After < span class="model_question" > a) Work out...</span>, provide [model answer for a with mark codes]
+  - Then after < span class="model_question" > b) Is your answer...</span>, provide [model answer for b with mark codes]
+    - Each sub - question's model answer should be complete and include all required mark codes.
+      - ** IMPORTANT:** Do NOT repeat the sub - question text when providing model answers(it's already in the wrapped span above)
 
-**IMPORTANT:**
-- The question text we provide has "5. " prefix and "a)", "b)" labels
-- When wrapping, REMOVE the "5. " prefix from main question text (but keep the text itself)
-- When wrapping sub-questions, KEEP the "a)", "b)" labels
-- Do NOT add "Question" prefix to sub-question labels (they already have "a)", "b)" format)
-- Wrap each part separately and provide model answers after each sub-question span
+        ** IMPORTANT:**
+      - The question text we provide has "5. " prefix and "a)", "b)" labels
+      - When wrapping, REMOVE the "5. " prefix from main question text(but keep the text itself)
+      - When wrapping sub - questions, KEEP the "a)", "b)" labels
+      - Do NOT add "Question" prefix to sub - question labels(they already have "a)", "b)" format)
+      - Wrap each part separately and provide model answers after each sub - question span
 
 Please generate a model answer that would receive full marks according to the marking scheme.`;
       }
@@ -284,16 +230,16 @@ Please generate a model answer that would receive full marks according to the ma
         // schemeText must be plain text (same format as stored in detectedQuestion)
         // Fail-fast if it looks like JSON (old format)
         if (schemeText.trim().startsWith('{') || schemeText.trim().startsWith('[')) {
-          throw new Error(`[MARKING SCHEME PROMPT] Invalid marking scheme format: expected plain text, got JSON. Please clear old data and create new sessions.`);
+          throw new Error(`[MARKING SCHEME PROMPT]Invalid marking scheme format: expected plain text, got JSON.Please clear old data and create new sessions.`);
         }
 
-        return `**QUESTION:**
-${questionText}
+        return `** QUESTION:**
+      ${questionText}
 
-**MARKING SCHEME:**
-${schemeText}
+      ** MARKING SCHEME:**
+      ${schemeText}
 
-Provide a brief explanation of this marking scheme. Keep it simple and concise.`;
+Provide a brief explanation of this marking scheme.Keep it simple and concise.`;
       }
     },
     similarquestions: {
@@ -310,43 +256,43 @@ Provide a brief explanation of this marking scheme. Keep it simple and concise.`
         const hasMultipleQuestions = questionCount && questionCount > 1;
 
         if (hasMultipleQuestions) {
-          return `**ORIGINAL QUESTIONS (${questionCount} questions):**
-${questionText}
+          return `** ORIGINAL QUESTIONS(${questionCount} questions):**
+      ${questionText}
 
-**MARKING SCHEMES:**
-${formattedScheme}
+      ** MARKING SCHEMES:**
+      ${formattedScheme}
 
-**CRITICAL INSTRUCTIONS:**
-- You have received ${questionCount} original questions above
-- You MUST generate ${numSimilarQuestionsPerQuestion} similar practice questions for EACH original question
-- Organize your response by original question number in ascending order (Q1, Q2, Q3, etc.)
-- For each original question, clearly label the section: "**Similar Questions for Question X:**"
-- Under each section, list ${numSimilarQuestionsPerQuestion} similar questions numbered 1, 2, 3
-- Format your response as:
+      ** CRITICAL INSTRUCTIONS:**
+      - You have received ${questionCount} original questions above
+      - You MUST generate ${numSimilarQuestionsPerQuestion} similar practice questions for EACH original question
+        - Organize your response by original question number in ascending order(Q1, Q2, Q3, etc.)
+          - For each original question, clearly label the section: "**Similar Questions for Question X:**"
+            - Under each section, list ${numSimilarQuestionsPerQuestion} similar questions numbered 1, 2, 3
+              - Format your response as:
 
-**Similar Questions for Question 1:**
+** Similar Questions for Question 1:**
 
-1. [Similar question 1 for Q1]
-2. [Similar question 2 for Q1]
-3. [Similar question 3 for Q1]
+  1.[Similar question 1 for Q1]
+2.[Similar question 2 for Q1]
+3.[Similar question 3 for Q1]
 
-**Similar Questions for Question 2:**
+** Similar Questions for Question 2:**
 
-1. [Similar question 1 for Q2]
-2. [Similar question 2 for Q2]
-3. [Similar question 3 for Q2]
+  1.[Similar question 1 for Q2]
+2.[Similar question 2 for Q2]
+3.[Similar question 3 for Q2]
 
 ... (continue for all ${questionCount} questions)
 
-**IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
+** IMPORTANT:** Generate similar questions for ALL ${questionCount} questions, not just the first one.`;
         } else {
-          return `**ORIGINAL QUESTION:**
-${questionText}
+          return `** ORIGINAL QUESTION:**
+  ${questionText}
 
-**MARKING SCHEME:**
-${formattedScheme}
+** MARKING SCHEME:**
+  ${formattedScheme}
 
-Generate exactly ${numSimilarQuestionsPerQuestion} similar practice questions. Format your response as:
+Generate exactly ${numSimilarQuestionsPerQuestion} similar practice questions.Format your response as:
 
 Similar Practice Questions
 
@@ -373,74 +319,74 @@ ${Array.from({ length: numSimilarQuestionsPerQuestion }, (_, i) => `${i + 1}. [Q
 
 Your task is to analyze marking results and generate a comprehensive performance report.
 
-**Key Responsibilities:**
-1. Analyze overall performance (score, percentage, grade if available)
-2. Identify key strengths and weaknesses
-3. **CRITICAL - Strategic Grade Improvement Analysis (CONCISE):**
-   - If grade boundaries are provided, calculate the exact gap to the next higher grade (or marks to perfect if at highest grade)
-   - **ANALYZE QUESTION-BY-QUESTION RESULTS to identify:**
+** Key Responsibilities:**
+  1. Analyze overall performance(score, percentage, grade if available)
+  2. Identify key strengths and weaknesses
+3. ** CRITICAL - Strategic Grade Improvement Analysis(CONCISE):**
+  - If grade boundaries are provided, calculate the exact gap to the next higher grade(or marks to perfect if at highest grade)
+   - ** ANALYZE QUESTION - BY - QUESTION RESULTS to identify:**
      * Which specific questions the student got wrong or partially correct
-     * Patterns of errors (e.g., calculation errors, method errors, presentation issues)
-     * Topics/question types where student consistently struggles
-   - Provide a single paragraph with 2-3 lines of improvement strategy
-   - **MUST reference SPECIFIC question numbers from WEAK QUESTIONS** - these show actual student weaknesses
-   - Identify what the student usually gets wrong based on the data (e.g., "Q12 geometry shows calculation errors", "Q8 algebra shows method mark losses")
-   - Advise how to improve based on actual weaknesses identified in the marked results
-   - Focus on top 2-3 prioritized actions with specific mark potential
-   - Be specific but brief: mention exact question numbers, what went wrong, and how to improve
-   - **FORMAT: One paragraph, 2-3 lines maximum. No bullet points or lists. No generic phrases.**
+  * Patterns of errors(e.g., calculation errors, method errors, presentation issues)
+    * Topics / question types where student consistently struggles
+      - Provide a single paragraph with 2 - 3 lines of improvement strategy
+        - ** MUST reference SPECIFIC question numbers from WEAK QUESTIONS ** - these show actual student weaknesses
+          - Identify what the student usually gets wrong based on the data(e.g., "Q12 geometry shows calculation errors", "Q8 algebra shows method mark losses")
+            - Advise how to improve based on actual weaknesses identified in the marked results
+              - Focus on top 2 - 3 prioritized actions with specific mark potential
+                - Be specific but brief: mention exact question numbers, what went wrong, and how to improve
+                  - ** FORMAT: One paragraph, 2 - 3 lines maximum.No bullet points or lists.No generic phrases.**
 
-**If a previous analysis report is provided:**
-- Use it as context to understand the student's progress
-- Build upon the previous analysis, highlighting what has improved
-- Identify areas that still need work
-- Show progression and continuity in your analysis
+** If a previous analysis report is provided:**
+  - Use it as context to understand the student's progress
+    - Build upon the previous analysis, highlighting what has improved
+      - Identify areas that still need work
+        - Show progression and continuity in your analysis
 
-**Output Format:**
-You must return a valid JSON object with the following structure:
+          ** Output Format:**
+            You must return a valid JSON object with the following structure:
 {
   "performance": {
     "overallScore": "76/80",
-    "percentage": 95,
-    "grade": "9",
-    "summary": "A comprehensive paragraph summarizing overall performance...",
-    "gradeAnalysis": "One paragraph (2-3 lines): State gap to next grade, then list 2-3 prioritized improvement actions with mark potential. Format as continuous text, not bullet points."
+      "percentage": 95,
+        "grade": "9",
+          "summary": "A comprehensive paragraph summarizing overall performance...",
+            "gradeAnalysis": "One paragraph (2-3 lines): State gap to next grade, then list 2-3 prioritized improvement actions with mark potential. Format as continuous text, not bullet points."
   },
   "strengths": [
     "Strong understanding of algebra",
     "Excellent problem-solving skills"
   ],
-  "weaknesses": [
-    "Struggles with geometry concepts",
-    "Needs improvement in statistical analysis"
-  ]
+    "weaknesses": [
+      "Struggles with geometry concepts",
+      "Needs improvement in statistical analysis"
+    ]
 }
 
-Keep the analysis concise, educational, and actionable. Focus on helping the student improve.`,
+Keep the analysis concise, educational, and actionable.Focus on helping the student improve.`,
 
     user: (markingData: string, lastAnalysis?: any) => {
-      let prompt = `Analyze the following marking results and generate a comprehensive performance report:\n\n${markingData}`;
+      let prompt = `Analyze the following marking results and generate a comprehensive performance report: \n\n${markingData} `;
 
       // Add strategic grade improvement instruction
       if (markingData.includes('GRADE BOUNDARIES:') || markingData.includes('GRADE IMPROVEMENT ANALYSIS:')) {
-        prompt += `\n\nCRITICAL: For the gradeAnalysis field, provide ONE PARAGRAPH (2-3 lines maximum) with improvement strategy:\n`;
-        prompt += `- Format as continuous text (no bullet points, no lists)\n`;
+        prompt += `\n\nCRITICAL: For the gradeAnalysis field, provide ONE PARAGRAPH(2 - 3 lines maximum) with improvement strategy: \n`;
+        prompt += `- Format as continuous text(no bullet points, no lists) \n`;
         prompt += `- First line: State gap to next grade OR if at highest grade, state marks to perfect score\n`;
-        prompt += `- **CRITICAL: Use the EXACT overall score from "OVERALL PERFORMANCE" section (e.g., ${markingData.includes('Average Score:') ? 'use that exact score' : '76/80'}), NOT the sum of question results**\n`;
-        prompt += `- Next 1-2 lines: MUST analyze WEAK QUESTIONS to identify what student usually gets wrong\n`;
-        prompt += `- Be SPECIFIC: Reference actual question numbers from WEAK QUESTIONS section and explain the weakness (e.g., "Q12 geometry shows calculation errors (3/5, +2 marks available) - focus on double-checking arithmetic. Q8 algebra shows method mark losses (4/5, +1 mark) - show all working steps clearly.")\n`;
-        prompt += `- Identify patterns: What type of errors does the student make? (calculation, method, presentation, understanding)\n`;
+        prompt += `- ** CRITICAL: Use the EXACT overall score from "OVERALL PERFORMANCE" section(e.g., ${markingData.includes('Average Score:') ? 'use that exact score' : '76/80'}), NOT the sum of question results **\n`;
+        prompt += `- Next 1 - 2 lines: MUST analyze WEAK QUESTIONS to identify what student usually gets wrong\n`;
+        prompt += `- Be SPECIFIC: Reference actual question numbers from WEAK QUESTIONS section and explain the weakness(e.g., "Q12 geometry shows calculation errors (3/5, +2 marks available) - focus on double-checking arithmetic. Q8 algebra shows method mark losses (4/5, +1 mark) - show all working steps clearly.") \n`;
+        prompt += `- Identify patterns: What type of errors does the student make ? (calculation, method, presentation, understanding) \n`;
         prompt += `- Provide targeted advice: How to fix the specific weaknesses identified in the marked results\n`;
         prompt += `- Avoid generic phrases like "various problem-solving questions" or "check for errors" - reference specific Q numbers and actual weaknesses\n`;
         prompt += `- Keep it brief, specific, and actionable - one flowing paragraph only\n`;
       }
 
       if (lastAnalysis) {
-        prompt += `\n\n--- PREVIOUS ANALYSIS REPORT ---\n`;
-        prompt += `Summary: ${lastAnalysis.performance?.summary || 'N/A'}\n`;
-        prompt += `Strengths: ${lastAnalysis.strengths?.join(', ') || 'N/A'}\n`;
-        prompt += `Weaknesses: ${lastAnalysis.weaknesses?.join(', ') || 'N/A'}\n`;
-        prompt += `\nPlease build upon this previous analysis, highlighting what has improved and what still needs work. Show progression in the student's learning journey.\n`;
+        prompt += `\n\n-- - PREVIOUS ANALYSIS REPORT-- -\n`;
+        prompt += `Summary: ${lastAnalysis.performance?.summary || 'N/A'} \n`;
+        prompt += `Strengths: ${lastAnalysis.strengths?.join(', ') || 'N/A'} \n`;
+        prompt += `Weaknesses: ${lastAnalysis.weaknesses?.join(', ') || 'N/A'} \n`;
+        prompt += `\nPlease build upon this previous analysis, highlighting what has improved and what still needs work.Show progression in the student's learning journey.\n`;
       }
 
       prompt += `\n\nGenerate a comprehensive analysis report in the JSON format specified in the system prompt.`;

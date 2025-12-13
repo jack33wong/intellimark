@@ -1216,10 +1216,10 @@ export class MarkingPipelineService {
 
                                             // DEBUG TRACE: Check if data is even present in the task
                                             if (['15'].includes(String(task.questionNumber))) {
-                                                console.log(`🔍 [DEBUG PIPELINE Q${task.questionNumber}] Student Work Trace:`);
-                                                console.log(`   - task.classificationStudentWork: ${task.classificationStudentWork ? task.classificationStudentWork.length + ' chars' : 'MISSING'}`);
-                                                console.log(`   - task.formattedOcrText: ${task.formattedOcrText ? task.formattedOcrText.length + ' chars' : 'MISSING'}`);
-                                                console.log(`   - task.classificationBlocks: ${task.classificationBlocks ? task.classificationBlocks.length + ' blocks' : 'MISSING'}`);
+                                                // console.log(`🔍 [DEBUG PIPELINE Q${task.questionNumber}] Student Work Trace:`);
+                                                // console.log(`   - task.classificationStudentWork: ${task.classificationStudentWork ? task.classificationStudentWork.length + ' chars' : 'MISSING'}`);
+                                                // console.log(`   - task.formattedOcrText: ${task.formattedOcrText ? 'PRESENT' : 'MISSING'}`);
+                                                // console.log(`   - task.classificationBlocks: ${task.classificationBlocks ? task.classificationBlocks.length + ' blocks' : 'MISSING'}`);
                                             }
 
                                             if (!result.studentWork) {

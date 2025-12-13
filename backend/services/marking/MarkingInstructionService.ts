@@ -479,8 +479,13 @@ export class MarkingInstructionService {
 
       // ======================================================================================
 
+      // 3. Stack overlapping visual annotations (Q11 fix)
+      // Import the helper (assumes it's exported)
+      const { applyVisualStacking } = await import('./AnnotationTransformers.js');
+      const stackedAnnotations = applyVisualStacking(enrichedAnnotations);
+
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
-        annotations: enrichedAnnotations, // ✅ Return enriched annotations with bbox coordinates
+        annotations: stackedAnnotations, // ✅ Return stacked annotations
         usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
         cleanedOcrText: cleanedOcrText,
         studentScore: annotationData.studentScore
@@ -550,6 +555,75 @@ export class MarkingInstructionService {
    * [Label] [MAX: X]
    * - Mark: Criteria
    */
+  /*
+   * Helper to replace "cao" with the actual answer value if available.
+   * Performs a case-insensitive, whole-word replacement:
+   * "A1: cao" -> "A1: 21"
+   * "B1: cao (must be positive)" -> "B1: 21 (must be positive)"
+   */
+  private static replaceCaoWithAnswer(
+    markText: string,
+    normalizedScheme: NormalizedMarkingScheme,
+    subKey?: string
+  ): string {
+    if (!markText) return '';
+
+    // Regex for whole word "cao", case-insensitive
+    const caoRegex = /\bcao\b/i;
+
+    if (caoRegex.test(markText)) {
+      let replacementAnswer: string | undefined;
+
+      // 1. Try sub-question specific answer first
+      if (subKey && normalizedScheme.subQuestionAnswersMap) {
+        replacementAnswer = normalizedScheme.subQuestionAnswersMap[subKey];
+      }
+
+      // 2. Fallback to question-level answer
+      if (!replacementAnswer && normalizedScheme.questionLevelAnswer) {
+        replacementAnswer = normalizedScheme.questionLevelAnswer;
+      }
+
+      // 3. Perform replacement if we found an answer
+      if (replacementAnswer) {
+        return markText.replace(caoRegex, replacementAnswer);
+      }
+    }
+
+    return markText;
+  }
+
+  /**
+   * Mutates the normalizedScheme in-place to replace 'cao' with actual answers.
+   * This ensures consistency between the prompt and the persisted marking logic.
+   */
+  private static replaceCaoInScheme(normalizedScheme: NormalizedMarkingScheme): void {
+    // 1. Handle Sub-Questions
+    if (normalizedScheme.subQuestionMarks) {
+      Object.keys(normalizedScheme.subQuestionMarks).forEach(subQ => {
+        // subQ is "11a", subLabel is "a"
+        const subLabel = subQ.replace(/^\d+/, '');
+        const marks = normalizedScheme.subQuestionMarks![subQ];
+        marks.forEach((m: any) => {
+          if (m.answer) {
+            m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme, subLabel);
+          }
+        });
+      });
+    }
+
+    // 2. Handle Main Question Marks (if logic exists or fallback)
+    if (normalizedScheme.marks) {
+      normalizedScheme.marks.forEach((m: any) => {
+        if (m.answer) {
+          // Try to find sub-key from mark label if possible, or just default
+          // For a single question, subLabel is undefined
+          m.answer = this.replaceCaoWithAnswer(m.answer, normalizedScheme);
+        }
+      });
+    }
+  }
+
   private static formatMarkingSchemeForPrompt(normalizedScheme: NormalizedMarkingScheme): string {
     let output = '';
 
@@ -574,14 +648,11 @@ export class MarkingInstructionService {
         output += '\n';
 
         marks.forEach((m: any) => {
+          // m.answer is already replaced by replaceCaoInScheme if called before
+          // But we call replaceCaoWithAnswer again just in case (it's idempotent)
           let answer = m.answer;
-          // Replace 'cao' with actual answer if available
-          if (answer && answer.toLowerCase() === 'cao' && normalizedScheme.subQuestionAnswersMap) {
-            const actualAnswer = normalizedScheme.subQuestionAnswersMap[subLabel];
-            if (actualAnswer) {
-              answer = actualAnswer;
-            }
-          }
+          // answer = this.replaceCaoWithAnswer(answer, normalizedScheme, subLabel);
+
           output += `- ${m.mark}: ${answer}`;
           if (m.comments) output += ` (${m.comments})`;
           output += '\n';
@@ -598,19 +669,7 @@ export class MarkingInstructionService {
         let markText = m.answer;
 
         // FIX: Replace "cao" with actual answer if available
-        if (typeof markText === 'string' && markText.trim().toLowerCase() === 'cao') {
-          // 1. Try question level answer
-          if (normalizedScheme.questionLevelAnswer) {
-            markText = `$${normalizedScheme.questionLevelAnswer}$ (cao)`;
-          }
-          // 2. Try sub-question answer if applicable
-          else if (m.subQuestion && normalizedScheme.subQuestionAnswersMap) {
-            const subAns = normalizedScheme.subQuestionAnswersMap[m.subQuestion];
-            if (subAns) {
-              markText = `$${subAns}$ (cao)`;
-            }
-          }
-        }
+        markText = this.replaceCaoWithAnswer(markText, normalizedScheme, m.subQuestion);
 
         output += `- ${m.mark}: ${markText}`;
         if (m.comments) output += ` (${m.comments})`;
@@ -704,17 +763,32 @@ export class MarkingInstructionService {
 
       // Only use this scheme if it matches the current question
       if (baseSchemeQNum === baseCurrentQNum || schemeQuestionNumber === currentQuestionNumber) {
+
+        // FIX: Mutate the scheme to replace 'cao' with actual answers
+        // This ensures the prompt sees meaningful values AND the returned 'markingScheme' object
+        // (which is persisted to DB) also has the fixed values.
+        this.replaceCaoInScheme(normalizedScheme);
+
         try {
-          // NEW: Use text-based formatter
           schemeText = this.formatMarkingSchemeForPrompt(normalizedScheme);
         } catch (error) {
           schemeText = 'Error formatting marking scheme';
           console.error('[MARKING INSTRUCTION] Error formatting marking scheme:', error);
         }
+
+        userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
+          inputQuestionNumber || 'Unknown',
+          schemeText || '',
+          formattedOcrText,
+          classificationStudentWork || 'No student work provided',
+          formattedGeneralGuidance,
+          rawOcrBlocks,
+          questionText
+        );
       } else {
         // Scheme doesn't match current question - don't pass it to AI
         console.warn(`[MARKING INSTRUCTION] Q${currentQuestionNumber}: Marking scheme question number (${schemeQuestionNumber}) doesn't match current question. Skipping scheme.`);
-        hasMarkingScheme = false;
+
         // Fallback to no marking scheme prompt
         const fallbackPrompt = AI_PROMPTS.markingInstructions.basic;
         systemPrompt = fallbackPrompt.system;
@@ -723,44 +797,8 @@ export class MarkingInstructionService {
           classificationStudentWork || 'No student work provided'
         );
       }
-
-      if (hasMarkingScheme && schemeText) {
-        if (inputQuestionNumber === '14' || inputQuestionNumber === '6') {
-          console.log(`\n🔍 [DEBUG Q${inputQuestionNumber}] Scheme sent to AI:\n${schemeText}\n`);
-          if (inputQuestionNumber === '6') {
-            console.log(`\n🔍 [DEBUG Q6 EVIDENCE] Student Work/OCR Sent to AI:`);
-            console.log(`--- STUDENT WORK ---\n${classificationStudentWork}\n`);
-            console.log(`--- OCR DATA (Block IDs) ---\n${formattedOcrText}\n--------------------\n`);
-          }
-        }
-        userPrompt = AI_PROMPTS.markingInstructions.withMarkingScheme.user(
-          inputQuestionNumber || 'Unknown',
-          schemeText, // Pass text instead of JSON
-          formattedOcrText,
-          classificationStudentWork || 'No student work provided',
-          formattedGeneralGuidance,
-          rawOcrBlocks, // Pass raw blocks for drawing page detection
-          questionText // Pass question text explicitly
-        );
-      } else if (!hasMarkingScheme) {
-        // Redundant else block if hasMarkingScheme was set to false above, but handles the distinct path
-        const prompt = AI_PROMPTS.markingInstructions.basic;
-        systemPrompt = prompt.system;
-        userPrompt = prompt.user(
-          formattedOcrText,
-          classificationStudentWork || 'No student work provided'
-        );
-      } else {
-        // Should not happen if logic is correct, but safe fallback
-        const prompt = AI_PROMPTS.markingInstructions.basic;
-        systemPrompt = prompt.system;
-        userPrompt = prompt.user(
-          formattedOcrText,
-          classificationStudentWork || 'No student work provided'
-        );
-      }
     } else {
-      // Use the noMarkingScheme prompt
+      // No marking scheme
       const prompt = AI_PROMPTS.markingInstructions.basic;
       systemPrompt = prompt.system;
       userPrompt = prompt.user(
@@ -1195,7 +1233,7 @@ export class MarkingInstructionService {
           const isDrawing = anno.step_id && anno.step_id.includes('drawing');
           const hasNoCode = !anno.text || anno.text.trim() === '';
           const isTick = anno.action === 'tick';
-    
+     
           if (isDrawing && hasNoCode && isTick) {
             // Log removed
             return false;

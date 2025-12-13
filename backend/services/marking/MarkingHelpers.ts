@@ -252,9 +252,10 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
   // ========================== ANNOTATION SUMMARY ==========================
   console.log('\n📊 [ANNOTATION SUMMARY]');
   // Header line
-  console.log('------------------------------------------------------------------------------------------------------------------------------------------');
-  console.log(`| Q#       | Score | WS,Drw    | Scheme               | Ann${' '.repeat(42)}| Match/Visual/Unmatch/Split       |`);
-  console.log(`|----------|-------|-----------|----------------------|${'-'.repeat(46)}|----------------------------------|`);
+  // Header line
+  console.log('----------------------------------------------------------------------------------------------------------------------------------------------------');
+  console.log(`| Q#       | Score | WS,Drw    | Scheme${' '.repeat(28)}| Ann${' '.repeat(43)}| Match/Visual/Unmatch/Split       |`);
+  console.log(`|----------|-------|-----------|${'-'.repeat(34)}|${'-'.repeat(46)}|----------------------------------|`);
 
   const sortedResults = allQuestionResults; // Now sorted in place
 
@@ -313,7 +314,15 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
         if (codes.length > 0) {
           if (ann.subQuestion && ann.subQuestion !== 'null') {
-            const key = ann.subQuestion;
+            // FIX: Normalize key by stripping question number prefix if present
+            // e.g. "2ai" -> "ai", "11b" -> "b"
+            // This ensures matches with sq.part (which is "ai", "b", etc.)
+            let key = ann.subQuestion.toLowerCase();
+            const qNumStr = String(result.questionNumber).toLowerCase();
+            if (key.startsWith(qNumStr) && key !== qNumStr) {
+              key = key.substring(qNumStr.length);
+            }
+
             if (!annotationsBySubQ.has(key)) annotationsBySubQ.set(key, []);
             annotationsBySubQ.get(key)!.push(...codes);
           } else {
@@ -325,6 +334,12 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     // Sub-questions collection
     const subQuestionStats: Array<{ label: string, wb: number, drw: number, annotations: string }> = [];
+
+    // DEBUG Q2 KEYS
+    if (String(result.questionNumber) === '2') {
+      console.log('[DEBUG Q2 KEYS] Map Keys:', Array.from(annotationsBySubQ.keys()));
+      console.log('[DEBUG Q2 ANNS] SubQ Values:', result.annotations?.map((a: any) => a.subQuestion));
+    }
 
     // Work Blocks & Drawings: Count Lines (Main + Sub-questions)
     let lineCount = 0;
@@ -448,10 +463,6 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         // Re-fetch annotations for this sub-q
         const subPart = sq.label.replace(String(result.questionNumber), '');
         const subAnns = result.annotations ? result.annotations.filter((a: any) => {
-          // Basic matching: aiStepId contains subPart, or unified_step_id contains it
-          // Better: we already have annotationsBySubQ map which stores codes. 
-          // But we need the objects for Stats. 
-          // MarkingExecutor stores step_id. Let's filter by it.
           const sId = (a.step_id || '').toLowerCase();
           const uId = (a.unified_step_id || '').toLowerCase();
           return (sId.includes(`_${subPart}`) || uId.includes(subPart));
@@ -464,16 +475,31 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         split += stats.s;
         fallback += stats.f;
 
-        // Codes count
+        // Codes count (Restored)
         const subCodes = annotationsBySubQ.get(subPart) || [];
         totalAnnotationCount += subCodes.length;
         totalAnnotationCodes.push(...subCodes);
       });
 
+      // FIX: Add orphaned annotations (e.g. 'a' when scheme has 'ai', 'aii')
+      // These keys exist in the map but didn't match any subQuestionStats label (which uses scheme parts)
+      annotationsBySubQ.forEach((codes, key) => {
+        // Check if this key was used in any subQuestionStats
+        const isUsed = subQuestionStats.some(sq => {
+          // sq.label is like "2ai", key is "a".
+          // sq.part is "ai".
+          // We check if this key was "consumed" by any sub-question
+          const subPart = sq.label.replace(String(result.questionNumber), '');
+          return subPart === key;
+        });
+
+        if (!isUsed) {
+          totalAnnotationCount += codes.length;
+          totalAnnotationCodes.push(...codes);
+        }
+      });
+
       // FIX: Also add "unassigned" annotations (those belonging to main question but not specific sub-question)
-      // These are stored in 'mainAnnotations' list (codes) and result.annotations (objects)
-      // We need to filter result.annotations for those that were NOT matched in the loop above?
-      // Simpler: Just filter for annotations that do NOT have a matching sub-question ID.
 
       const unassignedAnns = result.annotations ? result.annotations.filter((a: any) => {
         const sId = (a.step_id || '').toLowerCase();
@@ -487,17 +513,17 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         return !isAssigned;
       }) : [];
 
-      if (['2', '6'].includes(String(result.questionNumber))) {
-        console.log(`\n🔍 [DEBUG Q${result.questionNumber} TABLE ANALYSIS]`);
-        console.log(`   - Total Annotations: ${result.annotations?.length || 0}`);
-        console.log(`   - Aggregated Count: ${totalAnnotationCount} + ${unassignedAnns.length} (Unassigned)`);
-        console.log(`   - Unassigned: ${unassignedAnns.map((a: any) => `${a.text} [${a.ocr_match_status}]`).join(', ')}`);
-        console.log(`   - Sub-Q Stats: ${JSON.stringify(subQuestionStats.map((s: any) => ({ label: s.label, anns: s.annotations })))}`);
-        result.annotations?.forEach((a: any) => {
-          console.log(`     > [${a.text}] ID: ${a.step_id || a.unified_step_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
-        });
-        console.log(`---------------------------------------------------\n`);
-      }
+      // if (['2', '6'].includes(String(result.questionNumber))) {
+      //   console.log(`\n🔍 [DEBUG Q${result.questionNumber} TABLE ANALYSIS]`);
+      //   console.log(`   - Total Annotations: ${result.annotations?.length || 0}`);
+      //   console.log(`   - Aggregated Count: ${totalAnnotationCount} + ${unassignedAnns.length} (Unassigned)`);
+      //   console.log(`   - Unassigned: ${unassignedAnns.map((a: any) => `${a.text} [${a.ocr_match_status}]`).join(', ')}`);
+      //   console.log(`   - Sub-Q Stats: ${JSON.stringify(subQuestionStats.map((s: any) => ({ label: s.label, anns: s.annotations })))}`);
+      //   result.annotations?.forEach((a: any) => {
+      //     console.log(`     > [${a.text}] ID: ${a.step_id || a.unified_step_id || 'N/A'} | Status: ${a.ocr_match_status} | Line: ${a.hasLineData}`);
+      //   });
+      //   console.log(`---------------------------------------------------\n`);
+      // }
 
 
       if (unassignedAnns.length > 0) {
@@ -546,7 +572,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     // FIX: Use totalAnnotationCount (which is code sum) instead of raw annotation object count
     const annotationCount = totalAnnotationCount;
     const annotationStr = totalAnnotationCodes.length > 0 ? `(${totalAnnotationCodes.join(',')})` : '';
-    const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(45); // Increased from 30 to 45
+    const annotationCol = `${annotationCount} ${annotationStr}`.padEnd(46); // Increased to 46
     const matchStats = `M:${matched} V:${visual}${unmatchedStr} S:${split}${fallbackStr}`;
 
     const totalAnnCount = totalAnnotationCount;
@@ -558,7 +584,8 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     const displayCodesStr = subQuestionStats.length > 0 ? (mainAnnotations.length > 0 ? ` (${mainAnnotations.join(',')})` : '') : annotationStr; // Use annotationStr here
 
     const visibleLength = countStr.length + displayCodesStr.length;
-    const paddingNeeded = Math.max(0, 45 - visibleLength); // Use 45 for the new width
+    // Update padding calculation for Ann column (width 46)
+    const paddingNeeded = Math.max(0, 46 - visibleLength);
     const padding = ' '.repeat(paddingNeeded);
 
     const finalAnnCol = `${coloredCount}${displayCodesStr}${padding}`;
@@ -580,7 +607,14 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     if (task && task.markingScheme) {
       // DEBUG: Log scheme structure for Q14 to understand why column is empty
       if (result.questionNumber == 14) {
-        console.log('[DEBUG TABLE] Q14 Scheme:', JSON.stringify(task.markingScheme).substring(0, 200));
+        // console.log('[DEBUG TABLE] Q14 Scheme:', JSON.stringify(task.markingScheme).substring(0, 200));
+
+        // Validation for array format which is required for table building
+        if (!Array.isArray(task.markingScheme) && !task.markingScheme?.questionMarks) {
+          // console.log('[DEBUG TABLE] Q14 Scheme Structure Invalid:',
+          //    JSON.stringify(task.markingScheme).substring(0, 100));
+          return;
+        }
       }
       try {
         let schemeMarks: any[] = [];
@@ -622,11 +656,11 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         // invalid json
       }
     }
-    // Truncate if too long to fit in 22 chars (column width)
-    if (schemeStr.length > 20) {
-      schemeStr = schemeStr.substring(0, 19) + '…';
+    // Truncate if too long to fit in 33 chars (column width 34 - 1 space padding)
+    if (schemeStr.length > 33) {
+      schemeStr = schemeStr.substring(0, 32) + '…';
     }
-    const schemeCol = schemeStr.padEnd(21); // Fix alignment: 21 chars + ' |' = 23 chars (Header matches)
+    const schemeCol = schemeStr.padEnd(34);
 
     console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${schemeCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
 
@@ -642,7 +676,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
       const subCodes = annotationsBySubQ.get(sq.label.replace(String(result.questionNumber), '')) || [];
       const subCount = subCodes.length;
       const subAnnotationStr = subCodes.length > 0 ? `(${subCodes.join(',')})` : '';
-      const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(44); // Increased from 30 to 44
+      const subAnnotationCol = `${subCount} ${subAnnotationStr}`.padEnd(46); // Standardized to 46
       const subWorkBlocks = sq.wb;
       const subDrawings = sq.drw;
       const subWsDrwCol = `${subWorkBlocks},${subDrawings}`.padEnd(10);
@@ -670,13 +704,13 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
           }
         } catch (e) { }
       }
-      if (subSchemeStr.length > 20) subSchemeStr = subSchemeStr.substring(0, 19) + '…';
-      const subSchemeCol = subSchemeStr.padEnd(21);
+      if (subSchemeStr.length > 33) subSchemeStr = subSchemeStr.substring(0, 32) + '…';
+      const subSchemeCol = subSchemeStr.padEnd(34); // Standardized to 34
 
-      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subSchemeCol}| ${subAnnotationCol} | ${'-'.padEnd(32)} |`);
+      console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subSchemeCol}| ${subAnnotationCol}| ${'-'.padEnd(32)} |`);
     });
 
-    console.log(`|----------|-------|-----------|----------------------|${'-'.repeat(46)}|----------------------------------|`);
+    console.log(`|----------|-------|-----------|${'-'.repeat(34)}|${'-'.repeat(46)}|----------------------------------|`);
   });
 }
 

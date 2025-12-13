@@ -93,10 +93,15 @@ function parseAIPosition(
     // 1. Try visual_position from AI (NEW DESIGN)
     if (anno.visual_position) {
         const vp = anno.visual_position;
-        if (typeof vp.x === 'number' && typeof vp.y === 'number') {
-            let { x, y, width: w, height: h } = vp;
-            w = w || 10;
-            h = h || 5;
+        // Parse values even if strings
+        let x = parseFloat(vp.x as any);
+        let y = parseFloat(vp.y as any);
+        let w = parseFloat(vp.width as any);
+        let h = parseFloat(vp.height as any);
+
+        if (!isNaN(x) && !isNaN(y)) {
+            w = !isNaN(w) ? w : 10;
+            h = !isNaN(h) ? h : 5;
 
             // Normalize if values are > 100 (AI likely used 0-1000 scale or pixels)
             if (x > 100 || y > 100 || w > 100 || h > 100) {
@@ -124,9 +129,15 @@ function parseAIPosition(
         }
     }
 
-    // 3. Try line_index (Legacy)
+    // 3. Try line_index (Robust: Handles both 0-based and 1-based AI outputs)
     if (!aiPosition && context?.studentWorkLines && typeof anno.line_index === 'number') {
-        const line = context.studentWorkLines[anno.line_index - 1];
+        // If AI returns 0, it means Index 0 (0-based)
+        // If AI returns 1, it means Index 0 (1-based) -> 1-1 = 0
+        const index = anno.line_index;
+        const line = (index === 0)
+            ? context.studentWorkLines[0]
+            : context.studentWorkLines[index - 1];
+
         if (line?.position) {
             aiPosition = line.position;
         }
@@ -380,13 +391,23 @@ export function toLegacyFormat(annotation: ImmutableAnnotation): any {
     let matchStatus = 'MATCHED';
 
     if (annotation.aiMatchStatus) {
-        // Trust AI's original status (MATCHED, VISUAL)
+        // Trust AI's original status (MATCHED, VISUAL, UNMATCHED)
         matchStatus = annotation.aiMatchStatus;
     } else {
         // Legacy fallback: Detect visual annotations by presence of aiPosition without bbox
         if (annotation.aiPosition && !annotation.bbox) {
             matchStatus = 'VISUAL'; // Drawing annotation
         }
+    }
+
+    // MAP COORDINATES
+    // Priority: OCR BBox (Ground Truth) > AI Visual Position (Fallback)
+    let bbox = annotation.bbox;
+
+    // FIX for Q6: If UNMATCHED (no OCR bbox), fall back to AI Position (from line index or [POSITION] tag)
+    if (!bbox && annotation.aiPosition) {
+        const { x, y, width, height } = annotation.aiPosition;
+        bbox = [x, y, width, height];
     }
 
     const result = {
@@ -437,4 +458,82 @@ export function fromLegacyFormat(legacyAnno: any): ImmutableAnnotation {
         ocrSource: legacyAnno.ocrSource,
         hasLineData: legacyAnno.hasLineData
     };
+}
+// ============================================================================
+// VISUAL STACKING (New Feature)
+// ============================================================================
+
+/**
+ * Apply vertical stacking to overlapping visual annotations to prevent clutter.
+ * Used for Q11 messy annotations.
+ */
+export function applyVisualStacking(annotations: any[]): any[] {
+    const POSITION_THRESHOLD = 5; // % difference to consider "same position"
+    const STACK_OFFSET_Y = 12; // % height to shift down
+
+    // Group by page
+    const byPage = new Map<number, any[]>();
+    annotations.forEach(a => {
+        const p = a.pageIndex || 0;
+        if (!byPage.has(p)) byPage.set(p, []);
+        byPage.get(p)!.push(a);
+    });
+
+    const result: any[] = [];
+
+    byPage.forEach((pageAnns) => {
+        // Sort by Y position to process top-down
+        // We only care about visual annotations (those using aiPosition/bbox/visual_position)
+        // Check if annotation has visual data
+        const visuals = pageAnns.filter(a => a.visual_position || (a.ocr_match_status === 'VISUAL') || (a.box_2d && a.ocr_match_status === 'UNMATCHED')); // Q6 fallback uses box_2d?? No, legacy format uses box_2d? 
+        // Wait, legacy format output depends on caller. Let's assume input is legacy format array.
+
+        // We need to mutate the annotations in place or return new ones.
+        // Simple O(N^2) checks for overlaps
+        for (let i = 0; i < pageAnns.length; i++) {
+            const current = pageAnns[i];
+
+            // Skip if not visual or unmatched-with-box
+            if (!current.box_2d) {
+                // If no box, nothing to stack
+                continue;
+            }
+
+            let stackLevel = 0;
+
+            // Check against all PREVIOUS processed annotations on this page
+            for (let j = 0; j < i; j++) {
+                const prev = pageAnns[j];
+                if (!prev.box_2d) continue;
+
+                // Check overlap
+                const cx = current.box_2d[0];
+                const cy = current.box_2d[1]; // Wait, box_2d is usually [x, y, w, h]? No, let's check legacy format.
+                // Legacy format in toLegacyFormat usually returns box_2d as [x, y, w, h] (percentages).
+
+                const px = prev.box_2d[0];
+                const py = prev.box_2d[1];
+
+                const xDiff = Math.abs(cx - px);
+                const yDiff = Math.abs(cy - py);
+
+                if (xDiff < POSITION_THRESHOLD && yDiff < POSITION_THRESHOLD) {
+                    stackLevel++;
+                }
+            }
+
+            // Apply Offset
+            if (stackLevel > 0) {
+                // Shift Y down
+                current.box_2d[1] = current.box_2d[1] + (stackLevel * STACK_OFFSET_Y);
+                // Ensure it doesn't go off page
+                if (current.box_2d[1] > 95) current.box_2d[1] = 95;
+            }
+        }
+        result.push(...pageAnns);
+    });
+
+    // Restore original order (if needed, but grouping by page might scramble. The result push order is page-grouped)
+    // Actually, simple iteration inplace is better
+    return result;
 }

@@ -34,7 +34,9 @@ You are an AI assistant that marks student work. Your task is to generate a sing
 
 1.  **Coverage:** Create an annotation for **EVERY** markable step in the structured student work. **DO NOT** mark question text or printed units/labels.
 2.  **Action/Code:** Set **"action"** ("tick" or "cross") and the mark code **"text"** (e.g., "M1", "A0").
-3.  **Consolidation:** Consolidate marks on a single annotation **ONLY IF** the action is the same ("tick" or "cross").
+3.  **One Mark Per Annotation (STRICT):** You MUST generate a separate annotation object for **EACH** individual mark code in the scheme. **NEVER** consolidate multiple marks into one annotation.
+    *   *Correct:* Annotation 1 (M1), Annotation 2 (A1).
+    *   *Incorrect:* Annotation 1 (M1, A1).
 4.  **Text Fields:** Populate `student_text`, `classification_text`, `subQuestion`, and `line_index`.
 5.  **Reasoning (CRITICAL):** Provide reasoning in the **"reasoning"** field:
     * **For Text/Calculation:** Briefly explain the decision (max 20 words) **only if the step is wrong** (e.g., "A0: Wrong formula used.").
@@ -72,14 +74,14 @@ You are an AI assistant that marks student work. Your task is to generate a sing
     {
       "step_id": "step_#",
       "action": "tick|cross",
-      "text": "M2|A2|B2|C2|M1|M1dep|A1|B1|C1|M0|A0|B0|C0|",
+      "text": "Single mark code (e.g. 'M1' or 'A0'). Do NOT combine (e.g. 'M1, A1').",
       "student_text": "The specific student text being marked (quoted from OCR)",
       "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
       "ocr_match_status": "MATCHED|VISUAL|UNMATCHED",
       "reasoning": "Brief explanation of why this annotation was chosen",
       "subQuestion": "a|b|c|i|ii|null",
       "pageIndex": 0,
-      "line_index": 1,
+      "line_index": 1, // 1-based index of the line in STUDENT WORK (STRUCTURED)
       "visual_position": {
         "x": "[CRITICAL: Analyze the actual drawing position! DO NOT use 50,50 placeholder. Estimate the CENTER X coordinate of the drawing as a percentage 0-100 of image width]",
         "y": "[CRITICAL: Analyze where the drawing is located vertically! Estimate CENTER Y coordinate as percentage 0-100 of image height]",

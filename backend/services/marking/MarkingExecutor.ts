@@ -831,33 +831,47 @@ const enrichAnnotationsWithPositions = (
 
 
 
-  // Build Code -> SubQuestion Map from Scheme (to fix misplaced annotations)
-  const codeToSubQMap = new Map<string, string>();
-  if (task && task.markingScheme) {
-    try {
-      // Handle nested questionMarks.marks (Q14 case)
-      let marks = [];
-      const scheme = task.markingScheme;
-      if (Array.isArray(scheme)) marks = scheme;
-      else if (scheme.marks) marks = scheme.marks;
-      else if (scheme.questionMarks && scheme.questionMarks.marks) marks = scheme.questionMarks.marks;
+  // Code -> SubQuestion Map building removed as per user request (relying on Classification/Page Inference)
 
-      if (marks && Array.isArray(marks)) {
-        marks.forEach((m: any) => {
-          if (m.mark && m.subQuestion) {
-            // Map "A1" -> "b"
-            codeToSubQMap.set(m.mark.trim(), m.subQuestion);
-          }
-        });
-      }
-    } catch (e) {
-      // ignore parsing errors
-    }
-  }
 
   const results = annotations.map((anno, idx) => {
     // Check if we have AI-provided position (New Design)
-    const visualPos = (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
+    // Immutable annotations map 'visual_position' to 'aiPosition'
+    const visualPos = (anno as any).aiPosition || (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
+    if (visualPos) {
+      console.log(`[VISUAL POS DEBUG] Q${questionId} AI Output:`, JSON.stringify(visualPos));
+    }
+
+    // FIX START: Extract sub-question target early so it's available for ALL paths (Visual, Unmatched, etc.)
+    // FIX START: Infer sub-question from Page Content (Classification Blocks)
+    let targetSubQ: string | undefined;
+
+    // Page-Based Sub-Question Inference (Student-Aware)
+    // If a page is known to contain ONLY ONE sub-question (e.g., Page 4 only has 3b),
+    // then ANY annotation on that page MUST be for that sub-question.
+    const pageIdx = visualPos ? (visualPos.pageIndex ?? -1) : ((anno as any).pageIndex ?? -1);
+
+    if (pageIdx !== -1 && classificationBlocks) {
+      // Find blocks on this page
+      const blocksOnPage = classificationBlocks.filter(b => b.pageIndex === pageIdx);
+
+      // Collect all sub-questions on this page
+      const subQsOnPage = new Set<string>();
+      blocksOnPage.forEach(b => {
+        if (b.subQuestions) {
+          b.subQuestions.forEach((sq: any) => subQsOnPage.add(sq.part));
+        }
+      });
+
+      // If EXACTLY ONE sub-question type is on this page, infer it!
+      if (subQsOnPage.size === 1) {
+        targetSubQ = Array.from(subQsOnPage)[0];
+        // console.log(`[SUB-Q INFERENCE] Q${questionId}: Page ${pageIdx} has only SubQ "${targetSubQ}". Inferred identity.`);
+      }
+    }
+    // FIX END
+
+    // FIX END
 
     // Trim both IDs to protect against hidden whitespace
     const aiStepId = (anno as any).step_id?.trim();
@@ -944,14 +958,6 @@ const enrichAnnotationsWithPositions = (
     if ((anno as any).ocr_match_status === 'UNMATCHED') {
       let lineIndex = ((anno as any).lineIndex || 1) - 1; // Use camelCase from toLegacyFormat
 
-      // FIX: Check if we can map this annotation to a specific sub-question
-      // This fixes Q6b annotations appearing at top of Q6a
-      const annoText = ((anno as any).text || '').trim();
-      // Extract code "A1" from "A1" or "M1"
-      const codeMatch = annoText.match(/^([A-Z]+\d*\w*)/);
-      const code = codeMatch ? codeMatch[1] : annoText;
-
-      const targetSubQ = codeToSubQMap.get(code); // e.g. "b"
 
       let targetSubStartIndex = -1;
       let targetSubEndIndex = -1;
@@ -1042,12 +1048,102 @@ const enrichAnnotationsWithPositions = (
           ] as [number, number, number, number],
           pageIndex: classificationPosition.pageIndex,
           unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
-          ocr_match_status: 'UNMATCHED' // Preserve status for red border
+          ocr_match_status: 'UNMATCHED', // Preserve status for red border
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
       }
 
+      // FIX: Check if we have visible position data even if Unmatched (e.g. Q11 C1/C1)
+      const visualPosForUnmatched = (anno as any).aiPosition || (anno as any).visual_position;
+
+      // Get dimensions for the relevant page
+      const targetPageIndex = (visualPosForUnmatched?.pageIndex !== undefined)
+        ? visualPosForUnmatched.pageIndex
+        : defaultPageIndex;
+
+      const pageDims = pageDimensions?.get(targetPageIndex);
+
+      if (visualPosForUnmatched && pageDims) {
+        // Convert percentages to pixels
+        const pWidth = pageDims.width;
+        const pHeight = pageDims.height;
+        const x = (parseFloat(visualPosForUnmatched.x) / 100) * pWidth;
+        const y = (parseFloat(visualPosForUnmatched.y) / 100) * pHeight;
+        const w = (parseFloat(visualPosForUnmatched.width) / 100) * pWidth;
+        const h = (parseFloat(visualPosForUnmatched.height) / 100) * pHeight;
+
+        return {
+          ...anno,
+          bbox: [x, y, w, h] as [number, number, number, number],
+          pageIndex: targetPageIndex,
+          unified_step_id: (anno as any).step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED', // Keep as unmatched but with visual pos
+          hasLineData: false,
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+        };
+      }
+
+      // Fallback: Classification Block Anchoring (Prioritize Student Work Area)
+      // If we know the sub-question identity (targetSubQ), find the corresponding Classification Block.
+      // This block represents the "Student Work" area identified by the AI.
+      // Anchoring here ensures we place the mark in the student work zone, not on the Question Text.
+      if (targetSubQ && task.classificationBlocks) {
+        const matchingBlock = task.classificationBlocks.find(b =>
+          b.subQuestions && b.subQuestions.some((sq: any) => sq.part === targetSubQ)
+        );
+
+        if (matchingBlock && matchingBlock.studentWorkLines && matchingBlock.studentWorkLines.length > 0) {
+          // Use the first line of the student work block as the anchor
+          const firstLine = matchingBlock.studentWorkLines[0];
+          if (firstLine && firstLine.position) { // Use position instead of bbox for consistency with classificationPosition
+            return {
+              ...anno,
+              bbox: [
+                firstLine.position.x,
+                firstLine.position.y,
+                firstLine.position.width || 100,
+                firstLine.position.height || 20
+              ] as [number, number, number, number],
+              pageIndex: firstLine.pageIndex ?? defaultPageIndex,
+              unified_step_id: (anno as any).step_id || `unmatched_${idx}`, // Use anno.step_id if available
+              ocr_match_status: 'UNMATCHED',
+              hasLineData: false,
+              subQuestion: targetSubQ || anno.subQuestion
+            };
+          }
+        }
+      }
+
       // Fallback: staggered positioning if no classification position found
-      const yOffset = 10 + (idx % 3) * 5; // Stagger vertically at top of page (10%, 15%, 20%)
+      // STRATEGY: Find the "Question X" header block and place the annotation BELOW it.
+      // This is safer than guessing "student work" blocks which might be confused with question text.
+
+      const questionHeaderBlock = stepsDataForMapping.find(s =>
+        s.text.includes('Question ' + questionId)
+      );
+
+      if (questionHeaderBlock && questionHeaderBlock.bbox) {
+        const headerBbox = questionHeaderBlock.bbox;
+        // Place it 30px below the header, with a standard height
+        const newY = headerBbox[1] + headerBbox[3] + 30;
+        const newBbox = [headerBbox[0], newY, 200, 50];
+
+        return {
+          ...anno,
+          bbox: newBbox as [number, number, number, number],
+          pageIndex: questionHeaderBlock.pageIndex ?? defaultPageIndex,
+          unified_step_id: questionHeaderBlock.unified_step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED',
+          hasLineData: false,
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+        };
+      }
+
+      // Legacy "Largest Block" fallback removed as per user request.
+      // It was causing marks to snap to Question Text blocks inappropriately.
+
+      // Final fallback (staggered) if absolutely no blocks found
+      const yOffset = 10 + (idx % 3) * 5;
       return {
         ...anno,
         aiPosition: { x: 50, y: yOffset, width: 40, height: 5 },
@@ -1123,9 +1219,10 @@ const enrichAnnotationsWithPositions = (
         const enriched = {
           ...anno,
           bbox: [1, 1, 1, 1] as [number, number, number, number], // Dummy bbox, visualPosition handles drawing positioning
-          pageIndex: pageIndex,
+          pageIndex: (pageIndex !== undefined && pageIndex !== null) ? pageIndex : defaultPageIndex,
           unified_step_id: finalStepId,
-          visualPosition: visualPos // For DRAWING annotations only
+          visualPosition: visualPos, // For DRAWING annotations only
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
         };
         // Debug log removed
         lastValidAnnotation = enriched; // Update last valid annotation
@@ -1143,7 +1240,53 @@ const enrichAnnotationsWithPositions = (
         return enriched;
       }
 
-      return null; // Mark for filtering if no previous annotation to inherit from
+      // FALLBACK: If unmatched and no previous annotation.
+      // STRATEGY: Find the "Question X" header block and place the annotation BELOW it.
+      // This is safer than guessing "student work" blocks which might be confused with question text.
+      // If we place it below the header, it appears in the whitespace where the student should have written.
+
+      const questionHeaderBlock = stepsDataForMapping.find(s =>
+        s.text.includes('Question ' + questionId)
+      );
+
+      if (questionHeaderBlock && questionHeaderBlock.bbox) {
+        // console.log(`[MARKING EXECUTOR] Using Question Header offset for unmatched annotation`);
+        const headerBbox = questionHeaderBlock.bbox;
+        // Place it 30px below the header, with a standard height
+        const newY = headerBbox[1] + headerBbox[3] + 30;
+        const newBbox = [headerBbox[0], newY, 200, 50]; // Reasonable size for a text annotation
+
+        return {
+          ...anno,
+          bbox: newBbox as [number, number, number, number],
+          pageIndex: questionHeaderBlock.pageIndex ?? defaultPageIndex,
+          unified_step_id: questionHeaderBlock.unified_step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED', // Ensure status is preserved
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+        };
+      }
+
+      // Secondary Fallback: If no header found, use the "largest block" strategy as a last resort
+      // (This likely returns the question text if header wasn't found, but it's better than 0,0)
+      const candidateBlocks = stepsDataForMapping.filter(s =>
+        s.bbox && (s.bbox[2] > 0 && s.bbox[3] > 0)
+      );
+      // Sort by area
+      candidateBlocks.sort((a, b) => (b.bbox[2] * b.bbox[3]) - (a.bbox[2] * a.bbox[3]));
+
+      if (candidateBlocks.length > 0) {
+        return {
+          ...anno,
+          bbox: candidateBlocks[0].bbox as [number, number, number, number],
+          pageIndex: candidateBlocks[0].pageIndex ?? defaultPageIndex,
+          unified_step_id: candidateBlocks[0].unified_step_id || `unmatched_${idx}`,
+          ocr_match_status: 'UNMATCHED',
+          subQuestion: targetSubQ || anno.subQuestion // FIX: Ensure subQuestion is propagated
+        };
+      }
+
+      // Final fallback if absolutely no blocks found (rare)
+      return null;
     }
 
     // Check if bbox is valid (not all zeros)
@@ -1177,16 +1320,44 @@ const enrichAnnotationsWithPositions = (
     const isVisualAnnotation = (anno as any).ocr_match_status === 'VISUAL';
 
     const enriched = {
-      ...anno,
+      action: anno.action, // Explicit mapping to prevent data leakage (e.g. questionText from AI hallucination)
+      text: anno.text,
+      reasoning: anno.reasoning,
+      ocr_match_status: anno.ocr_match_status,
+      classification_text: (anno as any).classification_text,
+      subQuestion: targetSubQ || anno.subQuestion, // FIX: Use targetSubQ if available (scheme override)
+      step_id: (anno as any).step_id, // Keep original step_id for debug/re-mapping
+
       // VISUAL: Use dummy bbox, let aiPosition handle positioning (design: visual_position is source of truth)
       // Non-VISUAL: Use OCR bbox if available, otherwise dummy if we have aiPos
-      bbox: isVisualAnnotation
-        ? [1, 1, 1, 1] as [number, number, number, number]
-        : (hasValidBbox ? originalStep.bbox : (visualPos ? [1, 1, 1, 1] : originalStep.bbox)),
-      pageIndex: pageIndex,
-      unified_step_id: originalStep.unified_step_id,
-      // Visual position for DRAWING annotations only (NOT for text student work)
       visualPosition: isVisualAnnotation ? visualPos : undefined,
+      pageIndex: (pageIndex !== undefined && pageIndex !== null) ? pageIndex : defaultPageIndex,
+      bbox: (() => {
+        if (isVisualAnnotation && visualPos) {
+          // Convert percentage visualPos to pixel bbox if page dimensions are available
+          // visualPos is { x: %, y: %, width: %, height: % } (CENTER coordinates from AI)
+          // But standard bbox is [x, y, w, h] (TOP-LEFT in pixels)
+
+          // Get dimensions for the page where the drawing is
+          const dim = pageDimensions?.get(pageIndex);
+          if (dim) {
+            // Percentage to Pixel conversion
+            const cx = (parseFloat(visualPos.x) / 100) * dim.width;
+            const cy = (parseFloat(visualPos.y) / 100) * dim.height;
+            const w = (parseFloat(visualPos.width) / 100) * dim.width;
+            const h = (parseFloat(visualPos.height) / 100) * dim.height;
+
+            // Center -> Top-Left
+            const x = Math.max(0, cx - (w / 2));
+            const y = Math.max(0, cy - (h / 2));
+
+            return [Math.round(x), Math.round(y), Math.round(w), Math.round(h)] as [number, number, number, number];
+          }
+          // Fallback if dimensions missing: try to pass generic normalized if allowed, else dummy
+          return [100, 100, 100, 100] as [number, number, number, number]; // Larger dummy
+        }
+        return hasValidBbox ? originalStep.bbox : [1, 1, 1, 1] as [number, number, number, number];
+      })(),
       // Flag if we are using actual line data (OCR) or falling back to AI position
       // VISUAL annotations always use AI position (hasLineData = false)
       hasLineData: isVisualAnnotation ? false : hasValidBbox
@@ -1314,9 +1485,9 @@ export function createMarkingTasksFromClassification(
     const mainQuestionNumber = q.questionNumber || null;
     const baseQNum = getBaseQuestionNumber(mainQuestionNumber);
 
-    // Use FULL question number as grouping key (e.g., "3a", "3b") instead of base number ("3")
-    // This prevents merging Q3a and Q3b into a single task
-    const groupingKey = mainQuestionNumber || baseQNum;
+    // Use BASE question number as grouping key to merge sub-questions (e.g., 3a, 3b -> Q3)
+    // This prevents duplicate tasks for the same question on the same page (Q6) or split across pages (Q3)
+    const groupingKey = baseQNum;
 
     // Use sourceImageIndices if available (from merged questions), otherwise use sourceImageIndex as array
     const sourceImageIndices = q.sourceImageIndices && Array.isArray(q.sourceImageIndices) && q.sourceImageIndices.length > 0
@@ -1345,6 +1516,11 @@ export function createMarkingTasksFromClassification(
         const keyQNum = key.split('_')[0];
         if (keyQNum === baseQNum) {
           markingScheme = scheme;
+          // DEBUG: Log scheme keys for problematic questions
+          if (baseQNum === '3' || baseQNum === '11') {
+            console.log(`🔍 [TASK CREATE DEBUG] Q${baseQNum} Found Scheme. Structure:`, Object.keys(scheme));
+            if (scheme.questionMarks) console.log(`🔍 [TASK CREATE DEBUG] Q${baseQNum} questionMarks keys:`, Object.keys(scheme.questionMarks));
+          }
           break;
         }
       }

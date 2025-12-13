@@ -73,3 +73,34 @@ ul {
   border: 0;
   border-top: 1px solid var(--border-color, #e5e5e5);
 }
+
+.student-work {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* --- Chat Step Styling --- */
+.step-title {
+  font-size: 1.2em;
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  color: var(--text-primary);
+}
+
+.step-explanation {
+  font-size: 0.95em;
+  font-weight: 400;
+  margin-bottom: 1.5em;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* --- Annotation Feedback Styling --- */
+.annotation-feedback {
+  color: #d97706;
+  /* Amber-600 */
+  font-weight: 400;
+  font-size: 1.0em;
+  margin-left: 0.5em;
+}

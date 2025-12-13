@@ -470,44 +470,7 @@ export interface SubjectMarkingResult {
   // Example: analysis["GCSE"]["AQA"]["1H_2H_3H"] = { performance: {...}, strengths: [...], ... }
   // Legacy: If analysis.performance exists, it's the old structure (one analysis per subject)
   analysis?: {
-    // New nested structure (preferred)
-    [qualification: string]: {
-      [examBoard: string]: {
-        [paperCodeSetKey: string]: {
-          performance: {
-            overallScore: string;
-            percentage: number;
-            grade?: string;
-            averageGrade?: string;
-            summary: string;
-            gradeAnalysis?: string;     // Strategic grade improvement analysis
-          };
-          strengths: string[];
-          weaknesses: string[];
-          generatedAt: string;          // ISO date
-          modelUsed: string;            // AI model used for analysis
-        };
-      };
-    };
-    // Legacy structure (for backward compatibility check)
-    performance?: {
-      overallScore: string;
-      percentage: number;
-      grade?: string;
-      averageGrade?: string;
-      summary: string;
-    };
-    strengths?: string[];
-    weaknesses?: string[];
-    topicAnalysis?: Array<{
-      topic: string;
-      performance: 'strong' | 'weak' | 'average';
-      score: string;
-      recommendation: string;
-    }>;
-    nextSteps?: string[];
-    generatedAt?: string;
-    modelUsed?: string;
+    [key: string]: any;
   };
 
   // Metadata

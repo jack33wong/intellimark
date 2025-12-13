@@ -958,6 +958,20 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             };
             line.position = p; // Update the line object
           }
+
+          // SUSPICIOUS LINE DETECTION
+          // Check if line text strongly resembles a question number header (e.g. "2(b)", "(b)", "Question 2")
+          // Logic: Check start of string.
+          const txt = (line.text || '').trim();
+          // Relaxed check: ANY length, just checking if it STARTS with a question header
+          const isSuspicious =
+            /^\(?([a-z]|[i]+)\)?\s/.test(txt) || // Starts with "(a) " or "a) "
+            /^Question \d+/.test(txt) ||          // Starts with "Question 2"
+            /^\d+\(?([a-z]|[i]+)\)?/.test(txt);   // Starts with "2b" or "2(b)"
+
+          if (isSuspicious) {
+            console.warn(`⚠️ [SUSPICIOUS STUDENT WORK] Question ${q.questionNumber || '?'} - Possible Question Header detected in student work: "${txt}"`);
+          }
         });
       }
 
@@ -977,7 +991,28 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
                 };
                 line.position = p; // Update the line object
               }
+
+              // SUSPICIOUS LINE DETECTION (Sub-Question level)
+              const txt = (line.text || '').trim();
+              const isSuspicious =
+                /^\(?([a-z]|[i]+)\)?\s/.test(txt) ||
+                /^Question \d+/.test(txt) ||
+                /^\d+\(?([a-z]|[i]+)\)?/.test(txt);
+
+              if (isSuspicious) {
+                console.warn(`⚠️ [SUSPICIOUS STUDENT WORK] Sub-Q ${sq.part} - Possible Question Header detected in student work: "${txt}"`);
+              }
             });
+          }
+
+          // DEBUG: Log Raw Q2 Data as requested
+          if (q.questionNumber == 2 || q.questionNumber == '2') {
+            console.log(`🔍 [RAW Q2 CLASSIFICATION]`, JSON.stringify(q, null, 2));
+            if (q.subQuestions) {
+              q.subQuestions.forEach((sq: any) => {
+                console.log(`🔍 [RAW Q2 SUB-Q ${sq.part}] Lines:`, JSON.stringify(sq.studentWorkLines, null, 2));
+              });
+            }
           }
         });
       }
