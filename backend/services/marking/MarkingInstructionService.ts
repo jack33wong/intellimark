@@ -1003,9 +1003,10 @@ export class MarkingInstructionService {
         );
 
         // Log mostly for non-standard cases (User request: disable STANDARD logs)
+        // TEMPORARY: Force log Q2 for debugging
         const statusLabel = hasVisual ? 'HAS VISUAL/DRAWING' : (hasUnmatched ? 'HAS UNMATCHED' : 'STANDARD');
 
-        if (statusLabel !== 'STANDARD') {
+        if (statusLabel !== 'STANDARD' || inputQuestionNumber === '2') {
           console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
           console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (${statusLabel})`);
           console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -1332,6 +1333,71 @@ export class MarkingInstructionService {
         }
       } else {
         console.log('  ⚠️ No annotations in parsed response');
+      }
+
+      // DRAWING BOX RESIZE: Fix oversized drawing boxes after deduplication
+      if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
+        // Count unique sub-questions and create ordered list
+        const uniqueSubQuestions = new Set(
+          parsedResponse.annotations
+            .map((a: any) => a.subQuestion)
+            .filter((sq: any) => sq)
+        );
+        const subQuestionCount = uniqueSubQuestions.size || 1;
+        const sortedSubQuestions = Array.from(uniqueSubQuestions).sort();
+
+        // Check each annotation for oversized drawing boxes
+        parsedResponse.annotations.forEach((anno: any) => {
+          if (anno.ocr_match_status === 'VISUAL' && anno.visual_position) {
+            const w = parseFloat(anno.visual_position.width) || 0;
+            const h = parseFloat(anno.visual_position.height) || 0;
+
+            if (w >= 80 || h >= 80) {
+              const subQ = anno.subQuestion || '';
+              console.warn(`⚠️ [FULL-PAGE DRAWING] Q${inputQuestionNumber}${subQ}: ${w}×${h}%`);
+
+              // Resize: divide 70% by sub-question count (reduced from 85% for smaller boxes)
+              const newSize = 70 / subQuestionCount;
+              anno.visual_position.width = newSize;
+              anno.visual_position.height = newSize;
+
+              // Reposition: adjust Y based on sub-question index
+              // BUT ONLY if sub-questions are on the SAME page
+              console.log(`🔍 [REPOSITION DEBUG] Q${inputQuestionNumber}${subQ}: count=${subQuestionCount}, subQ="${subQ}", condition=${subQuestionCount > 1 && !!subQ}`);
+              if (subQuestionCount > 1 && subQ) {
+                // Check if ALL sub-questions (including MATCHED text like Q3a) are on the same page
+                // This ensures we don't incorrectly stack Q3b when Q3a is on a different page
+                const allSubQuestionsAnnos = parsedResponse.annotations.filter((a: any) =>
+                  a.subQuestion && sortedSubQuestions.includes(a.subQuestion)
+                );
+                const pages = new Set(allSubQuestionsAnnos.map((a: any) => a.pageIndex));
+                const samePage = pages.size === 1;
+
+                console.log(`🔍 [PAGE CHECK] Found ${allSubQuestionsAnnos.length} annotations across ${pages.size} page(s): ${Array.from(pages).join(',')}`);
+
+                const subQIndex = sortedSubQuestions.indexOf(subQ);
+                if (subQIndex !== -1) {
+                  // Calculate Y position: evenly distribute across page
+                  // NOTE: SVG uses Y as the CENTER of the box, not the top edge
+                  const spacing = 70 / subQuestionCount;
+
+                  // If on different pages, treat each as index 0 (top position)
+                  const effectiveIndex = samePage ? subQIndex : 0;
+                  const topEdgeY = 15 + (effectiveIndex * spacing);
+                  const newY = topEdgeY + (newSize / 2); // Add half height to get center
+                  anno.visual_position.y = newY;
+
+                  const positionNote = samePage ? 'stacked' : 'separate pages, positioned as top';
+                  console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions (${positionNote}) → Size ${newSize.toFixed(1)}%, Y ${newY.toFixed(1)}%`);
+                } else {
+                  console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions → Size ${newSize.toFixed(1)}%`);
+                }
+              } else {
+                console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions → Size ${newSize.toFixed(1)}%`);
+              }
+            }
+          }
+        });
       }
 
       // Return the correct MarkingInstructions structure

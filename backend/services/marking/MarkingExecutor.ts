@@ -828,13 +828,27 @@ const enrichAnnotationsWithPositions = (
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
-
+  // DEBUG: Show all OCR blocks for Q2
+  if (questionId.toString().startsWith('2')) {
+    console.log(`\n🔍 [Q2 OCR BLOCKS] All ${stepsDataForMapping.length} blocks:`);
+    stepsDataForMapping.forEach((step, idx) => {
+      console.log(`  [${idx}] ID=${step.globalBlockId || step.unified_step_id}, Text="${(step.text || '').substring(0, 60)}", BBox=[${step.bbox?.join(',')}], Page=${step.pageIndex}`);
+    });
+  }
 
 
   // Code -> SubQuestion Map building removed as per user request (relying on Classification/Page Inference)
 
 
   const results = annotations.map((anno, idx) => {
+    // FAILSAFE: Log every Q2 annotation regardless of match path
+    if (questionId.toString().startsWith('2')) {
+      console.log(`\n🔍 [Q2 ANNOTATION ${idx}] Processing:`);
+      console.log(`  AI step_id: ${(anno as any).step_id}`);
+      console.log(`  Mark code: ${(anno as any).text}`);
+      console.log(`  Student text: ${(anno as any).student_text || (anno as any).textMatch}`);
+    }
+
     // Check if we have AI-provided position (New Design)
     // Immutable annotations map 'visual_position' to 'aiPosition'
     const visualPos = (anno as any).aiPosition || (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
@@ -846,29 +860,9 @@ const enrichAnnotationsWithPositions = (
     // FIX START: Infer sub-question from Page Content (Classification Blocks)
     let targetSubQ: string | undefined;
 
-    // Page-Based Sub-Question Inference (Student-Aware)
-    // If a page is known to contain ONLY ONE sub-question (e.g., Page 4 only has 3b),
-    // then ANY annotation on that page MUST be for that sub-question.
-    const pageIdx = visualPos ? (visualPos.pageIndex ?? -1) : ((anno as any).pageIndex ?? -1);
-
-    if (pageIdx !== -1 && classificationBlocks) {
-      // Find blocks on this page
-      const blocksOnPage = classificationBlocks.filter(b => b.pageIndex === pageIdx);
-
-      // Collect all sub-questions on this page
-      const subQsOnPage = new Set<string>();
-      blocksOnPage.forEach(b => {
-        if (b.subQuestions) {
-          b.subQuestions.forEach((sq: any) => subQsOnPage.add(sq.part));
-        }
-      });
-
-      // If EXACTLY ONE sub-question type is on this page, infer it!
-      if (subQsOnPage.size === 1) {
-        targetSubQ = Array.from(subQsOnPage)[0];
-        // console.log(`[SUB-Q INFERENCE] Q${questionId}: Page ${pageIdx} has only SubQ "${targetSubQ}". Inferred identity.`);
-      }
-    }
+    // Simple page-based inference - only for debugging, NOT for production use
+    // This was causing pageIndex mismatches and breaking Q3b/Q11
+    // Removed complex spatial matching logic
     // FIX END
 
     // FIX END
@@ -883,6 +877,16 @@ const enrichAnnotationsWithPositions = (
     let originalStep = stepsDataForMapping.find(step =>
       step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
     );
+
+    // DEBUG: Log Q2 exact match
+    if (originalStep && questionId.toString().startsWith('2')) {
+      console.log(`\n🔍 [Q2 EXACT MATCH] AI step_id="${aiStepId}" matched to:`);
+      console.log(`  Text: "${(originalStep.text || '').substring(0, 100)}"`);
+      console.log(`  BBox: [${originalStep.bbox?.join(', ')}]`);
+      console.log(`  Page: ${originalStep.pageIndex}`);
+      console.log(`  Anno subQ: ${(anno as any).subQuestion}`);
+      console.log(`  Anno text mark: ${(anno as any).text}`);
+    }
 
     // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
     if (!originalStep && aiStepId) {
@@ -902,6 +906,15 @@ const enrichAnnotationsWithPositions = (
       originalStep = stepsDataForMapping.find(step =>
         step.globalBlockId?.trim() === aiStepId
       );
+
+      // DEBUG: Log Q2 block matching
+      if (originalStep && questionId.toString().startsWith('2')) {
+        console.log(`\n🔍 [Q2 BLOCK DEBUG] Matched ${aiStepId}:`);
+        console.log(`  Text: "${(originalStep.text || '').substring(0, 100)}"`);
+        console.log(`  BBox: [${originalStep.bbox?.join(', ')}]`);
+        console.log(`  Page: ${originalStep.pageIndex}`);
+        console.log(`  Anno subQ: ${(anno as any).subQuestion}`);
+      }
     }
 
     // Special handling for [DRAWING] annotations
@@ -1516,11 +1529,6 @@ export function createMarkingTasksFromClassification(
         const keyQNum = key.split('_')[0];
         if (keyQNum === baseQNum) {
           markingScheme = scheme;
-          // DEBUG: Log scheme keys for problematic questions
-          if (baseQNum === '3' || baseQNum === '11') {
-            console.log(`🔍 [TASK CREATE DEBUG] Q${baseQNum} Found Scheme. Structure:`, Object.keys(scheme));
-            if (scheme.questionMarks) console.log(`🔍 [TASK CREATE DEBUG] Q${baseQNum} questionMarks keys:`, Object.keys(scheme.questionMarks));
-          }
           break;
         }
       }

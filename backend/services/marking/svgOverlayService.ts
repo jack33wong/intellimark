@@ -443,11 +443,11 @@ export class SVGOverlayService {
       console.log(`   Orig Height: ${originalHeight}, Calc AI Height: ${aiH_orig}`);
 
       // SMART HEIGHT CAP: Restrict max height based on density (sub-question count)
-      // If there are 2 sub-questions, max height is ~42% (85/2)
-      // If there is 1 sub-question, max height is 85%
-      // This prevents Q11 (covering whole page) from overlapping Q11a/Q11b areas if separate
+      // If there are 2 sub-questions, max height is ~35% (70/2)
+      // If there is 1 sub-question, max height is 70%
+      // This prevents overlapping when drawings are resized
       if (subQuestionCount > 1) {
-        const maxHtPct = 85 / subQuestionCount;
+        const maxHtPct = 70 / subQuestionCount;
         const maxHtPx = (maxHtPct / 100) * originalHeight;
         console.log(`   Claming Multi: MaxPct=${maxHtPct}, MaxPx=${maxHtPx}`);
         if (aiH_orig > maxHtPx) {
@@ -607,26 +607,36 @@ export class SVGOverlayService {
 
 
   /**
-   * Break text into 2 lines for better fit within image bounds
+   * Break text into multiple lines for better fit within image bounds
    */
-  private static breakTextIntoTwoLines(text: string, maxCharsPerLine: number = 25): string[] {
+  private static breakTextIntoMultiLines(text: string, maxCharsPerLine: number = 25): string[] {
     if (text.length <= maxCharsPerLine) {
       return [text];
     }
 
-    // Find the best break point (space or punctuation)
-    let breakPoint = maxCharsPerLine;
-    for (let i = maxCharsPerLine; i >= Math.floor(maxCharsPerLine * 0.7); i--) {
-      if (text[i] === ' ' || text[i] === ',' || text[i] === '.' || text[i] === ';') {
-        breakPoint = i;
-        break;
+    const lines: string[] = [];
+    let remaining = text;
+
+    while (remaining.length > maxCharsPerLine) {
+      // Find the best break point (space or punctuation)
+      let breakPoint = maxCharsPerLine;
+      for (let i = maxCharsPerLine; i >= Math.floor(maxCharsPerLine * 0.7); i--) {
+        if (remaining[i] === ' ' || remaining[i] === ',' || remaining[i] === '.' || remaining[i] === ';') {
+          breakPoint = i;
+          break;
+        }
       }
+
+      lines.push(remaining.substring(0, breakPoint).trim());
+      remaining = remaining.substring(breakPoint).trim();
     }
 
-    const line1 = text.substring(0, breakPoint).trim();
-    const line2 = text.substring(breakPoint).trim();
+    // Add any remaining text as the last line
+    if (remaining.length > 0) {
+      lines.push(remaining);
+    }
 
-    return [line1, line2];
+    return lines;
   }
   /**
    * Escape XML special characters to prevent SVG parsing errors
@@ -726,9 +736,9 @@ export class SVGOverlayService {
       currentX += estimatedClassTextWidth + 15; // Add spacing
     }
 
-    // Add reasoning text only for cross actions (wrong steps) - break into 2 lines
+    // Add reasoning text only for cross actions (wrong steps) - break into multiple lines if needed
     if (symbol === '✗' && reasoning && reasoning.trim()) {
-      const reasoningLines = this.breakTextIntoTwoLines(reasoning, 30); // Break at 30 characters as requested
+      const reasoningLines = this.breakTextIntoMultiLines(reasoning, 60); // Break at 60 characters
       const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
       const lineHeight = reasoningSize + 2; // Small spacing between lines
 
@@ -744,10 +754,20 @@ export class SVGOverlayService {
       let reasoningX: number;
       let reasoningY: number;
 
-      // Standard positioning logic (reverting complex forceful top logic)
-      reasoningX = reasoningXInline;
-      const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
-      reasoningY = textY + reasoningYOffsetPixels;
+      // SPECIAL CASE: For resized drawing boxes (small boxes that were originally full-page)
+      // Check if this is a small drawing box (≤50% width/height suggests it was resized)
+      const isResizedDrawing = (width / actualWidth <= 0.5) && (height / actualHeight <= 0.5);
+
+      if (isResizedDrawing) {
+        // Position reasoning ABOVE the drawing box
+        reasoningX = x;
+        reasoningY = y - 10; // Slightly above the box top
+      } else {
+        // Standard positioning logic (below the box)
+        reasoningX = reasoningXInline;
+        const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
+        reasoningY = textY + reasoningYOffsetPixels;
+      }
 
 
       reasoningLines.forEach((line, index) => {

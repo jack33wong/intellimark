@@ -1005,15 +1005,6 @@ ${images.map((img, index) => `--- Page ${index + 1} ${img.fileName ? `(${img.fil
             });
           }
 
-          // DEBUG: Log Raw Q2 Data as requested
-          if (q.questionNumber == 2 || q.questionNumber == '2') {
-            console.log(`🔍 [RAW Q2 CLASSIFICATION]`, JSON.stringify(q, null, 2));
-            if (q.subQuestions) {
-              q.subQuestions.forEach((sq: any) => {
-                console.log(`🔍 [RAW Q2 SUB-Q ${sq.part}] Lines:`, JSON.stringify(sq.studentWorkLines, null, 2));
-              });
-            }
-          }
         });
       }
       return {

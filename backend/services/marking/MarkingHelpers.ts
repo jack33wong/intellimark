@@ -254,7 +254,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
   // Header line
   // Header line
   console.log('----------------------------------------------------------------------------------------------------------------------------------------------------');
-  console.log(`| Q#       | Score | WS,Drw    | Scheme${' '.repeat(28)}| Ann${' '.repeat(43)}| Match/Visual/Unmatch/Split       |`);
+  console.log(`| Q#       | Score | WS,Drw    | Scheme${' '.repeat(27)}| Ann${' '.repeat(43)}| Match/Visual/Unmatch/Split       |`);
   console.log(`|----------|-------|-----------|${'-'.repeat(34)}|${'-'.repeat(46)}|----------------------------------|`);
 
   const sortedResults = allQuestionResults; // Now sorted in place
@@ -334,12 +334,6 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
 
     // Sub-questions collection
     const subQuestionStats: Array<{ label: string, wb: number, drw: number, annotations: string }> = [];
-
-    // DEBUG Q2 KEYS
-    if (String(result.questionNumber) === '2') {
-      console.log('[DEBUG Q2 KEYS] Map Keys:', Array.from(annotationsBySubQ.keys()));
-      console.log('[DEBUG Q2 ANNS] SubQ Values:', result.annotations?.map((a: any) => a.subQuestion));
-    }
 
     // Work Blocks & Drawings: Count Lines (Main + Sub-questions)
     let lineCount = 0;
@@ -660,7 +654,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
     if (schemeStr.length > 33) {
       schemeStr = schemeStr.substring(0, 32) + '…';
     }
-    const schemeCol = schemeStr.padEnd(34);
+    const schemeCol = schemeStr.padEnd(42);
 
     console.log(`| ${coloredQNum} | ${paddedScore} | ${wsDrwCol}| ${schemeCol}| ${finalAnnCol}| ${statusStr}${statusPadding} |`);
 
@@ -705,7 +699,7 @@ export function logAnnotationSummary(allQuestionResults: QuestionResult[], marki
         } catch (e) { }
       }
       if (subSchemeStr.length > 33) subSchemeStr = subSchemeStr.substring(0, 32) + '…';
-      const subSchemeCol = subSchemeStr.padEnd(34); // Standardized to 34
+      const subSchemeCol = subSchemeStr.padEnd(33); // Standardized to 33
 
       console.log(`| ${coloredSqLabel} |       | ${subWsDrwCol}| ${subSchemeCol}| ${subAnnotationCol}| ${'-'.padEnd(32)} |`);
     });
