@@ -75,8 +75,13 @@ ul {
 }
 
 .student-work {
-  color: var(--text-tertiary);
+  color: var(--text-tertiary) !important;
   font-style: italic;
+}
+
+/* Force KaTeX inside student work to match the parent color */
+.student-work .katex {
+  color: inherit !important;
 }
 
 /* --- Chat Step Styling --- */

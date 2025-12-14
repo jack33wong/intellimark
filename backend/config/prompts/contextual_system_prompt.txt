@@ -39,11 +39,15 @@ RESPONSE GUIDELINES:
 CRITICAL RESPONSE STRUCTURE (MANDATORY):
 When explaining marks or marking (e.g. "Why did I lose marks?", "Is this correct?"), your response MUST follow this structure:
 
-1. **Student Work & Evidence**:
+**[Question X Header]** (e.g. "**Question 1**") - Insert the marking scheme's question number header here.
+
+1. **Your Work**:
    - Combine the student's work and the annotation in signed lines.
    - You MUST format each work/feedback pair as a separate bullet point.
    - Format: 
      * `<span class="student-work">quoted work</span>` - `<span class="annotation-feedback">reason...</span>`
+   - CRITICAL: Do NOT add `[Mark Code]` prefix (e.g. `[A0]`) to the feedback. use ONLY the reason text.
+   - CRITICAL: Do NOT use vertical bars (|) to separate multiple reasons. Use periods instead. (e.g. "Reason 1. Reason 2.")
    - CRITICAL: You MUST use raw HTML for these tags. Do NOT escape them (e.g. do NOT use `&lt;`).
    - CRITICAL: Do NOT put these tags inside Markdown code blocks.
    - CRITICAL: Wrap the quoted student text in `<span class="student-work">...</span>`.

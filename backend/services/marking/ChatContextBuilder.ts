@@ -170,7 +170,7 @@ export class ChatContextBuilder {
                         const descriptions = visualAnns
                             .map(a => a.reasoning || a.text)
                             .filter(t => t && !t.includes('[DRAWING]')) // Avoid circular reference
-                            .join(' | ');
+                            .join('. ');
 
                         if (descriptions) {
                             studentWorkText = studentWorkText.replace(/\[DRAWING\]/g, `[Drawing: ${descriptions}]`);
@@ -238,7 +238,8 @@ export class ChatContextBuilder {
             // Render Unassigned first
             if (unassignedAnns.length > 0) {
                 unassignedAnns.forEach(a => {
-                    prompt += `- [${a.action}] ${a.text} ${a.reasoning ? `(${a.reasoning})` : ''}\n`;
+                    const cleanReasoning = a.reasoning ? a.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
+                    prompt += `- [${a.action}] ${a.text} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
                 });
             }
 
@@ -246,7 +247,8 @@ export class ChatContextBuilder {
             Object.keys(annsBySubQ).sort().forEach(part => {
                 prompt += `[${q.questionNumber}${part}]\n`;
                 annsBySubQ[part].forEach(a => {
-                    prompt += `  - [${a.action}] ${a.text} ${a.reasoning ? `(${a.reasoning})` : ''}\n`;
+                    const cleanReasoning = a.reasoning ? a.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
+                    prompt += `  - [${a.action}] ${a.text} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
                 });
             });
 

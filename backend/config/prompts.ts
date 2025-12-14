@@ -19,7 +19,7 @@ const loadPrompt = (filename: string): string => {
 
 // Force valid structure for all system prompts
 // Note: System prompts are loaded synchronously at startup
-// Trigger restart 3
+// Trigger restart 7
 
 export const AI_PROMPTS = {
   // ============================================================================

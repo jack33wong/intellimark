@@ -735,7 +735,10 @@ export class SVGOverlayService {
 
     // Add reasoning text only for cross actions (wrong steps) - break into multiple lines if needed
     if (symbol === '✗' && reasoning && reasoning.trim()) {
-      const reasoningLines = this.breakTextIntoMultiLines(reasoning, 60); // Break at 60 characters
+      // CLEANUP: Clean pipe separators | which might be returned by AI
+      // Replace pipes with period-space, then squash any double periods ".. " -> ". "
+      const cleanReasoning = reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim();
+      const reasoningLines = this.breakTextIntoMultiLines(cleanReasoning, 60); // Break at 60 characters
       const reasoningSize = Math.max(14, Math.round(this.CONFIG.baseFontSizes.reasoning * fontScaleFactor));
       const lineHeight = reasoningSize + 2; // Small spacing between lines
 
@@ -748,23 +751,15 @@ export class SVGOverlayService {
       // Determine if block is too wide (reasoning would overflow or block width exceeds threshold)
       const blockTooWide = width > (actualWidth * 0.7) || wouldOverflow;
 
-      let reasoningX: number;
-      let reasoningY: number;
-
-      // SPECIAL CASE: For resized drawing boxes (small boxes that were originally full-page)
-      // Check if this is a small drawing box (≤50% width/height suggests it was resized)
-      const isResizedDrawing = (width / actualWidth <= 0.5) && (height / actualHeight <= 0.5);
-
-      if (isResizedDrawing) {
-        // Position reasoning ABOVE the drawing box
-        reasoningX = x;
-        reasoningY = y - 10; // Slightly above the box top
-      } else {
-        // Standard positioning logic (below the box)
-        reasoningX = reasoningXInline;
-        const reasoningYOffsetPixels = (height * this.CONFIG.yPositions.reasoningYOffset) / 100;
-        reasoningY = textY + reasoningYOffsetPixels;
-      }
+      // SMART POSITIONING: Use helper to determine best Y position
+      const reasoningX = x; // Always align with left of the block for cleaner look
+      const reasoningY = SVGOverlayService.calculateReasoningStartY(
+        y,
+        height,
+        reasoningLines.length,
+        lineHeight,
+        actualHeight
+      );
 
 
       reasoningLines.forEach((line, index) => {
@@ -864,5 +859,36 @@ export class SVGOverlayService {
                           stroke="#ff0000" stroke-width="${strokeWidth}" opacity="0.9"/>`;
 
     return text + underline1 + underline2;
+  }
+
+  /**
+   * Calculate smart positioning for reasoning text
+   * Strategy:
+   * - Default: Top of the block (adjusted for number of lines)
+   * - Overflow: Flip to bottom of the block
+   */
+  private static calculateReasoningStartY(
+    rectY: number,
+    rectHeight: number,
+    linesCount: number,
+    lineHeight: number,
+    imageHeight: number
+  ): number {
+    const padding = lineHeight * 0.5; // proportional padding
+
+    // Strategy 1: Top Positioning
+    // We want the last line to be slightly above the rectY.
+    // Formula: startY + (n-1)*lineHeight = rectY - padding
+    // startY = rectY - padding - (n-1)*lineHeight
+    const startY_Top = rectY - padding - (linesCount - 1) * lineHeight;
+
+    // Check strict top overflow (assuming first line top is startY - lineHeight/2 approx)
+    if ((startY_Top - lineHeight) >= 0) {
+      return startY_Top;
+    }
+
+    // Strategy 2: Bottom Positioning (Fallback)
+    // rectY + rectHeight + padding + adjust for first line baseline
+    return rectY + rectHeight + padding + lineHeight;
   }
 }
