@@ -3,6 +3,7 @@
  * This is the definitive version with the fix for the re-mounting bug.
  */
 import React, { useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { ChevronDown, Brain } from 'lucide-react';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import SessionManagement from './SessionManagement';
@@ -12,6 +13,7 @@ import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
+import QuestionNavigator from './QuestionNavigator';
 
 const MainLayout: React.FC = () => {
   const {
@@ -128,12 +130,43 @@ const MainLayout: React.FC = () => {
   // Import ImageViewer directly here to avoid circular dependencies if placed at top
   const ImageViewer = require('../common/ImageViewer').default;
 
+  // Determine Marking Context for Ribbon
+  // We want the most recent marking context available in the session
+  const lastMarkingMessage = React.useMemo(() => {
+    if (!currentSession || !currentSession.messages) return null;
+    return [...currentSession.messages].reverse().find(m => (m as any).markingContext);
+  }, [currentSession]);
+
+  // Determine Detected Question for Ribbon logic
+  // Look for it in the session root first, then fallback to finding it in messages
+  const activeDetectedQuestion = React.useMemo(() => {
+    if (!currentSession) return null;
+    if (currentSession.detectedQuestion?.found) return currentSession.detectedQuestion;
+
+    // Search in messages (usually the first user message or first assistant message)
+    if (currentSession.messages) {
+      const msgWithQuestion = currentSession.messages.find((m: any) => m.detectedQuestion?.found);
+      if (msgWithQuestion) return (msgWithQuestion as any).detectedQuestion;
+    }
+    return null;
+  }, [currentSession]);
+
   // Use simple relative positioning for standard layout
   return (
     <div className={`mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`}>
-      {splitModeImages ? (
-        /* SPLIT VIEW LAYOUT */
-        <div className="split-view-container" style={{ display: 'flex', height: '100vh', width: '100%', overflow: 'hidden' }}>
+      {splitModeImages ? ReactDOM.createPortal(
+        /* SPLIT VIEW LAYOUT (PORTAL) */
+        <div className="split-view-portal-root" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          zIndex: 2147483647,
+          background: 'var(--background-gray-main, #111827)',
+          display: 'flex',
+          overflow: 'hidden'
+        }}>
           {/* Left Panel: Image Viewer (50%) */}
           <div className="split-left-panel" style={{ width: '50%', flex: '0 0 50%', borderRight: '1px solid var(--border-main)', position: 'relative', minWidth: '320px' }}>
             <ImageViewer
@@ -146,17 +179,40 @@ const MainLayout: React.FC = () => {
 
           {/* Right Panel: Chat Interface (50%) */}
           <div className="split-right-panel" style={{ width: '50%', flex: '0 0 50%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: '320px', background: 'var(--background-gray-main)' }}>
-            <div className="mark-homework-main-content" style={{ height: '100%', padding: 0 }}>
+
+            {/* Ribbon Navigator (Only if detectedQuestion exists) */}
+            {currentSession && activeDetectedQuestion && activeDetectedQuestion.found && (
+              <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)' }}>
+                <QuestionNavigator
+                  mode="ribbon"
+                  detectedQuestion={activeDetectedQuestion}
+                  markingContext={(lastMarkingMessage as any)?.markingContext}
+                  onNavigate={(qNum, imgIdx) => {
+                    // 1. Switch Image
+                    setActiveImageIndex(imgIdx);
+                    // 2. Scroll Chat
+                    setTimeout(() => {
+                      const el = document.getElementById(`question-${qNum}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="mark-homework-main-content" style={{ height: '100%', padding: 0, overflowY: 'auto' }}>
               {renderChatContent()}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : (
         /* STANDARD SINGLE COLUMN LAYOUT */
         <div className="mark-homework-main-content">
           {renderChatContent()}
         </div>
-      )}
+      )
+      }
     </div>
   );
 };

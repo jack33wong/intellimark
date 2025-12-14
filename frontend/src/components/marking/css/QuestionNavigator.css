@@ -1,0 +1,212 @@
+/* Question Navigator Styles */
+.navigator-side {
+    width: 150px;
+    flex-shrink: 0;
+}
+
+/* General Wrapper */
+.question-navigator-table-wrapper {
+    background-color: var(--surface-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 350px;
+}
+
+/* Header Removed, so table container takes full height */
+.question-navigator-table-container {
+    overflow-y: auto;
+    flex: 1;
+    position: relative;
+    /* Ensure sticky context */
+    overscroll-behavior: contain;
+    /* Prevent scroll chaining */
+}
+
+/* Table Styles */
+.question-navigator-table {
+    width: 100%;
+    border-collapse: separate;
+    /* Fix for sticky header border */
+    border-spacing: 0;
+    font-size: 0.9rem;
+}
+
+.question-navigator-table th {
+    position: sticky;
+    top: 0;
+    font-size: 12px;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    z-index: 50;
+}
+
+.question-navigator-table td {
+    padding: 10px 16px;
+    color: var(--text-primary);
+}
+
+.question-navigator-table tr:last-child td {
+    border-bottom: none;
+}
+
+.question-navigator-table tr.clickable-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.question-navigator-table tr.clickable-row:hover {
+    background-color: var(--surface-highlight);
+}
+
+.col-question {
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.col-score {
+    font-weight: 600 !important;
+}
+
+.right-align {
+    text-align: right;
+}
+
+/* Score Colors (Text) */
+.col-score.score-green {
+    color: var(--function-success);
+}
+
+/* Green-400 */
+.col-score.score-yellow {
+    color: var(--function-warning);
+}
+
+/* Yellow-400 */
+.col-score.score-red {
+    color: var(--function-error);
+}
+
+/* Red-400 */
+.col-score.score-neutral {
+    color: var(--function-neutral);
+}
+
+/* Gray-400 */
+
+/* Score Colors (Background/Dots) */
+.status-dot.green {
+    background-color: #4ade80 !important;
+}
+
+.status-dot.yellow {
+    background-color: #facc15 !important;
+}
+
+.status-dot.red {
+    background-color: #f87171 !important;
+}
+
+.status-dot.neutral {
+    background-color: #9ca3af !important;
+}
+
+.ribbon-item.score-green-bg {
+    border-color: #4ade80 !important;
+}
+
+.ribbon-item.score-yellow-bg {
+    border-color: #facc15 !important;
+}
+
+.ribbon-item.score-red-bg {
+    border-color: #f87171 !important;
+}
+
+
+/* Ribbon Mode (Split View) */
+.question-navigator-ribbon {
+    display: flex;
+    align-items: center;
+    background-color: var(--surface-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 12px;
+    gap: 8px;
+    position: relative;
+    /* Removed sticky: 100 because sticky context is handled by parent, or stickiness isn't needed if it's placed inside a flex column */
+    /* If the user wants it sticky within the chat panel, top:0 is correct, but needs ensuring parent has overflow */
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.ribbon-scroll-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    flex: 1;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 2px 0;
+    scroll-behavior: smooth;
+}
+
+.ribbon-scroll-container::-webkit-scrollbar {
+    display: none;
+}
+
+.ribbon-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: var(--surface-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ribbon-item:hover {
+    background-color: var(--surface-tertiary);
+    transform: translateY(-1px);
+}
+
+.ribbon-item.active {
+    background-color: var(--brand-primary-light);
+    border-color: var(--brand-primary);
+    color: var(--brand-primary);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.nav-arrow {
+    background: none;
+    border: none;
+    color: var(--text-tertiary);
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.nav-arrow:hover {
+    background-color: var(--surface-tertiary);
+    color: var(--text-primary);
+}

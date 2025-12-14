@@ -23,11 +23,13 @@ const preprocessLatexDelimiters = (content) => {
     .replace(/\\n/g, '\n');
 };
 
-const MarkdownMathRenderer = ({ 
-  content, 
-  className = '', 
-  options = {} 
+const MarkdownMathRenderer = ({
+  content,
+  className = '',
+  options = {}
 }) => {
+  console.log('[Renderer] Render called. Content len:', content?.length);
+
   const defaultOptions = {
     throwOnError: false,
     errorColor: '#cc0000',
@@ -71,7 +73,49 @@ const MarkdownMathRenderer = ({
             }
             return <em className="markdown-em">{children}</em>;
           },
-          h3: ({ children }) => <h3 className="markdown-h3">{children}</h3>,
+          h3: ({ children }) => {
+            // Extract text content safely
+            const text = React.Children.toArray(children).reduce((acc, child) => {
+              return acc + (typeof child === 'string' ? child : '');
+            }, '');
+
+            // Default ID
+            let id = undefined;
+
+            // Try to extract question number for ID (e.g. "Question 3a")
+            // pattern: Question \d+[a-z]*
+            const questionMatch = text.match(/Question\s+(\d+[a-z]*)/i);
+            if (questionMatch) {
+              id = `question-${questionMatch[1]}`;
+            }
+
+            if (id) {
+              console.log('[Renderer] Generated ID:', id, 'from text:', text);
+            } else if (text.includes('Question')) {
+              console.log('[Renderer] WARNING: Found "Question" but failed to generate ID. Text:', text);
+            }
+
+            // Check for marks pattern: (...) marks
+            // We can split the children to style the marks part differently if it's a string
+            return (
+              <h3 className="markdown-h3" id={id}>
+                {React.Children.map(children, child => {
+                  if (typeof child === 'string') {
+                    // Check if this string contains the marks part
+                    // matches: (1 mark) or (2 marks)
+                    const parts = child.split(/(\(\d+\s+marks?\))/i);
+                    return parts.map((part, i) => {
+                      if (/^\(\d+\s+marks?\)$/i.test(part)) {
+                        return <span key={i} className="question-marks">{part}</span>;
+                      }
+                      return part;
+                    });
+                  }
+                  return child;
+                })}
+              </h3>
+            );
+          },
           ol: ({ children }) => <ol className="markdown-ol">{children}</ol>,
           ul: ({ children }) => <ul>{children}</ul>,
         }}

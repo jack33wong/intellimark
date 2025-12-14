@@ -61,6 +61,7 @@ export interface QuestionResult {
   classificationBlocks?: any[]; // Classification blocks with line data
   questionText?: string; // Detected question text
   databaseQuestionText?: string; // Text from database match
+  pageIndex?: number; // Primary page index for this question
 }
 
 export interface EnrichedAnnotation extends Annotation {
@@ -786,6 +787,7 @@ export async function executeMarkingForQuestion(
       questionNumber: questionId,
       score: parseScore(markingResult.studentScore),
       annotations: enrichedAnnotations,
+      pageIndex: (task.sourcePages && task.sourcePages.length > 0) ? task.sourcePages[0] : 0,
       usageTokens: (markingResult as any).usage?.llmTokens || (markingResult as any).usageTokens || 0, // Map usageTokens correctly from nested object
       mathpixCalls: task.sourcePages ? task.sourcePages.reduce((acc, pageIndex) => {
         // Aggregate mathpix calls from all source pages

@@ -52,12 +52,14 @@ function markingPageReducer(state, action) {
     case 'SET_HOVERED_RATING':
       return { ...state, hoveredRating: action.payload };
     case 'ENTER_SPLIT_MODE':
+      console.log('[Context] Reducer: ENTER_SPLIT_MODE', action.payload);
       return {
         ...state,
         splitModeImages: action.payload.images,
         activeImageIndex: action.payload.index || 0
       };
     case 'EXIT_SPLIT_MODE':
+      console.log('[Context] Reducer: EXIT_SPLIT_MODE');
       return { ...state, splitModeImages: null, activeImageIndex: 0 };
     case 'SET_ACTIVE_IMAGE_INDEX':
       return { ...state, activeImageIndex: action.payload };

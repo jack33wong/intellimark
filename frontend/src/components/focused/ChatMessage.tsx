@@ -23,6 +23,7 @@ import { getSessionImages, findImageIndex } from '../../utils/imageCollectionUti
 import './ChatMessage.css';
 import '../common/SimpleImageGallery.css';
 import type { UnifiedMessage } from '../../types';
+import QuestionNavigator from '../marking/QuestionNavigator';
 
 
 interface ChatMessageProps {
@@ -179,7 +180,78 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
         }
       }
     }
+
   }, [message, imageError, handleMultiImageClick, onEnterSplitMode, session]);
+
+  // Smart Navigation Handler
+  const handleSmartNavigation = useCallback((questionNumber: string, sourceImageIndex: number) => {
+    console.log('[SmartNav] Handling navigation:', { questionNumber, sourceImageIndex });
+
+    // 1. Enter Split Mode with specific image
+    // Prefer session-level images to ensure we have the full document context (Pages 1-N)
+    // This ensures sourceImageIndex (which is usually a page index) maps correctly.
+
+    let targetImages: any[] = [];
+
+    if (session) {
+      targetImages = getSessionImages(session);
+    } else {
+      // Fallback to message images if session not available (rare)
+      const images = (message as any)?.imageDataArray || [];
+      if (images.length > 0) {
+        targetImages = images.map((item: any, idx: number) => {
+          const src = typeof item === 'string' ? item : item?.url;
+          const originalFileName = typeof item === 'string' ? `File ${idx + 1}` : item?.originalFileName || `File ${idx + 1}`;
+          const fileName = `annotated-${originalFileName}`;
+          return {
+            id: `multi-${message.id}-${idx}`,
+            src: src,
+            filename: fileName,
+            alt: fileName,
+            type: 'uploaded' as const
+          };
+        });
+      }
+    }
+
+    if (targetImages.length > 0) {
+      if (onEnterSplitMode) {
+        // Ensure index is within bounds
+        const safeIndex = Math.min(Math.max(0, sourceImageIndex), targetImages.length - 1);
+        onEnterSplitMode(targetImages, safeIndex);
+      } else {
+        console.error('[SmartNav] onEnterSplitMode prop is missing!');
+      }
+    } else {
+      console.error('[SmartNav] No target images found for navigation');
+    }
+
+    // 2. Scroll Chat to Question Header
+    // We used a retry mechanism to allow the transition to split mode (re-render) to complete
+    const elementId = `question-${questionNumber}`;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    const attemptScroll = () => {
+      const el = document.getElementById(elementId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(attemptScroll, 100);
+        } else {
+          console.warn(`[SmartNav] Target element ${elementId} not found after ${maxAttempts} attempts.`);
+          // Debug: List what IDs actually exist
+          const existingIds = Array.from(document.querySelectorAll('[id^="question-"]')).map(e => e.id);
+          console.log('[SmartNav] Available question IDs in DOM:', existingIds);
+        }
+      }
+    };
+
+    // Start attempts immediately and then poll
+    setTimeout(attemptScroll, 50);
+  }, [message, onEnterSplitMode, session]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
     try {
@@ -313,6 +385,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageSrc = getImageSrc(message);
 
   // Debug: Print complete message data structure
+  console.log(`[ChatMessage] Render ${message.id} (${message.role}) ContentLen: ${content ? content.length : 0}`);
 
   // Don't render ghost messages
   if (!shouldRenderMessage(message)) {
@@ -405,6 +478,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             // 1. Remove sub-question parts from headers (e.g., "Question 8(a, b, c)" → "Question 8")
             // 2. Calculate total marks from [B2], [M1], [A1] tags and add to header in green
             let processedContent = ensureStringContent(content);
+            console.warn('[ChatMessage] Raw processedContent:', processedContent);
 
             // Split content by question headers to process each question separately
             const questionSections = processedContent.split(/^(###\s+Question\s+\d+[^\n]*)/gim);
@@ -424,6 +498,10 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 }
               });
 
+              // Extract question number for ID generation
+              const questionNumberMatch = header.match(/Question\s+(\d+)/i);
+              const questionId = questionNumberMatch ? `question-${questionNumberMatch[1]}` : undefined;
+
               // Clean the header: remove (a, b, c) suffixes
               let cleanedHeader = header.replace(/\s*\([^)]+\)/, '');
 
@@ -432,7 +510,14 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 cleanedHeader += ` <span class="question-marks">(${totalMarks} ${totalMarks === 1 ? 'mark' : 'marks'})</span>`;
               }
 
-              questionSections[i] = cleanedHeader;
+              // Inject scroll anchor with proper Markdown spacing to prevent breaking headers
+              if (questionId) {
+                // Use a span with id instead of div to be less intrusive to layout, but separate it
+                // Note: We use \n\n to ensure markdown parser treats the following line as a header
+                questionSections[i] = `\n\n<span id="${questionId}" style="scroll-margin-top: 100px; display: block; height: 1px; width: 1px; visibility: hidden;"></span>\n\n${cleanedHeader}`;
+              } else {
+                questionSections[i] = cleanedHeader;
+              }
             }
 
             processedContent = questionSections.join('');
@@ -445,15 +530,28 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             );
           })()}
 
-          {/* Display multi-image annotated results FIRST (before suggested follow-ups) - only if more than 1 image */}
+          {/* Display multi-image annotated results + Navigator side-by-sides */}
           {!isUser && isMultiImageMessage() && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length > 1 && !isPdfMessage() && (() => {
             return (
-              <div className="multi-image-gallery">
-                <SimpleImageGallery
-                  images={(message as any).imageDataArray}
-                  onImageClick={handleMultiImageClick}
-                  className="multi-image-gallery"
-                />
+              <div className="gallery-navigator-container" style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                <div className="gallery-side" style={{ flex: '1', minWidth: '0' }}>
+                  <SimpleImageGallery
+                    images={(message as any).imageDataArray}
+                    onImageClick={handleMultiImageClick}
+                    className="multi-image-gallery"
+                  />
+                </div>
+                {message.detectedQuestion && message.detectedQuestion.found && (
+                  <div className="navigator-side">
+                    <QuestionNavigator
+                      detectedQuestion={message.detectedQuestion}
+                      markingContext={(message as any).markingContext}
+                      studentScore={message.studentScore}
+                      mode="table"
+                      onNavigate={handleSmartNavigation}
+                    />
+                  </div>
+                )}
               </div>
             );
           })()}

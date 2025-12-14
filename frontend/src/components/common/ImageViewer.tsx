@@ -29,6 +29,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
     // Update internal state if initial prop changes (e.g. parent switching images)
     useEffect(() => {
+        console.log('[ImageViewer] initialImageIndex updated:', initialImageIndex);
         setCurrentImageIndex(initialImageIndex);
     }, [initialImageIndex]);
 
@@ -143,6 +144,28 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         };
     }, [isOpen, isDragging, handleMouseMove, handleMouseUp]);
 
+    // Auto-scroll thumbnails when current index changes
+    const thumbnailListRef = useRef<HTMLDivElement>(null);
+    const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+    useEffect(() => {
+        if (thumbnailListRef.current && thumbnailRefs.current[currentImageIndex]) {
+            const thumbnail = thumbnailRefs.current[currentImageIndex];
+            if (thumbnail) {
+                thumbnail.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        }
+    }, [currentImageIndex]);
+
+    // Handle initial population of thumbnail refs
+    useEffect(() => {
+        thumbnailRefs.current = thumbnailRefs.current.slice(0, images.length);
+    }, [images]);
+
     if (!currentImage) {
         return null;
     }
@@ -256,10 +279,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                 {/* Thumbnail sidebar */}
                 {images.length > 1 && (
                     <div className="thumbnail-sidebar">
-                        <div className="thumbnail-list">
+                        <div className="thumbnail-list" ref={thumbnailListRef}>
                             {images.map((image, index) => (
                                 <button
                                     key={image.id}
+                                    ref={el => thumbnailRefs.current[index] = el}
                                     type="button"
                                     className={`thumbnail-btn ${index === currentImageIndex ? 'active' : ''}`}
                                     onClick={() => handleImageClick(index)}
