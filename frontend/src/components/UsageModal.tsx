@@ -19,6 +19,16 @@ interface UsageRecord {
     mathpixCost: number;
     modelUsed: string;
     apiRequests: number;
+    mode?: string;
+    modeHistory?: Array<{
+        mode: string;
+        timestamp: string;
+        costAtSwitch: number;
+        apiRequestsAtSwitch?: number;
+        geminiCostAtSwitch?: number;
+        gptCostAtSwitch?: number;
+        mathpixCostAtSwitch?: number;
+    }>;
 }
 
 interface UsageSummary {
@@ -35,6 +45,7 @@ interface UsageSummary {
 const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
     const { getAuthToken } = useAuth();
     const [usageData, setUsageData] = useState<UsageRecord[]>([]);
+    const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set());
     const [usageSummary, setUsageSummary] = useState<UsageSummary>({
         totalCost: 0,
         totalLLMCost: 0,
@@ -92,8 +103,26 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
         }
     }, [isOpen, usageFilter, loadUsageData]);
 
+    const toggleExpanded = (sessionId: string) => {
+        setExpandedSessions(prev => {
+            const next = new Set(prev);
+            if (next.has(sessionId)) {
+                next.delete(sessionId);
+            } else {
+                next.add(sessionId);
+            }
+            return next;
+        });
+    };
+
     const formatDate = (timestamp: string) => {
         return new Date(timestamp).toLocaleString();
+    };
+
+    const formatMode = (mode?: string) => {
+        if (!mode) return 'Unknown'; // Or 'Chat' if default
+        // Capitalize first letter
+        return mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, ' ');
     };
 
     if (!isOpen) return null;
@@ -196,6 +225,7 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
                                     <thead>
                                         <tr>
                                             <th>Created At</th>
+                                            <th>Mode</th>
                                             <th>Model Used</th>
                                             <th>API Requests</th>
                                             <th>Total Cost</th>
@@ -204,16 +234,85 @@ const UsageModal: React.FC<UsageModalProps> = ({ isOpen, onClose }) => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {usageData.map((session) => (
-                                            <tr key={session.sessionId}>
-                                                <td>{formatDate(session.createdAt)}</td>
-                                                <td>{session.modelUsed}</td>
-                                                <td>{session.apiRequests || 0}</td>
-                                                <td>${session.totalCost.toFixed(2)}</td>
-                                                <td>${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(2)}</td>
-                                                <td>${session.mathpixCost.toFixed(2)}</td>
-                                            </tr>
-                                        ))}
+                                        {usageData.map((session) => {
+                                            const isExpanded = expandedSessions.has(session.sessionId);
+                                            const hasHistory = session.modeHistory && session.modeHistory.length > 1;
+
+                                            return (
+                                                <React.Fragment key={session.sessionId}>
+                                                    <tr className={isExpanded ? 'usage-row-expanded' : ''}>
+                                                        <td>{formatDate(session.createdAt)}</td>
+                                                        <td className="mode-cell">
+                                                            {hasHistory ? (
+                                                                <button
+                                                                    className="mode-expand-btn"
+                                                                    onClick={() => toggleExpanded(session.sessionId)}
+                                                                >
+                                                                    {isExpanded ? (
+                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                                                    ) : (
+                                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                                                    )}
+                                                                    {formatMode(session.mode)}
+                                                                </button>
+                                                            ) : (
+                                                                formatMode(session.mode)
+                                                            )}
+                                                        </td>
+                                                        <td>{session.modelUsed}</td>
+                                                        <td>{session.apiRequests || 0}</td>
+                                                        <td>${session.totalCost.toFixed(4)}</td>
+                                                        <td>${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(4)}</td>
+                                                        <td>${session.mathpixCost.toFixed(4)}</td>
+                                                    </tr>
+                                                    {isExpanded && session.modeHistory && session.modeHistory.map((h, i, arr) => {
+                                                        // Calculate deltas
+                                                        let usageCost = 0;
+                                                        // let apiRequests = 0; // Not used
+                                                        // let aiCost = 0; // Not used
+                                                        // let mCost = 0; // Not used
+
+                                                        if (i < arr.length - 1) {
+                                                            const next = arr[i + 1];
+                                                            usageCost = next.costAtSwitch - h.costAtSwitch;
+                                                        } else {
+                                                            // Last item -> diff with session totals
+                                                            usageCost = session.totalCost - h.costAtSwitch;
+                                                        }
+
+                                                        // Fallback for API/AI/Mathpix if snapshot unavailable (legacy)
+                                                        const apiDelta = (h.apiRequestsAtSwitch !== undefined && i < arr.length - 1)
+                                                            ? (arr[i + 1].apiRequestsAtSwitch! - h.apiRequestsAtSwitch!)
+                                                            : (h.apiRequestsAtSwitch !== undefined)
+                                                                ? (session.apiRequests - h.apiRequestsAtSwitch!)
+                                                                : null;
+
+                                                        const aiCostDelta = (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined && i < arr.length - 1)
+                                                            ? ((arr[i + 1].geminiCostAtSwitch! + arr[i + 1].gptCostAtSwitch!) - (h.geminiCostAtSwitch! + h.gptCostAtSwitch!))
+                                                            : (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined)
+                                                                ? ((session.geminiCost + session.gptCost) - (h.geminiCostAtSwitch! + h.gptCostAtSwitch!))
+                                                                : null;
+
+                                                        return (
+                                                            <tr key={`${session.sessionId}-hist-${i}`} className="usage-history-row">
+                                                                <td style={{ paddingLeft: '32px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                                                    {new Date(h.timestamp).toLocaleString(undefined, {
+                                                                        year: 'numeric', month: '2-digit', day: '2-digit',
+                                                                        hour: '2-digit', minute: '2-digit'
+                                                                    })}
+                                                                </td>
+                                                                <td style={{ fontSize: '12px' }}>{formatMode(h.mode)}</td>
+                                                                <td className="text-muted" style={{ textAlign: 'center' }}>-</td>
+                                                                <td style={{ fontSize: '12px' }}>{apiDelta !== null ? apiDelta : '-'}</td>
+                                                                <td style={{ fontSize: '12px' }}>${usageCost > 0 ? usageCost.toFixed(4) : '0.0000'}</td>
+                                                                <td style={{ fontSize: '12px' }}>{aiCostDelta !== null ? `$${aiCostDelta.toFixed(4)}` : '-'}</td>
+                                                                <td></td> {/* Mathpix column removed/empty per request */}
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

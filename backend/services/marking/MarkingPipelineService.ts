@@ -88,7 +88,6 @@ export class MarkingPipelineService {
         // Performance tracking variables
         let stepTimings: { [key: string]: { start: number; duration?: number; subSteps?: { [key: string]: number } } } = {};
         let totalLLMTokens = 0;
-        let totalMathpixCalls = 0;
         let actualModel = 'auto'; // Will be updated when model is determined
         let questionOnlyResult: any = null; // Hoisted for scope access in fallback blocks
 
@@ -929,7 +928,8 @@ export class MarkingPipelineService {
 
                 const ocrResult = await OCRService.processImage(
                     page.imageData, {}, false, 'auto',
-                    { extractedQuestionText: globalQuestionText }
+                    { extractedQuestionText: globalQuestionText },
+                    usageTracker // Pass tracker here
                 );
                 return {
                     pageIndex: page.pageIndex,
@@ -941,16 +941,8 @@ export class MarkingPipelineService {
             allPagesOcrData = await Promise.all(pageProcessingPromises);
 
             // Aggregate Mathpix calls from OCR results
-            allPagesOcrData.forEach((pageData, idx) => {
-                if (pageData.ocrData?.usage?.mathpixCalls) {
-                    totalMathpixCalls += pageData.ocrData.usage.mathpixCalls;
-                } else if ((pageData.ocrData as any)?.mathpixCalls) {
-                    // Fallback for flat structure
-                    totalMathpixCalls += (pageData.ocrData as any).mathpixCalls;
-                } else {
-
-                }
-            });
+            // Mathpix calls are now automatically tracked by UsageTracker via recordMathpix()
+            // No need to manually sum totalMathpixCalls
 
             logOcrComplete();
             progressCallback(createProgressData(3, 'OCR & Classification complete.', MULTI_IMAGE_STEPS));
@@ -1121,7 +1113,7 @@ export class MarkingPipelineService {
                     sessionStats: questionOnlyResult?.unifiedSession?.sessionStats || null,
                     processingStats: {
                         totalLLMTokens,
-                        totalMathpixCalls
+                        mathpixCalls: usageTracker.getMathpixPages()
                     }
                 };
 
@@ -1449,7 +1441,7 @@ export class MarkingPipelineService {
                 totalLLMTokens,
                 combinedQuestionResponses,  // Pass questionOnly responses for persistence
                 usageTracker,  // Pass UsageTracker for accurate token/cost tracking
-                totalMathpixCalls  // Pass actual Mathpix call count
+                usageTracker.getMathpixPages()  // Pass actual Mathpix call count from tracker
             );
 
             // Construct unified finalOutput that works for both authenticated and unauthenticated users
@@ -1464,7 +1456,7 @@ export class MarkingPipelineService {
                     awardedMarks: allQuestionResults.reduce((sum, q) => sum + (q.score?.awardedMarks || 0), 0),
                     questionCount: allQuestionResults.length,
                     usageTokens: totalLLMTokens,
-                    mathpixCalls: totalMathpixCalls
+                    mathpixCalls: usageTracker.getMathpixPages()
                 },
                 annotatedOutput: finalAnnotatedOutput,
                 outputFormat: 'images',
@@ -1509,7 +1501,7 @@ export class MarkingPipelineService {
             const totalProcessingTime = Date.now() - startTime;
             logAnnotationSummary(allQuestionResults, markingTasks);
             logPerformanceSummary(stepTimings, totalProcessingTime, actualModel, 'unified');
-            console.log(usageTracker.getSummary(actualModel, totalMathpixCalls));
+            console.log(usageTracker.getSummary(actualModel));
 
             console.log(`\n🏁 ========== UNIFIED PIPELINE END ==========`);
             console.log(`🏁 ==========================================\n`);

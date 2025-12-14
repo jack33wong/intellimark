@@ -46,7 +46,7 @@ export class MathpixService {
   /**
    * Process image using the v3/text endpoint (JSON payload).
    */
-  static async processImage(imageBuffer: Buffer, options: any = {}): Promise<any> {
+  static async processImage(imageBuffer: Buffer, options: any = {}, tracker?: any): Promise<any> {
     // Robustly merge options for v3/text.
     const opts = {
       // Merge top-level defaults
@@ -86,6 +86,12 @@ export class MathpixService {
       const axios = await import('axios');
       // The v3/text POST processes synchronously and returns the full result.
       const response = await axios.default.post(this.API_URL, body, { headers });
+
+      // Auto-record via tracker if provided
+      if (tracker && !response.data.error) {
+        tracker.recordMathpix(1); // 1 page processed
+      }
+
       return response.data;
 
     } catch (error: any) {

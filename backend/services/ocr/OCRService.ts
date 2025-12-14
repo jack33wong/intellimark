@@ -203,7 +203,8 @@ export class OCRService {
     imageBuffer: Buffer,
     dimensions: { width: number, height: number },
     opts: Required<Omit<OCROptions, 'enablePreprocessing'>>,
-    debug: boolean
+    debug: boolean,
+    tracker?: any // Add tracker here
   ): Promise<{ mathBlocks: MathBlock[], mathpixCalls: number, detectedBlocks: DetectedBlock[], preClusterBlocks: DetectedBlock[] }> {
     console.warn('⚠️ [OCR FALLBACK] Falling back to Google Vision robust recognition (Hybrid Strategy).');
     let detectedBlocks: DetectedBlock[] = [];
@@ -302,7 +303,8 @@ export class OCRService {
               } else {
                 // Crop and process with Mathpix
                 const croppedBuffer = await sharp(imageBuffer).extract(cropOptions).png().toBuffer();
-                const mathpixResult = await MathpixService.processImage(croppedBuffer, {});
+                // Pass tracker to MathpixService.processImage
+                const mathpixResult = await MathpixService.processImage(croppedBuffer, {}, tracker);
                 mathpixCalls += 1;
 
                 if (mathpixResult.latex_styled && !mathpixResult.error) {
@@ -353,7 +355,8 @@ export class OCRService {
     options: OCROptions = {},
     debug: boolean = false,
     model: any = 'auto',
-    questionDetection?: any // Contains extractedQuestionText
+    questionDetection?: any, // Contains extractedQuestionText
+    tracker?: any // Add tracker here
   ): Promise<OCRResult> {
     const startTime = Date.now();
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
@@ -383,7 +386,8 @@ export class OCRService {
           include_line_data: true,
           disable_array_detection: true
         };
-        const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions);
+        // Pass tracker to MathpixService.processImage
+        const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, tracker);
         mathpixCalls += 1;
 
         if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {
@@ -407,7 +411,8 @@ export class OCRService {
       console.warn(`⚠️ [OCR STRATEGY] No valid line data from initial Mathpix call. Triggering robust fallback.`);
       usedFallback = true;
       try {
-        const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug);
+        // Pass tracker to fallbackHybridStrategy
+        const fallbackResult = await this.fallbackHybridStrategy(imageBuffer, dimensions, opts, debug, tracker);
         mathBlocks = fallbackResult.mathBlocks; // Fallback directly sets mathBlocks
         mathpixCalls += fallbackResult.mathpixCalls;
         // Also capture detectedBlocks and preClusterBlocks if needed for rawResponse

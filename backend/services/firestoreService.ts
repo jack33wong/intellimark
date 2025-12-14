@@ -428,7 +428,9 @@ export class FirestoreService {
     messages: any[];
     sessionStats?: any;
     isPastPaper?: boolean;
+
     detectedQuestion?: any;
+    usageMode?: string; // NEW: optional usage mode
   }): Promise<string> {
     try {
       ensureDbAvailable();
@@ -597,9 +599,10 @@ export class FirestoreService {
           throw new Error(`Session verification failed - document not found after save`);
         }
 
-        // Write usage record if cost breakdown exists
         if (finalSessionStats?.costBreakdown) {
-          await this.createUsageRecord(sessionId, userId, sessionDoc.createdAt, finalSessionStats);
+          // Use provided usageMode or derive from messageType (fallback)
+          const mode = sessionData.usageMode || (sessionData.messageType === 'Chat' ? 'chat' : 'unknown');
+          await this.createUsageRecord(sessionId, userId, sessionDoc.createdAt, finalSessionStats, mode);
         }
       } catch (firestoreError) {
         console.error(`❌ Firestore operation failed:`, firestoreError);
@@ -1103,7 +1106,7 @@ export class FirestoreService {
    * Add a message to an existing UnifiedSession
    * For chat functionality that requires incremental message addition
    */
-  static async addMessageToUnifiedSession(sessionId: string, message: any): Promise<void> {
+  static async addMessageToUnifiedSession(sessionId: string, message: any, usageMode: string = 'chat'): Promise<void> {
     try {
       // Get the existing session
       const sessionRef = db.collection(COLLECTIONS.UNIFIED_SESSIONS).doc(sessionId);
@@ -1140,6 +1143,10 @@ export class FirestoreService {
       const accumulatedLlmTokens = (existingStats.totalLlmTokens || 0) + newMessageTokens;
       const accumulatedMathpixCalls = (existingStats.totalMathpixCalls || 0) + newMessageMathpix;
 
+      // Increment API requests only for assistant messages (responses)
+      const currentApiRequests = existingStats.apiRequests || 0;
+      const accumulatedApiRequests = currentApiRequests + (sanitizedMessage.role === 'assistant' ? 1 : 0);
+
       // Calculate cost based on accumulated stats
       const { calculateTotalCost } = await import('../utils/CostCalculator.js');
       const updatedStats = {
@@ -1147,6 +1154,7 @@ export class FirestoreService {
         totalLlmTokens: accumulatedLlmTokens,
         totalMathpixCalls: accumulatedMathpixCalls,
         totalTokens: accumulatedLlmTokens + accumulatedMathpixCalls,
+        apiRequests: accumulatedApiRequests, // Persist API request count
         lastModelUsed: sanitizedMessage?.processingStats?.modelUsed || existingStats.lastModelUsed || 'auto',
         lastApiUsed: sanitizedMessage?.processingStats?.apiUsed || existingStats.lastApiUsed || 'Unknown',
         totalMessages: updatedMessages.length,
@@ -1166,6 +1174,7 @@ export class FirestoreService {
         'sessionStats.lastModelUsed': updatedStats.lastModelUsed,
         'sessionStats.totalLlmTokens': accumulatedLlmTokens,
         'sessionStats.totalMathpixCalls': accumulatedMathpixCalls,
+        'sessionStats.apiRequests': accumulatedApiRequests, // Update in Firestore
         'sessionStats.totalTokens': updatedStats.totalTokens,
         'sessionStats.totalCost': cost.total,
         'sessionStats.costBreakdown': {
@@ -1177,14 +1186,20 @@ export class FirestoreService {
       await sessionRef.update(updateData);
 
       // Update usage record since cost was recalculated
-      await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, {
-        ...updatedStats,
-        totalCost: cost.total,
-        costBreakdown: {
-          llmCost: cost.llmCost,
-          mathpixCost: cost.mathpixCost
-        }
-      });
+      await this.createUsageRecord(
+        sessionId,
+        sessionData.userId,
+        sessionData.createdAt,
+        {
+          ...updatedStats,
+          totalCost: cost.total,
+          costBreakdown: {
+            llmCost: cost.llmCost,
+            mathpixCost: cost.mathpixCost
+          }
+        },
+        usageMode // Use passed usageMode or default 'chat'
+      );
 
     } catch (error) {
       console.error('❌ Failed to add message to UnifiedSession:', error);
@@ -1226,7 +1241,13 @@ export class FirestoreService {
       // Update usage record if sessionStats (with cost) was updated
       if (updates.sessionStats?.costBreakdown) {
         const sessionData = sessionDoc.data();
-        await this.createUsageRecord(sessionId, sessionData.userId, sessionData.createdAt, updates.sessionStats);
+        await this.createUsageRecord(
+          sessionId,
+          sessionData.userId,
+          sessionData.createdAt,
+          updates.sessionStats
+          // Mode defaults to 'unknown' or preserved from previous context if needed, but here we just update stats
+        );
       }
 
     } catch (error) {
@@ -1243,7 +1264,8 @@ export class FirestoreService {
     sessionId: string,
     userId: string,
     createdAt: string,
-    sessionStats: any
+    sessionStats: any,
+    mode: string = 'unknown' // NEW: Mode field
   ): Promise<void> {
     if (!db) {
       throw new Error('Firestore not available');
@@ -1265,6 +1287,90 @@ export class FirestoreService {
     const geminiCost = isGemini ? llmCost : 0;
     const gptCost = !isGemini ? llmCost : 0;
 
+    // Check for existing usage record to track mode history
+    // UPDATED: Include detailed snapshots for granular breakdown
+    let modeHistory: Array<{
+      mode: string;
+      timestamp: string;
+      costAtSwitch: number;
+      apiRequestsAtSwitch: number;
+      geminiCostAtSwitch: number;
+      gptCostAtSwitch: number;
+      mathpixCostAtSwitch: number;
+    }> = [];
+
+    const apiRequests = sessionStats.apiRequests || 0;
+    // const mathpixCost = sessionStats.costBreakdown?.mathpixCost || 0;
+
+    try {
+      const existingDoc = await db.collection(COLLECTIONS.USAGE_RECORDS).doc(sessionId).get();
+      if (existingDoc.exists) {
+        const existingData = existingDoc.data();
+        modeHistory = existingData?.modeHistory || [];
+
+        // Backfill history for legacy records that have mode but no history
+        if (modeHistory.length === 0 && existingData?.mode) {
+          modeHistory.push({
+            mode: existingData.mode,
+            timestamp: existingData.createdAt ? existingData.createdAt.toDate().toISOString() : new Date().toISOString(),
+            costAtSwitch: 0,
+            apiRequestsAtSwitch: 0,
+            geminiCostAtSwitch: 0,
+            gptCostAtSwitch: 0,
+            mathpixCostAtSwitch: 0
+          });
+        }
+
+        // Check if mode has changed
+        const lastMode = modeHistory.length > 0 ? modeHistory[modeHistory.length - 1].mode : null;
+        if (mode && mode !== lastMode) {
+          // Use stats from the PREVIOUS state (before this update) to snapshot the start of the new mode
+          // This ensures the cost of the *current* operation is attributed to the *new* mode (by subtraction later)
+          const prevTotalCost = existingData.totalCost || 0;
+          const prevApiRequests = existingData.apiRequests || 0;
+
+          // Helper to safely get nested cost breakdown
+          const prevCostBreakdown = existingData.costBreakdown || {};
+          const prevGeminiCost = prevCostBreakdown.geminiCost || (existingData.geminiCost || 0); // Handle flat or nested structure
+          const prevGptCost = prevCostBreakdown.gptCost || (existingData.gptCost || 0);
+          const prevMathpixCost = prevCostBreakdown.mathpixCost || (existingData.mathpixCost || 0);
+
+          modeHistory.push({
+            mode: mode,
+            timestamp: new Date().toISOString(),
+            costAtSwitch: prevTotalCost,
+            apiRequestsAtSwitch: prevApiRequests,
+            geminiCostAtSwitch: prevGeminiCost,
+            gptCostAtSwitch: prevGptCost,
+            mathpixCostAtSwitch: prevMathpixCost
+          });
+        }
+      } else {
+        // New record - initialize history
+        modeHistory.push({
+          mode: mode,
+          timestamp: new Date().toISOString(),
+          costAtSwitch: 0,
+          apiRequestsAtSwitch: 0,
+          geminiCostAtSwitch: 0,
+          gptCostAtSwitch: 0,
+          mathpixCostAtSwitch: 0
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch existing usage record for history tracking:', err);
+      // Fallback: start new history
+      modeHistory.push({
+        mode: mode,
+        timestamp: new Date().toISOString(),
+        costAtSwitch: 0,
+        apiRequestsAtSwitch: 0,
+        geminiCostAtSwitch: 0,
+        gptCostAtSwitch: 0,
+        mathpixCostAtSwitch: 0
+      });
+    }
+
     // Create usage record document
     const usageRecord = {
       sessionId,
@@ -1277,6 +1383,10 @@ export class FirestoreService {
       mathpixCost: Math.round(mathpixCost * 1000000) / 1000000,
       modelUsed,
       date: createdAtDate.toISOString().split('T')[0], // YYYY-MM-DD format
+      // NEW: Mode field (Current Mode)
+      mode: mode,
+      // NEW: Mode History
+      modeHistory: modeHistory,
       // NEW: API request tracking
       apiRequests: sessionStats.apiRequests || 0,
       apiRequestBreakdown: sessionStats.apiRequestBreakdown || {}

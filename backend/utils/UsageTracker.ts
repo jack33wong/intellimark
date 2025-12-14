@@ -21,18 +21,30 @@ interface TokenUsage {
 }
 
 export interface UsageBreakdown {
-    mapper: TokenUsage;           // NEW: Separate mapper phase
-    classification: TokenUsage;    // Classification marking pass
+    mapper: TokenUsage;
+    classification: TokenUsage;
     marking: TokenUsage;
     questionMode: TokenUsage;
+    contextChat: TokenUsage;
+    modelAnswer: TokenUsage;
+    markingScheme: TokenUsage;
+    sampleQuestion: TokenUsage;
+    analysis: TokenUsage;
     other: TokenUsage;
+    mathpixPages: number; // NEW: Track Mathpix pages directly
 }
 
 export interface CostBreakdown {
     classification: number;
     marking: number;
     questionMode: number;
+    contextChat: number;
+    modelAnswer: number;
+    markingScheme: number;
+    sampleQuestion: number;
+    analysis: number;
     other: number;
+    mathpix: number; // NEW
     total: number;
 }
 
@@ -42,8 +54,29 @@ export class UsageTracker {
         classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
         questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-        other: { inputTokens: 0, outputTokens: 0, requestCount: 0 }
+        contextChat: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        modelAnswer: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+        mathpixPages: 0
     };
+
+    /**
+     * Record Mathpix Usage
+     * @param pages Number of pages processed
+     */
+    recordMathpix(pages: number = 1): void {
+        this.usage.mathpixPages += pages;
+    }
+
+    /**
+     * Get total Mathpix pages recorded
+     */
+    getMathpixPages(): number {
+        return this.usage.mathpixPages;
+    }
 
     /**
      * Record mapper API usage (Map Pass)
@@ -81,6 +114,36 @@ export class UsageTracker {
         this.usage.questionMode.requestCount++;
     }
 
+    recordContextChat(inputTokens: number, outputTokens: number): void {
+        this.usage.contextChat.inputTokens += inputTokens;
+        this.usage.contextChat.outputTokens += outputTokens;
+        this.usage.contextChat.requestCount++;
+    }
+
+    recordModelAnswer(inputTokens: number, outputTokens: number): void {
+        this.usage.modelAnswer.inputTokens += inputTokens;
+        this.usage.modelAnswer.outputTokens += outputTokens;
+        this.usage.modelAnswer.requestCount++;
+    }
+
+    recordMarkingScheme(inputTokens: number, outputTokens: number): void {
+        this.usage.markingScheme.inputTokens += inputTokens;
+        this.usage.markingScheme.outputTokens += outputTokens;
+        this.usage.markingScheme.requestCount++;
+    }
+
+    recordSampleQuestion(inputTokens: number, outputTokens: number): void {
+        this.usage.sampleQuestion.inputTokens += inputTokens;
+        this.usage.sampleQuestion.outputTokens += outputTokens;
+        this.usage.sampleQuestion.requestCount++;
+    }
+
+    recordAnalysis(inputTokens: number, outputTokens: number): void {
+        this.usage.analysis.inputTokens += inputTokens;
+        this.usage.analysis.outputTokens += outputTokens;
+        this.usage.analysis.requestCount++;
+    }
+
     /**
      * Record other API usage
      */
@@ -94,8 +157,9 @@ export class UsageTracker {
     * Get total tokens across all phases
     */
     getTotalTokens(): number {
-        return Object.values(this.usage).reduce(
-            (sum, phase) => sum + phase.inputTokens + phase.outputTokens,
+        const { mathpixPages, ...phases } = this.usage; // Exclude mathpixPages from token sum
+        return Object.values(phases).reduce(
+            (sum, phase) => sum + (typeof phase === 'object' ? phase.inputTokens + phase.outputTokens : 0),
             0
         );
     }
@@ -104,8 +168,9 @@ export class UsageTracker {
      * Get total input and output tokens
      */
     getTotalInputOutput(): { inputTokens: number; outputTokens: number } {
-        const inputTokens = Object.values(this.usage).reduce((sum, phase) => sum + phase.inputTokens, 0);
-        const outputTokens = Object.values(this.usage).reduce((sum, phase) => sum + phase.outputTokens, 0);
+        const { mathpixPages, ...phases } = this.usage; // Exclude mathpixPages
+        const inputTokens = Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.inputTokens : 0), 0);
+        const outputTokens = Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.outputTokens : 0), 0);
         return { inputTokens, outputTokens };
     }
 
@@ -120,11 +185,11 @@ export class UsageTracker {
     /**
      * Get combined total cost including Mathpix
      * This is the SINGLE SOURCE OF TRUTH for total cost
+     * @deprecated Mathpix cost is now included in getTotalCost/calculateCost automatically
      */
-    getCombinedTotal(model: string, mathpixCalls: number): number {
-        const llmCost = this.getTotalCost(model);
-        const mathpixCost = mathpixCalls * 0.004; // $0.004 per page
-        return llmCost + mathpixCost;
+    getCombinedTotal(model: string, _mathpixCallsIgnored?: number): number {
+        const costs = this.calculateCost(model);
+        return costs.total;
     }
 
     /**
@@ -139,10 +204,11 @@ export class UsageTracker {
     }
 
     /**
-     * Get total API request count
-     */
+     * Get total API request count (LLM only)
+    */
     getTotalRequests(): number {
-        return Object.values(this.usage).reduce((sum, phase) => sum + phase.requestCount, 0);
+        const { mathpixPages, ...phases } = this.usage;
+        return Object.values(phases).reduce((sum, phase) => sum + (typeof phase === 'object' ? phase.requestCount : 0), 0);
     }
 
     /**
@@ -154,6 +220,11 @@ export class UsageTracker {
             classification: this.usage.classification.requestCount,
             marking: this.usage.marking.requestCount,
             questionMode: this.usage.questionMode.requestCount,
+            contextChat: this.usage.contextChat.requestCount,
+            modelAnswer: this.usage.modelAnswer.requestCount,
+            markingScheme: this.usage.markingScheme.requestCount,
+            sampleQuestion: this.usage.sampleQuestion.requestCount,
+            analysis: this.usage.analysis.requestCount,
             other: this.usage.other.requestCount
         };
     }
@@ -165,23 +236,34 @@ export class UsageTracker {
     calculateCost(model: string): CostBreakdown {
         const pricing = getLLMPricing(model);
 
-        if (!pricing) {
+        let pricingToUse = pricing;
+
+        if (!pricingToUse) {
             console.warn(`[UsageTracker] Unknown model: ${model}, using default pricing`);
             // Fallback to gemini-2.5-flash
             const defaultPricing = getLLMPricing('gemini-2.5-flash');
-            if (!defaultPricing) {
-                return {
-                    classification: 0,
-                    marking: 0,
-                    questionMode: 0,
-                    other: 0,
-                    total: 0
-                };
+            if (defaultPricing) {
+                pricingToUse = defaultPricing;
             }
-            return this.calculateWithPricing(defaultPricing);
         }
 
-        return this.calculateWithPricing(pricing);
+        if (!pricingToUse) {
+            return {
+                classification: 0,
+                marking: 0,
+                questionMode: 0,
+                contextChat: 0,
+                modelAnswer: 0,
+                markingScheme: 0,
+                sampleQuestion: 0,
+                analysis: 0,
+                other: 0,
+                mathpix: 0,
+                total: 0
+            };
+        }
+
+        return this.calculateWithPricing(pricingToUse);
     }
 
     /**
@@ -196,14 +278,28 @@ export class UsageTracker {
         const classification = calculatePhaseCost(this.usage.classification);
         const marking = calculatePhaseCost(this.usage.marking);
         const questionMode = calculatePhaseCost(this.usage.questionMode);
+        const contextChat = calculatePhaseCost(this.usage.contextChat);
+        const modelAnswer = calculatePhaseCost(this.usage.modelAnswer);
+        const markingScheme = calculatePhaseCost(this.usage.markingScheme);
+        const sampleQuestion = calculatePhaseCost(this.usage.sampleQuestion);
+        const analysis = calculatePhaseCost(this.usage.analysis);
         const other = calculatePhaseCost(this.usage.other);
+
+        // Mathpix: $0.004 per page
+        const mathpix = this.usage.mathpixPages * 0.004;
 
         return {
             classification,
             marking,
             questionMode,
+            contextChat,
+            modelAnswer,
+            markingScheme,
+            sampleQuestion,
+            analysis,
             other,
-            total: classification + marking + questionMode + other
+            mathpix,
+            total: classification + marking + questionMode + contextChat + modelAnswer + markingScheme + sampleQuestion + analysis + other + mathpix
         };
     }
 
@@ -213,22 +309,29 @@ export class UsageTracker {
     getBreakdown(): UsageBreakdown {
         // Return a deep copy to prevent mutation
         return {
+            ...this.usage,
             mapper: { ...this.usage.mapper },
             classification: { ...this.usage.classification },
             marking: { ...this.usage.marking },
             questionMode: { ...this.usage.questionMode },
+            contextChat: { ...this.usage.contextChat },
+            modelAnswer: { ...this.usage.modelAnswer },
+            markingScheme: { ...this.usage.markingScheme },
+            sampleQuestion: { ...this.usage.sampleQuestion },
+            analysis: { ...this.usage.analysis },
             other: { ...this.usage.other }
         };
     }
 
     /**
-   * Validate usage (detect anomalies)
-   */
+    * Validate usage (detect anomalies)
+    */
     validate(): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
+        const { mathpixPages, ...phases } = this.usage;
 
         // Check for missing input or output (both should be present if total > 0)
-        Object.entries(this.usage).forEach(([phase, tokens]) => {
+        Object.entries(phases).forEach(([phase, tokens]) => {
             const total = tokens.inputTokens + tokens.outputTokens;
             if (total > 0) {
                 if (tokens.inputTokens === 0) {
@@ -241,14 +344,18 @@ export class UsageTracker {
         });
 
         // Check for negative tokens
-        Object.entries(this.usage).forEach(([phase, tokens]) => {
+        Object.entries(phases).forEach(([phase, tokens]) => {
             if (tokens.inputTokens < 0 || tokens.outputTokens < 0) {
                 errors.push(`${phase}: Negative token count detected (input: ${tokens.inputTokens}, output: ${tokens.outputTokens})`);
             }
         });
 
+        if (mathpixPages < 0) {
+            errors.push(`Mathpix: Negative page count (${mathpixPages})`);
+        }
+
         // Check for unrealistic ratios (input should generally be > output for our use case)
-        Object.entries(this.usage).forEach(([phase, tokens]) => {
+        Object.entries(phases).forEach(([phase, tokens]) => {
             const total = tokens.inputTokens + tokens.outputTokens;
             if (total > 100) { // Only check if significant usage
                 const outputRatio = tokens.outputTokens / total;
@@ -268,22 +375,20 @@ export class UsageTracker {
     /**
      * Get summary for logging
      */
-    getSummary(model?: string, mathpixCalls?: number): string {
-        const totalTokens = this.getTotalTokens();
-        const totalCost = this.getTotalCost(model);
+    getSummary(model?: string, _deprecatedMathpixCalls?: number): string {
+        const costs = this.calculateCost(model || 'gemini-2.5-flash');
         const { inputTokens: totalInput, outputTokens: totalOutput } = this.getTotalInputOutput();
+        const mathpixPages = this.usage.mathpixPages;
 
         let summary = `\n📊 [UsageTracker] Summary:\n`;
         summary += `   Model: ${model || 'unknown'}\n`;
         summary += `   API Requests: ${this.getTotalRequests()} total\n`;
-        summary += `   Total Tokens: ${totalTokens.toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;
-        summary += `   Total Cost: $${totalCost.toFixed(6)}\n`;
+        summary += `   Total Tokens: ${this.getTotalTokens().toLocaleString()} (${totalInput.toLocaleString()} in + ${totalOutput.toLocaleString()} out)\n`;
+        summary += `   Total Cost: $${costs.total.toFixed(6)}\n`;
 
-        // Add Mathpix info if provided
-        if (mathpixCalls && mathpixCalls > 0) {
-            const mathpixCost = mathpixCalls * 0.004; // $0.004 per page
-            summary += `   Mathpix OCR: ${mathpixCalls} pages → $${mathpixCost.toFixed(6)}\n`;
-            summary += `   Combined Total: $${(totalCost + mathpixCost).toFixed(6)}\n`;
+        // Add Mathpix info if usage exists
+        if (mathpixPages > 0) {
+            summary += `   Mathpix OCR: ${mathpixPages} pages → $${costs.mathpix.toFixed(6)}\n`;
         }
 
         summary += `\n   Breakdown by Phase:\n`;
@@ -294,11 +399,17 @@ export class UsageTracker {
             { name: 'Classification (Marking Pass)', key: 'classification' },
             { name: 'Marking', key: 'marking' },
             { name: 'Question Mode', key: 'questionMode' },
+            { name: 'Context Chat', key: 'contextChat' },
+            { name: 'Model Answer', key: 'modelAnswer' },
+            { name: 'Marking Scheme', key: 'markingScheme' },
+            { name: 'Sample Question', key: 'sampleQuestion' },
+            { name: 'Analysis', key: 'analysis' },
             { name: 'Other', key: 'other' }
         ];
 
         phases.forEach(({ name, key }) => {
-            const tokens = this.usage[key];
+            // @ts-ignore - we know key is not mathpixPages here based on the array above
+            const tokens = this.usage[key] as TokenUsage;
             const total = tokens.inputTokens + tokens.outputTokens;
             if (total > 0) {
                 const cost = this.calculatePhaseCost(tokens.inputTokens, tokens.outputTokens, model);
@@ -324,7 +435,13 @@ export class UsageTracker {
             classification: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             marking: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
             questionMode: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
-            other: { inputTokens: 0, outputTokens: 0, requestCount: 0 }
+            contextChat: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            modelAnswer: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            markingScheme: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            sampleQuestion: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            analysis: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            other: { inputTokens: 0, outputTokens: 0, requestCount: 0 },
+            mathpixPages: 0
         };
     }
 }

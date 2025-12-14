@@ -229,7 +229,7 @@ export interface UnifiedMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string; // ISO string format
-  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
+  type?: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up' | 'analysis';
 
   // Image data (imageLink only - Firebase Storage URLs)
   imageLink?: string;

@@ -247,9 +247,9 @@ export class MarkingPersistenceService {
 
             // CRITICAL: Use UsageTracker combined total directly (NO recalculation!)
             // This is the EXACT value shown in UsageTracker summary
-            const totalCost = usageTracker.getCombinedTotal(actualModel, mathpixCallCount);
-            const llmCost = usageTracker.getTotalCost(actualModel);
-            const mathpixCost = totalCost - llmCost; // Derive from total
+            const { total, mathpix: mathpixCost } = usageTracker.calculateCost(actualModel);
+            const totalCost = total;
+            const llmCost = total - mathpixCost;
 
             // console.log(`💰 [COST] UsageTracker Combined Total: $${totalCost} (LLM: $${llmCost} + Mathpix: $${mathpixCost})`);
 

@@ -58,7 +58,8 @@ export class MarkingServiceLocator {
     message: string,
     chatHistory: any[],
     model: ModelType,
-    contextSummary?: string
+    contextSummary?: string,
+    tracker?: any // UsageTracker
   ): Promise<{ response: string; apiUsed: string; confidence: number; usageTokens: number; inputTokens: number; outputTokens: number }> {
 
     const systemPrompt = getPrompt('marking.contextual.system');
@@ -81,7 +82,6 @@ export class MarkingServiceLocator {
     try {
       const { ModelProvider } = await import('../../utils/ModelProvider.js');
       // Pass tracker and phase to get real token counts
-      const tracker = null; // Not using tracker here, but ModelProvider will still return real counts
       const response = await ModelProvider.callGeminiText(systemPrompt, userPrompt, model, false, tracker, 'questionMode');
 
       const { getModelInfo } = await import('../../config/aiModels.js');

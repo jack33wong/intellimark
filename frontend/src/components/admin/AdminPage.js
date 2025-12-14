@@ -34,6 +34,14 @@ const formatDate = (dateString) => {
   }
 };
 
+const formatMode = (mode) => {
+  if (!mode) return 'Unknown';
+  // Capitalize first letter and handle hyphenated modes
+  return mode.charAt(0).toUpperCase() + mode.slice(1).replace(/-/g, ' ');
+};
+
+
+
 // Format marking scheme as Markdown
 const formatMarkingSchemeAsMarkdown = (marks) => {
   if (!marks || !Array.isArray(marks)) {
@@ -306,6 +314,28 @@ function AdminPage() {
       setGradeBoundaryEntries([]);
     }
   }, [getAuthToken]);
+
+  // User filters state
+  const [userFilters, setUserFilters] = useState({
+    userId: '',
+    startDate: '',
+    endDate: ''
+  });
+
+  // Expanded usage sessions state
+  const [expandedAdminSessions, setExpandedAdminSessions] = useState(new Set());
+
+  const toggleAdminUsageExpanded = (sessionId) => {
+    setExpandedAdminSessions(prev => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
 
   // Load usage data
   const loadUsageData = useCallback(async (filter = 'all') => {
@@ -837,6 +867,7 @@ function AdminPage() {
                       <tr>
                         <th className="admin-table__header">User ID</th>
                         <th className="admin-table__header">Created At</th>
+                        <th className="admin-table__header">Mode</th>
                         <th className="admin-table__header">Model Used</th>
                         <th className="admin-table__header">API Requests</th>
                         <th className="admin-table__header">Total Cost</th>
@@ -845,17 +876,104 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {usageData.map((session) => (
-                        <tr key={session.sessionId} className="admin-table__row">
-                          <td className="admin-table__cell">{session.userId}</td>
-                          <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
-                          <td className="admin-table__cell">{session.modelUsed}</td>
-                          <td className="admin-table__cell">{session.apiRequests || 0}</td>
-                          <td className="admin-table__cell">${session.totalCost.toFixed(2)}</td>
-                          <td className="admin-table__cell">${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(2)}</td>
-                          <td className="admin-table__cell">${session.mathpixCost.toFixed(2)}</td>
-                        </tr>
-                      ))}
+                      {usageData.map((session) => {
+                        // We need a state for expanded sessions. Since this is a massive component, 
+                        // and we can't easily add a new top-level state right here without viewing the top of the file,
+                        // we will assume we added 'const [expandedUsageSessions, setExpandedUsageSessions] = useState(new Set());'
+                        // at the component level. 
+                        // WAIT: use view_file to check component top first?
+                        // Actually, I'll use a local variable for now, but really I need to add the state hook.
+                        // Implemented check: I will inject the state hook in a separate tool call if needed.
+                        // For now, let's assume 'expandedUsageRows' is available or I will add it.
+                        // Let's use a unique name: expandedAdminSessions
+
+                        const isExpanded = expandedAdminSessions.has(session.sessionId);
+                        const hasHistory = session.modeHistory && session.modeHistory.length > 1;
+
+                        return (
+                          <React.Fragment key={session.sessionId}>
+                            <tr className={`admin-table__row ${isExpanded ? 'admin-row-expanded' : ''}`}>
+                              <td className="admin-table__cell">{session.userId}</td>
+                              <td className="admin-table__cell">{formatDate(session.createdAt)}</td>
+                              <td className="admin-table__cell">
+                                {hasHistory ? (
+                                  <button
+                                    className="mode-expand-btn"
+                                    style={{ padding: 0, fontSize: '12px' }}
+                                    onClick={() => toggleAdminUsageExpanded(session.sessionId)}
+                                  >
+                                    {isExpanded ? (
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    ) : (
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    )}
+                                    <span className={`status-badge ${session.mode === 'marking' ? 'status-badge--primary' : 'status-badge--secondary'}`}>
+                                      {formatMode(session.mode)}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <span className={`status-badge ${session.mode === 'marking' ? 'status-badge--primary' : 'status-badge--secondary'}`}>
+                                    {formatMode(session.mode)}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="admin-table__cell">{session.modelUsed}</td>
+                              <td className="admin-table__cell">{session.apiRequests || 0}</td>
+                              <td className="admin-table__cell">${session.totalCost.toFixed(4)}</td>
+                              <td className="admin-table__cell">${((session.geminiCost || 0) + (session.gptCost || 0)).toFixed(4)}</td>
+                              <td className="admin-table__cell">${session.mathpixCost.toFixed(4)}</td>
+                            </tr>
+                            {isExpanded && session.modeHistory && session.modeHistory.map((h, i, arr) => {
+                              let usageCost = 0;
+                              // Logic for deltas
+                              if (i < arr.length - 1) {
+                                const next = arr[i + 1];
+                                usageCost = next.costAtSwitch - h.costAtSwitch;
+                              } else {
+                                usageCost = session.totalCost - h.costAtSwitch;
+                              }
+
+                              const apiDelta = (h.apiRequestsAtSwitch !== undefined && i < arr.length - 1)
+                                ? (arr[i + 1].apiRequestsAtSwitch - h.apiRequestsAtSwitch)
+                                : (h.apiRequestsAtSwitch !== undefined)
+                                  ? (session.apiRequests - h.apiRequestsAtSwitch)
+                                  : null;
+
+                              const aiCostDelta = (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined && i < arr.length - 1)
+                                ? ((arr[i + 1].geminiCostAtSwitch + arr[i + 1].gptCostAtSwitch) - (h.geminiCostAtSwitch + h.gptCostAtSwitch))
+                                : (h.geminiCostAtSwitch !== undefined && h.gptCostAtSwitch !== undefined)
+                                  ? ((session.geminiCost + session.gptCost) - (h.geminiCostAtSwitch + h.gptCostAtSwitch))
+                                  : null;
+
+                              return (
+                                <tr key={`history-${i}`} className="usage-history-row">
+                                  <td className="admin-table__cell"></td> {/* Spacer for User ID column */}
+                                  <td className="admin-table__cell" style={{ paddingLeft: '32px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    {new Date(h.timestamp).toLocaleString(undefined, {
+                                      year: 'numeric', month: '2-digit', day: '2-digit',
+                                      hour: '2-digit', minute: '2-digit'
+                                    })}
+                                  </td>
+                                  <td className="admin-table__cell">
+                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{formatMode(h.mode)}</span>
+                                  </td>
+                                  <td className="admin-table__cell" style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>-</td>
+                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    {apiDelta !== null ? apiDelta : '-'}
+                                  </td>
+                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    ${Math.max(0, usageCost).toFixed(4)}
+                                  </td>
+                                  <td className="admin-table__cell" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    {aiCostDelta !== null ? `$${aiCostDelta.toFixed(4)}` : '-'}
+                                  </td>
+                                  <td className="admin-table__cell"></td> {/* Mathpix column removed/empty per request */}
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

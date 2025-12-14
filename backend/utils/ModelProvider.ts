@@ -64,7 +64,7 @@ export class ModelProvider {
     model: ModelType = 'auto',
     forceJsonResponse: boolean = false,
     tracker?: any, // UsageTracker (optional for backward compatibility during migration)
-    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+    phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiTextRequest(accessToken, systemPrompt, userPrompt, model, forceJsonResponse);
@@ -88,6 +88,21 @@ export class ModelProvider {
         case 'questionMode':
           tracker.recordQuestionMode(inputTokens, outputTokens);
           break;
+        case 'contextChat':
+          tracker.recordContextChat(inputTokens, outputTokens);
+          break;
+        case 'modelAnswer':
+          tracker.recordModelAnswer(inputTokens, outputTokens);
+          break;
+        case 'markingScheme':
+          tracker.recordMarkingScheme(inputTokens, outputTokens);
+          break;
+        case 'sampleQuestion':
+          tracker.recordSampleQuestion(inputTokens, outputTokens);
+          break;
+        case 'analysis':
+          tracker.recordAnalysis(inputTokens, outputTokens);
+          break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
       }
@@ -102,7 +117,7 @@ export class ModelProvider {
     imageData: string | string[],
     model: ModelType = 'auto',
     tracker?: any,
-    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+    phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     const accessToken = this.getGeminiApiKey();
     const response = await this.makeGeminiChatRequest(accessToken, imageData, systemPrompt, userPrompt, model);
@@ -125,6 +140,21 @@ export class ModelProvider {
           break;
         case 'questionMode':
           tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        case 'contextChat':
+          tracker.recordContextChat(inputTokens, outputTokens);
+          break;
+        case 'modelAnswer':
+          tracker.recordModelAnswer(inputTokens, outputTokens);
+          break;
+        case 'markingScheme':
+          tracker.recordMarkingScheme(inputTokens, outputTokens);
+          break;
+        case 'sampleQuestion':
+          tracker.recordSampleQuestion(inputTokens, outputTokens);
+          break;
+        case 'analysis':
+          tracker.recordAnalysis(inputTokens, outputTokens);
           break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
@@ -297,7 +327,7 @@ export class ModelProvider {
     model: ModelType = 'auto',
     forceJsonResponse: boolean = false,
     tracker?: any,
-    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+    phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     // Resolve 'auto' to default model
     const resolvedModel = model === 'auto' ? 'gemini-2.0-flash' : model;
@@ -326,7 +356,7 @@ export class ModelProvider {
     modelName?: string,
     forceJsonResponse: boolean = true,
     tracker?: any,
-    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+    phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number; modelName: string }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -398,6 +428,21 @@ export class ModelProvider {
         case 'questionMode':
           tracker.recordQuestionMode(inputTokens, outputTokens);
           break;
+        case 'contextChat':
+          tracker.recordContextChat(inputTokens, outputTokens);
+          break;
+        case 'modelAnswer':
+          tracker.recordModelAnswer(inputTokens, outputTokens);
+          break;
+        case 'markingScheme':
+          tracker.recordMarkingScheme(inputTokens, outputTokens);
+          break;
+        case 'sampleQuestion':
+          tracker.recordSampleQuestion(inputTokens, outputTokens);
+          break;
+        case 'analysis':
+          tracker.recordAnalysis(inputTokens, outputTokens);
+          break;
         default:
           tracker.recordOther(inputTokens, outputTokens);
       }
@@ -465,7 +510,7 @@ export class ModelProvider {
     modelName: string = 'gpt-4o-mini',
     forceJsonResponse: boolean = false,
     tracker?: any,
-    phase: 'classification' | 'marking' | 'questionMode' | 'other' = 'other'
+    phase: ModelPhase = 'other'
   ): Promise<{ content: string; usageTokens: number }> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -527,6 +572,21 @@ export class ModelProvider {
           break;
         case 'questionMode':
           tracker.recordQuestionMode(inputTokens, outputTokens);
+          break;
+        case 'contextChat':
+          tracker.recordContextChat(inputTokens, outputTokens);
+          break;
+        case 'modelAnswer':
+          tracker.recordModelAnswer(inputTokens, outputTokens);
+          break;
+        case 'markingScheme':
+          tracker.recordMarkingScheme(inputTokens, outputTokens);
+          break;
+        case 'sampleQuestion':
+          tracker.recordSampleQuestion(inputTokens, outputTokens);
+          break;
+        case 'analysis':
+          tracker.recordAnalysis(inputTokens, outputTokens);
           break;
         default:
           tracker.recordOther(inputTokens, outputTokens);

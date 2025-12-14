@@ -12,6 +12,7 @@ import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
 import type { UnifiedMessage } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
+import { UsageTracker } from '../utils/usageTracker.js';
 
 const router = express.Router();
 
@@ -23,6 +24,9 @@ const router = express.Router();
 router.post('/chat', optionalAuth, async (req, res) => {
   try {
     const { message, imageData, model = 'auto', sessionId, mode, aiMessageId, sourceMessageId } = req.body;
+
+    // Instantiate UsageTracker for this request
+    const usageTracker = new UsageTracker();
 
     // Use centralized model configuration for 'auto'
     let resolvedModel = model;
@@ -89,7 +93,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           title: sessionTitle,
           userId: userId,
           messageType: 'Chat',
-          messages: [userMessage] // Include user message in database
+          messages: [userMessage], // Include user message in database
+          usageMode: 'chat'
         });
       } else {
         // For anonymous users, use provided sessionId or create a permanent one
@@ -125,7 +130,17 @@ router.post('/chat', optionalAuth, async (req, res) => {
     try {
       if (imageData) {
         // For messages with images, use image-aware chat response
-        const aiResult = await MarkingServiceLocator.generateChatResponse(imageData, message, resolvedModel as any, "questionAnswer");
+        // Note: passing usageTracker as the 8th argument
+        const aiResult = await MarkingServiceLocator.generateChatResponse(
+          imageData,
+          message,
+          resolvedModel as any,
+          "questionAnswer",
+          false,         // debug
+          undefined,     // onProgress
+          false,         // useOcrText
+          usageTracker   // tracker
+        );
         aiResponse = aiResult.response;
         apiUsed = aiResult.apiUsed;
         contextualResult = aiResult; // Store for processing stats
@@ -225,7 +240,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
           message,  // user's message text
           chatHistory,  // chat history for context (fallback if contextSummary used, or ignored)
           resolvedModel,
-          contextSummary // Pass the rich context summary
+          contextSummary, // Pass the rich context summary
+          usageTracker    // Pass usage tracker
         );
         aiResponse = contextualResult.response;
         apiUsed = contextualResult.apiUsed;
@@ -251,7 +267,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
         imageSize: imageData ? imageData.length : 0,
         apiUsed: apiUsed,
         llmTokens: contextualResult?.usageTokens || 0,
-        mathpixCalls: 0,
+        mathpixCalls: usageTracker.getMathpixPages() || 0,
         confidence: contextualResult?.confidence || 0,
         annotations: 0,
         processingTimeMs: Date.now() - startTime
@@ -274,24 +290,21 @@ router.post('/chat', optionalAuth, async (req, res) => {
             lastModelUsed: resolvedModel,
             lastApiUsed: apiUsed,
             totalLlmTokens: contextualResult?.usageTokens || 0,
-            totalMathpixCalls: 0,
+            totalMathpixCalls: usageTracker.getMathpixPages() || 0,
             totalTokens: contextualResult?.usageTokens || 0,
             averageConfidence: contextualResult?.confidence || 0,
             imageSize: imageData ? imageData.length : 0,
             totalAnnotations: 0,
+            apiRequests: 1, // Initialize API requests count
             // Add cost breakdown to enable usageRecord creation
             costBreakdown: await (async () => {
               try {
-                const { getLLMPricing } = await import('../config/pricing.js');
-                const pricing = getLLMPricing(resolvedModel);
-                // Use ACTUAL input/output tokens from Gemini API response (if available)
-                const inputTokens = contextualResult?.inputTokens || Math.floor((contextualResult?.usageTokens || 0) * 0.5);
-                const outputTokens = contextualResult?.outputTokens || Math.ceil((contextualResult?.usageTokens || 0) * 0.5);
-                const llmCost = (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
+                // Use UsageTracker for accurate cost calculation
+                const cost = usageTracker.calculateCost(resolvedModel);
                 return {
-                  llmCost,
-                  mathpixCost: 0,
-                  total: llmCost
+                  llmCost: cost.total - cost.mathpix, // Total includes Mathpix, so subtract it
+                  mathpixCost: cost.mathpix,
+                  total: cost.total
                 };
               } catch (error) {
                 console.error('Cost calculation error:', error);
@@ -299,25 +312,18 @@ router.post('/chat', optionalAuth, async (req, res) => {
               }
             })(),
             totalCost: await (async () => {
-              try {
-                const { getLLMPricing } = await import('../config/pricing.js');
-                const pricing = getLLMPricing(resolvedModel);
-                // Use ACTUAL input/output tokens from Gemini API response (if available)
-                const inputTokens = contextualResult?.inputTokens || Math.floor((contextualResult?.usageTokens || 0) * 0.5);
-                const outputTokens = contextualResult?.outputTokens || Math.ceil((contextualResult?.usageTokens || 0) * 0.5);
-                return (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
-              } catch (error) {
-                return 0;
-              }
+              // Use UsageTracker total
+              return usageTracker.calculateCost(resolvedModel).total;
             })()
-          }
+          },
+          usageMode: mode || 'chat'
         });
       } else {
         // Adding to existing session - add both user and AI messages
         // User message needs to be persisted for follow-up messages
         try {
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage);
-          await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage);
+          await FirestoreService.addMessageToUnifiedSession(currentSessionId, userMessage, mode || 'chat');
+          await FirestoreService.addMessageToUnifiedSession(currentSessionId, aiMessage, mode || 'chat');
         } catch (error) {
           console.error(`❌ Failed to add messages to session ${currentSessionId}:`, error);
           // This is a critical error - the session should exist but doesn't

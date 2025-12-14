@@ -114,6 +114,8 @@ router.get('/me', async (req: Request, res: Response) => {
             mathpixCost: number;
             modelUsed: string;
             apiRequests: number;
+            mode: string;
+            modeHistory?: Array<{ mode: string; timestamp: string; costAtSwitch: number }>;
         }> = [];
 
         let totalCost = 0;
@@ -133,6 +135,10 @@ router.get('/me', async (req: Request, res: Response) => {
             const gptCost = record.gptCost ?? 0;
             const llmCost = record.llmCost ?? (geminiCost + gptCost);
             const apiRequests = record.apiRequests || 0;
+            // Handle mode mapping. DB might store it as 'mode' or 'usageMode' or miss it
+            const mode = record.mode || record.usageMode || 'chat';
+            // Handle mode history
+            const modeHistory = record.modeHistory || [];
 
             usageData.push({
                 sessionId: doc.id,
@@ -144,7 +150,9 @@ router.get('/me', async (req: Request, res: Response) => {
                 gptCost,
                 mathpixCost: record.mathpixCost,
                 modelUsed: record.modelUsed,
-                apiRequests
+                apiRequests,
+                mode,
+                modeHistory
             });
 
             // Update totals

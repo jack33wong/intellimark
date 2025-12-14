@@ -384,6 +384,10 @@ export class SessionManagementService {
   ): Promise<void> {
     const sessionStats = this.createSessionStats(context);
 
+    const usageMode = context.mode === 'Marking' ? 'marking' :
+      context.mode === 'Question' ? 'question' :
+        'unknown';
+
     await FirestoreService.createUnifiedSessionWithMessages({
       sessionId: currentSessionId,
       title: sessionTitle,
@@ -391,7 +395,8 @@ export class SessionManagementService {
       messageType: context.mode,
       messages: [context.userMessage, dbAiMessage],
       isPastPaper: false,
-      sessionStats
+      sessionStats,
+      usageMode
     });
   }
 
