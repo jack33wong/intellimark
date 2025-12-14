@@ -10,16 +10,18 @@
 
 
 /* Follow-up Chat Input Container - Center position (initial) */
+/* Follow-up Chat Input Container - Center position (initial) */
 .follow-up-chat-input-container.follow-up-center {
-  position: fixed;
-  top: 50%;
+  position: absolute;
+  top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80vw;
-  /* Match chat content width */
-  max-width: 1100px;
+  width: 100%;
+  max-width: 750px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
+  padding: 0 20px;
+  /* Add some padding for small screens */
 }
 
 

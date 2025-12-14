@@ -310,14 +310,11 @@ const UnifiedChatInput: React.FC<UnifiedChatInputProps> = ({
       {mode === 'first-time' && (
         <div className="chat-title-section">
           <h2 className="chat-title-greeting">
-            {user ? `Hello ${user.displayName || user.email?.split('@')[0] || 'User'}!` : 'Hello!'}
+            {user ? `Hi ${user.displayName || user.email?.split('@')[0] || 'User'}` : 'Hi there'}
           </h2>
-          <p className="chat-title-subtitle">
-            What can I do for you?
-          </p>
         </div>
       )}
-      <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''}`}>
+      <div className={`followup-chat-input-bar ${isExpanded ? 'expanded' : ''} ${mode}`}>
         <div className="followup-input-wrapper">
           <div className={`followup-single-line-container ${isExpanded ? 'expanded' : ''}`}>
             {isExpanded && ((previewImage || previewImages.length > 0) || (imageFile && isPDF(imageFile)) || (imageFiles.length > 0 && imageFiles.some(file => isPDF(file)))) && (

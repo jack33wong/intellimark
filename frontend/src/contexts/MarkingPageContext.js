@@ -403,10 +403,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
 
   const enterSplitMode = useCallback((images, index = 0) => {
     dispatch({ type: 'ENTER_SPLIT_MODE', payload: { images, index } });
-    // Auto-collapse sidebar to mini mode (72px)
-    if (setSidebarOpen) {
-      setSidebarOpen(false); // Collapsed = false in your Sidebar logic
-    }
+    // Auto-collapse sidebar to mini mode (72px) - DISABLED by user request
+    // if (setSidebarOpen) {
+    //   setSidebarOpen(false); // Collapsed = false in your Sidebar logic
+    // }
   }, [setSidebarOpen]);
 
   const exitSplitMode = useCallback(() => {

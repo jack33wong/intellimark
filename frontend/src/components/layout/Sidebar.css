@@ -336,6 +336,42 @@
   overflow-x: hidden;
 }
 
+/* Custom Scrollbar */
+.mark-history-scrollable {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  /* Smooth transition for non-layout affecting properties if supported */
+  transition: scrollbar-color 0.3s ease;
+}
+
+.mark-history-scrollable:hover {
+  /* Firefox hover */
+  scrollbar-color: var(--text-tertiary) transparent;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+.mark-history-scrollable::-webkit-scrollbar {
+  width: 5px;
+  background: transparent;
+}
+
+.mark-history-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 0;
+}
+
+.mark-history-scrollable::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  border: none;
+}
+
+/* Only show thumb on hover */
+.mark-history-scrollable:hover::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+}
+
 /* Mark History Styles */
 .mark-history-list {
   display: flex;
