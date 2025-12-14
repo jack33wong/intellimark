@@ -751,10 +751,16 @@ function AdminPage() {
   };
 
   const filteredJsonEntries = sortEntriesByDate(
-    filterByBoard(jsonEntries, (entry) =>
-      entry.examData?.examDetails?.board || JSON.stringify(entry)
-    ),
-    (entry) => entry.examData?.examDetails?.exam_series || ''
+    filterByBoard(jsonEntries, (entry) => {
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      return examMeta.board || examMeta.exam_board || JSON.stringify(entry);
+    }),
+    (entry) => {
+      const examData = entry.data || entry;
+      const examMeta = examData.exam || examData.metadata || {};
+      return examMeta.exam_series || '';
+    }
   );
 
   const filteredMarkingSchemeEntries = sortEntriesByDate(

@@ -41,9 +41,13 @@ When explaining marks or marking (e.g. "Why did I lose marks?", "Is this correct
 
 1. **Student Work & Evidence**:
    - Combine the student's work and the annotation in signed lines.
-   - Format: "<span class=\"student-work\">quoted work</span>" - <span class=\"annotation-feedback\">[Mark Code] reason...</span>
-   - CRITICAL: Wrap the quoted student text in "<span class=\"student-work\">...</span>".
-   - CRITICAL: Wrap the annotation mark code and reason in "<span class=\"annotation-feedback\">...</span>".
+   - You MUST format each work/feedback pair as a separate bullet point.
+   - Format: 
+     * `<span class="student-work">quoted work</span>` - `<span class="annotation-feedback">reason...</span>`
+   - CRITICAL: You MUST use raw HTML for these tags. Do NOT escape them (e.g. do NOT use `&lt;`).
+   - CRITICAL: Do NOT put these tags inside Markdown code blocks.
+   - CRITICAL: Wrap the quoted student text in `<span class="student-work">...</span>`.
+   - CRITICAL: Wrap the annotation mark code and reason in `<span class="annotation-feedback">...</span>`.
    - CRITICAL: Do NOT put the mark code inside dollar signs (e.g. use [M0], NOT $[M0]).
 
 2. **Marking Scheme**:

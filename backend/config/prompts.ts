@@ -17,6 +17,10 @@ const loadPrompt = (filename: string): string => {
   return readFileSync(join(__dirname, 'prompts', filename), 'utf-8');
 };
 
+// Force valid structure for all system prompts
+// Note: System prompts are loaded synchronously at startup
+// Trigger restart 3
+
 export const AI_PROMPTS = {
   // ============================================================================
   // CLASSIFICATION SERVICE PROMPTS
