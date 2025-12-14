@@ -17,7 +17,7 @@
   left: 50%;
   transform: translate(-50%, -50%);
   width: 100%;
-  max-width: 750px;
+  max-width: 850px;
   z-index: 1000;
   transition: all 0.3s ease-in-out;
   padding: 0 20px;

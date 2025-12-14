@@ -88,6 +88,7 @@ function AdminPage() {
   const [jsonEntries, setJsonEntries] = useState([]);
   const [expandedJsonId, setExpandedJsonId] = useState(null);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [examBoardFilter, setExamBoardFilter] = useState('Pearson Edexcel');
 
   // JSON upload state
   const [jsonForm, setJsonForm] = useState({
@@ -699,6 +700,76 @@ function AdminPage() {
       </div>
     );
   }
+  // Filter logic
+  const renderFilterTabs = () => (
+    <div className="admin-filter-tabs">
+      {['All', 'Pearson Edexcel', 'AQA', 'OCR'].map(board => (
+        <button
+          key={board}
+          className={`admin-filter-tab ${examBoardFilter === board ? 'admin-filter-tab--active' : ''}`}
+          onClick={() => setExamBoardFilter(board)}
+        >
+          {board}
+        </button>
+      ))}
+    </div>
+  );
+
+  const filterByBoard = (entries, getBoardFn) => {
+    if (examBoardFilter === 'All') return entries;
+    return entries.filter(entry => {
+      const board = getBoardFn(entry);
+      return board && board.toLowerCase().includes(examBoardFilter.toLowerCase());
+    });
+  };
+
+  // Helper to parse Exam Series (e.g., "November 2023") into a Date for sorting
+  const parseExamSeriesDate = (seriesString) => {
+    if (!seriesString || seriesString === 'N/A') return new Date(0); // Oldest
+    const parts = seriesString.split(' ');
+    if (parts.length < 2) return new Date(0);
+
+    const monthName = parts[0];
+    const year = parseInt(parts[1]);
+
+    const monthMap = {
+      'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
+      'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+    };
+
+    // Default to Jan if month not parsed, but year is present
+    const month = monthMap[monthName] !== undefined ? monthMap[monthName] : 0;
+    return new Date(year, month);
+  };
+
+  const sortEntriesByDate = (entries, getDateFn) => {
+    return [...entries].sort((a, b) => {
+      const dateA = parseExamSeriesDate(getDateFn(a));
+      const dateB = parseExamSeriesDate(getDateFn(b));
+      return dateB - dateA; // Descending (Newest first)
+    });
+  };
+
+  const filteredJsonEntries = sortEntriesByDate(
+    filterByBoard(jsonEntries, (entry) =>
+      entry.examData?.examDetails?.board || JSON.stringify(entry)
+    ),
+    (entry) => entry.examData?.examDetails?.exam_series || ''
+  );
+
+  const filteredMarkingSchemeEntries = sortEntriesByDate(
+    filterByBoard(markingSchemeEntries, (entry) =>
+      entry.examDetails?.board || entry.markingSchemeData?.examDetails?.board || ''
+    ),
+    (entry) => entry.examDetails?.exam_series || entry.markingSchemeData?.examDetails?.exam_series || ''
+  );
+
+  const filteredGradeBoundaries = sortEntriesByDate(
+    filterByBoard(gradeBoundaryEntries, (entry) =>
+      entry.exam_board || entry.examBoard || ''
+    ),
+    (entry) => entry.exam_series || entry.examSeries || ''
+  );
 
   return (
     <div className="admin-page">
@@ -1026,8 +1097,9 @@ function AdminPage() {
 
             {/* Exam JSON List */}
             <div className="admin-data-section">
+              {renderFilterTabs()}
               <div className="admin-data-section__header">
-                <h3 className="admin-data-section__title">Full Exam Papers ({jsonEntries.length})</h3>
+                <h3 className="admin-data-section__title">Full Exam Papers ({filteredJsonEntries.length})</h3>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     className="admin-btn admin-btn--secondary"
@@ -1073,7 +1145,7 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {jsonEntries.map(entry => {
+                      {filteredJsonEntries.map(entry => {
                         // Handle multiple data structures: entry.exam, entry.data.exam, entry.metadata
                         const examData = entry.data || entry;
                         const examMeta = examData.exam || examData.metadata || {};
@@ -1314,8 +1386,9 @@ function AdminPage() {
 
             {/* Marking Scheme List */}
             <div className="admin-data-section">
+              {renderFilterTabs()}
               <div className="admin-data-section__header">
-                <h3 className="admin-data-section__title">Marking Schemes ({markingSchemeEntries.length})</h3>
+                <h3 className="admin-data-section__title">Marking Schemes ({filteredMarkingSchemeEntries.length})</h3>
                 {markingSchemeEntries.length > 0 && (
                   <button
                     onClick={deleteAllMarkingSchemeEntries}
@@ -1348,7 +1421,7 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {markingSchemeEntries.map(entry => {
+                      {filteredMarkingSchemeEntries.map(entry => {
                         // Extract exam details from either structure
                         const examDetails = entry.examDetails || entry.markingSchemeData?.examDetails || {};
                         const questions = entry.questions || entry.markingSchemeData?.questions || {};
@@ -1669,8 +1742,9 @@ function AdminPage() {
 
             {/* Grade Boundary List */}
             <div className="admin-data-section">
+              {renderFilterTabs()}
               <div className="admin-data-section__header">
-                <h3 className="admin-data-section__title">Grade Boundaries ({gradeBoundaryEntries.length})</h3>
+                <h3 className="admin-data-section__title">Grade Boundaries ({filteredGradeBoundaries.length})</h3>
                 {gradeBoundaryEntries.length > 0 && (
                   <button
                     onClick={deleteAllGradeBoundaryEntries}
@@ -1704,7 +1778,7 @@ function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {gradeBoundaryEntries.map(entry => {
+                      {filteredGradeBoundaries.map(entry => {
                         const examBoard = entry.exam_board || entry.examBoard || 'N/A';
                         const qualification = entry.qualification || 'N/A';
                         const examSeries = entry.exam_series || entry.examSeries || 'N/A';

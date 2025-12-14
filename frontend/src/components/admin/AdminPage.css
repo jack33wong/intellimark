@@ -1745,3 +1745,38 @@
   text-align: right;
   font-family: monospace;
 }
+
+/* Filter Tabs */
+.admin-filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.admin-filter-tab {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-filter-tab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.admin-filter-tab--active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.admin-filter-tab--active:hover {
+  background: var(--primary-hover);
+  color: white;
+}
