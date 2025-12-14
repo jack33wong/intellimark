@@ -12,9 +12,8 @@ import {
   Calendar,
   CreditCard,
   CheckCircle,
-  Bug,
-  BarChart3,
   Coins,
+  BarChart3,
   AlertCircle
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
@@ -32,14 +31,14 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [subscriptionLoading, setSubscriptionLoading] = useState(false);
-  const [debugMode, setDebugMode] = useState(localStorage.getItem('debugMode') === 'true');
+
   const [refreshKey, setRefreshKey] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const profileRef = useRef(null);
   const subscriptionRef = useRef(null);
 
-  // Debug mode is now passed per request, no need to sync with backend
+
 
   // Fetch user subscription and credits data
   useEffect(() => {
@@ -206,11 +205,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
     }, 300);
   };
 
-  const handleDebugModeToggle = () => {
-    const newDebugMode = !debugMode;
-    setDebugMode(newDebugMode);
-    localStorage.setItem('debugMode', newDebugMode.toString());
-  };
+
 
   const getUpgradeButtonText = () => {
     if (subscriptionLoading) return 'Loading...';
@@ -317,15 +312,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
             </button>
           )}
 
-          {/* Debug Mode Toggle */}
-          <button
-            className={`nav-item debug-nav ${debugMode ? 'active' : ''}`}
-            onClick={handleDebugModeToggle}
-            title={debugMode ? 'Debug Mode ON - External APIs disabled' : 'Debug Mode OFF - External APIs enabled'}
-          >
-            <Bug size={16} />
-            Debug {debugMode ? 'ON' : 'OFF'}
-          </button>
+
         </nav>
 
         {/* Right side - Profile */}

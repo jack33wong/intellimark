@@ -1026,7 +1026,7 @@ export class MarkingPipelineService {
             // --- Stage 3: Create Marking Tasks Directly from Classification (Bypass Segmentation) ---
             progressCallback(createProgressData(5, 'Preparing marking tasks...', MULTI_IMAGE_STEPS));
             console.log('[PIPELINE DEBUG] Starting createMarkingTasksFromClassification...');
-            const logSegmentationComplete = logStep('Segmentation', 'segmentation');
+
 
             // Create page dimensions map from standardizedPages for accurate drawing position calculation
             const pageDimensionsMap = new Map<number, { width: number; height: number }>();
@@ -1134,7 +1134,7 @@ export class MarkingPipelineService {
                 return finalOutput; // Exit early
             }
             progressCallback(createProgressData(5, `Prepared ${markingTasks.length} marking task(s).`, MULTI_IMAGE_STEPS));
-            logSegmentationComplete();
+
             // ========================== END: IMPLEMENT STAGE 3 ==========================
 
             // ========================= START: VALIDATE SCHEMES =========================

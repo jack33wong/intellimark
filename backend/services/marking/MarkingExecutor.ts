@@ -828,33 +828,20 @@ const enrichAnnotationsWithPositions = (
 ): EnrichedAnnotation[] => {
   let lastValidAnnotation: EnrichedAnnotation | null = null;
 
-  // DEBUG: Show all OCR blocks for Q2
-  if (questionId.toString().startsWith('2')) {
-    console.log(`\n🔍 [Q2 OCR BLOCKS] All ${stepsDataForMapping.length} blocks:`);
-    stepsDataForMapping.forEach((step, idx) => {
-      console.log(`  [${idx}] ID=${step.globalBlockId || step.unified_step_id}, Text="${(step.text || '').substring(0, 60)}", BBox=[${step.bbox?.join(',')}], Page=${step.pageIndex}`);
-    });
-  }
+
 
 
   // Code -> SubQuestion Map building removed as per user request (relying on Classification/Page Inference)
 
 
   const results = annotations.map((anno, idx) => {
-    // FAILSAFE: Log every Q2 annotation regardless of match path
-    if (questionId.toString().startsWith('2')) {
-      console.log(`\n🔍 [Q2 ANNOTATION ${idx}] Processing:`);
-      console.log(`  AI step_id: ${(anno as any).step_id}`);
-      console.log(`  Mark code: ${(anno as any).text}`);
-      console.log(`  Student text: ${(anno as any).student_text || (anno as any).textMatch}`);
-    }
+
 
     // Check if we have AI-provided position (New Design)
     // Immutable annotations map 'visual_position' to 'aiPosition'
+    // Check if we have AI-provided position (New Design)
+    // Immutable annotations map 'visual_position' to 'aiPosition'
     const visualPos = (anno as any).aiPosition || (anno as any).visual_position; // Visual position for DRAWING annotations only (from marking AI)
-    if (visualPos) {
-      console.log(`[VISUAL POS DEBUG] Q${questionId} AI Output:`, JSON.stringify(visualPos));
-    }
 
     // FIX START: Extract sub-question target early so it's available for ALL paths (Visual, Unmatched, etc.)
     // FIX START: Infer sub-question from Page Content (Classification Blocks)
@@ -878,15 +865,7 @@ const enrichAnnotationsWithPositions = (
       step.unified_step_id?.trim() === aiStepId || step.globalBlockId?.trim() === aiStepId
     );
 
-    // DEBUG: Log Q2 exact match
-    if (originalStep && questionId.toString().startsWith('2')) {
-      console.log(`\n🔍 [Q2 EXACT MATCH] AI step_id="${aiStepId}" matched to:`);
-      console.log(`  Text: "${(originalStep.text || '').substring(0, 100)}"`);
-      console.log(`  BBox: [${originalStep.bbox?.join(', ')}]`);
-      console.log(`  Page: ${originalStep.pageIndex}`);
-      console.log(`  Anno subQ: ${(anno as any).subQuestion}`);
-      console.log(`  Anno text mark: ${(anno as any).text}`);
-    }
+
 
     // If not found, try flexible matching (handle step_1 vs q8_step_1, etc.)
     if (!originalStep && aiStepId) {
@@ -907,14 +886,7 @@ const enrichAnnotationsWithPositions = (
         step.globalBlockId?.trim() === aiStepId
       );
 
-      // DEBUG: Log Q2 block matching
-      if (originalStep && questionId.toString().startsWith('2')) {
-        console.log(`\n🔍 [Q2 BLOCK DEBUG] Matched ${aiStepId}:`);
-        console.log(`  Text: "${(originalStep.text || '').substring(0, 100)}"`);
-        console.log(`  BBox: [${originalStep.bbox?.join(', ')}]`);
-        console.log(`  Page: ${originalStep.pageIndex}`);
-        console.log(`  Anno subQ: ${(anno as any).subQuestion}`);
-      }
+
     }
 
     // Special handling for [DRAWING] annotations

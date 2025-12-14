@@ -5,43 +5,7 @@
 
 import { ModelType, AIModelConfig } from '../types/index.js';
 
-/**
- * Debug Mode Configuration
- * When enabled, disables all external API calls and uses mock responses
- */
-export const DEBUG_MODE = {
-  enabled: false, // Disabled for production
-  fakeDelayMs: 1000, // 1 second delay for each API call
-  returnOriginalImage: true // Return original image instead of processed results
-};
 
-/**
- * Runtime debug mode state
- * This can be modified at runtime via the debug API
- */
-let runtimeDebugMode = {
-  enabled: false,
-  fakeDelayMs: 1000,
-  returnOriginalImage: false // Default: return AI-annotated images (normal operation)
-};
-
-/**
- * Get current debug mode configuration
- * Returns runtime state if available, otherwise defaults
- */
-export function getDebugMode() {
-  return runtimeDebugMode;
-}
-
-/**
- * Update debug mode configuration at runtime
- */
-export function setDebugMode(debugMode: boolean) {
-  runtimeDebugMode.enabled = debugMode;
-  // When debug mode is ON, return original images (for testing)
-  // When debug mode is OFF, return AI-annotated images (normal operation)
-  runtimeDebugMode.returnOriginalImage = debugMode;
-}
 
 /**
  * Configuration for all supported AI models

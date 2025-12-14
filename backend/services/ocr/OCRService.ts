@@ -4,7 +4,7 @@
  */
 
 import sharp from 'sharp';
-import { getDebugMode } from '../../config/aiModels.js';
+
 import type { ProcessedVisionResult } from '../../types/index.js';
 import { MathpixService } from './MathpixService.js';
 // Ensure MathBlock type is correctly imported/defined
@@ -302,7 +302,7 @@ export class OCRService {
               } else {
                 // Crop and process with Mathpix
                 const croppedBuffer = await sharp(imageBuffer).extract(cropOptions).png().toBuffer();
-                const mathpixResult = await MathpixService.processImage(croppedBuffer, {}, debug);
+                const mathpixResult = await MathpixService.processImage(croppedBuffer, {});
                 mathpixCalls += 1;
 
                 if (mathpixResult.latex_styled && !mathpixResult.error) {
@@ -383,7 +383,7 @@ export class OCRService {
           include_line_data: true,
           disable_array_detection: true
         };
-        const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions, debug);
+        const mathpixResult = await MathpixService.processImage(imageBuffer, mathpixOptions);
         mathpixCalls += 1;
 
         if (mathpixResult.line_data && mathpixResult.line_data.length > 0) {

@@ -68,38 +68,7 @@
   box-shadow: var(--shadow-md);
 }
 
-/* Debug Mode Toggle */
-.debug-nav {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: var(--background-gray-light);
-  border: 1px solid var(--border-main);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
 
-.debug-nav:hover {
-  background: var(--background-gray-main);
-  border-color: var(--text-brand);
-  color: var(--text-primary);
-}
-
-.debug-nav.active {
-  background: var(--text-brand);
-  border-color: var(--text-brand);
-  color: white;
-}
-
-.debug-nav.active:hover {
-  background: var(--text-brand-dark);
-  border-color: var(--text-brand-dark);
-}
 
 .nav-item.admin-nav {
   background: rgba(245, 158, 11, 0.1);

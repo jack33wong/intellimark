@@ -1004,64 +1004,7 @@ export class MarkingInstructionService {
 
         // Log mostly for non-standard cases (User request: disable STANDARD logs)
         // TEMPORARY: Force log Q2 for debugging
-        const statusLabel = hasVisual ? 'HAS VISUAL/DRAWING' : (hasUnmatched ? 'HAS UNMATCHED' : 'STANDARD');
 
-        if (statusLabel !== 'STANDARD' || inputQuestionNumber === '2') {
-          console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-          console.log(`[AI MARKING RESPONSE] Q${inputQuestionNumber} (${statusLabel})`);
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-          if (parsedResponse.annotations && parsedResponse.annotations.length > 0) {
-            parsedResponse.annotations.forEach((anno: any, idx: number) => {
-              console.log(`Annotation ${idx + 1}:`);
-              console.log(`  - Text: ${anno.text}`);
-              console.log(`  - Step ID: ${anno.step_id || 'N/A'}`);
-              console.log(`  - OCR Match Status: ${anno.ocr_match_status || 'N/A'}`);
-              console.log(`  - Student Text: ${(anno.student_text || '').substring(0, 50)}${anno.student_text && anno.student_text.length > 50 ? '...' : ''}`);
-              // Fix: Check for undefined specifically to handle index 0 correctly
-              console.log(`  - Line Index: ${anno.line_index !== undefined ? anno.line_index : 'N/A'}`);
-
-              // Validate pageIndex from AI (prevent out-of-bounds errors)
-              if (anno.pageIndex !== undefined) {
-                let validatedPageIndex = anno.pageIndex;
-                const maxPageIndex = (images && images.length > 0) ? images.length - 1 : 0;
-
-                if (validatedPageIndex < 0 || validatedPageIndex > maxPageIndex) {
-                  // Smart Correction: Check if AI used 1-based indexing (common hallucination)
-                  if (validatedPageIndex > 0 && (validatedPageIndex - 1) <= maxPageIndex) {
-                    console.warn(`  ⚠️ Invalid pageIndex ${validatedPageIndex} (1-based). Auto-correcting to ${validatedPageIndex - 1}.`);
-                    validatedPageIndex = validatedPageIndex - 1;
-                    anno.pageIndex = validatedPageIndex;
-                  } else {
-                    console.warn(`  ⚠️ Invalid pageIndex ${validatedPageIndex} (max: ${maxPageIndex}). Defaulting to 0.`);
-                    validatedPageIndex = 0;
-                    anno.pageIndex = 0;
-                  }
-                }
-                console.log(`  - Page Index: ${validatedPageIndex}`);
-              }
-
-              if (anno.visual_position) {
-                console.log(`  - AI Visual Position: ${JSON.stringify(anno.visual_position)}`);
-
-                // Check if it's a placeholder (50, 50, 50, 50 or similar generic values)
-                const isPlaceholder = anno.visual_position.x === 50 && anno.visual_position.y === 50;
-                if (isPlaceholder) {
-                  console.warn(`  ⚠️ WARNING: AI returned placeholder visual_position! Not actual drawing coordinates.`);
-                }
-              }
-
-              // (processedImage not available in this scope, skipping classification comparison)
-
-              if (anno.reasoning) {
-                console.log(`  - Reasoning: ${anno.reasoning.substring(0, 80)}${anno.reasoning.length > 80 ? '...' : ''}`);
-              }
-            });
-          } else {
-            console.log('  No annotations returned');
-          }
-          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-        }
 
       } catch (e) {
         // Ignore parsing errors here, main flow handles it
@@ -1363,7 +1306,7 @@ export class MarkingInstructionService {
 
               // Reposition: adjust Y based on sub-question index
               // BUT ONLY if sub-questions are on the SAME page
-              console.log(`🔍 [REPOSITION DEBUG] Q${inputQuestionNumber}${subQ}: count=${subQuestionCount}, subQ="${subQ}", condition=${subQuestionCount > 1 && !!subQ}`);
+
               if (subQuestionCount > 1 && subQ) {
                 // Check if ALL sub-questions (including MATCHED text like Q3a) are on the same page
                 // This ensures we don't incorrectly stack Q3b when Q3a is on a different page
@@ -1373,7 +1316,7 @@ export class MarkingInstructionService {
                 const pages = new Set(allSubQuestionsAnnos.map((a: any) => a.pageIndex));
                 const samePage = pages.size === 1;
 
-                console.log(`🔍 [PAGE CHECK] Found ${allSubQuestionsAnnos.length} annotations across ${pages.size} page(s): ${Array.from(pages).join(',')}`);
+
 
                 const subQIndex = sortedSubQuestions.indexOf(subQ);
                 if (subQIndex !== -1) {
@@ -1388,12 +1331,7 @@ export class MarkingInstructionService {
                   anno.visual_position.y = newY;
 
                   const positionNote = samePage ? 'stacked' : 'separate pages, positioned as top';
-                  console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions (${positionNote}) → Size ${newSize.toFixed(1)}%, Y ${newY.toFixed(1)}%`);
-                } else {
-                  console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions → Size ${newSize.toFixed(1)}%`);
                 }
-              } else {
-                console.log(`🔧 [AUTO-RESIZE] Q${inputQuestionNumber}${subQ}: ${subQuestionCount} sub-questions → Size ${newSize.toFixed(1)}%`);
               }
             }
           }

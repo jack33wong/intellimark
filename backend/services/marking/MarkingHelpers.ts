@@ -6,18 +6,9 @@
 import { questionDetectionService } from './questionDetectionService.js';
 import { createAutoProgressTracker } from '../../utils/autoProgressTracker.js';
 import { getStepsForMode } from '../../utils/progressTracker.js';
-import { getDebugMode } from '../../config/aiModels.js';
 import { formatMarkingSchemeAsBullets } from '../../config/prompts.js';
 import type { QuestionResult } from './MarkingExecutor.js';
 import { getBaseQuestionNumber } from '../../utils/TextNormalizationUtils.js';
-
-// Debug mode helper function
-export async function simulateApiDelay(operation: string, debug: boolean = false): Promise<void> {
-  if (debug) {
-    const debugMode = getDebugMode();
-    await new Promise(resolve => setTimeout(resolve, debugMode.fakeDelayMs));
-  }
-}
 
 // Simple step logging helper
 export function createStepLogger(totalSteps: number, startStep: number = 0) {
@@ -1295,10 +1286,7 @@ export function calculateOverallScore(
   allQuestionResults.forEach((qr, index) => {
     const baseQNum = getBaseQuestionNumber(String(qr.questionNumber || ''));
 
-    // Debug first few entries
-    if (index < 3) {
-      console.log(`[calculateOverallScore] Q${qr.questionNumber}: base=${baseQNum}, hasMarkingScheme=${!!qr.markingScheme}, parentMarks=${qr.markingScheme?.parentQuestionMarks || 'undefined'}`);
-    }
+
 
     // Only set if not already set (first occurrence wins)
     if (!baseQuestionToTotalMarks.has(baseQNum)) {
@@ -1397,46 +1385,28 @@ export function splitClassificationByCategory(
   const markingQuestions: any[] = [];
   const questionOnlyQuestions: any[] = [];
 
-  // Debug: Show what we're working with
-  console.log(`\n🔍 [SPLIT DEBUG] Processing ${classificationResult.questions.length} questions`);
-  console.log(`🔍 [SPLIT DEBUG] allClassificationResults structure:`);
-  allClassificationResults.forEach((r, idx) => {
-    console.log(`   [${idx}]: pageIndex=${r.pageIndex}, category=${r.result?.category || r.mapperCategory}`);
-  });
+
 
   classificationResult.questions.forEach((q: any) => {
     const questionPages = q.sourceImageIndices || [q.sourceImageIndex];
     const qNum = q.questionNumber || '?';
 
-    console.log(`\n🔍 [SPLIT DEBUG] Question ${qNum}:`);
-    console.log(`   sourceImageIndices: [${questionPages.join(', ')}]`);
+
 
     // Split pages by category
     const questionAnswerPages: number[] = [];
     const questionOnlyPages: number[] = [];
 
     questionPages.forEach((pageIdx: number) => {
-      console.log(`   Looking up pageIdx=${pageIdx}...`);
-
-      // CRITICAL FIX: Find the classification result for this page by pageIndex, not by array position
-      // The allClassificationResults array is NOT indexed by page number - it's indexed by classification result order
       const pageResult = allClassificationResults.find(r => r.pageIndex === pageIdx);
       const category = pageResult?.result?.category || pageResult?.mapperCategory;
 
-      console.log(`     → Found: pageIndex=${pageResult?.pageIndex}, category="${category}"`);
-
       if (category === 'questionAnswer') {
         questionAnswerPages.push(pageIdx);
-        console.log(`     ✅ Added to questionAnswer bucket`);
       } else if (category === 'questionOnly') {
         questionOnlyPages.push(pageIdx);
-        console.log(`     ✅ Added to questionOnly bucket`);
-      } else {
-        console.log(`     ⚠️  Category "${category}" - skipped`);
       }
     });
-
-    console.log(`   Final: questionAnswer pages=[${questionAnswerPages.join(', ')}], questionOnly pages=[${questionOnlyPages.join(', ')}]`);
 
     // Helper function to filter studentWorkLines by page
     const filterLinesByPages = (lines: any[], pageIndices: number[]): any[] => {
@@ -1471,9 +1441,7 @@ export function splitClassificationByCategory(
       const filteredStudentWorkLines = filterLinesByPages(q.studentWorkLines || [], questionAnswerPages);
       const filteredSubQuestions = filterSubQuestionsByPages(q.subQuestions || [], questionAnswerPages);
 
-      console.log(`   ➜ Adding Q${qNum} to MARKING bucket with pages [${questionAnswerPages.join(', ')}]`);
-      console.log(`      - studentWorkLines: ${q.studentWorkLines?.length || 0} → ${filteredStudentWorkLines.length}`);
-      console.log(`      - subQuestions: ${q.subQuestions?.length || 0} → ${filteredSubQuestions.length}`);
+
 
       markingQuestions.push({
         ...q,
@@ -1503,13 +1471,13 @@ export function splitClassificationByCategory(
         );
         if (pageQuestion?.text) {
           pageSpecificText = pageQuestion.text;
-          console.log(`   📝 Using page-specific text for Q${qNum} from page ${pageIdx}`);
+          if (pageQuestion?.text) {
+            pageSpecificText = pageQuestion.text;
+          }
         }
       }
 
-      console.log(`   ➜ Adding Q${qNum} to QUESTION-ONLY bucket with pages [${questionOnlyPages.join(', ')}]`);
-      console.log(`      - studentWorkLines: ${q.studentWorkLines?.length || 0} → ${filteredStudentWorkLines.length}`);
-      console.log(`      - subQuestions: ${q.subQuestions?.length || 0} → ${filteredSubQuestions.length}`);
+
 
       questionOnlyQuestions.push({
         ...q,
@@ -1522,17 +1490,7 @@ export function splitClassificationByCategory(
     }
   });
 
-  console.log(`\n🔄 [CLASSIFICATION SPLIT] DEBUG: Input categories`);
-  console.log(`  - Total pages: ${allClassificationResults.length}`);
-  allClassificationResults.forEach((pageResult, idx) => {
-    const category = pageResult?.result?.category || pageResult?.mapperCategory;
-    console.log(`  - Page ${idx}: category="${category}" (result.category="${pageResult?.result?.category}", mapperCategory="${pageResult?.mapperCategory}")`);
-  });
 
-  console.log(`\n🔄 [CLASSIFICATION SPLIT]`);
-  console.log(`  - Original questions: ${classificationResult.questions.length}`);
-  console.log(`  - Marking bucket: ${markingQuestions.length} questions`);
-  console.log(`  - Question-only bucket: ${questionOnlyQuestions.length} questions`);
 
   return {
     markingClassificationResult: {

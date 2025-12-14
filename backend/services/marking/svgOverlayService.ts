@@ -438,9 +438,7 @@ export class SVGOverlayService {
       let aiH_orig = (aiPos.height / 100) * originalHeight;
       const aiY_orig = (aiPos.y / 100) * originalHeight; // AI Y is treated as Center/Baseline
 
-      console.log(`🔍 [SMART CLAMP DEBUG] Index: ${index}, Action: ${action}, Status: ${ocrStatus}, SubQ: ${subQuestionCount}`);
-      console.log(`   Input AI: w=${aiPos.width}%, h=${aiPos.height}%, y=${aiPos.y}%`);
-      console.log(`   Orig Height: ${originalHeight}, Calc AI Height: ${aiH_orig}`);
+
 
       // SMART HEIGHT CAP: Restrict max height based on density (sub-question count)
       // If there are 2 sub-questions, max height is ~35% (70/2)
@@ -449,16 +447,15 @@ export class SVGOverlayService {
       if (subQuestionCount > 1) {
         const maxHtPct = 70 / subQuestionCount;
         const maxHtPx = (maxHtPct / 100) * originalHeight;
-        console.log(`   Claming Multi: MaxPct=${maxHtPct}, MaxPx=${maxHtPx}`);
         if (aiH_orig > maxHtPx) {
-          console.log(`   >>> CLAMPING TRIGGERED (Multi) <<< New H=${maxHtPx}`);
+
           aiH_orig = maxHtPx;
         }
       } else {
         // Even for single questions, if height is >90%, it's suspicious, clamp to 85%
         const maxHtPx = 0.85 * originalHeight;
         if (aiH_orig > maxHtPx) {
-          console.log(`   >>> CLAMPING TRIGGERED (Single) <<< New H=${maxHtPx}`);
+
           aiH_orig = maxHtPx;
         }
       }

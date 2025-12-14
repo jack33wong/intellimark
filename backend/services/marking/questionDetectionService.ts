@@ -519,7 +519,7 @@ export class QuestionDetectionService {
             // Debug log for Q2 mismatch investigation
             if (baseHintMatch && baseHintMatch[0] === '2' && baseQuestionNumber !== '2') {
               // Only log if we are looking for Q2 but found something else
-              console.log(`[Q2 DEBUG] Mismatch: Looking for Q2, found Q${baseQuestionNumber} (Raw: ${actualQuestionNumber}, Key: ${questionNumber})`);
+
             }
             const baseHint = baseHintMatch ? baseHintMatch[0] : '';
 
@@ -564,16 +564,7 @@ export class QuestionDetectionService {
               // Extract sub-question part from hint (e.g., "a" from "2a", "i" from "12i")
               const hintSubPart = questionNumberHint.replace(/^\d+/, '').toLowerCase();
 
-              // Debug logging for Q2 entry point
-              if (baseQuestionNumber === '2') {
-                console.log(`[Q2 DEBUG] Processing hint "${questionNumberHint}" (base: ${baseQuestionNumber}, subPart: "${hintSubPart}")`);
-                console.log(`[Q2 DEBUG] Found ${subQuestions.length} sub-questions in database for Q${baseQuestionNumber}`);
-              }
-
               if (subQuestions.length === 0) {
-                if (baseQuestionNumber === '2') {
-                  console.log(`[Q2 DEBUG] ❌ No sub-questions found in database, skipping`);
-                }
                 continue; // No sub-questions, skip
               }
 
@@ -592,21 +583,9 @@ export class QuestionDetectionService {
                 const normalizedSubPart = normalizeSubQuestionPart(subQuestionPart);
                 const normalizedHint = normalizeSubQuestionPart(hintSubPart);
 
-                // Debug logging for Q2 only
-                if (baseQuestionNumber === '2') {
-                  console.log(`[Q2 DEBUG] Checking sub-question: DB part="${subQuestionPart}" (normalized: "${normalizedSubPart}") vs Hint="${hintSubPart}" (normalized: "${normalizedHint}")`);
-                }
-
                 // Only match if sub-question parts match (after normalization)
                 if (normalizedSubPart !== normalizedHint || !subQuestionText) {
-                  if (baseQuestionNumber === '2') {
-                    console.log(`[Q2 DEBUG] ❌ No match: normalized parts don't match or missing text`);
-                  }
                   continue;
-                }
-
-                if (baseQuestionNumber === '2') {
-                  console.log(`[Q2 DEBUG] ✅ Match found! Calculating similarity...`);
                 }
 
                 const subSimilarity = this.calculateSimilarity(questionText, subQuestionText);
@@ -616,9 +595,6 @@ export class QuestionDetectionService {
                   bestMatchedQuestion = questionData;
                   bestSubQuestionNumber = subQuestionPart;
 
-                  if (baseQuestionNumber === '2') {
-                    console.log(`[Q2 DEBUG] ✅ Best match updated: Q${bestQuestionMatch}${bestSubQuestionNumber}, similarity=${subSimilarity.toFixed(2)}`);
-                  }
                 }
               }
             } else {
