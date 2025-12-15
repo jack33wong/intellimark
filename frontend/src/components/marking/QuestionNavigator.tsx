@@ -22,14 +22,30 @@ interface QuestionNavigatorProps {
     mode: 'table' | 'ribbon';
     onNavigate?: (questionNumber: string, sourceImageIndex: number) => void;
     activeQuestionId?: string; // For highlighting current question
+    idPrefix?: string; // To prevent ID collisions between Ribbon and Table instances
 }
 
 
 
-// Helper to check if a question matches the active ID (e.g. "3a" matches "3" or "3a")
+// Helper to check if a question matches the active ID (e.g. "3a" matches "3" but "3" does NOT match "30")
 const isActive = (qNum: string, activeId?: string) => {
     if (!activeId) return false;
-    return qNum === activeId || qNum.startsWith(activeId) || activeId.startsWith(qNum);
+    if (qNum === activeId) return true;
+
+    // Check if qNum is a sub-question of activeId (e.g. active="1", q="1a")
+    // MUST ensure the next character is NOT a digit (to prevent 1 matching 10)
+    if (qNum.startsWith(activeId)) {
+        const nextChar = qNum[activeId.length];
+        return isNaN(parseInt(nextChar, 10));
+    }
+
+    // Check if activeId is a sub-question of qNum (e.g. active="1a", q="1")
+    if (activeId.startsWith(qNum)) {
+        const nextChar = activeId[qNum.length];
+        return isNaN(parseInt(nextChar, 10));
+    }
+
+    return false;
 };
 
 
@@ -38,12 +54,30 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
     markingContext,
     mode,
     onNavigate,
-    activeQuestionId
+    activeQuestionId,
+    idPrefix = 'nav' // Default prefix
 }) => {
     // Use shared hook for grouping logic
     const { groupedQuestions, getGroupColor } = useQuestionGrouping(detectedQuestion, markingContext);
 
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to active question
+    React.useEffect(() => {
+        if (activeQuestionId) {
+            const el = document.getElementById(`${idPrefix}-item-${activeQuestionId}`);
+            if (el) {
+                // Determine container based on mode
+                // For Ribbon: scrollContainerRef
+                // For Table: .question-navigator-table-container (need ref or query selector)
+
+                // Use standard scrollIntoView for simplicity and effectiveness
+                // block: 'start' puts the element at the top of the container (respecting scroll-margin-top)
+                // inline: 'center' or 'start'. User asked for 'beginning'.
+                el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'start' });
+            }
+        }
+    }, [activeQuestionId, idPrefix]);
 
     const handleScroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
@@ -82,6 +116,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                         return (
                             <button
                                 key={`${q.questionNumber}-${idx}`}
+                                id={`${idPrefix}-item-${q.questionNumber}`}
                                 className={`ribbon-item ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''} score-${color}-bg`}
                                 onClick={() => handleQuestionClick(q)}
                             >
@@ -119,6 +154,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                             return (
                                 <tr
                                     key={`${q.questionNumber}-${idx}`}
+                                    id={`${idPrefix}-item-${q.questionNumber}`}
                                     onClick={() => handleQuestionClick(q)}
                                     className={`clickable-row ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''}`}
                                 >

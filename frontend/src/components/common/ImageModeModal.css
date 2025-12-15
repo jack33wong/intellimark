@@ -298,6 +298,8 @@
   width: 60px;
   height: 60px;
   background: none;
+  scroll-margin-top: 8px;
+  /* Ensure 8px gap when auto-scrolling to top */
   padding: 0;
 }
 

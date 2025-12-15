@@ -16,22 +16,53 @@ interface ImageViewerProps {
     initialImageIndex: number;
     onClose: () => void;
     isOpen?: boolean; // Optional, defaults to true if mounted
+    onImageChange?: (index: number) => void;
 }
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
     images,
     initialImageIndex,
     onClose,
-    isOpen = true
+    isOpen = true,
+    onImageChange
 }) => {
     const [currentImageIndex, setCurrentImageIndex] = React.useState(initialImageIndex);
     const imageRef = useRef<HTMLImageElement>(null);
 
     // Update internal state if initial prop changes (e.g. parent switching images)
     useEffect(() => {
-
         setCurrentImageIndex(initialImageIndex);
     }, [initialImageIndex]);
+
+    // Notify parent of index change
+    useEffect(() => {
+        if (onImageChange) {
+            onImageChange(currentImageIndex);
+        }
+    }, [currentImageIndex, onImageChange]);
+
+    // Auto-scroll thumbnails to active image
+    useEffect(() => {
+        if (!isOpen || !images || images.length <= 1) return;
+
+        // We need to access thumbnailRefs. Note: thumbnailRefs must be defined in the component scope.
+        // Assuming thumbnailRefs is defined below or above. 
+        // Logic: Find the element in refs and scroll it.
+        // Since we can't easily see where thumbnailRefs is defined without reading whole file,
+        // we assume it is accessible. If not, this code might need adjustment to generic document.getElementById but refs are better.
+        // Let's try to find if we can use ID since we used IDs in QuestionNavigator.
+        // Button ID: None set in ImageViewer currently? 
+        // Step 4113 shows `key={image.id || index}` but no ID prop on button.
+        // So we MUST use refs or add ID.
+        // Adding ID is safer given I can't guarantee ref name scope here (if defined later).
+        const timerId = setTimeout(() => {
+            const el = document.getElementById(`thumb-btn-${currentImageIndex}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+            }
+        }, 100);
+        return () => clearTimeout(timerId);
+    }, [currentImageIndex, isOpen, images]);
 
     // Use single hook for all functionality
     // Note: we pass isOpen=true because if this component is rendered, it's "open"
@@ -54,6 +85,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         canZoomIn,
         canZoomOut
     } = useImageMode({ isOpen, currentImageIndex });
+
+    // Fix for infinite spinner: Check if image is already loaded (cached) when index changes
+    // This handles the race condition where onLoad fires before isLoading is reset, or doesn't fire for cached images.
+    useEffect(() => {
+        if (imageRef.current && imageRef.current.complete) {
+            handleImageLoad();
+        }
+    }, [currentImageIndex, handleImageLoad]);
 
     const currentImage = images[currentImageIndex];
 
@@ -283,6 +322,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                             {images.map((image, index) => (
                                 <button
                                     key={image.id || index}
+                                    id={`thumb-btn-${index}`}
                                     ref={el => thumbnailRefs.current[index] = el}
                                     type="button"
                                     className={`thumbnail-btn ${index === currentImageIndex ? 'active' : ''}`}

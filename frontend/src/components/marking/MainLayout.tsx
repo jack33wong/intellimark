@@ -98,7 +98,7 @@ const MainLayout: React.FC = () => {
                   addMessage={addMessage}
                   startAIThinking={startAIThinking}
                   selectedModel={selectedModel}
-                  onEnterSplitMode={enterSplitMode}
+                  onEnterSplitMode={enterSplitModeEnriched}
                 />
               ))}
             </div>
@@ -163,6 +163,77 @@ const MainLayout: React.FC = () => {
   // Use question grouping hook to get badges data
   const { groupedQuestions, getGroupColor } = useQuestionGrouping(activeDetectedQuestion, (lastMarkingMessage as any)?.markingContext);
 
+  // Sync Active Question ID with Image Index in Split Mode
+  // Sync Active Question ID with Image Index in Split Mode
+  useEffect(() => {
+    if (splitModeImages && activeImageIndex !== undefined) {
+      // Find ALL questions on this page
+      const questionsOnPage = groupedQuestions.filter(g => g.sourceImageIndex === activeImageIndex);
+
+      if (questionsOnPage.length > 0) {
+        // Check if currently active question is one of them
+        // If it is, we don't need to change anything (user clicked specifically on this question)
+        const isActiveValid = questionsOnPage.some(g => g.questionNumber === activeQuestionId);
+
+        if (!isActiveValid) {
+          // Only update if current active question is NOT on this page/valid
+          // Default to the first question on the page
+          setActiveQuestionId(questionsOnPage[0].questionNumber);
+        }
+      }
+    }
+  }, [activeImageIndex, splitModeImages, groupedQuestions, activeQuestionId, setActiveQuestionId]);
+
+  // Enhanced Split Mode Entry
+  const enterSplitModeEnriched = (images: any[], index: number) => {
+    // Enrich images with badges
+    const enrichedImages = images.map((img: any, idx: number) => {
+      // Note: input images might not have correct 'idx' if they are just an array passed in
+      // BUT for 'sessionImages', the index in array corresponds to page index 0,1,2...
+      // IF 'images' is a subset (e.g. multi-image message), logic differs?
+      // Wait: MainLayout always passes FULL session images for onNavigate (Ribbon).
+      // ChatMessage grid passes ONLY its own images?
+      // If ChatMessage passes subset, 'idx' 0 is NOT Page 0.
+      // We need GLOBAL page index source.
+
+      // Assumption: 'images' passed to this function are ALWAYS meant to be the full session context?
+      // OR we need to know the global offset.
+
+      // FIX: If we enter split mode from a message grid, we typically want FULL CONTEXT (all pages).
+      // ChatMessage handleSmartNavigation does: getSessionImages(session).
+      // ChatMessage handleMultiImageClick does: map(imageDataArray).
+      // If we execute handleMultiImageClick (Grid), we get only 1-2 images.
+      // If we enrich them, we assume index 0 is Page 0? No.
+
+      // If we want badges, we probably want FULL session mode even from Grid click?
+      // User said "click on 9 image thumbnail grid... enter split mode".
+      // If I view just those 9 images, they might be Pages 1-9.
+      // But groupedQuestions maps 'sourceImageIndex' (Page 0..N).
+
+      // If the input 'images' are indeed the Full Session Images (which is preferred for split mode),
+      // then index matches.
+      // If they are specific to message, we might mismatch.
+
+      // However, current implementation of `handleMultiImageClick` in ChatMessage uses local `imageDataArray`.
+      // If I replace `handleMultiImageClick` logic to use `enterSplitModeEnriched`, and I pass `sessionImages` (full) instead of local?
+      // Then we are safe.
+
+      // So, I will define this expecting FULL session images.
+      const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
+      if (match) {
+        const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
+        return {
+          ...img,
+          badgeText: `Q${match.questionNumber} ${scoreText}`,
+          badgeColor: getGroupColor(match)
+        };
+      }
+      return img;
+    });
+
+    enterSplitMode(enrichedImages, index);
+  };
+
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
     if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
@@ -177,6 +248,7 @@ const MainLayout: React.FC = () => {
     const ribbonContent = (
       <QuestionNavigator
         mode="ribbon"
+        idPrefix="ribbon"
         detectedQuestion={activeDetectedQuestion}
         markingContext={(lastMarkingMessage as any)?.markingContext}
         onNavigate={(qNum, imgIdx) => {
@@ -188,27 +260,10 @@ const MainLayout: React.FC = () => {
           // Get reliable session images (same logic as Table Mode)
           const sessionImages = currentSession ? getSessionImages(currentSession) : [];
 
-          // Enrich images with badges
-          const enrichedImages = sessionImages.map((img: any, idx: number) => {
-            // Find matching group for this image page index
-            // Note: sourceImageIndex is 0-based page index
-            const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
-            if (match) {
-              // Format: Q1 5/5
-              const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
-              return {
-                ...img,
-                badgeText: `Q${match.questionNumber} ${scoreText}`,
-                badgeColor: getGroupColor(match)
-              };
-            }
-            return img;
-          });
-
           // Use a robust check: if we have images, we should be in split mode or verify split mode
-          if (enrichedImages.length > 0) {
-            // Always update/enter split mode with fresh images
-            enterSplitMode(enrichedImages, imgIdx);
+          if (sessionImages.length > 0) {
+            // Always update/enter split mode with enriched images
+            enterSplitModeEnriched(sessionImages, imgIdx);
           } else {
             // Fallback for no images
             if (isChatMode) console.warn('[MainLayout] No session images found for split mode');
@@ -279,6 +334,7 @@ const MainLayout: React.FC = () => {
               initialImageIndex={activeImageIndex || 0}
               onClose={exitSplitMode}
               isOpen={true}
+              onImageChange={setActiveImageIndex}
             />
           </div>
 

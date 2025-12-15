@@ -156,8 +156,31 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
 
     if (imageDataArray.length > 0) {
+      // Logic update: Ensure we use GLOBAL session images if available, so badges and navigation (Page 1..N) work correctly.
+      if (onEnterSplitMode && session) {
+        try {
+          // 1. Get all session images (Pages 1..N)
+          const sessionImages = getSessionImages(session);
 
+          // 2. Find where THIS message's images start in the global list
+          // We look for the first image that has this message ID
+          // Note: findImageIndex finds the FIRST match.
+          const startOffset = findImageIndex(sessionImages, message.id);
 
+          if (startOffset >= 0) {
+            // 3. The clicked image is at startOffset + index (clicked index in grid)
+            const targetIndex = startOffset + index;
+
+            // 4. Enter split mode with FULL context
+            onEnterSplitMode(sessionImages, targetIndex);
+            return;
+          }
+        } catch (e) {
+          console.error("Error mapping grid image to session:", e);
+        }
+      }
+
+      // Fallback: Use local images if session mapping failed
       // Convert image data array to SessionImage format
       const sessionImages = imageDataArray.map((item: any, idx: number) => {
         const src = typeof item === 'string' ? item : item?.url;
@@ -174,6 +197,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       });
 
       if (onEnterSplitMode) {
+        // This path uses LOCAL images (badges might be wrong/missing if they depend on global index)
         onEnterSplitMode(sessionImages, index);
       } else {
         // Fallback to local modal
@@ -597,6 +621,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                       markingContext={(message as any).markingContext}
                       studentScore={message.studentScore}
                       mode="table"
+                      idPrefix={`table-${message.id}`}
                       onNavigate={handleSmartNavigation}
                       activeQuestionId={activeQuestionId}
                     />
