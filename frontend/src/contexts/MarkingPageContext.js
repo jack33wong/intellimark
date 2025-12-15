@@ -39,6 +39,7 @@ const initialState = {
   hoveredRating: 0,
   splitModeImages: null,
   activeImageIndex: 0,
+  activeQuestionId: null,
 };
 
 function markingPageReducer(state, action) {
@@ -63,6 +64,8 @@ function markingPageReducer(state, action) {
       return { ...state, splitModeImages: null, activeImageIndex: 0 };
     case 'SET_ACTIVE_IMAGE_INDEX':
       return { ...state, activeImageIndex: action.payload };
+    case 'SET_ACTIVE_QUESTION_ID':
+      return { ...state, activeQuestionId: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
@@ -82,7 +85,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex } = state;
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId } = state;
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);
@@ -419,6 +422,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     dispatch({ type: 'SET_ACTIVE_IMAGE_INDEX', payload: index });
   }, []);
 
+  const setActiveQuestionId = useCallback((questionId) => {
+    dispatch({ type: 'SET_ACTIVE_QUESTION_ID', payload: questionId });
+  }, []);
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -436,13 +443,15 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     getImageSrc,
     startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
+    activeQuestionId, setActiveQuestionId,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
     handleModelChange, handleImageAnalysis, handleMultiImageAnalysis, currentSession, chatMessages, sessionTitle, isFavorite, rating,
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
-    splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex
+    splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
+    activeQuestionId, setActiveQuestionId
   ]);
 
   return (

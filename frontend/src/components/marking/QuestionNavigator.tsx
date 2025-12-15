@@ -229,12 +229,6 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
         <div className="question-navigator-table-wrapper">
             <div className="question-navigator-table-container">
                 <table className="question-navigator-table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: '40%' }}>Question</th>
-                            <th style={{ width: '60%', textAlign: 'right' }}>Score</th>
-                        </tr>
-                    </thead>
                     <tbody>
                         {groupedQuestions.map((q, idx) => {
                             const scoreText = q.hasResults
@@ -246,7 +240,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                                 <tr
                                     key={`${q.questionNumber}-${idx}`}
                                     onClick={() => handleQuestionClick(q)}
-                                    className="clickable-row"
+                                    className={`clickable-row ${isActive(q.questionNumber, activeQuestionId) ? 'active' : ''}`}
                                 >
                                     <td className="col-question">
                                         Q{q.questionNumber}

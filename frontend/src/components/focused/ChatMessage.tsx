@@ -2,9 +2,10 @@
  * Focused ChatMessage Component (TypeScript)
  * This is the definitive version with fixes for all rendering and state bugs.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { Brain } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMarkingPage } from '../../contexts/MarkingPageContext';
 import {
   isUserMessage,
   hasImage,
@@ -54,8 +55,12 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   onEnterSplitMode
 }) => {
   const [imageError, setImageError] = useState<boolean>(false);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
+  const { activeQuestionId, setActiveQuestionId } = useMarkingPage();
+
+
 
   // Inline function to avoid Jest import issues
   const shouldRenderMessage = (message: UnifiedMessage): boolean => {
@@ -185,6 +190,9 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   // Smart Navigation Handler
   const handleSmartNavigation = useCallback((questionNumber: string, sourceImageIndex: number) => {
+    // Set active question for highlighting
+
+    setActiveQuestionId(questionNumber);
 
 
     // 1. Enter Split Mode with specific image
@@ -235,16 +243,18 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const attemptScroll = () => {
         const el = document.getElementById(elementId);
         if (el) {
-          // Find the chat container (not the message)
-          const chatContainer = document.querySelector('.chat-container');
+          // Find the chat container
+          const chatContainer = document.querySelector('.chat-container') as HTMLElement;
           if (chatContainer) {
             const elRect = el.getBoundingClientRect();
             const containerRect = chatContainer.getBoundingClientRect();
             const offset = 100;
             const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
-            chatContainer.scrollTop = targetScrollTop;
-          } else {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Use smooth scroll like scrollToBottom
+            chatContainer.scrollTo({
+              top: targetScrollTop,
+              behavior: 'smooth'
+            });
           }
         } else {
           attempts++;
@@ -503,10 +513,6 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 }
               });
 
-              // Extract question number for ID generation
-              const questionNumberMatch = header.match(/Question\s+(\d+)/i);
-              const questionId = questionNumberMatch ? `question-${questionNumberMatch[1]}` : undefined;
-
               // Clean the header: remove (a, b, c) suffixes
               let cleanedHeader = header.replace(/\s*\([^)]+\)/, '');
 
@@ -515,14 +521,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                 cleanedHeader += ` <span class="question-marks">(${totalMarks} ${totalMarks === 1 ? 'mark' : 'marks'})</span>`;
               }
 
-              // Inject scroll anchor with proper Markdown spacing to prevent breaking headers
-              if (questionId) {
-                // Use a span with id instead of div to be less intrusive to layout, but separate it
-                // Note: We use \n\n to ensure markdown parser treats the following line as a header
-                questionSections[i] = `\n\n<span id="${questionId}" style="scroll-margin-top: 100px; display: block; height: 1px; width: 1px; visibility: hidden;"></span>\n\n${cleanedHeader}`;
-              } else {
-                questionSections[i] = cleanedHeader;
-              }
+              questionSections[i] = cleanedHeader;
             }
 
             processedContent = questionSections.join('');
@@ -581,6 +580,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                       studentScore={message.studentScore}
                       mode="table"
                       onNavigate={handleSmartNavigation}
+                      activeQuestionId={activeQuestionId}
                     />
                   </div>
                 )}

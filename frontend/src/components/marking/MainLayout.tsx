@@ -41,6 +41,8 @@ const MainLayout: React.FC = () => {
     enterSplitMode,
     exitSplitMode,
     setActiveImageIndex,
+    activeQuestionId,
+    setActiveQuestionId,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -188,14 +190,29 @@ const MainLayout: React.FC = () => {
                   detectedQuestion={activeDetectedQuestion}
                   markingContext={(lastMarkingMessage as any)?.markingContext}
                   onNavigate={(qNum, imgIdx) => {
+                    // Set active question
+                    setActiveQuestionId(qNum);
                     // 1. Switch Image
                     setActiveImageIndex(imgIdx);
-                    // 2. Scroll Chat
+                    // 2. Scroll Chat using smooth scroll
                     setTimeout(() => {
                       const el = document.getElementById(`question-${qNum}`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      if (el) {
+                        const chatContainer = document.querySelector('.chat-container') as HTMLElement;
+                        if (chatContainer) {
+                          const elRect = el.getBoundingClientRect();
+                          const containerRect = chatContainer.getBoundingClientRect();
+                          const offset = 100;
+                          const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+                          chatContainer.scrollTo({
+                            top: targetScrollTop,
+                            behavior: 'smooth'
+                          });
+                        }
+                      }
                     }, 100);
                   }}
+                  activeQuestionId={activeQuestionId}
                 />
               </div>
             )}
