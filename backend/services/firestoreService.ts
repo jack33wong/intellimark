@@ -471,6 +471,17 @@ export class FirestoreService {
             ...(message.updatedAt ? {} : { updatedAt: new Date().toISOString() })
           };
 
+          // DEBUG: Log message type being saved
+          if (index === messages.length - 1) { // Only log the last message (AI message)
+            console.log('[FirestoreService] Saving AI message with type:', {
+              messageId: messageDoc.id,
+              type: messageDoc.type,
+              role: messageDoc.role,
+              hasImageDataArray: !!messageDoc.imageDataArray,
+              imageDataArrayLength: messageDoc.imageDataArray?.length
+            });
+          }
+
           // Remove null values, imageData, and base64 pdfContexts (base64 should not be in Firestore)
           const finalMessage = Object.fromEntries(
             Object.entries(messageDoc).filter(([key, value]) => {
@@ -574,6 +585,13 @@ export class FirestoreService {
         sessionStats: finalSessionStats,
         unifiedMessages: unifiedMessages  // Nested messages array with storage URLs
       };
+
+      // DEBUG: Log messageType being saved
+      console.log('[FirestoreService] Creating session with messageType:', {
+        sessionId,
+        messageType,
+        title: title.substring(0, 50)
+      });
 
       // DIAGNOSTIC: Calculate final document size
       const finalDocSize = JSON.stringify(sessionDoc).length;

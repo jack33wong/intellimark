@@ -179,7 +179,7 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
     if (!detectedQuestion || !detectedQuestion.examPapers) return null;
 
     const handleQuestionClick = (q: GroupedQuestion) => {
-        console.log('[QuestionNavigator] Clicked:', q.questionNumber, 'Index:', q.sourceImageIndex);
+
         if (onNavigate) {
             // Default to 0 if sourceImageIndex is missing
             onNavigate(q.questionNumber, q.sourceImageIndex || 0);
@@ -206,7 +206,9 @@ const QuestionNavigator: React.FC<QuestionNavigatorProps> = ({
                                 onClick={() => handleQuestionClick(q)}
                             >
                                 <span className="q-label">Q{q.questionNumber}</span>
-                                <span className={`status-dot ${color}`}></span>
+                                <span className={`score-text ${color}`}>
+                                    {q.hasResults ? `${q.awardedMarks}/${q.totalMarks}` : `${q.totalMarks}`}
+                                </span>
                             </button>
                         );
                     })}

@@ -19,11 +19,14 @@
 /* Header Removed, so table container takes full height */
 .question-navigator-table-container {
     overflow-y: auto;
+    overflow-x: hidden;
     flex: 1;
     position: relative;
     /* Ensure sticky context */
     overscroll-behavior: contain;
     /* Prevent scroll chaining */
+    padding-right: 4px;
+    /* Prevent scrollbar from covering content */
 }
 
 /* Table Styles */
@@ -135,7 +138,7 @@
     align-items: center;
     background-color: var(--surface-primary);
     border-bottom: 1px solid var(--border-color);
-    padding: 8px 12px;
+    padding: 12px 12px;
     gap: 8px;
     position: relative;
     /* Removed sticky: 100 because sticky context is handled by parent, or stickiness isn't needed if it's placed inside a flex column */
@@ -191,6 +194,27 @@
     height: 8px;
     border-radius: 50%;
     display: inline-block;
+}
+
+.score-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.score-text.green {
+    color: #4ade80;
+}
+
+.score-text.yellow {
+    color: #facc15;
+}
+
+.score-text.red {
+    color: #f87171;
+}
+
+.score-text.neutral {
+    color: #9ca3af;
 }
 
 .nav-arrow {

@@ -29,7 +29,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 
     // Update internal state if initial prop changes (e.g. parent switching images)
     useEffect(() => {
-        console.log('[ImageViewer] initialImageIndex updated:', initialImageIndex);
+
         setCurrentImageIndex(initialImageIndex);
     }, [initialImageIndex]);
 

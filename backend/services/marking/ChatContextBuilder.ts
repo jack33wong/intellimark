@@ -60,6 +60,7 @@ export class ChatContextBuilder {
                 awardedMarks: qr.score?.awardedMarks || 0,
                 scoreText: qr.score?.scoreText || `${qr.score?.awardedMarks || 0}/${qr.score?.totalMarks || 0}`,
                 hasMarkingScheme: !!scheme,
+                pageIndex: qr.pageIndex, // Add page index for Smart Navigation
                 annotationCount: qr.annotations?.length || 0,
                 annotations: annotations,
                 schemeSummary: qr.promptMarkingScheme || schemeSummary, // Use exact prompt scheme if available

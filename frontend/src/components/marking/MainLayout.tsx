@@ -48,10 +48,10 @@ const MainLayout: React.FC = () => {
   // Auto-refresh Header credits when session completes
   useEffect(() => {
     if (currentSession && !currentSession.id?.startsWith('temp-')) {
-      console.log('[MainLayout] Session completed, scheduling Header credit refresh in 1s');
+
       // Wait 1 second for Firestore to save credit deduction
       setTimeout(() => {
-        console.log('[MainLayout] Triggering Header credit refresh now');
+
         if (typeof window.refreshHeaderSubscription === 'function') {
           window.refreshHeaderSubscription();
         }

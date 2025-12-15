@@ -38,29 +38,27 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
 
   const images: SessionImage[] = [];
   const seenImageSrcs = new Set<string>(); // Track by src to avoid duplicates
-  
+
+
   // For marking sessions OR mixed sessions (which can contain marking content), ONLY include annotated images (final output)
   // Find the marking_annotated message which contains the final results
   if (session.messageType === 'Marking' || session.messageType === 'Mixed') {
-    // Try to find marking_annotated message first
-    let annotatedMessage = session.messages.find(
+
+
+    // Find marking_annotated message (backend now correctly sets this type)
+    const annotatedMessage = session.messages.find(
       m => m.type === 'marking_annotated' && hasImage(m)
     );
-    
-    // Fallback: if no marking_annotated found, look for any assistant message with images
+
+
     if (!annotatedMessage) {
-      annotatedMessage = session.messages.find(
-        m => m.role === 'assistant' && hasImage(m) && m.type !== 'marking_original'
-      );
-    }
-    
-    if (!annotatedMessage) {
+      console.warn('[getSessionImages] No marking_annotated message found for marking session!');
       return images; // Return empty if no annotated message found
     }
-    
+
     // Store in const so TypeScript knows it's defined in callbacks
     const message = annotatedMessage;
-    
+
     // Only process the annotated message
     if (message.imageDataArray && message.imageDataArray.length > 0) {
       message.imageDataArray.forEach((imageItem: any, index: number) => {
@@ -68,7 +66,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
           // Handle both string (base64) and object formats
           let imageData: string;
           let originalFileName: string | null = null;
-          
+
           if (typeof imageItem === 'string') {
             // Direct base64 string
             imageData = imageItem;
@@ -79,11 +77,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
           } else {
             return; // Skip invalid format
           }
-          
+
           if (!imageData || typeof imageData !== 'string') {
             return; // Skip invalid image data
           }
-          
+
           // Create a temporary message object with this single image for getImageSrc
           const tempMessage = {
             ...message,
@@ -92,19 +90,19 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             imageDataArray: undefined
           };
           const src = getImageSrc(tempMessage);
-          
+
           // Ensure src is a string and not a duplicate
           if (typeof src !== 'string' || seenImageSrcs.has(src)) {
             return; // Skip if not string or duplicate
           }
           seenImageSrcs.add(src);
-          
+
           // Use originalFileName from item, or fallback to message or generate
-          const finalFileName = originalFileName || 
-                               (message as any)?.originalFileName || 
-                               `image-${message.id}-${index}`;
+          const finalFileName = originalFileName ||
+            (message as any)?.originalFileName ||
+            `image-${message.id}-${index}`;
           const filename = `annotated-${finalFileName}`;
-          
+
           images.push({
             id: `img-${message.id}-${index}`,
             src,
@@ -124,10 +122,10 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
         const src = getImageSrc(message);
         if (typeof src === 'string' && !seenImageSrcs.has(src)) {
           seenImageSrcs.add(src);
-          const originalFileName = (message as any)?.originalFileName || 
-                                  `image-${message.id}`;
+          const originalFileName = (message as any)?.originalFileName ||
+            `image-${message.id}`;
           const filename = `annotated-${originalFileName}`;
-          
+
           images.push({
             id: `img-${message.id}`,
             src,
@@ -145,11 +143,11 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
     // Return early for marking sessions - only annotated images
     return images;
   }
-  
+
   // For non-marking sessions, process all messages
   session.messages.forEach((message) => {
     if (hasImage(message)) {
-      
+
       // Handle imageDataArray (multiple images in one message)
       if (message.imageDataArray && message.imageDataArray.length > 0) {
         message.imageDataArray.forEach((imageItem: any, index: number) => {
@@ -157,7 +155,7 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             // Handle both string (base64) and object formats
             let imageData: string;
             let originalFileName: string | null = null;
-            
+
             if (typeof imageItem === 'string') {
               // Direct base64 string
               imageData = imageItem;
@@ -169,18 +167,18 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
               console.warn('Invalid imageDataArray item format:', imageItem);
               return; // Skip this item
             }
-            
+
             if (!imageData) {
               console.warn('No image data found in imageDataArray item:', imageItem);
               return; // Skip this item
             }
-            
+
             // Ensure imageData is a string
             if (typeof imageData !== 'string') {
               console.warn('imageData is not a string:', typeof imageData, imageData);
               return; // Skip this item
             }
-            
+
             // Check for duplicate by src (actual image content)
             const tempMessageForSrc = {
               ...message,
@@ -194,19 +192,19 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             } catch {
               return; // Skip if can't get src
             }
-            
+
             if (typeof src !== 'string' || seenImageSrcs.has(src)) {
               return; // Skip if not string or duplicate
             }
             seenImageSrcs.add(src);
-            
-            
+
+
             // Use originalFileName from item, or fallback to message or generate
-            const finalFileName = originalFileName || 
-                                 (message as any)?.originalFileName || 
-                                 `image-${message.id}-${index}`;
+            const finalFileName = originalFileName ||
+              (message as any)?.originalFileName ||
+              `image-${message.id}-${index}`;
             const filename = `annotated-${finalFileName}`;
-            
+
             images.push({
               id: `img-${message.id}-${index}`,
               src,
@@ -229,12 +227,12 @@ export const getSessionImages = (session: UnifiedSession | null): SessionImage[]
             return; // Skip if not string or duplicate
           }
           seenImageSrcs.add(src);
-          
+
           // Generate proper annotated filename with prefix
-          const originalFileName = (message as any)?.originalFileName || 
-                                  `image-${message.id}`;
+          const originalFileName = (message as any)?.originalFileName ||
+            `image-${message.id}`;
           const filename = `annotated-${originalFileName}`;
-          
+
           images.push({
             id: `img-${message.id}`,
             src,

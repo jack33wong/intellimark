@@ -293,13 +293,15 @@ export function createAIMessage(options: AIMessageOptions): UnifiedMessage {
   let messageType: 'chat' | 'marking_original' | 'marking_annotated' | 'question_original' | 'question_response' | 'follow_up';
   if (category === "questionOnly") {
     messageType = 'question_response';
-  } else if (imageData) {
-    // If there's image data, it's likely a marking response
+  } else if (imageData || (imageDataArray && imageDataArray.length > 0)) {
+    // If there's image data (legacy or array format), it's likely a marking response
     messageType = 'marking_annotated';
   } else {
     // Text-only chat response
     messageType = 'chat';
   }
+
+
 
   // Create default objects
   const defaultProcessingStats = {

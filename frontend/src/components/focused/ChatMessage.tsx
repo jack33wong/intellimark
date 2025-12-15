@@ -185,7 +185,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
   // Smart Navigation Handler
   const handleSmartNavigation = useCallback((questionNumber: string, sourceImageIndex: number) => {
-    console.log('[SmartNav] Handling navigation:', { questionNumber, sourceImageIndex });
+
 
     // 1. Enter Split Mode with specific image
     // Prefer session-level images to ensure we have the full document context (Pages 1-N)
@@ -227,30 +227,35 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     }
 
     // 2. Scroll Chat to Question Header
-    // We used a retry mechanism to allow the transition to split mode (re-render) to complete
-    const elementId = `question-${questionNumber}`;
-    let attempts = 0;
-    const maxAttempts = 10;
+    setTimeout(() => {
+      const elementId = `question-${questionNumber}`;
+      let attempts = 0;
+      const maxAttempts = 10;
 
-    const attemptScroll = () => {
-      const el = document.getElementById(elementId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(attemptScroll, 100);
+      const attemptScroll = () => {
+        const el = document.getElementById(elementId);
+        if (el) {
+          // Find the chat container (not the message)
+          const chatContainer = document.querySelector('.chat-container');
+          if (chatContainer) {
+            const elRect = el.getBoundingClientRect();
+            const containerRect = chatContainer.getBoundingClientRect();
+            const offset = 100;
+            const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+            chatContainer.scrollTop = targetScrollTop;
+          } else {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         } else {
-          console.warn(`[SmartNav] Target element ${elementId} not found after ${maxAttempts} attempts.`);
-          // Debug: List what IDs actually exist
-          const existingIds = Array.from(document.querySelectorAll('[id^="question-"]')).map(e => e.id);
-          console.log('[SmartNav] Available question IDs in DOM:', existingIds);
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(attemptScroll, 100);
+          }
         }
-      }
-    };
+      };
 
-    // Start attempts immediately and then poll
-    setTimeout(attemptScroll, 50);
+      attemptScroll();
+    }, 600);
   }, [message, onEnterSplitMode, session]);
 
   const handleFollowUpClick = useCallback(async (suggestion: string, mode: string = 'chat') => {
@@ -385,7 +390,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageSrc = getImageSrc(message);
 
   // Debug: Print complete message data structure
-  console.log(`[ChatMessage] Render ${message.id} (${message.role}) ContentLen: ${content ? content.length : 0}`);
+
 
   // Don't render ghost messages
   if (!shouldRenderMessage(message)) {
@@ -478,7 +483,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
             // 1. Remove sub-question parts from headers (e.g., "Question 8(a, b, c)" → "Question 8")
             // 2. Calculate total marks from [B2], [M1], [A1] tags and add to header in green
             let processedContent = ensureStringContent(content);
-            console.warn('[ChatMessage] Raw processedContent:', processedContent);
+
 
             // Split content by question headers to process each question separately
             const questionSections = processedContent.split(/^(###\s+Question\s+\d+[^\n]*)/gim);
@@ -522,11 +527,38 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
 
             processedContent = questionSections.join('');
 
+            // Callback ref to inject IDs into question headers after render
+            const handleContentRef = (element: HTMLDivElement | null) => {
+              if (!element) return;
+
+              // Find all question headers in the rendered DOM
+              const headers = element.querySelectorAll('p strong, h3');
+
+              headers.forEach((header) => {
+                const text = header.textContent || '';
+                const match = text.match(/Question\s+(\d+)/i);
+
+                if (match) {
+                  const questionNum = match[1];
+                  const questionId = `question-${questionNum}`;
+
+                  // Add ID to the parent element (p or h3)
+                  const parent = header.parentElement;
+                  if (parent && !parent.id) {
+                    parent.id = questionId;
+                    parent.style.scrollMarginTop = '100px';
+                  }
+                }
+              });
+            };
+
             return (
-              <MarkdownMathRenderer
-                content={processedContent}
-                className="chat-message-renderer"
-              />
+              <div ref={handleContentRef}>
+                <MarkdownMathRenderer
+                  content={processedContent}
+                  className="chat-message-renderer"
+                />
+              </div>
             );
           })()}
 

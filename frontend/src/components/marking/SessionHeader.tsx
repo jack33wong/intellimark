@@ -30,22 +30,22 @@ const SessionHeader: React.FC = () => {
 
   const getModelUsed = (): string => {
     const stats = currentSession?.sessionStats;
-    
+
     // Fail fast if old sessionMetadata structure is detected
     if (currentSession?.sessionMetadata) {
       console.error('❌ [DATA STRUCTURE ERROR] Old sessionMetadata structure detected');
       console.error('❌ [ERROR DETAILS] sessionMetadata:', currentSession.sessionMetadata);
       throw new Error('Old sessionMetadata data structure detected. Please clear database and create new sessions.');
     }
-    
+
     return stats?.lastModelUsed || 'N/A';
   };
 
   const getProcessingTime = (): string => {
-      const timeMs = currentSession?.sessionStats?.totalProcessingTimeMs;
-      return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
+    const timeMs = currentSession?.sessionStats?.totalProcessingTimeMs;
+    return timeMs ? `${(timeMs / 1000).toFixed(1)}s` : 'N/A';
   };
-  
+
   const getTokenData = () => {
     const stats = currentSession?.sessionStats;
     if (!stats) return null;
@@ -86,7 +86,7 @@ const SessionHeader: React.FC = () => {
       setIsEditingTitle(false);
       return;
     }
-    
+
     try {
       await onTitleUpdate(editedTitle.trim());
       setIsEditingTitle(false);
@@ -112,22 +112,22 @@ const SessionHeader: React.FC = () => {
   const getDetectedQuestion = () => {
     // Check session-level detectedQuestion first
     let detectedQuestion = currentSession?.detectedQuestion;
-    
+
     // Fallback: Find the first message with detectedQuestion data
     if (!detectedQuestion) {
-      const messageWithQuestion = currentSession?.messages?.find((msg: any) => 
+      const messageWithQuestion = currentSession?.messages?.find((msg: any) =>
         msg.detectedQuestion && msg.detectedQuestion.found
       );
       detectedQuestion = messageWithQuestion?.detectedQuestion;
     }
-    
+
     // Fail fast if old data structure is detected
     if (detectedQuestion && detectedQuestion.message) {
       console.error('❌ [DATA STRUCTURE ERROR] Old detectedQuestion structure detected with "message" field');
       console.error('❌ [ERROR DETAILS] detectedQuestion:', detectedQuestion);
       throw new Error('Old detectedQuestion data structure detected. Please clear database and create new sessions.');
     }
-    
+
     // Validate new structure (with examPapers array)
     if (detectedQuestion && detectedQuestion.found) {
       // New structure: fields are in examPapers[]
@@ -136,25 +136,25 @@ const SessionHeader: React.FC = () => {
         // Check for required fields, but allow 'year' as fallback for 'examSeries' during migration
         const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject'];
         const missingFields = requiredFields.filter(field => !firstExamPaper.hasOwnProperty(field));
-        
+
         // Check for examSeries or year (for migration compatibility)
         const hasExamSeries = firstExamPaper.hasOwnProperty('examSeries') || firstExamPaper.hasOwnProperty('year');
-        
+
         if (missingFields.length > 0 || !hasExamSeries) {
           const allMissing = hasExamSeries ? missingFields : [...missingFields, 'examSeries (or year)'];
           console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion.examPapers[0] missing required fields:', allMissing);
           console.error('❌ [ERROR DETAILS] firstExamPaper:', firstExamPaper);
           throw new Error(`detectedQuestion.examPapers[0] missing required fields: ${allMissing.join(', ')}. Please clear database and create new sessions.`);
         }
-      } 
+      }
       // Old flat structure: fields are at top level (for backward compatibility with question-only mode)
       else {
         const requiredFields = ['examBoard', 'examCode', 'paperTitle', 'subject'];
         const missingFields = requiredFields.filter(field => !detectedQuestion.hasOwnProperty(field));
-        
+
         // Check for examSeries or year (for migration compatibility)
         const hasExamSeries = detectedQuestion.hasOwnProperty('examSeries') || detectedQuestion.hasOwnProperty('year');
-        
+
         if (missingFields.length > 0 || !hasExamSeries) {
           const allMissing = hasExamSeries ? missingFields : [...missingFields, 'examSeries (or year)'];
           console.error('❌ [DATA STRUCTURE ERROR] detectedQuestion missing required fields:', allMissing);
@@ -163,7 +163,7 @@ const SessionHeader: React.FC = () => {
         }
       }
     }
-    
+
     // Also check for old metadata structure in messages
     const messageWithOldMetadata = currentSession?.messages?.find((msg: any) => msg.metadata);
     if (messageWithOldMetadata) {
@@ -171,10 +171,10 @@ const SessionHeader: React.FC = () => {
       console.error('❌ [ERROR DETAILS] message:', messageWithOldMetadata);
       throw new Error('Old metadata data structure detected in messages. Please clear database and create new sessions.');
     }
-    
+
     return detectedQuestion;
   };
-  
+
   const tokens = getTokenData();
   const modelUsed = getModelUsed();
   const processingTime = getProcessingTime();
@@ -198,7 +198,7 @@ const SessionHeader: React.FC = () => {
       );
     });
   };
-  
+
   // 👇 FIX: The useEffect for handling "click outside" is now architecturally correct.
   // It correctly handles dependencies and event propagation to prevent auto-closing.
   useEffect(() => {
@@ -219,7 +219,7 @@ const SessionHeader: React.FC = () => {
 
     // Use a timeout to ensure the listener is added after the current event cycle.
     const timerId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }, 0);
 
     return () => {
@@ -238,33 +238,33 @@ const SessionHeader: React.FC = () => {
           {displaySession?.id?.startsWith('temp-') ? 'Processing...' : sessionTitle}
         </h1>
       </div>
-      
+
       {displaySession && !displaySession.id.startsWith('temp-') && (
         <div className="session-actions">
           {user && (
-            <button 
+            <button
               className={`header-btn favorite-btn ${isFavorite ? 'favorited' : ''}`}
               onClick={onFavoriteToggle}
               title={isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
             </button>
           )}
-          
+
           <div className="info-dropdown-container">
-            <button 
+            <button
               ref={buttonRef} // Attach ref to the button
               className="header-btn info-btn"
               onClick={onToggleInfoDropdown}
               title="Task Details"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
               </svg>
             </button>
-            
+
             {showInfoDropdown && (
               <div className="info-dropdown" ref={dropdownRef}>
                 <div className="info-dropdown-content">
@@ -301,13 +301,13 @@ const SessionHeader: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {(() => {
                     const detectedQuestion = getDetectedQuestion();
                     if (detectedQuestion && detectedQuestion.found) {
                       // Extract fields from new structure (examPapers[]) or use old flat structure
                       let examBoard, subject, examCode, examSeries, tier;
-                      
+
                       if (detectedQuestion.examPapers && Array.isArray(detectedQuestion.examPapers) && detectedQuestion.examPapers.length > 0) {
                         // New structure: extract from first exam paper
                         const firstExamPaper = detectedQuestion.examPapers[0];
@@ -326,7 +326,7 @@ const SessionHeader: React.FC = () => {
                         examSeries = detectedQuestion.examSeries || detectedQuestion.year;
                         tier = detectedQuestion.tier;
                       }
-                      
+
                       return (
                         <div className="exam-paper-section">
                           <div className="label-value-item">
@@ -362,86 +362,84 @@ const SessionHeader: React.FC = () => {
                     }
                     return null;
                   })()}
-                  
-                   <div className="agent-speed-section">
-                        <div className="agent-info">
-                            <span className="label">Model Used</span>
-                            <span className="value">{modelUsed}</span>
+
+                  <div className="agent-speed-section">
+                    <div className="agent-info">
+                      <span className="label">Model Used</span>
+                      <span className="value">{modelUsed}</span>
+                    </div>
+                    <div className="speed-info">
+                      <span className="label">Processing Time</span>
+                      <span className="value">{processingTime}</span>
+                    </div>
+                  </div>
+                  {(() => {
+                    const sessionStats = currentSession?.sessionStats;
+                    const totalCost = sessionStats?.totalCost;
+                    const costBreakdown = sessionStats?.costBreakdown;
+
+                    // Debug: Log cost data to check if it exists
+                    if (process.env.NODE_ENV === 'development') {
+
+                    }
+
+                    // Show cost section if totalCost exists and is greater than 0
+                    if (totalCost !== undefined && totalCost !== null && totalCost > 0) {
+                      return (
+                        <div className="cost-section">
+                          <div className="label-value-item">
+                            <span className="label">Total Cost:</span>
+                            <span className="value">${totalCost.toFixed(2)}</span>
+                          </div>
+                          {costBreakdown && (
+                            <div className="cost-breakdown">
+                              <div className="label-value-item">
+                                <span className="label">LLM Cost:</span>
+                                <span className="value">${costBreakdown.llmCost?.toFixed(2) || '0.00'}</span>
+                              </div>
+                              <div className="label-value-item">
+                                <span className="label">Mathpix Cost:</span>
+                                <span className="value">${costBreakdown.mathpixCost?.toFixed(2) || '0.00'}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="speed-info">
-                            <span className="label">Processing Time</span>
-                            <span className="value">{processingTime}</span>
-                        </div>
-                   </div>
-                   {(() => {
-                     const sessionStats = currentSession?.sessionStats;
-                     const totalCost = sessionStats?.totalCost;
-                     const costBreakdown = sessionStats?.costBreakdown;
-                     
-                     // Debug: Log cost data to check if it exists
-                     if (process.env.NODE_ENV === 'development') {
-                       console.log('[COST DEBUG] sessionStats:', sessionStats);
-                       console.log('[COST DEBUG] totalCost:', totalCost);
-                       console.log('[COST DEBUG] costBreakdown:', costBreakdown);
-                     }
-                     
-                     // Show cost section if totalCost exists and is greater than 0
-                     if (totalCost !== undefined && totalCost !== null && totalCost > 0) {
-                       return (
-                         <div className="cost-section">
-                           <div className="label-value-item">
-                             <span className="label">Total Cost:</span>
-                             <span className="value">${totalCost.toFixed(2)}</span>
-                           </div>
-                           {costBreakdown && (
-                             <div className="cost-breakdown">
-                               <div className="label-value-item">
-                                 <span className="label">LLM Cost:</span>
-                                 <span className="value">${costBreakdown.llmCost?.toFixed(2) || '0.00'}</span>
-                               </div>
-                               <div className="label-value-item">
-                                 <span className="label">Mathpix Cost:</span>
-                                 <span className="value">${costBreakdown.mathpixCost?.toFixed(2) || '0.00'}</span>
-                               </div>
-                             </div>
-                           )}
-                         </div>
-                       );
-                     }
-                     return null;
-                   })()}
+                      );
+                    }
+                    return null;
+                  })()}
                   <div className="dropdown-rating-section">
                     <div className="rating-container">
                       <div className="rating-label"><span className="label">Rate this task:</span></div>
                       <div className="rating-stars">{renderStars()}</div>
                     </div>
                   </div>
-                   <div className="dropdown-footer">
-                        <div className="token-count">
-                            <span className="label">LLM Tokens</span>
-                            <span className="value">{tokens ? tokens[0]?.toLocaleString() : 'N/A'}</span>
-                        </div>
-                        <div className="mathpix-count">
-                            <span className="label">Mathpix Calls</span>
-                            <span className="value">{tokens ? tokens[1] : 'N/A'}</span>
-                        </div>
-                        <div className="image-size">
-                            <span className="label">Image Size</span>
-                            <span className="value">{getImageSize()}</span>
-                        </div>
-                        <div className="confidence">
-                            <span className="label">Confidence</span>
-                            <span className="value">{getConfidence()}</span>
-                        </div>
-                        <div className="annotations">
-                            <span className="label">Annotations</span>
-                            <span className="value">{getAnnotations()}</span>
-                        </div>
-                        <div className="last-update">
-                            <span className="label">Last Update:</span>
-                            <span className="value">{currentSession?.updatedAt ? new Date(currentSession.updatedAt).toLocaleString() : 'N/A'}</span>
-                        </div>
-                   </div>
+                  <div className="dropdown-footer">
+                    <div className="token-count">
+                      <span className="label">LLM Tokens</span>
+                      <span className="value">{tokens ? tokens[0]?.toLocaleString() : 'N/A'}</span>
+                    </div>
+                    <div className="mathpix-count">
+                      <span className="label">Mathpix Calls</span>
+                      <span className="value">{tokens ? tokens[1] : 'N/A'}</span>
+                    </div>
+                    <div className="image-size">
+                      <span className="label">Image Size</span>
+                      <span className="value">{getImageSize()}</span>
+                    </div>
+                    <div className="confidence">
+                      <span className="label">Confidence</span>
+                      <span className="value">{getConfidence()}</span>
+                    </div>
+                    <div className="annotations">
+                      <span className="label">Annotations</span>
+                      <span className="value">{getAnnotations()}</span>
+                    </div>
+                    <div className="last-update">
+                      <span className="label">Last Update:</span>
+                      <span className="value">{currentSession?.updatedAt ? new Date(currentSession.updatedAt).toLocaleString() : 'N/A'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

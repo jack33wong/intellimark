@@ -28,7 +28,7 @@ const MarkdownMathRenderer = ({
   className = '',
   options = {}
 }) => {
-  console.log('[Renderer] Render called. Content len:', content?.length);
+
 
   const defaultOptions = {
     throwOnError: false,
