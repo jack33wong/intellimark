@@ -15,6 +15,8 @@ export interface SessionImage {
   messageRole: 'user' | 'assistant' | 'system';
   messageType: string;
   alt: string;
+  badgeText?: string;
+  badgeColor?: string;
 }
 
 /**

@@ -12,6 +12,7 @@ import { ChatMessage } from '../focused';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
 import { getSessionImages } from '../../utils/imageCollectionUtils';
+import { useQuestionGrouping } from '../../hooks/useQuestionGrouping';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
@@ -159,7 +160,8 @@ const MainLayout: React.FC = () => {
     return null;
   }, [currentSession]);
 
-  // Removed unused imagesForSplitMode logic (replaced by generic session images)
+  // Use question grouping hook to get badges data
+  const { groupedQuestions, getGroupColor } = useQuestionGrouping(activeDetectedQuestion, (lastMarkingMessage as any)?.markingContext);
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
@@ -186,10 +188,27 @@ const MainLayout: React.FC = () => {
           // Get reliable session images (same logic as Table Mode)
           const sessionImages = currentSession ? getSessionImages(currentSession) : [];
 
+          // Enrich images with badges
+          const enrichedImages = sessionImages.map((img: any, idx: number) => {
+            // Find matching group for this image page index
+            // Note: sourceImageIndex is 0-based page index
+            const match = groupedQuestions.find(g => g.sourceImageIndex === idx);
+            if (match) {
+              // Format: Q1 5/5
+              const scoreText = match.awardedMarks !== null ? `${match.awardedMarks}/${match.totalMarks}` : `?/${match.totalMarks}`;
+              return {
+                ...img,
+                badgeText: `Q${match.questionNumber} ${scoreText}`,
+                badgeColor: getGroupColor(match)
+              };
+            }
+            return img;
+          });
+
           // Use a robust check: if we have images, we should be in split mode or verify split mode
-          if (sessionImages.length > 0) {
+          if (enrichedImages.length > 0) {
             // Always update/enter split mode with fresh images
-            enterSplitMode(sessionImages, imgIdx);
+            enterSplitMode(enrichedImages, imgIdx);
           } else {
             // Fallback for no images
             if (isChatMode) console.warn('[MainLayout] No session images found for split mode');

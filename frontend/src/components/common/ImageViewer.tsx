@@ -295,6 +295,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                                         className="modal-thumbnail-image"
                                         draggable={false}
                                     />
+                                    {image.badgeText && (
+                                        <span className={`thumbnail-badge ${image.badgeColor || 'neutral'}`}>
+                                            {image.badgeText}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
