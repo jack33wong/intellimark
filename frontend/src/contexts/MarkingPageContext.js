@@ -40,6 +40,7 @@ const initialState = {
   splitModeImages: null,
   activeImageIndex: 0,
   activeQuestionId: null,
+  isQuestionTableVisible: true,
 };
 
 function markingPageReducer(state, action) {
@@ -66,6 +67,8 @@ function markingPageReducer(state, action) {
       return { ...state, activeImageIndex: action.payload };
     case 'SET_ACTIVE_QUESTION_ID':
       return { ...state, activeQuestionId: action.payload };
+    case 'SET_QUESTION_TABLE_VISIBLE':
+      return { ...state, isQuestionTableVisible: action.payload };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
@@ -85,7 +88,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
   const { startProcessing, stopProcessing, startAIThinking, stopAIThinking, processImageAPI, processMultiImageAPI, handleError } = apiProcessor;
 
   const [state, dispatch] = useReducer(markingPageReducer, initialState);
-  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId } = state;
+  const { pageMode, selectedModel, showInfoDropdown, hoveredRating, splitModeImages, activeImageIndex, activeQuestionId, isQuestionTableVisible } = state;
 
   // Ref to prevent duplicate text message requests
   const textRequestInProgress = useRef(false);
@@ -426,6 +429,10 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     dispatch({ type: 'SET_ACTIVE_QUESTION_ID', payload: questionId });
   }, []);
 
+  const setQuestionTableVisibility = useCallback((isVisible) => {
+    dispatch({ type: 'SET_QUESTION_TABLE_VISIBLE', payload: isVisible });
+  }, []);
+
   const value = useMemo(() => ({
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating,
     handleFileSelect, clearFile, handleModelChange, onModelChange: handleModelChange,
@@ -444,6 +451,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
     activeQuestionId, setActiveQuestionId,
+    isQuestionTableVisible, setQuestionTableVisibility,
     ...progressProps
   }), [
     user, pageMode, selectedFile, selectedModel, showInfoDropdown, hoveredRating, handleFileSelect, clearFile,
@@ -451,7 +459,7 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     onFavoriteToggle, onRatingChange, onTitleUpdate, setHoveredRating, onToggleInfoDropdown, isProcessing, isAIThinking, error,
     onSendMessage, addMessage, chatContainerRef, scrollToBottom, showScrollButton, hasNewResponse, scrollToNewResponse, progressProps, getImageSrc, startAIThinking,
     splitModeImages, activeImageIndex, enterSplitMode, exitSplitMode, setActiveImageIndex,
-    activeQuestionId, setActiveQuestionId
+    activeQuestionId, setActiveQuestionId, isQuestionTableVisible, setQuestionTableVisibility
   ]);
 
   return (

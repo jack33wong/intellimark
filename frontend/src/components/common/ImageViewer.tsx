@@ -282,7 +282,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
                         <div className="thumbnail-list" ref={thumbnailListRef}>
                             {images.map((image, index) => (
                                 <button
-                                    key={image.id}
+                                    key={image.id || index}
                                     ref={el => thumbnailRefs.current[index] = el}
                                     type="button"
                                     className={`thumbnail-btn ${index === currentImageIndex ? 'active' : ''}`}

@@ -58,8 +58,26 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
-  const { activeQuestionId, setActiveQuestionId } = useMarkingPage();
+  const { activeQuestionId, setActiveQuestionId, setQuestionTableVisibility } = useMarkingPage();
+  const tableObserverRef = useRef<HTMLDivElement | null>(null);
 
+  // Observe table visibility to show/hide ribbon
+  useEffect(() => {
+    const observerTarget = tableObserverRef.current;
+    if (!observerTarget) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setQuestionTableVisibility(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.1, rootMargin: '-50px 0px 0px 0px' }
+    );
+
+    observer.observe(observerTarget);
+    return () => observer.disconnect();
+  }, [setQuestionTableVisibility]);
 
 
   // Inline function to avoid Jest import issues
@@ -573,7 +591,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   />
                 </div>
                 {message.detectedQuestion && message.detectedQuestion.found && (
-                  <div className="navigator-side">
+                  <div className="navigator-side" ref={tableObserverRef}>
                     <QuestionNavigator
                       detectedQuestion={message.detectedQuestion}
                       markingContext={(message as any).markingContext}
@@ -587,6 +605,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               </div>
             );
           })()}
+
 
           {/* Display single annotated image if only 1 image - BEFORE suggested follow-ups */}
           {!isUser && (message as any)?.imageDataArray && Array.isArray((message as any).imageDataArray) && (message as any).imageDataArray.length === 1 && !isPdfMessage() && (

@@ -22,11 +22,6 @@ export function useDropdownState(messageId: string, initialValue: boolean = fals
     const newState = !showProgressDetailsRef.current;
     showProgressDetailsRef.current = newState;
     setShowProgressDetails(newState);
-    
-    // Scroll to bottom when closing dropdown
-    if (!newState && scrollToBottom) {
-      setTimeout(() => scrollToBottom(), 150);
-    }
   }, []);
 
   const setDropdownState = useCallback((isOpen: boolean) => {

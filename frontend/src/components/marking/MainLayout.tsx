@@ -11,6 +11,7 @@ import FollowUpChatInput from '../chat/FollowUpChatInput';
 import { ChatMessage } from '../focused';
 import MarkdownMathRenderer from './MarkdownMathRenderer';
 import { ensureStringContent } from '../../utils/contentUtils';
+import { getSessionImages } from '../../utils/imageCollectionUtils';
 import './css/ChatInterface.css';
 import './css/ImageUploadInterface.css';
 import QuestionNavigator from './QuestionNavigator';
@@ -43,6 +44,7 @@ const MainLayout: React.FC = () => {
     setActiveImageIndex,
     activeQuestionId,
     setActiveQuestionId,
+    isQuestionTableVisible,
   } = useMarkingPage();
 
   const isFollowUp = (chatMessages || []).length > 0;
@@ -67,8 +69,12 @@ const MainLayout: React.FC = () => {
     const hasMessages = displayedMessages.length > 0;
 
     return (
-      <div className="chat-panel-layout">
-        <div className="chat-container" ref={chatContainerRef}>
+      <div className="chat-panel-layout" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+        {/* Sticky Ribbon Navigator for Chat Mode */}
+        {renderQuestionRibbon(true)}
+
+        <div className="chat-container" ref={chatContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}
@@ -153,6 +159,84 @@ const MainLayout: React.FC = () => {
     return null;
   }, [currentSession]);
 
+  // Removed unused imagesForSplitMode logic (replaced by generic session images)
+
+  // Reusable Ribbon Render Function
+  const renderQuestionRibbon = (isChatMode: boolean) => {
+    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
+
+    // Prevent duplicate ribbon in Split Mode
+    // Split mode has its own dedicated ribbon, so suppress the specific "Chat Mode" one
+    if (isChatMode && splitModeImages) return null;
+
+    // In Chat Mode, only show if table is hidden
+    if (isChatMode && isQuestionTableVisible) return null;
+
+    const ribbonContent = (
+      <QuestionNavigator
+        mode="ribbon"
+        detectedQuestion={activeDetectedQuestion}
+        markingContext={(lastMarkingMessage as any)?.markingContext}
+        onNavigate={(qNum, imgIdx) => {
+          // Set active question
+          setActiveQuestionId(qNum);
+
+          // If valid images are found, ALWAYS enforce split mode update.
+          // This ensures that even if the user is already in split mode (potentially with stale/broken data),
+          // Get reliable session images (same logic as Table Mode)
+          const sessionImages = currentSession ? getSessionImages(currentSession) : [];
+
+          // Use a robust check: if we have images, we should be in split mode or verify split mode
+          if (sessionImages.length > 0) {
+            // Always update/enter split mode with fresh images
+            enterSplitMode(sessionImages, imgIdx);
+          } else {
+            // Fallback for no images
+            if (isChatMode) console.warn('[MainLayout] No session images found for split mode');
+            setActiveImageIndex(imgIdx);
+          }
+
+          // 2. Scroll Chat using smooth scroll
+          setTimeout(() => {
+            const el = document.getElementById(`question-${qNum}`);
+            if (el) {
+              const chatContainer = document.querySelector('.chat-container') as HTMLElement;
+              if (chatContainer) {
+                const elRect = el.getBoundingClientRect();
+                const containerRect = chatContainer.getBoundingClientRect();
+                const offset = 100;
+                const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+                chatContainer.scrollTo({
+                  top: targetScrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }
+          }, 100);
+        }}
+        activeQuestionId={activeQuestionId}
+      />
+    );
+
+    // Styling Wrapper based on Mode
+    if (isChatMode) {
+      return (
+        <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%' }}>
+          <div style={{ maxWidth: '1000px', width: '85vw', margin: '0 auto', paddingLeft: '48px', paddingRight: '48px' }}>
+            {ribbonContent}
+          </div>
+        </div>
+      );
+    } else {
+      // Split Mode Wrapper (Simple full width of pane)
+      return (
+        <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)' }}>
+          {ribbonContent}
+        </div>
+      );
+    }
+  };
+
   // Use simple relative positioning for standard layout
   return (
     <div className={`mark-homework-page ${isFollowUp ? 'chat-mode' : 'initial-mode'} ${splitModeImages ? 'split-mode' : ''}`}>
@@ -183,39 +267,7 @@ const MainLayout: React.FC = () => {
           <div className="split-right-panel" style={{ width: '50%', flex: '0 0 50%', display: 'flex', flexDirection: 'column', position: 'relative', minWidth: '320px', background: 'var(--background-gray-main)' }}>
 
             {/* Ribbon Navigator (Only if detectedQuestion exists) */}
-            {currentSession && activeDetectedQuestion && activeDetectedQuestion.found && (
-              <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)' }}>
-                <QuestionNavigator
-                  mode="ribbon"
-                  detectedQuestion={activeDetectedQuestion}
-                  markingContext={(lastMarkingMessage as any)?.markingContext}
-                  onNavigate={(qNum, imgIdx) => {
-                    // Set active question
-                    setActiveQuestionId(qNum);
-                    // 1. Switch Image
-                    setActiveImageIndex(imgIdx);
-                    // 2. Scroll Chat using smooth scroll
-                    setTimeout(() => {
-                      const el = document.getElementById(`question-${qNum}`);
-                      if (el) {
-                        const chatContainer = document.querySelector('.chat-container') as HTMLElement;
-                        if (chatContainer) {
-                          const elRect = el.getBoundingClientRect();
-                          const containerRect = chatContainer.getBoundingClientRect();
-                          const offset = 100;
-                          const targetScrollTop = chatContainer.scrollTop + (elRect.top - containerRect.top) - offset;
-                          chatContainer.scrollTo({
-                            top: targetScrollTop,
-                            behavior: 'smooth'
-                          });
-                        }
-                      }
-                    }, 100);
-                  }}
-                  activeQuestionId={activeQuestionId}
-                />
-              </div>
-            )}
+            {renderQuestionRibbon(false)}
 
             <div className="mark-homework-main-content" style={{ height: '100%', padding: 0, overflowY: 'auto' }}>
               {renderChatContent()}
