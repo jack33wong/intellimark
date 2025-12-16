@@ -1,13 +1,13 @@
 /* Your Work Section Styling */
 .your-work-section {
     background: #f8f9fa;
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid var(--function-success);
     padding: 16px;
     margin: 20px 30px;
     border-radius: 4px;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.0;
     color: #2c3e50;
     overflow-x: auto;
     /* Enable horizontal scroll for entire section */
@@ -18,7 +18,7 @@
     font-weight: bold;
     font-size: 15px;
     margin-bottom: 8px;
-    color: #1a5c2e;
+    color: var(--function-success);
 }
 
 /* Question number */
@@ -93,6 +93,23 @@
     color: #2c3e50;
     white-space: nowrap;
     overflow: visible;
+}
+
+/* Formatted Content Row */
+.your-work-formatted-row {
+    display: flex;
+    align-items: flex-start;
+}
+
+.your-work-student-col {
+    flex: 0 0 280px;
+    min-width: 0;
+    padding-right: 20px;
+}
+
+.your-work-annotation-col {
+    flex: 1;
+    color: #666;
 }
 
 /* Indentation levels for fallback */

@@ -14,6 +14,8 @@ interface YourWorkSectionProps {
  *     b) 3.42×10 -- M0 - Incorrect...
  * :::
  */
+import '../marking/YourWork.css';
+
 /**
  * Component to format a line of work: "Student Text -- Mark - Reasoning"
  * Renders as: Student Text      [Mark] Reasoning
@@ -56,15 +58,15 @@ const FormattedContent = ({ content }: { content: string }) => {
     // Student Work: Fixed width (e.g. 280px) to ensure vertical alignment of annotations
     // Annotation: Takes remaining space
     return (
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div className="your-work-formatted-row">
             {/* Student Work Col */}
-            <div style={{ flex: '0 0 280px', minWidth: '0', paddingRight: '20px' }}>
+            <div className="your-work-student-col">
                 <span dangerouslySetInnerHTML={{ __html: studentWork }} />
             </div>
 
             {/* Annotation Col */}
             {displayAnnotation && (
-                <div style={{ flex: '1', color: '#666' }}>
+                <div className="your-work-annotation-col">
                     {displayAnnotation}
                 </div>
             )}
