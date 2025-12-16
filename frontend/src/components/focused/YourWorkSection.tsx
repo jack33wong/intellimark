@@ -1,4 +1,5 @@
 import React from 'react';
+import '../marking/YourWork.css';
 
 interface YourWorkSectionProps {
     content: string; // Raw content from backend in :::your-work format
@@ -14,7 +15,7 @@ interface YourWorkSectionProps {
  *     b) 3.42×10 -- M0 - Incorrect...
  * :::
  */
-import '../marking/YourWork.css';
+
 
 /**
  * Component to format a line of work: "Student Text -- Mark - Reasoning"
