@@ -285,14 +285,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
                 // Generate the full prompt including marking details + history
                 contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext);
 
-                console.log('\n🤖 [AI CONTEXT PROMPT] Sending to AI:');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-                console.log(contextSummary.substring(0, 800) + '\n...[truncated]...');
-                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-                console.log(`[CONTEXT FLOW] 🔍 Found marking context in session history (Qs: ${markingContext.totalQuestionsMarked})`);
-                console.log(`[CONTEXT FLOW] 📝 Generated context prompt (Length: ${contextSummary.length} chars)`);
-
                 // Update progress tracker to indicate context mode
                 progressTracker.updateStepDescription('generating_response', 'Thinking with marking context...');
               }
@@ -345,11 +337,6 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
           // Check if AI response already contains :::your-work (prevent duplicates)
           if (yourWorkSection && !aiResponse.includes(':::your-work')) {
-            console.log('\n📝 [YOUR WORK SECTION] Generated:');
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log(yourWorkSection);
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
             // Find where to insert Your Work section (after first paragraph/question header)
             // Look for first double newline which usually separates header from content
             const firstParagraphEnd = aiResponse.indexOf('\n\n');
@@ -363,19 +350,13 @@ router.post('/chat', optionalAuth, async (req, res) => {
               // Fallback: prepend if no double newline found
               finalResponse = yourWorkSection + '\n' + aiResponse;
             }
-
-            console.log(`✅ Prepended Your Work for Q${questionNumber}`);
           } else if (aiResponse.includes(':::your-work')) {
-            console.log(`⚠️  AI response already contains :::your-work, skipping duplicate insertion`);
             finalResponse = aiResponse; // Use AI response as-is
           }
         }
       }
     }
 
-
-    console.log('[FINAL RESPONSE] Length:', finalResponse?.length, 'chars');
-    console.log('[FINAL RESPONSE] First 200 chars:', finalResponse?.substring(0, 200));
 
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');

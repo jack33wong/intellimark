@@ -52,54 +52,11 @@ export class ChatContextBuilder {
             const questionNumber = String(qr.questionNumber);
             const partMap: Record<string, { part: string; marks: Mark[] }> = {};
 
-            // DEBUG: Log annotation structure for Q2
-            if (questionNumber === '2' && qr.annotations && qr.annotations.length > 0) {
-                console.log('\n========== Q2 ANNOTATION DEBUG ==========');
-                console.log('Question Number:', questionNumber);
-                console.log('Total Annotations:', qr.annotations.length);
-
-                // Check marking scheme structure
-                console.log('\n--- MARKING SCHEME ---');
-                console.log('Has markingScheme?', !!qr.markingScheme);
-                if (qr.markingScheme) {
-                    console.log('markingScheme keys:', Object.keys(qr.markingScheme));
-                    console.log('Has subQuestionMarks?', !!qr.markingScheme.subQuestionMarks);
-                    if (qr.markingScheme.subQuestionMarks) {
-                        console.log('subQuestionMarks keys:', Object.keys(qr.markingScheme.subQuestionMarks));
-                        console.log('Full subQuestionMarks:', JSON.stringify(qr.markingScheme.subQuestionMarks, null, 2));
-                    }
-                    console.log('Full markingScheme:', JSON.stringify(qr.markingScheme, null, 2));
-                }
-
-                qr.annotations.forEach((a: any, idx: number) => {
-                    console.log(`\n--- Annotation ${idx} ---`);
-                    console.log('Full annotation object:', JSON.stringify(a, null, 2));
-                    console.log('Fields available:');
-                    console.log('  - subQuestion:', a.subQuestion);
-                    console.log('  - unified_step_id:', a.unified_step_id);
-                    console.log('  - step_id:', a.step_id);
-                    console.log('  - studentText:', a.studentText);
-                    console.log('  - classificationText:', a.classificationText);
-                    console.log('  - text (mark code):', a.text);
-                    console.log('  - action:', a.action);
-                    console.log('  - reasoning:', a.reasoning);
-                });
-                console.log('==========================================\n');
-            }
 
             // Smart mapping: use BOTH annotation.subQuestion AND mark codes
             const subQuestionMarks = qr.markingScheme?.questionMarks?.subQuestionMarks;
 
-            if (questionNumber === '2' && subQuestionMarks) {
-                console.log('[Q' + questionNumber + '] Available subQuestionMarks keys:', Object.keys(subQuestionMarks));
-            }
-
             (qr.annotations || []).forEach((a: any) => {
-                // Trace raw annotation content
-                if (questionNumber === '2') {
-                    console.log('[Q' + questionNumber + '] Raw annotation:', JSON.stringify(a, null, 2));
-                }
-
                 // Use annotation.subQuestion directly as the part
                 const part = a.subQuestion || '';
 

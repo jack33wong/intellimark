@@ -1487,13 +1487,6 @@ export class MarkingPipelineService {
                 })
             };
 
-            // DEBUG: Show what's being sent to frontend
-            console.log('\n📤 [FINAL OUTPUT DEBUG] Sending to frontend:');
-            console.log(`   - annotatedOutput: ${finalOutput.annotatedOutput?.length || 0} images`);
-            console.log(`   - results: ${finalOutput.results?.length || 0} marking results`);
-            console.log(`   - unifiedSession exists: ${!!finalOutput.unifiedSession}`);
-            console.log(`   - questionResponses in AI message: ${combinedQuestionResponses.length > 0 ? 'YES' : 'NO'}`);
-
             // --- Send FINAL Complete Event ---
             progressCallback({ type: 'complete', result: finalOutput }); // 'true' marks as final
 
@@ -1507,11 +1500,6 @@ export class MarkingPipelineService {
             console.log(`🏁 ==========================================\n`);
             // ========================== END: IMPLEMENT STAGE 5 ==========================
 
-            console.log(`\n🔍 [RETURN DEBUG] Normal/Mixed Mode - Returning:`);
-            console.log(`   - sessionId: ${finalOutput.sessionId}`);
-            console.log(`   - hasUnifiedSession: ${!!finalOutput.unifiedSession}`);
-            console.log(`   - mode: ${finalOutput.mode || 'not set'}`);
-            console.log(`   - result object exists: true\n`);
             return finalOutput;
 
         } catch (error: any) {
