@@ -77,7 +77,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
           });
         },
         // Use a more generous margin to ensure trigger when scrolling near top
-        { threshold: 0.1, rootMargin: '-50px 0px 0px 0px' }
+        { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
       );
       observer.observe(node);
       observerRef.current = observer;
