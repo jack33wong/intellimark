@@ -485,6 +485,27 @@ export class MarkingInstructionService {
       const { applyVisualStacking } = await import('./AnnotationTransformers.js');
       const stackedAnnotations = applyVisualStacking(enrichedAnnotations);
 
+      // FIX: Sort annotations by step_id sequence (Robust Numeric Sort)
+      // Ensures reading order (e.g., block_1_4, block_1_5, block_1_6)
+
+      stackedAnnotations.sort((a: any, b: any) => {
+        const idA = a.step_id || '';
+        const idB = b.step_id || '';
+
+        // Extract numbers block_{page}_{index}
+        const matchA = idA.match(/block_(\d+)_(\d+)/);
+        const matchB = idB.match(/block_(\d+)_(\d+)/);
+
+        if (matchA && matchB) {
+          const pageA = parseInt(matchA[1], 10);
+          const pageB = parseInt(matchB[1], 10);
+          if (pageA !== pageB) return pageA - pageB;
+          return parseInt(matchA[2], 10) - parseInt(matchB[2], 10);
+        }
+
+        return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
         annotations: stackedAnnotations, // ✅ Return stacked annotations
         usage: { llmTokens: annotationData.usage?.llmTokens || 0 },
@@ -924,10 +945,23 @@ export class MarkingInstructionService {
       if (jsonMatch && jsonMatch[1]) {
         jsonString = jsonMatch[1];
       }
-
       // DEBUG LOG: AI Response for questions with UNMATCHED annotations only
       try {
         const parsedResponse = JSON.parse(jsonString);
+
+        // Sanitize student_text at the source
+        // Remove LaTeX artifacts that Mathpix OCR might inject (e.g. alignment '&', backslashes)
+        if (parsedResponse.annotations) {
+          parsedResponse.annotations.forEach((anno: any) => {
+            if (anno.student_text) {
+              // Replace '&' with space, remove backslashes
+              let cleaned = anno.student_text.replace(/&/g, ' ').replace(/\\/g, '');
+              // Clean up spacing around equals
+              cleaned = cleaned.replace(/\s+/g, ' ').replace(/\s*=\s*/g, ' = ').trim();
+              anno.student_text = cleaned;
+            }
+          });
+        }
 
         // =========================================================================================
         // STRICT MARK LIMIT ENFORCEMENT (Ref: Step 1779)

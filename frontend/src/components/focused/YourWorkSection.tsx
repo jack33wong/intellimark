@@ -14,6 +14,49 @@ interface YourWorkSectionProps {
  *     b) 3.42×10 -- M0 - Incorrect...
  * :::
  */
+/**
+ * Component to format a line of work: "Student Text -- Mark - Reasoning"
+ * Renders as: Student Text      [Mark] Reasoning
+ */
+const FormattedContent = ({ content }: { content: string }) => {
+    // 1. Split by " -- " to separate Student Work from Annotation
+    const parts = content.split(' -- ');
+
+    let studentWork = content;
+    let annotation = '';
+
+    if (parts.length >= 2) {
+        studentWork = parts[0];
+        annotation = parts.slice(1).join(' -- ');
+    }
+
+    // 2. Format Annotation: "M1 - Reason" -> "[M1] Reason"
+    let displayAnnotation = annotation;
+    const annoMatch = annotation.match(/^([A-Z][0-9]+)\s*-\s*(.*)$/);
+    if (annoMatch) {
+        displayAnnotation = `[${annoMatch[1]}] ${annoMatch[2]}`;
+    }
+
+    // Render with Flexbox Grid-like alignment
+    // Student Work: Fixed width (e.g. 300px) to ensure vertical alignment of annotations
+    // Annotation: Takes remaining space
+    return (
+        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+            {/* Student Work Col */}
+            <div style={{ flex: '0 0 280px', minWidth: '0', paddingRight: '20px' }}>
+                <span dangerouslySetInnerHTML={{ __html: studentWork }} />
+            </div>
+
+            {/* Annotation Col */}
+            {displayAnnotation && (
+                <div style={{ flex: '1', color: '#666' }}>
+                    {displayAnnotation}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default function YourWorkSection({ content }: YourWorkSectionProps) {
     if (!content) return null;
 
@@ -74,7 +117,9 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                 {ungroupedWork.map((item, i) => (
                     <div key={`main-${i}`} className="your-work-bullet-item">
                         <span className="bullet-point">•</span>
-                        <div className="bullet-content" dangerouslySetInnerHTML={{ __html: item }} />
+                        <div className="bullet-content">
+                            <FormattedContent content={item} />
+                        </div>
                     </div>
                 ))}
 
@@ -86,8 +131,9 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
                             <div key={`child-${i}-${j}`} className="your-work-subquestion">
                                 {child.label && <span className="subquestion-label">{child.label}</span>}
                                 {/* If no label (e.g. b), just show content with padding */}
-                                <span className={`subquestion-content ${!child.label ? 'subquestion-content-no-label' : ''}`}
-                                    dangerouslySetInnerHTML={{ __html: child.content }} />
+                                <span className={`subquestion-content ${!child.label ? 'subquestion-content-no-label' : ''}`}>
+                                    <FormattedContent content={child.content} />
+                                </span>
                             </div>
                         ))}
                     </div>

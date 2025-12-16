@@ -74,7 +74,7 @@
 /* Ungrouped items with bullets */
 .your-work-bullet-item {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     margin-bottom: 4px;
     padding-left: 20px;
     /* Indent like a sub-question */
@@ -82,9 +82,9 @@
 
 .bullet-point {
     flex-shrink: 0;
-    min-width: 20px;
+    min-width: 1px;
     text-align: center;
-    color: #555;
+    color: var(--text-tertiary);
     font-weight: bold;
 }
 

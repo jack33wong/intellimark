@@ -778,14 +778,6 @@ export async function executeMarkingForQuestion(
       task // New argument
     );
 
-    // TRACE: Check if studentText survives enrichAnnotationsWithPositions
-    if (String(questionId) === '2' && enrichedAnnotations.length > 0) {
-      console.log('\n[MARKINGEXECUTOR Q2] After enrichAnnotationsWithPositions:');
-      console.log('  enrichedAnnotations[0].studentText:', (enrichedAnnotations[0] as any).studentText);
-      console.log('  enrichedAnnotations[0].classificationText:', (enrichedAnnotations[0] as any).classificationText);
-      console.log('  Full object keys:', Object.keys(enrichedAnnotations[0]));
-    }
-
 
 
 
@@ -1366,24 +1358,39 @@ const enrichAnnotationsWithPositions = (
 
   // SORTING DESIGN:
   // 1. Meta Info Page First (Page Index ASC)
-  // 2. Sort by Question Number (N/A here as we are in single question scope)
+  // 2. Sub-Question Grouping
+  // 3. Step ID (Reading Order) - Critical for maintaining sequence even if one item is unmatched (dummy Y)
+  // 4. Fallback: Y-Position (Top to Bottom)
   const sortedResults = results.sort((a, b) => {
-    // Debug Log for Sorting (Sample first few comparisons)
-    // if (Math.random() < 0.01) console.log(`[SORT DEBUG] Comparing Q${questionId}: P${a.pageIndex} vs P${b.pageIndex}, SubQ ${a.subQuestion} vs ${b.subQuestion}`);
-
     // 1. Meta Info Page First (Page Index)
     if (a.pageIndex !== b.pageIndex) {
       return a.pageIndex - b.pageIndex;
     }
 
-    // 3. Sub-Question Number
+    // 2. Sub-Question Number
     const subQA = (a as any).subQuestion || '';
     const subQB = (b as any).subQuestion || '';
     if (subQA !== subQB) {
       return subQA.localeCompare(subQB);
     }
 
-    // Fallback: Y-Position (Top to Bottom)
+    // 3. Step ID (Robust Numeric Sort)
+    const idA = (a as any).step_id || '';
+    const idB = (b as any).step_id || '';
+
+    const matchA = idA.match(/block_(\d+)_(\d+)/);
+    const matchB = idB.match(/block_(\d+)_(\d+)/);
+
+    if (matchA && matchB) {
+      const pageA = parseInt(matchA[1], 10);
+      const pageB = parseInt(matchB[1], 10);
+      if (pageA !== pageB) return pageA - pageB;
+      const blockA = parseInt(matchA[2], 10);
+      const blockB = parseInt(matchB[2], 10);
+      if (blockA !== blockB) return blockA - blockB;
+    }
+
+    // 4. Fallback: Y-Position (Top to Bottom)
     const yA = a.bbox ? a.bbox[1] : (a.aiPosition?.y || 0);
     const yB = b.bbox ? b.bbox[1] : (b.aiPosition?.y || 0);
     return yA - yB;
