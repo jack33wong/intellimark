@@ -70,7 +70,7 @@ const MainLayout: React.FC = () => {
     const hasMessages = displayedMessages.length > 0;
 
     return (
-      <div className="chat-panel-layout" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div className="chat-panel-layout" style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
         {/* Sticky Ribbon Navigator for Chat Mode */}
         {renderQuestionRibbon(true)}
@@ -295,7 +295,7 @@ const MainLayout: React.FC = () => {
     // Styling Wrapper based on Mode
     if (isChatMode) {
       return (
-        <div style={{ flexShrink: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
           <div style={{ maxWidth: '1000px', width: '85vw', margin: '0 auto', paddingLeft: '48px', paddingRight: '48px' }}>
             {ribbonContent}
           </div>
