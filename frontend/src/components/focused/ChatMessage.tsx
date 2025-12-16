@@ -2,7 +2,9 @@
  * Focused ChatMessage Component (TypeScript)
  * This is the definitive version with fixes for all rendering and state bugs.
  */
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import './ChatMessage.css';
+import YourWorkSection from './YourWorkSection';
 import { Brain } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMarkingPage } from '../../contexts/MarkingPageContext';
@@ -593,6 +595,34 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
               });
             };
 
+            // Extract :::your-work section only
+            const yourWorkMatch = processedContent.match(/(:::your-work[\s\S]*?:::)/);
+
+            if (yourWorkMatch) {
+              // Split content: before, yourWork, after
+              const parts = processedContent.split(/(:::your-work[\s\S]*?:::)/);
+
+              return (
+                <div ref={handleContentRef}>
+                  {parts.map((part, idx) => {
+                    if (part.startsWith(':::your-work')) {
+                      return <YourWorkSection key={idx} content={part} />;
+                    } else if (part.trim()) {
+                      return (
+                        <MarkdownMathRenderer
+                          key={idx}
+                          content={part}
+                          className="chat-message-renderer"
+                        />
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
+              );
+            }
+
+            // Just render as markdown - no custom components
             return (
               <div ref={handleContentRef}>
                 <MarkdownMathRenderer

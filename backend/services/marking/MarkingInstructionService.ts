@@ -436,6 +436,14 @@ export class MarkingInstructionService {
         throw new Error('AI failed to generate valid annotations array');
       }
 
+      // DEBUG: Log COMPLETE raw AI marking instruction response for Q2
+      if (inputQuestionNumber === '2') {
+        console.log('\n========== COMPLETE RAW AI MARKING RESPONSE (Q2) ==========');
+        console.log(JSON.stringify(annotationData, null, 2));
+        console.log('=============================================================\n');
+      }
+
+
       if (annotationData.annotations.length === 0) {
         console.warn(`[MARKING INSTRUCTION] ⚠️ AI returned 0 annotations - likely no valid student work or wrong blocks assigned`);
         // Return empty annotations instead of throwing - allows pipeline to continue
@@ -451,6 +459,11 @@ export class MarkingInstructionService {
       // Replace legacy mutable enrichment with type-safe immutable pipeline
 
       const rawAiAnnotations: RawAIAnnotation[] = annotationData.annotations.map((anno: any) => {
+        // DEBUG: Log raw AI response for Q2
+        if (anno.text && anno.text.includes('B1') && inputQuestionNumber === '2') {
+          console.log('\n[AI RESPONSE DEBUG Q2] Raw annotation from AI:', JSON.stringify(anno, null, 2));
+        }
+
         return {
           text: anno.text,
           pageIndex: anno.pageIndex,
@@ -469,13 +482,27 @@ export class MarkingInstructionService {
       // Use immutable annotation pipeline for page index safety
       const immutableAnnotations = MarkingInstructionService.processAnnotationsImmutable(
         rawAiAnnotations,
-        sourceImageIndices || [],
+        sourceImageIndices || [0],
         rawOcrBlocks,
         studentWorkLines
       );
 
+      // TRACE: Check if studentText exists after immutable processing
+      if (inputQuestionNumber === '2' && immutableAnnotations.length > 0) {
+        console.log('[TRACE Q2] After processAnnotationsImmutable:');
+        console.log('  immutableAnnotations[0].studentText:', immutableAnnotations[0].studentText);
+        console.log('  immutableAnnotations[0].classificationText:', immutableAnnotations[0].classificationText);
+      }
+
       // Convert back to plain objects (now preserves studentText, lineIndex, classificationText)
       const enrichedAnnotations = MarkingInstructionService.convertToLegacyFormat(immutableAnnotations);
+
+      // TRACE: Check if studentText exists after legacy conversion
+      if (inputQuestionNumber === '2' && enrichedAnnotations.length > 0) {
+        console.log('[TRACE Q2] After convertToLegacyFormat:');
+        console.log('  enrichedAnnotations[0].studentText:', enrichedAnnotations[0].studentText);
+        console.log('  enrichedAnnotations[0].classificationText:', enrichedAnnotations[0].classificationText);
+      }
 
       // ======================================================================================
 
@@ -483,6 +510,13 @@ export class MarkingInstructionService {
       // Import the helper (assumes it's exported)
       const { applyVisualStacking } = await import('./AnnotationTransformers.js');
       const stackedAnnotations = applyVisualStacking(enrichedAnnotations);
+
+      // TRACE: Check if studentText exists after stacking
+      if (inputQuestionNumber === '2' && stackedAnnotations.length > 0) {
+        console.log('[TRACE Q2] After applyVisualStacking:');
+        console.log('  stackedAnnotations[0].studentText:', stackedAnnotations[0].studentText);
+        console.log('  stackedAnnotations[0].classificationText:', stackedAnnotations[0].classificationText);
+      }
 
       const result: MarkingInstructions & { usage?: { llmTokens: number }; cleanedOcrText?: string; studentScore?: any } = {
         annotations: stackedAnnotations, // ✅ Return stacked annotations

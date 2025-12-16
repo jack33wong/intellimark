@@ -58,14 +58,14 @@ export const useQuestionGrouping = (
 
                 // Filter results that match this main number prefix
                 const relevantResults = markingContext.questionResults.filter(r => {
-                    const rMatch = r.questionNumber.match(/^(\d+)/);
-                    const rMain = rMatch ? rMatch[1] : r.questionNumber;
+                    const rMatch = r.number.match(/^(\d+)/);
+                    const rMain = rMatch ? rMatch[1] : r.number;
                     return rMain === group.questionNumber;
                 });
 
                 if (relevantResults.length > 0) {
                     group.hasResults = true;
-                    groupAwarded = relevantResults.reduce((sum, r) => sum + r.awardedMarks, 0);
+                    groupAwarded = relevantResults.reduce((sum, r) => sum + r.earnedMarks, 0);
 
                     // Update total marks from results if available
                     const resultsTotal = relevantResults.reduce((sum, r) => sum + r.totalMarks, 0);
@@ -76,16 +76,22 @@ export const useQuestionGrouping = (
                     // CRITICAL: Update sourceImageIndex if marking results have it (Backfill from AI analysis)
                     const validPageResult = relevantResults.find(r =>
                         (r.pageIndex !== undefined && r.pageIndex >= 0) ||
-                        (r.annotations && r.annotations.some((a: any) => a.pageIndex !== undefined && a.pageIndex >= 0))
+                        (r.parts && r.parts.some((p: any) => p.marks && p.marks.some((m: any) => m.pageIndex !== undefined && m.pageIndex >= 0)))
                     );
 
                     if (validPageResult) {
                         if (validPageResult.pageIndex !== undefined && validPageResult.pageIndex >= 0) {
                             group.sourceImageIndex = validPageResult.pageIndex;
-                        } else if (validPageResult.annotations && validPageResult.annotations.length > 0) {
-                            const validAnnotation = validPageResult.annotations.find((a: any) => a.pageIndex !== undefined && a.pageIndex >= 0);
-                            if (validAnnotation) {
-                                group.sourceImageIndex = (validAnnotation as any).pageIndex;
+                        } else if (validPageResult.parts && validPageResult.parts.length > 0) {
+                            // Find first mark with pageIndex from parts
+                            for (const part of validPageResult.parts) {
+                                if (part.marks) {
+                                    const validMark = part.marks.find((m: any) => m.pageIndex !== undefined && m.pageIndex >= 0);
+                                    if (validMark) {
+                                        group.sourceImageIndex = (validMark as any).pageIndex;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }

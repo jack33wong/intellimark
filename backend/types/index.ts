@@ -135,7 +135,8 @@ export interface Annotation {
   text?: string; // Text content for all annotation types
   reasoning?: string; // Optional explanation/rationale
   ocr_match_status?: 'MATCHED' | 'FALLBACK'; // Status of OCR matching
-  classification_text?: string; // Text from classification
+  studentText?: string; // Student work text selected by AI
+  classificationText?: string; // Text from classification
   subQuestion?: string; // Sub-question identifier (e.g., "a", "b", "i")
   visual_position?: { x: number; y: number; width: number; height: number }; // AI-estimated position for visual elements
   pageIndex?: number; // Page index for multi-page annotations
@@ -320,36 +321,32 @@ export interface MarkingContext {
   followUpHistory?: FollowUpHistoryEntry[];
 }
 
-export interface MarkingContextQuestionResult {
-  questionNumber: string;
-  questionText: string; // Truncated
-  totalMarks: number;
-  awardedMarks: number;
-  scoreText: string;
-  hasMarkingScheme: boolean;
-  annotationCount: number;
-  annotations: Array<{
-    text: string;
-    action: string;
-    reasoning?: string;
-    studentText?: string;
-    sourceType?: string;
-    step_id?: string;
-    unified_step_id?: string;
-  }>;
-  // Note: studentWorkSummary is covered by annotations
-  studentWork?: string; // Raw OCR/students work text
-  databaseQuestionText?: string; // Fallback question text
-  classificationBlocks?: any[]; // Fallback student work blocks
-  schemeSummary?: string; // Truncated key criteria
-  revisionHistory?: Array<{
-    timestamp: string;
-    awardedMarks: number;
-    scoreText: string;
-    annotations: any[];
-    reason: string;
-  }>;
+// Clean nested structure for question results
+export interface Mark {
+  code: string;              // "M0", "M1", "A0", "C1", "P1", etc.
+  icon: string;              // "tick", "cross"
+  reasoning: string;         // Why this mark was given
+  stepId?: string;           // For reference: step_id
+  unifiedStepId?: string;    // For reference: unified_step_id
+  work?: string;             // Student work text for this specific mark
 }
+
+export interface QuestionPart {
+  part: string;              // "", "a", "b", "ai", "aii", "bi", etc. Empty = main question
+  marks: Mark[];             // Marks earned for this specific part
+}
+
+export interface MarkingContextQuestionResult {
+  number: string;            // "1", "3", "8", "21"
+  text: string;              // Full question text
+  scheme: string;            // Marking scheme text
+  totalMarks: number;        // Max marks available
+  earnedMarks: number;       // Marks student got
+  hasScheme: boolean;        // Whether marking scheme was found
+  pageIndex?: number;        // Page index for navigation
+  parts: QuestionPart[];     // Nested parts (main + sub-questions)
+}
+
 
 export interface FollowUpHistoryEntry {
   timestamp: string;

@@ -1,7 +1,8 @@
-
 import {
     MarkingContext,
-    MarkingContextQuestionResult
+    MarkingContextQuestionResult,
+    QuestionPart,
+    Mark
 } from '../../types/index.js';
 
 /**
@@ -24,16 +25,15 @@ export class ChatContextBuilder {
         gradeBoundaryResult?: any
     }): Promise<MarkingContext> {
 
-        // 1. Build Question Results
+        // 1. Build Question Results with clean nested structure
         const questionResults: MarkingContextQuestionResult[] = data.allQuestionResults.map(qr => {
             // Find matching detection result (for text) and scheme
             const detection = data.detectionResults.find(d =>
                 String(d.questionNumber) === String(qr.questionNumber)
             );
             const questionText = detection?.questionText || qr.questionText || '';
-            // Start Fix: Look up scheme by properties since key is compound (e.g. "1_Edexcel_...")
-            // The key in markingSchemesMap is compound, so we cannot just use .get(questionNumber)
-            // We iterate to find the matching scheme object where scheme.questionNumber matches.
+
+            // Look up scheme
             let scheme = undefined;
             for (const s of data.markingSchemesMap.values()) {
                 if (String(s.questionNumber) === String(qr.questionNumber)) {
@@ -41,33 +41,137 @@ export class ChatContextBuilder {
                     break;
                 }
             }
-            // End Fix
             const schemeSummary = this.extractSchemeSummary(scheme);
 
-            // Extract compact annotation list
-            const annotations = (qr.annotations || []).map((a: any) => ({
-                text: a.text || '',
-                action: a.action || '',
-                reasoning: a.reasoning || undefined,
-                studentText: a.classification_text || undefined, // Capture recognized student text
-                sourceType: a.ocr_match_status === 'MATCHED' ? 'ocr' : 'classification' // Capture source
-            })).filter((a: any) => a.text || a.reasoning);
+            // Build parts directly from annotations - NO PARSING!
+            // Each annotation has:
+            // - unified_step_id: "8ai", "step_8ai_M1", etc. (contains correct full identifier!)
+            // - studentText or classificationText: clean student work the AI chose
+            // - text: mark code, action: icon, reasoning: feedback
+
+            const questionNumber = String(qr.questionNumber);
+            const partMap: Record<string, { part: string; marks: Mark[] }> = {};
+
+            // DEBUG: Log annotation structure for Q2
+            if (questionNumber === '2' && qr.annotations && qr.annotations.length > 0) {
+                console.log('\n========== Q2 ANNOTATION DEBUG ==========');
+                console.log('Question Number:', questionNumber);
+                console.log('Total Annotations:', qr.annotations.length);
+
+                // Check marking scheme structure
+                console.log('\n--- MARKING SCHEME ---');
+                console.log('Has markingScheme?', !!qr.markingScheme);
+                if (qr.markingScheme) {
+                    console.log('markingScheme keys:', Object.keys(qr.markingScheme));
+                    console.log('Has subQuestionMarks?', !!qr.markingScheme.subQuestionMarks);
+                    if (qr.markingScheme.subQuestionMarks) {
+                        console.log('subQuestionMarks keys:', Object.keys(qr.markingScheme.subQuestionMarks));
+                        console.log('Full subQuestionMarks:', JSON.stringify(qr.markingScheme.subQuestionMarks, null, 2));
+                    }
+                    console.log('Full markingScheme:', JSON.stringify(qr.markingScheme, null, 2));
+                }
+
+                qr.annotations.forEach((a: any, idx: number) => {
+                    console.log(`\n--- Annotation ${idx} ---`);
+                    console.log('Full annotation object:', JSON.stringify(a, null, 2));
+                    console.log('Fields available:');
+                    console.log('  - subQuestion:', a.subQuestion);
+                    console.log('  - unified_step_id:', a.unified_step_id);
+                    console.log('  - step_id:', a.step_id);
+                    console.log('  - studentText:', a.studentText);
+                    console.log('  - classificationText:', a.classificationText);
+                    console.log('  - text (mark code):', a.text);
+                    console.log('  - action:', a.action);
+                    console.log('  - reasoning:', a.reasoning);
+                });
+                console.log('==========================================\n');
+            }
+
+            // Smart mapping: use BOTH annotation.subQuestion AND mark codes
+            const subQuestionMarks = qr.markingScheme?.questionMarks?.subQuestionMarks;
+
+            if (questionNumber === '2' && subQuestionMarks) {
+                console.log('[Q' + questionNumber + '] Available subQuestionMarks keys:', Object.keys(subQuestionMarks));
+            }
+
+            (qr.annotations || []).forEach((a: any) => {
+                // Trace raw annotation content
+                if (questionNumber === '2') {
+                    console.log('[Q' + questionNumber + '] Raw annotation:', JSON.stringify(a, null, 2));
+                }
+
+                // Use annotation.subQuestion directly as the part
+                const part = a.subQuestion || '';
+
+                // Use clean student text from AI response
+                const studentWork = a.studentText || a.classificationText || '';
+
+                if (!partMap[part]) {
+                    partMap[part] = {
+                        part: part,
+                        marks: []
+                    };
+                }
+
+                // Add mark with its own student work
+                partMap[part].marks.push({
+                    code: a.text || '',
+                    icon: a.action || 'tick',
+                    reasoning: a.reasoning || '',
+                    stepId: a.step_id || '',
+                    work: studentWork, // Associate work directly with this mark
+                    unifiedStepId: a.unified_step_id
+                });
+            });
+
+            // Convert map to array
+            const parts: QuestionPart[] = Object.values(partMap)
+                .map(p => ({
+                    part: p.part,
+                    marks: p.marks
+                }))
+                .sort((a, b) => {
+                    // Sort: main question first (empty part), then by sub-question
+                    if (a.part === '') return -1;
+                    if (b.part === '') return 1;
+
+                    // Smart sort for sub-questions: ai, aii, b, etc.
+                    // Extract letter (a, b, c) and roman numeral (i, ii, iii)
+                    const parseSubQ = (subQ: string) => {
+                        const match = subQ.match(/^([a-z]+)(i*)$/);
+                        if (match) {
+                            return {
+                                letter: match[1],
+                                roman: match[2].length // i=1, ii=2, iii=3
+                            };
+                        }
+                        return { letter: subQ, roman: 0 };
+                    };
+
+                    const parsedA = parseSubQ(a.part);
+                    const parsedB = parseSubQ(b.part);
+
+                    // Sort by letter first (a before b)
+                    if (parsedA.letter !== parsedB.letter) {
+                        return parsedA.letter.localeCompare(parsedB.letter);
+                    }
+
+                    // Then by roman numeral (i before ii)
+                    return parsedA.roman - parsedB.roman;
+                });
 
             return {
-                questionNumber: String(qr.questionNumber),
-                questionText: (qr.databaseQuestionText || questionText).substring(0, 1000), // Prioritize database text
+                number: String(qr.questionNumber),
+                text: (qr.databaseQuestionText || questionText).substring(0, 1000),
+                scheme: qr.promptMarkingScheme || schemeSummary || '',
                 totalMarks: qr.score?.totalMarks || 0,
-                awardedMarks: qr.score?.awardedMarks || 0,
-                scoreText: qr.score?.scoreText || `${qr.score?.awardedMarks || 0}/${qr.score?.totalMarks || 0}`,
-                hasMarkingScheme: !!scheme,
-                pageIndex: qr.pageIndex, // Add page index for Smart Navigation
-                annotationCount: qr.annotations?.length || 0,
-                annotations: annotations,
-                schemeSummary: qr.promptMarkingScheme || schemeSummary, // Use exact prompt scheme if available
-                studentWork: qr.studentWork || detection?.question?.text || '', // Use Classification Student Work
-                revisionHistory: [] // Initialize empty history
+                earnedMarks: qr.score?.awardedMarks || 0,
+                hasScheme: !!scheme,
+                pageIndex: qr.pageIndex,
+                parts: parts
             };
         });
+
 
         // 2. Build Exam Info
         let examInfo = undefined;
@@ -115,9 +219,9 @@ export class ChatContextBuilder {
     /**
      * Formats the stored MarkingContext into a prompt string for the AI.
      * This is called for every text-based follow-up message.
+     * Now uses clean nested parts[] structure - no parsing needed!
      */
     static formatContextAsPrompt(markingContext: MarkingContext): string {
-        // Change header to be less technical
         let prompt = `Here is the student's work and the marking results for context:\n\n`;
 
         // 1. Overall Summary
@@ -131,144 +235,47 @@ export class ChatContextBuilder {
 
         if (markingContext.grade) {
             prompt += `** Grade Achieved **: ${markingContext.grade.achieved} \n`;
-            if (markingContext.grade.boundaries) {
-                const b = markingContext.grade.boundaries;
-                // Format boundaries compactly: "9:72, 8:64, ..."
-                const bText = Object.entries(b)
-                    .map(([isValidGrade, mark]) => `${isValidGrade}:${mark} `)
-                    .join(', ');
-                prompt += `** Grade Boundaries **: ${bText} \n`;
-            }
         }
 
         prompt += `\n## Question Results\n\n`;
 
-        // 2. Question Details
+        // 2. Question Details - iterate parts[] directly
         for (const q of markingContext.questionResults) {
-            // Fallback for Question Text
-            const displayText = q.questionText || q.databaseQuestionText || '(Text not detected)';
-            prompt += `### Question ${q.questionNumber}: ${displayText} \n`;
+            prompt += `### Question ${q.number}: ${q.text} \n`;
 
-            // Fallback for Student Answer (Use classification blocks if raw student work is empty)
-            let studentWorkText = q.studentWork;
-            if (!studentWorkText && q.classificationBlocks?.length) {
-                // Approximate reconstruction from blocks
-                studentWorkText = q.classificationBlocks.map((b: any) => b.text).join(' ');
-            }
-
-            // Explicitly show Student Work (OCR) if available
-            if (studentWorkText) {
-                // Enrich [DRAWING] placeholder with actual visual descriptions
-                if (studentWorkText.includes('[DRAWING]')) {
-                    const visualAnns = q.annotations.filter(a =>
-                        a.sourceType === 'classification' && // Visual items usually come from classification or fallback
-                        (a.text?.toLowerCase().includes('drawing') || a.step_id?.toLowerCase().includes('drawing') || a.reasoning)
-                    );
-
-                    if (visualAnns.length > 0) {
-                        // Construct a description from visual annotations
-                        // Prefer reasoning as it describes WHAT was seen
-                        const descriptions = visualAnns
-                            .map(a => a.reasoning || a.text)
-                            .filter(t => t && !t.includes('[DRAWING]')) // Avoid circular reference
-                            .join('. ');
-
-                        if (descriptions) {
-                            studentWorkText = studentWorkText.replace(/\[DRAWING\]/g, `[Drawing: ${descriptions}]`);
+            // Show student work and marks for each part
+            prompt += `** Your Answer **:\n`;
+            q.parts.forEach(part => {
+                // Display each mark's work
+                part.marks.forEach(mark => {
+                    if (mark.work) {
+                        if (part.part) {
+                            prompt += `[${q.number}${part.part}] ${mark.work}\n`;
+                        } else {
+                            prompt += `${mark.work}\n`;
                         }
                     }
-                }
-                prompt += `** Student's Answer **: "${studentWorkText}" \n`;
-            }
-
-            // Render Revision History if exists (Simulated Duplication)
-            if (q.revisionHistory?.length) {
-                q.revisionHistory.forEach((rev, idx) => {
-                    prompt += `\n--- Previous Attempt ${idx + 1} for Q${q.questionNumber} ---\n`;
-                    prompt += `** Result **: ${rev.scoreText} \n`;
-                    prompt += `** Reason for change **: ${rev.reason} \n`;
-                    if (rev.annotations?.length) {
-                        prompt += `** Previous Annotations **:\n`;
-                        rev.annotations.forEach((a: any) => {
-                            prompt += `- [${a.action}] ${a.text} ${a.reasoning ? `(${a.reasoning})` : ''}\n`;
-                        });
-                    }
-                    prompt += `--------------------------------------\n`;
-                });
-            }
-
-            prompt += `** Your Marks ** (Total: ${q.totalMarks}):\n`;
-
-            // Group Annotations by Sub-Question (e.g. 15a, 15b)
-            const annsBySubQ: Record<string, any[]> = {};
-            const unassignedAnns: any[] = [];
-
-            q.annotations.forEach(a => {
-                const sId = (a.step_id || '').toLowerCase(); // e.g. "step_15c_m1"
-                const uId = (a.unified_step_id || '').toLowerCase(); // e.g. "15c"
-
-                // Extract sub-question part (e.g. "c" from "15c")
-                // Heuristic: Check if ID contains specific sub-q label
-                // Simplest: If ID contains "_{part}" or just "{part}"? 
-                // Better: Check if ID contains question number + letter
-
-                const qNumStr = String(q.questionNumber).toLowerCase();
-                let assigned = false;
-
-                // Try to find a pattern like "15c" or "_c"
-                // This assumes standard naming conventions. 
-                // Let's rely on finding standard sub-question suffixes a,b,c...i,ii
-                const commonParts = ['a', 'b', 'c', 'd', 'e', 'f', 'i', 'ii', 'iii', 'iv'];
-                for (const part of commonParts) {
-                    const label = `${qNumStr}${part}`; // e.g. "15c"
-                    // Check if ID specifically references this part
-                    // e.g. step_id="15c_m1" or unified="15c"
-                    if (sId.includes(`_${part}`) || sId.includes(label) || uId === label || uId.includes(label)) {
-                        if (!annsBySubQ[part]) annsBySubQ[part] = [];
-                        annsBySubQ[part].push(a);
-                        assigned = true;
-                        break;
-                    }
-                }
-
-                if (!assigned) {
-                    unassignedAnns.push(a);
-                }
-            });
-
-            // Render Unassigned first
-            if (unassignedAnns.length > 0) {
-                unassignedAnns.forEach(a => {
-                    const cleanReasoning = a.reasoning ? a.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
-                    prompt += `- [${a.action}] ${a.text} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
-                });
-            }
-
-            // Render Sub-Questions sorted
-            Object.keys(annsBySubQ).sort().forEach(part => {
-                prompt += `[${q.questionNumber}${part}]\n`;
-                annsBySubQ[part].forEach(a => {
-                    const cleanReasoning = a.reasoning ? a.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
-                    prompt += `  - [${a.action}] ${a.text} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
                 });
             });
 
+            prompt += `** Your Marks ** (Total: ${q.earnedMarks}/${q.totalMarks}):\n`;
 
-            // Annotations with Student Text & Source
-            if (q.annotations && q.annotations.length > 0) {
-                // Note: We already listed marks above. This section adds detailed context if needed.
-                // For now, the loop above covers it. Removing redundant block unless we want detailed debug info.
-            }
+            // Show marks grouped by part
+            q.parts.forEach(part => {
+                if (part.part) {
+                    // Sub-question marks
+                    prompt += `[${q.number}${part.part}]\n`;
+                }
+                part.marks.forEach(m => {
+                    const cleanReasoning = m.reasoning ? m.reasoning.replace(/\|/g, '. ').replace(/\.\s*\./g, '.').trim() : '';
+                    prompt += `  - [${m.icon}] ${m.code} ${cleanReasoning ? `(${cleanReasoning})` : ''}\n`;
+                });
+            });
 
-            // VALIDATION: Strict Marking Scheme Enforcement
-            const isPastPaper = !!markingContext.examInfo;
-
-            if (q.schemeSummary) {
-                prompt += `** Marking criteria **: \n${q.schemeSummary} \n`;
+            // Show marking scheme
+            if (q.scheme) {
+                prompt += `** Marking criteria **: \n${q.scheme} \n`;
                 prompt += `> [!IMPORTANT]\n> STRICTLY follow the provided marking criteria above. Do not deviate. \n`;
-            } else if (isPastPaper) {
-                // Warn if no scheme found for a past paper question
-                console.warn(`[ChatContext] Warning: No marking criteria available for Q${q.questionNumber} despite being a Past Paper context.`);
             }
 
             prompt += `\n`;
@@ -278,6 +285,7 @@ export class ChatContextBuilder {
         if (markingContext.followUpHistory && markingContext.followUpHistory.length > 0) {
             prompt += `## Recent Conversation History\n\n`;
             // Show last 10 exchanges
+
             const recentHistory = markingContext.followUpHistory.slice(-10);
             for (const entry of recentHistory) {
                 prompt += `User: ${entry.userMessage} \n`;

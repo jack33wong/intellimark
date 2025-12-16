@@ -5,6 +5,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 import './MarkdownMathRenderer.css';
+import './YourWork.css';
 import { detectAndWrapMath } from '../../utils/simpleMathDetector';
 
 const preprocessLatexDelimiters = (content) => {
@@ -46,8 +47,16 @@ const MarkdownMathRenderer = ({
     );
   }
 
+  // Parse :::your-work blocks and wrap with div
+  const parseYourWorkBlocks = (text) => {
+    return text.replace(/:::your-work\n([\s\S]*?):::/g, (match, content) => {
+      return `<div class="your-work-section">${content}</div>`;
+    });
+  };
+
   const contentWithMath = detectAndWrapMath(content);
   const preprocessedContent = preprocessLatexDelimiters(contentWithMath);
+  const processedText = parseYourWorkBlocks(preprocessedContent); // Apply the new processing here
 
   return (
     <div className={`markdown-math-renderer ${className}`}>
@@ -96,7 +105,19 @@ const MarkdownMathRenderer = ({
             }
 
             // Check for marks pattern: (...) marks
-            // We can split the children to style the marks part differently if it's a string
+            // We can split the children  const renderMarkdown = useCallback((text) => {
+            if (!text) return null;
+
+            // Parse and wrap :::your-work blocks
+            const parseYourWork = (content) => {
+              const regex = /:::your-work\n([\s\S]*?):::/g;
+              return content.replace(regex, (match, workContent) => {
+                return `<div class="your-work-section">${workContent}</div>`;
+              });
+            };
+
+            const processedText = parseYourWork(text);
+
             return (
               <h3 className="markdown-h3" id={id}>
                 {React.Children.map(children, child => {
@@ -120,7 +141,7 @@ const MarkdownMathRenderer = ({
           ul: ({ children }) => <ul>{children}</ul>,
         }}
       >
-        {preprocessedContent}
+        {processedText}
       </ReactMarkdown>
     </div>
   );

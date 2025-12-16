@@ -9,12 +9,79 @@ import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { MarkingServiceLocator } from '../services/marking/MarkingServiceLocator.js';
 import { createUserMessage, createAIMessage, createChatProgressData, handleAIMessageIdForEndpoint } from '../utils/messageUtils.js';
 import { ProgressTracker, getStepsForMode } from '../utils/progressTracker.js';
-import type { UnifiedMessage } from '../types/index.js';
+import type { UnifiedMessage, QuestionPart } from '../types/index.js';
 import { isValidSuggestedFollowUpMode as isFollowUpMode } from '../config/suggestedFollowUpConfig.js';
 import { checkCredits, deductCredits } from '../services/creditService.js';
 import { UsageTracker } from '../utils/usageTracker.js';
 
 const router = express.Router();
+
+/**
+ * Format "Your Work" section from marking context using clean nested structure
+ */
+function formatYourWorkSection(parts: QuestionPart[], questionNumber: string): string {
+  if (!parts || parts.length === 0) return '';
+
+  // Helper to convert LaTeX to HTML entities
+  const convertLatexToHtml = (text: string): string => {
+    if (!text) return '';
+    return text
+      .replace(/\$\\times\$/g, '×')
+      .replace(/\\times/g, '×')
+      .replace(/\^{([^}]+)}/g, '<sup>$1</sup>')
+      .replace(/\^(\d)/g, '<sup>$1</sup>')
+      .replace(/_{([^}]+)}/g, '<sub>$1</sub>')
+      .replace(/_(\d)/g, '<sub>$1</sub>')
+      .replace(/\$/g, ''); // Remove remaining $ symbols
+  };
+
+  let output = `:::your-work\n`;
+  output += `YOUR WORK:\n`;
+  output += `\t${questionNumber}\n`;
+
+  // Group parts by parent letter for nesting
+  const grouped: { [key: string]: { label: string; children: { label: string; marks: any[] }[] } } = {};
+
+  parts.forEach(part => {
+    // Display each mark with its work on same line
+    part.marks.forEach(mark => {
+      const cleanWork = mark.work ? convertLatexToHtml(mark.work) : '';
+
+      // Format: part) work -- marks - reasoning
+      if (part.part) {
+        output += `\t\t${part.part}) ${cleanWork} -- ${mark.code} - ${mark.reasoning}\n`;
+      } else {
+        // Main question (no part label)
+        output += `\t\t${cleanWork} -- ${mark.code} - ${mark.reasoning}\n`;
+      }
+    });
+  });
+
+  output += `:::\n\n`;
+  return output;
+}
+
+
+export function formatYourWork(
+  markingContext: any,
+  questionNumber: string
+): string {
+  if (!markingContext || !markingContext.questionResults) {
+    return '';
+  }
+
+  // Find question result
+  const questionResult = markingContext.questionResults.find(
+    (q: any) => String(q.number) === String(questionNumber)
+  );
+
+  if (!questionResult || !questionResult.parts || questionResult.parts.length === 0) {
+    return '';
+  }
+
+  return formatYourWorkSection(questionResult.parts, questionNumber);
+}
+
 
 /**
  * POST /messages/chat
@@ -122,9 +189,10 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     // Generate AI response using real AI service
     let aiResponse: string;
-    let apiUsed: string;
+    let apiUsed = 'Unknown API';
     let finalProgressData: any = null;
     let contextualResult: any = null;
+    let contextSummary: string | undefined = undefined; // Declare at function scope
     const startTime = Date.now();
 
     try {
@@ -177,7 +245,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
         // First get existing session messages for context
         let chatHistory: any[] = [];
-        let contextSummary: string | undefined = undefined; // Rich marking context and history
+        contextSummary = undefined; // Reset for this block
 
         if (currentSessionId) {
           try {
@@ -217,6 +285,11 @@ router.post('/chat', optionalAuth, async (req, res) => {
                 // Generate the full prompt including marking details + history
                 contextSummary = ChatContextBuilder.formatContextAsPrompt(markingContext);
 
+                console.log('\n🤖 [AI CONTEXT PROMPT] Sending to AI:');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                console.log(contextSummary.substring(0, 800) + '\n...[truncated]...');
+                console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
                 console.log(`[CONTEXT FLOW] 🔍 Found marking context in session history (Qs: ${markingContext.totalQuestionsMarked})`);
                 console.log(`[CONTEXT FLOW] 📝 Generated context prompt (Length: ${contextSummary.length} chars)`);
 
@@ -255,10 +328,59 @@ router.post('/chat', optionalAuth, async (req, res) => {
       throw error;
     }
 
+    // Prepend "Your Work" section if applicable
+    let finalResponse = aiResponse;
+    if (aiResponse && contextSummary) {
+      // Detect question number from AI response
+      const qMatch = aiResponse.match(/(?:question|q)\s*(\d+)/i);
+      if (qMatch && qMatch[1]) {
+        const questionNumber = qMatch[1];
+        // Get marking context from last marking message
+        const existingSession = await FirestoreService.getUnifiedSession(currentSessionId);
+        const lastMarkingMsg = [...(existingSession?.messages || [])].reverse().find(m => (m as any).markingContext);
+
+
+        if (lastMarkingMsg) {
+          const yourWorkSection = formatYourWork((lastMarkingMsg as any).markingContext, questionNumber);
+
+          // Check if AI response already contains :::your-work (prevent duplicates)
+          if (yourWorkSection && !aiResponse.includes(':::your-work')) {
+            console.log('\n📝 [YOUR WORK SECTION] Generated:');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log(yourWorkSection);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+            // Find where to insert Your Work section (after first paragraph/question header)
+            // Look for first double newline which usually separates header from content
+            const firstParagraphEnd = aiResponse.indexOf('\n\n');
+
+            if (firstParagraphEnd !== -1) {
+              // Insert Your Work right after the question header paragraph
+              const beforeYourWork = aiResponse.substring(0, firstParagraphEnd + 2);
+              const afterYourWork = aiResponse.substring(firstParagraphEnd + 2);
+              finalResponse = beforeYourWork + yourWorkSection + '\n' + afterYourWork;
+            } else {
+              // Fallback: prepend if no double newline found
+              finalResponse = yourWorkSection + '\n' + aiResponse;
+            }
+
+            console.log(`✅ Prepended Your Work for Q${questionNumber}`);
+          } else if (aiResponse.includes(':::your-work')) {
+            console.log(`⚠️  AI response already contains :::your-work, skipping duplicate insertion`);
+            finalResponse = aiResponse; // Use AI response as-is
+          }
+        }
+      }
+    }
+
+
+    console.log('[FINAL RESPONSE] Length:', finalResponse?.length, 'chars');
+    console.log('[FINAL RESPONSE] First 200 chars:', finalResponse?.substring(0, 200));
+
     // Create AI message using factory
     const resolvedAIMessageId = handleAIMessageIdForEndpoint(req.body, aiResponse, 'chat');
     const aiMessage = createAIMessage({
-      content: aiResponse,
+      content: finalResponse, // Use finalResponse here
       messageId: resolvedAIMessageId,
       imageData: !isAuthenticated && imageData ? imageData : undefined, // Include imageData for unauthenticated users
       progressData: finalProgressData || createChatProgressData(false),

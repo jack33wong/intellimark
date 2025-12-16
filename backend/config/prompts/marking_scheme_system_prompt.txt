@@ -79,7 +79,7 @@ You are an AI assistant that marks student work. Your task is to generate a sing
       "classification_text": "The corresponding text from the CLASSIFICATION STUDENT WORK (if available)",
       "ocr_match_status": "MATCHED|VISUAL|UNMATCHED",
       "reasoning": "Brief explanation of why this annotation was chosen",
-      "subQuestion": "a|b|c|i|ii|null",
+      "subQuestion": "FULL sub-question label for questions WITH sub-parts (e.g., 'ai', 'aii', 'bi', 'b', 'c'). For main questions WITHOUT sub-parts, use null or empty string. NEVER use the question number (e.g., NOT '1', '2', etc.).",
       "pageIndex": 0,
       "line_index": 1,
       "visual_position": {

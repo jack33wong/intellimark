@@ -778,6 +778,14 @@ export async function executeMarkingForQuestion(
       task // New argument
     );
 
+    // TRACE: Check if studentText survives enrichAnnotationsWithPositions
+    if (String(questionId) === '2' && enrichedAnnotations.length > 0) {
+      console.log('\n[MARKINGEXECUTOR Q2] After enrichAnnotationsWithPositions:');
+      console.log('  enrichedAnnotations[0].studentText:', (enrichedAnnotations[0] as any).studentText);
+      console.log('  enrichedAnnotations[0].classificationText:', (enrichedAnnotations[0] as any).classificationText);
+      console.log('  Full object keys:', Object.keys(enrichedAnnotations[0]));
+    }
+
 
 
 
@@ -1312,8 +1320,11 @@ const enrichAnnotationsWithPositions = (
       reasoning: anno.reasoning,
       ocr_match_status: anno.ocr_match_status,
       classification_text: (anno as any).classification_text,
+      studentText: (anno as any).studentText, // CRITICAL: Preserve AI-selected student work text
+      classificationText: (anno as any).classificationText, // CRITICAL: Preserve alternative text source
       subQuestion: targetSubQ || anno.subQuestion, // FIX: Use targetSubQ if available (scheme override)
       step_id: (anno as any).step_id, // Keep original step_id for debug/re-mapping
+
 
       // VISUAL: Use dummy bbox, let aiPosition handle positioning (design: visual_position is source of truth)
       // Non-VISUAL: Use OCR bbox if available, otherwise dummy if we have aiPos

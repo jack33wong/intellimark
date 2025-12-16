@@ -23,25 +23,31 @@ export * from './payment';
 /**
  * MANUAL OVERRIDES (Temporary until next API generation)
  */
-export interface MarkingContextQuestionResult {
-    questionNumber: string;
-    questionText: string;
-    totalMarks: number;
-    awardedMarks: number;
-    scoreText: string;
-    hasMarkingScheme: boolean;
-    pageIndex?: number; // Added to support Smart Navigation
-    annotationCount: number;
-    annotations: Array<{
-        text: string;
-        action: string;
-        reasoning?: string;
-        studentText?: string;
-        sourceType?: string;
-        step_id?: string;
-        unified_step_id?: string;
-    }>;
+export interface Mark {
+    code: string;              // "M0", "M1", "A0", "C1", "P1"
+    icon: string;              // "tick", "cross"
+    reasoning: string;         // Feedback text
+    stepId?: string;
+    unifiedStepId?: string;
 }
+
+export interface QuestionPart {
+    part: string;              // "", "a", "b", "ai", "aii" (empty = main question)
+    work: string;              // Student's work for this part
+    marks: Mark[];             // All marks for this part
+}
+
+export interface MarkingContextQuestionResult {
+    number: string;            // "1", "8", "21"
+    text: string;              // Question text
+    scheme: string;            // Marking scheme
+    totalMarks: number;
+    earnedMarks: number;
+    hasScheme: boolean;
+    pageIndex?: number;
+    parts: QuestionPart[];     // Clean nested structure
+}
+
 
 export interface MarkingContext {
     sessionType: 'Marking' | 'Question' | 'Mixed';
