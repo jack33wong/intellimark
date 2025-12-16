@@ -61,24 +61,27 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   const [isImageModeOpen, setIsImageModeOpen] = useState<boolean>(false);
   const { getAuthToken, user } = useAuth();
   const { activeQuestionId, setActiveQuestionId, setQuestionTableVisibility } = useMarkingPage();
-  const tableObserverRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Observe table visibility to show/hide ribbon
-  useEffect(() => {
-    const observerTarget = tableObserverRef.current;
-    if (!observerTarget) return;
+  const setTableObserverRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          setQuestionTableVisibility(entry.isIntersecting);
-        });
-      },
-      { threshold: 0.1, rootMargin: '-50px 0px 0px 0px' }
-    );
-
-    observer.observe(observerTarget);
-    return () => observer.disconnect();
+    if (node) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            setQuestionTableVisibility(entry.isIntersecting);
+          });
+        },
+        // Use a more generous margin to ensure trigger when scrolling near top
+        { threshold: 0.1, rootMargin: '-50px 0px 0px 0px' }
+      );
+      observer.observe(node);
+      observerRef.current = observer;
+    }
   }, [setQuestionTableVisibility]);
 
 
@@ -645,7 +648,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
                   />
                 </div>
                 {message.detectedQuestion && message.detectedQuestion.found && (
-                  <div className="navigator-side" ref={tableObserverRef}>
+                  <div className="navigator-side" ref={setTableObserverRef}>
                     <QuestionNavigator
                       detectedQuestion={message.detectedQuestion}
                       markingContext={(message as any).markingContext}
