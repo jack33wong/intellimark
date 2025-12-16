@@ -40,6 +40,7 @@ const initialState = {
   splitModeImages: null,
   activeImageIndex: 0,
   activeQuestionId: null,
+  visibleTableIds: new Set(),
   isQuestionTableVisible: true,
 };
 
@@ -67,8 +68,18 @@ function markingPageReducer(state, action) {
       return { ...state, activeImageIndex: action.payload };
     case 'SET_ACTIVE_QUESTION_ID':
       return { ...state, activeQuestionId: action.payload };
-    case 'SET_QUESTION_TABLE_VISIBLE':
-      return { ...state, isQuestionTableVisible: action.payload };
+    case 'SET_TABLE_VISIBILITY':
+      const newSet = new Set(state.visibleTableIds);
+      if (action.payload.visible) {
+        newSet.add(action.payload.id);
+      } else {
+        newSet.delete(action.payload.id);
+      }
+      return {
+        ...state,
+        visibleTableIds: newSet,
+        isQuestionTableVisible: newSet.size > 0
+      };
     default:
       throw new Error(`Unhandled action type: ${action.type}`);
   }
@@ -429,8 +440,8 @@ export const MarkingPageProvider = ({ children, selectedMarkingResult, onPageMod
     dispatch({ type: 'SET_ACTIVE_QUESTION_ID', payload: questionId });
   }, []);
 
-  const setQuestionTableVisibility = useCallback((isVisible) => {
-    dispatch({ type: 'SET_QUESTION_TABLE_VISIBLE', payload: isVisible });
+  const setQuestionTableVisibility = useCallback((id, isVisible) => {
+    dispatch({ type: 'SET_TABLE_VISIBILITY', payload: { id, visible: isVisible } });
   }, []);
 
   const value = useMemo(() => ({

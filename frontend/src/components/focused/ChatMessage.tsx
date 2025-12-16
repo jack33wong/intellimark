@@ -73,7 +73,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
-            setQuestionTableVisibility(entry.isIntersecting);
+            setQuestionTableVisibility(message.id, entry.isIntersecting);
           });
         },
         // Use a more generous margin to ensure trigger when scrolling near top
@@ -82,7 +82,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       observer.observe(node);
       observerRef.current = observer;
     }
-  }, [setQuestionTableVisibility]);
+  }, [setQuestionTableVisibility, message.id]);
 
 
   // Inline function to avoid Jest import issues

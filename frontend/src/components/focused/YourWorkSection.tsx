@@ -19,26 +19,41 @@ interface YourWorkSectionProps {
  * Renders as: Student Text      [Mark] Reasoning
  */
 const FormattedContent = ({ content }: { content: string }) => {
-    // 1. Split by " -- " to separate Student Work from Annotation
-    const parts = content.split(' -- ');
-
     let studentWork = content;
     let annotation = '';
 
-    if (parts.length >= 2) {
+    // 1. Try explicit separator first
+    if (content.includes(' -- ')) {
+        const parts = content.split(' -- ');
         studentWork = parts[0];
         annotation = parts.slice(1).join(' -- ');
+    } else {
+        // 2. Fallback: Look for pattern "Space + MarkCodes + Hyphen + Reason"
+        // Matches: " val   M0 A0 - Reason" or " val B1 - Reason"
+        const markMatch = content.match(/\s+((?:[A-Z]\d+\s*)+)\s-\s/);
+        if (markMatch && markMatch.index !== undefined) {
+            studentWork = content.substring(0, markMatch.index);
+            annotation = content.substring(markMatch.index).trim();
+        }
     }
 
-    // 2. Format Annotation: "M1 - Reason" -> "[M1] Reason"
+    // 3. Format Annotation: "M0 A0 - Reason" -> "[M0] [A0] Reason"
     let displayAnnotation = annotation;
-    const annoMatch = annotation.match(/^([A-Z][0-9]+)\s*-\s*(.*)$/);
+
+    // Matches start with marks: "M0 A0 - Reason..."
+    const annoMatch = annotation.match(/^((?:[A-Z]\d+\s*)+)\s-\s*(.*)$/);
     if (annoMatch) {
-        displayAnnotation = `[${annoMatch[1]}] ${annoMatch[2]}`;
+        const marksStr = annoMatch[1];
+        const reason = annoMatch[2];
+
+        // Wrap each mark in brackets: "M0 A0" -> "[M0] [A0]"
+        const formattedMarks = marksStr.trim().split(/\s+/).map(m => `[${m}]`).join(' ');
+
+        displayAnnotation = `${formattedMarks} ${reason}`;
     }
 
     // Render with Flexbox Grid-like alignment
-    // Student Work: Fixed width (e.g. 300px) to ensure vertical alignment of annotations
+    // Student Work: Fixed width (e.g. 280px) to ensure vertical alignment of annotations
     // Annotation: Takes remaining space
     return (
         <div style={{ display: 'flex', alignItems: 'flex-start' }}>
@@ -72,34 +87,94 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
     const groupedWork: { [parent: string]: { label: string; children: { label: string; content: string }[] } } = {};
     const ungroupedWork: string[] = [];
 
+    // Parsing State
+    let currentParentLabel: string | null = null;
+    let currentChildIndex = -1;
+
     lines.forEach(line => {
-        let text = line.replace(/^\t+/, '').replace(/\*\*(.*?)\*\*/g, '$1');
-        if (!text.trim()) return;
+        let text = line.replace(/^\t+/, '').replace(/\*\*(.*?)\*\*/g, '$1').trim();
+        if (!text) return;
 
         if (text.startsWith('YOUR WORK:')) return;
+
+        // 1. Header: Pure digits (e.g. "2")
         if (/^\d+$/.test(text)) {
             questionHeader.push(text);
             return;
         }
 
-        // Match standard format: "2ai) content" or "ai) content" or "b) content"
-        // Also handle "2ai: content" or "ai: content" just in case
-        const partMatch = text.match(/^(\d*)([a-z]+?)(i*)[\):]\s*(.+)$/);
+        // 2. Format: "Label" only (a), i), a:, i:)
+        const labelOnlyMatch = text.match(/^(\d*[a-z]+|[ivx]+)[\):]$/i);
 
-        if (partMatch) {
-            const [, , letter, roman, content] = partMatch;
+        if (labelOnlyMatch) {
+            const label = labelOnlyMatch[1];
+            // Heuristic: If it looks like a Roman numeral (i, ii, v) AND we have a parent, it's likely a child.
+            // Otherwise it's a new parent (a, b, c).
+            const isRoman = /^(i|ii|iii|iv|v|vi|vii|viii|ix|x)+$/i.test(label) && currentParentLabel;
 
-            if (!groupedWork[letter]) {
-                groupedWork[letter] = { label: `${letter})`, children: [] };
+            if (isRoman && currentParentLabel) {
+                // Add Child to current Parent
+                groupedWork[currentParentLabel].children.push({
+                    label: `${label})`,
+                    content: ''
+                });
+                currentChildIndex = groupedWork[currentParentLabel].children.length - 1;
+            } else {
+                // New Parent Group
+                const newLabel = label;
+                if (!groupedWork[newLabel]) {
+                    groupedWork[newLabel] = { label: `${newLabel})`, children: [] };
+                }
+                currentParentLabel = newLabel;
+                currentChildIndex = -1; // Reset child index
             }
+            return;
+        }
 
-            // Add to children
-            groupedWork[letter].children.push({
-                label: roman ? `${roman})` : '', // 'i)', 'ii)' or empty if simple 'b'
-                content: content
+        // 3. Format: "Label Content" (a) text, i) text)
+        const labelContentMatch = text.match(/^(\d*[a-z]+|[ivx]+)[\):]\s+(.+)$/i);
+        if (labelContentMatch) {
+            const label = labelContentMatch[1];
+            const content = labelContentMatch[2];
+            const isRoman = /^(i|ii|iii|iv|v|vi|vii|viii|ix|x)+$/i.test(label) && currentParentLabel;
+
+            if (isRoman && currentParentLabel) {
+                groupedWork[currentParentLabel].children.push({
+                    label: `${label})`,
+                    content: content
+                });
+                currentChildIndex = groupedWork[currentParentLabel].children.length - 1;
+            } else {
+                const newLabel = label;
+                if (!groupedWork[newLabel]) {
+                    groupedWork[newLabel] = { label: `${newLabel})`, children: [] };
+                }
+                currentParentLabel = newLabel;
+                // Start implicit child for content
+                groupedWork[newLabel].children.push({
+                    label: '',
+                    content: content
+                });
+                currentChildIndex = groupedWork[newLabel].children.length - 1;
+            }
+            return;
+        }
+
+        // 4. Content Line (No label, just text)
+        if (currentParentLabel && currentChildIndex !== -1) {
+            // Append to current active child
+            const child = groupedWork[currentParentLabel].children[currentChildIndex];
+            // Append with space
+            child.content = child.content ? `${child.content} ${text}` : text;
+        } else if (currentParentLabel) {
+            // Parent exists but no active child. Create implicit child.
+            groupedWork[currentParentLabel].children.push({
+                label: '',
+                content: text
             });
+            currentChildIndex = groupedWork[currentParentLabel].children.length - 1;
         } else {
-            // No recognizable part label (e.g. main question marks or header text)
+            // No grouping context
             ungroupedWork.push(text);
         }
     });
