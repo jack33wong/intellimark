@@ -139,28 +139,51 @@ export default function YourWorkSection({ content }: YourWorkSectionProps) {
 
             // 4. Content Line (No label)
             if (pendingRowIndex !== -1) {
-                // Append to previous row student work
-                // But careful if it contains annotation separator!
-                // Re-parsing the full combined string might be better?
-                // Or just append to 'work' if no annotation found yet.
-                // Assuming multi-line content belongs to work.
-
-                // If previous row already has marks/reason, this might be reasoning continuation?
-                // For simplicity, append to work.
                 const prev = parsedRows[pendingRowIndex];
-                if (!prev.annotationMarks && !prev.annotationReason) {
-                    // Re-parse combined
-                    const combined = `${prev.studentWork} ${text}`;
-                    const { work, marks, reason } = parseRowContent(combined);
-                    prev.studentWork = work;
-                    prev.annotationMarks = marks;
-                    prev.annotationReason = reason;
+
+                // If previous row is "complete" (has annotations), we assume this new line is a NEW step
+                // unless it clearly looks like a reasoning continuation (no marks, starts with lowercase? hard to tell).
+                // Given the user request "new line and bullet point", we favor splitting.
+                if (prev.annotationMarks || prev.annotationReason) {
+                    // Start new row
+                    const { work, marks, reason } = parseRowContent(text);
+                    parsedRows.push({
+                        qNum: currentQNum, // usually empty if consumed similar to above
+                        subLabel: '', // Implicit -> Bullet
+                        studentWork: work,
+                        annotationMarks: marks,
+                        annotationReason: reason
+                    });
+                    currentQNum = '';
+                    pendingRowIndex = parsedRows.length - 1;
                 } else {
-                    // Append to reason if reason exists? Or work?
-                    // Usually reasoning wraps.
-                    if (prev.annotationReason) {
-                        prev.annotationReason += ` ${text}`;
+                    // Previous row has Work but NO annotations yet.
+                    // Try to attach this line as the annotation part?
+                    // Or append to work?
+
+                    // If this text LOOKS like annotation (starts with marks or separator):
+                    const potentialParse = parseRowContent(text);
+                    if (potentialParse.marks || text.trim().startsWith('--')) {
+                        // It completes the previous row
+                        // We merge content carefully
+                        // If text is " -- M0...", parseRowContent handles it.
+                        // But parseRowContent logic assumes "Work -- Marks".
+                        // If text is JUST " -- M0", work is empty string.
+
+                        const { work, marks, reason } = parseRowContent(text);
+                        // If 'work' is empty or just separator, we just add marks/reason to prev
+                        if (!work && (marks || reason)) {
+                            prev.annotationMarks = marks;
+                            prev.annotationReason = reason;
+                        } else {
+                            // It has 'work' part too? e.g. "more work -- M0"
+                            // Append work, set marks
+                            if (work) prev.studentWork += ` ${work}`;
+                            prev.annotationMarks = marks;
+                            prev.annotationReason = reason;
+                        }
                     } else {
+                        // Just more work content?
                         prev.studentWork += ` ${text}`;
                     }
                 }
