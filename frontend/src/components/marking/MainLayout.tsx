@@ -237,26 +237,20 @@ const MainLayout: React.FC = () => {
 
   // Reusable Ribbon Render Function
   const renderQuestionRibbon = (isChatMode: boolean) => {
-    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) return null;
+    if (!currentSession || !activeDetectedQuestion || !activeDetectedQuestion.found) {
+      return null;
+    }
 
     // Prevent duplicate ribbon in Split Mode
     // Split mode has its own dedicated ribbon, so suppress the specific "Chat Mode" one
-    if (isChatMode && splitModeImages) return null;
-
-    // In Chat Mode, only show if table is hidden
-
-    if (isChatMode) {
-      console.log('[DEBUG RIBBON] Rendering Check:', {
-        isChatMode,
-        isQuestionTableVisible,
-        hasActiveDetectedQuestion: !!activeDetectedQuestion,
-        found: activeDetectedQuestion?.found,
-        visibleTableIdsSize: (visibleTableIds as any)?.size,
-        ids: Array.from((visibleTableIds as any) || [])
-      });
+    if (isChatMode && splitModeImages) {
+      return null;
     }
 
-    if (isChatMode && isQuestionTableVisible) return null;
+    // In Chat Mode, only show if table is hidden
+    if (isChatMode && isQuestionTableVisible) {
+      return null;
+    }
 
     const ribbonContent = (
       <QuestionNavigator
@@ -308,7 +302,7 @@ const MainLayout: React.FC = () => {
     // Styling Wrapper based on Mode
     if (isChatMode) {
       return (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--surface-primary)', borderBottom: '1px solid var(--border-color)', width: '100%', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
           <div style={{ maxWidth: '1000px', width: '85vw', margin: '0 auto', paddingLeft: '48px', paddingRight: '48px' }}>
             {ribbonContent}
           </div>
