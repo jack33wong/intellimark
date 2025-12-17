@@ -805,7 +805,7 @@ export async function executeMarkingForQuestion(
         }, 0) / task.sourcePages.length
       ) : 0.9,
       markingScheme: (markingResult as any).markingScheme || task.markingScheme, // Prefer returned scheme (normalized/used) over task input
-      studentWork: task.classificationStudentWork || undefined, // Explicitly use Classification Student Work
+      studentWork: (markingResult as any).cleanedOcrText || task.classificationStudentWork || undefined, // Prefer sanitized text from marking result
       databaseQuestionText: task.markingScheme?.databaseQuestionText || task.questionText,
       promptMarkingScheme: (markingResult as any).schemeTextForPrompt // Exact scheme text from prompt
     };
