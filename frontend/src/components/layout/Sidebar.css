@@ -429,6 +429,11 @@
   /* overflow: hidden; -- REMOVED to allow dropdown to show */
 }
 
+/* Float item above others when dropdown is open */
+.mark-history-item.has-open-dropdown {
+  z-index: 100;
+}
+
 /* Accent bar for active item */
 .mark-history-item.active::before {
   content: '';

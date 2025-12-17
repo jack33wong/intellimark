@@ -367,7 +367,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="mark-history-scrollable">
             {getFilteredSessions().map((session) => (
-              <div key={session.id} className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''}`} onClick={() => handleSessionClick(session)}>
+              <div
+                key={session.id}
+                className={`mark-history-item ${selectedSessionId === session.id ? 'active' : ''} ${dropdownSessionId === session.id ? 'has-open-dropdown' : ''}`}
+                onClick={() => handleSessionClick(session)}
+              >
                 <div className="mark-history-content">
                   <div className="mark-history-item-top-row">
                     <div className="mark-history-item-title">
