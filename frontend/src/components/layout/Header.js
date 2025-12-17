@@ -14,7 +14,9 @@ import {
   CheckCircle,
   Coins,
   BarChart3,
-  AlertCircle
+  BarChart3,
+  AlertCircle,
+  LayoutDashboard
 } from 'lucide-react';
 import SubscriptionService from '../../services/subscriptionService.ts';
 import API_CONFIG from '../../config/api';
@@ -302,17 +304,9 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       <div className="header-content">
 
         {/* Center - Navigation */}
+        {/* Center - Navigation - Removed Admin link from here */}\
         <nav className="header-nav">
-          {user?.isAdmin && (
-            <button
-              className="nav-item admin-nav"
-              onClick={() => navigate('/admin')}
-            >
-              Admin
-            </button>
-          )}
-
-
+          {/* Empty or removed if no other items */}
         </nav>
 
         {/* Right side - Profile */}
@@ -460,6 +454,20 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                     </div>
 
                     <div className="profile-actions">
+                      {user.isAdmin && (
+                        <button
+                          className="profile-action"
+                          onClick={() => {
+                            navigate('/admin');
+                            handleProfileClose();
+                          }}
+                        >
+                          <LayoutDashboard size={16} />
+                          Admin
+                        </button>
+                      )}
+
+
                       <button
                         className="profile-action"
                         onClick={() => {
