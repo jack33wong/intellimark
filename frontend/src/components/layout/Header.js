@@ -470,6 +470,17 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
                       <button
                         className="profile-action"
                         onClick={() => {
+                          handleUpgradeClick();
+                          handleProfileClose();
+                        }}
+                      >
+                        <Crown size={16} />
+                        Upgrade Plan
+                      </button>
+
+                      <button
+                        className="profile-action"
+                        onClick={() => {
                           setIsUsageModalOpen(true);
                           handleProfileClose();
                         }}
