@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings,
+  Settings2,
   BookOpen,
   Clock,
   Trash2,
@@ -28,6 +29,7 @@ import { simpleSessionService } from '../../services/markingApiService';
 import { ensureStringContent } from '../../utils/contentUtils';
 import EventManager, { EVENT_TYPES } from '../../utils/eventManager';
 import type { UnifiedSession } from '../../types';
+import SettingsModal from '../SettingsModal';
 import './Sidebar.css';
 
 // Define the types for the props this component receives from App.tsx
@@ -57,7 +59,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState<string>('');
+  const [editingTitle, setEditingTitle] = useState('');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const [dropdownSessionId, setDropdownSessionId] = useState<string | null>(null);
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
@@ -442,14 +445,24 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div >
-      {isAdmin() && (
-        <div className="admin-section">
+      <div className="admin-section">
+        <div className="admin-link" onClick={() => setIsSettingsModalOpen(true)}>
+          <Settings2 className="text-[var(--icon-secondary)]" size={18} />
+          <span>Settings</span>
+        </div>
+
+        {isAdmin() && (
           <div className="admin-link" onClick={() => navigate('/admin')}>
             <Settings size={16} />
             <span>Admin</span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
     </div >
   );
 };
