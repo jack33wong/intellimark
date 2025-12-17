@@ -14,7 +14,6 @@ import {
   CheckCircle,
   Coins,
   BarChart3,
-  BarChart3,
   AlertCircle,
   LayoutDashboard
 } from 'lucide-react';
