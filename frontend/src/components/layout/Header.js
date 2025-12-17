@@ -309,7 +309,7 @@ const Header = ({ onMenuToggle, isSidebarOpen }) => {
       <div className="header-content">
 
         {/* Center - Navigation */}
-        {/* Center - Navigation - Removed Admin link from here */}\
+        {/* Center - Navigation - Removed Admin link from here */}
         <nav className="header-nav">
           {/* Empty or removed if no other items */}
         </nav>
