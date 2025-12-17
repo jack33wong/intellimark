@@ -67,10 +67,20 @@ const MainLayout: React.FC = () => {
 
   // State to track if we've scrolled past the header to prevent ribbon overlap
   const [showRibbonOnScroll, setShowRibbonOnScroll] = React.useState(false);
+  const [containerElement, setContainerElement] = React.useState<HTMLDivElement | null>(null);
+
+  // Reliable Ref Callback to capture the container node
+  const setChatContainerRef = React.useCallback((node: HTMLDivElement | null) => {
+    // Preserve the original ref from useScrollManager context
+    if (chatContainerRef) {
+      chatContainerRef.current = node;
+    }
+    setContainerElement(node);
+  }, [chatContainerRef]);
 
   // Scroll Listener for Ribbon Visibility
   useEffect(() => {
-    const container = chatContainerRef.current;
+    const container = containerElement;
     if (!container) return;
 
     const handleScroll = () => {
@@ -91,7 +101,7 @@ const MainLayout: React.FC = () => {
     handleScroll();
 
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [chatContainerRef.current]); // Only re-run if chatContainerRef.current changes
+  }, [containerElement]);
 
   // Common Chat Content Render Function to reuse in both modes
   const renderChatContent = () => {
@@ -104,7 +114,7 @@ const MainLayout: React.FC = () => {
         {/* Sticky Ribbon Navigator for Chat Mode */}
         {renderQuestionRibbon(true)}
 
-        <div className="chat-container" ref={chatContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="chat-container" ref={setChatContainerRef} style={{ flex: 1, overflowY: 'auto' }}>
           {currentSession && (
             <SessionManagement key={currentSession.id} />
           )}
